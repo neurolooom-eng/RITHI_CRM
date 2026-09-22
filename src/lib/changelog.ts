@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.338',
+    date: '2026-09-22',
+    title: 'Warranty Sale: pick the customer, pick the product, type the serial',
+    changes: [
+      'PARTY NAME IS NOW A SEARCH BOX over the Party Master \u2014 type a few letters and pick. Choosing a customer fills in the address, city, state, pincode, both telephone numbers, PAN, GST, the type, the profile and the initial service engineer from their record.',
+      'CHANGING THE CUSTOMER REPLACES ALL OF THOSE, BLANKS INCLUDED. Keeping the previous customer\u2019s address where the new one has none would put a different hospital\u2019s address on the sale with nothing on screen saying so. Type over any of them afterwards \u2014 the installation address often differs from the registered one.',
+      'A customer the Party Master has not got can still be typed, and nothing is filled in for them, because there is nothing to fill it from.',
+      'SALE ENTRY DATE IS STAMPED when you create the entry. It is no longer a box to type in.',
+      'WARRANTY START DATE DEFAULTS TO TODAY and is yours to change. Enter the period in MONTHS \u2014 the End Date, the period in years and the PM visit count all follow from it and are shown greyed out. The arithmetic was always there; what has gone is the invitation to type over the answer and have the next keystroke quietly undo it.',
+      'ADDING A MACHINE: Product is a search box over the Product Master (Active lines only \u2014 a retired line takes no new sale), and picking a product name fills its code where the catalogue gives ONE answer. Where several codes share a name, such as CPX CARE, it is left for you rather than guessed \u2014 a wrong code on a machine record gets believed, a blank one gets filled in.',
+      'Serial Number is free text, and everything else on the machine follows the sale entry until you type into it.',
+      'Optional: supabase/apply/sales_contracts.sql makes the database stamp the entry date too, for imports and scripts. The form does not need it.',
+    ],
+  },
+  {
     version: '0.9.337',
     date: '2026-09-22',
     title: '\u26a0 Machine History showed the wrong rows when you filtered \u2014 fixed',

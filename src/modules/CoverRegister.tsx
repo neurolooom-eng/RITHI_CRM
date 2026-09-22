@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
+import { sbSearchParties, sbPartyInfo } from '../lib/supabase';
+import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName } from '../lib/coverspec';
 import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
@@ -112,6 +114,32 @@ function FieldInput({
      /** Options the SCREEN loaded — today, the Product Master's active lines. */
      runtimeOptions?: string[] }) {
   const common = { className: 'input', value, disabled, onChange: (e: { target: { value: string } }) => onChange(e.target.value) };
+  // WORKED OUT, OR STAMPED — never typed. A box somebody can type into is a box
+  // whose value they expect to keep, and the next keystroke on the field that
+  // DRIVES this one would overwrite it without saying so. Shown rather than
+  // hidden, because the value is the answer they came for.
+  if (field.derived) {
+    return <input className="input" value={value} readOnly disabled
+                  title={`Worked out from ${field.derived} — not typed here`} />;
+  }
+  // THE PARTY MASTER, SEARCHED ON THE SERVER. 5,873 customers is a few hundred
+  // KB before the field would work at all; the call registers' own customer box
+  // has searched since v0.9.193 and this is the same mechanism.
+  if (field.optionsFrom === 'party') {
+    return <SelectPicker value={value} onChange={onChange} disabled={disabled}
+                         placeholder="— find the customer —"
+                         options={value ? [value] : []}
+                         onSearch={(term) => sbSearchParties(term, 50)}
+                         // A SALE MAY NAME A CUSTOMER THE MASTER HAS NOT GOT.
+                         // The machine is being sold to them either way, and a
+                         // register that refuses the sale until somebody adds
+                         // the customer elsewhere is a register that gets kept
+                         // in a spreadsheet instead. Nothing is filled in for a
+                         // name the master does not hold, which is honest: it
+                         // has nothing to fill it from.
+                         allowFreeText
+                         emptyHint="Customers come from the Party Master. Typing a name the master has not got is allowed — nothing will be filled in for it." />;
+  }
   if (field.type === 'bool') {
     return <SelectPicker value={value} onChange={onChange} disabled={disabled} placeholder="—"
                          options={['Yes', 'No']} />;
@@ -162,7 +190,13 @@ function ItemCard({
   // time anybody touched one.
   const set = (f: CoverField, v: string) => setDraft((d) => {
     const next = { ...d, [f.name]: toDb(f, v) };
-    return { ...next, ...deriveItem(kind, f.name, next) };
+    // THE CODE AND THE NAME ARE ONE CHOICE. Filled only where the catalogue
+    // gives one answer — nine codes share the name "CPX CARE", and a guessed
+    // code on a machine record is worse than a blank one.
+    const pair = (f.name === 'product_name' || f.name === 'product_code')
+      ? pairProductCodeAndName(f.name, v, lines)
+      : {};
+    return { ...next, ...pair, ...deriveItem(kind, f.name, next) };
   });
   const unpin = (f: CoverField) => setDraft((d) => ({ ...d, [f.name]: null }));
   const dirty = useMemo(
@@ -535,7 +569,12 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
    *  not being able to suggest one is no reason to refuse the entry. */
   const newEntry = async () => {
     setOpen({}); setItems([]);
-    setDraft({});
+    filledFor.current = '';
+    // WARRANTY START DEFAULTS TO TODAY and is then typed over where the machine
+    // was installed on another day (the user, 2026-09-22). The ENTRY date is
+    // not set here at all: the database stamps it (0230), which is what
+    // "automatic" has to mean if it is to be trusted.
+    setDraft(kind === 'sale' ? { warranty_start: new Date().toISOString().slice(0, 10) } : {});
     try {
       const n = await nextCoverNumber(kind);
       setDraft((d) => (str(d[cfg.key]) ? d : { ...d, [cfg.key]: n }));
@@ -661,10 +700,44 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
   };
 
+  // THE PARTY FILLS THE ENTRY IN (the user, 2026-09-22). Only on a SALE, and
+  // only when the name actually changed: re-picking the same customer must not
+  // wipe an installation address somebody typed over it on purpose.
+  //
+  // IT REPLACES ALL ELEVEN FIELDS, BLANKS INCLUDED, and that is the careful
+  // half. Keeping the previous party's address where the new one has none looks
+  // helpful and is the worst outcome available — a sale carrying a DIFFERENT
+  // customer's address, with nothing on screen saying so.
+  const filledFor = useRef('');
+  const fillFromParty = async (name: string) => {
+    const want = name.trim();
+    if (!want || want.toLowerCase() === filledFor.current.toLowerCase()) return;
+    filledFor.current = want;
+    let info = null;
+    try { info = await sbPartyInfo(want); } catch { /* the name still stands */ }
+    // A name the master has not got fills nothing rather than clearing what is
+    // there: it has nothing to fill it FROM, and blanking on a typo would lose
+    // work somebody had already done.
+    if (!info) return;
+    // Still the same customer? A slow lookup must not land on a name that has
+    // since been changed.
+    if (want.toLowerCase() !== filledFor.current.toLowerCase()) return;
+    setDraft((d) => ({ ...d, ...partyFillForSale(info) }));
+    setMsg({ tone: 'info', text: `Address, contact and tax details filled from the Party Master for ${want}.` });
+  };
+
   const saveEntry = async () => {
     setSaving(true);
     try {
-      const saved = await saveHeader(kind, draft);
+      // THE ENTRY DATE IS STAMPED ON CREATION, never typed (the user,
+      // 2026-09-22). Sent from here as well as defaulted in the database
+      // (0230) so the form works on a project that has not run that file yet;
+      // on an UPDATE it is left exactly as it was, because re-stamping it would
+      // silently re-date a sale every time somebody fixed a typo.
+      const toSave = (!draft.id && kind === 'sale' && !draft.entry_at)
+        ? { ...draft, entry_at: new Date().toISOString() }
+        : draft;
+      const saved = await saveHeader(kind, toSave);
       setOpen(saved); setDraft(saved);
       setFeed('entries', { rows: feeds.entries.rows.map((r) => (r.id === saved.id ? { ...r, ...saved } : r)) });
       // The header moved, so every machine that inherits from it moved too.
@@ -814,17 +887,25 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
               <div className="rep-grid">
                 {cfg.headerFields.filter((f) => f.section === sec).map((f) => (
                   <label key={f.name} className="rep-field">
-                    <span className="field-label">{f.label}</span>
+                    <span className="field-label">
+                      {f.label}
+                      {f.derived && <span className="muted"> · from {f.derived}</span>}
+                      {kind === 'sale' && SALE_PARTY_FIELDS.includes(f.name)
+                        && <span className="muted"> · from the party</span>}
+                    </span>
                     <FieldInput field={f} value={fromDb(f, draft[f.name])} disabled={!canEdit}
-                      onChange={(v) => setDraft((d) => {
-                        // The register's own arithmetic, from the AppSheet
-                        // definition (src/lib/coverspec.ts). Derived from the
-                        // field just edited, so an end date somebody typed for
-                        // a part-month contract is not undone by an unrelated
-                        // keystroke.
-                        const next = { ...d, [f.name]: toDb(f, v) };
-                        return { ...next, ...deriveHeader(kind, f.name, next) };
-                      })} />
+                      onChange={(v) => {
+                        setDraft((d) => {
+                          // The register's own arithmetic, from the AppSheet
+                          // definition (src/lib/coverspec.ts). Derived from the
+                          // field just edited, so an end date somebody typed for
+                          // a part-month contract is not undone by an unrelated
+                          // keystroke.
+                          const next = { ...d, [f.name]: toDb(f, v) };
+                          return { ...next, ...deriveHeader(kind, f.name, next) };
+                        });
+                        if (kind === 'sale' && f.name === 'party_name') void fillFromParty(v);
+                      }} />
                   </label>
                 ))}
               </div>

@@ -1507,17 +1507,39 @@ export function callTypeForTab(tab: string): string {
 
 // ---- call requests (Request Registration) ----------------------------------
 // Party details for autofill (state / city / address).
-export async function sbPartyInfo(party: string): Promise<{ state: string; city: string; address: string } | null> {
+// WIDENED FOR THE WARRANTY SALE (2026-09-22), which fills eleven fields from
+// the party rather than three. The original three keys are unchanged, so every
+// existing caller reads exactly what it read before; the rest are extra keys on
+// the same object and are ignored where nobody asks for them.
+export interface PartyInfo {
+  state: string; city: string; address: string;
+  pincode: string; phone: string; phone_2: string;
+  pan: string; gstin: string;
+  party_type: string; profile: string; service_engineer: string;
+}
+
+export async function sbPartyInfo(party: string): Promise<PartyInfo | null> {
   // `name_key` IS `lower(btrim(party_name))` with a UNIQUE btree on it, and
   // `partyKey()` computes exactly that string in JavaScript -- so this is the
   // same case-insensitive, trimmed match the `ilike` was doing, through an
   // index instead of a scan. No fallback is needed here because it is not an
   // approximation of the old behaviour, it IS the old behaviour.
-  const { data } = await must().from('parties').select('state,city,address,extra')
+  const { data } = await must().from('parties')
+    .select('state,city,address,extra,pincode,phone,phone_2,pan,gstin,party_type,profile,service_engineer')
     .eq('name_key', partyKey(party)).limit(1).maybeSingle();
   if (!data) return null;
   const ex = (data.extra as Record<string, unknown>) ?? {};
-  return { state: String(data.state ?? ''), city: String(data.city ?? ''), address: String(data.address ?? ex['Address'] ?? '') };
+  const t = (v: unknown) => String(v ?? '').trim();
+  return {
+    state: t(data.state), city: t(data.city),
+    // `extra` is the import's own leftovers and is the FALLBACK, not the
+    // source: a party loaded before the column existed keeps its address there.
+    address: String(data.address ?? ex['Address'] ?? '').trim(),
+    pincode: t(data.pincode), phone: t(data.phone), phone_2: t(data.phone_2),
+    pan: t(data.pan), gstin: t(data.gstin),
+    party_type: t(data.party_type), profile: t(data.profile),
+    service_engineer: t(data.service_engineer),
+  };
 }
 
 export async function addCallRequest(rec: Record<string, unknown>): Promise<{ ok: boolean; reqid?: string; unique_key?: string; error?: string }> {

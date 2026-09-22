@@ -279,6 +279,36 @@ against the call it was fitted to.
 
 - **Warranty Register** `/warranties` — sale entries (`SA`) and the machines sold
   under each.
+  > ### Keying a new sale
+  >
+  > **Party Name is a search box over the Party Master** — start typing and pick
+  > the customer. Choosing one **fills in the address, city, state, pincode,
+  > both telephone numbers, PAN, GST, the type, the profile and the initial
+  > service engineer** from that customer's record.
+  >
+  > **Changing the customer replaces all of those, blanks included.** That is
+  > deliberate: keeping the previous customer's address where the new one has
+  > none would put a different hospital's address on the sale with nothing on
+  > screen saying so. Type over any of them afterwards — the installation
+  > address often differs from the registered one.
+  >
+  > A customer the Party Master has not got can still be typed. Nothing is
+  > filled in for them, because there is nothing to fill it from.
+  >
+  > **Sale Entry Date is stamped** when you create the entry. It is not typed.
+  >
+  > **Warranty Start Date defaults to today** and is yours to change. Enter the
+  > period in **MONTHS**; the **End Date**, the period in years and the PM visit
+  > count all follow from it and are shown greyed out — they are worked out, not
+  > asked for.
+  >
+  > **Then add the machines.** Product is a search box over the Product Master
+  > (only lines still marked Active — a retired line takes no new sale), and
+  > picking a product name fills its code where the catalogue gives one answer;
+  > where several codes share a name, it is left for you rather than guessed.
+  > **Serial Number is free text.** Everything else — dates, period, invoice,
+  > city, state, engineer — **follows the entry** until you type into it, and
+  > then that machine is pinned and says so.
 - **Contract Register** `/contracts` — contract entries (`MC`) and the machines
   covered.
 

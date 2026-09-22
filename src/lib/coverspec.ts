@@ -359,3 +359,104 @@ export function deriveItem(kind: 'sale' | 'contract', changed: string, row: Row)
   }
   return out;
 }
+
+// ===========================================================================
+// THE PARTY FILLS THE SALE IN — one mapping, in one place.
+//
+//   The user, 2026-09-22: "In Warranty Sale - Party Name should be a drop-down
+//   from Party Master - Type Search and select. All relevant fields like city,
+//   state, address should fill in Automatically based on the selected Party."
+//
+// WHY IT IS A FUNCTION AND NOT TEN LINES IN THE FORM: the columns are named
+// differently on the two sides (`phone` is `tel1`, `gstin` is `gst`,
+// `service_engineer` is `engineer`), and a mapping written inline is one nobody
+// can test and everybody can half-copy.
+//
+// CHANGING THE PARTY REPLACES ALL OF THEM, INCLUDING WITH BLANKS, and that is
+// the decision worth stating. Keeping the previous party's address where the
+// new one has none looks helpful and is the worst outcome available: a sale
+// carrying a DIFFERENT customer's address, with nothing on screen saying so.
+// These fields describe the chosen party; if the installation address really
+// differs, it is typed afterwards, over a field that is visibly the party's.
+//
+// A VALUE THE FORM CANNOT OFFER IS DROPPED RATHER THAN FORCED IN. `party_type`
+// and `profile` are pick-lists with a fixed vocabulary, and the Party Master is
+// free-typed in places; a value outside the list would sit in a box that cannot
+// re-select it, which reads as a form that has lost the value.
+// ===========================================================================
+
+export interface PartyFill {
+  state?: unknown; city?: unknown; address?: unknown; pincode?: unknown;
+  phone?: unknown; phone_2?: unknown; pan?: unknown; gstin?: unknown;
+  party_type?: unknown; profile?: unknown; service_engineer?: unknown;
+}
+
+const text = (v: unknown) => String(v ?? '').trim();
+const oneOf = (v: unknown, allowed: string[]) => {
+  const t = text(v).toUpperCase();
+  return allowed.includes(t) ? t : '';
+};
+
+export const SALE_PARTY_TYPES = ['CUSTOMER', 'DEALER'];
+export const SALE_PROFILES = ['PRIVATE', 'GOVERNMENT', 'DEALER', 'GENERAL'];
+
+/** The Sale Entry fields that follow the party, as the party has them. Every
+ *  key is always present, so applying it CLEARS what the new party does not
+ *  have rather than leaving the previous party's value behind. */
+export function partyFillForSale(p: PartyFill | null): Row {
+  const q = p ?? {};
+  return {
+    state: text(q.state),
+    city: text(q.city),
+    address: text(q.address),
+    pincode: text(q.pincode),
+    tel1: text(q.phone),
+    tel2: text(q.phone_2),
+    pan: text(q.pan),
+    gst: text(q.gstin),
+    party_type: oneOf(q.party_type, SALE_PARTY_TYPES),
+    profile: oneOf(q.profile, SALE_PROFILES),
+    engineer: text(q.service_engineer),
+  };
+}
+
+/** Which Sale Entry fields the party fills — so the form can say so beside
+ *  them, and so a check can hold the two lists together. */
+export const SALE_PARTY_FIELDS = Object.keys(partyFillForSale(null));
+
+// ===========================================================================
+// THE PRODUCT CODE AND THE PRODUCT NAME ARE ONE CHOICE, NOT TWO.
+//
+// A sale line asks for both and the Product Master holds both, so typing the
+// second is re-keying something the system already knows — and the pair being
+// out of step is a machine the register cannot match back to its catalogue
+// line.
+//
+// IT FILLS ONLY WHERE THE ANSWER IS UNAMBIGUOUS. Nine catalogue codes share the
+// name "CPX CARE", so choosing that name does not decide a code and the field
+// is LEFT ALONE rather than given the first one — the same rule as a Drive file
+// name matching two files, and for the same reason: a wrong code on a machine
+// record is worse than a blank one, because the blank gets filled in and the
+// wrong one gets believed.
+//
+// It never CLEARS the other field. An unrecognised name is one the catalogue
+// has not got, not a reason to throw away a code somebody typed.
+// ===========================================================================
+
+export interface CatalogueLine { code: string; name: string; active: boolean }
+
+const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
+
+export function pairProductCodeAndName(
+  changed: 'product_name' | 'product_code', value: string, lines: CatalogueLine[],
+): Row {
+  const v = norm(value);
+  if (!v) return {};
+  const live = lines.filter((l) => l.active);
+  if (changed === 'product_name') {
+    const codes = [...new Set(live.filter((l) => norm(l.name) === v).map((l) => l.code).filter(Boolean))];
+    return codes.length === 1 ? { product_code: codes[0] } : {};
+  }
+  const names = [...new Set(live.filter((l) => norm(l.code) === v).map((l) => l.name).filter(Boolean))];
+  return names.length === 1 ? { product_name: names[0] } : {};
+}

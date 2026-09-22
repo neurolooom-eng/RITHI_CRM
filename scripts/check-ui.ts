@@ -5319,6 +5319,50 @@ console.log('\n-- the Product Database and the Product Master are two registers 
     /retired line takes no new sale/.test(reg), true);
 }
 
+console.log('\n-- the Warranty Sale asks for what it cannot work out, and no more --');
+{
+  // The user, 2026-09-22: the party is a searched pick-list, the entry date is
+  // stamped, the period is entered in MONTHS and the end date follows.
+  const cover = readFileSync('src/lib/cover.ts', 'utf8');
+  const reg = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+
+  const saleField = (name: string) => {
+    const i = cover.indexOf('export const SALE');
+    const j = cover.indexOf('export const CONTRACT');
+    const block = cover.slice(i, j);
+    const m = new RegExp(`\\{ name: '${name}',[^}]*\\}`, 's').exec(block);
+    return m ? m[0] : '';
+  };
+
+  eq('the party is a searched pick-list, not a text box',
+    /optionsFrom: 'party'/.test(saleField('party_name')), true);
+  // A TEXT BOX HERE IS THE BUG, not a lesser version of the feature: a typed
+  // customer fills nothing and matches nothing downstream.
+  eq('...and it reaches the Party Master rather than a downloaded list',
+    /onSearch=\{\(term\) => sbSearchParties\(term, 50\)\}/.test(reg), true);
+  eq('choosing a party fills the entry', /void fillFromParty\(v\)/.test(reg), true);
+  // CHANGING THE PARTY MUST CLEAR WHAT THE NEW ONE HAS NOT GOT. Keeping the
+  // previous customer's address is the worst outcome available here, and
+  // `check:cover-party` is where that is proved -- this only holds the wiring.
+  eq('...through the one mapping', /partyFillForSale\(info\)/.test(reg), true);
+
+  eq('the entry date is stamped, not typed', /derived: 'stamped when the entry is created'/.test(saleField('entry_at')), true);
+  eq('the end date follows the start and the months',
+    /derived: 'Warranty Start \+ Period \(months\)'/.test(saleField('warranty_end')), true);
+  eq('the years follow the months', /derived: 'the months above'/.test(saleField('warranty_years')), true);
+  // A DERIVED FIELD MUST NOT BE TYPEABLE. A box somebody can type into is a box
+  // whose value they expect to keep, and the next keystroke on the field that
+  // drives it would overwrite that silently.
+  eq('a derived field is shown and not typeable',
+    /if \(field\.derived\) \{[\s\S]{0,260}readOnly/.test(reg), true);
+  eq('a new sale starts its warranty today',
+    /warranty_start: new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/.test(reg), true);
+  // Re-stamping on every save would silently re-date a sale each time somebody
+  // fixed a typo.
+  eq('the entry date is stamped on creation only',
+    /!draft\.id && kind === 'sale' && !draft\.entry_at/.test(reg), true);
+}
+
 console.log('\n-- one machine, across every register --');
 {
   const mh = readFileSync('src/modules/MachineHistory.tsx', 'utf8');

@@ -28,8 +28,16 @@ export interface CoverField {
    *  the user's rule (2026-09-14): an inactive line takes no NEW SALE ENTRY.
    *  Only the SALE carries these; a contract may name a retired line, because
    *  the machine it covers was sold when the line was current. */
-  optionsFrom?: 'sellable-name' | 'sellable-code';
+  /**  `party` is the PARTY MASTER, searched on the server rather than
+   *  downloaded: 5,873 customers is a few hundred KB before the field would
+   *  work at all, and the same box on the call registers already searches. */
+  optionsFrom?: 'sellable-name' | 'sellable-code' | 'party';
   section: string;
+  /** THE FORM DOES NOT ASK FOR THIS ONE — it is worked out, or it is stamped.
+   *  Shown, and not typeable: a box somebody can type into is a box whose value
+   *  they expect to keep, and the next keystroke elsewhere would overwrite it.
+   *  `why` says what decides it, beside the field. */
+  derived?: string;
   /** On an item: this field inherits from the header unless it is pinned. */
   inherits?: boolean;
 }
@@ -67,18 +75,28 @@ export const SALE: CoverConfig = {
   endColumn: 'warranty_end',
   headerFields: [
     { name: 'sa_number', label: 'SA Number', section: 'Sale' },
-    { name: 'entry_at', label: 'Sale Entry Date', type: 'date', section: 'Sale' },
-    { name: 'party_name', label: 'Party Name', section: 'Sale' },
+    // STAMPED WHEN THE ENTRY IS CREATED (0230 defaults it to now()), not typed.
+    // The user, 2026-09-22: "Warranty Entry date - Automatic - Timestamp".
+    { name: 'entry_at', label: 'Sale Entry Date', type: 'date', section: 'Sale',
+      derived: 'stamped when the entry is created' },
+    { name: 'party_name', label: 'Party Name', section: 'Sale', optionsFrom: 'party' },
     { name: 'sold_through', label: 'Sold Through', section: 'Sale' },
     { name: 'invoice_no', label: 'Invoice No', section: 'Sale' },
     { name: 'invoice_date', label: 'Invoice Date', type: 'date', section: 'Sale' },
     { name: 'party_type', label: 'Type', type: 'select', options: ['', 'CUSTOMER', 'DEALER'], section: 'Sale' },
     { name: 'profile', label: 'Profile', type: 'select', options: ['', 'PRIVATE', 'GOVERNMENT', 'DEALER', 'GENERAL'], section: 'Sale' },
     { name: 'warranty_start', label: 'Warranty Start Date', type: 'date', section: 'Warranty' },
-    { name: 'warranty_end', label: 'Warranty End Date', type: 'date', section: 'Warranty' },
-    { name: 'warranty_years', label: 'Warranty Period (in Years)', type: 'number', section: 'Warranty' },
+    // THE PERIOD IS ENTERED IN MONTHS AND THE REST FOLLOWS (the user,
+    // 2026-09-22). `deriveHeader` has computed all three from the start date
+    // and the months since it was written; what changes here is that the form
+    // stops inviting somebody to type over the answer.
+    { name: 'warranty_end', label: 'Warranty End Date', type: 'date', section: 'Warranty',
+      derived: 'Warranty Start + Period (months)' },
     { name: 'warranty_months', label: 'Warranty Period (in Months)', type: 'number', section: 'Warranty' },
-    { name: 'pm_visits', label: 'PM Visits', type: 'number', section: 'Warranty' },
+    { name: 'warranty_years', label: 'Warranty Period (in Years)', type: 'number', section: 'Warranty',
+      derived: 'the months above' },
+    { name: 'pm_visits', label: 'PM Visits', type: 'number', section: 'Warranty',
+      derived: 'the period' },
     { name: 'warranty_status', label: 'Warranty Status (as keyed)', section: 'Warranty' },
     { name: 'other_details', label: 'Other Details', type: 'textarea', section: 'Warranty' },
     { name: 'country', label: 'Country', section: 'Installation' },

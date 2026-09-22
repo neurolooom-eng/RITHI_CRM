@@ -705,7 +705,9 @@ const MODULES = {
              '0184_ownership_transfer_key.sql',
              // AFTER 0036: it redefines cover_state() with the 30-day band the
              // AppSheet formula export finally supplied.
-             '0187_cover_expiry_30_days.sql'],
+             '0187_cover_expiry_30_days.sql',
+            // One ALTER: the Sale Entry Date is stamped by default (0230).
+            '0230_sale_entry_at_stamped.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

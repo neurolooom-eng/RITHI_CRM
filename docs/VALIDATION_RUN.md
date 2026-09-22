@@ -4,17 +4,17 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-09-22T14:04:02.769Z
-- **Took** 87s
-- **Commit** `de3681d` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.9.337
+- **Run at** 2026-09-22T17:39:22.583Z
+- **Took** 91s
+- **Commit** `1451a2b` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.9.338
 
 ## Result
 
 | | Passed | Total |
 | --- | --- | --- |
 | Database suites | 100 | 100 |
-| Automated checks | 20 | 20 |
+| Automated checks | 21 | 21 |
 | Labelled `expect ERROR` outcomes matched | 175 | 175 |
 
 **How a suite is judged.** Each suite runs on its OWN copy of a database
@@ -29,7 +29,7 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `252 migrations applied to a fresh database` | ✅ pass |  |
+| `253 migrations applied to a fresh database` | ✅ pass |  |
 
 ## Automated checks
 
@@ -37,6 +37,7 @@ stopped working produces a suite that runs clean.
 | --- | --- | --- |
 | `check:bundles` | ✅ pass | no NEW object is split across modules (380 checked, 37 known and listed) |
 | `check:columns` | ✅ pass | every column of all 33 registers exists |
+| `check:cover-party` | ✅ pass | all passed |
 | `check:dberror` | ✅ pass | all passed |
 | `check:generated` | ✅ pass | every generated bundle matches its migrations (80 checked) |
 | `check:machine` | ✅ pass | all passed |

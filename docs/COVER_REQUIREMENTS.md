@@ -87,9 +87,14 @@ so those two keys disagree with the other two by punctuation alone.
 **CW-004 — A warranty has a recorded start, a recorded period and a derived end.**
 *§7.2.1, §4.2.5.* The end of a warranty shall be derived from its start and its
 period, not typed independently of them.
-**Status: Met (2.0).** `cover_period_end(start, months)` derives it;
-`product_database_v2` prefers the derived end wherever both are known and falls
-back to the register's stored end otherwise.
+**Status: Met (2.0), and now met on the FORM as well (2026-09-22).** The
+register derived the end from the start and the period already; what it also
+did was offer it as a typeable box beside them, which invites the one thing this
+requirement forbids. The Warranty Register's end date, period-in-years and PM
+visits are shown and not typeable, with the period entered in MONTHS and the
+rest following — the user's instruction the same day. `cover_period_end(start,
+months)` is the database's copy; `product_database_v2` prefers the derived end
+wherever both are known and falls back to the register's stored end otherwise.
 
 **CW-005 — The end of a period is computed the same way everywhere.**
 *§4.2.5.* One arithmetic, one answer.
