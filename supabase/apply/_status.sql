@@ -1155,7 +1155,16 @@ with checks(sort_order, bundle, provides, present) as (
          -- The run history must stay un-writable through PostgREST: the job
          -- holds the service role, which is not subject to this grant.
          and not has_table_privilege('authenticated','public.export_runs','insert')
-         and not has_table_privilege('authenticated','public.export_runs','delete')))
+         and not has_table_privilege('authenticated','public.export_runs','delete'))),
+    (175, 'Feedback Without a Report', 'feedback_without_report + is_report_completed() + mod:/feedback-without-report on the three admin roles (0229). The user, 2026-09-22: "If a Customer Feedback is Present for the Said Call, there should be a Report which is Solved - Report Completed. If it is not Present then list it." A feedback form is filled in AFTER a visit, so its existence is evidence the work happened; the completed report is the record of what was done, and a call carrying one without the other is a visit that was never written up -- a gap invisible from either record on its own, because neither is wrong in itself. FOUR FINDINGS, NOT ONE, each needing a different fix: the feedback records no UCN (listed rather than dropped, since a report about missing records must not itself drop records); no call carries that UCN; the call has no visit at all; or the call has visits and none is the completed one. That last is the commonest and the row carries latest_visit_status beside it, so "Solved - Report Pending" -- the system stating a known absence -- is distinguishable from "Unsolved", which is a different problem. THE STATUS IS MATCHED ON ITS LETTERS AND DIGITS RATHER THAN AS A STRING, and that is not defensive coding: the 378-row export this was written for carried "Solved - Report Completed " WITH A TRAILING SPACE in every row, so a string comparison would have reported every one of those calls as missing its report. is_report_completed() reduces to lower-case alphanumerics and isCompletedVisit() in src/lib/reportMapping.ts is the client copy. ANY visit reading completed satisfies it, not the latest one -- a call written up and then re-visited still has its report. security_invoker, so the ordinary call and feedback policies decide the rows; the SCREEN is what is restricted, by the module key. NO means the report is missing, or its key reaches nobody -- which on a project in use is the same as missing, since a code default applies only to a role with no stored permissions. Restore: feedback_checks.sql',
+        (to_regclass('public.feedback_without_report') is not null
+         and to_regprocedure('public.is_report_completed(text)') is not null
+         -- The spelling that actually arrives. A row asserting only that the
+         -- function EXISTS would pass on a naive string comparison.
+         and public.is_report_completed('Solved - Report Completed ')
+         and not public.is_report_completed('Solved - Report Pending')
+         and exists (select 1 from public.app_roles
+                      where role = 'admin' and permissions ? 'mod:/feedback-without-report')))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

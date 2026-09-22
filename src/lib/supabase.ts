@@ -1780,6 +1780,20 @@ export async function listSolvedWithoutReport(): Promise<Record<string, unknown>
       .range(from, to));
 }
 
+// CUSTOMER FEEDBACK WITH NO COMPLETED REPORT BEHIND IT (0229).
+// Ordered by the feedback's own ENTRY time -- the newest gap is the one worth
+// chasing, and the feedback is what this report is a list OF. A tiebreaker on
+// the id, because a bulk import makes ties certain and a tie puts a row on two
+// pages or neither.
+export async function listFeedbackWithoutReport(): Promise<Record<string, unknown>[]> {
+  const c = must();
+  return allRows<Record<string, unknown>>((from, to) =>
+    c.from('feedback_without_report').select('*')
+      .order('feedback_entered_at', { ascending: false, nullsFirst: false })
+      .order('feedback_id', { ascending: false })
+      .range(from, to));
+}
+
 export async function listCallRequestsAsPending(): Promise<Record<string, unknown>[]> {
   const c = must();
   const data = await allRows<Record<string, unknown>>((from, to) =>

@@ -140,6 +140,12 @@ export const MODULES: ModuleDef[] = [
   { path: '/exports/unused', label: 'Reports — Not Consumed Against this Call' },
   { path: '/exports/calls', label: 'Reports — Call Report' },
   { path: '/exports/feedback', label: 'Reports — Customer Feedback Report' },
+  // IN THE REPORTS GROUP, BUT NOT UNDER `/exports` — and that is the whole
+  // reason for the path. Every `mod:/exports/...` key INHERITS from
+  // `mod:/exports` (parentAction), so filing it there would hand it to every
+  // role that can open Reports. The user asked for administrators only
+  // (2026-09-22), and `admin: true` keeps it out of NON_ADMIN_MODULES.
+  { path: '/feedback-without-report', label: 'Feedback Without a Report', admin: true },
   // INDOOR SERVICE — the workshop register (procedure §4.5). Its own module,
   // because a DEMO unit has no call to hang off: the register stands alone and
   // the call is an optional link, not the other way round.
@@ -525,6 +531,11 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/exports/unused', label: '↳ Not Consumed Against this Call', actions: [] },
     { path: '/exports/calls', label: '↳ Call Report', actions: [] },
     { path: '/exports/feedback', label: '↳ Customer Feedback Report', actions: [] },
+    // NOT a child of /exports: it does not inherit, and it is administrators
+    // only. Its position here matches the menu's, which is the half of this
+    // that is easy to get wrong — a page filed under the wrong neighbour is
+    // how somebody grants the wrong thing believing they granted the right one.
+    { path: '/feedback-without-report', label: 'Feedback Without a Report', actions: [] },
   ] },
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },

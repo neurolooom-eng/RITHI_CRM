@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.335',
+    date: '2026-09-22',
+    title: 'New report \u2014 Feedback Without a Report',
+    changes: [
+      'Reports \u2192 Feedback Without a Report. ADMINISTRATORS ONLY. If a customer gave feedback on a call, somebody went and did the work \u2014 so there should be a visit reading "Solved - Report Completed" behind it. This lists the ones where there is not.',
+      'IT NAMES WHICH OF FOUR THINGS IS MISSING, because each needs a different fix: the feedback records no UCN \u00b7 no call carries that UCN \u00b7 the call has no visit at all \u00b7 the call has visits and none of them is the completed one.',
+      'The last is the commonest, and the Latest visit status column tells you what it reads instead \u2014 "Solved - Report Pending" is the system admitting a known absence; "Unsolved" is a different problem and needs a different answer.',
+      'A TRAILING SPACE IS NOT A MISSING REPORT. The status is matched on its letters and digits, so "Solved - Report Completed " with a trailing space counts \u2014 which matters, because that is the spelling every row of your exports carries. A plain text comparison would have listed all 378 of them as missing.',
+      'A call written up and then visited again still has its report. Any completed visit counts, not just the latest one.',
+      'Chips at the top split the list by finding, and the Excel download carries its own scope and a sheet explaining each finding \u2014 it is a list to hand to somebody.',
+      'NEEDS supabase/apply/feedback_checks.sql run on the project before it will open \u2014 a small file, two objects and a permission.',
+    ],
+  },
+  {
     version: '0.9.334',
     date: '2026-09-22',
     title: '\u26a0 Bulk Report Mapping was not reading your \u201cService Report\u201d column \u2014 fixed',

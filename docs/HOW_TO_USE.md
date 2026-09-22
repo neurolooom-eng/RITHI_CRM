@@ -578,6 +578,25 @@ typed into a form that reads it.
   dropped lines are excluded.
 - **Reports — KPI Export** `/exports/kpi` — the workbook's Field_INST tab in its
   own column order; cancelled calls excluded entirely.
+- **Feedback Without a Report** `/feedback-without-report` — **administrators
+  only.** The customer gave feedback on a visit; the visit was never written up.
+  > Feedback is collected **after** a visit, so its existence is evidence the
+  > work happened. A completed service report is the record of **what was
+  > done**. A call carrying one without the other is a gap you cannot see from
+  > either record on its own, because neither is wrong by itself.
+  >
+  > **It names which of four things is missing**, because each needs a different
+  > fix: the feedback records no UCN · no call carries that UCN · the call has
+  > no visit at all · the call has visits and none reads "Solved - Report
+  > Completed". The last is the commonest, and the **Latest visit status**
+  > column tells you what it reads instead — "Solved - Report Pending" is the
+  > system admitting a known absence, "Unsolved" is a different problem.
+  >
+  > **A trailing space is not a missing report.** The status is matched on its
+  > letters and digits, so `Solved - Report Completed ` (which is what the
+  > exports carry), a lower-case spelling and an en-dash all count. And a call
+  > written up and then **re-visited still has its report** — any completed
+  > visit is enough, not just the latest one.
 
 ## Workshop & activity
 

@@ -253,6 +253,16 @@ export interface Req {
   modules?: string[];
 }
 export const URS: Req[] = [
+  { id: 'URS-071', title: 'Two records of one visit shall not contradict each other', risk: 'Medium',
+    text: 'Where the system holds a customer\u2019s feedback about a visit, it shall also hold a completed service report for that visit, and every instance where it does not shall be visible as a list naming which record is absent. Feedback is collected after a visit has taken place, so its existence is evidence that the work occurred; the completed report is the record of what was done. The two disagreeing means a device was serviced and the servicing was never written up \u2014 a gap that is invisible from either record read on its own, because neither record is wrong in itself.',
+    // DECLARED, with its reason. The requirement is about a RELATION between
+    // two records, so its words name neither screen -- it is not "about" the
+    // feedback register and not "about" the visit register. `/exports/feedback`
+    // is where the feedback is read; `/feedback-without-report` is the list of
+    // the ones with nothing behind them, which is this requirement read from
+    // the other end. The same shape as URS-065 and `/missing-visit-reports`.
+    modules: ['/exports/feedback', '/feedback-without-report'],
+    refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a77.5.4', 'ISO 13485 \u00a78.2.1'] },
   { id: 'URS-065', title: 'A recovered quality record is reviewed before it is written', risk: 'High',
     text: 'Where records of work already done are recovered from a superseded system, each shall be resolved to the record it belongs to AND SHOWN TO AN OPERATOR BEFORE ANY OF IT IS WRITTEN, and only rows that resolved cleanly shall be written. A visit attached to the wrong call, or carrying another machine’s photograph, is a worse outcome than a visit still missing: the first is a false record of what was done to a device, the second is a gap that is visible as a gap. Rows that did not resolve shall be reported with the reason and left unwritten rather than written with a guess.',
     // DECLARED, with its reason. This requirement's own last clause is what
@@ -441,6 +451,8 @@ export const URS: Req[] = [
 // ---- System / Functional Requirements -------------------------------------
 export interface FReq extends Req { urs: string[] }
 export const FRS: FReq[] = [
+  { id: 'FRS-083', urs: ['URS-071'], risk: 'Medium', title: 'Feedback Without a Report',
+    text: '`feedback_without_report` (0229) lists every customer feedback with no visit reading \u201CSolved - Report Completed\u201D behind it, and names WHICH of four things is absent, because each needs a different fix: the feedback records no UCN; no call carries that UCN; the call has no visit at all; or the call has visits and none of them is the completed one. The last is the commonest, and the row carries `latest_visit_status` beside it so that \u201CSolved - Report Pending\u201D \u2014 the system stating a known absence \u2014 is distinguishable from \u201CUnsolved\u201D, which is a different problem. THE STATUS IS MATCHED ON ITS LETTERS AND DIGITS, not as a string: `is_report_completed()` reduces to lower-case alphanumerics, so a trailing space, a lower-case spelling and an en-dash all read as completed, and `isCompletedVisit()` in src/lib/reportMapping.ts is the client copy of the same rule. That is not defensive coding \u2014 the export this was written for carried \u201CSolved - Report Completed \u201D with a trailing space in all 378 rows, and a string comparison would have reported every one of those calls as missing its report. ANY visit reading completed is enough rather than the latest one: a call written up and then re-visited still has its report. A false entry here sends somebody to re-file a report that exists, which is wasted work and teaches them the list may mean nothing \u2014 the same argument as a `_status.sql` row that answers NO for nothing \u2014 so both rules are tested with the spellings that actually arrive. The view is `security_invoker`, so the ordinary call and feedback policies decide the rows; the SCREEN is restricted to administrators by `mod:/feedback-without-report`, at the user\u2019s direction (2026-09-22).' },
   { id: 'FRS-077', urs: ['URS-065'], risk: 'High', title: 'Bulk Report Mapping reads, resolves and only then writes',
     text: 'The screen runs in three stated steps and in this order: READ the sheet and work out which call each row belongs to; RESOLVE the superseded system’s file references into links; WRITE only the rows that came through both cleanly. Nothing is written until the operator has SEEN what each row resolved to, and rows that did not resolve are listed with the reason and are not written. The register it writes into is the visit history, whose records are never deleted, so a wrong write cannot be taken back — which is why the review is a step rather than a confirmation dialogue.' },
   { id: 'FRS-078', urs: ['URS-066'], risk: 'Medium', title: 'Pending Registrations is the queue, and every row leaves it by a stated route',
@@ -1212,6 +1224,21 @@ export const TESTS: TestCase[] = [
     ],
     expected: 'The run finishes before 23:00 IST. The archive holds one file per table in the public schema, and the three largest carry every row those tables hold \u2014 row-level security does not reduce them. The archive is named with its date. Only the configured addresses receive it. Under 20 MB it arrives attached; over 20 MB it arrives as a link. Both runs are recorded with start, finish, table count, row count and outcome. With the credential revoked, a message naming the cause arrives and the failure is recorded.',
     auto: '' },
+  { id: 'OQ-72', phase: 'OQ', reqs: ['URS-071', 'FRS-083'], risk: 'Medium',
+    objective: 'Feedback with no completed report behind it is listed, and feedback WITH one is not.',
+    steps: [
+      'Give a call one visit reading "Solved - Report Completed " \u2014 WITH THE TRAILING SPACE, which is what the exports carry \u2014 and feedback, and open the report.',
+      'Give a call a visit reading "Solved - Report Pending" and feedback. (the commonest finding)',
+      'Give a call feedback and no visit at all.',
+      'Record feedback naming a UCN no call carries.',
+      'Record feedback with no UCN.',
+      'Give a call a completed visit FIRST and a later "Unsolved" visit, and feedback.',
+      'Give a call a completed visit and NO feedback.',
+      'Read the Missing column and the Latest visit status column for each.',
+      'Open the screen as a role that is not an administrator.',
+    ],
+    expected: 'The first is NOT listed \u2014 a trailing space is not a missing report, and a string comparison would list it. The second is listed as "a visit exists but none reads Solved - Report Completed", with "Solved - Report Pending" beside it. The third is "no visit at all", the fourth "no call with that UCN", the fifth "the feedback records no UCN". The sixth is NOT listed: a re-visit does not undo a report. The seventh is not listed at all \u2014 no feedback, nothing to reconcile. The screen does not appear in the menu for a non-administrator and the route refuses.',
+    auto: 'supabase/tests/feedback_without_report_test.sql' },
   { id: 'OQ-70', phase: 'OQ', reqs: ['NAR-004'], risk: 'High',
     objective: 'A schedule names what leaves and when, and cannot name where it goes or reach an audit trail.',
     steps: [

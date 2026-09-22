@@ -57,6 +57,15 @@ const NEEDS = {
                '0040_call_tables_split.sql (apply bundle: call_requests)'],
   masterLists: [`to_regclass('public.master_lists')`, 'the master_lists registry',
                 '0021_master_lists.sql (apply bundle: masters)'],
+  // A COLUMN, not a relation — `feedback` has existed since 0001 and gained
+  // this in 0190, so `to_regclass` would say yes and the bundle would still
+  // die. The scalar subquery is null when the column is absent, which is what
+  // preflight() tests.
+  feedbackEntryAt: [`(select 1 from information_schema.columns
+                        where table_schema = 'public' and table_name = 'feedback'
+                          and column_name = 'entry_at')`,
+                    'feedback.entry_at',
+                    '0190_feedback_dates_and_origin.sql (apply bundle: data_integrity)'],
 };
 
 const MODULES = {
@@ -805,6 +814,24 @@ const MODULES = {
             '0222_status_is_computed_when_read.sql',
             '0223_product_database_2_keeps_itself_alive.sql'],
   },
+  feedback_checks: {
+    title: 'Feedback Without a Report',
+    blurb: ['Reports -> Feedback Without a Report: customer feedback with no visit',
+            'reading "Solved - Report Completed" behind it. Feedback is collected',
+            'AFTER a visit, so it is evidence the work happened; the completed',
+            'report is the record of what was done, and a call carrying one',
+            'without the other is a visit that was never written up.',
+            '',
+            'A MODULE OF ITS OWN BECAUSE OF WHERE IT HAS TO RUN. It reads',
+            '`feedback.entry_at`, which 0190 ADDS TO A TABLE THAT HAS EXISTED',
+            'SINCE 0001 (data_integrity), and a view is resolved AT CREATION —',
+            'so filed with `reports`, where its sibling 0224 lives, it died on a',
+            'fresh apply with `column f.entry_at does not exist`. check:replay',
+            'found it. It is also two objects, so it is a small file to run',
+            'rather than a replay of the whole reports module.'],
+    needs: ['feedbackEntryAt', 'callTables', 'reportTables'],
+    files: ['0229_feedback_without_report.sql'],
+  },
   data_export: {
     title: 'Data Export',
     blurb: ['Administration -> Data Export: the table picker and its CSV download,',
@@ -960,7 +987,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'data_export'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

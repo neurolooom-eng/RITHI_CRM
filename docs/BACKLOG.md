@@ -7374,6 +7374,12 @@ points at these rows.
   permissions into `app_roles` (live roles are populated, so a code change alone
   is not enough — a DB grant is required).
 
+- **Feedback Without a Report** (`/feedback-without-report`, 0229) — shipped
+  v0.9.335. **Needs `supabase/apply/feedback_checks.sql` run on the live
+  project.** Its own bundle: it reads `feedback.entry_at`, which 0190 adds to a
+  table that has existed since 0001, so filed with `reports` it died on a fresh
+  apply — `check:replay` caught it.
+
 ## ✅ Done
 
 ### Platform & data
