@@ -491,7 +491,15 @@ const CALL_COLS: Col[] = [
   TS('reg_at', 'registration date time', 'reg at', 'timestamp'),
 ];
 
-const REPORT_COLS: Col[] = [
+// EXPORTED so `check:mapping` can hold Bulk Report Mapping’s own alias list
+// against this one. The comment beside that list has said "keep the two in
+// step" since it was written and NOTHING CHECKED IT — which is the fault this
+// project keeps naming: a comment claiming a check exists is the reason
+// nobody looks. They had drifted, and it cost a 378-row file (2026-09-22):
+// this register reads `Service Report` and that one did not, so every row
+// read as "no attachment on this row" and the screen offered to write
+// nothing, truthfully and uselessly.
+export const REPORT_COLS: Col[] = [
   // The call registers carry their latest visit but no row id of their own, so
   // one is DERIVED from the call and the visit date. It is the same on every
   // run — a generated id would load the file again as new visits — and it stays

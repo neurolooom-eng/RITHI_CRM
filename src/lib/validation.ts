@@ -253,6 +253,16 @@ export interface Req {
   modules?: string[];
 }
 export const URS: Req[] = [
+  { id: 'URS-071', title: 'Two records of one visit shall not contradict each other', risk: 'Medium',
+    text: 'Where the system holds a customer\u2019s feedback about a visit, it shall also hold a completed service report for that visit, and every instance where it does not shall be visible as a list naming which record is absent. Feedback is collected after a visit has taken place, so its existence is evidence that the work occurred; the completed report is the record of what was done. The two disagreeing means a device was serviced and the servicing was never written up \u2014 a gap that is invisible from either record read on its own, because neither record is wrong in itself.',
+    // DECLARED, with its reason. The requirement is about a RELATION between
+    // two records, so its words name neither screen -- it is not "about" the
+    // feedback register and not "about" the visit register. `/exports/feedback`
+    // is where the feedback is read; `/feedback-without-report` is the list of
+    // the ones with nothing behind them, which is this requirement read from
+    // the other end. The same shape as URS-065 and `/missing-visit-reports`.
+    modules: ['/exports/feedback', '/feedback-without-report'],
+    refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a77.5.4', 'ISO 13485 \u00a78.2.1'] },
   { id: 'URS-065', title: 'A recovered quality record is reviewed before it is written', risk: 'High',
     text: 'Where records of work already done are recovered from a superseded system, each shall be resolved to the record it belongs to AND SHOWN TO AN OPERATOR BEFORE ANY OF IT IS WRITTEN, and only rows that resolved cleanly shall be written. A visit attached to the wrong call, or carrying another machine’s photograph, is a worse outcome than a visit still missing: the first is a false record of what was done to a device, the second is a gap that is visible as a gap. Rows that did not resolve shall be reported with the reason and left unwritten rather than written with a guess.',
     // DECLARED, with its reason. This requirement's own last clause is what
@@ -441,6 +451,8 @@ export const URS: Req[] = [
 // ---- System / Functional Requirements -------------------------------------
 export interface FReq extends Req { urs: string[] }
 export const FRS: FReq[] = [
+  { id: 'FRS-083', urs: ['URS-071'], risk: 'Medium', title: 'Feedback Without a Report',
+    text: '`feedback_without_report` (0229) lists every customer feedback with no visit reading \u201CSolved - Report Completed\u201D behind it, and names WHICH of four things is absent, because each needs a different fix: the feedback records no UCN; no call carries that UCN; the call has no visit at all; or the call has visits and none of them is the completed one. The last is the commonest, and the row carries `latest_visit_status` beside it so that \u201CSolved - Report Pending\u201D \u2014 the system stating a known absence \u2014 is distinguishable from \u201CUnsolved\u201D, which is a different problem. THE STATUS IS MATCHED ON ITS LETTERS AND DIGITS, not as a string: `is_report_completed()` reduces to lower-case alphanumerics, so a trailing space, a lower-case spelling and an en-dash all read as completed, and `isCompletedVisit()` in src/lib/reportMapping.ts is the client copy of the same rule. That is not defensive coding \u2014 the export this was written for carried \u201CSolved - Report Completed \u201D with a trailing space in all 378 rows, and a string comparison would have reported every one of those calls as missing its report. ANY visit reading completed is enough rather than the latest one: a call written up and then re-visited still has its report. A false entry here sends somebody to re-file a report that exists, which is wasted work and teaches them the list may mean nothing \u2014 the same argument as a `_status.sql` row that answers NO for nothing \u2014 so both rules are tested with the spellings that actually arrive. The view is `security_invoker`, so the ordinary call and feedback policies decide the rows; the SCREEN is restricted to administrators by `mod:/feedback-without-report`, at the user\u2019s direction (2026-09-22).' },
   { id: 'FRS-077', urs: ['URS-065'], risk: 'High', title: 'Bulk Report Mapping reads, resolves and only then writes',
     text: 'The screen runs in three stated steps and in this order: READ the sheet and work out which call each row belongs to; RESOLVE the superseded system’s file references into links; WRITE only the rows that came through both cleanly. Nothing is written until the operator has SEEN what each row resolved to, and rows that did not resolve are listed with the reason and are not written. The register it writes into is the visit history, whose records are never deleted, so a wrong write cannot be taken back — which is why the review is a step rather than a confirmation dialogue.' },
   { id: 'FRS-078', urs: ['URS-066'], risk: 'Medium', title: 'Pending Registrations is the queue, and every row leaves it by a stated route',
@@ -485,7 +497,7 @@ export const FRS: FReq[] = [
   { id: 'FRS-018', urs: ['URS-013'], title: 'Reports & export gate', text: 'Visit history is retrievable with field filters; CSV export is blocked unless the user holds export.data.', risk: 'Medium' },
   { id: 'FRS-019', urs: ['URS-014'], title: 'SLA engine', text: 'Configurable SLA rules (hours + on/off) are evaluated per open call (first visit, closure, closure-with-spare, closure-spare-non-cover, stores dispatch); the Dashboard flags due/breached.', risk: 'Medium' },
   { id: 'FRS-020', urs: ['URS-015'], title: 'Notification triggers', text: 'Database triggers create a per-user notification when a call is allotted or a requested spare is dispatched; each user reads/marks only their own (RLS).', risk: 'Low' },
-  { id: 'FRS-021', urs: ['URS-016'], title: 'Audit log', text: 'TWO TRAILS AGAIN, as of 0225 (2026-09-21). `audit_log` records what a USER DID — action, target, duration, outcome, actor and time — and its retention is configurable (app_settings.audit_retention_days, default ~10 years), with a daily digest archiving the day off-database. Its LIMITS are stated rather than glossed: it is written by the CLIENT, so it can be bypassed by a direct API call, and it is purged when the retention window passes. THE SECOND TRAIL IS BACK ON. `record_audit` records what a ROW BECAME, before and after, in triggers that CANNOT BE BYPASSED and that nothing purges — stopped by 0112 on 2026-09-05 when it was thought to exist only for 21 CFR Part 11, and re-armed by 0225 at the user’s direction on 2026-09-21. The event that settled it was not a regulatory one: on 2026-09-20 a re-applied bundle set 4,222 calls back to Unattended, and NOTHING IN THE SYSTEM COULD SAY WHAT THEY HAD BEEN. A client-written trail cannot answer that, because the write did not come through the client. 0103’s shape is what was restored, not 0048’s: a BULK load is ONE attributable event rather than a row per record, so the trail stays about what people did. The table also still holds everything it captured 2026-08 to 2026-09-05; that gap, 05-Sep to 21-Sep, is real and is not recoverable.', risk: 'High' },
+  { id: 'FRS-021', urs: ['URS-016'], title: 'Audit log', text: 'TWO TRAILS AGAIN, as of 0225 (2026-09-21). `audit_log` records what a USER DID — action, target, duration, outcome, actor and time — and its retention is configurable (app_settings.audit_retention_days, default ~10 years), with a daily digest built to archive the day off-database (supabase/functions/daily-digest) THAT HAS NEVER BEEN DEPLOYED — so no off-database archive exists today. Its LIMITS are stated rather than glossed: it is written by the CLIENT, so it can be bypassed by a direct API call, and it is purged when the retention window passes. THE SECOND TRAIL IS BACK ON. `record_audit` records what a ROW BECAME, before and after, in triggers that CANNOT BE BYPASSED and that nothing purges — stopped by 0112 on 2026-09-05 when it was thought to exist only for 21 CFR Part 11, and re-armed by 0225 at the user’s direction on 2026-09-21. The event that settled it was not a regulatory one: on 2026-09-20 a re-applied bundle set 4,222 calls back to Unattended, and NOTHING IN THE SYSTEM COULD SAY WHAT THEY HAD BEEN. A client-written trail cannot answer that, because the write did not come through the client. 0103’s shape is what was restored, not 0048’s: a BULK load is ONE attributable event rather than a row per record, so the trail stays about what people did. The table also still holds everything it captured 2026-08 to 2026-09-05; that gap, 05-Sep to 21-Sep, is real and is not recoverable.', risk: 'High' },
   { id: 'FRS-022', urs: ['URS-017'], title: 'Record integrity', text: 'Records are written to PostgreSQL with constraints; the publishable key is public by design and access is enforced by RLS; the service_role key is never shipped.', risk: 'High' },
   { id: 'FRS-023', urs: ['URS-018'], title: 'Backup/restore', text: 'The Supabase project provides managed backups; restore is periodically verified per procedure.', risk: 'Medium' },
   { id: 'FRS-024', urs: ['URS-019'], title: 'Release identity & change log', text: 'Each build carries a version, build number and build ID shown in the footer; an in-app Version History lists changes; source and schema changes are version-controlled.', risk: 'Medium' },
@@ -542,23 +554,34 @@ export interface NonAuditableReq extends Req { classification: string; rationale
 export const NON_AUDITABLE: NonAuditableReq[] = [
   {
     id: 'NAR-004',
-    title: 'Daily export of every table, delivered by electronic mail',
-    classification: 'Non-Auditable Requirement (user-originated; no regulatory clause claimed) \u2014 SPECIFIED, NOT BUILT',
+    title: 'Scheduled export of chosen tables, delivered by electronic mail',
+    classification: 'Non-Auditable Requirement (user-originated; no regulatory clause claimed) \u2014 BUILT; THE MAIL SIDE AWAITS ONE DEPLOYMENT',
     text: [
-      'NAR-004.1 The system shall export the contents of every table in the public schema once per calendar day.',
-      'NAR-004.2 The system shall complete each daily export before 23:00 Asia/Kolkata.',
-      'NAR-004.3 The system shall write the contents of each exported table to a separate comma-separated-values file.',
-      'NAR-004.4 The system shall collect the files of one export into one archive named with the export date.',
-      'NAR-004.5 The system shall send one electronic mail message per completed export to each configured recipient address.',
-      'NAR-004.6 The system shall attach the archive to that message where the archive size does not exceed 20 megabytes.',
-      'NAR-004.7 The system shall include a link to the archive in that message where the archive size exceeds 20 megabytes.',
-      'NAR-004.8 The system shall record each export with its start time, its completion time, the number of tables exported, the number of rows exported and its outcome.',
-      'NAR-004.9 The system shall send one electronic mail message naming the cause where an export does not complete.',
-      'NAR-004.10 The system shall export every row of each table irrespective of the row-level security policies on that table.',
+      'NAR-004.1 The system shall provide an administrator a means to define a named export schedule.',
+      'NAR-004.2 An export schedule shall identify one or more relations of the public schema.',
+      'NAR-004.3 The system shall reject an export schedule identifying a relation absent from the public schema.',
+      'NAR-004.4 The system shall reject an export schedule identifying the relation audit_log, record_audit or audit_mode_changes.',
+      'NAR-004.5 An export schedule shall specify a recurrence of either every day or one stated day of the week.',
+      'NAR-004.6 An export schedule shall specify a time of day in the Asia/Kolkata time zone.',
+      'NAR-004.7 The system shall obtain the delivery addresses of an export from the export service configuration.',
+      'NAR-004.8 The system shall provide no application interface that changes the delivery addresses of an export.',
+      'NAR-004.9 The system shall write the contents of each relation identified by a schedule to a separate comma-separated-values file.',
+      'NAR-004.10 The system shall collect the files of one export into one archive.',
+      'NAR-004.11 The system shall send one electronic mail message carrying that archive to each delivery address.',
+      'NAR-004.12 The system shall omit from the archive each file whose inclusion would take the archive above the configured attachment limit.',
+      'NAR-004.13 The system shall name each relation omitted under NAR-004.12 in the body of that message.',
+      'NAR-004.14 The system shall send at most one message for one export schedule in one recurrence interval.',
+      'NAR-004.15 The system shall send one message for a recurrence interval whose stated time has passed and for which it has sent no message.',
+      'NAR-004.16 The system shall read every row of each identified relation irrespective of the row-level security policies on that relation.',
+      'NAR-004.17 The system shall record for each export its start time, its completion time, the relations exported, the number of rows exported, the size of the archive and its outcome.',
+      'NAR-004.18 The system shall send one electronic mail message naming the cause where an export does not complete.',
+      'NAR-004.19 The system shall refuse every modification and every deletion of an export record received through the application programming interface.',
     ].join(' '),
-    rationale: 'Requested by the system owner on 2026-09-22: "Export every Table and send it to Email every day by 11pm." IT IS NOT BUILT AS AT THIS REVISION and is recorded here for the reason this section exists \u2014 a requirement held only in a conversation is the one nobody implements and nobody tests. Writing it also found that THE PACKAGE ALREADY CLAIMED A CONTROL OF THIS KIND AND THE CONTROL DID NOT EXIST: two statements said a daily email digest archived the audit trail off-database, and a search on 2026-09-22 found no mail path of any kind \u2014 no MailApp, no pg_net, no scheduled job but the retention purge, the review auto-answer and the Product Database 2.0 refresh. Both are withdrawn. THREE THINGS MUST BE SETTLED BEFORE IT IS BUILT, none of them a technical detail. FIRST, the recipient list: NAR-004.10 makes this export the whole customer base \u2014 every serial, every contract, every contact \u2014 leaving the system in one file, and which addresses it may go to is a larger exposure than any screen in the application. SECOND, the transport: the application has no mail capability, so one must be introduced, and whatever is chosen becomes a configuration item holding a credential. THIRD, the size: the register holds roughly 19,000 machines, 15,000 visits and 12,000 calls, so NAR-004.7 is the expected path and NAR-004.6 the exception. Should this export ever be relied upon as the backup of record, that use is NOT covered by this classification: backup and restore is FRS-023, it is auditable, and PQ-06 verifies it.',
+    rationale: 'Requested by the system owner on 2026-09-22 ("Export every Table and send it to Email every day by 11pm"), then narrowed by the same person to a CSV export of SELECTED tables ("I need to Export CSV only. Maybe I can select the Tables") and to a schedule set on a screen ("Or can we have Scheduled Export option in the UI itself so that i will schedule which ever is necessary"). The statements above are the narrowed requirement, which is what is built. THE ONE STATEMENT THAT IS NOT A CONVENIENCE IS NAR-004.8. An earlier design of this export held the delivery address in an app_settings row; it was refused as an exfiltration primitive and the refusal was correct \u2014 NAR-004.16 makes this the whole customer base, every serial, every contract, every contact, leaving the system on a timer, and a destination any administrator can edit means it can be redirected silently with nothing on any screen looking different the next morning. So the requirement is split by WHERE IT IS KEPT: which relations and at what time are rows an administrator edits (NAR-004.1, .2, .5, .6); the addresses are configuration of the export service, set through the deployment channel by somebody holding the project keys (NAR-004.7), and no application path changes them (NAR-004.8). NAR-004.4 is the second control and exists for the same reason NAR-004.16 does: the export reads past row-level security, so an unchecked relation name would be a way to mail out the audit trail. WHAT IS BUILT AND WHAT IS NOT: the schedules, their guards, the due-time arithmetic and the run record are in 0228 and the screen is Administration \u2192 Data Export. The service that sends the mail is supabase/functions/scheduled-export (Deno, Resend), which cannot be deployed from the repository \u2014 it needs a Resend key and one CLI deploy. NOTHING IS SENT UNTIL THAT IS DONE, and NAR-004.9 to .19 are therefore SPECIFIED AND UNVERIFIED AS AT THIS REVISION. The transport was the system owner\u2019s choice on 2026-09-22 ("Resend + Supabase Edge Function for the transport"); the addresses agreed are service.almsind@gmail.com and devika.m@airliquide.com. A CORRECTION IS OWED ON THIS ENTRY\u2019S OWN EARLIER TEXT. It stated that a search on 2026-09-22 found "no mail path of any kind \u2014 no MailApp, no pg_net, no transport" and withdrew two statements about a daily digest on that basis. THAT SEARCH WAS WRONG: supabase/functions/daily-digest has been in the repository since 2026-09, sends through Resend, attaches the day\u2019s record_audit as a CSV, and ships with a pg_net schedule \u2014 and this package\u2019s own supplier appendix names Resend. The true statement is narrower and is the one that matters to an assessor: THAT FUNCTION HAS NEVER BEEN DEPLOYED, so no digest has ever been sent and no off-database archive of the audit trail exists. The claim withdrawn was about a control OPERATING; the reason given for withdrawing it was false. Should this export ever be relied upon as the backup of record, that use is NOT covered by this classification: backup and restore is FRS-023, it is auditable, and PQ-06 verifies it.',
     risk: 'High',
-    refs: [],
+    refs: ['0228_export_schedules.sql', 'supabase/functions/scheduled-export/index.ts',
+           'src/modules/DataExport.tsx', 'supabase/tests/export_schedule_test.sql',
+           'scripts/check-scheduled-export.mjs'],
   },
   {
     id: 'NAR-003',
@@ -615,7 +638,7 @@ export const ARCHITECTURE: { heading: string; body: string[] }[] = [
     'Client (browser): UI, local cache (offline-first, 30-min sync), role-aware rendering.',
     'Supabase Auth: identity, sessions (JWT), password management.',
     'PostgREST: REST access to tables/views, constrained by RLS.',
-    'PostgreSQL: the system of record — tables, views, RLS, triggers, generated columns, pg_cron (audit retention, the review auto-answer, the Product Database 2.0 refresh — there is no digest job; see FRS-021).',
+    'PostgreSQL: the system of record — tables, views, RLS, triggers, generated columns, pg_cron (audit retention, the review auto-answer, the Product Database 2.0 refresh). Two more jobs EXIST AS SCHEDULE FILES AND ARE NOT SCHEDULED — the daily digest and the scheduled export — because each pokes an Edge Function that has to be deployed first; see FRS-021 and NAR-004.',
     'Legacy Apps Script bridge (CallReg.gs): Drive file uploads and sheet-era reads when Supabase is not connected.',
   ] },
   { heading: 'Trust boundaries & security', body: [
@@ -651,7 +674,7 @@ export const DETAILED: { area: string; points: string[] }[] = [
   { area: 'Audit & data integrity', points: [
     'The trail is `audit_log`: user actions with actor, target, duration and outcome, DB-stamped identity and time, admin/audit.view read-only and not user-editable. The database-enforced trail (record_audit) runs alongside it again from 2026-09-21 (0225), having been stopped on 2026-09-05 (0112). It takes a before/after image of every row on the ten quality tables, in triggers no API call can bypass and no retention purge touches — which is what answers “what was this record before?” when the change did not come through the application. Both the reduction and its reversal are recorded here rather than left implied, and so is what neither can undo: nothing was captured between 05-Sep and 21-Sep-2026.',
     'A BULK WRITE IS RECORDED AS ONE EVENT, not one row per record (0103): who, which table, how many rows, when. An audit trail answers "who changed this record and to what"; a data load is not that question, and is verified instead by the migration checks (DM1..DM10). The load stays attributable, which is what record control asks of it; what is not kept is a per-record duplicate of data already in the table it was loaded into. The line is drawn by a statement-level trigger counting the rows one statement touched — and the bulk USER actions reach the typed tables one row at a time through the calls view’s INSTEAD OF triggers, so they are audited in full regardless of the threshold.',
-    'Retention is configurable (app_settings.audit_retention_days, default ~10 years) — the earlier 7-day purge is replaced. NO OFF-DATABASE ARCHIVE EXISTS. Earlier revisions of this package stated that a daily email digest archived the day’s trail; searched for on 2026-09-22, there is no mail path anywhere in the system — no MailApp, no pg_net, no transport of any kind — and the only scheduled jobs are the retention purge, the review auto-answer and the Product Database 2.0 refresh. The claim is withdrawn; NAR-004 specifies the export that would replace it and records that it is not built.',
+    'Retention is configurable (app_settings.audit_retention_days, default ~10 years) — the earlier 7-day purge is replaced. NO OFF-DATABASE ARCHIVE EXISTS, AND THE REASON GIVEN FOR THAT ON 2026-09-22 WAS WRONG. Earlier revisions stated that a daily email digest archived the day’s trail. That was withdrawn on the ground that the system had no mail path at all — and it has one: supabase/functions/daily-digest sends through Resend, attaches the day’s record_audit as a CSV and ships with a pg_net schedule, and this package’s supplier appendix already named Resend. The correct statement is the narrower one: THAT FUNCTION HAS NEVER BEEN DEPLOYED, no digest has ever been sent, and the only pg_cron jobs running are the retention purge, the review auto-answer and the Product Database 2.0 refresh. So the archive does not exist, and it is one deployment away rather than a thing that must be designed. NAR-004 is the scheduled export beside it, built to the same shape and awaiting the same deployment.',
     'Application deletion of quality records is blocked (record-retention guard); only a controlled DBA/superuser action can remove them, and that too is audited. Records are constrained (unique UCN, FKs) in PostgreSQL.',
   ] },
   { area: 'SLA & notifications', points: [
@@ -826,7 +849,9 @@ export type DefectCategory =
   | 'name-vs-definition'       // IF NOT EXISTS, or a comment claiming a control
   | 'absent-not-empty'         // "no opinion" and "empty" conflated
   | 'permission-not-granted'   // built, specified, and reaching nobody
-  | 'wrong-link';              // a hand-over that 404s
+  | 'wrong-link'               // a hand-over that 404s
+  | 'lists-that-must-agree'    // two copies of one vocabulary, drifting apart
+  | 'reason-not-measured';     // a message stating a cause nothing established
 
 export interface Defect {
   id: string; date: string; title: string;
@@ -839,6 +864,18 @@ export interface Defect {
 }
 
 export const DEFECTS: Defect[] = [
+  { id: 'D-015', date: '2026-09-22', title: 'Two screens read the same file and disagreed about its columns',
+    category: 'lists-that-must-agree', found: 'reported in use',
+    what: 'A 378-row export was loaded into Bulk Report Mapping and EVERY row read as \u201Cno attachment on this row\u201D. The attachment column is headed `Service Report` \u2014 which is what the Field, Installation and PM registers call it, and what Bulk Uploads\u2019 REPORT_COLS reads. Bulk Report Mapping\u2019s own alias list did not carry that heading. Nothing errored: 377 of 378 calls matched, the preview filled in, and the screen offered to write nothing, correctly and uselessly. The same drift had taken THREE more headings with it \u2014 `Visiting Service Engineer`, `CALL PENDING REASON` and `Email-ID` \u2014 so a visit filed by that screen carried no engineer, which is visible as a blank column in the preview and was never reported because nobody could see what it should have said.',
+    fix: 'The four headings are added, in REPORT_COLS\u2019 own ORDER \u2014 order decides which column wins where a file carries several, so two lists holding the same names in a different order still disagree.',
+    guard: 'check:mapping now holds the two alias lists against each other, both ways: every heading the register reads must be one the screen reads, AND the shared names must rank the same. Mutation-tested \u2014 dropping a heading and re-ordering two are each caught. The comment beside that list had said \u201Ckeep the two lists in step\u201D since the day it was written and nothing checked it, which is D-004 in a second place.',
+    reqs: ['NAR-003'] },
+  { id: 'D-016', date: '2026-09-22', title: 'The preview footer reported a reason it had not measured',
+    category: 'reason-not-measured', found: 'found while reading',
+    what: 'Bulk Report Mapping\u2019s footer read \u201CN left alone because a report is already on the call\u2019s completed visit\u201D for every skip, whatever `decideVisit` had actually decided. On the file above it therefore announced that 376 calls already had their reports \u2014 sitting beside a per-row column that said \u201Cnothing to attach\u201D on all 376. The same sentence appeared in the confirmation dialog and the after-the-write message.',
+    fix: '`summariseActions` counts the reasons `decideVisit` gave, commonest first, and all three messages print those.',
+    guard: 'check:mapping asserts the reasons are separated and that an attach or a create contributes none. The wider rule is the project\u2019s own: a message that is ACTED ON is worse than no message, and this one was confidently wrong in the exact case somebody needed it.',
+    reqs: ['NAR-003'] },
   { id: 'D-001', date: '2026-09-14', title: 'A product’s serial list stopped at 1,000',
     category: 'silent-truncation', found: 'reported in use',
     what: 'Product & Party Search on ORION-G offered 1,000 of 2,547 serials, so a real serial read as \u201CNothing matches\u201D. PostgREST caps a response at 1,000 rows however large the `limit` says, and says nothing when it trims — so `.limit(20000)` read as a precaution and was the line HIDING the truncation.',
@@ -1187,6 +1224,46 @@ export const TESTS: TestCase[] = [
     ],
     expected: 'The run finishes before 23:00 IST. The archive holds one file per table in the public schema, and the three largest carry every row those tables hold \u2014 row-level security does not reduce them. The archive is named with its date. Only the configured addresses receive it. Under 20 MB it arrives attached; over 20 MB it arrives as a link. Both runs are recorded with start, finish, table count, row count and outcome. With the credential revoked, a message naming the cause arrives and the failure is recorded.',
     auto: '' },
+  { id: 'OQ-72', phase: 'OQ', reqs: ['URS-071', 'FRS-083'], risk: 'Medium',
+    objective: 'Feedback with no completed report behind it is listed, and feedback WITH one is not.',
+    steps: [
+      'Give a call one visit reading "Solved - Report Completed " \u2014 WITH THE TRAILING SPACE, which is what the exports carry \u2014 and feedback, and open the report.',
+      'Give a call a visit reading "Solved - Report Pending" and feedback. (the commonest finding)',
+      'Give a call feedback and no visit at all.',
+      'Record feedback naming a UCN no call carries.',
+      'Record feedback with no UCN.',
+      'Give a call a completed visit FIRST and a later "Unsolved" visit, and feedback.',
+      'Give a call a completed visit and NO feedback.',
+      'Read the Missing column and the Latest visit status column for each.',
+      'Open the screen as a role that is not an administrator.',
+    ],
+    expected: 'The first is NOT listed \u2014 a trailing space is not a missing report, and a string comparison would list it. The second is listed as "a visit exists but none reads Solved - Report Completed", with "Solved - Report Pending" beside it. The third is "no visit at all", the fourth "no call with that UCN", the fifth "the feedback records no UCN". The sixth is NOT listed: a re-visit does not undo a report. The seventh is not listed at all \u2014 no feedback, nothing to reconcile. The screen does not appear in the menu for a non-administrator and the route refuses.',
+    auto: 'supabase/tests/feedback_without_report_test.sql' },
+  { id: 'OQ-70', phase: 'OQ', reqs: ['NAR-004'], risk: 'High',
+    objective: 'A schedule names what leaves and when, and cannot name where it goes or reach an audit trail.',
+    steps: [
+      'Define a schedule naming two relations, every day, at a stated time. (NAR-004.1, NAR-004.2, NAR-004.5, NAR-004.6)',
+      'Define one naming a relation that does not exist. (NAR-004.3)',
+      'Define one naming record_audit, and one naming audit_log. (NAR-004.4)',
+      'Search every field of the schedule screen and every column of export_schedules for a recipient address. (NAR-004.7, NAR-004.8)',
+      'Ask the database which schedules are owed before the stated time and after it. (NAR-004.14)',
+      'Set a schedule\u2019s last run three days back and ask again. (NAR-004.15)',
+      'Attempt to insert, update and delete an export record through the API as an administrator. (NAR-004.19)',
+    ],
+    expected: 'The first is stored with its relations sorted and de-duplicated. The second, third and fourth are refused by the database, each naming the relation it refused. There is no recipient field on the screen and no destination column in the table \u2014 the addresses are configuration of the export service. Nothing is owed before the stated time; one is owed after it, and once more after a three-day gap, which is the missed night being caught up rather than lost. All three writes to the export record are refused.',
+    auto: 'supabase/tests/export_schedule_test.sql' },
+  { id: 'OQ-71', phase: 'OQ', reqs: ['NAR-004'], risk: 'High',
+    objective: 'The mail carries every row of the chosen relations, readable, and says what it left out.',
+    steps: [
+      'DEPLOY FIRST. Nothing below can be performed until supabase/functions/scheduled-export is deployed and its secrets are set; until then this case is NOT RUN, and NAR-004.9 to .19 are unverified.',
+      'Let a schedule naming a large and a small relation fall due, and open the message. (NAR-004.11)',
+      'Open the attached archive and count the rows of each file against select count(*) on the relation, as postgres. (NAR-004.9, NAR-004.16)',
+      'Open one file in a spreadsheet and sort a timestamp column. (a date must be a date, not text)',
+      'Lower the attachment limit below the archive size and let it fall due again. (NAR-004.12, NAR-004.13)',
+      'Rename a relation out from under an enabled schedule and let it fall due. (NAR-004.18)',
+      'Read export_runs after each of the above. (NAR-004.17)',
+    ],
+    expected: 'One message per schedule, to the configured addresses only. Every file holds every row of its relation, including rows the signed-in administrator could not read on screen. Timestamps sort as dates and read in IST. Under the lowered limit the largest file is ABSENT and the message NAMES it \u2014 no file is truncated. The renamed relation produces a message naming the failure rather than silence. Each run is recorded with its times, relations, row count, archive size and outcome.' },
   { id: 'OQ-67', phase: 'OQ', reqs: ['NAR-003'], risk: 'Medium',
     objective: 'A recovered report reaches its call without displacing what an engineer filed.',
     steps: [
@@ -1234,7 +1311,7 @@ export const SUPPLIERS: Supplier[] = [
     conclusion: 'Acceptable for source control and hosting the client. Recommend enabling branch protection on main and recording release approvals as part of change control.',
   },
   {
-    name: 'Resend (optional)', service: 'Transactional email for the daily digest (if deployed)',
+    name: 'Resend (optional)', service: 'Transactional email for the daily digest and the scheduled table export (neither deployed as at this revision)',
     criticality: 'Low',
     criteria: [
       'Sends operational summary emails; does not create or hold quality records.',

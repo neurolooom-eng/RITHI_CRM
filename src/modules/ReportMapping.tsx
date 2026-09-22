@@ -133,12 +133,18 @@ export function ReportMapping() {
     const toAttach = decided.filter((x) => x.d.action === 'attach');
     const toCreate = decided.filter((x) => x.d.action === 'create');
     const skipped = decided.length - toAttach.length - toCreate.length;
+    // THE REASONS, NOT A REASON. All three of these sentences used to say the
+    // skips were reports already in place, whatever decideVisit had actually
+    // decided -- and the one file that proved it wrong skipped every row for a
+    // different reason entirely.
+    const why = summariseActions(decided.map((x) => x.d)).skipReasons
+      .map((s) => `${s.n} \u00d7 ${s.text}`).join(' ');
 
     if (!toAttach.length && !toCreate.length) {
-      setMsg({ tone: 'ok', text: `Nothing to write — all ${skipped} ready rows are on calls whose completed visit already has a report.` });
+      setMsg({ tone: 'info', text: `Nothing to write. ${why}` });
       return;
     }
-    if (!confirm(`Attach ${toAttach.length} report${toAttach.length === 1 ? '' : 's'} to existing visits, and file ${toCreate.length} new visit${toCreate.length === 1 ? '' : 's'}?\n\n${skipped} row(s) are skipped because the call's completed visit already has a report — those are never overwritten.\n${rows.length - ready.length} row(s) with a problem are skipped as well.`)) return;
+    if (!confirm(`Attach ${toAttach.length} report${toAttach.length === 1 ? '' : 's'} to existing visits, and file ${toCreate.length} new visit${toCreate.length === 1 ? '' : 's'}?\n\n${skipped} row(s) are skipped: ${why}\n${rows.length - ready.length} row(s) with a problem are skipped as well.`)) return;
 
     // ATTACH FIRST. It only ever adds a document to a visit that has none, so
     // if the run stops half way the register is still consistent; creating
@@ -174,7 +180,9 @@ export function ReportMapping() {
 
     setBusy('');
     setStep('written');
-    setMsg({ tone: 'ok', text: `${attached} report${attached === 1 ? '' : 's'} attached to existing visits, ${created} new visit${created === 1 ? '' : 's'} filed, ${skipped} left alone because a report was already there.` });
+    setMsg({ tone: 'ok', text: `${attached} report${attached === 1 ? '' : 's'} attached to existing visits, `
+      + `${created} new visit${created === 1 ? '' : 's'} filed`
+      + `${skipped ? `, ${skipped} left alone: ${why}` : '.'}` });
   };
 
   // THE RULE (the user, 2026-09-22): a completed visit that already has a
@@ -318,7 +326,14 @@ export function ReportMapping() {
           <div className="rep-actions">
             <span className="muted" style={{ marginRight: 'auto' }}>
               {plan.attach + plan.create} of {rows.filter((r) => !r.problem).length} ready rows will be written
-              {plan.skip > 0 && <> · <b>{plan.skip}</b> left alone because a report is already on the call’s completed visit</>}
+              {/* THE REASONS IT MEASURED. This line used to say every skip was
+                  "a report is already on the call's completed visit" whatever
+                  the rows said -- and on a file whose attachment column was not
+                  being read, that was a complete and confident wrong answer
+                  sitting beside a per-row column that disagreed with it. */}
+              {plan.skipReasons.map((s) => (
+                <span key={s.text}> · <b>{s.n}</b> left alone — {s.text.replace(/\.$/, '').toLowerCase()}</span>
+              ))}
               {rows.length - rows.filter((r) => !r.problem).length > 0
                 && ` · ${rows.length - rows.filter((r) => !r.problem).length} row(s) have a problem and are skipped`}
             </span>

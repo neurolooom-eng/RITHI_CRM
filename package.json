@@ -1,7 +1,7 @@
 {
   "name": "rithi-crm-field-service",
   "private": true,
-  "version": "0.9.332",
+  "version": "0.9.336",
   "type": "module",
   "description": "RITHI CRM - Field Service Module POC (Medical Domain)",
   "scripts": {
@@ -35,7 +35,8 @@
     "coverage:reqs": "esbuild scripts/requirement-coverage.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/covreqs.mjs --log-level=error && node node_modules/.cache/covreqs.mjs > docs/REQUIREMENT_COVERAGE.md",
     "validate": "node scripts/validate-run.mjs",
     "check:picklist:open": "node scripts/check-picklist-open.mjs",
-    "check:nar003": "npm run check:mapping && npm run check:ui"
+    "check:nar003": "npm run check:mapping && npm run check:ui",
+    "check:scheduled-export": "TZ=Asia/Kolkata node scripts/check-scheduled-export.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",

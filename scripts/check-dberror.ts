@@ -10,7 +10,7 @@
 // right on the case you wrote it for and wrong on everything else, and it is
 // the everything else that reaches a user.
 // ===========================================================================
-import { isMissingTable, isRefused, loadFailure, errText,
+import { isMissingTable, isMissingFunction, isRefused, loadFailure, errText,
          emptyRegisterVerdict, type RegisterCount } from '../src/lib/dberror';
 
 let fail = 0;
@@ -66,6 +66,35 @@ console.log('\n-- and neither is a function, an operator, or a refusal --');
   eq('permission denied likewise', isRefused('permission denied for table spare_dispatches'), true);
   eq('a missing table is NOT a refusal',
     isRefused('relation "public.x" does not exist'), false);
+}
+
+console.log('\n-- a MISSING FUNCTION can be named, because PostgREST names it --');
+{
+  // The exact body the Data Export screen came back with on 2026-09-22.
+  const pgrst202 = 'Could not find the function public.exportable_tables without parameters in the schema cache';
+  eq('PGRST202 is a missing function', isMissingFunction(pgrst202, 'exportable_tables'), true);
+  eq('42883 is too',
+    isMissingFunction('function public.imported_ts(jsonb, unknown) does not exist', 'imported_ts'), true);
+  eq('somebody ELSE\u2019s function is not this screen\u2019s bundle',
+    isMissingFunction(pgrst202, 'due_export_schedules'), false);
+  // The two tests must not overlap: each names a DIFFERENT file to run, so a
+  // message answering both would hand out whichever hint was asked first.
+  eq('a missing TABLE is not a missing function',
+    isMissingFunction('relation "public.export_schedules" does not exist', 'export_schedules'), false);
+  eq('...and a missing FUNCTION is still not a missing table',
+    isMissingTable(pgrst202, 'exportable_tables'), false);
+  eq('a missing COLUMN is neither',
+    isMissingFunction('column products.serial does not exist', 'products'), false);
+  eq('an unrelated failure is neither', isMissingFunction('Failed to fetch', 'x'), false);
+  eq('nothing in, nothing claimed', isMissingFunction(null, 'x'), false);
+
+  // ...and the screen's message reaches the reader.
+  eq('loadFailure names the bundle for a missing function',
+    loadFailure(pgrst202, { tables: ['export_schedules'], functions: ['exportable_tables'],
+                            hint: 'Run data_export.sql' }), 'Run data_export.sql');
+  eq('...but only when the screen declared it',
+    loadFailure(pgrst202, { tables: ['export_schedules'], hint: 'Run data_export.sql' }),
+    `Load failed: ${pgrst202}`);
 }
 
 console.log('\n-- a missing table that is not THIS screen’s is not this screen’s hint --');
