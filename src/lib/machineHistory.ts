@@ -1,5 +1,5 @@
 import { getSupabase } from './supabase';
-import { machineKey } from './machine';
+import { machineKey, withEventKeys } from './machine';
 import { archiveConfigured, archiveHistory } from './archive';
 
 // ===========================================================================
@@ -42,6 +42,11 @@ import { archiveConfigured, archiveHistory } from './archive';
 // ===========================================================================
 
 export interface MachineEvent {
+  /** THIS ROW, and nothing else. Assigned by `withEventKeys` because the row's
+   *  own fields are not an identity: two visits on one call on one day with the
+   *  same status and no remark are identical in every one of them, and React
+   *  drops and duplicates rows that share a key. */
+  key: string;
   /** yyyy-mm-dd, or '' where the register holds no date for it. */
   on: string;
   /** Which register. Also the group heading on screen. */
@@ -170,7 +175,10 @@ export async function machineHistory(product: string, serial: string): Promise<M
   const ser = s(serial);
   if (!ser || !s(product)) return [];
   const c = client();
-  const out: MachineEvent[] = [];
+  // UNKEYED WHILE IT IS BEING BUILT, so no register can hand-write a key and
+  // no two can agree on one by accident. `withEventKeys` is the only thing
+  // that makes a MachineEvent, and the type says so.
+  const out: Omit<MachineEvent, 'key'>[] = [];
 
   // ---- the calls, which also give us the UCNs the visit and spare rows hang off
   const calls = await c.from('calls')
@@ -197,7 +205,7 @@ export async function machineHistory(product: string, serial: string): Promise<M
     // party can disagree with every other row, which is exactly why it belongs
     // where it can be read beside them rather than only above them.
     c.from('products').select('item_name,serial_number,party_name,item_status,warranty_number,contract_number,contract_type,active,created_at').eq('serial_number', ser).limit(50),
-    ucns.length ? c.from('reports').select('ucn,call_status,engineer,visit_at,updated_at,pending_reason').in('ucn', ucns).limit(500)
+    ucns.length ? c.from('reports').select('uid,ucn,call_status,engineer,visit_at,updated_at,pending_reason').in('ucn', ucns).limit(500)
       : Promise.resolve({ data: [], error: null }),
     ucns.length ? c.from('spare_consumption').select('ucn,part,qty,engineer,created_at,remarks').in('ucn', ucns).limit(500)
       : Promise.resolve({ data: [], error: null }),
@@ -224,8 +232,12 @@ export async function machineHistory(product: string, serial: string): Promise<M
   for (const r of rows(visits)) out.push({
     on: day(r.visit_at) || day(r.updated_at), source: 'Visit',
     what: s(r.call_status) || 'Visit', ref: s(r.ucn), ucn: s(r.ucn), party: s(r.engineer),
+    // THE VISIT'S OWN ID, LAST. Two visits on one call on one day with the same
+    // status are identical in every other column, which made a real duplicate
+    // look like a rendering fault — and the uid is what somebody needs to find
+    // and remove one of them.
     detail: [!s(r.visit_at) && `no visit date — entered ${day(r.updated_at)}`,
-             s(r.pending_reason)].filter(Boolean).join(' · '),
+             s(r.pending_reason), s(r.uid) && `visit ${s(r.uid)}`].filter(Boolean).join(' · '),
   });
 
   for (const r of rows(spares)) {
@@ -345,6 +357,8 @@ export async function machineHistory(product: string, serial: string): Promise<M
   // NEWEST FIRST, and a row with no date sorts LAST rather than first: an
   // undated row is one the register never dated, and putting it at the top
   // would read as the most recent thing that happened.
-  return out.sort((a, b) => (b.on || '').localeCompare(a.on || '')
-    || a.source.localeCompare(b.source));
+  // KEYED LAST, once the order is settled, so a row's key never depends on
+  // which register happened to be read first.
+  return withEventKeys(out.sort((a, b) => (b.on || '').localeCompare(a.on || '')
+    || a.source.localeCompare(b.source)));
 }

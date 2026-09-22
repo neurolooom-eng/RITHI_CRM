@@ -1,13 +1,13 @@
 import { useLocation } from 'react-router-dom';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { PageHeader, SectionCard, Toolbar } from '../components/ui/ui';
+import { useEffect, useRef, useState } from 'react';
+import { PageHeader, SectionCard } from '../components/ui/ui';
 import { SelectPicker } from '../components/ui/SelectPicker';
-import { DataTable, type Column } from '../components/table/DataTable';
 import { supabaseConfigured, sbListProductNames, sbListProductSerials } from '../lib/supabase';
-import { archiveNote, machineHistory, machineNow, partyDiffers, type MachineEvent, type MachineNow } from '../lib/machineHistory';
-import { Ucn } from '../lib/callstate';
-import { useCallStates, callStateFor } from '../lib/callstates';
-import { csvExport, fmtLongDate } from '../lib/format';
+import { archiveNote, machineHistory, machineNow, type MachineEvent, type MachineNow } from '../lib/machineHistory';
+// ONE RENDERING OF A MACHINE'S LIFE, shared with the pop-up the Daily
+// Complaint Review Register opens. A second copy would drift, and the drift
+// would be invisible -- both would look perfectly reasonable.
+import { MachineHistoryView } from '../components/machine/MachineHistoryView';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 
@@ -35,10 +35,6 @@ import './fieldcalls.css';
 // would promise the same standard of evidence for all of them.
 // ===========================================================================
 
-const SOURCES: MachineEvent['source'][] = [
-  'Product Database', 'Call', 'Visit', 'Spare', 'Field Failure', 'Feedback',
-  'Sale / warranty', 'Contract', 'Ownership', 'Additional entry', 'Workshop',
-];
 
 export function MachineHistory() {
   const live = supabaseConfigured();
@@ -120,20 +116,13 @@ export function MachineHistory() {
     } finally { setBusy(false); }
   };
 
-  const shown = useMemo(
-    () => (events ?? []).filter((e) => !only || e.source === only),
-    [events, only],
-  );
-  // ONLY THE LIVE UCNs. An archived call belongs to a system this project has
-  // never heard of, so there is no state to look up — asking would be a request
-  // that can only come back empty, and colouring the chip from an empty answer
-  // is the wrong-colour-on-a-code fault the rule exists to prevent.
-  useCallStates(shown.filter((e) => !e.archive).map((e) => e.ucn).filter(Boolean));
-
   const archiveRows = (events ?? []).filter((e) => e.archive).length;
 
   // WHAT THE SCREEN CANNOT SEE, said where the counts are. An archive that is
   // unconfigured or unreachable must not read as a machine with no past.
+  // It stays on the SCREEN rather than moving into MachineHistoryView: the
+  // shared view has no header, and the pop-up opened from the review desk is
+  // about one call's machine rather than about how this device is configured.
   const ArchiveLine = () => {
     const note = archiveNote();
     if (!note) return <span className="muted">{archiveRows} of these are from the 2016 archive.</span>;
@@ -148,39 +137,12 @@ export function MachineHistory() {
     return <span className="muted">The 2016 archive could not be read ({note.replace(/^unreadable: /, '')}).</span>;
   };
 
-  const columns: Column<Record<string, unknown>>[] = [
-    { key: 'on', header: 'When', width: 120, wrap: false,
-      render: (r) => (r.on ? fmtLongDate(r.on) : <span className="muted">no date</span>) },
-    // WHICH DATABASE, in words rather than a second colour: the one colour
-    // language on this row is the call state, and a second would weaken it.
-    { key: 'source', header: 'Register', width: 150, wrap: false,
-      render: (r) => (r.archive
-        ? <span>{String(r.source)} <span className="muted">· archive</span></span>
-        : String(r.source)) },
-    { key: 'what', header: 'What', width: 150 },
-    { key: 'ref', header: 'Reference', width: 150, wrap: false,
-      render: (r) => (r.ucn
-        // An archived UCN renders PLAIN — the archive cannot know the call's
-        // state, and a wrong colour on a code people have learned to read is
-        // worse than no colour (the same rule the spare registers follow).
-        ? <Ucn ucn={String(r.ucn)} state={r.archive ? undefined : callStateFor(String(r.ucn))} />
-        : String(r.ref ?? '')) },
-    { key: 'party', header: 'Who', width: 180 },
-    { key: 'detail', header: 'Detail' },
-  ];
-
-  const counts = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const e of events ?? []) m.set(e.source, (m.get(e.source) ?? 0) + 1);
-    return m;
-  }, [events]);
-
   return (
     <div>
       <PageHeader
         title="Machine History" icon="🔎"
         subtitle="One machine — where it is now, and everything ever recorded against it."
-        count={events ? shown.length : undefined} countMore={false}
+        count={events ? events.length : undefined} countMore={false}
         status={events ? <ArchiveLine /> : undefined}
       />
       {!live && (
@@ -222,103 +184,7 @@ export function MachineHistory() {
         </div>
       </SectionCard>
 
-      {now && (
-        <>
-          <div style={{ height: 12 }} />
-          <SectionCard title="Where it is now">
-            <div className="sf-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
-              <Fact label="With" value={now.party || '—'} />
-              <Fact label="Status" value={now.itemStatus || '—'} />
-              <Fact label="Where" value={[now.city, now.state].filter(Boolean).join(', ') || '—'} />
-              <Fact label="Engineer" value={now.engineer || '—'} />
-              <Fact label="Warranty" value={now.warrantyNumber
-                ? `${now.warrantyNumber} to ${fmtLongDate(now.warrantyEnd) || '—'}${now.warrantyState ? ` (${now.warrantyState})` : ''}`
-                : '—'} />
-              <Fact label="Contract" value={now.contractNumber
-                ? `${now.contractType || 'Contract'} ${now.contractNumber} to ${fmtLongDate(now.contractEnd) || '—'}${now.contractState ? ` (${now.contractState})` : ''}`
-                : '—'} />
-            </div>
-            {/* THE TWO PARTIES DISAGREEING IS THE FINDING, not a display fault.
-                Reported of ORION-G 2141: the master said one hospital and the
-                cover, the calls, the visit and the feedback all said another.
-                `products.party_name` is written only by the Product Database
-                upload and by an Ownership Transfer (0072); a CONTRACT moves the
-                cover and never the party. So a machine that moved on a contract
-                with no transfer filed keeps the old hospital on the master for
-                ever — and the master is what the call form and the request
-                cascade read, so the next call is offered the wrong one. */}
-            {partyDiffers(now) && (
-              <div className="sheet-banner sheet-banner-warn" style={{ marginTop: 10 }}>
-                <span>
-                  The <b>Product Database</b> says this machine is with <b>{now.party}</b>, but its
-                  cover — and the calls below — say <b>{now.coverParty}</b>. Go by where the calls
-                  are being raised. The master only moves when an <b>Ownership Transfer</b> is
-                  filed or the master is re-imported; a contract for a new hospital moves the
-                  cover and leaves the party behind. Until it is corrected, raising a call for
-                  this machine will offer the wrong hospital.
-                </span>
-              </div>
-            )}
-            {/* A MACHINE WITH A HISTORY AND NO MASTER ROW IS A FINDING, not an
-                error: the registers know it and the Product Database does not. */}
-            {!now.onMaster && (
-              <div className="sheet-banner sheet-banner-info" style={{ marginTop: 10 }}>
-                <span>
-                  This machine is <b>not on the Product Database</b> — what you see above is worked
-                  out from its cover. Everything below still happened to it.
-                </span>
-              </div>
-            )}
-          </SectionCard>
-        </>
-      )}
-
-      {events && (
-        <>
-          <div style={{ height: 12 }} />
-          <SectionCard title={`Everything recorded against it — ${events.length} entr${events.length === 1 ? 'y' : 'ies'}`}>
-            <Toolbar>
-              <button className={`chip ${only === '' ? 'chip-on' : ''}`} onClick={() => setOnly('')}>
-                All <b>{events.length}</b>
-              </button>
-              {SOURCES.filter((x) => counts.get(x)).map((x) => (
-                <button key={x} className={`chip ${only === x ? 'chip-on' : ''}`}
-                        onClick={() => setOnly((c) => (c === x ? '' : x))}>
-                  {x} <b>{counts.get(x)}</b>
-                </button>
-              ))}
-              <div className="spacer" />
-              {shown.length > 0 && (
-                <button className="btn btn-sm"
-                        onClick={() => csvExport(
-                          `machine-${product}-${serial}.csv`.replace(/[^a-z0-9.-]+/gi, '-'),
-                          columns.filter((c) => c.key !== 'ucn').map((c) => ({ key: c.key, header: String(c.header) })),
-                          shown as unknown as Record<string, unknown>[])}>
-                  ⭳ Export CSV
-                </button>
-              )}
-            </Toolbar>
-            {/* EVERY COUNT HERE IS EXACT — each register was read whole for this
-                one machine, not paged — so none of them carries a "+". */}
-            <DataTable<Record<string, unknown>>
-              columns={columns}
-              rows={shown as unknown as Record<string, unknown>[]}
-              getRowId={(r) => `${r.source}-${r.ref}-${r.on}-${r.detail}`}
-            />
-            <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
-              This is what <b>this</b> system holds. Anything from before the migration lives in
-              the old system and is not shown here.
-            </p>
-          </SectionCard>
-        </>
-      )}
+      <MachineHistoryView product={product} serial={serial} now={now} events={events} />
     </div>
   );
 }
-
-const Fact = ({ label, value }: { label: string; value: string }) => (
-  <div>
-    <div className="field-label">{label}</div>
-    <div style={{ fontWeight: 600 }}>{value}</div>
-  </div>
-);

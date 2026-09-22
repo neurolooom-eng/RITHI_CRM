@@ -556,6 +556,15 @@ typed into a form that reads it.
     label is the only way to take a batch back out (an administrator does that in
     the database, not here). Nothing in the application can change or delete an
     archive row once it is in.
+
+  > **You can also open it from a review.** The Daily Complaint Review Register's
+  > Review Desk has a **🔎 Machine History** button beside *Raise FFR*: it opens
+  > the same thing in a pop-up for the machine on that call, so you do not have
+  > to leave a half-answered review to find out what this machine has already
+  > done. Close it and you are back where you were. A call that does not record
+  > **both** a product and a serial says so rather than guessing — a serial on
+  > its own is not a machine.
+
 - **Objective** `/objective` — the year's objectives with targets, owners and the
   month-by-month actual.
   - **Re-Calculate is explicit**, never on opening the page. Only objectives with
