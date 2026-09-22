@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.332',
+    date: '2026-09-22',
+    title: 'Data Export needs ONE file run \u2014 and the scheduled export goes in behind it',
+    changes: [
+      'IF DATA EXPORT SAYS "Could not find the function public.exportable_tables", THE SCREEN IS LIVE AND ITS DATABASE SIDE IS NOT. Run supabase/apply/data_export.sql in the Supabase SQL editor and reload. It is a small file \u2014 two objects and a permission \u2014 and it is idempotent, so running it twice does nothing.',
+      'THAT FILE IS NEW, AND IT IS NEW BECAUSE OF THIS. The two migrations were filed under the call-requests bundle, so the only way to switch the screen on was to replay forty files against your live project \u2014 which is what took locks here before. They are their own bundle now.',
+      'The screen also names the file to run instead of just repeating the error. It could not before: "does not exist" is what Postgres says about a missing column too, and telling somebody to run a migration for a missing column sends them on a wasted trip. A missing FUNCTION can be named safely, because the database says which one it looked for.',
+      'SCHEDULED EXPORT \u2014 THE DATABASE SIDE IS IN, THE SCREEN FOR IT IS NOT YET. The same file creates the schedules and the record of every send. What you will choose is WHICH TABLES and WHEN; you will not choose where it goes, and that is on purpose \u2014 the recipients are set once on the server by whoever holds the project keys. A nightly copy of the whole customer base with an address anybody could edit on a screen is the one thing this must never be.',
+      'An audit trail can never be scheduled \u2014 the same rule that keeps it out of the download keeps it out of the mail.',
+      'Every send will be recorded \u2014 when, which tables, how many rows, and whether it went. That history can be read and cannot be edited or erased from any screen.',
+      'THE EMAIL SIDE NEEDS DEPLOYING ONCE \u2014 it is not live until then. Steps in supabase/functions/scheduled-export/README.md: a Resend key, four secrets, one deploy command and one SQL file.',
+    ],
+  },
+  {
     version: '0.9.322',
     date: '2026-09-21',
     title: '\u26a0 Calls that went back to Unattended \u2014 what happened, and the one file that fixes it',

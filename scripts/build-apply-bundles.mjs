@@ -267,9 +267,6 @@ const MODULES = {
       // round the generated column would be put back and the cancelled branch
       // lost, which is the "a bundle must carry the LATEST definition" rule.
       '0226_cancelled_is_not_report_pending.sql',
-      // AFTER rbac in ALL_ORDER, because it merges a module key into
-      // app_roles; and it reads is_admin(), which rbac defines.
-      '0227_data_export.sql',
       // LAST in this module: 0003 and 0053 both define cr_read, so a bundle
       // replayed alone would otherwise restore the per-row version.
       '0164_cr_read_initplan.sql',
@@ -808,6 +805,30 @@ const MODULES = {
             '0222_status_is_computed_when_read.sql',
             '0223_product_database_2_keeps_itself_alive.sql'],
   },
+  data_export: {
+    title: 'Data Export',
+    blurb: ['Administration -> Data Export: the table picker and its CSV download,',
+            'and the schedules that mail a chosen set of tables on a chosen day.',
+            '',
+            'A MODULE OF ITS OWN SO IT IS CHEAP TO RUN. These two migrations were',
+            'filed under `call_requests` and the screen went live before they were',
+            'applied, so the first person to open it got "Could not find the',
+            'function public.exportable_tables" and the only remedy on offer was',
+            'replaying a 40-file bundle against a live project -- which is exactly',
+            'the thing that has taken locks here before. Two self-contained objects',
+            'belong in a file that installs two self-contained objects.',
+            '',
+            'THERE IS NO DESTINATION IN THE DATABASE. What to export and when are',
+            'rows an administrator edits; WHO RECEIVES IT is a secret on the Edge',
+            'Function, set with the CLI. The earlier design kept the address in a',
+            'settings row and was refused as an exfiltration primitive -- rightly:',
+            'it made the nightly copy of the whole customer base redirectable from',
+            'a screen.'],
+    // is_admin() gates the picker; app_roles takes the module key (guarded, so
+    // the file still runs on a database that has not got it yet).
+    needs: ['isAdmin'],
+    files: ['0227_data_export.sql', '0228_export_schedules.sql'],
+  },
 };
 
 // Read queries for the objects above, kept with them so whoever applies the
@@ -939,7 +960,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'data_export'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

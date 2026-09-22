@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { allRows } from '../lib/paging';
 import { getSupabase, supabaseConfigured, exportableTables, type ExportableTable } from '../lib/supabase';
 import { toCsv } from '../lib/csv';
+import { loadFailure } from '../lib/dberror';
 import { zipStore, enc, download } from '../lib/zip';
 import { xlsxText } from '../lib/xlsx';
 
@@ -55,7 +56,17 @@ export default function DataExport() {
     if (!supabaseConfigured()) { setMsg({ tone: 'error', text: 'Connect the database in Settings first.' }); return; }
     exportableTables()
       .then(setTables)
-      .catch((e) => setMsg({ tone: 'error', text: `Could not read the table list: ${e instanceof Error ? e.message : String(e)}` }));
+      // NAMES THE FILE TO RUN. The first person to open this screen got
+      // "Load failed: Could not find the function public.exportable_tables"
+      // and nothing to act on -- the screen was live and its migration was
+      // not. A missing FUNCTION can be named safely (PostgREST says which one
+      // it looked for), which a bare "does not exist" cannot; `isMissingFunction`
+      // is the narrow test and `check:dberror` holds the two apart.
+      .catch((e) => setMsg({ tone: 'error', text: loadFailure(e, {
+        tables: ['export_schedules'],
+        functions: ['exportable_tables', 'is_exportable_table'],
+        hint: 'This screen needs its database side: run supabase/apply/data_export.sql in the Supabase SQL editor.',
+      }) }));
   }, []);
 
   const shown = useMemo(() => {
