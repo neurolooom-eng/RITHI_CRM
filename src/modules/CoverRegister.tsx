@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput, LongDateText } from '../components/ui/LongDate';
+import { SplitPane } from '../components/ui/SplitPane';
 import { sbSearchParties, sbPartyInfo } from '../lib/supabase';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT } from '../lib/coverspec';
@@ -8,7 +9,7 @@ import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
 import { listProductLines, sellableNames, sellableCodes, retiredNames, type ProductLine } from '../lib/productLines';
-import { PageHeader, Toolbar, SearchBox, Drawer } from '../components/ui/ui';
+import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtDate, statusBadge, timeAgo } from '../lib/format';
 import { localIsoDate } from '../lib/dates';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
@@ -863,94 +864,20 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
 
   const sections = [...new Set(cfg.headerFields.map((f) => f.section))];
 
-  return (
-    <div>
-      {/* The register's size is its entries — the deals — not the machines
-          under them, so the nav count means the same thing on both tabs. */}
-      <PageHeader
-        onRefresh={() => void refresh(tab)}
-        refreshing={busy}
-        syncedAt={tab === 'machines' ? feeds.machines.at : feeds.entries.at}
-        title={cfg.title} subtitle={cfg.subtitle} icon={cfg.icon}
-        count={tab === 'machines' ? machines.length : rows.length}
-        countMore={feed.more} />
-
-      {msg && (
-        <div className={`sheet-banner sheet-banner-${msg.tone}`}>
-          <span>{msg.text}</span>
-          <button className="btn btn-ghost btn-sm" onClick={() => setMsg(null)}>✕</button>
-        </div>
-      )}
-
-      <div className="row" style={{ gap: 8, marginBottom: 10 }}>
-        <button className={`btn btn-sm ${tab === 'entries' ? 'btn-primary' : ''}`} onClick={() => setTab('entries')}>Entries</button>
-        <button className={`btn btn-sm ${tab === 'machines' ? 'btn-primary' : ''}`} onClick={() => setTab('machines')}>By machine</button>
+  // THE ENTRY, AS THE SECOND WINDOW (the user, 2026-09-22: "Make the Warranty
+  // Entry and Contract as a 2 window view [Adjustable width]"). It used to open
+  // in a drawer OVER the list, which is right when you are looking at one
+  // record and wrong when the job is working down a list: every entry meant
+  // open, read, close, find your place again.
+  const entryPane = open ? (
+    <div style={{ padding: 14 }}>
+      <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 10 }}>
+        <h3 style={{ margin: 0, fontSize: 16 }}>
+          {open.id ? `${cfg.keyLabel} ${str(open[cfg.key])}` : `New ${cfg.keyLabel}`}
+        </h3>
+        <div className="spacer" />
+        <button className="btn btn-sm" onClick={() => setOpen(null)} title="Close this entry">✕</button>
       </div>
-
-      {tab === 'machines' && (
-        <div className="pc-summary">
-          {STATES.map((s) => (
-            <button key={s} className={`pc-tile ${state === s ? 'pc-tile-on' : ''}`} onClick={() => setState(state === s ? '' : s)}>
-              <span className="pc-tile-n">{counts[s] ?? 0}</span>
-              {statusBadge(s, TONES)}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {tab === 'entries' ? (
-        <DataTable<Row>
-          columns={headerColumns}
-          rows={rows}
-          getRowId={(r) => str(r.id)}
-          storageKey={`cover-${kind}-entries`}
-          rowsBeforeScroll={16}
-          dense
-          onRowClick={(r) => void openEntry(r)}
-          onLoadMore={loadMore}
-          moreAvailable={feeds.entries.more}
-          loadingMore={busy}
-          emptyText={busy ? 'Loading…' : 'No entries match.'}
-          toolbar={
-            <Toolbar>
-              <SearchBox value={q} onChange={setQ} placeholder={`${cfg.keyLabel} or party…`} />
-              <div className="spacer" />
-              {canEdit && (
-                <button className="btn btn-sm btn-primary" onClick={() => void newEntry()}>+ New entry</button>
-              )}
-              {rows.length > 0 && (
-                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-entries.csv`, headerColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), rows)}>⭳ Export CSV</button>
-              )}
-            </Toolbar>
-          }
-        />
-      ) : (
-        <DataTable<Row>
-          columns={machineColumns}
-          rows={machines}
-          getRowId={(r) => str(r.uid ?? r.id)}
-          storageKey={`cover-${kind}-machines`}
-          rowsBeforeScroll={16}
-          dense
-          onLoadMore={loadMore}
-          moreAvailable={feeds.machines.more}
-          loadingMore={busy}
-          emptyText={busy ? 'Loading…' : 'No machines match.'}
-          toolbar={
-            <Toolbar>
-              <SearchBox value={q} onChange={setQ} placeholder="Serial, product, party…" />
-              <div className="spacer" />
-              {machines.length > 0 && (
-                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-machines.csv`, machineColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), machines)}>⭳ Export CSV</button>
-              )}
-            </Toolbar>
-          }
-        />
-      )}
-
-      {open && (
-        <Drawer open onClose={() => setOpen(null)} width={860}
-          title={open.id ? `${cfg.keyLabel} ${str(open[cfg.key])}` : `New ${cfg.keyLabel}`}>
           <div className="muted" style={{ marginBottom: 10 }}>
             This is the parent record. A machine below leaves a field empty to follow it — change a
             date or a period here and every machine that follows moves with it.
@@ -1078,8 +1005,105 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
               </button>
             )
           )}
-        </Drawer>
+    </div>
+  ) : null;
+
+  const entriesTable = (
+        <DataTable<Row>
+          columns={headerColumns}
+          rows={rows}
+          getRowId={(r) => str(r.id)}
+          storageKey={`cover-${kind}-entries`}
+          // FEWER ROWS WHEN THE PANE IS NARROW. The split gives each side its
+          // own scroller; a table that also wants sixteen rows puts a second
+          // scrollbar inside the first, and the reader has to work out which
+          // one they are in.
+          rowsBeforeScroll={open ? 10 : 16}
+          dense
+          onRowClick={(r) => void openEntry(r)}
+          onLoadMore={loadMore}
+          moreAvailable={feeds.entries.more}
+          loadingMore={busy}
+          emptyText={busy ? 'Loading…' : 'No entries match.'}
+          toolbar={
+            <Toolbar>
+              <SearchBox value={q} onChange={setQ} placeholder={`${cfg.keyLabel} or party…`} />
+              <div className="spacer" />
+              {canEdit && (
+                <button className="btn btn-sm btn-primary" onClick={() => void newEntry()}>+ New entry</button>
+              )}
+              {rows.length > 0 && (
+                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-entries.csv`, headerColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), rows)}>⭳ Export CSV</button>
+              )}
+            </Toolbar>
+          }
+        />
+  );
+  return (
+    <div>
+      {/* The register's size is its entries — the deals — not the machines
+          under them, so the nav count means the same thing on both tabs. */}
+      <PageHeader
+        onRefresh={() => void refresh(tab)}
+        refreshing={busy}
+        syncedAt={tab === 'machines' ? feeds.machines.at : feeds.entries.at}
+        title={cfg.title} subtitle={cfg.subtitle} icon={cfg.icon}
+        count={tab === 'machines' ? machines.length : rows.length}
+        countMore={feed.more} />
+
+      {msg && (
+        <div className={`sheet-banner sheet-banner-${msg.tone}`}>
+          <span>{msg.text}</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => setMsg(null)}>✕</button>
+        </div>
       )}
+
+      <div className="row" style={{ gap: 8, marginBottom: 10 }}>
+        <button className={`btn btn-sm ${tab === 'entries' ? 'btn-primary' : ''}`} onClick={() => setTab('entries')}>Entries</button>
+        <button className={`btn btn-sm ${tab === 'machines' ? 'btn-primary' : ''}`} onClick={() => setTab('machines')}>By machine</button>
+      </div>
+
+      {tab === 'machines' && (
+        <div className="pc-summary">
+          {STATES.map((s) => (
+            <button key={s} className={`pc-tile ${state === s ? 'pc-tile-on' : ''}`} onClick={() => setState(state === s ? '' : s)}>
+              <span className="pc-tile-n">{counts[s] ?? 0}</span>
+              {statusBadge(s, TONES)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === 'entries' ? (
+        // TWO WINDOWS WHEN AN ENTRY IS OPEN, one when it is not. A split with
+        // nothing in its second pane is half a screen given to an empty box.
+        open ? (
+          <SplitPane storageKey={`cover-${kind}`} left={entriesTable} right={entryPane} />
+        ) : entriesTable
+      ) : (
+        <DataTable<Row>
+          columns={machineColumns}
+          rows={machines}
+          getRowId={(r) => str(r.uid ?? r.id)}
+          storageKey={`cover-${kind}-machines`}
+          rowsBeforeScroll={16}
+          dense
+          onLoadMore={loadMore}
+          moreAvailable={feeds.machines.more}
+          loadingMore={busy}
+          emptyText={busy ? 'Loading…' : 'No machines match.'}
+          toolbar={
+            <Toolbar>
+              <SearchBox value={q} onChange={setQ} placeholder="Serial, product, party…" />
+              <div className="spacer" />
+              {machines.length > 0 && (
+                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-machines.csv`, machineColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), machines)}>⭳ Export CSV</button>
+              )}
+            </Toolbar>
+          }
+        />
+      )}
+
     </div>
   );
 }

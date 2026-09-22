@@ -334,7 +334,9 @@ against the call it was fitted to.
   covered.
 
 Both work the same way. Two views: **Entries** (the deal and its machines) and
-**Machines** (per serial, with Active / About to expire / Inactive tiles). Each
+**Machines** (per serial, with Active / About to expire / Inactive tiles).
+**An entry opens beside the list, not over it** — drag the divider to give
+either side more room, and it is remembered. On a narrow screen the two stack. Each
 opens on **2,000 rows** — two full requests of the 1,000 the database hands over
 at once — and every **Load more** fetches twice as much as the one before.
 **"+ New entry" arrives with its number already in it** — offered, not reserved,

@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.343',
+    date: '2026-09-22',
+    title: 'Warranty and Contract open as two windows',
+    changes: [
+      'Click an entry and it opens BESIDE the list instead of over it, with a divider you can drag. The list stays where it was \u2014 working down a register used to mean open, read, close, find your place again, for every entry.',
+      'The width is remembered per register, as a percentage, so it keeps its proportions on a laptop and on a wide monitor alike. Neither pane can be dragged out of existence.',
+      'One window when nothing is open \u2014 a split with an empty half is half a screen given to a box.',
+      'On a phone or a narrow window the two stack and the divider disappears, rather than staying as a control that does nothing.',
+    ],
+  },
+  {
     version: '0.9.342',
     date: '2026-09-22',
     title: 'KYC records on a customer, and both on the row',

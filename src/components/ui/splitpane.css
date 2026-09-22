@@ -1,0 +1,32 @@
+/* Two panes and a draggable divider. Each pane scrolls on its own, so a long
+   entry does not drag the list down the page with it. */
+.split-pane {
+  display: grid;
+  gap: 0;
+  align-items: stretch;
+  height: calc(100vh - 230px);
+  min-height: 440px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.split-side { overflow: auto; min-width: 0; }
+.split-bar {
+  cursor: col-resize;
+  background: var(--border);
+  position: relative;
+}
+/* A wider grab area than it looks — 6px is hard to hit with a mouse. */
+.split-bar::after { content: ''; position: absolute; inset: 0 -3px; }
+.split-bar:hover { background: var(--primary); }
+
+/* ON A NARROW SCREEN THERE IS NO ROOM FOR TWO. Stacked, with the divider gone
+   rather than left as a control that does nothing — and no fixed height, so the
+   page scrolls as one instead of trapping two scrollers inside a phone. */
+@media (max-width: 900px) {
+  .split-pane { display: block; height: auto; min-height: 0; }
+  .split-bar { display: none; }
+  .split-side { overflow: visible; }
+  .split-side + .split-side { border-top: 1px solid var(--border); }
+}

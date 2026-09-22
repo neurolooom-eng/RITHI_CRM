@@ -5319,6 +5319,38 @@ console.log('\n-- the Product Database and the Product Master are two registers 
     /retired line takes no new sale/.test(reg), true);
 }
 
+console.log('\n-- the cover registers are two windows --');
+{
+  const reg2 = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+  const sp = readFileSync('src/components/ui/SplitPane.tsx', 'utf8');
+
+  // The user, 2026-09-22: "Make the Warranty Entry and Contract as a 2 window
+  // view [Adjustable width]". A drawer OVER the list is right for one record
+  // and wrong for working down a list -- open, read, close, find your place.
+  eq('an open entry sits beside the list, not over it',
+    /<SplitPane storageKey=\{`cover-\$\{kind\}`\}/.test(reg2), true);
+  eq('...and the drawer is gone rather than left unused', /<Drawer/.test(reg2), false);
+  // A SPLIT WITH NOTHING IN ITS SECOND PANE is half a screen given to a box.
+  eq('one window when nothing is open', /\) : entriesTable/.test(reg2), true);
+
+  // PERCENTAGES, NOT PIXELS: a width remembered on a wide monitor is a pane
+  // that fills a laptop.
+  eq('the divider stores a percentage', /String\(Math\.round\(cur\)\)/.test(sp), true);
+  // A divider dragged to the edge is indistinguishable from a broken screen,
+  // and there is nothing left to grab to undo it.
+  eq('a pane cannot be dragged out of existence',
+    /Math\.min\(Math\.max\(pct, min\), max\)/.test(sp), true);
+  // A private window throws on the storage accessor itself.
+  eq('...and a layout preference is never worth an error',
+    /catch \{ \/\* a layout is not worth an error \*\/ \}/.test(sp), true);
+  {
+    // ON A PHONE THERE IS NO ROOM FOR TWO, and a divider that does nothing is
+    // worse than no divider.
+    const css = readFileSync('src/components/ui/splitpane.css', 'utf8');
+    eq('it stacks on a narrow screen', /@media \(max-width: 900px\)[\s\S]{0,200}\.split-bar \{ display: none/.test(css), true);
+  }
+}
+
 console.log('\n-- KYC: the status and its evidence, both on the row --');
 {
   const pm = readFileSync('src/modules/PartyMaster.tsx', 'utf8');
