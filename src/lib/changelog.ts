@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.339',
+    date: '2026-09-22',
+    title: 'Force update child records \u2014 put every machine back on its entry',
+    changes: [
+      'On a Warranty or Contract entry, beside \u201c+ Add machine\u201d: \u201c\u21ba Force update child records\u201d. It clears every pinned value on every machine under that entry, so they all follow the entry again.',
+      'A machine follows its entry until somebody types into one of its fields \u2014 from then on that field is PINNED and the entry no longer moves it. That is the right default, and it is also how an entry ends up moving nothing at all: the bulk import wrote the entry\u2019s own values onto every machine, so every field is pinned to something that merely LOOKS inherited.',
+      'IT SAYS WHAT IT WILL DESTROY FIRST, and separates the two cases: values that merely repeat the entry (clearing them changes nothing you can see) and values that DIFFER from it (somebody\u2019s decision about one machine, and there is no undo). It names the fields and the counts before you confirm.',
+      'The button only appears when there is something pinned, and the line beside it tells you how many machines and how many values, with the differing ones in bold.',
+      'It never touches the product, the serial or the machine\u2019s own supplied-with answers \u2014 those are the machine\u2019s facts, not the entry\u2019s.',
+    ],
+  },
+  {
     version: '0.9.338',
     date: '2026-09-22',
     title: 'Warranty Sale: pick the customer, pick the product, type the serial',

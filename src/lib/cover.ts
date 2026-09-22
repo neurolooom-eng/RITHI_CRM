@@ -14,7 +14,8 @@
 // ===========================================================================
 import { getSupabase } from './supabase';
 import { dayAfter, addPeriod } from './dates';
-import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears } from './coverspec';
+import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears,
+         inheritAllPatch, isPinnedValue } from './coverspec';
 
 export type CoverKind = 'sale' | 'contract';
 
@@ -364,12 +365,42 @@ export async function finishCoverImport(): Promise<{ unpinned: number; machines:
   return { unpinned: Number(a.data ?? 0), machines: Number(b.data ?? 0) };
 }
 
+/**
+ * FORCE UPDATE CHILD RECORDS — put every machine back onto its entry.
+ *
+ * The user, 2026-09-22. Clears every INHERITING field on every machine of this
+ * entry in one statement, so each one follows the entry again. What it will
+ * clear is counted and shown first (`summarisePinned`); there is no undo, and a
+ * pinned value that genuinely differs from the entry is somebody's decision
+ * about one machine.
+ *
+ * ONE STATEMENT, NOT ONE PER MACHINE: a sale with forty machines would
+ * otherwise be forty round trips, any of which can fail half way and leave the
+ * entry half-inherited — which is the state this is meant to resolve.
+ *
+ * It does not touch a field the register does not declare as inheriting: the
+ * product, the serial and the machine's own supplied-with answers are ITS
+ * facts, not the entry's, and clearing them would delete the machine's
+ * identity.
+ */
+export async function forceInherit(kind: CoverKind, key: string): Promise<number> {
+  const cfg = configFor(kind);
+  const patch = inheritAllPatch(cfg.itemFields);
+  const { data, error } = await client()
+    .from(cfg.itemTable).update(patch).eq(cfg.key, key).select('id');
+  if (error) throw err(error);
+  return (data ?? []).length;
+}
+
 /** The value an item shows for a field: its own if pinned, else the header's. */
 export const effective = (item: Row, header: Row, field: string): unknown =>
   item[field] === null || item[field] === undefined || item[field] === '' ? header[field] : item[field];
 
-export const isPinned = (item: Row, field: string): boolean =>
-  item[field] !== null && item[field] !== undefined && item[field] !== '';
+// ONE COPY OF THE RULE, in coverspec.ts, because `summarisePinned` counts what
+// Force Update Child Records is about to clear and the two must agree about
+// what "pinned" means or the screen promises one thing and the write does
+// another.
+export const isPinned = (item: Row, field: string): boolean => isPinnedValue(item[field]);
 
 // ===========================================================================
 // RENEWING A CONTRACT — raising the next MC from an expiring one.

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { sbSearchParties, sbPartyInfo } from '../lib/supabase';
-import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName } from '../lib/coverspec';
+import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
+         summarisePinned } from '../lib/coverspec';
 import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
@@ -13,7 +14,7 @@ import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
-  configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem,
+  configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
@@ -747,6 +748,35 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     finally { setSaving(false); }
   };
 
+  // FORCE UPDATE CHILD RECORDS (the user, 2026-09-22). Every machine under this
+  // entry goes back to following it.
+  //
+  // WHAT IT WILL CLEAR IS COUNTED AND NAMED FIRST, because there is no undo and
+  // the two cases are not the same: a pinned value that merely REPEATS the
+  // entry disappears without anybody being able to tell, and one that DIFFERS
+  // is somebody's decision about one machine. The confirmation leads with the
+  // second number.
+  const pinnedNow = useMemo(
+    () => summarisePinned(cfg.itemFields, items, draft), [cfg.itemFields, items, draft],
+  );
+  const forceAll = async () => {
+    const p = pinnedNow;
+    const lines = p.fields.map((f) => `  · ${f.label} — ${f.machines} machine(s)${f.differing ? `, ${f.differing} differing` : ''}`);
+    const ok = window.confirm(
+      `Put all ${items.length} machine(s) back on ${str(draft[cfg.key])}?\n\n`
+      + `${p.differing} value(s) DIFFER from the entry and will be lost — there is no undo.\n`
+      + `${p.total - p.differing} more merely repeat the entry and will look unchanged.\n\n`
+      + `${lines.join('\n')}`);
+    if (!ok) return;
+    setSaving(true);
+    try {
+      const n = await forceInherit(kind, str(draft[cfg.key]));
+      setItems(await listItems(kind, str(draft[cfg.key])));
+      setMsg({ tone: 'ok', text: `${n} machine(s) now follow ${str(draft[cfg.key])} — ${p.total} pinned value(s) cleared.` });
+    } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
+    finally { setSaving(false); }
+  };
+
   const removeEntry = async () => {
     if (!open?.id || !window.confirm(`Delete ${str(open[cfg.key])} and its ${items.length} machine(s)?`)) return;
     try {
@@ -943,10 +973,26 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
               onDeleted={(id) => setItems((cur) => cur.filter((x) => x.id !== id))} />
           ))}
           {canEdit && !!open.id && (
-            <button className="btn btn-sm" style={{ marginTop: 8 }}
-              onClick={() => setItems((cur) => [...cur, { [cfg.key]: str(draft[cfg.key]) }])}>
-              + Add machine
-            </button>
+            <div className="row" style={{ gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button className="btn btn-sm"
+                onClick={() => setItems((cur) => [...cur, { [cfg.key]: str(draft[cfg.key]) }])}>
+                + Add machine
+              </button>
+              {/* OFFERED ONLY WHEN THERE IS SOMETHING TO CLEAR. A button that
+                  does nothing is one people press to find out what it does. */}
+              {pinnedNow.total > 0 && (
+                <>
+                  <button className="btn btn-sm" disabled={saving} onClick={() => void forceAll()}
+                    title="Clear every pinned value so all machines follow this entry again">
+                    ↺ Force update child records
+                  </button>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    {pinnedNow.machines} machine(s) pinned · {pinnedNow.total} value(s)
+                    {pinnedNow.differing > 0 && <b> · {pinnedNow.differing} differ from this entry</b>}
+                  </span>
+                </>
+              )}
+            </div>
           )}
 
           {/* CONTRACTS ONLY, and only once the entry exists. A sale is not

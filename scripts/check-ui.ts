@@ -5361,6 +5361,22 @@ console.log('\n-- the Warranty Sale asks for what it cannot work out, and no mor
   // fixed a typo.
   eq('the entry date is stamped on creation only',
     /!draft\.id && kind === 'sale' && !draft\.entry_at/.test(reg), true);
+
+  // FORCE UPDATE CHILD RECORDS is destructive with no undo, so it must say what
+  // it will destroy BEFORE it does it -- and the number that matters is how
+  // many pinned values DIFFER from the entry, not how many exist. Clearing one
+  // that merely repeats the entry changes nothing anybody can see.
+  eq('forcing inheritance says what it will clear first',
+    /window\.confirm\(\s*`Put all/.test(reg) && /DIFFER from the entry and will be lost/.test(reg), true);
+  eq('...counted by the same rule the write uses', /summarisePinned\(cfg\.itemFields/.test(reg), true);
+  // A button that does nothing is one people press to find out what it does.
+  eq('...and it is offered only when something is pinned',
+    /pinnedNow\.total > 0 && \(/.test(reg), true);
+  // ONE STATEMENT, not one per machine: a forty-machine sale is forty round
+  // trips otherwise, any of which can fail half way and leave the entry
+  // half-inherited -- the state this exists to resolve.
+  eq('it clears every machine in one statement',
+    /\.from\(cfg\.itemTable\)\.update\(patch\)\.eq\(cfg\.key, key\)/.test(cover), true);
 }
 
 console.log('\n-- one machine, across every register --');

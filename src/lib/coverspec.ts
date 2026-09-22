@@ -460,3 +460,82 @@ export function pairProductCodeAndName(
   const names = [...new Set(live.filter((l) => norm(l.code) === v).map((l) => l.name).filter(Boolean))];
   return names.length === 1 ? { product_name: names[0] } : {};
 }
+
+// ===========================================================================
+// FORCING EVERY MACHINE BACK ONTO THE ENTRY.
+//
+//   The user, 2026-09-22: "Force inherit — 'Force Update Child Records' the
+//   parent details to all child records."
+//
+// A machine under a Sale or a Contract follows its entry until somebody types
+// into one of its fields; from then on that field is PINNED and the entry no
+// longer moves it. That is the right default — a machine really can carry a
+// different warranty start from the rest of its sale — and it is also how an
+// entry ends up moving nothing at all, because a bulk import once wrote the
+// entry's own values onto every machine and every field is pinned to a value
+// that merely LOOKS inherited.
+//
+// This is the deliberate way back: clear every inheriting field on every
+// machine so they all follow the entry again.
+//
+// IT IS DESTRUCTIVE AND THE SCREEN MUST SAY WHAT IT WILL DESTROY. A pinned
+// value that genuinely differs from the entry is somebody's decision about ONE
+// machine, and there is no undo — the previous values are gone. So the count is
+// computed FIELD BY FIELD and shown before anything is written, and the ones
+// that differ from the entry are counted separately from the ones that merely
+// repeat it: clearing a value identical to the entry changes nothing anybody
+// can see, and clearing one that differs changes the record.
+//
+// PURE, AND HERE RATHER THAN IN cover.ts, for the paging.ts reason: that module
+// reaches supabase.ts and its import.meta.env, so nothing in it can be tested.
+// ===========================================================================
+
+export interface InheritField { name: string; label: string; inherits?: boolean }
+
+export interface PinnedSummary {
+  /** Fields pinned on at least one machine, commonest first. */
+  fields: { name: string; label: string; machines: number; differing: number }[];
+  /** Machines carrying at least one pinned field. */
+  machines: number;
+  /** Pinned values that DIFFER from the entry — the ones with something to lose. */
+  differing: number;
+  /** Every pinned value, differing or not. */
+  total: number;
+}
+
+/** Is this field pinned on this machine? The one copy of the rule — a pinned
+ *  field holds a value of its own; null, undefined and '' all mean "follow the
+ *  entry". */
+export const isPinnedValue = (v: unknown): boolean => v !== null && v !== undefined && v !== '';
+
+const same = (a: unknown, b: unknown) =>
+  String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+
+export function summarisePinned(fields: InheritField[], items: Row[], header: Row): PinnedSummary {
+  const inheriting = fields.filter((f) => f.inherits);
+  const out: PinnedSummary = { fields: [], machines: 0, differing: 0, total: 0 };
+  const touched = new Set<number>();
+
+  for (const f of inheriting) {
+    let machines = 0;
+    let differing = 0;
+    items.forEach((it, i) => {
+      if (!isPinnedValue(it[f.name])) return;
+      machines += 1;
+      touched.add(i);
+      if (!same(it[f.name], header[f.name])) differing += 1;
+    });
+    if (machines) out.fields.push({ name: f.name, label: f.label, machines, differing });
+    out.total += machines;
+    out.differing += differing;
+  }
+  out.fields.sort((a, b) => b.machines - a.machines || a.label.localeCompare(b.label));
+  out.machines = touched.size;
+  return out;
+}
+
+/** The patch that puts every machine back on the entry: every inheriting field
+ *  set to null. Built from the field list, so a field added to the register is
+ *  covered by that fact alone. */
+export const inheritAllPatch = (fields: InheritField[]): Row =>
+  Object.fromEntries(fields.filter((f) => f.inherits).map((f) => [f.name, null]));

@@ -12,7 +12,8 @@
 // new one has none produces a sale carrying a different customer's address,
 // with nothing on screen saying so. That is the assertion this file exists for.
 // ===========================================================================
-import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName } from '../src/lib/coverspec';
+import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
+         summarisePinned, inheritAllPatch, isPinnedValue } from '../src/lib/coverspec';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -109,6 +110,58 @@ console.log('\n-- the product code and the name are one choice --');
   // has not got, not a reason to throw away a code somebody typed.
   eq('and it never returns a blank to overwrite with',
     Object.values(pairProductCodeAndName('product_name', 'SOMETHING ELSE', lines)).length, 0);
+}
+
+console.log('\n-- what Force Update Child Records is about to clear --');
+{
+  // A pinned field holds a value of its own. null, undefined and '' all mean
+  // "follow the entry" -- and '' is the one that matters, because the form
+  // writes it when somebody clears a box.
+  eq('a value is pinned', isPinnedValue('CHENNAI'), true);
+  eq('null is not', isPinnedValue(null), false);
+  eq('undefined is not', isPinnedValue(undefined), false);
+  eq('an empty string is not', isPinnedValue(''), false);
+  eq('zero IS a value', isPinnedValue(0), true);
+
+  const fields = [
+    { name: 'warranty_start', label: 'Warranty Start Date', inherits: true },
+    { name: 'city', label: 'City', inherits: true },
+    { name: 'serial_number', label: 'Serial Number' },        // the machine's own
+  ];
+  const header = { warranty_start: '2026-01-01', city: 'CHENNAI' };
+  const items = [
+    { serial_number: 'A1', warranty_start: '2026-01-01', city: null },   // repeats the entry
+    { serial_number: 'A2', warranty_start: '2026-03-15', city: 'PUNE' }, // both differ
+    { serial_number: 'A3', warranty_start: null, city: '' },             // follows already
+  ];
+  const p = summarisePinned(fields, items, header);
+
+  eq('machines carrying at least one pinned value', p.machines, 2);
+  eq('every pinned value, differing or not', p.total, 3);
+  // THE NUMBER THAT MATTERS. Clearing a value identical to the entry changes
+  // nothing anybody can see; clearing one that differs destroys a decision
+  // somebody made about ONE machine, with no undo.
+  eq('...of which these DIFFER from the entry', p.differing, 2);
+  eq('the fields are named, commonest first',
+    p.fields.map((f) => `${f.label}:${f.machines}/${f.differing}`),
+    ['Warranty Start Date:2/1', 'City:1/1']);
+
+  // A FIELD THE REGISTER DOES NOT DECLARE AS INHERITING IS NOT TOUCHED. The
+  // serial is the machine's identity, not the entry's, and clearing it would
+  // delete the machine.
+  eq('a non-inheriting field is never counted',
+    p.fields.some((f) => f.name === 'serial_number'), false);
+
+  // ...and the write agrees with the count about which fields those are.
+  eq('the patch clears exactly the inheriting fields',
+    Object.keys(inheritAllPatch(fields)).sort(), ['city', 'warranty_start']);
+  eq('...and clears them to null, not to an empty string',
+    Object.values(inheritAllPatch(fields)).every((v) => v === null), true);
+
+  eq('nothing pinned, nothing to offer', summarisePinned(fields, [
+    { serial_number: 'B1', warranty_start: null, city: null },
+  ], header), { fields: [], machines: 0, differing: 0, total: 0 });
+  eq('no machines at all', summarisePinned(fields, [], header).total, 0);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
