@@ -58,6 +58,7 @@ import { HowToUse } from './modules/HowToUse';
 import { KnowledgeBase } from './modules/KnowledgeBase';
 import { ServiceManuals, QmsDocuments } from './modules/DocumentLibrary';
 import { ReportMapping } from './modules/ReportMapping';
+import DataExport from './modules/DataExport';
 import { BulkUploads } from './modules/BulkUploads';
 import { OwnershipTransfer } from './modules/OwnershipTransfer';
 import { PmBulkUpload } from './modules/PmBulkUpload';
@@ -128,6 +129,7 @@ function Shell() {
         <Route path="/masters" element={<AllMasters />} />
         <Route path="/masters/:key" element={<MasterListPage />} />
         <Route path="/report-mapping" element={<ReportMapping />} />
+        <Route path="/data-export" element={<DataExport />} />
         <Route path="/bulk-uploads" element={<BulkUploads />} />
         <Route path="/ownership-transfer" element={<OwnershipTransfer />} />
         <Route path="/service-manuals" element={<ServiceManuals />} />

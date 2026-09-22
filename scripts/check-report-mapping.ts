@@ -2,7 +2,7 @@
 // mapping. No test runner in this repo, so: `npm run check:mapping`.
 // Exits non-zero on the first mismatch, and prints every case either way.
 
-import { parseRef, baseName, matchCall, toTimestamp, shapeRow, summarise, fileNamesToResolve, type CallKey } from '../src/lib/reportMapping';
+import { parseRef, baseName, matchCall, toTimestamp, shapeRow, summarise, fileNamesToResolve, decideVisit, isCompletedVisit, summariseActions, SOLVED_REPORT_COMPLETED, type CallKey, type ExistingVisit } from '../src/lib/reportMapping';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -69,5 +69,61 @@ eq('row3 has no uid to write', shaped[2].uid, '');
 eq('summary', summarise(shaped), { total: 3, matched: 2, unmatched: 1, ambiguous: 0, needLookup: 1, alreadyLinked: 1, ready: 2 });
 eq('lookup list deduped', fileNamesToResolve([parseRef('a/x.png'), parseRef('b/x.png'), parseRef('c/y.png')]), ['x.png', 'y.png']);
 
+
+console.log('\n-- what to do with each row (the user rule, 2026-09-22) --');
+{
+  const V = (uid: string, call_status: string, manual_report = '', updated_at = '2026-01-01'): ExistingVisit =>
+    ({ uid, call_status, manual_report, updated_at });
+  const D = 'REC-26A01F0001-20260601000000';
+
+  // 1. A completed visit that ALREADY has a report is never touched. This is
+  //    the rule that protects what an engineer filed.
+  eq('a completed visit with a report is left alone',
+    decideVisit([V('a', SOLVED_REPORT_COMPLETED, 'https://drive/x')], D, true).action, 'skip');
+
+  // 2. A completed visit with NO report gets the link -- on that visit's uid,
+  //    not a new one.
+  const attach = decideVisit([V('a', SOLVED_REPORT_COMPLETED)], D, true);
+  eq('a completed visit with no report is attached to', attach.action, 'attach');
+  eq('...on ITS uid, not a derived one', attach.uid, 'a');
+
+  // 3. No completed visit at all -> file one.
+  const create = decideVisit([V('a', 'Unsolved')], D, true);
+  eq('no completed visit means a new one', create.action, 'create');
+  eq('...with the derived uid', create.uid, D);
+  eq('a call with no visits at all also creates', decideVisit([], D, true).action, 'create');
+
+  // 4. "Solved - Report PENDING" IS NOT COMPLETED, and a prefix match would
+  //    say it was. Both squash to something, and the somethings differ.
+  eq('report PENDING is not report completed', isCompletedVisit('Solved - Report Pending'), false);
+  eq('...so it does not count as the completed visit',
+    decideVisit([V('a', 'Solved - Report Pending')], D, true).action, 'create');
+  // ...while the spellings an export produces DO match.
+  eq('SOLVED - REPORT COMPLETED matches', isCompletedVisit('SOLVED - REPORT COMPLETED'), true);
+  eq('Solved-Report Completed matches', isCompletedVisit('Solved-Report Completed'), true);
+  eq('plain Solved does not', isCompletedVisit('Solved'), false);
+
+  // 5. A row with NO document cannot improve anything, and filing an empty
+  //    visit for it would be inventing history.
+  eq('a row with no document writes nothing',
+    decideVisit([V('a', SOLVED_REPORT_COMPLETED)], D, false).action, 'skip');
+  eq('...even where there is no visit to attach to',
+    decideVisit([], D, false).action, 'skip');
+
+  // 6. SEVERAL completed visits: one carrying a report anywhere means skip;
+  //    otherwise the LATEST ENTRY is the one a reader sees (0032's ordering).
+  eq('a report on ANY completed visit means skip',
+    decideVisit([V('a', SOLVED_REPORT_COMPLETED), V('b', SOLVED_REPORT_COMPLETED, 'link')], D, true).action, 'skip');
+  eq('otherwise the latest ENTRY is attached to',
+    decideVisit([V('old', SOLVED_REPORT_COMPLETED, '', '2026-01-01'),
+                 V('new', SOLVED_REPORT_COMPLETED, '', '2026-06-01')], D, true).uid, 'new');
+
+  eq('the three outcomes are counted for the preview',
+    summariseActions([{ action: 'skip', uid: '', why: '' }, { action: 'attach', uid: 'a', why: '' },
+                      { action: 'create', uid: D, why: '' }, { action: 'skip', uid: '', why: '' }]),
+    { skip: 2, attach: 1, create: 1 });
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
+

@@ -253,6 +253,7 @@ export const NAV: NavGroup[] = [
       // report's mapping, a PM schedule), and keeping them apart is what made
       // somebody look for a table in the wrong one.
       { to: '/report-mapping', label: 'Bulk Report Mapping', icon: '🧩', adminOnly: true },
+      { to: '/data-export', label: 'Data Export', icon: '⬇️', adminOnly: true },
       { to: '/pm-bulk-upload', label: 'PM Bulk Upload', icon: '⬆️', adminOnly: true },
       { to: '/admin-config', label: 'Admin Config', icon: '🛠️', adminOnly: true },
       { to: '/software-validation', label: 'Software Validation', icon: '🧪', adminOnly: true },

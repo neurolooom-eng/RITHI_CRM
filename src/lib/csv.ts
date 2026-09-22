@@ -88,3 +88,22 @@ export function parseCSV(text: string, opts?: { aliases?: string[] }): Record<st
     .filter((r) => r.some((v) => String(v).trim() !== ''))
     .map((r) => Object.fromEntries([...idx].map(([h, i]) => [h, r[i] ?? ''])));
 }
+
+// ---------------------------------------------------------------------------
+// WRITING one. This module already owns READING a CSV; the writer belongs
+// beside it for the reason the header parser does — there used to be four date
+// parsers here and they had started to disagree.
+//
+// RFC 4180: every field quoted, a quote inside doubled. Quoting everything
+// rather than only what needs it costs a few bytes and removes the whole class
+// of question about which fields those are — and a value beginning with `=`,
+// `+` or `-` is a FORMULA to a spreadsheet unless it is quoted, which is how a
+// part code becomes a #NAME? error.
+//
+// CRLF, because that is what RFC 4180 says and what Excel on Windows expects.
+// ---------------------------------------------------------------------------
+export const csvField = (v: unknown): string => `"${String(v ?? '').replace(/"/g, '""')}"`;
+
+export function toCsv(columns: string[], rows: (string | number | null | undefined)[][]): string {
+  return [columns.map(csvField).join(','), ...rows.map((r) => r.map(csvField).join(','))].join('\r\n');
+}

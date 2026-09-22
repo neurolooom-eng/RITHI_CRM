@@ -109,6 +109,7 @@ export const MODULES: ModuleDef[] = [
   // comparison on every run).
   { path: '/pm-bulk-upload', label: 'PM Bulk Upload', admin: true },
   { path: '/bulk-uploads', label: 'Bulk Uploads', admin: true },
+  { path: '/data-export', label: 'Data Export', admin: true },
   { path: '/spare-requests', label: 'Spare Requests' },
   { path: '/spare-rm-approval', label: 'RM Approval' },
   { path: '/spare-dispatch', label: 'Pending Dispatch' },
@@ -544,6 +545,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/audit', label: 'Audit Log', actions: ['audit.view'] },
     { path: '/bulk-uploads', label: 'Bulk Uploads', actions: [] },
     { path: '/report-mapping', label: 'Bulk Report Mapping', actions: [] },
+    { path: '/data-export', label: 'Data Export', actions: [] },
     { path: '/pm-bulk-upload', label: 'PM Bulk Upload', actions: [] },
     { path: '/admin-config', label: 'Admin Config', actions: ['config.manage'] },
     { path: '/software-validation', label: 'Software Validation', actions: ['config.manage'] },

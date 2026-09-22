@@ -7788,5 +7788,42 @@ console.log('\n-- a machine is its MODEL and its serial, in the cover lookup too
     /on more than one machine/.test(pr) && /No machine in Product Database is/.test(pr), true);
 }
 
+
+console.log('\n-- bulk report mapping never overwrites a report that is there --');
+{
+  // The user's rule, 2026-09-22: a completed visit that already has a report is
+  // not touched; one without gets the link; a call with no completed visit gets
+  // a new visit. The decision itself is tested in check:mapping; these hold the
+  // WIRING, which no pure test can see.
+  const rm = readFileSync('src/modules/ReportMapping.tsx', 'utf8');
+  const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+
+  // ATTACH IS A NARROW UPDATE, NOT AN UPSERT. The visit being written to is an
+  // engineer's record -- their job done, their readings. An upsert would carry
+  // the recovery file's whole payload over it and blank every column the file
+  // does not have.
+  eq('attaching writes three columns, not a row',
+    /\.update\(\{ manual_report: r\.manual_report, source_ref: r\.source_ref, call_status: status,/.test(sb), true);
+  eq('...and does NOT touch updated_at', /attachReportsToVisits[\s\S]{0,700}updated_at:/.test(sb), false);
+  eq('...keyed on the EXISTING visit', /\.eq\('uid', r\.uid\)/.test(sb), true);
+
+  // THE PREVIEW MUST SAY WHICH OF THE THREE WILL HAPPEN. A screen that decides
+  // at write time is the thing this module exists to avoid.
+  eq('the preview shows the action per row', /key: '_action', header: 'Will do'/.test(rm), true);
+  eq('...and the button states the plan', /⤵ Attach \{plan\.attach\} · file \{plan\.create\}/.test(rm), true);
+  eq('...counted from the decision, not from the row count',
+    /summariseActions\(rows\.filter\(\(r\) => !r\.problem\)\.map\(decisionFor\)\)/.test(rm), true);
+
+  // The call's EXISTING visits have to be read, or there is nothing to decide
+  // against and every row would look like a new visit.
+  eq('the existing visits are fetched with the calls', /await visitsForCalls\(/.test(rm), true);
+  // ATTACH RUNS FIRST: it only adds a document to a visit that has none, so a
+  // run that stops half way leaves the register consistent.
+  eq('attach runs before create', rm.indexOf('attachReportsToVisits(') < rm.indexOf('upsertRecoveredReports('), true);
+  // A NEW visit carries the status the rule names, whatever the file said.
+  eq('a filed visit is marked completed',
+    /call_status: SOLVED_REPORT_COMPLETED/.test(rm), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

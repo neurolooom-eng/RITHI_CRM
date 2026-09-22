@@ -302,6 +302,49 @@ P(`**${URS.length}** user requirements · **${FRS.length}** system requirements 
   + `**${withModule}** of ${URS.length} user requirements tied to a module.`);
 
 // ===========================================================================
+// THE NON-AUDITABLE REQUIREMENTS, IN FULL.
+//
+// They were COUNTED here and never PRINTED: the document said "3 recorded as
+// non-auditable" and an assessor reading it could not learn what any of them
+// was. That is the opposite of why they are recorded -- the whole argument for
+// writing a non-auditable requirement down is that a feature absent from the
+// specification is the thing an assessor finds. A count is not the feature.
+//
+// Each one prints its CLASSIFICATION and its RATIONALE, because the
+// classification is a claim about PROVENANCE -- not derived from a regulatory
+// clause, not offered as evidence against one -- and a claim with no reasoning
+// beside it cannot be reviewed, only believed.
+// ===========================================================================
+P('---');
+P();
+P('## Non-auditable requirements');
+P();
+P('Recorded here because a feature absent from the specification is the thing an assessor finds. '
+  + 'Each is classified by PROVENANCE: it is not derived from a regulatory clause and is not offered '
+  + 'as evidence against one. That is a statement about where the requirement came from, NOT a '
+  + 'statement that its use goes unrecorded.');
+P();
+for (const n of NON_AUDITABLE) {
+  P(`### ${n.id} — ${n.title}`);
+  P();
+  P(`*${n.classification}* · risk: **${n.risk}**`);
+  P();
+  P(n.text);
+  P();
+  P(`**Why it is classified this way.** ${n.rationale}`);
+  P();
+  const t = TESTS.filter((x) => (x.reqs ?? []).includes(n.id));
+  if (t.length) {
+    P(`**Verified by:** ${t.map((x) => `${x.id} — ${x.objective}`).join(' · ')}`);
+    P();
+  } else {
+    P('**No test protocol names this requirement.** That is a gap, not a decision.');
+    P();
+  }
+  if (n.refs?.length) { P(`**Where it lives:** ${n.refs.join(' · ')}`); P(); }
+}
+
+// ===========================================================================
 // THE TRACEABILITY MATRIX.
 //
 // The user, 2026-09-15: "I want the REquirements like Traceability. Column1 URS
