@@ -138,18 +138,28 @@ export function matchCall(row: { ucn?: unknown; call_number?: unknown }, calls: 
 // ---- shaping a row --------------------------------------------------------
 
 // Column aliases, so an export does not have to be renamed by hand first.
-const ALIASES: Record<string, string[]> = {
+export const ALIASES: Record<string, string[]> = {
   uid: ['uid', 'row id', 'rowid', 'id', 'unique id', 'uniqueid', 'key'],
   ucn: ['ucn', 'uc number', 'ucnumber', 'uc no', 'unique call number'],
   call_number: ['call_number', 'call number', 'callno', 'call no', 'callnumber'],
   call_status: ['call_status', 'call status', 'status'],
-  pending_reason: ['pending_reason', 'pending reason'],
-  engineer: ['engineer', 'engineer name', 'attended by', 'allocated to'],
-  engineer_email: ['engineer_email', 'engineer email', 'email'],
+  pending_reason: ['pending_reason', 'call pending reason', 'pending reason'],
+  // `Visiting Service Engineer` is the registers’ own heading and was missing
+  // here, so a created visit carried no engineer and the preview’s Engineer
+  // column was blank on a file that names one in every row.
+  engineer: ['engineer', 'visiting service engineer', 'engineer name', 'attended by', 'allocated to'],
+  engineer_email: ['engineer_email', 'email id', 'engineer email', 'email'],
   // The same headings Bulk Uploads' report registers read — keep the two lists
   // in step, or a file loads on one screen and not the other.
   visit_at: ['visit_at', 'visit date & time', 'visit date and time', 'visit date', 'visit_date', 'date of visit', 'attended date', 'date'],
-  manual_report: ['manual_report', 'manual report', 'report', 'attachment', 'file', 'document', 'photo', 'image'],
+  // `service report` IS WHAT THE REGISTERS ACTUALLY CALL IT, and its absence
+  // here is what a 378-row file found (2026-09-22): every row read as “no
+  // attachment on this row” and the screen offered to write nothing. The
+  // first four are `REPORT_COLS`’ own list in `REPORT_COLS`’ own order, so
+  // the two agree about which column wins where a file carries several;
+  // `check:mapping` fails if this stops being true.
+  manual_report: ['manual_report', 'manual report', 'service report', 'attachment',
+                  'report', 'file', 'document', 'photo', 'image'],
 };
 
 // The same three-pass header matcher every importer uses (./headers), so a
@@ -314,8 +324,21 @@ export function decideVisit(visits: ExistingVisit[], derivedUid: string, hasLink
   return { action: 'create', uid: derivedUid, why: 'No completed visit on this call — filing one.' };
 }
 
-export const summariseActions = (d: VisitDecision[]) => ({
-  skip: d.filter((x) => x.action === 'skip').length,
-  attach: d.filter((x) => x.action === 'attach').length,
-  create: d.filter((x) => x.action === 'create').length,
-});
+// THE SUMMARY MUST REPORT THE REASONS IT MEASURED, NOT ONE IT ASSUMED.
+// The footer used to attribute every skip to "a report is already on the call's
+// completed visit". On 2026-09-22 a 378-row file skipped all 376 ready rows
+// because the attachment column was not being read at all, and the footer said
+// their reports were already in place -- a confident, complete, wrong answer,
+// and the per-row `why` beside it said something else. `decideVisit` gives
+// three different reasons; this counts them.
+export const summariseActions = (d: VisitDecision[]) => {
+  const why = new Map<string, number>();
+  for (const x of d) if (x.action === 'skip') why.set(x.why, (why.get(x.why) ?? 0) + 1);
+  return {
+    skip: d.filter((x) => x.action === 'skip').length,
+    attach: d.filter((x) => x.action === 'attach').length,
+    create: d.filter((x) => x.action === 'create').length,
+    // Commonest first, so the footer leads with what actually happened.
+    skipReasons: [...why.entries()].map(([text, n]) => ({ text, n })).sort((a, b) => b.n - a.n),
+  };
+};

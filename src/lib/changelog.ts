@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.334',
+    date: '2026-09-22',
+    title: '\u26a0 Bulk Report Mapping was not reading your \u201cService Report\u201d column \u2014 fixed',
+    changes: [
+      'IF YOUR FILE SHOWED "0 with a link", THIS WAS WHY. The attachment column in the Field, Installation and PM exports is headed Service Report, and Bulk Report Mapping did not know that name \u2014 so every row read as "no attachment on this row" and the screen offered to write nothing. Nothing errored, the calls matched, the preview filled in. It was just quietly reading the wrong column. Load the file again and it will work.',
+      'THREE MORE HEADINGS WERE MISSING WITH IT, found by the check written for the first: Visiting Service Engineer, CALL PENDING REASON and Email-ID. That is why the Engineer column in the preview was blank on a file that names an engineer in every row \u2014 and why a visit filed by that screen carried no engineer. An existing visit being ATTACHED to was never affected: that still writes only the report link, the source and the status, and leaves everything the engineer entered alone.',
+      'THE FOOTER WAS TELLING YOU SOMETHING IT HAD NOT CHECKED. It said "376 left alone because a report is already on the call\u2019s completed visit" while the rows beside it said "nothing to attach". It now reports the reasons it actually found, commonest first \u2014 in the footer, the confirmation box and the message after the write.',
+      'Bulk Uploads was NOT affected. It has always read Service Report, so anything loaded there landed correctly.',
+      'If reports you loaded earlier are still showing as AppSheet paths rather than Drive links, run supabase/apply/_where_are_my_service_reports.sql \u2014 it is read-only and counts what is actually stored, because "no link on screen" has four different causes and they need opposite fixes.',
+    ],
+  },
+  {
     version: '0.9.333',
     date: '2026-09-22',
     title: 'Schedule an export yourself \u2014 pick the tables, pick the day, pick the time',

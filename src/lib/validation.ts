@@ -837,7 +837,9 @@ export type DefectCategory =
   | 'name-vs-definition'       // IF NOT EXISTS, or a comment claiming a control
   | 'absent-not-empty'         // "no opinion" and "empty" conflated
   | 'permission-not-granted'   // built, specified, and reaching nobody
-  | 'wrong-link';              // a hand-over that 404s
+  | 'wrong-link'               // a hand-over that 404s
+  | 'lists-that-must-agree'    // two copies of one vocabulary, drifting apart
+  | 'reason-not-measured';     // a message stating a cause nothing established
 
 export interface Defect {
   id: string; date: string; title: string;
@@ -850,6 +852,18 @@ export interface Defect {
 }
 
 export const DEFECTS: Defect[] = [
+  { id: 'D-015', date: '2026-09-22', title: 'Two screens read the same file and disagreed about its columns',
+    category: 'lists-that-must-agree', found: 'reported in use',
+    what: 'A 378-row export was loaded into Bulk Report Mapping and EVERY row read as \u201Cno attachment on this row\u201D. The attachment column is headed `Service Report` \u2014 which is what the Field, Installation and PM registers call it, and what Bulk Uploads\u2019 REPORT_COLS reads. Bulk Report Mapping\u2019s own alias list did not carry that heading. Nothing errored: 377 of 378 calls matched, the preview filled in, and the screen offered to write nothing, correctly and uselessly. The same drift had taken THREE more headings with it \u2014 `Visiting Service Engineer`, `CALL PENDING REASON` and `Email-ID` \u2014 so a visit filed by that screen carried no engineer, which is visible as a blank column in the preview and was never reported because nobody could see what it should have said.',
+    fix: 'The four headings are added, in REPORT_COLS\u2019 own ORDER \u2014 order decides which column wins where a file carries several, so two lists holding the same names in a different order still disagree.',
+    guard: 'check:mapping now holds the two alias lists against each other, both ways: every heading the register reads must be one the screen reads, AND the shared names must rank the same. Mutation-tested \u2014 dropping a heading and re-ordering two are each caught. The comment beside that list had said \u201Ckeep the two lists in step\u201D since the day it was written and nothing checked it, which is D-004 in a second place.',
+    reqs: ['NAR-003'] },
+  { id: 'D-016', date: '2026-09-22', title: 'The preview footer reported a reason it had not measured',
+    category: 'reason-not-measured', found: 'found while reading',
+    what: 'Bulk Report Mapping\u2019s footer read \u201CN left alone because a report is already on the call\u2019s completed visit\u201D for every skip, whatever `decideVisit` had actually decided. On the file above it therefore announced that 376 calls already had their reports \u2014 sitting beside a per-row column that said \u201Cnothing to attach\u201D on all 376. The same sentence appeared in the confirmation dialog and the after-the-write message.',
+    fix: '`summariseActions` counts the reasons `decideVisit` gave, commonest first, and all three messages print those.',
+    guard: 'check:mapping asserts the reasons are separated and that an attach or a create contributes none. The wider rule is the project\u2019s own: a message that is ACTED ON is worse than no message, and this one was confidently wrong in the exact case somebody needed it.',
+    reqs: ['NAR-003'] },
   { id: 'D-001', date: '2026-09-14', title: 'A product’s serial list stopped at 1,000',
     category: 'silent-truncation', found: 'reported in use',
     what: 'Product & Party Search on ORION-G offered 1,000 of 2,547 serials, so a real serial read as \u201CNothing matches\u201D. PostgREST caps a response at 1,000 rows however large the `limit` says, and says nothing when it trims — so `.limit(20000)` read as a precaution and was the line HIDING the truncation.',

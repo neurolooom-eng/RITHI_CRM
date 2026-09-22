@@ -2,7 +2,9 @@
 // mapping. No test runner in this repo, so: `npm run check:mapping`.
 // Exits non-zero on the first mismatch, and prints every case either way.
 
-import { parseRef, baseName, matchCall, toTimestamp, shapeRow, summarise, fileNamesToResolve, decideVisit, isCompletedVisit, summariseActions, SOLVED_REPORT_COMPLETED, type CallKey, type ExistingVisit } from '../src/lib/reportMapping';
+import { parseRef, baseName, matchCall, toTimestamp, shapeRow, summarise, fileNamesToResolve, decideVisit, isCompletedVisit, summariseActions, SOLVED_REPORT_COMPLETED, ALIASES, type CallKey, type ExistingVisit } from '../src/lib/reportMapping';
+import { REPORT_COLS } from '../src/lib/uploads';
+import { loose } from '../src/lib/headers';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -10,6 +12,45 @@ const eq = (label: string, got: unknown, want: unknown) => {
   if (g !== w) { console.log(`  ✗ ${label}\n      got  ${g}\n      want ${w}`); fail++; }
   else console.log(`  ✓ ${label} = ${g}`);
 };
+
+// ===========================================================================
+// THE TWO HEADER LISTS MUST AGREE, AND NOTHING USED TO CHECK THAT.
+//
+// Bulk Uploads' visit registers (REPORT_COLS) and this screen read the SAME
+// exported files, and the comment beside this screen's alias list has said
+// "keep the two lists in step" since the day it was written. They drifted, and
+// the drift was invisible: REPORT_COLS reads `Service Report` -- which is what
+// the Field, Installation and PM registers actually call the attachment -- and
+// this screen did not. A 378-row export was loaded on 2026-09-22 and EVERY row
+// read as "no attachment on this row". Nothing errored. The screen counted the
+// calls correctly, matched 377 of them, and offered to write nothing at all.
+//
+// That is the expensive kind of wrong: a file that loads on one screen and
+// produces nothing on the other, with both screens behaving exactly as
+// designed. Two assertions, and the second is the one that is easy to miss --
+// alias ORDER decides which column wins when a file carries several, so two
+// lists holding the same names in a different order still disagree.
+// ===========================================================================
+console.log('\n-- Bulk Uploads and Bulk Report Mapping read the same headings --');
+{
+  for (const col of REPORT_COLS) {
+    const mine = ALIASES[col.to];
+    if (!mine) continue;            // a column this screen does not map at all
+    // DE-DUPLICATED FIRST. `visit_date` and `visit date` loosen to one name, so
+    // a list holding both is not a list that disagrees with itself.
+    const uniq = (xs: string[]) => [...new Set(xs)];
+    const theirs = uniq(col.from.map(loose));
+    const ours = uniq(mine.map(loose));
+    const missing = theirs.filter((a) => !ours.includes(a));
+    eq(`${col.to}: every heading the register reads is one this screen reads`, missing, []);
+
+    // ORDER, for the shared names only. `findHeaderFor` takes the FIRST alias
+    // the file has, so a file carrying both `Service Report` and `Report` gets
+    // a different column on each screen if the two lists rank them differently.
+    const shared = ours.filter((a) => theirs.includes(a));
+    eq(`${col.to}: ...and ranks them the same way`, shared, theirs.filter((a) => ours.includes(a)));
+  }
+}
 
 console.log('\n-- AppSheet reference shapes --');
 eq('full appsheet url -> file name',
@@ -121,7 +162,25 @@ console.log('\n-- what to do with each row (the user rule, 2026-09-22) --');
   eq('the three outcomes are counted for the preview',
     summariseActions([{ action: 'skip', uid: '', why: '' }, { action: 'attach', uid: 'a', why: '' },
                       { action: 'create', uid: D, why: '' }, { action: 'skip', uid: '', why: '' }]),
-    { skip: 2, attach: 1, create: 1 });
+    { skip: 2, attach: 1, create: 1, skipReasons: [{ text: '', n: 2 }] });
+
+  // A SKIP IS NOT ONE REASON, AND THE FOOTER USED TO SAY IT WAS. It read
+  // "N left alone because a report is already on the call's completed visit"
+  // however the rows had been decided — so a file whose attachment column was
+  // not being read at all reported that its reports were already in place. The
+  // summary now carries the reasons it measured, commonest first.
+  eq('the skip REASONS are counted, commonest first',
+    summariseActions([
+      { action: 'skip', uid: '', why: 'This row carries no document to attach.' },
+      { action: 'skip', uid: 'x', why: 'A completed visit on this call already has a report.' },
+      { action: 'skip', uid: '', why: 'This row carries no document to attach.' },
+      { action: 'attach', uid: 'a', why: 'anything' },
+    ]).skipReasons,
+    [{ text: 'This row carries no document to attach.', n: 2 },
+     { text: 'A completed visit on this call already has a report.', n: 1 }]);
+  eq('an attach or a create contributes no reason',
+    summariseActions([{ action: 'attach', uid: 'a', why: 'w' }, { action: 'create', uid: D, why: 'w' }]).skipReasons,
+    []);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
