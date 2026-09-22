@@ -267,6 +267,9 @@ const MODULES = {
       // round the generated column would be put back and the cancelled branch
       // lost, which is the "a bundle must carry the LATEST definition" rule.
       '0226_cancelled_is_not_report_pending.sql',
+      // AFTER rbac in ALL_ORDER, because it merges a module key into
+      // app_roles; and it reads is_admin(), which rbac defines.
+      '0227_data_export.sql',
       // LAST in this module: 0003 and 0053 both define cr_read, so a bundle
       // replayed alone would otherwise restore the per-row version.
       '0164_cr_read_initplan.sql',

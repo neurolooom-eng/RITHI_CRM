@@ -24,6 +24,19 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    version: '0.9.331',
+    date: '2026-09-22',
+    title: 'Data Export \u2014 pick the tables, get CSVs',
+    changes: [
+      'A NEW SCREEN UNDER ADMINISTRATION. Tick the tables you want and download them as one ZIP, with a CSV inside for each.',
+      'It shows you how big each table is before you choose \u2014 an estimate, and it says so.',
+      'THE EXPORT RUNS AS YOU. It holds exactly the rows you are entitled to see, which is why it is safe to have on a menu at all.',
+      'Dates come out as dd-MMM-yyyy HH:mm:ss so a spreadsheet reads them as dates rather than text.',
+      'The audit trails are deliberately not offered \u2014 they are the record of what everyone did, and a copy on a laptop is a liability rather than a backup.',
+      'RUN call_requests.sql to switch it on \u2014 it needs the new table list and the permission.',
+    ],
+  },
+  {
     version: '0.9.330',
     date: '2026-09-22',
     title: 'Bulk Report Mapping never overwrites a report that is already there',
