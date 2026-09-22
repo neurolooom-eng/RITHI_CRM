@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.347',
+    date: '2026-09-22',
+    title: 'PM Visits is yours to set, and a sale can be brought up to date from the Party Master',
+    changes: [
+      'PM VISITS IS TYPEABLE AGAIN. Three a year under warranty is the standard offer; what was actually sold is on the purchase order, and the field now takes whatever that says.',
+      'It still FOLLOWS the period until you change it \u2014 set 24 months and it reads 6, change to 12 and it reads 3. Type 4 over it and it stays 4, through a corrected start date and through a later change of period. The end date still moves with the period either way.',
+      'The same on the Contract register, at its own rate of one every six months.',
+      'NEW ON A SALE ENTRY: \u201c\u21ba Update from Party Master\u201d. A hospital that moves, or a customer record corrected after the sale was raised, leaves every existing sale carrying the old address \u2014 and those are the ones somebody is trying to deliver to.',
+      'It NAMES EVERY FIELD IT WILL CHANGE, with the present value and the proposed one, before changing anything. It is a deliberate act and not a background sync: the installation address often differs from the registered one on purpose, and a sale that changed quietly under somebody who had corrected it by hand is worse than one that is visibly out of date.',
+      'If the Party Master has no such customer, nothing is changed and it says so \u2014 blanking the sale would destroy the only address anybody has.',
+      'Press Save entry afterwards to keep it. Machines under the entry that follow it for City, State and Engineer move with it.',
+      'Requirements FRS-090 and test case OQ-78 added to the validation package.',
+    ],
+  },
+  {
     version: '0.9.346',
     date: '2026-09-22',
     title: 'The validation package covers this week\u2019s work',

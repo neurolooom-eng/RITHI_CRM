@@ -289,22 +289,61 @@ const CONTRACT_DRIVERS = ['contract_months', 'contract_start'];
 
 /** The header's derived fields, after `changed` was edited. Returns only what
  *  it sets, so a caller can merge it and see what moved. */
-export function deriveHeader(kind: 'sale' | 'contract', changed: string, row: Row): Row {
+// ---------------------------------------------------------------------------
+// PM VISITS ARE SUGGESTED, NOT IMPOSED.
+//
+//   The user, 2026-09-22: "PM visit should editable by the user. It varies
+//   based on PO."
+//
+// The count follows from the period -- three a year under warranty, one every
+// six months under contract -- and that is the right STARTING answer, because
+// it is what the standard offer says. It is not the right FINAL answer: what
+// was actually sold is on the purchase order, and a PO with four visits a year
+// is a PO with four visits a year.
+//
+// SO IT FOLLOWS THE PERIOD UNTIL SOMEBODY CHANGES IT, AND THEN IT IS THEIRS.
+// The test for "has somebody changed it" is whether the value still equals
+// what the period SUGGESTED before this edit -- the same rule as a machine
+// pinning a field away from its entry, and for the same reason. A count that
+// keeps snapping back to three every time the start date is corrected is a
+// field somebody has to re-type until they give up; one that never follows the
+// period at all makes every ordinary sale a manual entry.
+//
+// `prev` IS THE ROW BEFORE THIS EDIT and is what makes the question answerable:
+// after the edit the period has already moved, so "does it match the
+// suggestion" would compare against the NEW one and read as overridden on
+// every period change. Omitting `prev` keeps the old behaviour for callers
+// that do not have it -- the value simply follows.
+// ---------------------------------------------------------------------------
+const stillFollowing = (current: unknown, suggestedBefore: unknown): boolean =>
+  current === null || current === undefined || current === ''
+  || Number(current) === Number(suggestedBefore);
+
+export function deriveHeader(kind: 'sale' | 'contract', changed: string, row: Row, prev?: Row): Row {
   const out: Row = {};
   if (kind === 'sale' && WARRANTY_DRIVERS.includes(changed)) {
     const months = row.warranty_months;
     out.warranty_years = periodYears(months);
     out.warranty_end = periodEnd(String(row.warranty_start ?? ''), months);
-    out.pm_visits = warrantyPmVisits(months);
+    if (!prev || stillFollowing(prev.pm_visits, warrantyPmVisits(prev.warranty_months))) {
+      out.pm_visits = warrantyPmVisits(months);
+    }
   }
   if (kind === 'contract' && CONTRACT_DRIVERS.includes(changed)) {
     const months = row.contract_months;
     out.contract_years = periodYears(months);
     out.contract_end = periodEnd(String(row.contract_start ?? ''), months);
-    out.pm_visits_total = contractPmVisits(months);
+    if (!prev || stillFollowing(prev.pm_visits_total, contractPmVisits(prev.contract_months))) {
+      out.pm_visits_total = contractPmVisits(months);
+    }
   }
   return out;
 }
+
+/** What the period suggests, so a form can offer it back once somebody has
+ *  typed over it. */
+export const suggestedPmVisits = (kind: 'sale' | 'contract', months: unknown): number | null =>
+  (kind === 'sale' ? warrantyPmVisits(months) : contractPmVisits(months));
 
 /** A machine line's derived fields, after `changed` was edited.
  *
@@ -629,4 +668,40 @@ export function installCallFromSale(header: SaleForCall, item: SaleItemForCall):
 export function machinesNeedingInstallCall<T extends SaleItemForCall>(items: T[]): T[] {
   return items.filter((i) => !isPinnedValue(i.inst_call)
     && isPinnedValue(i.product_name) && isPinnedValue(i.serial_number));
+}
+
+// ===========================================================================
+// RE-READING THE CUSTOMER ONTO A SALE THAT ALREADY NAMES THEM.
+//
+//   The user, 2026-09-22: "Also add a provision to update address in Warranty
+//   Sale based on update from Party Master."
+//
+// The sale takes the customer's address when the customer is CHOSEN. A hospital
+// that moves, or a Party Master record that is corrected afterwards, leaves
+// every sale already raised carrying the old address — and those are the ones
+// somebody is trying to deliver to.
+//
+// IT IS A DELIBERATE ACT WITH A NAMED EFFECT, not a background sync. The
+// installation address on a sale legitimately differs from the customer's
+// registered one, and a sale whose address quietly changed under an operator
+// who had corrected it by hand is worse than one that is out of date: the first
+// is wrong without anybody knowing, the second is visibly stale.
+//
+// SO THIS RETURNS WHAT WOULD CHANGE, AND THE SCREEN SAYS IT. A field the master
+// agrees with is not listed — telling somebody that eleven fields "changed"
+// when nine of them did not is a number they stop reading.
+// ===========================================================================
+
+export interface FieldChange { field: string; from: string; to: string }
+
+/** The differences between a sale entry and what the Party Master would fill.
+ *  Compared on the TRIMMED text, so whitespace alone is not a change. */
+export function partyFillChanges(current: Row, fill: Row): FieldChange[] {
+  const out: FieldChange[] = [];
+  for (const [field, to] of Object.entries(fill)) {
+    const a = String(current[field] ?? '').trim();
+    const b = String(to ?? '').trim();
+    if (a !== b) out.push({ field, from: a, to: b });
+  }
+  return out;
 }

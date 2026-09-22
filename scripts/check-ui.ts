@@ -5448,6 +5448,29 @@ console.log('\n-- the Warranty Sale asks for what it cannot work out, and no mor
   eq('the end date follows the start and the months',
     /derived: 'Warranty Start \+ Period \(months\)'/.test(saleField('warranty_end')), true);
   eq('the years follow the months', /derived: 'the months above'/.test(saleField('warranty_years')), true);
+  // PM VISITS ARE TYPED (the user, 2026-09-22: "It varies based on PO"). Three
+  // a year is the standard OFFER; what was sold is on the purchase order. They
+  // follow the period until somebody changes them and are theirs from then on,
+  // which `check:cover-party` proves -- this holds the wiring, because passing
+  // the row BEFORE the edit is what makes the question answerable at all.
+  eq('PM visits are typed, not derived', /derived:/.test(saleField('pm_visits')), false);
+  eq('...and the derivation is told what the row was before the edit',
+    /deriveHeader\(kind, f\.name, next, d\)/.test(reg), true);
+
+  // RE-READING THE CUSTOMER onto a sale that already names them. A hospital
+  // that moves leaves every sale already raised carrying the old address.
+  eq('a sale can be updated from the Party Master',
+    /\u21ba Update from Party Master/.test(reg), true);
+  // A DELIBERATE ACT WITH A NAMED EFFECT, not a background sync: the
+  // installation address legitimately differs from the registered one, and a
+  // sale that changed quietly under somebody who corrected it by hand is worse
+  // than one that is visibly stale.
+  eq('...and it names every field it will change first',
+    /Update \$\{changes\.length\} field\(s\)/.test(reg), true);
+  // Blanking the sale because the master has never heard of this customer
+  // would destroy the only address anybody has.
+  eq('...and changes nothing where the master has no such customer',
+    /so there is nothing to update from\. Nothing was changed/.test(reg), true);
   // A DERIVED FIELD MUST NOT BE TYPEABLE. A box somebody can type into is a box
   // whose value they expect to keep, and the next keystroke on the field that
   // drives it would overwrite that silently.

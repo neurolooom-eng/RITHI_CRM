@@ -4,7 +4,8 @@ import { LongDateInput, LongDateText } from '../components/ui/LongDate';
 import { SplitPane } from '../components/ui/SplitPane';
 import { sbSearchParties, sbPartyInfo } from '../lib/supabase';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
-         summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT } from '../lib/coverspec';
+         summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT,
+         partyFillChanges } from '../lib/coverspec';
 import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
@@ -823,6 +824,47 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     finally { setSaving(false); }
   };
 
+  // RE-READING THE CUSTOMER ONTO A SALE THAT ALREADY NAMES THEM (the user,
+  // 2026-09-22). A hospital that moves, or a Party Master record corrected
+  // afterwards, leaves every sale already raised carrying the old address --
+  // and those are the ones somebody is trying to deliver to.
+  //
+  // A DELIBERATE ACT WITH A NAMED EFFECT, not a background sync. The
+  // installation address on a sale legitimately differs from the registered
+  // one, and a sale whose address changed quietly under an operator who had
+  // corrected it by hand is worse than one that is visibly out of date.
+  const refreshFromParty = async () => {
+    const name = str(draft.party_name).trim();
+    if (!name) return;
+    setSaving(true);
+    let info = null;
+    try { info = await sbPartyInfo(name); } catch (e) {
+      setSaving(false);
+      setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) });
+      return;
+    }
+    setSaving(false);
+    if (!info) {
+      // NOTHING TO READ FROM. Blanking the sale because the master has never
+      // heard of this customer would destroy the only address anybody has.
+      setMsg({ tone: 'error', text: `The Party Master has no customer called "${name}", so there is nothing to update from. Nothing was changed.` });
+      return;
+    }
+    const fill = partyFillForSale(info);
+    const changes = partyFillChanges(draft, fill);
+    if (!changes.length) {
+      setMsg({ tone: 'ok', text: 'Already matches the Party Master — nothing to change.' });
+      return;
+    }
+    const labelOf = (k: string) => cfg.headerFields.find((f) => f.name === k)?.label ?? k;
+    if (!window.confirm(
+      `Update ${changes.length} field(s) on ${str(draft[cfg.key])} from the Party Master?\n\n`
+      + changes.map((c) => `  · ${labelOf(c.field)}: ${c.from || '(blank)'} → ${c.to || '(blank)'}`).join('\n')
+      + `\n\nSave the entry afterwards to keep this.`)) return;
+    setDraft((d) => ({ ...d, ...fill }));
+    setMsg({ tone: 'info', text: `${changes.length} field(s) updated from the Party Master — press Save entry to keep it.` });
+  };
+
   const removeEntry = async () => {
     if (!open?.id || !window.confirm(`Delete ${str(open[cfg.key])} and its ${items.length} machine(s)?`)) return;
     try {
@@ -904,7 +946,12 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                           // a part-month contract is not undone by an unrelated
                           // keystroke.
                           const next = { ...d, [f.name]: toDb(f, v) };
-                          return { ...next, ...deriveHeader(kind, f.name, next) };
+                          // `d` IS THE ROW BEFORE THIS EDIT, and passing it is
+                          // what lets PM Visits follow the period until
+                          // somebody types over it. Without it the derivation
+                          // would compare against the period it has just moved
+                          // to and read as overridden every time.
+                          return { ...next, ...deriveHeader(kind, f.name, next, d) };
                         });
                         if (kind === 'sale' && f.name === 'party_name') void fillFromParty(v);
                       }} />
@@ -919,6 +966,13 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
               <button className="btn btn-primary" onClick={() => void saveEntry()} disabled={saving}>
                 {saving ? 'Saving…' : 'Save entry'}
               </button>
+              {/* SALES ONLY: a contract entry carries no address of its own. */}
+              {kind === 'sale' && !!str(draft.party_name).trim() && (
+                <button className="btn" disabled={saving} onClick={() => void refreshFromParty()}
+                  title="Re-read the address, contact and tax details from the Party Master">
+                  ↺ Update from Party Master
+                </button>
+              )}
               {!!open.id && <button className="btn" onClick={() => void removeEntry()}>Delete entry</button>}
             </div>
           )}

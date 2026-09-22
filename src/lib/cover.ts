@@ -97,8 +97,11 @@ export const SALE: CoverConfig = {
     { name: 'warranty_months', label: 'Warranty Period (in Months)', type: 'number', section: 'Warranty' },
     { name: 'warranty_years', label: 'Warranty Period (in Years)', type: 'number', section: 'Warranty',
       derived: 'the months above' },
-    { name: 'pm_visits', label: 'PM Visits', type: 'number', section: 'Warranty',
-      derived: 'the period' },
+    // TYPED, AND SUGGESTED FROM THE PERIOD (the user, 2026-09-22: "PM visit
+    // should editable by the user. It varies based on PO"). It follows the
+    // period until somebody changes it, and is theirs from then on -- what was
+    // actually sold is on the purchase order, not in the standard offer.
+    { name: 'pm_visits', label: 'PM Visits', type: 'number', section: 'Warranty' },
     { name: 'warranty_status', label: 'Warranty Status (as keyed)', section: 'Warranty' },
     { name: 'other_details', label: 'Other Details', type: 'textarea', section: 'Warranty' },
     { name: 'country', label: 'Country', section: 'Installation' },

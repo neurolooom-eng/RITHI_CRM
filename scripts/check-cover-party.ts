@@ -14,7 +14,8 @@
 // ===========================================================================
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, inheritAllPatch, isPinnedValue,
-         installCallFromSale, machinesNeedingInstallCall, INSTALL_COMPLAINT } from '../src/lib/coverspec';
+         installCallFromSale, machinesNeedingInstallCall, INSTALL_COMPLAINT,
+         partyFillChanges, deriveHeader, suggestedPmVisits } from '../src/lib/coverspec';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -223,6 +224,75 @@ console.log('\n-- which machines still need one --');
   eq('nothing left to raise', machinesNeedingInstallCall([items[1]]).length, 0);
   eq('...so a line with no serial never gets a call about nothing',
     machinesNeedingInstallCall([items[4]]).length, 0);
+}
+
+console.log('\n-- PM visits follow the period until somebody changes them --');
+{
+  // The user, 2026-09-22: "PM visit should editable by the user. It varies
+  // based on PO." Three a year under warranty is the standard OFFER; what was
+  // sold is on the purchase order.
+  eq('a two-year warranty suggests six', suggestedPmVisits('sale', 24), 6);
+  eq('a two-year contract suggests four', suggestedPmVisits('contract', 24), 4);
+
+  // FOLLOWING: nothing typed, so the period decides.
+  eq('an untouched count follows the period',
+    deriveHeader('sale', 'warranty_months', { warranty_months: 24, warranty_start: '2026-01-01', pm_visits: 6 },
+                 { warranty_months: 12, warranty_start: '2026-01-01', pm_visits: 3 }).pm_visits, 6);
+  eq('...and a blank one is filled',
+    deriveHeader('sale', 'warranty_months', { warranty_months: 12, pm_visits: null },
+                 { warranty_months: null, pm_visits: null }).pm_visits, 3);
+
+  // OVERRIDDEN: the PO said four a year, so correcting the START DATE must not
+  // snap it back to the standard offer. This is the whole point.
+  {
+    const out = deriveHeader('sale', 'warranty_start',
+      { warranty_months: 12, warranty_start: '2026-02-01', pm_visits: 4 },
+      { warranty_months: 12, warranty_start: '2026-01-01', pm_visits: 4 });
+    eq('a typed count survives a change to the start date', 'pm_visits' in out, false);
+    eq('...while the end date still moves with it', out.warranty_end, '2027-01-31');
+  }
+  eq('a typed count survives a change to the PERIOD too',
+    'pm_visits' in deriveHeader('sale', 'warranty_months',
+      { warranty_months: 24, pm_visits: 4 }, { warranty_months: 12, pm_visits: 4 }), false);
+
+  // THE COMPARISON IS AGAINST THE PERIOD BEFORE THE EDIT. Against the new one
+  // it would read as overridden on every period change, and the count would
+  // never follow anything.
+  eq('the contract count behaves the same way',
+    deriveHeader('contract', 'contract_months', { contract_months: 24, pm_visits_total: 2 },
+                 { contract_months: 12, pm_visits_total: 2 }).pm_visits_total, 4);
+  eq('...and is left alone once typed',
+    'pm_visits_total' in deriveHeader('contract', 'contract_months',
+      { contract_months: 24, pm_visits_total: 9 }, { contract_months: 12, pm_visits_total: 9 }), false);
+
+  // A caller with no previous row keeps the old behaviour: it simply follows.
+  eq('with no previous row it follows',
+    deriveHeader('sale', 'warranty_months', { warranty_months: 12, pm_visits: 99 }).pm_visits, 3);
+}
+
+console.log('\n-- re-reading the customer onto a sale that already names them --');
+{
+  const fill = partyFillForSale(FULL);
+  const sale = { ...fill, city: 'OLD CITY', address: '' };
+  const changes = partyFillChanges(sale, fill);
+  eq('only the fields that differ are listed',
+    changes.map((c) => c.field).sort(), ['address', 'city']);
+  eq('...with what they were and what they become',
+    changes.find((c) => c.field === 'city'), { field: 'city', from: 'OLD CITY', to: 'KOTTAYAM' });
+  eq('a blank becoming a value is a change',
+    changes.find((c) => c.field === 'address')?.from, '');
+
+  // TELLING SOMEBODY ELEVEN FIELDS CHANGED WHEN NINE DID NOT is a number they
+  // stop reading.
+  eq('nothing to do is nothing listed', partyFillChanges(fill, fill), []);
+  // Whitespace alone is not a change.
+  eq('...and neither is trailing space',
+    partyFillChanges({ ...fill, city: '  KOTTAYAM  ' }, fill), []);
+  // A value the sale has and the master does not IS a change: that is the
+  // master being authoritative, which is what the button is for.
+  eq('a value the master no longer holds is cleared',
+    partyFillChanges({ ...fill, pan: 'AAACT1234D' }, { ...fill, pan: '' }),
+    [{ field: 'pan', from: 'AAACT1234D', to: '' }]);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

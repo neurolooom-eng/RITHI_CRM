@@ -471,6 +471,8 @@ export const URS: Req[] = [
 // ---- System / Functional Requirements -------------------------------------
 export interface FReq extends Req { urs: string[] }
 export const FRS: FReq[] = [
+  { id: 'FRS-090', urs: ['URS-072', 'URS-074'], risk: 'Medium', title: 'What the period suggests, and what the customer register holds',
+    text: 'FRS-090.1 The cover registers shall calculate a PM visit count from the recorded period. FRS-090.2 The cover registers shall accept a PM visit count entered by the operator. FRS-090.3 The cover registers shall retain an entered PM visit count when the period or the start date is subsequently changed. FRS-090.4 The warranty register shall re-read the address, the contact details and the tax registrations of the named customer from the customer register when the operator requests it. FRS-090.5 The warranty register shall state each field that request would change, with its present and its proposed value, before changing any. FRS-090.6 The warranty register shall change no field where the customer register holds no such customer. RATIONALE: .1 and .3 together are the requirement \u2014 three visits a year is the standard OFFER and what was sold is on the purchase order, so a count that keeps reverting to the offer whenever a start date is corrected is a field somebody re-types until they give up, and one that never follows the period makes every ordinary sale a manual entry. The test for "has it been changed" is whether it still equals what the period suggested BEFORE the edit, which is the same rule a machine uses to pin a field away from its entry. .5 because the installation address on a sale legitimately differs from the registered one: a sale whose address changed silently under an operator who had corrected it by hand is worse than one that is visibly out of date, because the first is wrong and nobody knows. .6 because blanking a sale on the ground that the customer register has never heard of the customer would destroy the only address anybody has.' },
   { id: 'FRS-089', urs: ['URS-076'], risk: 'Medium', title: 'A date field reads dd-MMM-yyyy and stores a date',
     text: 'FRS-089.1 The cover registers shall display every date value in the form dd-MMM-yyyy. FRS-089.2 The cover registers shall present a date input control when a date field receives focus. FRS-089.3 The cover registers shall store the value produced by that control. FRS-089.4 The cover registers shall derive no date value from text entered by the operator. RATIONALE: a native date control renders in the BROWSER\u2019S locale and no attribute changes it \u2014 two machines in one office showed `2026-09-12` and `09/11/2026` for one field. The obvious alternative is the dangerous one: a text box holding `20-Apr-2026` saved as typed puts a formatted string in a date column, and nothing detects it until the value is sorted, filtered or subtracted. FRS-089.4 is therefore a prohibition rather than a convenience, and `check:ui` refuses a parser appearing in that component at all.' },
   { id: 'FRS-088', urs: ['URS-074'], risk: 'Low', title: 'The installations awaiting Commercial',
@@ -1282,6 +1284,20 @@ export const TESTS: TestCase[] = [
     ],
     expected: 'The run finishes before 23:00 IST. The archive holds one file per table in the public schema, and the three largest carry every row those tables hold \u2014 row-level security does not reduce them. The archive is named with its date. Only the configured addresses receive it. Under 20 MB it arrives attached; over 20 MB it arrives as a link. Both runs are recorded with start, finish, table count, row count and outcome. With the credential revoked, a message naming the cause arrives and the failure is recorded.',
     auto: '' },
+  { id: 'OQ-78', phase: 'OQ', reqs: ['FRS-090'], risk: 'Medium',
+    objective: 'A suggested figure can be overruled, and a customer\u2019s address can be brought up to date.',
+    steps: [
+      'Set a 24-month warranty on a new sale entry and read the PM visit count. (FRS-090.1)',
+      'Change the period to 12 months and read it again. (FRS-090.1)',
+      'Type 4 over it, then correct the warranty start date, then change the period again. (FRS-090.2, FRS-090.3)',
+      'Repeat on a contract entry.',
+      'Correct a customer\u2019s address on the Party Master, then open a sale entry already naming that customer and select Update from Party Master. (FRS-090.4, FRS-090.5)',
+      'Read the list it offers before confirming, then confirm and save. (FRS-090.5)',
+      'Select it again immediately. (FRS-090.5)',
+      'Select it on a sale naming a customer the Party Master does not hold. (FRS-090.6)',
+    ],
+    expected: 'Six visits for 24 months, three for 12 \u2014 it follows the period while nothing has been typed. Once 4 is typed it stays 4 through both a start-date change and a period change, while the end date still moves. The contract behaves the same way at its own rate. The update names each field with its present and its proposed value and changes nothing until confirmed; selecting it again reports that nothing differs rather than listing eleven fields. On a customer the register does not hold, nothing is changed and the screen says why.',
+    auto: 'npm run check:cover-party' },
   { id: 'OQ-77', phase: 'OQ', reqs: ['URS-076', 'FRS-089'], risk: 'Medium',
     objective: 'A date reads the same to everybody, and what is stored is a date.',
     steps: [
