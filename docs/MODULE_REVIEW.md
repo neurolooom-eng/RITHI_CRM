@@ -26,8 +26,8 @@ seventeen checks do not cover — which is the gap this project keeps finding
 things in.
 
 **A line number is a hint; the symbol is the citation.** `main` is moving under
-this document — four times while it was being written, twice into
-`src/lib/supabase.ts`, which gained about eighty lines in the middle across
+this document — five times while it was being written, three of them into
+`src/lib/supabase.ts`, which gained about a hundred lines in the middle across
 those merges. Line numbers into a live file rot that fast. So reads in
 `supabase.ts` are cited by **function name** with the line as `~:NNN`, which
 survives a shift; everywhere else, the quoted "current" snippet identifies the
@@ -332,8 +332,8 @@ per column.
 ## 8 — Seven paged reads page with no `order()`
 
 **Where** `src/lib/supabase.ts` — `distinctColumn()` (~:768), `sbSearchProducts()`
-(~:1439), `listDirectoryAsUsers()` (~:2088), `sbEngineerNames()` (~:2229),
-`countCallReviews()` (~:2363), `reviewPickLists()` (~:2394), `listCallReportReviews()`
+(~:1439), `listDirectoryAsUsers()` (~:2102), `sbEngineerNames()` (~:2243),
+`countCallReviews()` (~:2377), `reviewPickLists()` (~:2408), `listCallReportReviews()`
 (~:4652)
 
 **What is wrong.** `paging.ts:19-22` states the rule: *"ORDER IS NOT OPTIONAL
@@ -543,14 +543,14 @@ project has more than 25 consuming products is not known from here.
 
 | Read | Order | Paged by | Ties are certain because |
 | --- | --- | --- | --- |
-| `listFeedbackRows()` (~:3355) | `created_at` | Customer Feedback's Load more | the 24,092-row import shares one timestamp |
-| `listConsumptionRows()` (~:3347) | `created_at` | Spare Consumption's Load more | the bulk consumption upload does |
-| `listSpareRequestLines()` (~:2811) | `created_at` | Spare Requests' Load more | every line of one request is written together |
-| `queryAudit()` (~:2184) | `at` | Audit Log's Load more | a burst of writes shares the second |
+| `listFeedbackRows()` (~:3369) | `created_at` | Customer Feedback's Load more | the 24,092-row import shares one timestamp |
+| `listConsumptionRows()` (~:3361) | `created_at` | Spare Consumption's Load more | the bulk consumption upload does |
+| `listSpareRequestLines()` (~:2825) | `created_at` | Spare Requests' Load more | every line of one request is written together |
+| `queryAudit()` (~:2198) | `at` | Audit Log's Load more | a burst of writes shares the second |
 | `queryParties()` (~:1107) | `party_name` | Party Master's Load more | two branches of one hospital group |
-| `listAllHandstockMovements()` (~:3325) | `moved_at` | Hand Stock's Load more | a dispatch moves many parts at once |
+| `listAllHandstockMovements()` (~:3339) | `moved_at` | Hand Stock's Load more | a dispatch moves many parts at once |
 | `listKpiFieldInst()` (~:373) | `Call Registeration Date` | the KPI **export** loop | a date column, by construction |
-| `listAllMasterValues()` (~:2577) | `name` | its own internal loop | a master list is *many values per name* — **but see the note below: nothing calls it today** |
+| `listAllMasterValues()` (~:2591) | `name` | its own internal loop | a master list is *many values per name* — **but see the note below: nothing calls it today** |
 | `unusedSpareEngineers()` (~:630) | `ucn` | `allRows` | one call carries several parts |
 
 **How it fails — measured, in Postgres 16.** 24,000 rows sharing one
@@ -1138,10 +1138,29 @@ comparison with the upload path is read from `uploads.ts:157` and
 # What was covered, and what was not
 
 **`MODULES` has grown since this was written.** It held 26 screens when the
-review began; `main` added **Data Export** (`005029e`, 2026-09-22) while the PR
-was open. That one was reviewed — finding 27 — but the claim "every module" is
-true as of the list below, not of whatever `MODULES` holds when you read this.
-A screen added after that date has not been looked at.
+review began. `main` has since added **Data Export** (`005029e`) and **Feedback
+Without a Report** (`7cfabdc`), both while this PR was open. Both were reviewed:
+Data Export is finding 27; Feedback Without a Report is **clean** on every
+pattern this review looks for — it shapes its exports through `xlsxText` /
+`xlsxCell`, its empty state says "Nothing to show" rather than asserting the
+register is empty, and `listFeedbackWithoutReport` pages through `allRows` with
+`feedback_entered_at desc, feedback_id desc`, a unique tiebreaker. Saying so
+matters: a review that only ever finds faults is one nobody can calibrate.
+
+The claim "every module" is true of the list below, not of whatever `MODULES`
+holds when you read this.
+
+**One thing this review read and missed.** `main` fixed a Machine History bug on
+2026-09-22 (`1451a2b`) that this document walked straight past: its `getRowId`
+was `${r.source}-${r.ref}-${r.on}-${r.detail}`, and two visits filed against one
+call on one day with the same status and no remark are identical in all four —
+so React deduplicated them and dropped two other rows. The chip said 5, the
+table drew 3 spares and 2 visits, and nothing errored. The finding-1-through-27
+method — read the screen, check it against the documented rules — looked at that
+exact line while checking something else and did not ask whether the recipe could
+collide. Recorded here because the document's own standard is to say how each
+claim was established, and "reviewed" is not the same as "exhaustively
+reviewed".
 
 **Covered screen by screen**, reading the module and the `src/lib` helpers behind
 it: Dashboard, My Workload, Product & Party Search, Machine History, Daily
