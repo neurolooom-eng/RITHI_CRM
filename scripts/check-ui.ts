@@ -6824,10 +6824,27 @@ console.log('\n-- My Workload: the queues left the registers, and open what they
   // covered two of the three registers — and the one it skipped was the one
   // most likely to be wrong. A check that looks like it covers everything and
   // covers two thirds is the shape this project keeps finding.
-  const sent = [...wl.matchAll(/path: '([^']+)', state: \{ (\w+)/g)]
-    .map((m) => ({ path: m[1], key: m[2] }));
+  //
+  // AND IT ONLY EVER LOOKED AT THE FIRST KEY. `state: { status: 'Pending',
+  // callType: 'INSTALL', kyc }` was covered by its `status` alone, so two of
+  // the three filters the Commercial card sends went unchecked -- the same
+  // two-thirds shape the comment above describes, one level in. Every key in
+  // the object is taken now.
+  //
+  // SPLIT ON COMMAS, THEN TAKE THE KEY. A regex over the whole object body
+  // cannot tell a key from a value: `{ stageFilter: stage }` matched both, and
+  // the check then demanded the register read a filter called `stage` that
+  // nothing sends.
+  const sent = [...wl.matchAll(/path: '([^']+)', state: \{([^}]*)\}/g)]
+    .flatMap((m) => m[2].split(',')
+      .map((part) => part.split(':')[0].trim())
+      .filter((k) => /^\w+$/.test(k))
+      .map((key) => ({ path: m[1], key })));
   const pairs = new Set(sent.map((x) => `${x.path}|${x.key}`));
-  eq('every register a card filters is covered here', pairs.size, 3);
+  // A COUNT RATHER THAN A LIST, so a card that stops sending a filter is
+  // noticed as well as one that starts. Six today: three registers with one
+  // filter each, and the Commercial installation card's three.
+  eq('every register a card filters is covered here', pairs.size, 6);
   sent.forEach(({ path, key }) => {
     const mod = routeOf.get(path);
     const src = mod && existsSync(`src/modules/${mod}.tsx`)

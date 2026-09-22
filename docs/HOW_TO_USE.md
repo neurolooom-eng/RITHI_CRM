@@ -584,6 +584,14 @@ typed into a form that reads it.
   > open, so nothing here grants you anything you did not have.
   > The counts are the registers' own, so a card and the list it opens agree.
 
+  > **Installations waiting on Commercial** lists every installation request
+  > that has not become a call yet, split by the question that decides whether
+  > it can proceed: **customer KYC verified**, **waiting on KYC**, or
+  > **customer not on the Party Master**. The last is kept separate because it
+  > needs a different fix — add the customer first, then verify them. Clicking a
+  > card opens the Call Request register on that exact slice, with each
+  > customer's KYC shown on the row.
+
 ## Across every register
 
 - **The filter chips above a list fold away.** Click the heading — *Engineer*,

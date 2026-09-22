@@ -69,8 +69,10 @@ export interface WorkloadSection {
 import {
   listSpareRequestLines, listPendingRmApproval, listPendingDispatch,
   listMaterialReturns, listStockTransfers, listHandstockBalance, countCallReviews,
+  pendingInstallRequests,
 } from './supabase';
 import { deriveStage, actionable, type Stage } from './spareflow';
+import { isKycVerified } from './kyc';
 import { summarise as summariseQueue, toPendingLine, daysWaiting } from './sparedispatch';
 import { summarise as summariseStock, type HandstockBalance } from './handstock';
 
@@ -231,6 +233,59 @@ export async function stockTransferSection(): Promise<WorkloadSection> {
  *  `countCallReviews` walks every page in the database rather than counting
  *  what a screen has loaded, so this section never says `more` and its cards
  *  take no `+`. "3,850+" would be wrong in the other direction. */
+// ---------------------------------------------------------------------------
+// WHAT COMMERCIAL IS WAITING ON.
+//
+//   The user, 2026-09-22: "In My workload, list all installation pending
+//   request for commercial department."
+//
+// An INSTALLATION request that has not become a call is a machine sold and not
+// yet installed. Commercial's question about each one is the question the KYC
+// work answers -- is this customer cleared, so a Sale Entry and the installation
+// call can proceed? -- so the queue is split by exactly that, and the card that
+// matters is the one that is BLOCKED.
+//
+// NOT GATED ON BEING IN COMMERCIAL, and that is a decision rather than an
+// oversight. This project's rule is that a section is shown to whoever can open
+// the register behind it (`mod:/request-registration`), because a count over a
+// list somebody cannot read is both useless and a leak. A queue named for the
+// department that works it, shown to everyone who could read it anyway, is the
+// honest version; a new permission for one card is a thing somebody has to
+// maintain for ever.
+// ---------------------------------------------------------------------------
+export async function commercialInstallSection(): Promise<WorkloadSection> {
+  const rows = await pendingInstallRequests();
+  const cleared = rows.filter((r) => isKycVerified(r.kyc_status));
+  const blocked = rows.filter((r) => !isKycVerified(r.kyc_status));
+  const unknown = rows.filter((r) => !r.onMaster);
+  const open = (kyc: string, opens: string) =>
+    ({ path: '/request-registration', state: { status: 'Pending', callType: 'INSTALL', kyc }, opens });
+  return {
+    key: 'commercial-install',
+    title: 'Installations waiting on Commercial',
+    path: '/request-registration',
+    needs: 'mod:/request-registration',
+    // Every one of these is counted over the WHOLE queue rather than a page of
+    // it, so none is a lower bound.
+    more: false,
+    cards: [
+      { label: 'Installations pending', value: rows.length, sub: 'sold, not yet a call', icon: '📦',
+        tone: rows.length ? 'info' : 'neutral', to: open('', 'every pending installation request') },
+      { label: 'Customer KYC verified', value: cleared.length, sub: 'clear to proceed', icon: '✅',
+        tone: cleared.length ? 'success' : 'neutral', to: open('verified', 'the ones cleared to proceed') },
+      // THE CARD THAT MATTERS. These are the ones somebody has to do something
+      // about, and they are the reason the KYC status is read here at all.
+      { label: 'Waiting on KYC', value: blocked.length, sub: 'not verified yet', icon: '🛑',
+        tone: blocked.length ? 'danger' : 'neutral', to: open('unverified', 'the ones waiting on KYC') },
+      // A CUSTOMER THE PARTY MASTER HAS NOT GOT IS NOT "NOT VERIFIED" -- it is
+      // a different problem with a different fix, and lumping the two together
+      // sends somebody to verify a customer who does not exist yet.
+      { label: 'Customer not on the master', value: unknown.length, sub: 'add them first', icon: '❓',
+        tone: unknown.length ? 'warning' : 'neutral', to: open('unknown', 'the ones whose customer is not on the Party Master') },
+    ],
+  };
+}
+
 export async function reviewSection(): Promise<WorkloadSection> {
   const c = await countCallReviews({});
   const at = (s: string) => c.byStatus[s] ?? 0;

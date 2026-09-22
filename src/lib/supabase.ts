@@ -1674,6 +1674,100 @@ export async function addCallRequestBatch(base: Record<string, unknown>, items: 
 // the register looked like it held a thousand requests when it held four
 // thousand. `listCalls` already pages for exactly this reason.
 // ---------------------------------------------------------------------------
+// WHAT COMMERCIAL IS WAITING ON (the user, 2026-09-22: "In My workload, list
+// all installation pending request for commercial department").
+//
+// An INSTALLATION request that has not become a call yet is a machine sold and
+// not yet installed. Commercial's question about each one is the same question
+// the KYC work answers: is this customer cleared, so a Sale Entry and an
+// installation call can proceed?
+//
+// SO THE TWO ARE READ TOGETHER. A list of installations with no KYC beside it
+// sends somebody to a second screen per row, which is the step this is for.
+// The parties are fetched in ONE request keyed on `name_key` -- the unique
+// btree (0186) rather than an `ilike` per row.
+// ---------------------------------------------------------------------------
+export interface PendingInstall {
+  id: number; reqid: string; submitted_at: string;
+  party_name: string; city: string; product: string; serial_no: string;
+  engineer: string;
+  /** The customer's KYC status, or '' where the Party Master has no such
+   *  customer at all -- which is itself the finding: nobody has been verified
+   *  because nobody has been recorded. */
+  kyc_status: string;
+  kyc_docs: unknown;
+  onMaster: boolean;
+}
+
+/** KYC for a set of customers, keyed on `name_key` — the unique btree (0186)
+ *  rather than an `ilike` per row. Chunked, because a very long `in` list is a
+ *  very long URL and PostgREST is not the place to find that out. */
+export async function sbKycByParties(
+  names: string[],
+): Promise<Map<string, { status: string; docs: unknown }>> {
+  const out = new Map<string, { status: string; docs: unknown }>();
+  const c = getSupabase();
+  if (!c) return out;
+  const keys = [...new Set(names.map((n) => partyKey(n)).filter(Boolean))];
+  for (let i = 0; i < keys.length; i += 200) {
+    const { data, error } = await c.from('parties')
+      .select('name_key,kyc_status,kyc_docs').in('name_key', keys.slice(i, i + 200));
+    // A FAILED LOOKUP LEAVES THE COLUMN BLANK rather than taking the register
+    // down: KYC is context beside a request, not the request itself.
+    if (error) return out;
+    (data ?? []).forEach((p) => out.set(String(p.name_key ?? ''),
+      { status: String(p.kyc_status ?? ''), docs: p.kyc_docs }));
+  }
+  return out;
+}
+
+/** `partyKey` for a caller that has a name and wants the map's key. */
+export const kycKeyFor = (name: string): string => partyKey(name);
+
+export async function pendingInstallRequests(): Promise<PendingInstall[]> {
+  const c = must();
+  const { data, error } = await c.from('call_requests')
+    .select('id,reqid,submitted_at,party_name,city,product,serial_no,engineer,status,call_type')
+    // `like 'INSTALL%'` is the same test the UCN generator and the call router
+    // use (0001, 0040), so "INSTALLATION" and "INSTALLATION CALL" are one thing
+    // here as they are everywhere else.
+    .ilike('call_type', 'INSTALL%')
+    .order('submitted_at', { ascending: true, nullsFirst: false })
+    .order('id', { ascending: true });
+  if (error) throw new Error(errMsg(error));
+  // PENDING IS FILTERED HERE, NOT IN THE QUERY. PostgREST's `status.eq.` for an
+  // empty string is a corner nobody should have to reason about, and "" and
+  // null both mean pending -- a row loaded before the column existed has no
+  // status and is still waiting. Installation requests are a small list; the
+  // rule being READABLE matters more than the round trip.
+  const isPending = (v: unknown) => {
+    const st = String(v ?? '').trim().toLowerCase();
+    return st === '' || st === 'pending';
+  };
+  const rows = (data ?? []).filter((r) => isPending(r.status));
+  const keys = [...new Set(rows.map((r) => partyKey(String(r.party_name ?? ''))).filter(Boolean))];
+  const kyc = new Map<string, { status: string; docs: unknown }>();
+  // Chunked: a very long `in` list is a very long URL, and PostgREST is not the
+  // place to find that out.
+  for (let i = 0; i < keys.length; i += 200) {
+    const { data: ps } = await c.from('parties')
+      .select('name_key,kyc_status,kyc_docs').in('name_key', keys.slice(i, i + 200));
+    (ps ?? []).forEach((p) => kyc.set(String(p.name_key ?? ''),
+      { status: String(p.kyc_status ?? ''), docs: p.kyc_docs }));
+  }
+  return rows.map((r) => {
+    const hit = kyc.get(partyKey(String(r.party_name ?? '')));
+    return {
+      id: Number(r.id), reqid: String(r.reqid ?? ''), submitted_at: String(r.submitted_at ?? ''),
+      party_name: String(r.party_name ?? ''), city: String(r.city ?? ''),
+      product: String(r.product ?? ''), serial_no: String(r.serial_no ?? ''),
+      engineer: String(r.engineer ?? ''),
+      kyc_status: hit?.status ?? '', kyc_docs: hit?.docs ?? [], onMaster: !!hit,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // CORRECTING A CALL REQUEST (0232).
 //
 // The user, 2026-09-22: "Add a Provision in Call Request for me to edit it."

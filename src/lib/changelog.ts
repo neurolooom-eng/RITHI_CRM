@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.345',
+    date: '2026-09-22',
+    title: 'My Workload: the installations Commercial is waiting on',
+    changes: [
+      'A new section on My Workload \u2014 \u201cInstallations waiting on Commercial\u201d. Every INSTALLATION request that has not become a call yet: a machine sold and not yet installed.',
+      'IT IS SPLIT BY THE QUESTION COMMERCIAL ACTUALLY ASKS: is the customer cleared? Pending installations \u00b7 customer KYC verified (clear to proceed) \u00b7 waiting on KYC \u00b7 customer not on the Party Master. Click any card and the Call Request register opens on exactly that slice.',
+      '\u201cNot on the master\u201d is kept apart from \u201cnot verified\u201d on purpose. They need different fixes, and lumping them together sends somebody to verify a customer who does not exist yet.',
+      'The Call Request register now shows the customer\u2019s KYC beside every request, so the answer is on the row rather than a screen away.',
+      'The counts are over the whole queue, not a page of it, so none of them is a lower bound.',
+    ],
+  },
+  {
     version: '0.9.344',
     date: '2026-09-22',
     title: 'Correct a call request instead of cancelling and re-raising it',
