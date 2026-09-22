@@ -5,7 +5,7 @@
 -- least four different causes and they need OPPOSITE fixes:
 --
 --   * the column was never written          -> the upload did not read the heading
---   * it holds an AppSheet PATH             -> Bulk Report Mapping section 2 resolves it
+--   * it holds an AppSheet PATH             -> Bulk Report Mapping section 0 converts it
 --   * it holds a Drive link already         -> nothing to convert; look at the screen
 --   * it is a note, not a link              -> nothing to convert, and nothing is wrong
 --
