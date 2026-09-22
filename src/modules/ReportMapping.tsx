@@ -5,10 +5,10 @@ import { useAuth } from '../lib/auth';
 import { parseCSV } from '../lib/dataImport';
 import { fmtLongSmart } from '../lib/format';
 import { resolveDriveLinks, sheetsConfigured } from '../lib/sheets';
-import { callKeysFor, upsertRecoveredReports, supabaseConfigured } from '../lib/supabase';
+import { callKeysFor, upsertRecoveredReports, attachReportsToVisits, visitsForCalls, supabaseConfigured } from '../lib/supabase';
 import {
-  shapeRow, summarise, fileNamesToResolve, parseRef,
-  type MappedRow, type CallKey,
+  shapeRow, summarise, fileNamesToResolve, parseRef, decideVisit, summariseActions, SOLVED_REPORT_COMPLETED,
+  type MappedRow, type CallKey, type ExistingVisit, type VisitDecision,
 } from '../lib/reportMapping';
 
 // ===========================================================================
@@ -32,6 +32,11 @@ export function ReportMapping() {
   const { isAdmin, can } = useAuth();
   const [rows, setRows] = useState<MappedRow[]>([]);
   const [fileName, setFileName] = useState('');
+  // WHAT EACH CALL ALREADY HAS. Fetched with the calls, because the decision --
+  // skip, attach or file a visit -- has to be visible in the PREVIEW and not
+  // discovered at write time. A preview that does not say what will happen is
+  // the thing this screen exists to avoid.
+  const [visits, setVisits] = useState<Record<string, ExistingVisit[]>>({});
   const [step, setStep] = useState<Step>('idle');
   const [busy, setBusy] = useState('');
   const [folderId, setFolderId] = useState('');
@@ -73,6 +78,11 @@ export function ReportMapping() {
       });
       setBusy(`Looking up ${new Set([...ucns, ...nos].filter(Boolean)).size} calls…`);
       const calls = (await callKeysFor(ucns, nos)) as CallKey[];
+      setBusy('Reading the visits those calls already have…');
+      const have = await visitsForCalls(calls.map((c) => c.ucn));
+      const byUcn: Record<string, ExistingVisit[]> = {};
+      have.forEach((v) => { (byUcn[v.ucn] ??= []).push(v); });
+      setVisits(byUcn);
 
       const shaped = raw.map((r, i) => shapeRow(r, calls, i));
       setRows(shaped);
@@ -118,17 +128,64 @@ export function ReportMapping() {
   const write = async () => {
     const ready = rows.filter((r) => !r.problem);
     if (!ready.length) { setMsg({ tone: 'error', text: 'No rows are ready to write.' }); return; }
-    if (!confirm(`Write ${ready.length} recovered visit${ready.length === 1 ? '' : 's'}?\n\nRows are matched on their row id, so running the same sheet again corrects them rather than duplicating them. ${rows.length - ready.length} row(s) with a problem will be skipped.`)) return;
-    setBusy(`Writing 0 / ${ready.length}…`);
-    const res = await upsertRecoveredReports(
-      ready.map(({ match, ref, problem, ...r }) => { void match; void ref; void problem; return r; }),
-      (d, t) => setBusy(`Writing ${d} / ${t}…`),
-    );
+
+    const decided = ready.map((r) => ({ row: r, d: decisionFor(r) }));
+    const toAttach = decided.filter((x) => x.d.action === 'attach');
+    const toCreate = decided.filter((x) => x.d.action === 'create');
+    const skipped = decided.length - toAttach.length - toCreate.length;
+
+    if (!toAttach.length && !toCreate.length) {
+      setMsg({ tone: 'ok', text: `Nothing to write — all ${skipped} ready rows are on calls whose completed visit already has a report.` });
+      return;
+    }
+    if (!confirm(`Attach ${toAttach.length} report${toAttach.length === 1 ? '' : 's'} to existing visits, and file ${toCreate.length} new visit${toCreate.length === 1 ? '' : 's'}?\n\n${skipped} row(s) are skipped because the call's completed visit already has a report — those are never overwritten.\n${rows.length - ready.length} row(s) with a problem are skipped as well.`)) return;
+
+    // ATTACH FIRST. It only ever adds a document to a visit that has none, so
+    // if the run stops half way the register is still consistent; creating
+    // visits first could leave a call with a new visit AND its old one still
+    // empty.
+    let attached = 0;
+    if (toAttach.length) {
+      setBusy(`Attaching 0 / ${toAttach.length}…`);
+      const a = await attachReportsToVisits(
+        toAttach.map((x) => ({ uid: x.d.uid, manual_report: x.row.manual_report, source_ref: x.row.source_ref })),
+        SOLVED_REPORT_COMPLETED,
+        (d, t) => setBusy(`Attaching ${d} / ${t}…`),
+      );
+      attached = a.written;
+      if (!a.ok) { setBusy(''); setMsg({ tone: 'error', text: `${a.error} (${a.written} attached before it stopped.)` }); return; }
+    }
+
+    let created = 0;
+    if (toCreate.length) {
+      setBusy(`Filing 0 / ${toCreate.length}…`);
+      const c = await upsertRecoveredReports(
+        toCreate.map(({ row }) => {
+          const { match, ref, problem, ...r } = row; void match; void ref; void problem;
+          // The new visit carries the status the rule names, not the file's --
+          // a visit filed to hold a completed report IS a completed report.
+          return { ...r, call_status: SOLVED_REPORT_COMPLETED };
+        }),
+        (d, t) => setBusy(`Filing ${d} / ${t}…`),
+      );
+      created = c.written;
+      if (!c.ok) { setBusy(''); setMsg({ tone: 'error', text: `${c.error} (${attached} attached, ${c.written} filed before it stopped.)` }); return; }
+    }
+
     setBusy('');
-    if (!res.ok) { setMsg({ tone: 'error', text: `${res.error} (${res.written} written before it stopped.)` }); return; }
     setStep('written');
-    setMsg({ tone: 'ok', text: `${res.written} visits written. They show on their calls' Visit history, marked as recovered.` });
+    setMsg({ tone: 'ok', text: `${attached} report${attached === 1 ? '' : 's'} attached to existing visits, ${created} new visit${created === 1 ? '' : 's'} filed, ${skipped} left alone because a report was already there.` });
   };
+
+  // THE RULE (the user, 2026-09-22): a completed visit that already has a
+  // report is never touched; one without gets the link; a call with no
+  // completed visit gets a new one. Derived rather than stored, so it follows
+  // the Drive resolution in step 2 without a second pass.
+  const decisionFor = (r: MappedRow): VisitDecision =>
+    decideVisit(visits[r.match.ucn] ?? [], r.uid, String(r.manual_report ?? '').trim() !== '');
+  const plan = useMemo(() => summariseActions(rows.filter((r) => !r.problem).map(decisionFor)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, visits]);
 
   const visible = onlyProblems ? rows.filter((r) => r.problem) : rows;
 
@@ -142,6 +199,19 @@ export function ReportMapping() {
     { key: 'visit_at', header: 'Visit', width: 150, wrap: false, render: (r) => (r.visit_at ? fmtLongSmart(r.visit_at) : <span className="muted">—</span>) },
     { key: 'engineer', header: 'Engineer', width: 150 },
     { key: 'call_status', header: 'Status', width: 160 },
+    {
+      // WHAT WILL HAPPEN TO THIS ROW, per call. The three outcomes read
+      // differently on purpose: "already has one" is the common and CORRECT
+      // result, not a failure, and it must not look like one.
+      key: '_action', header: 'Will do', width: 210,
+      render: (r) => {
+        if (r.problem) return <span className="muted">—</span>;
+        const d = decisionFor(r);
+        if (d.action === 'skip')   return <span className="muted" title={d.why}>skip · {d.why.includes('already') ? 'report already there' : 'nothing to attach'}</span>;
+        if (d.action === 'attach') return <span title={d.why}>📎 attach to the completed visit</span>;
+        return <span title={d.why}>➕ file a new visit</span>;
+      },
+    },
     {
       key: 'source_ref', header: 'AppSheet reference', width: 230,
       render: (r) => (r.source_ref ? <code style={{ fontSize: 11 }} title={r.ref.note}>{r.source_ref}</code> : <span className="muted">—</span>),
@@ -165,7 +235,7 @@ export function ReportMapping() {
     <div>
       <PageHeader
         title="Bulk Report Mapping" icon="🧩"
-        subtitle="Load recovered visit history and attach each visit to its call — turning AppSheet file references into Drive links on the way."
+        subtitle="Put a recovered report on its call. A completed visit that already has one is never overwritten; one without gets the link; a call with no completed visit gets a visit."
         count={rows.length || undefined}
       />
 
@@ -247,13 +317,14 @@ export function ReportMapping() {
 
           <div className="rep-actions">
             <span className="muted" style={{ marginRight: 'auto' }}>
+              {plan.attach + plan.create} of {rows.filter((r) => !r.problem).length} ready rows will be written
+              {plan.skip > 0 && <> · <b>{plan.skip}</b> left alone because a report is already on the call’s completed visit</>}
               {rows.length - rows.filter((r) => !r.problem).length > 0
-                ? `${rows.length - rows.filter((r) => !r.problem).length} row(s) will be skipped — fix the sheet and load it again.`
-                : 'Every row is ready.'}
+                && ` · ${rows.length - rows.filter((r) => !r.problem).length} row(s) have a problem and are skipped`}
             </span>
-            <button className="btn btn-primary" disabled={!!busy || step === 'written' || !rows.some((r) => !r.problem)}
+            <button className="btn btn-primary" disabled={!!busy || step === 'written' || plan.attach + plan.create === 0}
               onClick={() => void write()}>
-              ⤵ Write {rows.filter((r) => !r.problem).length} visits
+              ⤵ Attach {plan.attach} · file {plan.create}
             </button>
           </div>
         </SectionCard>

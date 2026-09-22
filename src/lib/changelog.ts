@@ -24,6 +24,17 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    version: '0.9.330',
+    date: '2026-09-22',
+    title: 'Bulk Report Mapping never overwrites a report that is already there',
+    changes: [
+      'BULK REPORT MAPPING NOW FOLLOWS THREE RULES. If the call\u2019s completed visit already has a report, nothing is touched. If it has none, the link is added to THAT visit. If the call has no completed visit at all, one is filed.',
+      'IT ADDS THE LINK TO AN EXISTING VISIT \u2014 it does not replace the visit. The engineer\u2019s job done, readings and dates are left exactly as they are; only the report, where it came from, and the status are written.',
+      'THE PREVIEW NOW TELLS YOU WHAT WILL HAPPEN to every row before you confirm \u2014 \u201cskip\u201d, \u201cattach\u201d or \u201cfile a new visit\u201d \u2014 and the button says how many of each.',
+      'A row with no document attached writes nothing, rather than filing an empty visit.',
+    ],
+  },
+  {
     version: '0.9.329',
     date: '2026-09-21',
     title: 'A call gets ITS machine\u2019s cover, not another one\u2019s',
