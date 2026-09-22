@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.346',
+    date: '2026-09-22',
+    title: 'The validation package covers this week\u2019s work',
+    changes: [
+      'Software Validation now carries requirements for all eight changes: five new user requirements (URS-072 to URS-076), six functional requirements (FRS-084 to FRS-089), five test cases (OQ-73 to OQ-77) and one non-auditable requirement (NAR-005).',
+      'Written to INCOSE form \u2014 one \u201cshall\u201d per statement, a definite subject, active voice, no escape clauses, and each one individually verifiable. Where a rule is a PROHIBITION it is written as one, because those are the ones a convenient shortcut gets wrong: no cover invented where the sale records none, no customer contact on an installation call, no date read back out of typed text.',
+      'The two-window layout is recorded as NON-AUDITABLE, with the reason: it changes where a record is displayed and nothing about what is recorded, enforced or permitted. It also says what would take it out of that classification \u2014 showing a reader less in a pane than the drawer showed is not a layout decision.',
+      'The cover reference gains CW-021 (an entry\u2019s terms reach every machine under it) and CW-022 (installation work is raised from the sale), and CW-004\u2019s status line now records that the derived warranty end is no longer offered as a box to type over.',
+      'Version History and the requirements document are regenerated from these, so all four stay in step.',
+    ],
+  },
+  {
     version: '0.9.345',
     date: '2026-09-22',
     title: 'My Workload: the installations Commercial is waiting on',
