@@ -26,7 +26,7 @@ seventeen checks do not cover — which is the gap this project keeps finding
 things in.
 
 **A line number is a hint; the symbol is the citation.** `main` is moving under
-this document — three times while it was being written, twice into
+this document — four times while it was being written, twice into
 `src/lib/supabase.ts`, which gained about eighty lines in the middle across
 those merges. Line numbers into a live file rot that fast. So reads in
 `supabase.ts` are cited by **function name** with the line as `~:NNN`, which
@@ -68,6 +68,7 @@ alone — none of them touches anything recorded here, and none of them fixes it
 | 24 | Roles & Permissions | Unticking every box and saving **grants** the role its code defaults (**measured**) | High |
 | 25 | Stock Out | An exact count over a read that is paged and capped, under a comment saying it is not paged | Medium |
 | 26 | Call Reporting | A visit dated on the form is stored at UTC midnight and reads back at 05:30 (**measured**) | Medium |
+| 27 | Data Export | Every table is paged with no `order()` — a copy that can double and drop rows | High |
 
 ---
 
@@ -1136,6 +1137,12 @@ comparison with the upload path is read from `uploads.ts:157` and
 
 # What was covered, and what was not
 
+**`MODULES` has grown since this was written.** It held 26 screens when the
+review began; `main` added **Data Export** (`005029e`, 2026-09-22) while the PR
+was open. That one was reviewed — finding 27 — but the claim "every module" is
+true as of the list below, not of whatever `MODULES` holds when you read this.
+A screen added after that date has not been looked at.
+
 **Covered screen by screen**, reading the module and the `src/lib` helpers behind
 it: Dashboard, My Workload, Product & Party Search, Machine History, Daily
 Complaint Review Register, Product Failure Analysis, Spare Insights, Field
@@ -1198,3 +1205,59 @@ confidently telling somebody the wrong thing about access or stock.
 **Fixing these**: `docs/MODULE_REVIEW_HANDOFF.md` is the companion — the same 26
 findings as patches, in the order to apply them, with the five live-project
 queries that come first and the four that need a decision rather than an edit.
+
+---
+
+## 27 — Data Export pages every table with no `order()`
+
+**Where** `src/modules/DataExport.tsx:87-88`
+
+Added to `main` **after** this review was written (`005029e`, 2026-09-22), so it
+is a 27th module the rest of the document does not cover. Reviewed here because
+an export screen is exactly what findings 7, 8 and 15 are about.
+
+```ts
+const rows = await allRows<Record<string, unknown>>(
+  (a, b) => c.from(name).select('*').range(a, b), 200000);
+```
+
+**What is right about it**, and worth saying first: the dates go out through
+`xlsxText` (`:41-44`), with a comment citing the Consumption Report — so it does
+**not** have finding 7. It reads through the ordinary API as the signed-in
+person rather than a definer function, so RLS still applies. It pages rather
+than trusting a `limit`, and says why. Someone read the history before writing
+it.
+
+**What is wrong.** The paged read names **no order**. `paging.ts:19-22` states
+the rule the module otherwise follows — *"ORDER IS NOT OPTIONAL WHEN PAGING.
+Without one, PostgREST may return page 2 overlapping page 1 and a row is then
+dropped or doubled, which is worse than truncation because it looks complete.
+Every caller passes a deterministic order"* — and this caller does not. It is
+finding 8's fault in a new place, with finding 15's measured consequence: 4,000
+rows fetched, 3,994 distinct.
+
+**Why it matters more here than on a screen.** Every other instance of this
+produces a slightly wrong list somebody is looking at. This one produces a
+**file**, named `rithi-export-<date>.zip`, that leaves the building and gets
+reconciled against. A table exported with six rows doubled and six missing looks
+exactly like a complete export, and the per-table count the screen reports
+(`${name} ${rows.length}`) would agree with it. Anything above 1,000 rows is
+exposed — which is most of the registers this feature exists to export.
+
+**The fix needs one decision**, because the read is generic over table names and
+cannot hardcode a column. Either:
+
+- **have `exportable_tables()` return the key** — it is already a `pg_class`
+  query (`0227_data_export.sql:26-40`), so joining `pg_index`/`pg_attribute` for
+  each relation's primary key is a few lines, and the screen then orders by it;
+  or
+- **order by `ctid`** for ordinary tables, which is always present and stable
+  within a single read — but is not a column on a **view**, and the picker
+  includes views (`relkind in ('r','v','m')`), so this only covers part of it.
+
+The first is the honest one. A view with no key is the case to think about: it
+may be right to refuse to export one rather than export it unreliably.
+
+**Established by** reading the module against `paging.ts`'s own stated rule. The
+consequence is the one measured for finding 15, in Postgres 16, not re-measured
+here. Whether any exportable table exceeds 1,000 rows is not in doubt.

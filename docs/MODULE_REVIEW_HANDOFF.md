@@ -11,9 +11,9 @@ type-checked. Treat them as precise descriptions of the change, not as diffs to
 paste blind — `npm run build` after each batch is the check that matters.
 
 **A line number is a hint; the quoted snippet is the citation.** `main` moved
-three times while this was being written, twice into `supabase.ts`, which gained
+four times while this was being written, twice into `supabase.ts`, which gained
 about eighty lines in the middle — most citations into it drifted each time.
-Line numbers here are against `main` at `f246888`, and if one is off by a few
+Line numbers here are against `main` at `005029e`, and if one is off by a few
 when you get there, **search for the quoted "current" snippet**, which is what
 actually identifies the code. Reads in `supabase.ts` are cited by function name
 in `MODULE_REVIEW.md` for the same reason.
@@ -71,11 +71,12 @@ Three batches, and they are ordered by **what a mistake costs**, not by severity
    a decision. Do them in one branch, one commit each. ~11 fixes.
 2. **Batch B — small, but the change has a shape to get right.** Still no
    decision needed; more care per fix. ~8 fixes.
-3. **Batch C — needs a decision from you.** Four of these are the ones where the
+3. **Batch C — needs a decision from you.** Five of these are the ones where the
    *right* answer is a product/ops judgement, not a patch. Do not let these block
-   A and B.
+   A and B — except **C5**, which is new, small and about a file that leaves the
+   building.
 
-Batches A and B together clear 19 of the 26 findings and touch no SQL, so they
+Batches A and B together clear 19 of the 27 findings and touch no SQL, so they
 ship as one ordinary front-end change: `npm run build`, changelog entry, version
 bump, merge, deploy.
 
@@ -637,6 +638,37 @@ in `UserMasterView.tsx` — the drawer already explains the manager fields at
 `handstock_movements` keys on the engineer name **stored on the request**, so a
 renamed engineer's balance stays under the old key. That is a data-repair
 question, not a code one.
+
+---
+
+## C5 · Finding 27 (HIGH) — Data Export pages every table with no order
+
+`src/modules/DataExport.tsx:87-88`. Same class as C4 and the same fix, but it
+needs its own decision because the read is **generic over table names**:
+
+```ts
+const rows = await allRows<Record<string, unknown>>(
+  (a, b) => c.from(name).select('*').range(a, b), 200000);
+```
+
+**Decide where the order comes from:**
+
+- **(a) Return the key from `exportable_tables()`.** It is already a `pg_class`
+  query (`0227_data_export.sql:26-40`); join `pg_index` / `pg_attribute` for each
+  relation's primary key and hand it to the screen, which orders by it. This is
+  the honest fix and it is a small migration.
+- **(b) `ctid` for ordinary tables.** Always present, stable within one read, no
+  migration — but a **view** has no `ctid`, and the picker offers views
+  (`relkind in ('r','v','m')`), so this covers only part of the list.
+
+**The case to think about is a view with no key.** It may be right to refuse to
+export one rather than export it unreliably — an export that silently doubles
+and drops rows is worse than an export that did not happen, because it is
+reconciled against.
+
+**Do this one before the rest of C4.** Every other instance produces a wrong
+list on a screen; this one produces a file that leaves the building, and the
+per-table count it prints would agree with the wrong file.
 
 ---
 
