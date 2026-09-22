@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.331',
+    version: '0.9.332',
     date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -35,6 +35,19 @@ export const CHANGELOG: ChangeEntry[] = [
       'CORRECTION (21 Sep): _restore_call_status.sql RECOVERED NOTHING, and I should have checked before telling you it would. The call uploads map no call status, so there was none kept on the rows; and the \u201cClose call\u201d entries it was to read from the audit trail had already been purged by the 7-day retention. The restore had nothing to work from.',
       'THE LINE IS GUARDED NOW and cannot do this again \u2014 proved by closing 50 calls, re-running the bundle, and finding all 50 still Solved.',
       'A call with a report in Drive is a separate thing: Drive holds the document, the system holds the VISIT, and only the visit sets a status. Administration \u2192 Bulk Report Mapping turns those documents into visits, which fixes the cause rather than the symptom.',
+    ],
+  },
+  {
+    version: '0.9.331',
+    date: '2026-09-22',
+    title: 'Data Export \u2014 pick the tables, get CSVs',
+    changes: [
+      'A NEW SCREEN UNDER ADMINISTRATION. Tick the tables you want and download them as one ZIP, with a CSV inside for each.',
+      'It shows you how big each table is before you choose \u2014 an estimate, and it says so.',
+      'THE EXPORT RUNS AS YOU. It holds exactly the rows you are entitled to see, which is why it is safe to have on a menu at all.',
+      'Dates come out as dd-MMM-yyyy HH:mm:ss so a spreadsheet reads them as dates rather than text.',
+      'The audit trails are deliberately not offered \u2014 they are the record of what everyone did, and a copy on a laptop is a liability rather than a backup.',
+      'RUN call_requests.sql to switch it on \u2014 it needs the new table list and the permission.',
     ],
   },
   {

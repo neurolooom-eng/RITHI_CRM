@@ -4165,6 +4165,20 @@ export async function attachReportsToVisits(
   return { ok: true, written };
 }
 
+// The tables a person may export, with ESTIMATED row counts for the picker.
+// Names and counts only -- `exportable_tables()` (0227) returns no data, and
+// returns nothing at all to a caller who is not an administrator.
+export interface ExportableTable { table_name: string; approx_rows: number }
+export async function exportableTables(): Promise<ExportableTable[]> {
+  const c = must();
+  const { data, error } = await c.rpc('exportable_tables');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r: { table_name?: unknown; approx_rows?: unknown }) => ({
+    table_name: String(r.table_name ?? ''),
+    approx_rows: Number(r.approx_rows ?? 0),
+  })).filter((t: ExportableTable) => t.table_name);
+}
+
 export async function upsertRecoveredReports(
   rows: RecoveredReport[],
   onProgress?: (done: number, total: number) => void,
