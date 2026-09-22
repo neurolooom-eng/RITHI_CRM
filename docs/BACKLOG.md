@@ -46,6 +46,40 @@ up)_
 
 ---
 
+## 2026-09-22 — Fixing a call's cover: against the DATE, never against today
+
+> *"i want to fix existing calls as well"*
+
+**The obvious repair is wrong and the numbers said so.** Comparing a call's
+`item_status` with its machine's cover TODAY produced 2,532 disagreements —
+and the association test showed them to be cover changing over time:
+disagreement was **19%** on ambiguous serials against **26%** where only one
+machine wears the serial. Lower, not higher. Writing today's value onto those
+calls would destroy correct history to chase a fault that measured as absent.
+
+**The dated comparison is defensible.** `sale_items` carries
+warranty_start/end and `contract_items` contract_start/end, so the registers
+can say what was in force ON THE CALL'S OWN COMPLAINT DATE. A call that
+contradicts that is wrong on its own terms, whenever it was raised.
+
+`_cover_as_at_the_complaint_date.sql` reports it; `_fix_cover_as_at_the_complaint_date.sql`
+corrects exactly that set. **Four refusals, each where being wrong is worse:**
+
+- a machine with **no dated** warranty or contract record gets no opinion —
+  unknown is not out of cover;
+- a contract whose **type was never recorded** is not guessed into CMC;
+- a call missing a date, a serial or a model is not judged;
+- the match is **MODEL + SERIAL**, so a shared serial cannot lend its cover.
+
+**Warranty decides before contract**, as `product_database_v2` has it.
+
+Proved on five seeded cases covering every branch — warranty covering, contract
+covering, both (warranty wins), dated-but-not-covering, and no dated record at
+all. The last is the one that must be LEFT ALONE, and it was. Second run
+corrects 0; the audit trail carried all three changes with before and after.
+
+---
+
 ## 2026-09-21 — ⚠️ A cancelled call is not "Report pending" (0226)
 
 > *"How did it become Report Pending?"* → *"Yes fix the Canceled status"*
