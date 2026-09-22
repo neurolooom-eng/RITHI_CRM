@@ -1915,7 +1915,59 @@ questions for a person.
 
 ---
 
-**70** user requirements · **82** system requirements · **30** call-request · **44** servicing · **74** tests · **2** recorded as non-auditable · **113** of 70 user requirements tied to a module.
+**70** user requirements · **82** system requirements · **30** call-request · **44** servicing · **76** tests · **4** recorded as non-auditable · **113** of 70 user requirements tied to a module.
+---
+
+## Non-auditable requirements
+
+Recorded here because a feature absent from the specification is the thing an assessor finds. Each is classified by PROVENANCE: it is not derived from a regulatory clause and is not offered as evidence against one. That is a statement about where the requirement came from, NOT a statement that its use goes unrecorded.
+
+### NAR-004 — Daily export of every table, delivered by electronic mail
+
+*Non-Auditable Requirement (user-originated; no regulatory clause claimed) — SPECIFIED, NOT BUILT* · risk: **High**
+
+NAR-004.1 The system shall export the contents of every table in the public schema once per calendar day. NAR-004.2 The system shall complete each daily export before 23:00 Asia/Kolkata. NAR-004.3 The system shall write the contents of each exported table to a separate comma-separated-values file. NAR-004.4 The system shall collect the files of one export into one archive named with the export date. NAR-004.5 The system shall send one electronic mail message per completed export to each configured recipient address. NAR-004.6 The system shall attach the archive to that message where the archive size does not exceed 20 megabytes. NAR-004.7 The system shall include a link to the archive in that message where the archive size exceeds 20 megabytes. NAR-004.8 The system shall record each export with its start time, its completion time, the number of tables exported, the number of rows exported and its outcome. NAR-004.9 The system shall send one electronic mail message naming the cause where an export does not complete. NAR-004.10 The system shall export every row of each table irrespective of the row-level security policies on that table.
+
+**Why it is classified this way.** Requested by the system owner on 2026-09-22: "Export every Table and send it to Email every day by 11pm." IT IS NOT BUILT AS AT THIS REVISION and is recorded here for the reason this section exists — a requirement held only in a conversation is the one nobody implements and nobody tests. Writing it also found that THE PACKAGE ALREADY CLAIMED A CONTROL OF THIS KIND AND THE CONTROL DID NOT EXIST: two statements said a daily email digest archived the audit trail off-database, and a search on 2026-09-22 found no mail path of any kind — no MailApp, no pg_net, no scheduled job but the retention purge, the review auto-answer and the Product Database 2.0 refresh. Both are withdrawn. THREE THINGS MUST BE SETTLED BEFORE IT IS BUILT, none of them a technical detail. FIRST, the recipient list: NAR-004.10 makes this export the whole customer base — every serial, every contract, every contact — leaving the system in one file, and which addresses it may go to is a larger exposure than any screen in the application. SECOND, the transport: the application has no mail capability, so one must be introduced, and whatever is chosen becomes a configuration item holding a credential. THIRD, the size: the register holds roughly 19,000 machines, 15,000 visits and 12,000 calls, so NAR-004.7 is the expected path and NAR-004.6 the exception. Should this export ever be relied upon as the backup of record, that use is NOT covered by this classification: backup and restore is FRS-023, it is auditable, and PQ-06 verifies it.
+
+**Verified by:** OQ-68 — The daily export runs to time, carries every table, and says so when it does not.
+
+### NAR-003 — Bulk Report Mapping — attaching a recovered report to its call
+
+*Non-Auditable Requirement (user-originated; no regulatory clause claimed)* · risk: **Medium**
+
+NAR-003.1 Bulk Report Mapping shall identify the call for each imported row by the UC Number, and by the Call Number where the UC Number is empty. NAR-003.2 Bulk Report Mapping shall classify a visit as the completed visit when the visit call status, reduced to lower-case alphanumeric characters, equals "solvedreportcompleted". NAR-003.3 Bulk Report Mapping shall make no change to a call whose completed visit holds a non-empty report link. NAR-003.4 Bulk Report Mapping shall write the report link to the completed visit whose report link is empty. NAR-003.5 Bulk Report Mapping shall select the completed visit with the latest entry timestamp where the call holds more than one completed visit with an empty report link. NAR-003.6 Bulk Report Mapping shall write the report link, the source reference and the call status "Solved - Report Completed" to the visit selected under NAR-003.4. NAR-003.7 Bulk Report Mapping shall preserve every column of that visit other than the three columns named in NAR-003.6. NAR-003.8 Bulk Report Mapping shall create one visit carrying the report link and the call status "Solved - Report Completed" where the call holds no completed visit. NAR-003.9 Bulk Report Mapping shall make no change for an imported row whose report link is empty. NAR-003.10 Bulk Report Mapping shall display for each imported row, before the operator confirms the write, one action from the set {no change, write to existing visit, create visit}. NAR-003.11 Bulk Report Mapping shall complete every write to an existing visit before it creates any visit.
+
+**Why it is classified this way.** Stated by the system owner on 2026-09-22: "If the Report is already present, it should not update. If the Report is Absent, then it should update the Report Link on a Existing Visit Entry - with Status ‘Solved - Report Completed’ - with the Report Link. If there is no Visit with ‘Solved - Report Completed’, then it should add Visit Entry." CLASSIFIED NON-AUDITABLE BY PROVENANCE, at the owner’s direction: it is a rule about how a recovery tool behaves, not one derived from a regulatory clause, and it is not offered as evidence against one. THAT IS NOT A STATEMENT THAT ITS USE GOES UNRECORDED — `reports` is one of the ten tables record_audit covers (0225), so every attachment and every filed visit is recorded with the row before and after. NAR-003.3 and NAR-003.7 are the two that carry weight and are written as prohibitions for that reason: a recovered link must never displace one an engineer filed, and a visit being attached to is an engineer’s record whose other columns are theirs. Should this tool ever be used to alter a visit’s date, engineer or work details, that use is NOT covered by this classification and is to be raised as an auditable requirement with its own risk assessment.
+
+**Verified by:** OQ-67 — A recovered report reaches its call without displacing what an engineer filed.
+
+**Where it lives:** src/lib/reportMapping.ts · src/modules/ReportMapping.tsx · scripts/check-report-mapping.ts
+
+### NAR-002 — Tracker — the shared activity list
+
+*Non-Auditable Requirement (user-originated; no regulatory clause claimed)* · risk: **Low**
+
+An activity list a handful of people keep together: anyone who can open it may add a row and edit any field, and every field saves when it loses focus rather than through a form. It is reached under Administration and is gated by its own module key, so who may open it is an administrator’s decision like any other screen.
+
+**Why it is classified this way.** Requested by the system owner on 2026-09-08 — "add a tracker page under admin to track activities. something very similar to backlog.. shared between me and a few other. all who have access should be able add, edit". IT IS NOT A QUALITY RECORD AND IS NOT OFFERED AS ONE: nothing in the servicing process reads it, no figure is drawn from it, and no judgement recorded elsewhere depends on it. It is listed here for the reason this section exists — a feature absent from the specification is the thing an assessor finds — and because its edit-in-place behaviour is deliberate and would otherwise read as a control that had been forgotten rather than one that was never required. Should anything a servicing or quality procedure relies on ever be kept here, that use is NOT covered by this classification and is to be raised as an auditable requirement with its own risk assessment: a shared list with no attribution per field and no amendment history cannot carry a record anybody must rely on.
+
+**No test protocol names this requirement.** That is a gap, not a decision.
+
+**Where it lives:** src/modules/Tracker.tsx
+
+### NAR-001 — Audit Mode
+
+*Non-Auditable Requirement (user-originated; no regulatory clause claimed)* · risk: **Medium**
+
+The system provides a system-wide Audit Mode that only an administrator may switch on or off. The switch is held in app_settings; it is changed only through set_audit_mode(), which refuses a caller who is not an administrator and refuses a change with no reason; every change is written to audit_mode_changes with the new state, the reason, the actor and the time. That table has no insert, update or delete path through the API and is not covered by the audit-log retention purge, so the record of when the mode was on outlives the audit log itself.
+
+**Why it is classified this way.** Requested by the system owner on 2026-09-06, with the rules governing the mode’s BEHAVIOUR to be supplied separately. As at this revision NO APPLICATION BEHAVIOUR IS CONDITIONED ON THE MODE: the switch is built, its use is recorded, and nothing reads it. It is documented now rather than later because an undocumented switch in a validated system is a finding in itself. When the rules arrive, each one is to be assessed on its own merits — any rule that would alter, conceal or suppress a quality record, or change what a record shows to an assessor, is NOT covered by this classification and must be raised as an auditable requirement with its own risk assessment before it is built.
+
+**Verified by:** OQ-38 — Audit Mode is an administrator’s switch, and every throw of it is kept.
+
+**Where it lives:** 0114_audit_mode.sql · supabase/tests/audit_mode_test.sql
+
 
 ---
 
@@ -2042,6 +2094,6 @@ not.
 
 **101** links · **70** user requirements · **82** system requirements · **73** tests · **70** requirements traced end to end, **0** in part, **0** not yet.
 
-**Outside this matrix:** OQ-38 — it proves a
+**Outside this matrix:** OQ-38, OQ-68, OQ-67 — they prove a
 requirement recorded as NON-AUDITABLE, which sits outside the
 URS → FRS → test chain by design rather than by omission.

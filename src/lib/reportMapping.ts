@@ -239,3 +239,83 @@ export const summarise = (rows: MappedRow[]) => ({
   alreadyLinked: rows.filter((r) => r.ref.url).length,
   ready: rows.filter((r) => !r.problem).length,
 });
+
+// ===========================================================================
+// WHAT TO DO WITH EACH ROW — the user's rule, 2026-09-22:
+//
+//   "If the Report is already present, it should not update. If the Report is
+//    Absent, then it should update the Report Link on an Existing Visit Entry
+//    - with Status 'Solved - Report Completed' - with the Report Link. If there
+//    is no Visit with 'Solved - Report Completed', then it should add Visit
+//    Entry."
+//
+// So the anchor is the call's COMPLETED visit, and there are three outcomes:
+//
+//   skip    a completed visit already carries a document. Nothing is written,
+//           and that is the point: a recovered link must never displace the one
+//           an engineer filed.
+//   attach  a completed visit exists with no document. ONLY the link, the
+//           source reference and the status are written onto it -- not a whole
+//           visit, because everything else on that row is the engineer's.
+//   create  the call has no completed visit at all. A new one is filed,
+//           carrying the link and the status.
+//
+// THE MATCH ON STATUS IS SQUASHED, NOT EQUALITY. The register writes
+// "Solved - Report Completed", exports write "Solved-Report Completed" and
+// "SOLVED - REPORT COMPLETED", and all three are the same judgement. Squashing
+// keeps "Solved - Report PENDING" distinct, which equality-on-a-prefix would
+// not: `solvedreportcompleted` and `solvedreportpending` differ.
+// ===========================================================================
+
+export const SOLVED_REPORT_COMPLETED = 'Solved - Report Completed';
+
+const statusKey = (v: unknown) => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const COMPLETED_KEY = statusKey(SOLVED_REPORT_COMPLETED);
+
+/** Is this visit the call's completed one? */
+export const isCompletedVisit = (status: unknown): boolean => statusKey(status) === COMPLETED_KEY;
+
+export interface ExistingVisit {
+  uid: string;
+  call_status: string;
+  manual_report: string;
+  /** When the visit was ENTERED. Used only to pick between several completed
+   *  visits, by the same rule the call's own status uses (0032). */
+  updated_at: string;
+}
+
+export type MapAction = 'skip' | 'attach' | 'create';
+export interface VisitDecision { action: MapAction; uid: string; why: string }
+
+export function decideVisit(visits: ExistingVisit[], derivedUid: string, hasLink: boolean): VisitDecision {
+  const completed = visits.filter((v) => isCompletedVisit(v.call_status));
+
+  // A row with nothing to attach cannot improve anything, and filing an empty
+  // visit for it would be inventing history.
+  if (!hasLink) {
+    return completed.length
+      ? { action: 'skip', uid: completed[0].uid, why: 'This row carries no document to attach.' }
+      : { action: 'skip', uid: '', why: 'This row carries no document, and the call has no completed visit to add it to.' };
+  }
+
+  const withReport = completed.find((v) => String(v.manual_report ?? '').trim() !== '');
+  if (withReport) {
+    return { action: 'skip', uid: withReport.uid, why: 'A completed visit on this call already has a report.' };
+  }
+
+  if (completed.length) {
+    // The LATEST ENTRY, matching sync_call_last_visit's ordering -- that is the
+    // visit the call's own status comes from, so it is the one a reader sees.
+    const latest = [...completed].sort((a, b) =>
+      String(b.updated_at ?? '').localeCompare(String(a.updated_at ?? '')) || String(b.uid).localeCompare(String(a.uid)))[0];
+    return { action: 'attach', uid: latest.uid, why: 'Adding the report to the completed visit that has none.' };
+  }
+
+  return { action: 'create', uid: derivedUid, why: 'No completed visit on this call — filing one.' };
+}
+
+export const summariseActions = (d: VisitDecision[]) => ({
+  skip: d.filter((x) => x.action === 'skip').length,
+  attach: d.filter((x) => x.action === 'attach').length,
+  create: d.filter((x) => x.action === 'create').length,
+});

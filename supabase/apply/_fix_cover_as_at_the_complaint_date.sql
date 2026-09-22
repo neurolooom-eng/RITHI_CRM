@@ -106,13 +106,40 @@ judged as (
                         and lower(btrim(coalesce(s.serial_number, ''))) = j.skey
                         and s.warranty_start is not null))
 ),
-done as (
-  update public.calls c set item_status = t.in_force
-    from targets t where t.ucn = c.ucn
+-- THE WRITE GOES TO THE THREE TABLES, NOT THROUGH THE `calls` VIEW.
+--
+-- It went through the view first, and the count it reported was WRONG: on the
+-- live register it said 1,201 where the audit trail recorded 1,579 DISTINCT
+-- calls changed. The data was right and the number was not, which is the worse
+-- of the two ways to be wrong -- a repair that under-reports invites somebody
+-- to run it again looking for the rest.
+--
+-- The cause was not established. Updating the view with a FROM and RETURNING
+-- counted accurately on a 500-row test, and the "same call recorded twice"
+-- theory was disproved by the audit trail (1,579 events, 1,579 distinct). So
+-- the view is simply not a surface to trust a row count from, and the base
+-- tables are: RETURNING from a real table counts what it changed.
+did_field as (
+  update public.field_calls c set item_status = t.in_force
+    from targets t where t.ucn = c.ucn and c.item_status is distinct from t.in_force
   returning c.ucn, t.on_the_call as was, t.in_force as now_is
+),
+did_inst as (
+  update public.installation_calls c set item_status = t.in_force
+    from targets t where t.ucn = c.ucn and c.item_status is distinct from t.in_force
+  returning c.ucn, t.on_the_call as was, t.in_force as now_is
+),
+did_pm as (
+  update public.pm_calls c set item_status = t.in_force
+    from targets t where t.ucn = c.ucn and c.item_status is distinct from t.in_force
+  returning c.ucn, t.on_the_call as was, t.in_force as now_is
+),
+done as (
+  select * from did_field union all select * from did_inst union all select * from did_pm
 )
-select (select count(*) from done)::text as calls_corrected,
+select (select count(*) from done)::text            as calls_corrected,
+       (select count(distinct ucn) from done)::text as distinct_calls,
        coalesce((select string_agg(p || ' (' || n || ')', ', ' order by n::int desc)
                    from (select was || ' -> ' || now_is as p, count(*)::text as n
-                           from done group by 1 order by count(*) desc limit 8) x), 'none') as what_changed,
-       'Run the probe again -- row 4 should now be 0.' as next;
+                           from done group by 1 order by count(*) desc limit 10) x), 'none') as what_changed,
+       'Re-run the probe: row 4 should fall to the skipped set. The audit trail is the arbiter if the two ever disagree.' as next;

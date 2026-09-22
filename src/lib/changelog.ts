@@ -12,8 +12,8 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.330',
-    date: '2026-09-21',
+    version: '0.9.331',
+    date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
       'Machine History now shows the years BEFORE this system. The service history from 2016 up to the cut-over lives in a separate database, and the screen reads it alongside the registers \u2014 so a machine with nine years of faults behind it stops looking new.',
@@ -35,6 +35,17 @@ export const CHANGELOG: ChangeEntry[] = [
       'CORRECTION (21 Sep): _restore_call_status.sql RECOVERED NOTHING, and I should have checked before telling you it would. The call uploads map no call status, so there was none kept on the rows; and the \u201cClose call\u201d entries it was to read from the audit trail had already been purged by the 7-day retention. The restore had nothing to work from.',
       'THE LINE IS GUARDED NOW and cannot do this again \u2014 proved by closing 50 calls, re-running the bundle, and finding all 50 still Solved.',
       'A call with a report in Drive is a separate thing: Drive holds the document, the system holds the VISIT, and only the visit sets a status. Administration \u2192 Bulk Report Mapping turns those documents into visits, which fixes the cause rather than the symptom.',
+    ],
+  },
+  {
+    version: '0.9.330',
+    date: '2026-09-22',
+    title: 'Bulk Report Mapping never overwrites a report that is already there',
+    changes: [
+      'BULK REPORT MAPPING NOW FOLLOWS THREE RULES. If the call\u2019s completed visit already has a report, nothing is touched. If it has none, the link is added to THAT visit. If the call has no completed visit at all, one is filed.',
+      'IT ADDS THE LINK TO AN EXISTING VISIT \u2014 it does not replace the visit. The engineer\u2019s job done, readings and dates are left exactly as they are; only the report, where it came from, and the status are written.',
+      'THE PREVIEW NOW TELLS YOU WHAT WILL HAPPEN to every row before you confirm \u2014 \u201cskip\u201d, \u201cattach\u201d or \u201cfile a new visit\u201d \u2014 and the button says how many of each.',
+      'A row with no document attached writes nothing, rather than filing an empty visit.',
     ],
   },
   {

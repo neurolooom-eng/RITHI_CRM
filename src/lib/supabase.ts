@@ -4116,6 +4116,55 @@ export interface RecoveredReport {
   engineer: string; engineer_email: string; visit_at: string; manual_report: string;
   source_ref: string; data: Record<string, unknown>;
 }
+// EVERY VISIT THESE CALLS ALREADY HAVE, so the mapping can decide per row
+// whether to skip, attach or file one. Paged in chunks, like callKeysFor.
+export interface VisitRow { uid: string; ucn: string; call_status: string; manual_report: string; updated_at: string }
+export async function visitsForCalls(ucns: string[]): Promise<VisitRow[]> {
+  const c = getSupabase(); if (!c) return [];
+  const want = [...new Set(ucns.map((x) => String(x ?? '').trim()).filter(Boolean))];
+  const out: VisitRow[] = [];
+  for (let i = 0; i < want.length; i += 200) {
+    const { data, error } = await c.from('reports')
+      .select('uid,ucn,call_status,manual_report,updated_at').in('ucn', want.slice(i, i + 200));
+    if (error) throw new Error(errMsg(error));
+    (data ?? []).forEach((r) => out.push({
+      uid: String(r.uid ?? ''), ucn: String(r.ucn ?? ''),
+      call_status: String(r.call_status ?? ''), manual_report: String(r.manual_report ?? ''),
+      updated_at: String(r.updated_at ?? ''),
+    }));
+  }
+  return out;
+}
+
+// ATTACH: THREE COLUMNS, NOT A ROW.
+//
+// The visit being written to is an ENGINEER'S record -- their job done, their
+// readings, their answers. An upsert would carry the whole payload over it and
+// blank every column the recovery file does not have. So this sets only the
+// document, where it came from, and the status the user's rule names.
+//
+// `updated_at` is deliberately NOT touched: it is when the visit was ENTERED,
+// and attaching a document years later does not make it a newer entry. Moving
+// it would change which visit decides the call's status (0032).
+export async function attachReportsToVisits(
+  rows: { uid: string; manual_report: string; source_ref: string }[],
+  status: string,
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ ok: boolean; written: number; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, written: 0, error: 'Database not connected.' };
+  let written = 0;
+  for (const r of rows) {
+    const { error } = await c.from('reports')
+      .update({ manual_report: r.manual_report, source_ref: r.source_ref, call_status: status,
+                mapped_at: new Date().toISOString() })
+      .eq('uid', r.uid);
+    if (error) return { ok: false, written, error: errMsg(error) };
+    written += 1;
+    onProgress?.(written, rows.length);
+  }
+  return { ok: true, written };
+}
+
 export async function upsertRecoveredReports(
   rows: RecoveredReport[],
   onProgress?: (done: number, total: number) => void,
