@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { addCallRequestBatch, listCallRequests, sbPartyInfo, supabaseConfigured, type CallRequestItem } from '../lib/supabase';
+import { addCallRequestBatch, listCallRequests, sbPartyInfo, supabaseConfigured,
+         updateCallRequest, callRequestEditableKeys, type CallRequestItem } from '../lib/supabase';
 import { csvExport, timeAgo, fmtDateTime, fmtLongDate } from '../lib/format';
 import { listPartyItems, uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
 import type { DriveFolder } from '../lib/drivefolders';
@@ -84,6 +85,12 @@ export function RequestCallRegistration() {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState<Row | null>(null);
+  // CORRECTING A REQUEST. The draft is separate from the row on screen so a
+  // failed save leaves the register showing what is actually stored, rather
+  // than what somebody typed.
+  const [editing, setEditing] = useState(false);
+  const [editRow, setEditRow] = useState<Row | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load requests.' },
@@ -138,6 +145,33 @@ export function RequestCallRegistration() {
     rows.forEach((r) => { const s = String(r.status ?? 'Pending'); c[s] = (c[s] ?? 0) + 1; });
     return c;
   }, [rows]);
+
+  // PENDING IS THE EDITABLE STATE. Anything else means the request has been
+  // answered — registered as a call, mapped to one, or cancelled — and the
+  // answer is what the rest of the system reads.
+  const isPending = (r: Row) => {
+    const st = String(r.status ?? 'Pending').trim().toLowerCase();
+    return st === '' || st === 'pending';
+  };
+
+  const saveDetail = async () => {
+    if (!editRow || !detail) return;
+    setSavingEdit(true);
+    const res = await updateCallRequest(Number(detail.id), editRow);
+    setSavingEdit(false);
+    if (!res.ok) {
+      // THE DATABASE'S OWN WORDS. 0232 refuses a correction to a request that
+      // has become a call in a sentence written to be read; replacing it with
+      // "Could not save" would throw away the only part that says why.
+      setMsg({ tone: 'error', text: res.error ?? 'Could not save the correction.' });
+      return;
+    }
+    const merged = { ...detail, ...editRow } as Row;
+    setDetail(merged);
+    setRows((rs) => rs.map((r) => (r.id === detail.id ? merged : r)));
+    setEditing(false); setEditRow(null);
+    setMsg({ tone: 'ok', text: `Request ${String(detail.reqid ?? '')} corrected.` });
+  };
 
   return (
     <div>
@@ -196,17 +230,65 @@ export function RequestCallRegistration() {
         <NewRequestForm onSaved={() => void load()} />
       </Drawer>
 
-      <Drawer open={!!detail} onClose={() => setDetail(null)} title={`Request ${String(detail?.reqid ?? '')}`} width={620}>
+      <Drawer open={!!detail} onClose={() => { setDetail(null); setEditing(false); }}
+              title={`Request ${String(detail?.reqid ?? '')}`} width={620}>
         {detail && (
           <div className="reg-detail-list">
-            {Object.entries(detail)
+            {/* CORRECTING A REQUEST (the user, 2026-09-22). A request is typed
+                in the field, often from a phone, and the serial, the model or
+                the customer is what is most often wrong; the only way to fix
+                one was to cancel it and raise another, which loses the original
+                timestamp and leaves two rows for one request.
+
+                ONLY WHILE IT IS PENDING. Once it has become a call, the CALL
+                carries the customer, the machine and the complaint, and it is
+                what everything downstream reads — correcting the request
+                afterwards would leave the two disagreeing about one machine.
+                0232 enforces that in the database, because `cr_update` lets the
+                person who raised a request write their own row and a rule that
+                lives only here is one a direct API call walks past. */}
+            <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              {isPending(detail) ? (
+                editing ? (
+                  <>
+                    <button className="btn btn-sm btn-primary" disabled={savingEdit}
+                      onClick={() => void saveDetail()}>{savingEdit ? 'Saving…' : 'Save changes'}</button>
+                    <button className="btn btn-sm" disabled={savingEdit}
+                      onClick={() => { setEditing(false); setEditRow(null); }}>Cancel</button>
+                  </>
+                ) : (
+                  <button className="btn btn-sm" onClick={() => { setEditRow({ ...detail }); setEditing(true); }}>
+                    ✎ Correct this request
+                  </button>
+                )
+              ) : (
+                <span className="muted" style={{ fontSize: 12 }}>
+                  This request is <b>{String(detail.status ?? '')}</b>. The call carries these details now —
+                  correct them on the call, where the change is recorded.
+                </span>
+              )}
+            </div>
+
+            {editing && editRow ? (
+              callRequestEditableKeys().map((k) => (
+                <div className="reg-detail-row" key={k}>
+                  <div className="reg-detail-k">{LABELS[k] ?? k}</div>
+                  <div className="reg-detail-v">
+                    <input className="input" value={String(editRow[k] ?? '')}
+                      type={k === 'planDate' ? 'date' : 'text'}
+                      onChange={(e) => setEditRow((r) => r && ({ ...r, [k]: e.target.value }))} />
+                  </div>
+                </div>
+              ))
+            ) : (
+            Object.entries(detail)
               .filter(([k, v]) => k !== 'id' && !k.startsWith('_') && v != null && String(v).trim() !== '')
               .map(([k, v]) => (
                 <div className="reg-detail-row" key={k}>
                   <div className="reg-detail-k">{LABELS[k] ?? k}</div>
                   <div className="reg-detail-v">{String(v)}</div>
                 </div>
-              ))}
+              )))}
             {/* THE SUBMITTED REQUEST, not just the form. This drawer was missed
                 when supporting documents were added to the request (reported
                 2026-09-09): they reached the NEW-request form and the Pending

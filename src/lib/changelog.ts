@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.344',
+    date: '2026-09-22',
+    title: 'Correct a call request instead of cancelling and re-raising it',
+    changes: [
+      'Open a request in Call Request and \u201c\u270e Correct this request\u201d lets you fix the customer, the machine, the complaint, the engineer, the plan date and the rest. A request is typed in the field, often from a phone, and the serial or the model is what goes wrong most often.',
+      'Until now the only way to fix one was to cancel it and raise another \u2014 which loses the original timestamp and leaves two rows for one request.',
+      'ONLY WHILE IT IS PENDING. Once a request has been registered, mapped or cancelled, the CALL carries the customer, the machine and the complaint, and the call is what every count, report and review reads. Correcting the request then would leave the two disagreeing about one machine \u2014 so the screen says to correct it on the call, where the change is recorded.',
+      'That is enforced in the database, not just on the form: the person who raised a request may write their own row, and a rule that lived only in the screen is one a direct request walks past.',
+      'Registering and cancelling still work in every state. The freeze is on WHAT was asked for, not on what was done about it \u2014 a guard over the whole row would have refused the very actions that answer a request.',
+      'NEEDS supabase/apply/call_requests.sql run on the project.',
+    ],
+  },
+  {
     version: '0.9.343',
     date: '2026-09-22',
     title: 'Warranty and Contract open as two windows',

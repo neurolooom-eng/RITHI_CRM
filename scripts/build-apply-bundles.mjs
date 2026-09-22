@@ -278,6 +278,9 @@ const MODULES = {
       '0226_cancelled_is_not_report_pending.sql',
       // LAST in this module: 0003 and 0053 both define cr_read, so a bundle
       // replayed alone would otherwise restore the per-row version.
+      // A request may be corrected while it is Pending (0232). BEFORE the
+      // cr_read tail, which must stay last in this module.
+      '0232_call_request_edit.sql',
       '0164_cr_read_initplan.sql',
     ],
   },

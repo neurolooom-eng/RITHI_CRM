@@ -5319,6 +5319,38 @@ console.log('\n-- the Product Database and the Product Master are two registers 
     /retired line takes no new sale/.test(reg), true);
 }
 
+console.log('\n-- a call request can be corrected until it becomes a call --');
+{
+  const rr = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+
+  eq('a request can be corrected', /\u270e Correct this request/.test(rr), true);
+  // ONLY WHILE PENDING. Once it is a call, the call carries these details and
+  // is what everything downstream reads; the screen says where the correction
+  // belongs rather than refusing silently.
+  eq('...only while it is pending', /isPending\(detail\) \?/.test(rr), true);
+  eq('...and says where the correction belongs otherwise',
+    /correct them on the call, where the change is recorded/.test(rr), true);
+  // THE DATABASE'S OWN WORDS reach the screen: 0232 names the fields it
+  // refused, and "Could not save" would throw away the only useful part.
+  eq('a refusal is shown as the database worded it',
+    /res\.error \?\? 'Could not save the correction\.'/.test(rr), true);
+  // THE DRAFT IS SEPARATE FROM THE ROW, so a failed save leaves the register
+  // showing what is stored rather than what somebody typed.
+  eq('a failed save does not move the row', /const \[editRow, setEditRow\]/.test(rr), true);
+
+  // ucn AND status ARE NOT EDITABLE FIELDS. They are the request's
+  // DISPOSITION, written by registering or cancelling -- a form that could set
+  // them would let somebody mark a request Registered with no call behind it.
+  const wl = /const CALL_REQUEST_EDITABLE: Record<string, string> = \{([\s\S]*?)\};/.exec(sb)?.[1] ?? '';
+  eq('the editable whitelist is not empty', wl.length > 0, true);
+  eq('...and does not include the UCN or the status',
+    /\bucn\b|\bstatus\b/.test(wl), false);
+  // A date column takes null for "not set", never ''.
+  eq('a cleared plan date is sent as null, not an empty string',
+    /col === 'plan_date' \? \(v === '' \? null : v\) : v/.test(sb), true);
+}
+
 console.log('\n-- the cover registers are two windows --');
 {
   const reg2 = readFileSync('src/modules/CoverRegister.tsx', 'utf8');

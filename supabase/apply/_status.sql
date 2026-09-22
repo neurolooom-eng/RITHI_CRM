@@ -1173,7 +1173,11 @@ with checks(sort_order, bundle, provides, present) as (
          -- The rule itself, not merely the function''s existence.
          and public.party_kyc_verified('Verified')
          and public.party_kyc_verified('  verified ')
-         and not public.party_kyc_verified('Pending')))
+         and not public.party_kyc_verified('Pending'))),
+    (177, 'A call request can be corrected until it becomes a call', 'call_request_content_frozen() + zz_call_request_content_frozen on call_requests (0232). The user, 2026-09-22: "Add a Provision in Call Request for me to edit it." A request is typed in the field, often from a phone, and the serial, the model or the customer is what is most often wrong; until now the only way to fix one was to CANCEL IT AND RAISE ANOTHER, which loses the original timestamp and leaves two rows for one request. THE PERMISSION ALREADY EXISTED and is not widened: cr_read/cr_update (0003) let calls.create, pending.register or the person who RAISED it write the row. What was missing was a form and one control. THE CONTROL: once a request has become a call, its CONTENT is frozen -- the call carries the customer, the machine and the complaint from that moment and the call is what everything downstream reads, so correcting the request afterwards would leave two records disagreeing about one machine. IT FREEZES THE CONTENT AND NOT THE DISPOSITION, which is why it is a trigger and not a policy: registering writes ucn/status/actioned_by/actioned_at and cancelling writes status/cancel_reason/cancelled_at, so a rule that froze the whole row would refuse the very updates that answer a request -- it would look correct and break the workflow. A TRIGGER RATHER THAN A CLIENT RULE because cr_update lets the raiser write their own row, and a control that lives only in the form is one a direct API call walks past. The message NAMES the fields it refused; the first version appended to a text[] with no cast, so Postgres chose array||array and raised "malformed array literal" -- it refused the write either way, which is exactly why a test of the refusal alone would have passed it. NO means a request that has become a call can still be edited underneath it. Restore: call_requests.sql',
+        (to_regprocedure('public.call_request_content_frozen()') is not null
+         and exists (select 1 from pg_trigger
+                      where tgname = 'zz_call_request_content_frozen' and not tgisinternal)))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

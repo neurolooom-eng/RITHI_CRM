@@ -1673,6 +1673,52 @@ export async function addCallRequestBatch(base: Record<string, unknown>, items: 
 // large the `limit` says — so a plain .limit(2000) silently returned 1,000 and
 // the register looked like it held a thousand requests when it held four
 // thousand. `listCalls` already pages for exactly this reason.
+// ---------------------------------------------------------------------------
+// CORRECTING A CALL REQUEST (0232).
+//
+// The user, 2026-09-22: "Add a Provision in Call Request for me to edit it."
+// A request is typed in the field, often from a phone, and the serial, the
+// model or the customer is what is most often wrong. The only way to fix one
+// was to cancel it and raise another, which loses the original timestamp and
+// leaves two rows for one request.
+//
+// A WHITELIST, AND `ucn` AND `status` ARE NOT ON IT. Those are the request's
+// DISPOSITION -- what was done about it -- and they are written by registering
+// or cancelling, not by correcting. A form that could set them would let
+// somebody mark a request Registered without a call existing.
+//
+// The database is what enforces the real rule: once a request has become a
+// call, 0232 freezes these sixteen columns, because the call carries them from
+// that moment and the call is what everything downstream reads.
+// ---------------------------------------------------------------------------
+const CALL_REQUEST_EDITABLE: Record<string, string> = {
+  engineer: 'engineer', email: 'email', callType: 'call_type',
+  partyName: 'party_name', state: 'state', city: 'city', address: 'address',
+  product: 'product', serial: 'serial_no',
+  standardComplaint: 'standard_complaint', reportedProblem: 'reported_problem',
+  customerContactDetails: 'customer_contact_details', customerContactNumber: 'customer_contact_number',
+  callAttended: 'call_attended', planDate: 'plan_date', additionalComments: 'additional_comments',
+};
+
+/** Which fields a request may be corrected in, in the screen's own keys. */
+export const callRequestEditableKeys = (): string[] => Object.keys(CALL_REQUEST_EDITABLE);
+
+export async function updateCallRequest(
+  id: number, patch: Record<string, unknown>,
+): Promise<{ ok: boolean; error?: string }> {
+  const row: Record<string, unknown> = {};
+  for (const [key, col] of Object.entries(CALL_REQUEST_EDITABLE)) {
+    if (patch[key] === undefined) continue;
+    const v = String(patch[key] ?? '').trim();
+    // A DATE COLUMN TAKES NULL FOR "NOT SET", NEVER ''. PostgREST sends the
+    // empty string through and Postgres refuses it as a date.
+    row[col] = col === 'plan_date' ? (v === '' ? null : v) : v;
+  }
+  if (!Object.keys(row).length) return { ok: true };
+  const { error } = await must().from('call_requests').update(row).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 export async function listCallRequests(limit = 2000): Promise<Record<string, unknown>[]> {
   const PAGE = 1000;
   const raw: Record<string, unknown>[] = [];
