@@ -43,6 +43,56 @@ up)_
 
 ---
 
+## 2026-09-22 — The 7,538 references already in the register become links
+
+> *"uploaded links are also not getting converted into Drive links"*
+
+**Shipped in v0.9.348. CLIENT ONLY — no SQL, no migration.** `source_ref` and
+`mapped_at` have been on `reports` since 0071 and `reports_write` is `for all`,
+so nothing new is needed on the database.
+
+**What was measured, not assumed** (`_where_are_my_service_reports.sql`,
+2026-09-22): 12,254 visits, of which **5,496** hold a bare AppSheet file path,
+**2,042** an AppSheet URL, **493** a real Drive link and **4,223** nothing at
+all. So 7,538 visits have a report that cannot be opened — the cell is a string.
+
+**Why re-importing the sheet is not the remedy**, and why this is a second tool
+rather than a fix to the first: those rows carry the engineer's own columns now.
+An upsert would write the recovery file over them, which is the very thing
+NAR-003.7 exists to forbid one screen down.
+
+Bulk Report Mapping gained a card above its three numbered steps — survey,
+resolve, convert, in passes of 500. Three rules, each a refusal:
+
+- **A file Drive cannot find, or finds twice, keeps its reference.** An
+  unresolved reference can still be settled by hand; a blanked one has lost the
+  only thing that says which document it was.
+- **The original goes into `source_ref`**, and an existing `source_ref` is never
+  overwritten — that row's provenance was recorded by whatever put it there.
+- **Two columns and a stamp, not a row.** Deliberately one column fewer than
+  `attachReportsToVisits`, which also writes `call_status` because it is
+  asserting that a report is now complete. Changing the FORM of a reference
+  asserts nothing, and a status written on this path would move which visit
+  decides its call's status (0032) on up to 7,538 calls in one pass.
+
+**It also answers the open question rather than asking it.** Whether those 2,042
+AppSheet URLs carry a `fileName` to look up could not be settled by reading the
+code — an AppSheet link without one parses as `unknown`, is not offered for
+conversion, and is now COUNTED as its own shape on the screen. The survey
+reports the number.
+
+**Two checks found gaps while being written**, both of the kind this file keeps
+recording. `check:ui`'s `seesEveryRecord` rule read `src/modules` alone, so the
+first call site written outside it was simply not covered — the check passed
+while its rule had a hole the width of a directory. And the new `user.role`
+assertion first matched the *comment warning about* `user.role`, which is the
+GST check matching "18%" in its own comment; it is asked of `code()` now, and
+matches `user?.role` as well, which is the form that actually gets written.
+
+NAR-003.12 … NAR-003.19 and OQ-69 added to the validation package.
+
+---
+
 ## 2026-09-22 — Fixing a call's cover: against the DATE, never against today
 
 > *"i want to fix existing calls as well"*

@@ -70,6 +70,7 @@ export function supabaseConfigured(): boolean {
 // is the only way it can be TESTED: this file reads `import.meta.env` at load
 // and cannot be imported by a node script at all.
 import { allRows, PG_PAGE } from './paging';
+import type { LoadedReport, ConvertWrite } from './reportMapping';
 export { allRows, PG_PAGE };
 
 export function errMsg(e: { message?: string; code?: string } | null | undefined): string {
@@ -4339,6 +4340,73 @@ export async function attachReportsToVisits(
       .update({ manual_report: r.manual_report, source_ref: r.source_ref, call_status: status,
                 mapped_at: new Date().toISOString() })
       .eq('uid', r.uid);
+    if (error) return { ok: false, written, error: errMsg(error) };
+    written += 1;
+    onProgress?.(written, rows.length);
+  }
+  return { ok: true, written };
+}
+
+// ---------------------------------------------------------------------------
+// THE REPORTS ALREADY IN THE REGISTER, AND THEIR REFERENCES.
+//
+// Bulk Uploads' visit registers store the attachment cell exactly as the file
+// wrote it, so 7,538 visits carry an AppSheet path or an AppSheet URL where a
+// Drive link should be (counted 2026-09-22). This reads them so the screen can
+// say how many there are, of which shape, BEFORE anything is looked up --
+// including how many AppSheet URLs actually carry a `fileName`, which is the
+// one thing nothing in this repository could answer by reading.
+//
+// PAGED, because it is register-sized: 12,254 visits, and PostgREST caps a
+// response at 1,000 whatever the limit says. Ordered by the primary key, so no
+// row lands on two pages or neither.
+//
+// It selects the SIX columns the conversion needs and no others. A screen that
+// pulls every visit's `data` to look at one text column is a register-sized
+// download for nothing.
+// ---------------------------------------------------------------------------
+export async function loadedReportRefs(): Promise<LoadedReport[]> {
+  const c = must();
+  const rows = await allRows<Record<string, unknown>>((from, to) => c
+    .from('reports')
+    .select('id,uid,ucn,manual_report,source_ref,visit_at')
+    .neq('manual_report', '')
+    .not('manual_report', 'is', null)
+    .order('id', { ascending: true })
+    .range(from, to));
+  return rows.map((r) => ({
+    id: Number(r.id),
+    uid: String(r.uid ?? ''),
+    ucn: String(r.ucn ?? ''),
+    manual_report: String(r.manual_report ?? ''),
+    source_ref: String(r.source_ref ?? ''),
+    visit_at: String(r.visit_at ?? ''),
+  }));
+}
+
+// CONVERT: TWO COLUMNS, KEYED ON THE PRIMARY KEY.
+//
+// The same argument as `attachReportsToVisits` and one column fewer. That
+// function is ATTACHING a recovered report to a visit that had none, so it also
+// writes the status the user's rule names. This one is only changing the FORM
+// of a reference that is already on the row -- the visit, its status, its
+// engineer and its entry time say exactly what they said before, and
+// `updated_at` is untouched so the call's status still comes from the same
+// visit (0032).
+//
+// `mapped_at` IS stamped: it is what marks a row whose link this application
+// resolved rather than a person recording it, and it is how a second run can be
+// told from the first.
+export async function convertReportLinks(
+  rows: ConvertWrite[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ ok: boolean; written: number; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, written: 0, error: 'Database not connected.' };
+  let written = 0;
+  for (const r of rows) {
+    const { error } = await c.from('reports')
+      .update({ manual_report: r.manual_report, source_ref: r.source_ref, mapped_at: new Date().toISOString() })
+      .eq('id', r.id);
     if (error) return { ok: false, written, error: errMsg(error) };
     written += 1;
     onProgress?.(written, rows.length);

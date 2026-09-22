@@ -118,7 +118,36 @@ restored) or **closed without a visit**; neither deletes anything.
   > are kept and start sending when it goes live.
 
 - **Bulk Report Mapping** `/report-mapping` — attaches a batch of visit reports to
-  their calls.
+  their calls, and turns the AppSheet references already in the register into
+  Drive links.
+
+  > ### The report is a string, not a link — turning it into one
+  >
+  > Visits loaded through **Bulk Uploads** keep the attachment cell exactly as
+  > the file wrote it. AppSheet writes a path (`Reports_Images/Row 42_Photo.png`)
+  > or a link back into the app, and neither of those opens anything — so on
+  > those calls "open the report" opens a string. **7,538 of the 12,254 visits
+  > with a report are like this.**
+  >
+  > The top card of Bulk Report Mapping fixes them. **Survey the register** to
+  > see what is there, counted by shape. Then **Resolve** looks each file name up
+  > in Drive, and **Convert** writes the links. You see every row before anything
+  > is written.
+  >
+  > **It runs in passes** — 500 at a time by default. Doing all 7,538 in one go
+  > would hold the tab open for a couple of hundred Drive lookups. Stop whenever
+  > you like; the next survey shows what is left.
+  >
+  > **A file Drive cannot find, or finds twice, keeps its reference.** That is
+  > deliberate: you can still settle it by hand, which you could not do with a
+  > blank cell.
+  >
+  > **Nothing else on the visit changes** — not the status, not the visit date,
+  > not the engineer, not when it was entered. The old reference is kept in
+  > **Source Ref**.
+  >
+  > If your role is shown only your own calls and your team's, the counts say so.
+  > They are not a statement about the whole register.
 
   > ### Filling Visit Date & Time and Visit Entry Date on consumption data
   >
