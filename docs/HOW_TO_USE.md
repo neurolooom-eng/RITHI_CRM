@@ -398,6 +398,24 @@ What the rest of the application picks from. A value not on a master cannot be
 typed into a form that reads it.
 
 - **Party Master** `/parties` — customers and dealers.
+
+  > ### KYC
+  >
+  > A customer's KYC status is **Pending, Verified or Rejected**, and the
+  > register shows it on the row as **✓ KYC Verified** where it is. Beside it,
+  > **KYC Records** links straight to whatever has been attached — the GST
+  > certificate, the PAN card, the registration.
+  >
+  > Open a customer to **⤴ Attach a KYC record**. It goes into the Drive **KYC**
+  > folder under that customer's name, and the list records who attached it and
+  > when. Attaching saves immediately; **Remove** unlinks the record and leaves
+  > the file in Drive.
+  >
+  > **Verified with nothing attached is still Verified.** The status is a
+  > decision somebody made — the screen says separately that the evidence is
+  > missing rather than arguing with the decision. It never works the other way
+  > round: documents alone do not make a customer verified.
+
 - **Product Database** `/product-database` — every machine by serial, with its
   warranty, contract and current owner. This is where a call reads cover from.
   It keeps **all 32 columns** of the ProdMaster file — Item Code, the address,

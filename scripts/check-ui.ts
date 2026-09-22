@@ -5319,6 +5319,40 @@ console.log('\n-- the Product Database and the Product Master are two registers 
     /retired line takes no new sale/.test(reg), true);
 }
 
+console.log('\n-- KYC: the status and its evidence, both on the row --');
+{
+  const pm = readFileSync('src/modules/PartyMaster.tsx', 'utf8');
+
+  // The user, 2026-09-22: "Display KYC and Report in the table view itself" --
+  // Commercial decides whether to proceed from the row, and opening a drawer
+  // per customer to find out is the step the request is about.
+  eq('the KYC status is a chip on the row', /render: \(r\) => <KycChip status=\{r\.kyc_status\} \/>/.test(pm), true);
+  eq('the records are on the row too', /key: 'kyc_docs', header: 'KYC Records'/.test(pm), true);
+  // A LINK PER RECORD, not a count: the point is to open the certificate, and a
+  // number tells somebody there is one without letting them see it.
+  eq('...as links rather than a count', /href=\{d\.url\} target="_blank"/.test(pm), true);
+  // ONE WORDING, so the register and the drawer cannot describe one customer
+  // two ways to the person deciding whether to sell to them.
+  eq('"KYC Verified" is said in one place', /const KycChip = /.test(pm), true);
+
+  // ATTACHING SAVES IMMEDIATELY. The file is in Drive by then; leaving the link
+  // in an unsaved draft means Cancel loses it and the document sits in Drive
+  // attached to nothing.
+  eq('an attached record is written straight away',
+    /await writeDocs\(withKycDoc\(edit\.kyc_docs, doc\)/.test(pm), true);
+  eq('...into the KYC folder, under the customer\u2019s name',
+    /uploadToDrive\(f, `KYC - \$\{String\(edit\.party_name \?\? ''\)\}`, 'kyc'\)/.test(pm), true);
+  // REMOVING UNLINKS; it does not delete the file. A KYC record somebody relied
+  // on is worth keeping wherever it sits.
+  eq('removing a record says the file stays in Drive',
+    /The file itself stays in Drive/.test(pm), true);
+  // VERIFIED WITH NOTHING ATTACHED IS STILL VERIFIED -- the status is a
+  // decision a person made, and the screen says separately that the evidence is
+  // missing rather than contradicting the decision.
+  eq('...and a verification with no record is not contradicted',
+    /Marked Verified with no record attached\. The status stands/.test(pm), true);
+}
+
 console.log('\n-- the Warranty Sale asks for what it cannot work out, and no more --');
 {
   // The user, 2026-09-22: the party is a searched pick-list, the entry date is

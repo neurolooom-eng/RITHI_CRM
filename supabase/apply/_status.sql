@@ -1164,7 +1164,16 @@ with checks(sort_order, bundle, provides, present) as (
          and public.is_report_completed('Solved - Report Completed ')
          and not public.is_report_completed('Solved - Report Pending')
          and exists (select 1 from public.app_roles
-                      where role = 'admin' and permissions ? 'mod:/feedback-without-report')))
+                      where role = 'admin' and permissions ? 'mod:/feedback-without-report'))),
+    (176, 'KYC records on a party', 'parties.kyc_docs + parties_kyc_docs_is_list + party_kyc_verified() (0231). The user, 2026-09-22: "In Party Master, add a provision to attach the KYC records. If the customer is already KYC Verified, then display as KYC Verified so that commercial department can proceed with Sale Entry and Installation call." 0201 gave a party a KYC STATUS, a note, and a stamp of who verified it and when; what it did not give it is the EVIDENCE -- the GST certificate, the PAN card, the registration somebody looked at before writing "Verified". A verification with no record behind it is an assertion, and Commercial, who relies on it before a sale entry and an installation call, cannot check it. A JSONB LIST ON THE PARTY RATHER THAN A TABLE, because of what an attachment IS here: the file lives in Drive, so the column holds a link and a name, and a table of two text columns with its own policies and cascade buys nothing over a list read and written exactly when the party is. Each entry records WHO attached it and WHEN -- a KYC record whose provenance is unknown is the same problem one step along. THE CHECK CONSTRAINT IS NOT DECORATION: a single object written here by a mistaken client would make every reader''s jsonb_array_elements fail rather than show nothing, so the column refuses anything that is not a list. VERIFIED IS VERIFIED WHETHER OR NOT A FILE IS ATTACHED, and party_kyc_verified() says so in one place so the screen offering a Sale Entry and the screen listing what Commercial is waiting on cannot answer differently about one customer; the inference never runs the other way, since attaching a file is not a decision. NO means the records cannot be attached at all. Restore: masters.sql',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'parties' and column_name = 'kyc_docs')
+         and exists (select 1 from pg_constraint where conname = 'parties_kyc_docs_is_list')
+         and to_regprocedure('public.party_kyc_verified(text)') is not null
+         -- The rule itself, not merely the function''s existence.
+         and public.party_kyc_verified('Verified')
+         and public.party_kyc_verified('  verified ')
+         and not public.party_kyc_verified('Pending')))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

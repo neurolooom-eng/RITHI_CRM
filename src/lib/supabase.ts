@@ -970,6 +970,11 @@ export interface PartyPatch {
   billing_phone_2?: string; billing_fax?: string; billing_email?: string;
   service_engineer?: string;
   gstin?: string; pan?: string; kyc_status?: string; kyc_notes?: string;
+  /** The KYC records themselves (0231). A list of { name, url, at, by }; the
+   *  files live in Drive and this holds the links. Sent whole, because that is
+   *  what a jsonb column takes -- the caller builds the new list with
+   *  `withKycDoc` / `withoutKycDoc` rather than patching it in place. */
+  kyc_docs?: unknown;
 }
 
 /** Edit one party (0201).

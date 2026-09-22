@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.342',
+    date: '2026-09-22',
+    title: 'KYC records on a customer, and both on the row',
+    changes: [
+      'Party Master now takes KYC RECORDS. Open a customer and \u201c\u2934 Attach a KYC record\u201d puts the GST certificate, the PAN card or the registration into the Drive KYC folder under that customer\u2019s name, with who attached it and when.',
+      'The register shows BOTH on the row: \u201c\u2713 KYC Verified\u201d as a chip, and a link straight to each attached record. Commercial decides whether to proceed with a Sale Entry and an installation call from that row \u2014 opening a drawer per customer to find out was the step this removes.',
+      'VERIFIED WITH NOTHING ATTACHED IS STILL VERIFIED. The status is a decision somebody made, and refusing to honour it because the paperwork was filed elsewhere would make the screen stricter than the people it serves. It says separately that the record is missing, which is the thing you can act on.',
+      'It never infers the other way: a customer with documents and no verification is NOT verified. Attaching a file is not a decision.',
+      'Removing a record unlinks it from the customer and LEAVES THE FILE IN DRIVE. A KYC record somebody relied on is worth keeping wherever it sits.',
+      'An attachment saves the moment it uploads rather than waiting for Save \u2014 the file is already in Drive by then, and a Cancel would otherwise leave it there attached to nothing.',
+      'NEEDS supabase/apply/masters.sql run on the project before records can be attached.',
+    ],
+  },
+  {
     version: '0.9.341',
     date: '2026-09-22',
     title: 'Every date on the Warranty and Contract registers reads dd-MMM-yyyy',

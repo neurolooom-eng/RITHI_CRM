@@ -608,7 +608,9 @@ const MODULES = {
       '0200_party_service_engineer.sql',
       // The Party Master's own columns (the export's Profile, Route, the two
       // contact blocks) and somewhere to record KYC.
-      '0201_party_columns_and_kyc.sql'],
+      '0201_party_columns_and_kyc.sql',
+            // The KYC records themselves (0231), attached to the party.
+            '0231_party_kyc_documents.sql'],
   },
   reports: {
     title: 'Reports',
