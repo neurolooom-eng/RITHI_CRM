@@ -14,7 +14,11 @@
 -- contract period cover this machine? A call that contradicts THAT is wrong on
 -- its own terms and stays wrong however long it sits there.
 --
--- FOUR REFUSALS BUILT IN, each one a case where being wrong is worse:
+-- FIVE REFUSALS BUILT IN, each one a case where being wrong is worse:
+--   * OGP is NOT written onto a machine with no warranty record on file --
+--     "no period covers this date" then means "nothing was imported", not
+--     "the warranty had ended". Every other verdict is a FOUND fact; this one
+--     alone is inferred from a gap, so it needs evidence the gap is real;
 --   * a machine with NO dated warranty or contract record gets no opinion --
 --     unknown is not the same as out of cover;
 --   * a contract whose TYPE was never recorded is not guessed into CMC;
@@ -82,8 +86,25 @@ judged as (
     left join contracted k on k.ucn = m.ucn
 )
 , targets as (
-  select ucn, on_the_call, in_force from judged
+  select ucn, on_the_call, in_force from judged j
    where in_force <> '' and on_the_call <> in_force
+     -- AN "OGP" VERDICT IS INFERRED FROM ABSENCE, AND ABSENCE LIES.
+     --
+     -- Every other verdict is a FOUND fact: a warranty or contract row whose
+     -- dates span the complaint date. OGP is the opposite -- nothing was found
+     -- -- and that is only out-of-cover if the machine's records are COMPLETE.
+     -- A machine whose CONTRACT was imported and whose WARRANTY never was gets
+     -- judged OGP on no warranty evidence at all, and writing it would turn
+     -- missing data into a fact on a quality record.
+     --
+     -- So OGP is written only where the machine HAS a warranty on file that
+     -- simply does not cover this date. Then the warranty really had ended.
+     -- _is_the_ogp_verdict_safe.sql counts what this excludes.
+     and (j.in_force <> 'OGP'
+          or exists (select 1 from public.sale_items s
+                      where lower(btrim(coalesce(s.product_name, ''))) = j.pkey
+                        and lower(btrim(coalesce(s.serial_number, ''))) = j.skey
+                        and s.warranty_start is not null))
 ),
 done as (
   update public.calls c set item_status = t.in_force
