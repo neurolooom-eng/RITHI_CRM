@@ -13,7 +13,8 @@
 // with nothing on screen saying so. That is the assertion this file exists for.
 // ===========================================================================
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
-         summarisePinned, inheritAllPatch, isPinnedValue } from '../src/lib/coverspec';
+         summarisePinned, inheritAllPatch, isPinnedValue,
+         installCallFromSale, machinesNeedingInstallCall, INSTALL_COMPLAINT } from '../src/lib/coverspec';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -162,6 +163,66 @@ console.log('\n-- what Force Update Child Records is about to clear --');
     { serial_number: 'B1', warranty_start: null, city: null },
   ], header), { fields: [], machines: 0, differing: 0, total: 0 });
   eq('no machines at all', summarisePinned(fields, [], header).total, 0);
+}
+
+console.log('\n-- the installation call a sale entry raises --');
+{
+  const header = {
+    party_name: 'MAXWELL SUPER MULTISPECIALITY HOSPITAL', city: 'VARANASI', state: 'UTTAR PRADESH',
+    sa_number: 'SA9891', warranty_start: '2026-04-20', warranty_end: '2028-04-19', warranty_months: 24,
+  };
+  const item = { product_name: 'MONNAL T75', serial_number: '11389' };
+  const call = installCallFromSale(header, item);
+
+  eq('it is an installation call', call.callType, 'INSTALLATION');
+  eq('the party comes from the entry', call.partyName, 'MAXWELL SUPER MULTISPECIALITY HOSPITAL');
+  eq('...with its city and state', [call.city, call.state], ['VARANASI', 'UTTAR PRADESH']);
+  // A machine is its MODEL and its SERIAL, both off the sale line.
+  eq('the machine comes from the sale line', [call.productName, call.serial], ['MONNAL T75', '11389']);
+  eq('both complaint columns read Installation Calls',
+    [call.standardComplaint, call.complaintReported], [INSTALL_COMPLAINT, INSTALL_COMPLAINT]);
+
+  // THE THREE VIGILANCE QUESTIONS. Answered No on instruction, and they are
+  // the honest answer for a machine that has not been switched on yet.
+  eq('every vigilance question is answered No',
+    [call.publicHealthThreat, call.death, call.seriousIncident], ['NO', 'NO', 'NO']);
+
+  // NOBODY REPORTED THIS, so nobody is recorded as having reported it. Filling
+  // these from the sale would put a name against a report that never happened.
+  eq('the customer contact is left blank',
+    [call.personCalling, call.customerName, call.customerNumber, call.customerDesignation, call.emailAddress],
+    ['', '', '', '', '']);
+
+  // A call raised with no cover reads as OGP and feeds every count that asks
+  // who is paying.
+  eq('the cover comes from the sale', [call.warrantyNumber, call.itemStatus], ['SA9891', 'WGP']);
+  eq('...with its dates', [call.warrantyStart, call.warrantyEnd], ['2026-04-20', '2028-04-19']);
+  eq('a machine that pinned its own warranty keeps it',
+    installCallFromSale(header, { ...item, warranty_start: '2026-06-01', warranty_end: '2028-05-31' }).warrantyStart,
+    '2026-06-01');
+
+  // AN UNKNOWN COVER GETS ASKED ABOUT; A WRONG ONE GETS BELIEVED.
+  const noWarranty = installCallFromSale(
+    { party_name: 'X', warranty_months: null, warranty_end: null }, item);
+  eq('a sale recording no warranty leaves the cover blank rather than guessing',
+    [noWarranty.itemStatus, noWarranty.warrantyNumber, noWarranty.warrantyEnd], ['', '', '']);
+}
+
+console.log('\n-- which machines still need one --');
+{
+  const items = [
+    { product_name: 'MONNAL T75', serial_number: '11389' },                        // needs one
+    { product_name: 'MONNAL T60', serial_number: '20788', inst_call: '26I01P0080' }, // has one
+    { product_name: 'MONNAL T60', serial_number: '20789', inst_call: '' },          // '' is not a call
+    { product_name: '', serial_number: '' },                                        // not a machine yet
+    { product_name: 'ORION-G', serial_number: '' },                                 // half a machine
+  ];
+  eq('a machine with a call is not offered another',
+    machinesNeedingInstallCall(items).map((i) => i.serial_number), ['11389', '20789']);
+  // THE BUTTON DISABLES ITSELF BY THE MAPPING, not by a flag somebody keeps.
+  eq('nothing left to raise', machinesNeedingInstallCall([items[1]]).length, 0);
+  eq('...so a line with no serial never gets a call about nothing',
+    machinesNeedingInstallCall([items[4]]).length, 0);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

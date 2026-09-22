@@ -539,3 +539,94 @@ export function summarisePinned(fields: InheritField[], items: Row[], header: Ro
  *  covered by that fact alone. */
 export const inheritAllPatch = (fields: InheritField[]): Row =>
   Object.fromEntries(fields.filter((f) => f.inherits).map((f) => [f.name, null]));
+
+// ===========================================================================
+// THE INSTALLATION CALL A SALE ENTRY RAISES.
+//
+//   The user, 2026-09-22: "Provision add Installation Calls in Warranty Sale
+//   Entry. Map the party, Product Details, Standard Complaint - Installation
+//   Calls, Complaint Reported - Installation Calls. All Vigilance questions set
+//   to No, Leave customer details blank. Once the call is created, map it to
+//   the Warranty Sale detail [Product+Serial] is what matters."
+//
+// A machine has been sold and somebody has to go and install it. Every fact
+// that call needs is already on the sale entry, and re-typing it into the call
+// form is where the customer, the model or the serial stops matching the sale.
+//
+// THE VIGILANCE ANSWERS ARE "NO" BECAUSE THE USER SAID SO, and that is worth
+// writing down rather than assuming. Public Health Threat, Death and Serious
+// Incident are asked of a COMPLAINT — an installation is not one, and the three
+// are answered by the Hotline engineer trained to ask them. Set here they are
+// the honest answer to "did a device hurt somebody?" for a machine that has not
+// been switched on yet. They remain editable on the call afterwards, which is
+// what matters: an installation that DOES go wrong is answered by a person.
+//
+// THE CUSTOMER CONTACT IS LEFT BLANK, also on instruction, and also not
+// arbitrary: `person_calling` and the customer block record WHO REPORTED a
+// fault. Nobody reported this. Filling them with the sale's contact would put a
+// name against a report that never happened.
+//
+// THE COVER COMES FROM THE ENTRY where the entry has one. A machine installed
+// under a warranty sale is in warranty; a call raised with no cover reads as
+// OGP and feeds every count that asks who is paying. Where the sale records no
+// warranty at all, the cover is LEFT BLANK rather than guessed — an unknown
+// cover gets asked about, a wrong one gets believed.
+// ===========================================================================
+
+export const INSTALL_COMPLAINT = 'Installation Calls';
+
+export interface SaleForCall {
+  party_name?: unknown; city?: unknown; state?: unknown;
+  sa_number?: unknown; warranty_start?: unknown; warranty_end?: unknown;
+  warranty_months?: unknown;
+}
+export interface SaleItemForCall {
+  product_name?: unknown; serial_number?: unknown;
+  warranty_start?: unknown; warranty_end?: unknown; inst_call?: unknown;
+}
+
+/** The call record for one machine, in the shape `addCall` takes. */
+export function installCallFromSale(header: SaleForCall, item: SaleItemForCall): Row {
+  const pick = (a: unknown, b: unknown) => (isPinnedValue(a) ? a : b);
+  const wStart = pick(item.warranty_start, header.warranty_start);
+  const wEnd = pick(item.warranty_end, header.warranty_end);
+  const covered = isPinnedValue(wEnd) || isPinnedValue(header.warranty_months);
+  return {
+    callType: 'INSTALLATION',
+    // The party, from the entry.
+    partyName: text(header.party_name),
+    city: text(header.city),
+    state: text(header.state),
+    // The machine. A machine is its MODEL and its SERIAL, and both come from
+    // the sale line rather than from anything typed twice.
+    productName: text(item.product_name),
+    serial: text(item.serial_number),
+    // What the call is for. Both columns, on instruction: one is the coded
+    // reason every count groups by, the other is what a reader sees.
+    standardComplaint: INSTALL_COMPLAINT,
+    complaintReported: INSTALL_COMPLAINT,
+    // Vigilance: answered No. An installation is not a complaint.
+    publicHealthThreat: 'NO',
+    death: 'NO',
+    seriousIncident: 'NO',
+    // Nobody reported this, so nobody is recorded as having reported it.
+    personCalling: '',
+    customerName: '',
+    customerNumber: '',
+    customerDesignation: '',
+    emailAddress: '',
+    // The cover, where the sale has one.
+    warrantyNumber: covered ? text(header.sa_number) : '',
+    warrantyStart: covered ? text(wStart) : '',
+    warrantyEnd: covered ? text(wEnd) : '',
+    itemStatus: covered ? 'WGP' : '',
+  };
+}
+
+/** Which machines on this entry still need an installation call. Keyed on
+ *  PRODUCT + SERIAL, which is what identifies a machine; a line with neither
+ *  is not a machine yet and is skipped rather than given a call about nothing. */
+export function machinesNeedingInstallCall<T extends SaleItemForCall>(items: T[]): T[] {
+  return items.filter((i) => !isPinnedValue(i.inst_call)
+    && isPinnedValue(i.product_name) && isPinnedValue(i.serial_number));
+}

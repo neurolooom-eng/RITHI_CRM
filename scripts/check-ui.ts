@@ -5377,6 +5377,28 @@ console.log('\n-- the Warranty Sale asks for what it cannot work out, and no mor
   // half-inherited -- the state this exists to resolve.
   eq('it clears every machine in one statement',
     /\.from\(cfg\.itemTable\)\.update\(patch\)\.eq\(cfg\.key, key\)/.test(cover), true);
+
+  // THE INSTALLATION CALL A SALE RAISES. The mapping itself is proved by
+  // check:cover-party; these hold the two properties that are about the SCREEN.
+  //
+  // It disables itself by the mapping actually being there, not by a flag
+  // somebody has to keep in step -- a machine whose call exists must never be
+  // offered a second one.
+  eq('the installation-call button counts what still needs one',
+    /machinesNeedingInstallCall\(items\)/.test(reg), true);
+  eq('...and is replaced by a statement once none do',
+    /Every machine here has its installation call/.test(reg), true);
+  // A CALL IS WRITTEN BACK TO ITS MACHINE, and a failure between the two writes
+  // STOPS rather than continuing: they are not one transaction, so carrying on
+  // would leave a machine with a call nothing points at, hidden among the
+  // successes.
+  eq('the call is mapped back onto the machine',
+    /\.from\('sale_items'\)\.update\(\{ inst_call: ucn \}\)/.test(cover), true);
+  eq('...and a failure between the two writes stops and names the machine',
+    /was created but could not be written back to the machine/.test(cover), true);
+  // Nothing is written until the operator has seen what it will say.
+  eq('the operator is told what the call will contain first',
+    /questions will be answered NO, and the customer contact will be left blank/.test(reg), true);
 }
 
 console.log('\n-- one machine, across every register --');

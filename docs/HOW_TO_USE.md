@@ -309,6 +309,27 @@ against the call it was fitted to.
   > **Serial Number is free text.** Everything else — dates, period, invoice,
   > city, state, engineer — **follows the entry** until you type into it, and
   > then that machine is pinned and says so.
+  >
+  > ### Raising the installation calls
+  >
+  > **＋ Installation calls** raises one call per machine that has not got one.
+  > The party, city, state, model and serial come off the sale; Standard
+  > Complaint and Complaint Reported read **Installation Calls**; the three
+  > vigilance questions are answered **NO**; the customer contact is left blank,
+  > because those fields record who *reported* a fault and nobody reported this.
+  > The SA number, the warranty start and end come across too and the cover
+  > reads **WGP** — unless the sale records no warranty, in which case the cover
+  > is left blank rather than guessed.
+  >
+  > Each call's UCN lands on that machine's **INST Call** field, and the button
+  > goes away once every machine has one.
+  >
+  > ### Putting the machines back on the entry
+  >
+  > **↺ Force update child records** clears every pinned value so all the
+  > machines follow the entry again. It tells you first how many values **differ**
+  > from the entry — those are decisions somebody made about one machine, and
+  > there is no undo — separately from the ones that merely repeat it.
 - **Contract Register** `/contracts` — contract entries (`MC`) and the machines
   covered.
 

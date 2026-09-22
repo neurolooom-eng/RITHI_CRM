@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.340',
+    date: '2026-09-22',
+    title: 'Raise the installation calls from the Warranty Sale Entry',
+    changes: [
+      '\uff0b Installation calls on a Sale Entry raises one call per machine that has not got one. The party, city, state, model and serial come off the sale \u2014 re-typing them into the call form is where the customer, the model or the serial stops matching the sale.',
+      'Standard Complaint and Complaint Reported both read "Installation Calls". The three vigilance questions are answered NO \u2014 an installation is not a complaint, and that is the honest answer for a machine that has not been switched on. They stay editable on the call: an installation that DOES go wrong is answered by a person.',
+      'The customer contact is left blank on purpose. Those fields record who REPORTED a fault, and nobody reported this \u2014 filling them from the sale would put a name against a report that never happened.',
+      'THE WARRANTY COMES ACROSS TOO: the SA number, the start and the end, and the cover reads WGP. A call raised with no cover reads as OGP and feeds every count that asks who is paying. Where the sale records no warranty at all, the cover is left BLANK rather than guessed.',
+      'Each call\u2019s UCN is written straight back onto that machine\u2019s line (INST Call), and the button disables itself by that mapping \u2014 not by a flag somebody has to keep in step. A machine that has its call is never offered another.',
+      'It tells you which machines it is about to raise calls for, and what the call will say, before it writes anything.',
+      'If a call is created but cannot be written back to its machine, it STOPS and names that machine rather than carrying on \u2014 the two writes are not one transaction, and a call nothing points at would otherwise be hidden among the successes.',
+      'A line with no product or no serial gets no call. It is not a machine yet, and the call would be about nothing.',
+    ],
+  },
+  {
     version: '0.9.339',
     date: '2026-09-22',
     title: 'Force update child records \u2014 put every machine back on its entry',

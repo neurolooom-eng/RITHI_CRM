@@ -12,10 +12,11 @@
 // inheriting field as the header's value greyed out, and pins it the moment
 // someone types into it.
 // ===========================================================================
-import { getSupabase } from './supabase';
+import { getSupabase, addCall } from './supabase';
 import { dayAfter, addPeriod } from './dates';
 import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears,
-         inheritAllPatch, isPinnedValue } from './coverspec';
+         inheritAllPatch, isPinnedValue, installCallFromSale, machinesNeedingInstallCall,
+         type SaleForCall, type SaleItemForCall } from './coverspec';
 
 export type CoverKind = 'sale' | 'contract';
 
@@ -390,6 +391,44 @@ export async function forceInherit(kind: CoverKind, key: string): Promise<number
     .from(cfg.itemTable).update(patch).eq(cfg.key, key).select('id');
   if (error) throw err(error);
   return (data ?? []).length;
+}
+
+/**
+ * RAISE THE INSTALLATION CALLS FOR A SALE ENTRY.
+ *
+ * One call per machine that has not got one, and the call's UCN is written
+ * straight back onto that machine's line (`inst_call`) — the mapping the user
+ * asked for, keyed on the line itself, which is Product + Serial.
+ *
+ * ONE MACHINE AT A TIME, AND A FAILURE STOPS RATHER THAN CONTINUING. The two
+ * writes per machine are not one transaction — the call is inserted through the
+ * `calls` view and the mapping is an update on `sale_items` — so a machine
+ * whose call was created and whose mapping failed would be offered a SECOND
+ * call on the next press. Stopping leaves exactly one machine in that state and
+ * names it, which somebody can see and fix; carrying on hides it among the
+ * successes.
+ */
+export async function raiseInstallCalls(
+  header: Row, items: Row[], onProgress?: (done: number, total: number) => void,
+): Promise<{ created: { serial: string; ucn: string }[]; error?: string }> {
+  const todo = machinesNeedingInstallCall(items as SaleItemForCall[]) as Row[];
+  const created: { serial: string; ucn: string }[] = [];
+  for (const it of todo) {
+    onProgress?.(created.length, todo.length);
+    const r = await addCall(installCallFromSale(header as SaleForCall, it as SaleItemForCall));
+    if (!r.ok) return { created, error: `${str(it.serial_number)}: ${r.error ?? 'the call was refused'}` };
+    const ucn = str(r.ucn);
+    if (!ucn) {
+      return { created, error: `${str(it.serial_number)}: the call was created but its UCN came back empty, so it could not be mapped to the machine. Find it on the Installation Call register.` };
+    }
+    const { error } = await client().from('sale_items').update({ inst_call: ucn }).eq('id', it.id);
+    if (error) {
+      return { created, error: `${str(it.serial_number)}: call ${ucn} was created but could not be written back to the machine — ${error.message}` };
+    }
+    created.push({ serial: str(it.serial_number), ucn });
+  }
+  onProgress?.(created.length, todo.length);
+  return { created };
 }
 
 /** The value an item shows for a field: its own if pinned, else the header's. */

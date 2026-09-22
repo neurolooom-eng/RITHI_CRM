@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { sbSearchParties, sbPartyInfo } from '../lib/supabase';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
-         summarisePinned } from '../lib/coverspec';
+         summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT } from '../lib/coverspec';
 import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
@@ -15,6 +15,7 @@ import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
   configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit,
+  raiseInstallCalls,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
@@ -777,6 +778,37 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     finally { setSaving(false); }
   };
 
+  // INSTALLATION CALLS FROM THE SALE ENTRY (the user, 2026-09-22). Every fact
+  // the call needs is already here; re-typing it into the call form is where
+  // the customer, the model or the serial stops matching the sale.
+  //
+  // ONE PER MACHINE THAT HAS NOT GOT ONE, and the UCN is written back onto that
+  // machine's line — so the button disables itself by the only evidence that
+  // counts, which is the mapping actually being there.
+  const needCalls = useMemo(
+    () => (kind === 'sale' ? machinesNeedingInstallCall(items) : []), [kind, items],
+  );
+  const raiseCalls = async () => {
+    const list = needCalls.map((i) => `  · ${str(i.product_name)} · ${str(i.serial_number)}`).join('\n');
+    if (!window.confirm(
+      `Raise ${needCalls.length} installation call(s) for ${str(draft.party_name) || 'this customer'}?\n\n${list}\n\n`
+      + `Standard Complaint and Complaint Reported will read "${INSTALL_COMPLAINT}", the three vigilance `
+      + `questions will be answered NO, and the customer contact will be left blank — nobody reported this.`)) return;
+    setSaving(true);
+    try {
+      const r = await raiseInstallCalls(draft, items, (d, t) => setMsg({ tone: 'info', text: `Raising ${d} of ${t}…` }));
+      setItems(await listItems(kind, str(draft[cfg.key])));
+      if (r.error) {
+        // STOPPED, NOT FAILED. What was created is named, because those calls
+        // exist whatever the message says.
+        setMsg({ tone: 'error', text: `Stopped at ${r.error}${r.created.length ? ` — ${r.created.length} call(s) were raised first: ${r.created.map((c) => c.ucn).join(', ')}.` : ''}` });
+      } else {
+        setMsg({ tone: 'ok', text: `${r.created.length} installation call(s) raised: ${r.created.map((c) => `${c.serial} → ${c.ucn}`).join(' · ')}` });
+      }
+    } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
+    finally { setSaving(false); }
+  };
+
   const removeEntry = async () => {
     if (!open?.id || !window.confirm(`Delete ${str(open[cfg.key])} and its ${items.length} machine(s)?`)) return;
     try {
@@ -978,6 +1010,20 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 onClick={() => setItems((cur) => [...cur, { [cfg.key]: str(draft[cfg.key]) }])}>
                 + Add machine
               </button>
+              {/* DISABLED ONCE EVERY MACHINE HAS ITS CALL, by the mapping
+                  itself rather than by a flag somebody has to maintain. A line
+                  with no product or no serial is not a machine yet and gets no
+                  call — the call would be about nothing. */}
+              {kind === 'sale' && (
+                needCalls.length > 0
+                  ? <button className="btn btn-sm" disabled={saving} onClick={() => void raiseCalls()}
+                      title="Raise an installation call for each machine that has not got one">
+                      ＋ Installation calls ({needCalls.length})
+                    </button>
+                  : <span className="muted" style={{ fontSize: 12 }}>
+                      {items.length ? 'Every machine here has its installation call.' : ''}
+                    </span>
+              )}
               {/* OFFERED ONLY WHEN THERE IS SOMETHING TO CLEAR. A button that
                   does nothing is one people press to find out what it does. */}
               {pinnedNow.total > 0 && (
