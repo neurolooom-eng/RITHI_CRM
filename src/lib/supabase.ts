@@ -970,6 +970,11 @@ export interface PartyPatch {
   billing_phone_2?: string; billing_fax?: string; billing_email?: string;
   service_engineer?: string;
   gstin?: string; pan?: string; kyc_status?: string; kyc_notes?: string;
+  /** The KYC records themselves (0231). A list of { name, url, at, by }; the
+   *  files live in Drive and this holds the links. Sent whole, because that is
+   *  what a jsonb column takes -- the caller builds the new list with
+   *  `withKycDoc` / `withoutKycDoc` rather than patching it in place. */
+  kyc_docs?: unknown;
 }
 
 /** Edit one party (0201).
@@ -1507,17 +1512,39 @@ export function callTypeForTab(tab: string): string {
 
 // ---- call requests (Request Registration) ----------------------------------
 // Party details for autofill (state / city / address).
-export async function sbPartyInfo(party: string): Promise<{ state: string; city: string; address: string } | null> {
+// WIDENED FOR THE WARRANTY SALE (2026-09-22), which fills eleven fields from
+// the party rather than three. The original three keys are unchanged, so every
+// existing caller reads exactly what it read before; the rest are extra keys on
+// the same object and are ignored where nobody asks for them.
+export interface PartyInfo {
+  state: string; city: string; address: string;
+  pincode: string; phone: string; phone_2: string;
+  pan: string; gstin: string;
+  party_type: string; profile: string; service_engineer: string;
+}
+
+export async function sbPartyInfo(party: string): Promise<PartyInfo | null> {
   // `name_key` IS `lower(btrim(party_name))` with a UNIQUE btree on it, and
   // `partyKey()` computes exactly that string in JavaScript -- so this is the
   // same case-insensitive, trimmed match the `ilike` was doing, through an
   // index instead of a scan. No fallback is needed here because it is not an
   // approximation of the old behaviour, it IS the old behaviour.
-  const { data } = await must().from('parties').select('state,city,address,extra')
+  const { data } = await must().from('parties')
+    .select('state,city,address,extra,pincode,phone,phone_2,pan,gstin,party_type,profile,service_engineer')
     .eq('name_key', partyKey(party)).limit(1).maybeSingle();
   if (!data) return null;
   const ex = (data.extra as Record<string, unknown>) ?? {};
-  return { state: String(data.state ?? ''), city: String(data.city ?? ''), address: String(data.address ?? ex['Address'] ?? '') };
+  const t = (v: unknown) => String(v ?? '').trim();
+  return {
+    state: t(data.state), city: t(data.city),
+    // `extra` is the import's own leftovers and is the FALLBACK, not the
+    // source: a party loaded before the column existed keeps its address there.
+    address: String(data.address ?? ex['Address'] ?? '').trim(),
+    pincode: t(data.pincode), phone: t(data.phone), phone_2: t(data.phone_2),
+    pan: t(data.pan), gstin: t(data.gstin),
+    party_type: t(data.party_type), profile: t(data.profile),
+    service_engineer: t(data.service_engineer),
+  };
 }
 
 export async function addCallRequest(rec: Record<string, unknown>): Promise<{ ok: boolean; reqid?: string; unique_key?: string; error?: string }> {
@@ -1646,6 +1673,146 @@ export async function addCallRequestBatch(base: Record<string, unknown>, items: 
 // large the `limit` says — so a plain .limit(2000) silently returned 1,000 and
 // the register looked like it held a thousand requests when it held four
 // thousand. `listCalls` already pages for exactly this reason.
+// ---------------------------------------------------------------------------
+// WHAT COMMERCIAL IS WAITING ON (the user, 2026-09-22: "In My workload, list
+// all installation pending request for commercial department").
+//
+// An INSTALLATION request that has not become a call yet is a machine sold and
+// not yet installed. Commercial's question about each one is the same question
+// the KYC work answers: is this customer cleared, so a Sale Entry and an
+// installation call can proceed?
+//
+// SO THE TWO ARE READ TOGETHER. A list of installations with no KYC beside it
+// sends somebody to a second screen per row, which is the step this is for.
+// The parties are fetched in ONE request keyed on `name_key` -- the unique
+// btree (0186) rather than an `ilike` per row.
+// ---------------------------------------------------------------------------
+export interface PendingInstall {
+  id: number; reqid: string; submitted_at: string;
+  party_name: string; city: string; product: string; serial_no: string;
+  engineer: string;
+  /** The customer's KYC status, or '' where the Party Master has no such
+   *  customer at all -- which is itself the finding: nobody has been verified
+   *  because nobody has been recorded. */
+  kyc_status: string;
+  kyc_docs: unknown;
+  onMaster: boolean;
+}
+
+/** KYC for a set of customers, keyed on `name_key` — the unique btree (0186)
+ *  rather than an `ilike` per row. Chunked, because a very long `in` list is a
+ *  very long URL and PostgREST is not the place to find that out. */
+export async function sbKycByParties(
+  names: string[],
+): Promise<Map<string, { status: string; docs: unknown }>> {
+  const out = new Map<string, { status: string; docs: unknown }>();
+  const c = getSupabase();
+  if (!c) return out;
+  const keys = [...new Set(names.map((n) => partyKey(n)).filter(Boolean))];
+  for (let i = 0; i < keys.length; i += 200) {
+    const { data, error } = await c.from('parties')
+      .select('name_key,kyc_status,kyc_docs').in('name_key', keys.slice(i, i + 200));
+    // A FAILED LOOKUP LEAVES THE COLUMN BLANK rather than taking the register
+    // down: KYC is context beside a request, not the request itself.
+    if (error) return out;
+    (data ?? []).forEach((p) => out.set(String(p.name_key ?? ''),
+      { status: String(p.kyc_status ?? ''), docs: p.kyc_docs }));
+  }
+  return out;
+}
+
+/** `partyKey` for a caller that has a name and wants the map's key. */
+export const kycKeyFor = (name: string): string => partyKey(name);
+
+export async function pendingInstallRequests(): Promise<PendingInstall[]> {
+  const c = must();
+  const { data, error } = await c.from('call_requests')
+    .select('id,reqid,submitted_at,party_name,city,product,serial_no,engineer,status,call_type')
+    // `like 'INSTALL%'` is the same test the UCN generator and the call router
+    // use (0001, 0040), so "INSTALLATION" and "INSTALLATION CALL" are one thing
+    // here as they are everywhere else.
+    .ilike('call_type', 'INSTALL%')
+    .order('submitted_at', { ascending: true, nullsFirst: false })
+    .order('id', { ascending: true });
+  if (error) throw new Error(errMsg(error));
+  // PENDING IS FILTERED HERE, NOT IN THE QUERY. PostgREST's `status.eq.` for an
+  // empty string is a corner nobody should have to reason about, and "" and
+  // null both mean pending -- a row loaded before the column existed has no
+  // status and is still waiting. Installation requests are a small list; the
+  // rule being READABLE matters more than the round trip.
+  const isPending = (v: unknown) => {
+    const st = String(v ?? '').trim().toLowerCase();
+    return st === '' || st === 'pending';
+  };
+  const rows = (data ?? []).filter((r) => isPending(r.status));
+  const keys = [...new Set(rows.map((r) => partyKey(String(r.party_name ?? ''))).filter(Boolean))];
+  const kyc = new Map<string, { status: string; docs: unknown }>();
+  // Chunked: a very long `in` list is a very long URL, and PostgREST is not the
+  // place to find that out.
+  for (let i = 0; i < keys.length; i += 200) {
+    const { data: ps } = await c.from('parties')
+      .select('name_key,kyc_status,kyc_docs').in('name_key', keys.slice(i, i + 200));
+    (ps ?? []).forEach((p) => kyc.set(String(p.name_key ?? ''),
+      { status: String(p.kyc_status ?? ''), docs: p.kyc_docs }));
+  }
+  return rows.map((r) => {
+    const hit = kyc.get(partyKey(String(r.party_name ?? '')));
+    return {
+      id: Number(r.id), reqid: String(r.reqid ?? ''), submitted_at: String(r.submitted_at ?? ''),
+      party_name: String(r.party_name ?? ''), city: String(r.city ?? ''),
+      product: String(r.product ?? ''), serial_no: String(r.serial_no ?? ''),
+      engineer: String(r.engineer ?? ''),
+      kyc_status: hit?.status ?? '', kyc_docs: hit?.docs ?? [], onMaster: !!hit,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// CORRECTING A CALL REQUEST (0232).
+//
+// The user, 2026-09-22: "Add a Provision in Call Request for me to edit it."
+// A request is typed in the field, often from a phone, and the serial, the
+// model or the customer is what is most often wrong. The only way to fix one
+// was to cancel it and raise another, which loses the original timestamp and
+// leaves two rows for one request.
+//
+// A WHITELIST, AND `ucn` AND `status` ARE NOT ON IT. Those are the request's
+// DISPOSITION -- what was done about it -- and they are written by registering
+// or cancelling, not by correcting. A form that could set them would let
+// somebody mark a request Registered without a call existing.
+//
+// The database is what enforces the real rule: once a request has become a
+// call, 0232 freezes these sixteen columns, because the call carries them from
+// that moment and the call is what everything downstream reads.
+// ---------------------------------------------------------------------------
+const CALL_REQUEST_EDITABLE: Record<string, string> = {
+  engineer: 'engineer', email: 'email', callType: 'call_type',
+  partyName: 'party_name', state: 'state', city: 'city', address: 'address',
+  product: 'product', serial: 'serial_no',
+  standardComplaint: 'standard_complaint', reportedProblem: 'reported_problem',
+  customerContactDetails: 'customer_contact_details', customerContactNumber: 'customer_contact_number',
+  callAttended: 'call_attended', planDate: 'plan_date', additionalComments: 'additional_comments',
+};
+
+/** Which fields a request may be corrected in, in the screen's own keys. */
+export const callRequestEditableKeys = (): string[] => Object.keys(CALL_REQUEST_EDITABLE);
+
+export async function updateCallRequest(
+  id: number, patch: Record<string, unknown>,
+): Promise<{ ok: boolean; error?: string }> {
+  const row: Record<string, unknown> = {};
+  for (const [key, col] of Object.entries(CALL_REQUEST_EDITABLE)) {
+    if (patch[key] === undefined) continue;
+    const v = String(patch[key] ?? '').trim();
+    // A DATE COLUMN TAKES NULL FOR "NOT SET", NEVER ''. PostgREST sends the
+    // empty string through and Postgres refuses it as a date.
+    row[col] = col === 'plan_date' ? (v === '' ? null : v) : v;
+  }
+  if (!Object.keys(row).length) return { ok: true };
+  const { error } = await must().from('call_requests').update(row).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 export async function listCallRequests(limit = 2000): Promise<Record<string, unknown>[]> {
   const PAGE = 1000;
   const raw: Record<string, unknown>[] = [];

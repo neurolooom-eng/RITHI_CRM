@@ -1,7 +1,7 @@
 {
   "name": "rithi-crm-field-service",
   "private": true,
-  "version": "0.9.338",
+  "version": "0.9.348",
   "type": "module",
   "description": "RITHI CRM - Field Service Module POC (Medical Domain)",
   "scripts": {
@@ -37,7 +37,9 @@
     "check:picklist:open": "node scripts/check-picklist-open.mjs",
     "check:nar003": "npm run check:mapping && npm run check:ui",
     "check:scheduled-export": "TZ=Asia/Kolkata node scripts/check-scheduled-export.mjs",
-    "check:machine": "esbuild scripts/check-machine-events.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-machine-events.mjs --log-level=error && node node_modules/.cache/check-machine-events.mjs"
+    "check:machine": "esbuild scripts/check-machine-events.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-machine-events.mjs --log-level=error && node node_modules/.cache/check-machine-events.mjs",
+    "check:cover-party": "esbuild scripts/check-cover-party.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-cover-party.mjs --log-level=error && node node_modules/.cache/check-cover-party.mjs",
+    "check:kyc": "esbuild scripts/check-kyc.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-kyc.mjs --log-level=error && node node_modules/.cache/check-kyc.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",

@@ -279,11 +279,64 @@ against the call it was fitted to.
 
 - **Warranty Register** `/warranties` — sale entries (`SA`) and the machines sold
   under each.
+  > ### Keying a new sale
+  >
+  > **Party Name is a search box over the Party Master** — start typing and pick
+  > the customer. Choosing one **fills in the address, city, state, pincode,
+  > both telephone numbers, PAN, GST, the type, the profile and the initial
+  > service engineer** from that customer's record.
+  >
+  > **Changing the customer replaces all of those, blanks included.** That is
+  > deliberate: keeping the previous customer's address where the new one has
+  > none would put a different hospital's address on the sale with nothing on
+  > screen saying so. Type over any of them afterwards — the installation
+  > address often differs from the registered one.
+  >
+  > A customer the Party Master has not got can still be typed. Nothing is
+  > filled in for them, because there is nothing to fill it from.
+  >
+  > **Sale Entry Date is stamped** when you create the entry. It is not typed.
+  >
+  > **Warranty Start Date defaults to today** and is yours to change. Enter the
+  > period in **MONTHS**; the **End Date**, the period in years and the PM visit
+  > count all follow from it and are shown greyed out — they are worked out, not
+  > asked for.
+  >
+  > **Then add the machines.** Product is a search box over the Product Master
+  > (only lines still marked Active — a retired line takes no new sale), and
+  > picking a product name fills its code where the catalogue gives one answer;
+  > where several codes share a name, it is left for you rather than guessed.
+  > **Serial Number is free text.** Everything else — dates, period, invoice,
+  > city, state, engineer — **follows the entry** until you type into it, and
+  > then that machine is pinned and says so.
+  >
+  > ### Raising the installation calls
+  >
+  > **＋ Installation calls** raises one call per machine that has not got one.
+  > The party, city, state, model and serial come off the sale; Standard
+  > Complaint and Complaint Reported read **Installation Calls**; the three
+  > vigilance questions are answered **NO**; the customer contact is left blank,
+  > because those fields record who *reported* a fault and nobody reported this.
+  > The SA number, the warranty start and end come across too and the cover
+  > reads **WGP** — unless the sale records no warranty, in which case the cover
+  > is left blank rather than guessed.
+  >
+  > Each call's UCN lands on that machine's **INST Call** field, and the button
+  > goes away once every machine has one.
+  >
+  > ### Putting the machines back on the entry
+  >
+  > **↺ Force update child records** clears every pinned value so all the
+  > machines follow the entry again. It tells you first how many values **differ**
+  > from the entry — those are decisions somebody made about one machine, and
+  > there is no undo — separately from the ones that merely repeat it.
 - **Contract Register** `/contracts` — contract entries (`MC`) and the machines
   covered.
 
 Both work the same way. Two views: **Entries** (the deal and its machines) and
-**Machines** (per serial, with Active / About to expire / Inactive tiles). Each
+**Machines** (per serial, with Active / About to expire / Inactive tiles).
+**An entry opens beside the list, not over it** — drag the divider to give
+either side more room, and it is remembered. On a narrow screen the two stack. Each
 opens on **2,000 rows** — two full requests of the 1,000 the database hands over
 at once — and every **Load more** fetches twice as much as the one before.
 **"+ New entry" arrives with its number already in it** — offered, not reserved,
@@ -347,6 +400,24 @@ What the rest of the application picks from. A value not on a master cannot be
 typed into a form that reads it.
 
 - **Party Master** `/parties` — customers and dealers.
+
+  > ### KYC
+  >
+  > A customer's KYC status is **Pending, Verified or Rejected**, and the
+  > register shows it on the row as **✓ KYC Verified** where it is. Beside it,
+  > **KYC Records** links straight to whatever has been attached — the GST
+  > certificate, the PAN card, the registration.
+  >
+  > Open a customer to **⤴ Attach a KYC record**. It goes into the Drive **KYC**
+  > folder under that customer's name, and the list records who attached it and
+  > when. Attaching saves immediately; **Remove** unlinks the record and leaves
+  > the file in Drive.
+  >
+  > **Verified with nothing attached is still Verified.** The status is a
+  > decision somebody made — the screen says separately that the evidence is
+  > missing rather than arguing with the decision. It never works the other way
+  > round: documents alone do not make a customer verified.
+
 - **Product Database** `/product-database` — every machine by serial, with its
   warranty, contract and current owner. This is where a call reads cover from.
   It keeps **all 32 columns** of the ProdMaster file — Item Code, the address,
@@ -512,6 +583,14 @@ typed into a form that reads it.
   > *ageing of four days*. You see a section only for a register you can already
   > open, so nothing here grants you anything you did not have.
   > The counts are the registers' own, so a card and the list it opens agree.
+
+  > **Installations waiting on Commercial** lists every installation request
+  > that has not become a call yet, split by the question that decides whether
+  > it can proceed: **customer KYC verified**, **waiting on KYC**, or
+  > **customer not on the Party Master**. The last is kept separate because it
+  > needs a different fix — add the customer first, then verify them. Clicking a
+  > card opens the Call Request register on that exact slice, with each
+  > customer's KYC shown on the row.
 
 ## Across every register
 

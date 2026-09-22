@@ -2,12 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { addCallRequestBatch, listCallRequests, sbPartyInfo, supabaseConfigured, type CallRequestItem } from '../lib/supabase';
+import { addCallRequestBatch, listCallRequests, sbPartyInfo, supabaseConfigured,
+         updateCallRequest, callRequestEditableKeys, sbKycByParties, kycKeyFor,
+         type CallRequestItem } from '../lib/supabase';
 import { csvExport, timeAgo, fmtDateTime, fmtLongDate } from '../lib/format';
 import { listPartyItems, uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
 import type { DriveFolder } from '../lib/drivefolders';
 import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
+import { useArrivingFilter } from '../lib/arriveWith';
+import { isKycVerified } from '../lib/kyc';
 import { useTeamEngineers } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import { PickList } from '../components/ui/PickList';
@@ -84,6 +88,25 @@ export function RequestCallRegistration() {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState<Row | null>(null);
+  // CORRECTING A REQUEST. The draft is separate from the row on screen so a
+  // failed save leaves the register showing what is actually stored, rather
+  // than what somebody typed.
+  // ARRIVING FROM MY WORKLOAD. The Commercial card sends the slice it counted —
+  // pending installations, split by whether the customer is KYC verified — and
+  // a card that landed on the right page with the wrong list is a click
+  // half-kept, which reads as the list somebody asked for.
+  const [callType, setCallType] = useState('');
+  const [kycFilter, setKycFilter] = useState('');
+  useArrivingFilter<string>('status', setStatus);
+  useArrivingFilter<string>('callType', setCallType);
+  useArrivingFilter<string>('kyc', setKycFilter);
+  // KYC PER CUSTOMER, beside the request. Commercial's question about an
+  // installation is whether the customer is cleared; a list without it sends
+  // somebody to a second screen per row. One request for the whole page.
+  const [kycBy, setKycBy] = useState<Map<string, { status: string; docs: unknown }>>(new Map());
+  const [editing, setEditing] = useState(false);
+  const [editRow, setEditRow] = useState<Row | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load requests.' },
@@ -102,6 +125,10 @@ export function RequestCallRegistration() {
     try {
       const r = await listCallRequests(n);
       setRows(r.map((x, i) => ({ ...x, id: String(x.id ?? i) })) as Row[]);
+      // AFTER the rows, and never blocking them: KYC is context beside a
+      // request, not the request itself, so a failed lookup leaves the column
+      // blank rather than taking the register down.
+      void sbKycByParties(r.map((x) => String(x.partyName ?? ''))).then(setKycBy).catch(() => { /* blank */ });
       const now = new Date().toISOString();
       try { localStorage.setItem(SYNC_KEY, now); } catch { /* ignore */ }
       setLastSync(now);
@@ -120,11 +147,16 @@ export function RequestCallRegistration() {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) =>
       (!status || String(r.status ?? '') === status) &&
+      // `INSTALL%` is the same test the UCN generator and the call router use
+      // (0001, 0040), so "INSTALLATION" and "INSTALLATION CALL" are one thing
+      // here as they are everywhere else.
+      (!callType || String(r.callType ?? '').toUpperCase().startsWith(callType.toUpperCase())) &&
+      (!kycFilter || matchesKyc(r)) &&
       (!needle || ['reqid', 'ucn', 'engineer', 'partyName', 'city', 'product', 'serial', 'reportedProblem', 'standardComplaint'].some(
         (k) => String(r[k] ?? '').toLowerCase().includes(needle),
       )),
     );
-  }, [rows, q, status]);
+  }, [rows, q, status, callType, kycFilter, kycBy]);
 
   // The UCNs on screen, coloured by their calls' status (the standing rule,
   // 2026-09-06). This register does not carry the state — a spare line knows
@@ -138,6 +170,65 @@ export function RequestCallRegistration() {
     rows.forEach((r) => { const s = String(r.status ?? 'Pending'); c[s] = (c[s] ?? 0) + 1; });
     return c;
   }, [rows]);
+
+  // PENDING IS THE EDITABLE STATE. Anything else means the request has been
+  // answered — registered as a call, mapped to one, or cancelled — and the
+  // answer is what the rest of the system reads.
+  const kycFor = (r: Row) => kycBy.get(kycKeyFor(String(r.partyName ?? '')));
+  // THE CUSTOMER'S KYC, ON THE ROW. Added here rather than in the module-level
+  // list because it reads a map this screen loads; three answers, each with a
+  // different next step.
+  const columnsWithKyc = useMemo<Column<Row>[]>(() => {
+    const kyc: Column<Row> = {
+      key: '_kyc', header: 'KYC', width: 120, wrap: false,
+      render: (r) => {
+        const hit = kycFor(r);
+        if (!hit) return <span className="muted" title="No such customer on the Party Master">not on master</span>;
+        return isKycVerified(hit.status)
+          ? <span className="badge badge-success" title="Cleared for a Sale Entry and an installation call">✓ Verified</span>
+          : <span className="badge badge-warning">{hit.status || 'Pending'}</span>;
+      },
+    };
+    const at = COLUMNS.findIndex((c) => c.key === 'partyName');
+    return at < 0 ? [...COLUMNS, kyc] : [...COLUMNS.slice(0, at + 1), kyc, ...COLUMNS.slice(at + 1)];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kycBy]);
+
+  // THREE ANSWERS, NOT TWO. "The Party Master has not got this customer" is a
+  // different problem from "this customer is not verified yet", with a
+  // different fix, and lumping them together sends somebody to verify a
+  // customer who does not exist.
+  const matchesKyc = (r: Row) => {
+    const hit = kycFor(r);
+    if (kycFilter === 'unknown') return !hit;
+    if (kycFilter === 'verified') return !!hit && isKycVerified(hit.status);
+    if (kycFilter === 'unverified') return !!hit && !isKycVerified(hit.status);
+    return true;
+  };
+
+  const isPending = (r: Row) => {
+    const st = String(r.status ?? 'Pending').trim().toLowerCase();
+    return st === '' || st === 'pending';
+  };
+
+  const saveDetail = async () => {
+    if (!editRow || !detail) return;
+    setSavingEdit(true);
+    const res = await updateCallRequest(Number(detail.id), editRow);
+    setSavingEdit(false);
+    if (!res.ok) {
+      // THE DATABASE'S OWN WORDS. 0232 refuses a correction to a request that
+      // has become a call in a sentence written to be read; replacing it with
+      // "Could not save" would throw away the only part that says why.
+      setMsg({ tone: 'error', text: res.error ?? 'Could not save the correction.' });
+      return;
+    }
+    const merged = { ...detail, ...editRow } as Row;
+    setDetail(merged);
+    setRows((rs) => rs.map((r) => (r.id === detail.id ? merged : r)));
+    setEditing(false); setEditRow(null);
+    setMsg({ tone: 'ok', text: `Request ${String(detail.reqid ?? '')} corrected.` });
+  };
 
   return (
     <div>
@@ -161,12 +252,12 @@ export function RequestCallRegistration() {
       )}
 
       <DataTable<Row>
-        columns={COLUMNS}
         rows={visible}
         getRowId={(r) => r.id}
         storageKey="callRequests"
         rowsBeforeScroll={16}
         dense
+        columns={columnsWithKyc}
         onRowClick={(r) => setDetail(r)}
         onLoadMore={() => setLimit((l) => l + 2000)}
         moreAvailable={moreAvailable}
@@ -196,17 +287,65 @@ export function RequestCallRegistration() {
         <NewRequestForm onSaved={() => void load()} />
       </Drawer>
 
-      <Drawer open={!!detail} onClose={() => setDetail(null)} title={`Request ${String(detail?.reqid ?? '')}`} width={620}>
+      <Drawer open={!!detail} onClose={() => { setDetail(null); setEditing(false); }}
+              title={`Request ${String(detail?.reqid ?? '')}`} width={620}>
         {detail && (
           <div className="reg-detail-list">
-            {Object.entries(detail)
+            {/* CORRECTING A REQUEST (the user, 2026-09-22). A request is typed
+                in the field, often from a phone, and the serial, the model or
+                the customer is what is most often wrong; the only way to fix
+                one was to cancel it and raise another, which loses the original
+                timestamp and leaves two rows for one request.
+
+                ONLY WHILE IT IS PENDING. Once it has become a call, the CALL
+                carries the customer, the machine and the complaint, and it is
+                what everything downstream reads — correcting the request
+                afterwards would leave the two disagreeing about one machine.
+                0232 enforces that in the database, because `cr_update` lets the
+                person who raised a request write their own row and a rule that
+                lives only here is one a direct API call walks past. */}
+            <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              {isPending(detail) ? (
+                editing ? (
+                  <>
+                    <button className="btn btn-sm btn-primary" disabled={savingEdit}
+                      onClick={() => void saveDetail()}>{savingEdit ? 'Saving…' : 'Save changes'}</button>
+                    <button className="btn btn-sm" disabled={savingEdit}
+                      onClick={() => { setEditing(false); setEditRow(null); }}>Cancel</button>
+                  </>
+                ) : (
+                  <button className="btn btn-sm" onClick={() => { setEditRow({ ...detail }); setEditing(true); }}>
+                    ✎ Correct this request
+                  </button>
+                )
+              ) : (
+                <span className="muted" style={{ fontSize: 12 }}>
+                  This request is <b>{String(detail.status ?? '')}</b>. The call carries these details now —
+                  correct them on the call, where the change is recorded.
+                </span>
+              )}
+            </div>
+
+            {editing && editRow ? (
+              callRequestEditableKeys().map((k) => (
+                <div className="reg-detail-row" key={k}>
+                  <div className="reg-detail-k">{LABELS[k] ?? k}</div>
+                  <div className="reg-detail-v">
+                    <input className="input" value={String(editRow[k] ?? '')}
+                      type={k === 'planDate' ? 'date' : 'text'}
+                      onChange={(e) => setEditRow((r) => r && ({ ...r, [k]: e.target.value }))} />
+                  </div>
+                </div>
+              ))
+            ) : (
+            Object.entries(detail)
               .filter(([k, v]) => k !== 'id' && !k.startsWith('_') && v != null && String(v).trim() !== '')
               .map(([k, v]) => (
                 <div className="reg-detail-row" key={k}>
                   <div className="reg-detail-k">{LABELS[k] ?? k}</div>
                   <div className="reg-detail-v">{String(v)}</div>
                 </div>
-              ))}
+              )))}
             {/* THE SUBMITTED REQUEST, not just the form. This drawer was missed
                 when supporting documents were added to the request (reported
                 2026-09-09): they reached the NEW-request form and the Pending

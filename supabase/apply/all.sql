@@ -77,6 +77,7 @@
 --   0194_product_database_all_columns.sql
 --   0200_party_service_engineer.sql
 --   0201_party_columns_and_kyc.sql
+--   0231_party_kyc_documents.sql
 --   0070_documents.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
@@ -106,6 +107,7 @@
 --   0126_call_allot_permission.sql
 --   0127_call_edit_sections.sql
 --   0226_cancelled_is_not_report_pending.sql
+--   0232_call_request_edit.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
@@ -205,6 +207,7 @@
 --   0183_ownership_from_equals_to.sql
 --   0184_ownership_transfer_key.sql
 --   0187_cover_expiry_30_days.sql
+--   0230_sale_entry_at_stamped.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -7473,6 +7476,73 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0231_party_kyc_documents.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE KYC RECORDS THEMSELVES, ATTACHED TO THE PARTY.
+--
+--   The user, 2026-09-22: "In Party Master, add a provision to attach the KYC
+--   records. If the customer is already KYC Verified, then display as KYC
+--   Verified so that commercial department can proceed with Sale Entry and
+--   Installation call."
+--
+-- 0201 gave a party a KYC STATUS, a note and a stamp of who verified it and
+-- when. What it did not give it is the EVIDENCE: the GST certificate, the PAN
+-- card, the registration that somebody looked at before writing "Verified".
+-- A verification with no record behind it is an assertion, and the person who
+-- has to rely on it downstream -- Commercial, before a sale entry and an
+-- installation call -- cannot check it.
+--
+-- A JSONB LIST ON THE PARTY, NOT A TABLE, and the reason is what an attachment
+-- IS here: the file lives in Drive, so this column holds a link and a name, not
+-- a document. A table of two text columns keyed to the party, with its own
+-- policies and its own cascade, buys nothing over a list that is read and
+-- written exactly when the party is.
+--
+-- EACH ENTRY RECORDS WHO ATTACHED IT AND WHEN, because a KYC record whose
+-- provenance is unknown is the same problem one step along. The shape is
+-- { name, url, at, by } and the CHECK below refuses anything that is not a
+-- list -- a single object written here by a mistaken client would make every
+-- reader's `jsonb_array_elements` fail rather than show nothing.
+-- ===========================================================================
+alter table public.parties
+  add column if not exists kyc_docs jsonb not null default '[]'::jsonb;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'parties_kyc_docs_is_list') then
+    alter table public.parties add constraint parties_kyc_docs_is_list
+      check (jsonb_typeof(kyc_docs) = 'array');
+  end if;
+end $$;
+
+comment on column public.parties.kyc_docs is
+  'The KYC records attached to this party: a list of { name, url, at, by }. The files live in Drive; this holds the link, the file name and who attached it when. Evidence for kyc_status — a verification with no record behind it is an assertion.';
+
+-- ---------------------------------------------------------------------------
+-- IS THIS PARTY CLEARED TO BUY? One expression, so the screen that offers a
+-- Sale Entry and the screen that lists what Commercial is waiting on cannot
+-- come to different answers about the same customer.
+--
+-- VERIFIED IS VERIFIED WHETHER OR NOT A FILE IS ATTACHED. The status is the
+-- decision and a person made it; refusing to honour it because the evidence was
+-- filed elsewhere would make this function stricter than the people it serves,
+-- and the screens say separately whether a record is attached. What it will not
+-- do is infer the other way: a party with documents and no verification is NOT
+-- verified, because attaching a file is not a decision.
+-- ---------------------------------------------------------------------------
+create or replace function public.party_kyc_verified(p_status text)
+returns boolean language sql immutable as $$
+  select lower(btrim(coalesce(p_status, ''))) = 'verified';
+$$;
+
+grant execute on function public.party_kyc_verified(text) to authenticated;
+
+comment on function public.party_kyc_verified(text) is
+  'Is this party KYC verified? The status alone decides it — attaching a document is not a decision, and a verification recorded without one is still a decision somebody made.';
+
+-- ------------------------------------------------------------------------
 -- 0070_documents.sql
 -- ------------------------------------------------------------------------
 
@@ -10759,6 +10829,93 @@ begin
   end loop;
   raise notice '0226: open_state is now stamped on % call table(s).', n;
 end $conv$;
+
+-- ------------------------------------------------------------------------
+-- 0232_call_request_edit.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A CALL REQUEST CAN BE CORRECTED — UNTIL IT HAS BECOME A CALL.
+--
+--   The user, 2026-09-22: "Add a Provision in Call Request for me to edit it."
+--
+-- A request is typed in the field, often from a phone, and the serial, the
+-- model or the customer is the thing most often wrong. Until now the only way
+-- to fix one was to cancel it and raise another, which loses the original
+-- timestamp and leaves two rows for one request.
+--
+-- THE PERMISSION ALREADY EXISTED and is not widened here: `cr_update` (0003)
+-- lets `calls.create`, `pending.register` or the person who RAISED it write the
+-- row. What was missing was a form, and one control.
+--
+-- THE CONTROL: ONCE A REQUEST HAS BECOME A CALL, ITS CONTENT IS FROZEN. The
+-- call carries the customer, the machine and the complaint from that moment on;
+-- editing the request afterwards leaves two records disagreeing about one
+-- machine, and the call is the one everything downstream reads. The correction
+-- belongs on the CALL, where it is audited.
+--
+-- IT FREEZES THE CONTENT AND NOT THE DISPOSITION, which is why this is a
+-- trigger rather than a policy. Registering a request writes `ucn`, `status`,
+-- `actioned_by` and `actioned_at`; cancelling writes `status`, `cancel_reason`
+-- and `cancelled_at`. A rule that froze the whole row would stop the very
+-- flows that move a request out of Pending. Those four (plus the cancel three)
+-- stay writable in every state; the sixteen columns that describe WHAT was
+-- asked for stop moving once the answer exists.
+--
+-- A trigger rather than a client rule because `cr_update` lets the raiser write
+-- their own row: a control that lives only in the form is one that a direct API
+-- call walks past.
+--
+-- THE `::text` CASTS ON THE APPENDS ARE NOT NOISE. `text[] || 'Serial No'`
+-- leaves Postgres to choose between array||element and array||array, and it
+-- picks the second: the guard fired with `malformed array literal: "Serial No"`
+-- instead of the sentence below. It refused the write either way, which is
+-- exactly why it would have shipped -- the test that caught it asserted the
+-- MESSAGE, not the refusal.
+-- ===========================================================================
+
+create or replace function public.call_request_content_frozen()
+returns trigger language plpgsql as $$
+declare
+  was text := lower(btrim(coalesce(old.status, '')));
+  changed text[] := '{}';
+begin
+  -- Pending is the editable state. Anything else means the request has been
+  -- answered -- registered as a call, mapped to one, or cancelled.
+  if was in ('', 'pending') then return new; end if;
+
+  if new.party_name              is distinct from old.party_name              then changed := changed || 'Party'::text; end if;
+  if new.state                   is distinct from old.state                   then changed := changed || 'State'::text; end if;
+  if new.city                    is distinct from old.city                    then changed := changed || 'City'::text; end if;
+  if new.address                 is distinct from old.address                 then changed := changed || 'Address'::text; end if;
+  if new.product                 is distinct from old.product                 then changed := changed || 'Product'::text; end if;
+  if new.serial_no               is distinct from old.serial_no               then changed := changed || 'Serial No'::text; end if;
+  if new.standard_complaint      is distinct from old.standard_complaint      then changed := changed || 'Standard Complaint'::text; end if;
+  if new.reported_problem        is distinct from old.reported_problem        then changed := changed || 'Reported Problem'::text; end if;
+  if new.call_type               is distinct from old.call_type               then changed := changed || 'Call Type'::text; end if;
+  if new.engineer                is distinct from old.engineer                then changed := changed || 'Engineer'::text; end if;
+  if new.email                   is distinct from old.email                   then changed := changed || 'Email'::text; end if;
+  if new.customer_contact_details is distinct from old.customer_contact_details then changed := changed || 'Customer Contact'::text; end if;
+  if new.customer_contact_number is distinct from old.customer_contact_number then changed := changed || 'Customer Number'::text; end if;
+  if new.plan_date               is distinct from old.plan_date               then changed := changed || 'Plan Date'::text; end if;
+  if new.additional_comments     is distinct from old.additional_comments     then changed := changed || 'Additional Comments'::text; end if;
+  if new.call_attended           is distinct from old.call_attended           then changed := changed || 'Call Attended'::text; end if;
+
+  if array_length(changed, 1) is not null then
+    raise exception
+      'This request is already % — % cannot be changed here. The call carries these details now, so correct them on the call itself; changing the request would leave the two disagreeing about one machine.',
+      coalesce(old.status, 'answered'), array_to_string(changed, ', ');
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists zz_call_request_content_frozen on public.call_requests;
+create trigger zz_call_request_content_frozen
+  before update on public.call_requests
+  for each row execute function public.call_request_content_frozen();
+
+comment on function public.call_request_content_frozen() is
+  'A call request may be corrected while it is Pending. Once it has become a call — Registered, Mapped or Cancelled — the sixteen columns describing WHAT was asked for stop moving, because the call carries them from that moment and the call is what everything downstream reads. The disposition columns (ucn, status, actioned_by/at, cancel_reason, cancelled_at) stay writable in every state, or registering and cancelling would themselves be refused.';
 
 -- ------------------------------------------------------------------------
 -- 0164_cr_read_initplan.sql
@@ -25248,6 +25405,36 @@ returns text language sql immutable as $$
     when p_end <= current_date + 30 then 'ABOUT TO EXPIRE'
     else 'ACTIVE' end;
 $$;
+
+-- ------------------------------------------------------------------------
+-- 0230_sale_entry_at_stamped.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE SALE ENTRY DATE IS STAMPED, NOT TYPED.
+--
+--   The user, 2026-09-22: "Warranty Entry date - Automatic - Timestamp".
+--
+-- A DEFAULT RATHER THAN A TRIGGER, and the difference matters here. The
+-- 0113/0114 rule is that a stamped column DISCARDS what the caller sends --
+-- right where the value is a claim about the session (who created this row).
+-- This one is not: the AppSheet cover export carries a real Sale Entry Date for
+-- every historical sale, and a trigger that discarded it would rewrite four
+-- years of the register to the afternoon it was imported.
+--
+-- So: supplied, it is kept (the import); absent, the database stamps it (the
+-- form, which no longer offers the field). The screen renders it read-only
+-- either way.
+--
+-- THE FORM DOES NOT DEPEND ON THIS FILE. It sends the timestamp itself when it
+-- creates an entry, so a project that has not run this still stamps the date.
+-- The default is what makes the rule true for everything ELSE that inserts --
+-- an import, a script, the SQL editor -- rather than only for one screen.
+-- ===========================================================================
+alter table public.sale_entries alter column entry_at set default now();
+
+comment on column public.sale_entries.entry_at is
+  'When the Sale Entry was made. Stamped by default; a value supplied by an import is kept, because the AppSheet export carries the real historical date. Not typed on the form.';
 
 -- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql

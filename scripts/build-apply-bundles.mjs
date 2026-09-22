@@ -278,6 +278,9 @@ const MODULES = {
       '0226_cancelled_is_not_report_pending.sql',
       // LAST in this module: 0003 and 0053 both define cr_read, so a bundle
       // replayed alone would otherwise restore the per-row version.
+      // A request may be corrected while it is Pending (0232). BEFORE the
+      // cr_read tail, which must stay last in this module.
+      '0232_call_request_edit.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -608,7 +611,9 @@ const MODULES = {
       '0200_party_service_engineer.sql',
       // The Party Master's own columns (the export's Profile, Route, the two
       // contact blocks) and somewhere to record KYC.
-      '0201_party_columns_and_kyc.sql'],
+      '0201_party_columns_and_kyc.sql',
+            // The KYC records themselves (0231), attached to the party.
+            '0231_party_kyc_documents.sql'],
   },
   reports: {
     title: 'Reports',
@@ -705,7 +710,9 @@ const MODULES = {
              '0184_ownership_transfer_key.sql',
              // AFTER 0036: it redefines cover_state() with the 30-day band the
              // AppSheet formula export finally supplied.
-             '0187_cover_expiry_30_days.sql'],
+             '0187_cover_expiry_30_days.sql',
+            // One ALTER: the Sale Entry Date is stamped by default (0230).
+            '0230_sale_entry_at_stamped.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

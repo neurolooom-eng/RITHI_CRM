@@ -5319,6 +5319,232 @@ console.log('\n-- the Product Database and the Product Master are two registers 
     /retired line takes no new sale/.test(reg), true);
 }
 
+console.log('\n-- a call request can be corrected until it becomes a call --');
+{
+  const rr = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+
+  eq('a request can be corrected', /\u270e Correct this request/.test(rr), true);
+  // ONLY WHILE PENDING. Once it is a call, the call carries these details and
+  // is what everything downstream reads; the screen says where the correction
+  // belongs rather than refusing silently.
+  eq('...only while it is pending', /isPending\(detail\) \?/.test(rr), true);
+  eq('...and says where the correction belongs otherwise',
+    /correct them on the call, where the change is recorded/.test(rr), true);
+  // THE DATABASE'S OWN WORDS reach the screen: 0232 names the fields it
+  // refused, and "Could not save" would throw away the only useful part.
+  eq('a refusal is shown as the database worded it',
+    /res\.error \?\? 'Could not save the correction\.'/.test(rr), true);
+  // THE DRAFT IS SEPARATE FROM THE ROW, so a failed save leaves the register
+  // showing what is stored rather than what somebody typed.
+  eq('a failed save does not move the row', /const \[editRow, setEditRow\]/.test(rr), true);
+
+  // ucn AND status ARE NOT EDITABLE FIELDS. They are the request's
+  // DISPOSITION, written by registering or cancelling -- a form that could set
+  // them would let somebody mark a request Registered with no call behind it.
+  const wl = /const CALL_REQUEST_EDITABLE: Record<string, string> = \{([\s\S]*?)\};/.exec(sb)?.[1] ?? '';
+  eq('the editable whitelist is not empty', wl.length > 0, true);
+  eq('...and does not include the UCN or the status',
+    /\bucn\b|\bstatus\b/.test(wl), false);
+  // A date column takes null for "not set", never ''.
+  eq('a cleared plan date is sent as null, not an empty string',
+    /col === 'plan_date' \? \(v === '' \? null : v\) : v/.test(sb), true);
+}
+
+console.log('\n-- the cover registers are two windows --');
+{
+  const reg2 = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+  const sp = readFileSync('src/components/ui/SplitPane.tsx', 'utf8');
+
+  // The user, 2026-09-22: "Make the Warranty Entry and Contract as a 2 window
+  // view [Adjustable width]". A drawer OVER the list is right for one record
+  // and wrong for working down a list -- open, read, close, find your place.
+  eq('an open entry sits beside the list, not over it',
+    /<SplitPane storageKey=\{`cover-\$\{kind\}`\}/.test(reg2), true);
+  eq('...and the drawer is gone rather than left unused', /<Drawer/.test(reg2), false);
+  // A SPLIT WITH NOTHING IN ITS SECOND PANE is half a screen given to a box.
+  eq('one window when nothing is open', /\) : entriesTable/.test(reg2), true);
+
+  // PERCENTAGES, NOT PIXELS: a width remembered on a wide monitor is a pane
+  // that fills a laptop.
+  eq('the divider stores a percentage', /String\(Math\.round\(cur\)\)/.test(sp), true);
+  // A divider dragged to the edge is indistinguishable from a broken screen,
+  // and there is nothing left to grab to undo it.
+  eq('a pane cannot be dragged out of existence',
+    /Math\.min\(Math\.max\(pct, min\), max\)/.test(sp), true);
+  // A private window throws on the storage accessor itself.
+  eq('...and a layout preference is never worth an error',
+    /catch \{ \/\* a layout is not worth an error \*\/ \}/.test(sp), true);
+  {
+    // ON A PHONE THERE IS NO ROOM FOR TWO, and a divider that does nothing is
+    // worse than no divider.
+    const css = readFileSync('src/components/ui/splitpane.css', 'utf8');
+    eq('it stacks on a narrow screen', /@media \(max-width: 900px\)[\s\S]{0,200}\.split-bar \{ display: none/.test(css), true);
+  }
+}
+
+console.log('\n-- KYC: the status and its evidence, both on the row --');
+{
+  const pm = readFileSync('src/modules/PartyMaster.tsx', 'utf8');
+
+  // The user, 2026-09-22: "Display KYC and Report in the table view itself" --
+  // Commercial decides whether to proceed from the row, and opening a drawer
+  // per customer to find out is the step the request is about.
+  eq('the KYC status is a chip on the row', /render: \(r\) => <KycChip status=\{r\.kyc_status\} \/>/.test(pm), true);
+  eq('the records are on the row too', /key: 'kyc_docs', header: 'KYC Records'/.test(pm), true);
+  // A LINK PER RECORD, not a count: the point is to open the certificate, and a
+  // number tells somebody there is one without letting them see it.
+  eq('...as links rather than a count', /href=\{d\.url\} target="_blank"/.test(pm), true);
+  // ONE WORDING, so the register and the drawer cannot describe one customer
+  // two ways to the person deciding whether to sell to them.
+  eq('"KYC Verified" is said in one place', /const KycChip = /.test(pm), true);
+
+  // ATTACHING SAVES IMMEDIATELY. The file is in Drive by then; leaving the link
+  // in an unsaved draft means Cancel loses it and the document sits in Drive
+  // attached to nothing.
+  eq('an attached record is written straight away',
+    /await writeDocs\(withKycDoc\(edit\.kyc_docs, doc\)/.test(pm), true);
+  eq('...into the KYC folder, under the customer\u2019s name',
+    /uploadToDrive\(f, `KYC - \$\{String\(edit\.party_name \?\? ''\)\}`, 'kyc'\)/.test(pm), true);
+  // REMOVING UNLINKS; it does not delete the file. A KYC record somebody relied
+  // on is worth keeping wherever it sits.
+  eq('removing a record says the file stays in Drive',
+    /The file itself stays in Drive/.test(pm), true);
+  // VERIFIED WITH NOTHING ATTACHED IS STILL VERIFIED -- the status is a
+  // decision a person made, and the screen says separately that the evidence is
+  // missing rather than contradicting the decision.
+  eq('...and a verification with no record is not contradicted',
+    /Marked Verified with no record attached\. The status stands/.test(pm), true);
+}
+
+console.log('\n-- the Warranty Sale asks for what it cannot work out, and no more --');
+{
+  // The user, 2026-09-22: the party is a searched pick-list, the entry date is
+  // stamped, the period is entered in MONTHS and the end date follows.
+  const cover = readFileSync('src/lib/cover.ts', 'utf8');
+  const reg = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+
+  const saleField = (name: string) => {
+    const i = cover.indexOf('export const SALE');
+    const j = cover.indexOf('export const CONTRACT');
+    const block = cover.slice(i, j);
+    const m = new RegExp(`\\{ name: '${name}',[^}]*\\}`, 's').exec(block);
+    return m ? m[0] : '';
+  };
+
+  eq('the party is a searched pick-list, not a text box',
+    /optionsFrom: 'party'/.test(saleField('party_name')), true);
+  // A TEXT BOX HERE IS THE BUG, not a lesser version of the feature: a typed
+  // customer fills nothing and matches nothing downstream.
+  eq('...and it reaches the Party Master rather than a downloaded list',
+    /onSearch=\{\(term\) => sbSearchParties\(term, 50\)\}/.test(reg), true);
+  eq('choosing a party fills the entry', /void fillFromParty\(v\)/.test(reg), true);
+  // CHANGING THE PARTY MUST CLEAR WHAT THE NEW ONE HAS NOT GOT. Keeping the
+  // previous customer's address is the worst outcome available here, and
+  // `check:cover-party` is where that is proved -- this only holds the wiring.
+  eq('...through the one mapping', /partyFillForSale\(info\)/.test(reg), true);
+
+  eq('the entry date is stamped, not typed', /derived: 'stamped when the entry is created'/.test(saleField('entry_at')), true);
+  eq('the end date follows the start and the months',
+    /derived: 'Warranty Start \+ Period \(months\)'/.test(saleField('warranty_end')), true);
+  eq('the years follow the months', /derived: 'the months above'/.test(saleField('warranty_years')), true);
+  // PM VISITS ARE TYPED (the user, 2026-09-22: "It varies based on PO"). Three
+  // a year is the standard OFFER; what was sold is on the purchase order. They
+  // follow the period until somebody changes them and are theirs from then on,
+  // which `check:cover-party` proves -- this holds the wiring, because passing
+  // the row BEFORE the edit is what makes the question answerable at all.
+  eq('PM visits are typed, not derived', /derived:/.test(saleField('pm_visits')), false);
+  eq('...and the derivation is told what the row was before the edit',
+    /deriveHeader\(kind, f\.name, next, d\)/.test(reg), true);
+
+  // RE-READING THE CUSTOMER onto a sale that already names them. A hospital
+  // that moves leaves every sale already raised carrying the old address.
+  eq('a sale can be updated from the Party Master',
+    /\u21ba Update from Party Master/.test(reg), true);
+  // A DELIBERATE ACT WITH A NAMED EFFECT, not a background sync: the
+  // installation address legitimately differs from the registered one, and a
+  // sale that changed quietly under somebody who corrected it by hand is worse
+  // than one that is visibly stale.
+  eq('...and it names every field it will change first',
+    /Update \$\{changes\.length\} field\(s\)/.test(reg), true);
+  // Blanking the sale because the master has never heard of this customer
+  // would destroy the only address anybody has.
+  eq('...and changes nothing where the master has no such customer',
+    /so there is nothing to update from\. Nothing was changed/.test(reg), true);
+  // A DERIVED FIELD MUST NOT BE TYPEABLE. A box somebody can type into is a box
+  // whose value they expect to keep, and the next keystroke on the field that
+  // drives it would overwrite that silently.
+  eq('a derived field is shown and not typeable',
+    /if \(field\.derived\) \{[\s\S]{0,520}readOnly/.test(reg), true);
+  // EVERY DATE ON THIS REGISTER READS dd-MMM-yyyy, derived or typed. A native
+  // date input renders in the BROWSER'S locale and cannot be told otherwise --
+  // two machines in one office showed `2026-09-12` and `09/11/2026` for the
+  // same field. A register that reads two ways is one people read twice.
+  eq('a typed date reads dd-MMM-yyyy',
+    /if \(field\.type === 'date'\) \{\s*return <LongDateInput/.test(reg), true);
+  eq('...and so does a derived one',
+    /field\.type === 'date'\s*\? <LongDateText/.test(reg), true);
+  eq('...and no date field is left as a raw native input',
+    /type=\{field\.type === 'date' \? 'date'/.test(reg), false);
+  {
+    // NOTHING IS PARSED OUT OF THE TEXT. A box holding "20-Apr-2026" that is
+    // saved as typed puts a formatted string in a date column, which is the
+    // fault this project's date rules exist against -- it is invisible until
+    // something tries to sort or subtract it. The value that leaves the
+    // component is the native date input's own.
+    const ld = readFileSync('src/components/ui/LongDate.tsx', 'utf8');
+    eq('the long date field hands back the date input\u2019s own value',
+      /type="date"[\s\S]{0,240}onChange=\{\(e\) => onChange\(e\.target\.value\)\}/.test(ld), true);
+    eq('...and parses nothing out of what was typed',
+      /parseAnyDate|toIsoDate|parseDateParts/.test(ld), false);
+    eq('the resting box cannot be typed into', /readOnly/.test(ld), true);
+  }
+  eq('a new sale starts its warranty today',
+    /warranty_start: new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/.test(reg), true);
+  // Re-stamping on every save would silently re-date a sale each time somebody
+  // fixed a typo.
+  eq('the entry date is stamped on creation only',
+    /!draft\.id && kind === 'sale' && !draft\.entry_at/.test(reg), true);
+
+  // FORCE UPDATE CHILD RECORDS is destructive with no undo, so it must say what
+  // it will destroy BEFORE it does it -- and the number that matters is how
+  // many pinned values DIFFER from the entry, not how many exist. Clearing one
+  // that merely repeats the entry changes nothing anybody can see.
+  eq('forcing inheritance says what it will clear first',
+    /window\.confirm\(\s*`Put all/.test(reg) && /DIFFER from the entry and will be lost/.test(reg), true);
+  eq('...counted by the same rule the write uses', /summarisePinned\(cfg\.itemFields/.test(reg), true);
+  // A button that does nothing is one people press to find out what it does.
+  eq('...and it is offered only when something is pinned',
+    /pinnedNow\.total > 0 && \(/.test(reg), true);
+  // ONE STATEMENT, not one per machine: a forty-machine sale is forty round
+  // trips otherwise, any of which can fail half way and leave the entry
+  // half-inherited -- the state this exists to resolve.
+  eq('it clears every machine in one statement',
+    /\.from\(cfg\.itemTable\)\.update\(patch\)\.eq\(cfg\.key, key\)/.test(cover), true);
+
+  // THE INSTALLATION CALL A SALE RAISES. The mapping itself is proved by
+  // check:cover-party; these hold the two properties that are about the SCREEN.
+  //
+  // It disables itself by the mapping actually being there, not by a flag
+  // somebody has to keep in step -- a machine whose call exists must never be
+  // offered a second one.
+  eq('the installation-call button counts what still needs one',
+    /machinesNeedingInstallCall\(items\)/.test(reg), true);
+  eq('...and is replaced by a statement once none do',
+    /Every machine here has its installation call/.test(reg), true);
+  // A CALL IS WRITTEN BACK TO ITS MACHINE, and a failure between the two writes
+  // STOPS rather than continuing: they are not one transaction, so carrying on
+  // would leave a machine with a call nothing points at, hidden among the
+  // successes.
+  eq('the call is mapped back onto the machine',
+    /\.from\('sale_items'\)\.update\(\{ inst_call: ucn \}\)/.test(cover), true);
+  eq('...and a failure between the two writes stops and names the machine',
+    /was created but could not be written back to the machine/.test(cover), true);
+  // Nothing is written until the operator has seen what it will say.
+  eq('the operator is told what the call will contain first',
+    /questions will be answered NO, and the customer contact will be left blank/.test(reg), true);
+}
+
 console.log('\n-- one machine, across every register --');
 {
   const mh = readFileSync('src/modules/MachineHistory.tsx', 'utf8');
@@ -6626,10 +6852,27 @@ console.log('\n-- My Workload: the queues left the registers, and open what they
   // covered two of the three registers — and the one it skipped was the one
   // most likely to be wrong. A check that looks like it covers everything and
   // covers two thirds is the shape this project keeps finding.
-  const sent = [...wl.matchAll(/path: '([^']+)', state: \{ (\w+)/g)]
-    .map((m) => ({ path: m[1], key: m[2] }));
+  //
+  // AND IT ONLY EVER LOOKED AT THE FIRST KEY. `state: { status: 'Pending',
+  // callType: 'INSTALL', kyc }` was covered by its `status` alone, so two of
+  // the three filters the Commercial card sends went unchecked -- the same
+  // two-thirds shape the comment above describes, one level in. Every key in
+  // the object is taken now.
+  //
+  // SPLIT ON COMMAS, THEN TAKE THE KEY. A regex over the whole object body
+  // cannot tell a key from a value: `{ stageFilter: stage }` matched both, and
+  // the check then demanded the register read a filter called `stage` that
+  // nothing sends.
+  const sent = [...wl.matchAll(/path: '([^']+)', state: \{([^}]*)\}/g)]
+    .flatMap((m) => m[2].split(',')
+      .map((part) => part.split(':')[0].trim())
+      .filter((k) => /^\w+$/.test(k))
+      .map((key) => ({ path: m[1], key })));
   const pairs = new Set(sent.map((x) => `${x.path}|${x.key}`));
-  eq('every register a card filters is covered here', pairs.size, 3);
+  // A COUNT RATHER THAN A LIST, so a card that stops sending a filter is
+  // noticed as well as one that starts. Six today: three registers with one
+  // filter each, and the Commercial installation card's three.
+  eq('every register a card filters is covered here', pairs.size, 6);
   sent.forEach(({ path, key }) => {
     const mod = routeOf.get(path);
     const src = mod && existsSync(`src/modules/${mod}.tsx`)

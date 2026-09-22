@@ -11,6 +11,8 @@ import {
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
+import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
+import { kycDocs, withKycDoc, withoutKycDoc, isKycVerified, type KycDoc } from '../lib/kyc';
 // `kb-form` / `kb-form-actions` live here. Imported rather than relied on:
 // they reach this screen today only because another module happens to pull the
 // file in, and a form that loses its layout when somebody code-splits the app
@@ -56,7 +58,29 @@ const COLUMNS: Column<Row>[] = [
   // KYC. The status is on the face of the register because it is the thing
   // being worked THROUGH — every party starts Pending, and a queue you cannot
   // see is not a queue.
-  { key: 'kyc_status', header: 'KYC', width: 100, wrap: false },
+  // THE STATUS AND ITS EVIDENCE, BOTH IN THE TABLE (the user, 2026-09-22:
+  // "Display KYC and Report in the table view itself"). Commercial decides
+  // whether to proceed from this row; opening a drawer per customer to find out
+  // is the step the request is about.
+  { key: 'kyc_status', header: 'KYC', width: 130, wrap: false,
+    render: (r) => <KycChip status={r.kyc_status} /> },
+  { key: 'kyc_docs', header: 'KYC Records', width: 150, wrap: false,
+    // A LINK PER RECORD, not a count: the point is to open the certificate, and
+    // a number tells somebody there is one without letting them see it.
+    render: (r) => {
+      const docs = kycDocs(r.kyc_docs);
+      if (!docs.length) return <span className="muted">—</span>;
+      return (
+        <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+          {docs.map((d, i) => (
+            <a key={d.url} href={d.url} target="_blank" rel="noreferrer" title={d.name || d.url}
+               onClick={(e) => e.stopPropagation()}>
+              📄 {docs.length > 1 ? i + 1 : 'Open'}
+            </a>
+          ))}
+        </span>
+      );
+    } },
   { key: 'gstin', header: 'GSTIN', width: 160, wrap: false },
   { key: 'pan', header: 'PAN', width: 120, wrap: false },
 ];
@@ -95,6 +119,15 @@ const EDIT_GROUPS: { title: string; note?: string; fields: { key: keyof PartyPat
 
 const KYC_STATUSES = ['Pending', 'Verified', 'Rejected'];
 
+// KYC VERIFIED, SAID ONCE, WHEREVER IT APPEARS. Commercial reads this before a
+// sale entry and an installation call; the register and the drawer must not
+// describe the same customer differently.
+const KycChip = ({ status }: { status: unknown }) => (
+  isKycVerified(status)
+    ? <span className="badge badge-ok" title="Cleared for a Sale Entry and an installation call">✓ KYC Verified</span>
+    : <span className="muted">{String(status ?? 'Pending') || 'Pending'}</span>
+);
+
 const toRows = (data: Record<string, unknown>[], base: number): Row[] => data.map((p, i) => ({ ...p, id: String(p.id ?? base + i) } as Row));
 
 export function PartyMaster() {
@@ -108,8 +141,9 @@ export function PartyMaster() {
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load Party Master.' },
   );
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const mayEdit = can('masters.edit') && supabaseConfigured();
+  const [uploading, setUploading] = useState(false);
   const [edit, setEdit] = useState<Row | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -150,6 +184,53 @@ export function PartyMaster() {
   };
   const set = (k: keyof PartyFilter, v: string) => setFilter((c) => ({ ...c, [k]: v }));
   const setEditField = (k: string, v: string) => setEdit((r) => r && ({ ...r, [k]: v }));
+
+  // ATTACHING A KYC RECORD SAVES IMMEDIATELY, rather than waiting for Save.
+  // The file is already in Drive by then; leaving the link in an unsaved draft
+  // means a Cancel loses it and the document sits in Drive attached to nothing.
+  const writeDocs = async (docs: KycDoc[], note: string) => {
+    if (!edit) return;
+    setSaving(true);
+    const res = await updateParty(Number(edit.id), { kyc_docs: docs });
+    setSaving(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not save the KYC record.' }); return; }
+    setEdit((r) => r && ({ ...r, kyc_docs: docs }));
+    setRows((rs) => rs.map((r) => (r.id === edit.id ? { ...r, kyc_docs: docs } as Row : r)));
+    setMsg({ tone: 'ok', text: note });
+  };
+
+  const attachKyc = async (f: File | null) => {
+    if (!f || !edit) return;
+    if (f.size > MAX_UPLOAD_BYTES) {
+      setMsg({ tone: 'error', text: `${f.name} is larger than ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.` });
+      return;
+    }
+    setUploading(true);
+    setMsg({ tone: 'info', text: `Uploading ${f.name} to Drive…` });
+    // THE KYC FOLDER, named after the customer -- so a record is findable in
+    // Drive by the name somebody would look for it under.
+    const res = await uploadToDrive(f, `KYC - ${String(edit.party_name ?? '')}`, 'kyc');
+    setUploading(false);
+    if (!res.ok || !res.url) { setMsg({ tone: 'error', text: res.error ?? 'Upload failed.' }); return; }
+    // WHO ATTACHED IT AND WHEN. A KYC record whose provenance is unknown is the
+    // same problem one step along. `fullName`, never `name` -- that field does
+    // not exist and type-checks anyway.
+    const doc: KycDoc = {
+      name: f.name, url: res.url,
+      at: new Date().toISOString(),
+      by: String(user?.fullName ?? user?.email ?? ''),
+    };
+    await writeDocs(withKycDoc(edit.kyc_docs, doc), `${f.name} attached.`);
+  };
+
+  const removeKyc = async (d: KycDoc) => {
+    if (!edit) return;
+    // THE FILE STAYS IN DRIVE. This unlinks the record from the party; deleting
+    // the document itself is not something a register should do silently, and a
+    // KYC record somebody relied on is worth keeping wherever it sits.
+    if (!window.confirm(`Remove "${d.name || 'this record'}" from this customer's KYC records?\n\nThe file itself stays in Drive.`)) return;
+    await writeDocs(withoutKycDoc(edit.kyc_docs, d.url), 'Record removed.');
+  };
 
   const saveEdit = async () => {
     if (!edit) return;
@@ -454,6 +535,46 @@ export function PartyMaster() {
                 Verified {timeAgo(String(edit.kyc_verified_at))}.
               </div>
             )}
+
+            {/* THE EVIDENCE BEHIND THE STATUS (the user, 2026-09-22). A
+                verification with no record behind it is an assertion, and
+                Commercial -- who relies on it before a sale entry and an
+                installation call -- cannot check it.
+
+                VERIFIED IS STILL VERIFIED WITH NOTHING ATTACHED. The status is
+                a decision a person made; refusing to honour it because the
+                paperwork was filed elsewhere would make this screen stricter
+                than the people it serves. It says separately whether a record
+                is here, which is the thing somebody can act on. */}
+            <div className="field">
+              <label className="field-label">KYC records</label>
+              {kycDocs(edit.kyc_docs).length === 0 && (
+                <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                  {isKycVerified(edit.kyc_status)
+                    ? 'Marked Verified with no record attached. The status stands — attaching the certificate is what lets somebody else check it.'
+                    : 'Nothing attached yet.'}
+                </div>
+              )}
+              {kycDocs(edit.kyc_docs).map((d) => (
+                <div key={d.url} className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                  <a href={d.url} target="_blank" rel="noreferrer">📄 {d.name || 'Record'}</a>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    {d.by ? `${d.by} · ` : ''}{d.at ? timeAgo(d.at) : ''}
+                  </span>
+                  {mayEdit && (
+                    <button className="btn btn-sm" disabled={saving}
+                      onClick={() => void removeKyc(d)}>Remove</button>
+                  )}
+                </div>
+              ))}
+              {mayEdit && (
+                <label className="btn btn-sm" style={{ marginTop: 6, display: 'inline-block' }}>
+                  {uploading ? 'Uploading…' : '⤴ Attach a KYC record'}
+                  <input type="file" style={{ display: 'none' }} disabled={uploading || saving}
+                    onChange={(e) => { void attachKyc(e.target.files?.[0] ?? null); e.target.value = ''; }} />
+                </label>
+              )}
+            </div>
 
             <div className="kb-form-actions">
               <button className="btn btn-primary" disabled={saving} onClick={() => void saveEdit()}>
