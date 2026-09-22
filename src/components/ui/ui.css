@@ -138,6 +138,13 @@ body.drawer-resizing * { cursor: col-resize !important; }
   border-radius: var(--radius);
   max-width: 92vw;
   box-shadow: var(--shadow-lg);
+  /* A MODAL MUST NOT GROW PAST THE WINDOW. Machine History puts a whole
+     machine's life in one, and without this the top and the bottom -- the
+     title and the Close button -- are both off screen with nothing to
+     scroll. The head stays put and the BODY scrolls. */
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
 }
 .drawer-head {
   display: flex;
@@ -156,6 +163,10 @@ body.drawer-resizing * { cursor: col-resize !important; }
 }
 .modal-body {
   padding: 18px;
+  overflow: auto;
+  /* Without this a flex child refuses to shrink below its content and the
+     scrollbar never appears. */
+  min-height: 0;
 }
 
 .toolbar {

@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.336',
+    date: '2026-09-22',
+    title: 'Machine History without leaving the review',
+    changes: [
+      'Daily Complaint Review Register \u2192 Review Desk: a \u201c\ud83d\udd0e Machine History\u201d button beside Raise FFR. It opens everything ever recorded against the machine on the call \u2014 calls, visits, spares, failures, feedback, warranty, contract, ownership, workshop \u2014 in a pop-up, with a Close button.',
+      'It takes the machine off the call. You do not pick the model and the serial again, which is the point: it was four steps to answer one question, on a screen with Auto Save on.',
+      'A call that does not record BOTH a product and a serial says so instead of guessing. A serial on its own is not a machine \u2014 the same number belongs to several models, and the wrong one is a different hospital\u2019s.',
+      'It is the SAME view the full Machine History screen uses, not a second copy \u2014 including the warning where the Product Database and the machine\u2019s cover disagree about which hospital has it.',
+      'Pop-ups now scroll instead of growing past the window. A machine with forty entries used to push its own Close button off the screen.',
+    ],
+  },
+  {
     version: '0.9.335',
     date: '2026-09-22',
     title: 'New report \u2014 Feedback Without a Report',
