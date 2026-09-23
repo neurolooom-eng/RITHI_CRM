@@ -14,18 +14,27 @@ paste blind — `npm run build` after each batch is the check that matters.
 five times while this was being written, three of them into `supabase.ts`, which
 gained about a hundred lines in the middle — most citations into it drifted each
 time.
-Line numbers here are against `main` at `1451a2b`, and if one is off by a few
-when you get there, **search for the quoted "current" snippet**, which is what
-actually identifies the code. Reads in `supabase.ts` are cited by function name
-in `MODULE_REVIEW.md` for the same reason.
+Line numbers here were re-checked against `main` at `092448e` (2026-09-23).
+If one is off by a few when you get there, **search for the quoted "current"
+snippet**, which is what actually identifies the code. Reads in `supabase.ts`
+are cited by function name in `MODULE_REVIEW.md` for the same reason.
+
+**Where things stand (re-review, 2026-09-23).**
+
+- **Finding 24 is fixed on `main`** (`1bf248e`). Its section, C2, is kept only
+  as a pointer.
+- Findings 1–23 and 25–27 were re-checked and still hold.
+- The re-review added **28–32**, as sections A12, A13, B9 and C6. Two of them,
+  **C6 (findings 30 + 31)**, are the most urgent new ones. **Read C6 before
+  anything in Batch A.**
 
 ---
 
-## Step 0 — five queries, before any code
+## Step 0 — nine queries, before any code
 
-Five findings depend on facts about the **live Supabase project** that this
+Nine findings depend on facts about the **live Supabase project** that this
 repository cannot know. Run these first in the SQL editor; two of them may make a
-fix unnecessary, and one may turn a "possible" into "already happened".
+fix unnecessary, and two may turn a "possible" into "already happened".
 
 ```sql
 -- 1. Finding 20 (HIGH). Which values does the approval column actually hold?
@@ -48,7 +57,36 @@ select item_status, count(*) from public.calls group by 1 order by 2 desc;
 -- 5. Finding 14. Over 25 and the "By product" table is silently truncating.
 select count(distinct coalesce(nullif(btrim(product_name), ''), '— not set —'))
   from public.spare_usage;
+
+-- 6. Findings 30 + 31 (HIGH). Who is actually affected on the live project.
+--    may_correct_others = f on a role that can read every request -> finding 30.
+--    raises = t and maps = f -> finding 31 (on a database built from the
+--    migrations, hotline reads t / t / f).
+select role,
+       permissions ? 'calls.create' or permissions ? 'pending.register' as may_correct_others,
+       permissions ? 'install.create' as raises,
+       permissions ? 'cover.edit'     as maps
+  from public.app_roles order by 1;
+
+-- 7. Finding 31. Has it already happened? Two installation calls for one machine.
+select serial, product_name, count(*), string_agg(ucn, ', ' order by created_at) as ucns
+  from public.installation_calls
+ group by 1, 2 having count(*) > 1 order by 3 desc limit 20;
+
+-- 8. Finding 32. Over 1,000 and the Commercial card is already missing the
+--    newest pending installations.
+select count(*) from public.call_requests where call_type ilike 'INSTALL%';
+
+-- 9. Finding 28. Any rows here are MRN lines the screen is drawing as one.
+select uid, row_no, count(*) from public.material_returns
+ group by 1, 2 having count(*) > 1 limit 20;
 ```
+
+Queries 6–9 were run against a database built from every migration, so their
+column names are right. They returned nothing there because it holds no data.
+**On query 7, two calls for one machine is not always this bug**: a genuine
+re-installation looks the same. The UCNs are listed in the order they were
+created, so compare their dates.
 
 **If query 1 returns anything unexpected**, that is the one to act on before
 anything else on this page. The affected lines can be listed with:
@@ -69,17 +107,21 @@ select l.id, r.or_no, r.engineer, l.part, l.rm_approval, l.stage
 Three batches, and they are ordered by **what a mistake costs**, not by severity:
 
 1. **Batch A — mechanical.** Each is a few lines, none changes a rule, none needs
-   a decision. Do them in one branch, one commit each. ~11 fixes.
+   a decision. Do them in one branch, one commit each. ~13 fixes.
 2. **Batch B — small, but the change has a shape to get right.** Still no
-   decision needed; more care per fix. ~8 fixes.
-3. **Batch C — needs a decision from you.** Five of these are the ones where the
-   *right* answer is a product/ops judgement, not a patch. Do not let these block
-   A and B — except **C5**, which is new, small and about a file that leaves the
-   building.
+   decision needed; more care per fix. ~9 fixes.
+3. **Batch C — needs a decision from you.** These are the ones where the *right*
+   answer is a product/ops judgement, not a patch. C2 is fixed. Do not let the
+   rest block A and B, with two exceptions. **C6** is urgent (see below).
+   **C5** is small and about a file that leaves the building.
 
-Batches A and B together clear 19 of the 27 findings and touch no SQL, so they
-ship as one ordinary front-end change: `npm run build`, changelog entry, version
-bump, merge, deploy.
+Batches A and B together clear 23 of the 31 open findings and touch no SQL, so
+they ship as one ordinary front-end change: `npm run build`, changelog entry,
+version bump, merge, deploy.
+
+**C6 comes first, before A, even though it sits in Batch C.** It needs no
+decision for its main fix, only for where the button is shown. Its failure is a
+duplicate installation call and a correction the screen claims but never stored.
 
 ---
 
@@ -330,6 +372,54 @@ disagree.
 
 ---
 
+## A12 · Finding 28 — MRN lines sharing a screen row id
+
+`src/modules/MaterialReturns.tsx:89` (`load`) and `:112` (`loadMore`).
+
+```ts
+// current (both places; :112 uses `offset + i`)
+id: `${String(x.uid ?? '')}-${String(x.row_no ?? i)}`
+```
+
+```ts
+// change — the table's own key, which is unique by construction
+id: String(x.id)
+```
+
+`listMaterialReturns` selects `*`, so `id` is already on every row. The
+database's unique index is
+`(uid, part_code(part), coalesce(row_no, 0))`. So `uid-row_no` can repeat
+whenever the parts differ, and `id` cannot.
+
+**Also clear the cache.** The screen caches the mapped rows under `CACHE_KEY`.
+Rows cached under the old ids are harmless but will sit there until the next
+sync; bump the cache key if you want them gone at once.
+
+**Verify** — Step 0 query 9. For any `(uid, row_no)` it returns, the screen must
+show every line of that MRN, and the count shown must match the rows.
+
+---
+
+## A13 · Finding 29 — Renew seeded before the machines load
+
+`src/modules/CoverRegister.tsx:1180`. Disable the button until the machine list
+has arrived. The simplest honest signal is a `loadingItems` flag, set around the
+`listItems` call at `:746-747`:
+
+```tsx
+<button className="btn" style={{ marginTop: 14 }} disabled={loadingItems}
+  onClick={() => setRenewing(true)}>
+```
+
+Do **not** fix it by re-seeding `RenewPanel`'s `useState` from `items` in an
+effect. That would overwrite whatever the user has already ticked or typed in
+the panel.
+
+**Verify** — open a contract with machines and press Renew at once; every
+machine must start ticked.
+
+---
+
 # Batch B — small, with a shape to get right
 
 ## B1 · Finding 16 — five auto-refreshers with a frozen guard
@@ -340,7 +430,7 @@ disagree.
 Each registers `setInterval(() => { if (!hasFilter) refresh(); }, …)` inside a
 `useEffect(…, [])`, so the guard is the first render's `false` for ever.
 
-**`CoverRegister.tsx:650-655` is the model** — it registers the same interval
+**`CoverRegister.tsx:737-742` is the model** — it registers the same interval
 with the filter in its deps, so the effect is rebuilt when the filter changes.
 Split each of the five into two effects:
 
@@ -551,6 +641,56 @@ and check the cell carries `s="1"`/`s="2"` with a numeric `<v>`, not
 
 ---
 
+## B9 · Finding 32 — the Commercial installations card
+
+`src/lib/workload.ts:256` (`commercialInstallSection`) and `pendingInstallRequests`
+in `src/lib/supabase.ts`. Three changes, in this order:
+
+1. **Make the card agree with the list it opens** (`workload.ts:259`):
+
+   ```ts
+   // current
+   const blocked = rows.filter((r) => !isKycVerified(r.kyc_status));
+   // change — the same three-way rule as RequestCallRegistration.tsx:203-205
+   const blocked = rows.filter((r) => r.onMaster && !isKycVerified(r.kyc_status));
+   ```
+
+   After this change, verified + waiting on KYC + not on the master adds up to
+   "Installations pending".
+
+2. **Stop the read being capped.** Put the pending test in the query, so the
+   read is small by construction. Blank and null must stay pending, which is the
+   whole reason the comment gives for filtering in the browser:
+
+   ```ts
+   .ilike('call_type', 'INSTALL%')
+   .or('status.is.null,status.eq.,status.ilike.pending')
+   ```
+
+   **I have not tested that `or()` string against PostgREST.** In particular, I
+   have not confirmed that `status.eq.` (with an empty value) is how it matches
+   `''`. The existing comment calls that "a corner nobody should have to reason
+   about". If you would rather not rely on it, keep the filter in the browser
+   and page the read with `allRows` instead. Either way, `more: false` is only
+   true once the read is complete.
+
+3. **Stop swallowing the Party Master error** (`supabase.ts`, the
+   `const { data: ps } = …` loop). Throw it. `Workload` already shows a
+   section's failure, and "every customer not on the master" is a worse answer
+   than an error.
+
+**Leave alone:** the `status: 'Pending'` hand-off and the register's 2,000-row
+window. Both are real, but they only miss older rows. `listCallRequests` already
+maps a null status to `'Pending'`, so the hand-off misses only an empty-string
+status. They are listed in the finding so nobody is
+surprised by them.
+
+**Verify** — the four cards: verified + waiting + not on master = pending. Then
+click each card: the list must show the same number, provided the register
+has loaded far enough back.
+
+---
+
 # Batch C — needs a decision from you
 
 These four are recorded with a recommendation, not a patch, because the right
@@ -588,29 +728,14 @@ dispatch queue the morning it ships. Say so in the changelog.
 
 ---
 
-## C2 · Finding 24 (HIGH) — revoking every permission grants 69
+## C2 · Finding 24 — FIXED on `main`
 
-**The bug** `RolePermissions.save()` writes `[]`; `permsForRole` reads `[]` as
-"not configured" and returns the code defaults.
-
-**Decide which of these you want**, because `[]` cannot mean both things:
-
-- **(a) Refuse the save.** If every box is cleared, tell the administrator to
-  deactivate the role instead. Smallest change, no schema, no migration — and it
-  leaves "a role that may do nothing" impossible to express.
-- **(b) Store a sentinel.** A single `'none'` permission, or a `configured
-  boolean` column on `app_roles`. `permsForRole` then falls back only when the
-  row was never written. Needs a migration and a matching change in
-  `has_perm()` on the SQL side.
-- **(c) Drop the fallback.** `permsForRole` returns `stored ?? DEFAULT_PERMS[...]`
-  — nullish, not length-based. Cleanest semantics; the risk is any role whose row
-  exists but is empty *today* silently loses everything, so it needs the same
-  audit as C1.
-
-**(a) is the one to ship this week** whichever you eventually want, because it
-stops the over-grant with no migration. Note that `has_perm()` in SQL was **not**
-tested against the empty-array case in this review — check it before choosing
-(b) or (c).
+Fixed by `1bf248e` (2026-09-23, *"Roles & Permissions was overwriting every
+role on every save"*). It took option (a): the save **refuses** any role left
+with zero boxes ticked, and it now writes only the roles you changed. Nothing
+to do here. One question from the old section is still open: is `has_perm()`
+right about an empty array on the SQL side? It only matters if you later move to
+a sentinel.
 
 ---
 
@@ -699,6 +824,71 @@ would not come back.
 
 ---
 
+## C6 · Findings 30 + 31 (HIGH) — a write RLS matched to zero rows reads as success
+
+**Do this one first.** It is one fault in two places. A PostgREST `update()` that
+row-level security matches to **zero rows** returns **no error**. Both screens
+test only `error`, so both report success over a write the database threw away.
+**Measured** for both, signed in as the role on a database built from every
+migration.
+
+**The fix, the same shape twice** — ask for the changed rows back, and treat
+none as a refusal. `forceInherit` in `src/lib/cover.ts:401` already does this:
+
+```ts
+// src/lib/supabase.ts — updateCallRequest (finding 30)
+const { data, error } = await must().from('call_requests').update(row).eq('id', id).select('id');
+if (error) return { ok: false, error: errMsg(error) };
+if (!data?.length) return { ok: false, error: 'You cannot correct this request — only its raiser, Hotline or a role that registers calls can.' };
+return { ok: true };
+```
+
+```ts
+// src/lib/cover.ts:438 — raiseInstallCalls, the write-back (finding 31)
+const { data, error } = await client().from('sale_items').update({ inst_call: ucn }).eq('id', it.id).select('id');
+const why = error?.message ?? (data?.length ? '' : 'your role cannot edit the warranty register');
+if (why) {
+  return { created, error: `${str(it.serial_number)}: call ${ucn} was created but could not be written back to the machine — ${why}` };
+}
+```
+
+The finding-31 message already names the UCN and says it was not mapped, which
+is the point: somebody can then map it by hand rather than raise a second call.
+With this change, that message is shown for the zero-row case too.
+
+**The decision — who sees the buttons.** The fixes above make the failure
+honest. They do not stop somebody pressing a button they cannot use, and on 31
+the call has already been **created** by the time the write-back fails. So:
+
+- **31: gate the per-machine "+ Installation call" on `canEdit`**
+  (`CoverRegister.tsx:1006`), the same as the whole-sale button at `:1134`.
+  That stops a call being raised by somebody who cannot then map it. The
+  alternative is to grant `cover.edit`'s write on `inst_call` alone to
+  `install.create` holders, which needs a policy change. Decide which you want.
+  **Do not skip the `.select('id')` part either way**: it guards every other
+  caller.
+- **30: show "✎ Correct this request" only to somebody `cr_update` admits**:
+  `can('calls.create') || can('pending.register') || detail.createdBy === user.id`.
+  **`Row` does not carry `created_by` today**: `listCallRequests` maps the row
+  to named fields and leaves it out. Add `createdBy: r.created_by` to that
+  mapping first. Its `email` field is not a substitute, because `cr_update`
+  tests `created_by` only. Otherwise Commercial, who works this queue from
+  finding 32's card, needs a grant. That is a product question about whether
+  Commercial should correct requests at all.
+
+**Before shipping 31, run Step 0 query 7.** A machine with two installation calls
+from before the fix needs one of them cancelled by hand, and nothing in this
+patch finds them.
+
+**Add the check that would catch this class.** A suite that corrects a request
+**as a Commercial profile**. `call_request_edit_test.sql` runs every statement
+as the superuser, so RLS never applies to it. It is the right suite to extend:
+`call public.be(...)`, `set local role authenticated`, and then assert the row
+did **not** change. Asserting that no error was raised proves nothing here,
+because none is.
+
+---
+
 # Before any of it ships
 
 From `CLAUDE.md`, and every one of these has bitten this project before:
@@ -733,8 +923,11 @@ From `CLAUDE.md`, and every one of these has bitten this project before:
 | The search cap, the load claim and the interleaving load | 5, 10, 18 | `Lookup.tsx`, `FieldCalls.tsx`, `DailyCallReview.tsx` |
 | A visit is dated where it happened | 26 | `CallReporting.tsx` |
 | Cover is one vocabulary on the KPI page too | 12 | `KpiAnalytics.tsx` |
+| An MRN line is keyed by its own id | 28 | `MaterialReturns.tsx` |
+| Renew waits for the machines | 29 | `CoverRegister.tsx` |
+| The Commercial card counts what it opens | 32 | `workload.ts`, `supabase.ts` |
 
-Batch C gets one branch each — they are arguments, not edits.
+Batch C gets one branch each — they are arguments, not edits. **C6 first.**
 
 ---
 

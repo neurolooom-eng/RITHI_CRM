@@ -11,8 +11,23 @@ the code, measured against a database, or reasoned about. The last one is the
 weakest and is labelled as such, because this repository's own history says a
 plausible reading is how wrong answers get shipped.
 
-**Nothing here is fixed.** This is the record; the repairs are separate changes,
-each with the check or suite that would have caught it.
+**This is the record; the repairs are separate changes**, each with the check or
+suite that would have caught it. One has landed since: **24 is fixed on `main`**
+(`1bf248e`). The other 31 were still true at the re-review below.
+
+**Re-reviewed on 2026-09-23 against `main` at `092448e`.** Two things:
+
+- **Every one of findings 1–27 was re-checked** against the code as it stands.
+  For each one, the buggy code was found by content, not by line number. Three
+  (13, 20, 23) were measured again on a database built from all 257
+  migrations. 26 still hold. 24 is fixed.
+- **A fresh pass** over what the first review missed, and over what `main`
+  added since. It found **28–32**. Three of those five are one fault: a write
+  that the row-level security (RLS) policy quietly matches to **zero rows**.
+  PostgREST reports that as success, not an error, so the screen says "saved"
+  over a write the database threw away. Findings 30 and 31 were **measured**:
+  signed in as the role, the UPDATE came back with no error and changed zero
+  rows.
 
 **Baseline.** Every finding was established against `a657d7d` (`main`,
 2026-09-21) and **re-verified after merging `1be01d0`** — the 21 commits `main`
@@ -65,10 +80,15 @@ alone — none of them touches anything recorded here, and none of them fixes it
 | 21 | Hand Stock · Pending Dispatch | More chips counting one page as if it were the register | Medium |
 | 22 | Spare Requests · Spare Consumption · Customer Feedback | The 30-minute auto-sync throws away every page but the first | Medium |
 | 23 | User Master | Correcting somebody's name silently empties their team (**measured**) | High |
-| 24 | Roles & Permissions | Unticking every box and saving **grants** the role its code defaults (**measured**) | High |
+| 24 | Roles & Permissions | Unticking every box and saving **grants** the role its code defaults (**measured**) — **FIXED on `main` by `1bf248e`** | ~~High~~ |
 | 25 | Stock Out | An exact count over a read that is paged and capped, under a comment saying it is not paged | Medium |
 | 26 | Call Reporting | A visit dated on the form is stored at UTC midnight and reads back at 05:30 (**measured**) | Medium |
 | 27 | Data Export | Every table is paged with no `order()` — a copy that can double and drop rows | High |
+| 28 | Material Returns | Two lines of one MRN can get the same screen row id, so the table draws one and drops the other (**measured**) | Medium |
+| 29 | Warranty & Contract Registers | Renew opened before the machines load starts with none ticked, and never updates | Low |
+| 30 | Request Registration | "Correct this request" says *corrected* when the database changed nothing (**measured**) | High |
+| 31 | Warranty Register | "+ Installation call" creates the call, silently fails to link it to the machine, and offers a second one (**measured**) | High |
+| 32 | My Workload | "Installations waiting on Commercial": the card's number and the list it opens disagree, and the read is not paged | Medium |
 
 ---
 
@@ -331,9 +351,9 @@ per column.
 
 ## 8 — Seven paged reads page with no `order()`
 
-**Where** `src/lib/supabase.ts` — `distinctColumn()` (~:768), `sbSearchProducts()`
-(~:1439), `listDirectoryAsUsers()` (~:2102), `sbEngineerNames()` (~:2243),
-`countCallReviews()` (~:2377), `reviewPickLists()` (~:2408), `listCallReportReviews()`
+**Where** `src/lib/supabase.ts` — `distinctColumn()` (~:769), `sbSearchProducts()`
+(~:1439), `listDirectoryAsUsers()` (~:2270), `sbEngineerNames()` (~:2411),
+`countCallReviews()` (~:2545), `reviewPickLists()` (~:2576), `listCallReportReviews()`
 (~:4652)
 
 **What is wrong.** `paging.ts:19-22` states the rule: *"ORDER IS NOT OPTIONAL
@@ -543,15 +563,15 @@ project has more than 25 consuming products is not known from here.
 
 | Read | Order | Paged by | Ties are certain because |
 | --- | --- | --- | --- |
-| `listFeedbackRows()` (~:3369) | `created_at` | Customer Feedback's Load more | the 24,092-row import shares one timestamp |
-| `listConsumptionRows()` (~:3361) | `created_at` | Spare Consumption's Load more | the bulk consumption upload does |
-| `listSpareRequestLines()` (~:2825) | `created_at` | Spare Requests' Load more | every line of one request is written together |
-| `queryAudit()` (~:2198) | `at` | Audit Log's Load more | a burst of writes shares the second |
-| `queryParties()` (~:1107) | `party_name` | Party Master's Load more | two branches of one hospital group |
-| `listAllHandstockMovements()` (~:3339) | `moved_at` | Hand Stock's Load more | a dispatch moves many parts at once |
-| `listKpiFieldInst()` (~:373) | `Call Registeration Date` | the KPI **export** loop | a date column, by construction |
-| `listAllMasterValues()` (~:2591) | `name` | its own internal loop | a master list is *many values per name* — **but see the note below: nothing calls it today** |
-| `unusedSpareEngineers()` (~:630) | `ucn` | `allRows` | one call carries several parts |
+| `listFeedbackRows()` (~:3537) | `created_at` | Customer Feedback's Load more | the 24,092-row import shares one timestamp |
+| `listConsumptionRows()` (~:3529) | `created_at` | Spare Consumption's Load more | the bulk consumption upload does |
+| `listSpareRequestLines()` (~:2993) | `created_at` | Spare Requests' Load more | every line of one request is written together |
+| `queryAudit()` (~:2366) | `at` | Audit Log's Load more | a burst of writes shares the second |
+| `queryParties()` (~:1113) | `party_name` | Party Master's Load more | two branches of one hospital group |
+| `listAllHandstockMovements()` (~:3507) | `moved_at` | Hand Stock's Load more | a dispatch moves many parts at once |
+| `listKpiFieldInst()` (~:374) | `Call Registeration Date` | the KPI **export** loop | a date column, by construction |
+| `listAllMasterValues()` (~:2759) | `name` | its own internal loop | a master list is *many values per name* — **but see the note below: nothing calls it today** |
+| `unusedSpareEngineers()` (~:631) | `ucn` | `allRows` | one call carries several parts |
 
 **How it fails — measured, in Postgres 16.** 24,000 rows sharing one
 `created_at` plus 12 later ones, paged exactly as `listFeedbackRows` pages:
@@ -976,6 +996,13 @@ larger than this document, which is why it is recorded rather than fixed.
 
 ## 24 — Unticking every box and saving *grants* the role its code defaults
 
+> **FIXED on `main` by `1bf248e`** (2026-09-23, *"Roles & Permissions was
+> overwriting every role on every save"*). `save()` now writes only the roles
+> you changed, and it **refuses** to save any role left with zero boxes ticked,
+> instead of storing `[]`. The rest of this section is kept as the record of
+> what was wrong. That commit also fixed a second bug in the same screen that
+> this review missed (see *What was covered*).
+
 **Where** `src/modules/RolePermissions.tsx:267-285` (`save`) against
 `src/lib/rbac.ts:395-399` (`permsForRole`)
 
@@ -1162,6 +1189,35 @@ collide. Recorded here because the document's own standard is to say how each
 claim was established, and "reviewed" is not the same as "exhaustively
 reviewed".
 
+**A second miss, the same week.** `1bf248e` fixed Roles & Permissions for
+something besides finding 24. The matrix was seeded **once**, by a `useState`
+initialiser, from what was loaded at that moment. So the screen could show code
+defaults instead of the stored grants, and Save then wrote **every** role from
+that stale matrix, including roles nobody had touched. This review read that
+`save()` for finding 24 and did not ask where `perms` came from.
+
+**What the re-review (2026-09-23) checked and found sound.** Recorded because a
+review that only lists faults cannot be calibrated:
+
+- **Bulk Report Mapping → Convert.** Its write loop counts calls rather than
+  changed rows, which looked like finding 30. It is not: the whole page returns
+  early unless `mayRun` (`calls.report`), and that is exactly what the
+  `reports_write` policy asks for. Anybody who can press Convert can write.
+- **Party Master → KYC records.** Gated on `masters.edit`, which is exactly what
+  `parties_write` asks for.
+- **Warranty entry → "＋ Installation calls (n)"**, the button for the whole
+  sale. It sits under `canEdit` (`cover.edit`), which is what `sale_items_write`
+  asks for. The per-machine button in the Machines list is not gated like this.
+  That is finding 31.
+- **Pending Calls row ids.** `dbToCall` sets `_id = row.id`. Field, installation
+  and PM calls all draw their ids from one sequence, `call_split_id_seq`, so ids
+  cannot collide across the three.
+- **The permission refresh in `auth.tsx`** (`896a142`) re-reads roles when the
+  tab becomes visible again, at most once a minute. `reloadRoles` only ever
+  merges into what is already there, so a failed read changes nothing.
+- **Master List, Daily Call Review / Solved Without a Report, Report Mapping's
+  own plan.** No new instance of any pattern above.
+
 **Covered screen by screen**, reading the module and the `src/lib` helpers behind
 it: Dashboard, My Workload, Product & Party Search, Machine History, Daily
 Complaint Review Register, Product Failure Analysis, Spare Insights, Field
@@ -1193,7 +1249,14 @@ produced exactly the kind of plausible-but-unverified claim this document tries
 to avoid.
 
 **The live project was not touched.** Everything measured here ran against a
-throwaway Postgres 16 built from all 219 migrations plus `supabase/tests/_stub.sql`.
+throwaway Postgres 16 built from all the migrations plus `supabase/tests/_stub.sql`:
+219 of them for the first review, 257 for the re-review.
+
+**Default permissions, not the live ones.** Findings 30 and 31 name the roles
+affected in two places: the code defaults (`permsForRole(role, {})`), and the
+`app_roles` rows that the migrations themselves store. The two agree. On the live
+project an administrator may have tuned those roles since, so the 30/31 query
+below is what says who is actually affected there.
 Several findings end with a query to run against the real project — they are the
 cheap ones to settle first:
 
@@ -1204,6 +1267,10 @@ cheap ones to settle first:
 | 25 (Stock Out cap) | `select count(*) from spare_stock_out_lines;` |
 | 12 (cover tiles) | `select distinct item_status from calls;` |
 | 14 (top 25 products) | `select count(distinct product_name) from spare_usage;` |
+| 28 (MRN row ids) | `select uid, row_no, count(*) from material_returns group by 1, 2 having count(*) > 1 limit 20;` |
+| 30 / 31 (who is affected) | `select role, permissions ? 'calls.create' or permissions ? 'pending.register' as may_correct_others, permissions ? 'install.create' as raises, permissions ? 'cover.edit' as maps from app_roles order by 1;` (`permissions` is `jsonb`; run on the test database, this query returns `hotline | t | t | f`) |
+| 31 (already duplicated?) | `select serial, product_name, count(*) from installation_calls group by 1, 2 having count(*) > 1 order by 3 desc limit 20;` |
+| 32 (1,000 cap) | `select count(*) from call_requests where call_type ilike 'INSTALL%';` — above 1,000, the card is already missing the newest pending ones |
 
 # If only three were fixed
 
@@ -1211,19 +1278,27 @@ cheap ones to settle first:
 an import can put it there, which means it is already there or it is not. The
 query above costs nothing and answers it.
 
-**24** — the way an administrator revokes a role grants it 69 permissions.
+**31 (and 30 with it)** — Hotline's default permissions let it raise an
+installation call from the Warranty register. The call is created, the link back
+to the machine is silently dropped, and the button comes back for a second call
+on the same machine. 30 is the same zero-row fault on a correction screen. Both
+are fixed by the same one-line change: ask for the changed rows back and count
+them.
 
 **23** — correcting a name on User Master silently empties a manager's team, and
 nothing warns them or logs it.
 
+*(24 was on this list; it is fixed on `main`.)*
+
 The rest are real and worth doing; those three are the ones where the system is
-confidently telling somebody the wrong thing about access or stock.
+confidently telling somebody the wrong thing about access, stock or a record it
+did not keep.
 
 ---
 
-**Fixing these**: `docs/MODULE_REVIEW_HANDOFF.md` is the companion — the same 26
-findings as patches, in the order to apply them, with the five live-project
-queries that come first and the four that need a decision rather than an edit.
+**Fixing these**: `docs/MODULE_REVIEW_HANDOFF.md` is the companion. It has the
+open findings as patches, in the order to apply them, with the live-project
+queries that come first and the ones that need a decision rather than an edit.
 
 ---
 
@@ -1280,3 +1355,222 @@ may be right to refuse to export one rather than export it unreliably.
 **Established by** reading the module against `paging.ts`'s own stated rule. The
 consequence is the one measured for finding 15, in Postgres 16, not re-measured
 here. Whether any exportable table exceeds 1,000 rows is not in doubt.
+
+---
+
+# Found by the re-review (2026-09-23, `main` at `092448e`)
+
+## 28 — Two lines of one MRN can get the same screen row id
+
+**Where** `src/modules/MaterialReturns.tsx:89` (`load`) and `:112` (`loadMore`),
+read by `getRowId={(r) => r.id}` at `:159`
+
+```ts
+id: `${String(x.uid ?? '')}-${String(x.row_no ?? i)}`
+```
+
+**What is wrong.** The screen builds each row's id from the MRN number and the
+row number, and nothing else. The database allows two lines with the same pair.
+Its unique index is `material_returns_uid_part_idx` on
+`(uid, part_code(part), coalesce(row_no, 0))`, so it only needs the **part** to
+differ. When two ids collide, `DataTable` keys two rows the same. React then
+draws one of them and drops a neighbour, with no error. This is the Machine
+History `getRowId` fault that `main` fixed in `1451a2b`, in another screen.
+
+**How it gets there.** `material_returns_assign_row_no` numbers a line only when
+`row_no` is **null**. The MRN upload fills `row_no` from the file
+(`src/lib/uploads.ts:810`, `{ to: 'row_no', from: ['row no', 'si no'] }`). The
+upload's own note says *"The export has no unique row id (its SI Number
+repeats)"*. So a file that gives two parts of one MRN the same row number stores
+them both, and the screen then collapses them.
+
+**Established by measurement.** On the test database I inserted two lines of
+MRN `MRN-PROBE`, both with `row_no = 1`, for parts `P-001` and `P-002`. Both
+were accepted (`INSERT 0 2`), and both rows' screen id comes out as
+`MRN-PROBE-1`. The stock-cap trigger was switched off for that insert: it limits
+quantities, not keys. The fix is to key the row on the table's own `id`, which
+`listMaterialReturns` already selects. How many live rows already share a pair
+is a question for the live project: see the query table.
+
+---
+
+## 29 — Renew opened before the machines load starts with none ticked, and never updates
+
+**Where** `src/modules/CoverRegister.tsx:321` (`RenewPanel`)
+
+```ts
+const [d, setD] = useState<RenewalDraft>(() => proposeRenewal(header, items));
+```
+
+**What is wrong.** Opening a contract clears the machine list and then fetches it
+(`:746-747`, `setItems([])` then `setItems(await listItems(...))`). The
+"↻ Renew this contract" button (`:1180`) is not disabled while that fetch runs.
+The panel's draft is built **once**, by the `useState` initialiser, from
+whatever `items` holds at that moment. Pressed before the fetch lands, the draft
+carries no machines, and it never picks them up when they arrive. Submitting
+then fails with `cover.ts:564`'s *"Tick at least one machine to carry over."*
+
+**Why Low.** It is a refusal, not a wrong record. Closing and reopening the panel
+fixes it. **Established by reading**, not reproduced in a browser.
+
+---
+
+## 30 — "Correct this request" says *corrected* when the database changed nothing
+
+**Where** `src/modules/RequestCallRegistration.tsx:214-230` (`saveDetail`),
+calling `updateCallRequest` (`src/lib/supabase.ts`, ~:1801)
+
+```ts
+const { error } = await must().from('call_requests').update(row).eq('id', id);
+return error ? { ok: false, error: errMsg(error) } : { ok: true };
+```
+
+**What is wrong.** The "✎ Correct this request" button (`:318`) appears on every
+**pending** request, whoever is looking. The write is allowed by
+`cr_update`: `has_perm('calls.create') OR has_perm('pending.register') OR
+created_by = auth.uid()`. Reading the request is allowed far more widely:
+`cr_read` starts with `can_view_all_calls()`, which covers every office role.
+So an office role that is not the raiser can see the button and cannot write.
+Its UPDATE matches **zero rows**, PostgREST returns no error, and the screen:
+
+- says **"Request CRE-P1 corrected."**,
+- merges the typed values into the drawer and the table (`setDetail(merged)`,
+  `setRows(...)`),
+
+so the register shows a correction the database does not hold, until the next
+reload.
+
+**Established by measurement.** On the test database, signed in (`call
+public.be(...)`) as a `commercial` profile, I tried to correct a pending
+installation request raised by an engineer:
+
+```
+ who           | sees_all | calls_create | pending_register | can_read_row
+ as commercial | t        | f            | f                |            1
+ rows updated  | 0
+ stored serial afterwards | 20788        ← unchanged; the "correction" was 20789
+```
+
+Roles in this position by default are the office roles that
+`can_view_all_calls()` names, apart from Hotline: commercial, nsm,
+stores_incharge, spare_coordinator and tally_coordinator. They can read every
+request but hold neither permission. Other roles are affected only for requests
+they can read through their team, which was not measured. Commercial matters
+most, because finding 32's new Workload card sends Commercial straight to these
+requests.
+
+**Fix.** Two parts, and both are needed:
+
+- `.update(row).eq('id', id).select('id')`, and treat zero rows back as a
+  refusal. `forceInherit` in `cover.ts:401` already does exactly this.
+- Show the button only to somebody who can write: `can('calls.create') ||
+  can('pending.register')`, or the raiser. `listCallRequests` does not map
+  `created_by` onto the row today, so that has to be added first.
+
+**0232's own test does not cover this.** `call_request_edit_test.sql` runs every
+statement as the superuser, so RLS never applies to it. It proves the freeze;
+it cannot prove who may correct.
+
+---
+
+## 31 — "+ Installation call" creates the call, silently fails to link it, and offers a second one
+
+**Where** the per-machine button in the Warranty register's **Machines** list
+(`src/modules/CoverRegister.tsx:1006-1010`, `raiseOneCall` at `:885`), and the
+write-back in `raiseInstallCalls` (`src/lib/cover.ts:438`)
+
+```ts
+const { error } = await client().from('sale_items').update({ inst_call: ucn }).eq('id', it.id);
+if (error) { return { created, error: `… could not be written back to the machine …` }; }
+```
+
+**What is wrong.** Raising an installation call is two writes: insert the call,
+then write its UCN onto the machine's line. Each has its own gate:
+
+| write | policy asks for |
+| --- | --- |
+| the call (`installation_calls`, `calls_insert`) | `has_perm('install.create')` |
+| the link (`sale_items`, `sale_items_write`) | `has_perm('cover.edit')` |
+
+The per-machine button is **not** under `canEdit` (unlike the button for the
+whole sale at `:1134`). So a role holding `install.create` without `cover.edit`
+gets this sequence:
+
+1. The call is created.
+2. The link UPDATE matches zero rows, with no error, so the `if (error)` branch
+   that was written for exactly this case never runs.
+3. `raiseOneCall` patches the row **and the cache** with the UCN, and says
+   *"Installation call 26I… raised for 20788."*
+4. On the next fresh read, `inst_call` is still blank. The button is back, and
+   pressing it raises a **second installation call for the same machine**.
+
+The doc comment on `raiseInstallCalls` names that outcome ("would be offered a
+SECOND call on the next press") as the thing its stop-on-failure design exists
+to prevent. It prevents it for a refused write, not for a write that "succeeds"
+on zero rows.
+
+**Who.** Hotline, both by the code defaults and by the `app_roles` row the
+migrations store (`hotline | install.create t | cover.edit f`). Hotline is the
+role that registers calls, so it is the likeliest to press this button.
+
+**Established by measurement.** On the test database, signed in as a `hotline`
+profile: `install.create = t`, `cover.edit = f`, the line is readable, and the
+write-back UPDATE changed **0** rows, leaving `inst_call` blank. The call insert
+itself was not replayed through the `calls` view. That half comes from the
+policy above plus `has_perm('install.create') = t`.
+
+**Fix.** `.select('id')` on the write-back, treating zero rows as the failure it
+already handles. Also gate the per-machine button on `canEdit` like the other
+one. Doing only the second would still leave any other caller exposed. **Check
+first** whether it has already happened: see the query table.
+
+---
+
+## 32 — "Installations waiting on Commercial": the card's number and the list it opens disagree
+
+**Where** `commercialInstallSection` (`src/lib/workload.ts:256`) over
+`pendingInstallRequests` (`src/lib/supabase.ts`, ~:1728)
+
+Three separate faults, all on the card added on 2026-09-22:
+
+**(a) "Waiting on KYC" includes the customers it says it excludes.**
+
+```ts
+const blocked = rows.filter((r) => !isKycVerified(r.kyc_status));   // :259
+const unknown = rows.filter((r) => !r.onMaster);                      // :260
+```
+
+A customer who is not on the Party Master has `kyc_status: ''`. That counts as
+not verified, so the customer is in **both** `blocked` and `unknown`. The code's
+own comment says those are "a different problem with a different fix". The
+screen the card opens agrees with the comment, not the count:
+`RequestCallRegistration.tsx:205` is `!!hit && !isKycVerified(hit.status)`. So
+"Waiting on KYC: 7" opens a list of 7 minus the not-on-master ones, and the four
+cards add up to more than "Installations pending". Fix: `blocked` =
+`r.onMaster && !isKycVerified(...)`.
+
+**(b) The read is not paged, and the card says it is exact.** The query selects
+**every** installation request, of every status, oldest first, with no
+`range()`, then filters to pending in the browser. PostgREST returns at most
+1,000 rows (CLAUDE.md). So once the register has held more than 1,000
+installation requests over its whole life, the rows that get cut off are the
+**newest**, which are where pending ones are. Meanwhile `more: false` (`:270`)
+tells the reader the count is exact. Fix: filter pending in the query, or page
+with `allRows`. **Whether it already bites** is one count on the live project;
+see the query table.
+
+**(c) Smaller, in the same path:**
+
+- The Party Master lookup ignores its error (`const { data: ps } = …`,
+  `supabase.ts:1754`). If it fails, every customer reads as "not on the master",
+  and the whole queue reads as waiting on KYC.
+- The card sends `status: 'Pending'`. The register matches that exactly
+  (`:149`, `String(r.status ?? '') === status`). `listCallRequests` maps a null
+  status to `'Pending'`, but an **empty-string** status stays `''`. The card
+  counts that as pending, so such a row is counted but not listed. 0003 defaults
+  the column to `'Pending'`, so this only affects older rows.
+- The register loads the newest 2,000 requests. A pending installation older
+  than that is counted but not listed.
+
+**Established by reading**: the card's filter set against the register's.
+Nothing here was measured. The live counts are the queries.
