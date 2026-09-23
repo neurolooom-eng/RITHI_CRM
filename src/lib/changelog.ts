@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.355',
+    date: '2026-09-23',
+    title: 'The role probe answers before you edit it',
+    changes: [
+      '_what_can_this_role_do.sql now opens with EVERY role and what it holds — how many ACTIONS (what somebody can do) and how many PAGES (what opens), counted apart, because “69 permissions” gets read as “69 things it can do” when most of them are pages.',
+      'So running it unchanged is now the useful first run rather than a dead end. It was a dead end, and somebody ran it that way on the day it shipped — correct, honest, and no help at all.',
+      'A role with NO actions is flagged READ-ONLY, and one with nothing at all is flagged EMPTY — which means “not configured” and falls back to the engineer defaults, not “no permissions”.',
+      'Name a role on the `ask` line for the detail: the actions it holds, who is on it, and where User Master disagrees.',
+    ],
+  },
+  {
     version: '0.9.354',
     date: '2026-09-23',
     title: 'Roles & Permissions saves what you changed, and nothing else',

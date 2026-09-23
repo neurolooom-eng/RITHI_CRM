@@ -22,8 +22,13 @@
 --                                              everybody
 --   * the person is not on that role at all -> look at section 3
 --
--- CHANGE THE ROLE ON THE NEXT LINE. `CHANGE-ME` matches nothing, so an
--- unchanged run says so rather than answering confidently about somebody else.
+-- RUN IT UNCHANGED FIRST. Section 0 is EVERY role with what it holds, which is
+-- the map you want before asking about one -- and an unchanged run is therefore
+-- useful rather than a dead end. It was not, and somebody ran it without
+-- editing line 34 on the day it shipped: correct, honest, and no help at all.
+--
+-- THEN change the role on that line for the detail. `CHANGE-ME` matches
+-- nothing, so an unchanged run never answers confidently about somebody else.
 -- ===========================================================================
 
 with ask as (select 'CHANGE-ME'::text as role_key),          -- e.g. 'technical_support'
@@ -34,11 +39,29 @@ r as (
    where ar.role = a.role_key
 )
 select * from (
-  -- 0. Did the name match anything at all? READ THIS ROW FIRST.
+  -- 0. EVERY ROLE, ALWAYS. What each one holds, in one line: the ACTIONS decide
+  --    what somebody can DO, the module keys only decide which pages open, and
+  --    the two are counted apart because conflating them is how "it has 69
+  --    permissions" gets read as "it can do 69 things".
+  select 0 as sort, 'every role — actions / pages' as section,
+         ar.role || '  ·  ' || lpad(
+           (select count(*) from jsonb_array_elements_text(ar.permissions) v where v not like 'mod:/%')::text, 3)
+         || ' actions  ·  ' || lpad(
+           (select count(*) from jsonb_array_elements_text(ar.permissions) v where v like 'mod:/%')::text, 3)
+         || ' pages' as finding,
+         case when jsonb_array_length(ar.permissions) = 0
+              then 'EMPTY — "not configured", so has_perm() falls back to the ENGINEER defaults'
+              when not exists (select 1 from jsonb_array_elements_text(ar.permissions) v where v not like 'mod:/%')
+              then 'READ-ONLY — holds pages but no action at all'
+              else '' end as detail
+    from public.app_roles ar
+
+  union all
+  -- 1. Did the name on line 34 match anything? READ THIS ROW NEXT.
   select 1 as sort, 'the role' as section,
          case when exists (select 1 from r)
               then 'found: ' || (select role || ' — ' || coalesce(label, '') from r)
-              else 'NOT FOUND — the role key on line 27 matches no row in app_roles. '
+              else 'NOT FOUND — the role key on the `ask` line above matches no row in app_roles. Section 0 lists them all. '
                    || 'The keys are: ' || (select string_agg(role, ', ' order by role) from public.app_roles)
          end as finding, '' as detail
 
