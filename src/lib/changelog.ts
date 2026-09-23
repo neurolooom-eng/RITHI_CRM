@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.350',
+    date: '2026-09-23',
+    title: '＋ Installation call, on the machine itself',
+    changes: [
+      'WARRANTY → BY MACHINE → REGISTER CALL now offers ＋ Installation call beside ＋ Field call. Raise one for the machine in front of you, without opening its sale entry — which is what you want when you are working down the list.',
+      'It is the SAME thing the entry’s button does, called for one machine: the call carries the same party, model, serial, cover and vigilance answers, and the UCN is written straight back onto the machine.',
+      'Once raised, the button is REPLACED BY THE UCN. That is the evidence it disables itself by, so showing it is showing the reason — and it survives a reload, rather than offering a second call for a machine that has one.',
+      'Offered on the WARRANTY register only. A machine reaches a contract already installed.',
+      '＋ Field call is unchanged and is a different thing: it creates nothing, it opens the Field Call form with the machine and customer filled in.',
+      'THE THREE TILES NO LONGER READ ZERO WHEN THEY HAVE NOT BEEN COUNTED. “0 ACTIVE / 0 ABOUT TO EXPIRE / 0 INACTIVE” was showing over 1,500 machines every one of which said ACTIVE. They read — until the count arrives, and say so if it fails: three zeros over a full list say the register is empty, which is worse than no number at all.',
+    ],
+  },
+  {
     version: '0.9.349',
     date: '2026-09-23',
     title: 'An installation call is never raised against a machine that is not saved',

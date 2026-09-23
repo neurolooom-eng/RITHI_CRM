@@ -571,7 +571,14 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     if (st.search !== undefined) setQ(st.search);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  // NOT COUNTED IS NOT ZERO. The tiles read `0 ACTIVE / 0 ABOUT TO EXPIRE /
+  // 0 INACTIVE` over 1,500 machines every one of which said ACTIVE (reported
+  // 2026-09-23) -- because a tile that has not been counted rendered `?? 0`,
+  // and the one path that fetches them on a cached open swallows its own
+  // failure. A number that looks exact and is not is the fault this project
+  // refuses everywhere else, and three of them sitting over a populated list
+  // say the register is empty. `null` means not counted and renders as a dash.
+  const [counts, setCounts] = useState<Record<string, number | null>>({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     live ? null : { tone: 'info', text: 'Connect the database in Settings to open this register.' },
@@ -702,7 +709,10 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     if (tab === 'machines') {
       void Promise.all(STATES.map((x) => countMachines(kind, x, {})))
         .then((cs) => setCounts(Object.fromEntries(STATES.map((x, i) => [x, cs[i]]))))
-        .catch(() => { /* tiles are a nicety; the table already loaded */ });
+        // THE TABLE HAS ALREADY LOADED, so this does not fail the page -- but
+        // it must not leave three zeros behind either. The tiles go to "not
+        // counted" and say so.
+        .catch(() => setCounts(Object.fromEntries(STATES.map((x) => [x, null]))));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, q, state]);
@@ -840,6 +850,47 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     finally { setSaving(false); }
   };
 
+  // ONE MACHINE, FROM THE BY-MACHINE LIST (the user, 2026-09-23: "I need
+  // + Installation Call"). The entry pane raises them for a whole sale; this
+  // register is where somebody works down a list of machines, and the machine
+  // in front of them is the one they want a call for.
+  //
+  // IT CALLS THE SAME FUNCTION WITH A LIST OF ONE. Every rule -- what the call
+  // carries, that a machine already holding a UCN is refused, that an unsaved
+  // one is refused, that the UCN is written back to the machine -- therefore
+  // cannot drift between the two places, which is the fault this codebase
+  // keeps finding in its own duplicated lists.
+  //
+  // THE VIEW IS ITS OWN HEADER. `warranty_sale_details` resolves the entry's
+  // party, city, state, SA number and warranty onto each machine already, so
+  // the row is passed as both -- there is no second record to fetch and
+  // nothing to disagree with.
+  const [raisingId, setRaisingId] = useState<number | null>(null);
+  const raiseOneCall = async (r: Row) => {
+    if (!machinesNeedingInstallCall([r] as never).length) return;
+    if (!window.confirm(
+      `Raise an installation call for ${str(r.product_name)} · ${str(r.serial_number)}`
+      + ` at ${str(r.party_name) || 'this customer'}?\n\n`
+      + `Standard Complaint and Complaint Reported will read "${INSTALL_COMPLAINT}", the three vigilance `
+      + `questions will be answered NO, and the customer contact will be left blank — nobody reported this.`)) return;
+    setRaisingId(Number(r.id));
+    try {
+      const res = await raiseInstallCalls(r, [r]);
+      const ucn = res.created[0]?.ucn ?? '';
+      if (res.error || !ucn) { setMsg({ tone: 'error', text: res.error ?? 'The call was not created.' }); return; }
+      // THE ROW IS PATCHED IN PLACE, AND SO IS THE CACHE. Re-reading 1,500
+      // machines to learn one UCN would be a register-sized request for a value
+      // already in hand -- and leaving the cache stale would put the button
+      // back on the next visit, offering a second call for a machine that has
+      // one.
+      const rows = feeds.machines.rows.map((x) => (x.id === r.id ? { ...x, inst_call: ucn } : x));
+      setFeed('machines', { rows });
+      if (!filtered) saveCache(cacheKey('machines'), rows);
+      setMsg({ tone: 'ok', text: `Installation call ${ucn} raised for ${str(r.serial_number)}.` });
+    } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
+    finally { setRaisingId(null); }
+  };
+
   // RE-READING THE CUSTOMER ONTO A SALE THAT ALREADY NAMES THEM (the user,
   // 2026-09-22). A hospital that moves, or a Party Master record corrected
   // afterwards, leaves every sale already raised carrying the old address --
@@ -915,8 +966,27 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       const o = r.overridden as string[] | null;
       return o?.length ? <span className="badge badge-warning" title={o.join(', ')}>{o.length} pinned</span> : <span className="muted">follows entry</span>;
     } },
-    { key: '_call', header: 'Register call', width: 130, sortable: false, wrap: false, render: (r) => (
-      <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); navigate('/field-calls', { state: { prefill: prefillFrom(r, kind) } }); }}>+ Field call</button>
+    { key: '_call', header: 'Register call', width: 230, sortable: false, wrap: false, render: (r) => (
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+        <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); navigate('/field-calls', { state: { prefill: prefillFrom(r, kind) } }); }}>+ Field call</button>
+        {/* INSTALLATION IS A SALE'S EVENT, NOT A CONTRACT'S. A machine reaches
+            a contract already installed, so the button is not offered there --
+            an action that makes no sense for the record in front of you is
+            worse than a missing one, because somebody presses it to find out. */}
+        {kind === 'sale' && (
+          isPinnedValue(r.inst_call)
+            // ALREADY DONE, AND IT SAYS WHICH. The UCN is the evidence the
+            // button disables itself by, so showing it is showing the reason.
+            ? <span className="badge badge-neutral" title="This machine already has its installation call">
+                {str(r.inst_call)}
+              </span>
+            : <button className="btn btn-sm" disabled={raisingId !== null}
+                onClick={(e) => { e.stopPropagation(); void raiseOneCall(r); }}
+                title="Raise the installation call for this machine and map it back">
+                {raisingId === Number(r.id) ? 'Raising…' : '+ Installation call'}
+              </button>
+        )}
+      </div>
     ) },
   ];
 
@@ -1139,7 +1209,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         <div className="pc-summary">
           {STATES.map((s) => (
             <button key={s} className={`pc-tile ${state === s ? 'pc-tile-on' : ''}`} onClick={() => setState(state === s ? '' : s)}>
-              <span className="pc-tile-n">{counts[s] ?? 0}</span>
+              <span className="pc-tile-n" title={counts[s] == null ? 'Not counted yet — press ↻ Refresh' : ''}>
+                {counts[s] == null ? '—' : counts[s]!.toLocaleString()}
+              </span>
               {statusBadge(s, TONES)}
             </button>
           ))}

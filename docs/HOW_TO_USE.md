@@ -368,6 +368,20 @@ against the call it was fitted to.
   > machine by model and serial. If it stops part way it **names the calls it
   > already created** — those exist whatever the message says.
   >
+  > ### Or one machine at a time
+  >
+  > **By machine → Register call → ＋ Installation call** does the same thing for
+  > the single machine in front of you, which is what you want when you are
+  > working down the list rather than opening an entry. Same rules, same
+  > function — once it is raised the button is replaced by the **UCN**, which is
+  > the evidence it disables itself by.
+  >
+  > It is offered on the **Warranty** register only. A machine reaches a
+  > contract already installed.
+  >
+  > **＋ Field call** beside it is different: it does not create anything, it
+  > opens the Field Call form with the machine and customer already filled in.
+  >
   > ### Putting the machines back on the entry
   >
   > **↺ Force update child records** clears every pinned value so all the
