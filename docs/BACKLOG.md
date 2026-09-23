@@ -43,6 +43,238 @@ up)_
 
 ---
 
+## 2026-09-23 — ⚠ Roles & Permissions was overwriting every role on every save
+
+> *"Role & Permission are not working"*
+
+Shipped in v0.9.354. **Client only — no SQL.** But the DAMAGE is in the data: if
+anybody saved the matrix while it was showing defaults, every role's tuned row
+was replaced. `_what_can_this_role_do.sql` (new, read-only) says what each role
+actually holds now.
+
+**Two faults, and the second destroys work.**
+
+1. `rolePerms` starts life as `DEFAULT_PERMS` (auth.tsx) and is replaced when
+   `app_roles` arrives. The matrix was built in a **`useState` initialiser**,
+   which runs once at mount — so a screen opened before the roles had loaded
+   drew the **code defaults**, and nothing corrected it. An administrator was
+   reading the code's idea of each role and believing it was the project's.
+2. `save()` looped `for (const r of roles)` and wrote **every role**. So one tick
+   on a matrix drawn from defaults overwrote all twelve tuned rows with those
+   defaults — and reported *"Permissions saved"*.
+
+**The fix is both halves, and the second is what makes the first survivable:**
+the matrix re-seeds from `rolePerms` whenever it changes *while nothing is being
+edited* (re-seeding over a half-made edit is the other way to lose work here),
+and the save writes **only the roles somebody touched**. An untouched role's row
+is never rewritten — the same MERGE-never-overwrite rule the migrations follow.
+
+Three more things it now gets right:
+
+- It **names the roles it wrote**, and says "nothing was changed" rather than
+  writing when nothing was.
+- **Unticking every action on a role is refused.** An empty array means "not
+  configured" and `permsForRole` turns the *engineer* fallback back on — so
+  saving one GRANTS permissions, which is the opposite of what unticking
+  everything looks like it does.
+- **Admin is still re-asserted**, but only when its computed list has fallen
+  behind. It is computed and never editable here, so overwriting it is correct
+  by construction — dropping it with the every-role loop would have been a quiet
+  regression the day somebody added an action.
+
+**`check:ui` caught its own stale assertion.** *"and saving walks the same list"*
+matched `for (const r of roles)` literally and broke the moment the save stopped
+writing every role. The property it was always about — derived from the STORED
+roles, never the coded `ROLES` — is what it tests now. Two new assertions
+mutation-proved (writing every role again; re-seeding over an edit in progress).
+
+---
+
+## 2026-09-23 — INST Call holds a call number or nothing
+
+> *"Yes clear the placeholder and map the UCN there"*
+
+Shipped in v0.9.353. **⚠ RUN `sales_contracts.sql`** — the same bundle as 0233,
+so one run covers both. `_status.sql` row 179.
+
+Three things, and the third is why this is a migration rather than a one-off
+script:
+
+1. **MAP** the UCN where an installation call for that machine already exists —
+   on MODEL + SERIAL, never the serial alone. **Exactly one, or nothing**: where
+   two installation calls name the same machine there is no way to say which the
+   field means, and writing either would be a guess recorded as a fact.
+2. **CLEAR** everything left that is not a call number — not only the words
+   "To Check". The field's meaning is now "the call for this machine, or
+   nothing", and a note left in it reads as a call number to anything that looks.
+3. **A TRIGGER.** `coverImport` upserts on `uid`, so re-importing the AppSheet
+   file overwrites `inst_call` with whatever the cell says — undoing the repair
+   and, worse, replacing the UCN of any call raised in the app since that file
+   was exported, leaving the call orphaned with nothing recording the loss.
+   The guard **discards** a non-call value (the 0113/0114 rule) and **never**
+   lets a real UCN be replaced by a blank. One UCN can still replace another.
+
+**Nothing was thrown away.** `inst_call_repair_log` keeps every old value beside
+the new one with the reason — the placeholder is being destroyed on 1,500+
+machines and "we replaced it with nothing" is not an answer anybody can check.
+The ambiguous machines are named there **with both UCNs**: they are cleared like
+any other, since "To Check" is not a call number whatever else is true, but they
+are the ones that would otherwise be offered a button raising a THIRD call.
+
+`is_call_number()` in SQL and `isCallNumber()` in `coverspec.ts` are the same
+rule in two languages; `check:ui` holds them together, as it does
+`cover_code`/`coverCode`.
+
+Proved on a Postgres built from every migration: one machine mapped, one cleared
+with no call, one cleared and named with its two calls, a real UCN untouched,
+the trigger discarding on both INSERT and UPDATE, a UCN surviving both
+"To Check" and a blank, a new UCN still replacing an old one, and a second run a
+no-op. `_status.sql` row 179 discriminates both ways. **101/101 suites and
+22/22 checks** — the new trigger broke no fixture.
+
+---
+
+## 2026-09-23 — What a warranty-raised installation call carries
+
+> *"complaint date and breakdown date has to be warranty start date. STANDARD
+> COMPLAINT= INSTALLATION CALL , Reported Complaint= INSTALLATION CALL. Call
+> Number - if Generated from warranty page then "WI-"PRODUCT-SLNO. ALLOTED TO
+> the engineer as per party master."*
+
+Shipped in v0.9.352. **⚠ RUN `sales_contracts.sql`** — `_status.sql` row 178.
+
+Four changes to `installCallFromSale`, and one thing that was already true:
+
+- **Complaint Date and Breakdown Date are the warranty start**, not gated on
+  cover: a sale recording a start but no period still knows when it started. No
+  start date at all leaves both EMPTY — today's date would be a date nobody
+  chose, written into a quality record.
+- **`INSTALL_COMPLAINT` is now `INSTALLATION CALL`**, was `Installation Calls`.
+- **Call Number `WI-<product>-<serial>`**, the product unsquashed because the
+  number is matched by eye against the machine row.
+- **Allotted To = the effective engineer**, header's unless the machine pinned
+  one. It reaches the sale from the Party Master's `service_engineer` through
+  `partyFillForSale`, which is what makes "as per party master" true.
+- The **Service Engineer was already on the Sale Entry and already inherited**
+  by its machines. `check:ui` holds both now, since Allotted To reads it.
+
+**0233 is a migration and not just a constant, for one reason.** Standard
+Complaint is the dimension every count groups by, so a second spelling does not
+read as a typo — it splits the total and the reader believes both halves.
+The migration does two things, and the first is the one that is easy to forget:
+
+1. **The master.** That picker takes no free text, so a value `masters` has not
+   got is one nobody can choose and one a call opened in the form cannot show.
+   Seeded under whichever name the project uses (`complaint` or
+   `standardComplaint` — `listMaster` reads both). The OLD value is left on the
+   master: removing it would stop the picker offering a value historical calls
+   still carry.
+2. **The calls already raised** — INSTALLATION calls only, matched
+   case-insensitively and space-squashed. A FIELD call saying "Installation
+   Calls" is somebody's own words and is not touched.
+
+`complaint_date`, `breakdown_date` and `call_number` are NOT back-filled on old
+calls: inventing a `WI-` number for a call raised before the rule existed would
+be writing a fact that was never true.
+
+**`check:ui` caught the Restore clause naming `cover.sql`, which does not
+exist** — the module is `cover` and its bundle is `sales_contracts.sql`. Exactly
+the fault that check was written for, on its author.
+
+---
+
+## 2026-09-23 — The probe cut its example exactly where the answer was
+
+The 2026-09-22 run of `_where_are_my_service_reports.sql` came back with the
+AppSheet URL shown as
+
+    https://www.appsheet.com/image/getimageurl?appName=Reportsv2-RITHI-391
+
+which reads as a complete URL carrying no `fileName` — so all 2,042 of them
+would be unresolvable. **It is exactly 70 characters, and the file printed
+`left(min(link), 70)` with no ellipsis.** The cut had landed in front of the
+answer, and nothing in the output said a cut had happened.
+
+**A URL's distinguishing part is at the END.** A head-only excerpt of one is not
+a shortened answer, it is a different one — the same class as a `_status.sql`
+row that answers NO for nothing, or a probe defaulting to a live address. Three
+corrections, all in that file:
+
+1. The example prints the head **and the tail** and says how many characters it
+   removed.
+2. **Row 5 counts what actually decides those 2,042**: how many carry a
+   `fileName` to look up. Nothing counted it, and it is the only number that
+   says whether the AppSheet URLs are a job or a dead end.
+3. **"When visits were last entered" was not in date order.** It sorted the
+   formatted `DD-Mon-YYYY` string descending as text, so 31-Oct-2023 came first
+   and 31-May-2026 second — a list that reads as chronological and is
+   alphabetical. And it ran to one row per day (700+ on this project), burying
+   every other row. It is the twenty busiest days now, ordered by count then
+   date with both keys packed into a numeric column, with the distinct-day total
+   stated so nobody reads the twenty as all of them.
+
+Proved against a Postgres built from every migration, with fixture rows in each
+shape — including the exact 70-character URL and a full one carrying a
+`fileName`. The two faults `parseRef` does NOT have were confirmed at the same
+time: it matches AppSheet on the HOST, so `/image/getimageurl` resolves as well
+as `/template/gettablefileurl`, and a URL whose `fileName` is a full path
+reduces to the same base name as the bare-path rows, so one Drive lookup serves
+both.
+
+Client only — no SQL to apply, the file is a read-only diagnostic.
+
+---
+
+## 2026-09-22 — The 7,538 references already in the register become links
+
+> *"uploaded links are also not getting converted into Drive links"*
+
+**Shipped in v0.9.348. CLIENT ONLY — no SQL, no migration.** `source_ref` and
+`mapped_at` have been on `reports` since 0071 and `reports_write` is `for all`,
+so nothing new is needed on the database.
+
+**What was measured, not assumed** (`_where_are_my_service_reports.sql`,
+2026-09-22): 12,254 visits, of which **5,496** hold a bare AppSheet file path,
+**2,042** an AppSheet URL, **493** a real Drive link and **4,223** nothing at
+all. So 7,538 visits have a report that cannot be opened — the cell is a string.
+
+**Why re-importing the sheet is not the remedy**, and why this is a second tool
+rather than a fix to the first: those rows carry the engineer's own columns now.
+An upsert would write the recovery file over them, which is the very thing
+NAR-003.7 exists to forbid one screen down.
+
+Bulk Report Mapping gained a card above its three numbered steps — survey,
+resolve, convert, in passes of 500. Three rules, each a refusal:
+
+- **A file Drive cannot find, or finds twice, keeps its reference.** An
+  unresolved reference can still be settled by hand; a blanked one has lost the
+  only thing that says which document it was.
+- **The original goes into `source_ref`**, and an existing `source_ref` is never
+  overwritten — that row's provenance was recorded by whatever put it there.
+- **Two columns and a stamp, not a row.** Deliberately one column fewer than
+  `attachReportsToVisits`, which also writes `call_status` because it is
+  asserting that a report is now complete. Changing the FORM of a reference
+  asserts nothing, and a status written on this path would move which visit
+  decides its call's status (0032) on up to 7,538 calls in one pass.
+
+**It also answers the open question rather than asking it.** Whether those 2,042
+AppSheet URLs carry a `fileName` to look up could not be settled by reading the
+code — an AppSheet link without one parses as `unknown`, is not offered for
+conversion, and is now COUNTED as its own shape on the screen. The survey
+reports the number.
+
+**Two checks found gaps while being written**, both of the kind this file keeps
+recording. `check:ui`'s `seesEveryRecord` rule read `src/modules` alone, so the
+first call site written outside it was simply not covered — the check passed
+while its rule had a hole the width of a directory. And the new `user.role`
+assertion first matched the *comment warning about* `user.role`, which is the
+GST check matching "18%" in its own comment; it is asked of `code()` now, and
+matches `user?.role` as well, which is the form that actually gets written.
+
+NAR-003.12 … NAR-003.19 and OQ-69 added to the validation package.
+
+---
+
 ## 2026-09-22 — Fixing a call's cover: against the DATE, never against today
 
 > *"i want to fix existing calls as well"*

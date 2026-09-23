@@ -12,9 +12,11 @@
 // inheriting field as the header's value greyed out, and pins it the moment
 // someone types into it.
 // ===========================================================================
-import { getSupabase } from './supabase';
+import { getSupabase, addCall } from './supabase';
 import { dayAfter, addPeriod } from './dates';
-import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears } from './coverspec';
+import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears,
+         inheritAllPatch, isPinnedValue, installCallFromSale, machinesNeedingInstallCall,
+         type SaleForCall, type SaleItemForCall } from './coverspec';
 
 export type CoverKind = 'sale' | 'contract';
 
@@ -28,8 +30,16 @@ export interface CoverField {
    *  the user's rule (2026-09-14): an inactive line takes no NEW SALE ENTRY.
    *  Only the SALE carries these; a contract may name a retired line, because
    *  the machine it covers was sold when the line was current. */
-  optionsFrom?: 'sellable-name' | 'sellable-code';
+  /**  `party` is the PARTY MASTER, searched on the server rather than
+   *  downloaded: 5,873 customers is a few hundred KB before the field would
+   *  work at all, and the same box on the call registers already searches. */
+  optionsFrom?: 'sellable-name' | 'sellable-code' | 'party';
   section: string;
+  /** THE FORM DOES NOT ASK FOR THIS ONE — it is worked out, or it is stamped.
+   *  Shown, and not typeable: a box somebody can type into is a box whose value
+   *  they expect to keep, and the next keystroke elsewhere would overwrite it.
+   *  `why` says what decides it, beside the field. */
+  derived?: string;
   /** On an item: this field inherits from the header unless it is pinned. */
   inherits?: boolean;
 }
@@ -67,17 +77,30 @@ export const SALE: CoverConfig = {
   endColumn: 'warranty_end',
   headerFields: [
     { name: 'sa_number', label: 'SA Number', section: 'Sale' },
-    { name: 'entry_at', label: 'Sale Entry Date', type: 'date', section: 'Sale' },
-    { name: 'party_name', label: 'Party Name', section: 'Sale' },
+    // STAMPED WHEN THE ENTRY IS CREATED (0230 defaults it to now()), not typed.
+    // The user, 2026-09-22: "Warranty Entry date - Automatic - Timestamp".
+    { name: 'entry_at', label: 'Sale Entry Date', type: 'date', section: 'Sale',
+      derived: 'stamped when the entry is created' },
+    { name: 'party_name', label: 'Party Name', section: 'Sale', optionsFrom: 'party' },
     { name: 'sold_through', label: 'Sold Through', section: 'Sale' },
     { name: 'invoice_no', label: 'Invoice No', section: 'Sale' },
     { name: 'invoice_date', label: 'Invoice Date', type: 'date', section: 'Sale' },
     { name: 'party_type', label: 'Type', type: 'select', options: ['', 'CUSTOMER', 'DEALER'], section: 'Sale' },
     { name: 'profile', label: 'Profile', type: 'select', options: ['', 'PRIVATE', 'GOVERNMENT', 'DEALER', 'GENERAL'], section: 'Sale' },
     { name: 'warranty_start', label: 'Warranty Start Date', type: 'date', section: 'Warranty' },
-    { name: 'warranty_end', label: 'Warranty End Date', type: 'date', section: 'Warranty' },
-    { name: 'warranty_years', label: 'Warranty Period (in Years)', type: 'number', section: 'Warranty' },
+    // THE PERIOD IS ENTERED IN MONTHS AND THE REST FOLLOWS (the user,
+    // 2026-09-22). `deriveHeader` has computed all three from the start date
+    // and the months since it was written; what changes here is that the form
+    // stops inviting somebody to type over the answer.
+    { name: 'warranty_end', label: 'Warranty End Date', type: 'date', section: 'Warranty',
+      derived: 'Warranty Start + Period (months)' },
     { name: 'warranty_months', label: 'Warranty Period (in Months)', type: 'number', section: 'Warranty' },
+    { name: 'warranty_years', label: 'Warranty Period (in Years)', type: 'number', section: 'Warranty',
+      derived: 'the months above' },
+    // TYPED, AND SUGGESTED FROM THE PERIOD (the user, 2026-09-22: "PM visit
+    // should editable by the user. It varies based on PO"). It follows the
+    // period until somebody changes it, and is theirs from then on -- what was
+    // actually sold is on the purchase order, not in the standard offer.
     { name: 'pm_visits', label: 'PM Visits', type: 'number', section: 'Warranty' },
     { name: 'warranty_status', label: 'Warranty Status (as keyed)', section: 'Warranty' },
     { name: 'other_details', label: 'Other Details', type: 'textarea', section: 'Warranty' },
@@ -195,7 +218,18 @@ function client() {
   if (!c) throw new Error('Not connected to the database (Settings → Database connection).');
   return c;
 }
-const err = (e: { message?: string } | null) => new Error(e?.message ?? 'Database error');
+// AN ERROR BANNER WITH NO TEXT IN IT IS WORSE THAN NO BANNER — it says
+// something went wrong and refuses to say what, and the reader cannot even tell
+// whether it is about the thing they just did. `?? ` only catches null and
+// undefined, so a PostgREST error carrying an EMPTY message went straight
+// through and painted a blank red bar across the register (seen 2026-09-23).
+// `||` catches the empty string too, and the code is kept where there is one:
+// "42501" and "57014" are the two that tell somebody what to do next.
+const err = (e: { message?: string; code?: string; details?: string; hint?: string } | null) => {
+  const parts = [e?.message, e?.details, e?.hint].map((x) => String(x ?? '').trim()).filter(Boolean);
+  const text = parts.join(' — ') || 'The database refused the request and gave no reason.';
+  return new Error(e?.code ? `${text} (${e.code})` : text);
+};
 const like = (t: string) => `%${t.replace(/[%,()]/g, ' ').trim()}%`;
 
 export interface HeaderFilter { q?: string; party?: string; number?: string; state?: string }
@@ -346,12 +380,80 @@ export async function finishCoverImport(): Promise<{ unpinned: number; machines:
   return { unpinned: Number(a.data ?? 0), machines: Number(b.data ?? 0) };
 }
 
+/**
+ * FORCE UPDATE CHILD RECORDS — put every machine back onto its entry.
+ *
+ * The user, 2026-09-22. Clears every INHERITING field on every machine of this
+ * entry in one statement, so each one follows the entry again. What it will
+ * clear is counted and shown first (`summarisePinned`); there is no undo, and a
+ * pinned value that genuinely differs from the entry is somebody's decision
+ * about one machine.
+ *
+ * ONE STATEMENT, NOT ONE PER MACHINE: a sale with forty machines would
+ * otherwise be forty round trips, any of which can fail half way and leave the
+ * entry half-inherited — which is the state this is meant to resolve.
+ *
+ * It does not touch a field the register does not declare as inheriting: the
+ * product, the serial and the machine's own supplied-with answers are ITS
+ * facts, not the entry's, and clearing them would delete the machine's
+ * identity.
+ */
+export async function forceInherit(kind: CoverKind, key: string): Promise<number> {
+  const cfg = configFor(kind);
+  const patch = inheritAllPatch(cfg.itemFields);
+  const { data, error } = await client()
+    .from(cfg.itemTable).update(patch).eq(cfg.key, key).select('id');
+  if (error) throw err(error);
+  return (data ?? []).length;
+}
+
+/**
+ * RAISE THE INSTALLATION CALLS FOR A SALE ENTRY.
+ *
+ * One call per machine that has not got one, and the call's UCN is written
+ * straight back onto that machine's line (`inst_call`) — the mapping the user
+ * asked for, keyed on the line itself, which is Product + Serial.
+ *
+ * ONE MACHINE AT A TIME, AND A FAILURE STOPS RATHER THAN CONTINUING. The two
+ * writes per machine are not one transaction — the call is inserted through the
+ * `calls` view and the mapping is an update on `sale_items` — so a machine
+ * whose call was created and whose mapping failed would be offered a SECOND
+ * call on the next press. Stopping leaves exactly one machine in that state and
+ * names it, which somebody can see and fix; carrying on hides it among the
+ * successes.
+ */
+export async function raiseInstallCalls(
+  header: Row, items: Row[], onProgress?: (done: number, total: number) => void,
+): Promise<{ created: { serial: string; ucn: string }[]; error?: string }> {
+  const todo = machinesNeedingInstallCall(items as SaleItemForCall[]) as Row[];
+  const created: { serial: string; ucn: string }[] = [];
+  for (const it of todo) {
+    onProgress?.(created.length, todo.length);
+    const r = await addCall(installCallFromSale(header as SaleForCall, it as SaleItemForCall));
+    if (!r.ok) return { created, error: `${str(it.serial_number)}: ${r.error ?? 'the call was refused'}` };
+    const ucn = str(r.ucn);
+    if (!ucn) {
+      return { created, error: `${str(it.serial_number)}: the call was created but its UCN came back empty, so it could not be mapped to the machine. Find it on the Installation Call register.` };
+    }
+    const { error } = await client().from('sale_items').update({ inst_call: ucn }).eq('id', it.id);
+    if (error) {
+      return { created, error: `${str(it.serial_number)}: call ${ucn} was created but could not be written back to the machine — ${error.message}` };
+    }
+    created.push({ serial: str(it.serial_number), ucn });
+  }
+  onProgress?.(created.length, todo.length);
+  return { created };
+}
+
 /** The value an item shows for a field: its own if pinned, else the header's. */
 export const effective = (item: Row, header: Row, field: string): unknown =>
   item[field] === null || item[field] === undefined || item[field] === '' ? header[field] : item[field];
 
-export const isPinned = (item: Row, field: string): boolean =>
-  item[field] !== null && item[field] !== undefined && item[field] !== '';
+// ONE COPY OF THE RULE, in coverspec.ts, because `summarisePinned` counts what
+// Force Update Child Records is about to clear and the two must agree about
+// what "pinned" means or the screen promises one thing and the write does
+// another.
+export const isPinned = (item: Row, field: string): boolean => isPinnedValue(item[field]);
 
 // ===========================================================================
 // RENEWING A CONTRACT — raising the next MC from an expiring one.

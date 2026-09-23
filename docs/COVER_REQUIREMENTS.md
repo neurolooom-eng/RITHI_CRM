@@ -87,9 +87,14 @@ so those two keys disagree with the other two by punctuation alone.
 **CW-004 — A warranty has a recorded start, a recorded period and a derived end.**
 *§7.2.1, §4.2.5.* The end of a warranty shall be derived from its start and its
 period, not typed independently of them.
-**Status: Met (2.0).** `cover_period_end(start, months)` derives it;
-`product_database_v2` prefers the derived end wherever both are known and falls
-back to the register's stored end otherwise.
+**Status: Met (2.0), and now met on the FORM as well (2026-09-22).** The
+register derived the end from the start and the period already; what it also
+did was offer it as a typeable box beside them, which invites the one thing this
+requirement forbids. The Warranty Register's end date, period-in-years and PM
+visits are shown and not typeable, with the period entered in MONTHS and the
+rest following — the user's instruction the same day. `cover_period_end(start,
+months)` is the database's copy; `product_database_v2` prefers the derived end
+wherever both are known and falls back to the register's stored end otherwise.
 
 **CW-005 — The end of a period is computed the same way everywhere.**
 *§4.2.5.* One arithmetic, one answer.
@@ -198,6 +203,34 @@ security applies to whoever is reading — the fault 0040/0050/0057 shipped thre
 times.
 
 ---
+
+**CW-021 — The terms of a sale or a contract reach every machine under it.**
+*§4.2.4, §7.5.4.* A machine under an entry shall follow that entry's terms
+unless it states one of its own, and there shall be a way of returning every
+machine to the entry's terms.
+**Status: Met (2026-09-22).** Inheritance has been the model since 0036; what
+was missing was the way back — a bulk load copied the entry's own values onto
+every machine, so every field was pinned to something that merely *looked*
+inherited and the entry moved nothing. **Force update child records** clears
+them, and states what it will discard first: values that DIFFER from the entry
+counted separately from values that repeat it, because only the first is a
+decision somebody made about one machine and there is no undo. It never touches
+the model, the serial or the machine's own supplied-with answers — those are the
+machine's facts, not the entry's. FRS-084; `check:cover-party`.
+
+**CW-022 — The installation work for a sold machine is raised from its sale.**
+*§7.5.1, §7.5.4.* The customer and the machine on an installation call shall
+come from the sale record rather than be re-keyed.
+**Status: Met (2026-09-22).** **+ Installation calls** on a Sale Entry raises one
+call per machine that has not got one, carrying the customer, the city, the
+state, the model, the serial and the warranty, and writes each call's UCN back
+against its machine. Re-keying those into a second form is where the two records
+stop describing the same machine. Two rules are stated as prohibitions because
+they are what a convenience would get wrong: **no cover is recorded where the
+sale records no warranty** (an unknown cover gets asked about, a wrong one gets
+believed), and **no customer contact is recorded at all** — those fields record
+who *reported* a fault, and nobody reported an installation. FRS-085; the call
+router and the UCN were proved end to end against Postgres.
 
 ## Test cases
 

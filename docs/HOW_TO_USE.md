@@ -118,7 +118,36 @@ restored) or **closed without a visit**; neither deletes anything.
   > are kept and start sending when it goes live.
 
 - **Bulk Report Mapping** `/report-mapping` — attaches a batch of visit reports to
-  their calls.
+  their calls, and turns the AppSheet references already in the register into
+  Drive links.
+
+  > ### The report is a string, not a link — turning it into one
+  >
+  > Visits loaded through **Bulk Uploads** keep the attachment cell exactly as
+  > the file wrote it. AppSheet writes a path (`Reports_Images/Row 42_Photo.png`)
+  > or a link back into the app, and neither of those opens anything — so on
+  > those calls "open the report" opens a string. **7,538 of the 12,254 visits
+  > with a report are like this.**
+  >
+  > The top card of Bulk Report Mapping fixes them. **Survey the register** to
+  > see what is there, counted by shape. Then **Resolve** looks each file name up
+  > in Drive, and **Convert** writes the links. You see every row before anything
+  > is written.
+  >
+  > **It runs in passes** — 500 at a time by default. Doing all 7,538 in one go
+  > would hold the tab open for a couple of hundred Drive lookups. Stop whenever
+  > you like; the next survey shows what is left.
+  >
+  > **A file Drive cannot find, or finds twice, keeps its reference.** That is
+  > deliberate: you can still settle it by hand, which you could not do with a
+  > blank cell.
+  >
+  > **Nothing else on the visit changes** — not the status, not the visit date,
+  > not the engineer, not when it was entered. The old reference is kept in
+  > **Source Ref**.
+  >
+  > If your role is shown only your own calls and your team's, the counts say so.
+  > They are not a statement about the whole register.
 
   > ### Filling Visit Date & Time and Visit Entry Date on consumption data
   >
@@ -279,11 +308,111 @@ against the call it was fitted to.
 
 - **Warranty Register** `/warranties` — sale entries (`SA`) and the machines sold
   under each.
+  > ### Keying a new sale
+  >
+  > **Party Name is a search box over the Party Master** — start typing and pick
+  > the customer. Choosing one **fills in the address, city, state, pincode,
+  > both telephone numbers, PAN, GST, the type, the profile and the initial
+  > service engineer** from that customer's record.
+  >
+  > **Changing the customer replaces all of those, blanks included.** That is
+  > deliberate: keeping the previous customer's address where the new one has
+  > none would put a different hospital's address on the sale with nothing on
+  > screen saying so. Type over any of them afterwards — the installation
+  > address often differs from the registered one.
+  >
+  > A customer the Party Master has not got can still be typed. Nothing is
+  > filled in for them, because there is nothing to fill it from.
+  >
+  > **Sale Entry Date is stamped** when you create the entry. It is not typed.
+  >
+  > **Warranty Start Date defaults to today** and is yours to change. Enter the
+  > period in **MONTHS**; the **End Date**, the period in years and the PM visit
+  > count all follow from it and are shown greyed out — they are worked out, not
+  > asked for.
+  >
+  > **Then add the machines.** Product is a search box over the Product Master
+  > (only lines still marked Active — a retired line takes no new sale), and
+  > picking a product name fills its code where the catalogue gives one answer;
+  > where several codes share a name, it is left for you rather than guessed.
+  > **Serial Number is free text.** Everything else — dates, period, invoice,
+  > city, state, engineer — **follows the entry** until you type into it, and
+  > then that machine is pinned and says so.
+  >
+  > ### Raising the installation calls
+  >
+  > **＋ Installation calls** raises one call per machine that has not got one.
+  > Each one carries:
+  >
+  > | | |
+  > |---|---|
+  > | Party, city, state | from the sale entry |
+  > | Product, serial | from that machine's line |
+  > | **Call Number** | `WI-PRODUCT-SERIAL` — e.g. `WI-MONNAL TEO NF-210`. W for warranty, I for installation. This is *beside* the UCN, which the system still issues. |
+  > | Standard Complaint · Reported Complaint | **INSTALLATION CALL** |
+  > | **Complaint Date · Breakdown Date** | the **warranty start date**. An installation is not a breakdown, so there is no day on which one happened. The machine's own start date wins where it has one; no start date at all leaves both empty rather than putting today on the record. |
+  > | **Allotted To** | the **engineer from the Party Master**, which arrives on the sale when you pick the customer. A machine given its own engineer wins over the entry. |
+  > | Vigilance (3 questions) | **NO** |
+  > | Person calling, customer name, number, designation, email | blank — those record who *reported* a fault, and nobody reported this |
+  > | SA number, warranty start/end, item status **WGP** | only where the sale records a warranty; otherwise blank rather than guessed |
+  >
+  > Each call's UCN lands on that machine's **INST Call** field, and the button
+  > goes away once every machine has one.
+  >
+  > **Save the entry before pressing it.** A machine you have just typed in is
+  > not saved yet, so there is nothing for the call's UCN to be written back to
+  > — the button skips it and says how many are waiting on a Save. It is a
+  > refusal on purpose: raising the call and failing to map it would leave the
+  > machine still asking for one, and the next press would raise a second call
+  > for the same machine.
+  >
+  > **A line needs both a Product and a Serial** to be offered a call. A line
+  > with neither is not a machine yet, and a call about it would be a call about
+  > nothing.
+  >
+  > Nothing is raised until you confirm, and the confirmation lists every
+  > machine by model and serial. If it stops part way it **names the calls it
+  > already created** — those exist whatever the message says.
+  >
+  > ### Or one machine at a time
+  >
+  > **By machine → Register call → ＋ Installation call** does the same thing for
+  > the single machine in front of you, which is what you want when you are
+  > working down the list rather than opening an entry. Same rules, same
+  > function — once it is raised the button is replaced by the **UCN**, which is
+  > the evidence it disables itself by.
+  >
+  > It is offered on the **Warranty** register only. A machine reaches a
+  > contract already installed.
+  >
+  > **INST Call holds a call number or nothing.** The AppSheet export used to
+  > fill it with the words "To Check" — where nobody had looked yet, not a call
+  > number. Those have been cleared, and where an installation call for that
+  > machine already existed, its UCN was written there instead (matched on model
+  > *and* serial). A machine with **two** installation calls was left blank and
+  > named in the repair log with both numbers, for somebody to pick by hand.
+  >
+  > **Re-importing the AppSheet cover file cannot put them back**, and cannot
+  > wipe a UCN this application wrote — a value that is not a call number is
+  > discarded on the way in. One UCN can still replace another; that is
+  > somebody correcting a mapping.
+  >
+  > **＋ Field call** beside it is different: it does not create anything, it
+  > opens the Field Call form with the machine and customer already filled in.
+  >
+  > ### Putting the machines back on the entry
+  >
+  > **↺ Force update child records** clears every pinned value so all the
+  > machines follow the entry again. It tells you first how many values **differ**
+  > from the entry — those are decisions somebody made about one machine, and
+  > there is no undo — separately from the ones that merely repeat it.
 - **Contract Register** `/contracts` — contract entries (`MC`) and the machines
   covered.
 
 Both work the same way. Two views: **Entries** (the deal and its machines) and
-**Machines** (per serial, with Active / About to expire / Inactive tiles). Each
+**Machines** (per serial, with Active / About to expire / Inactive tiles).
+**An entry opens beside the list, not over it** — drag the divider to give
+either side more room, and it is remembered. On a narrow screen the two stack. Each
 opens on **2,000 rows** — two full requests of the 1,000 the database hands over
 at once — and every **Load more** fetches twice as much as the one before.
 **"+ New entry" arrives with its number already in it** — offered, not reserved,
@@ -347,6 +476,24 @@ What the rest of the application picks from. A value not on a master cannot be
 typed into a form that reads it.
 
 - **Party Master** `/parties` — customers and dealers.
+
+  > ### KYC
+  >
+  > A customer's KYC status is **Pending, Verified or Rejected**, and the
+  > register shows it on the row as **✓ KYC Verified** where it is. Beside it,
+  > **KYC Records** links straight to whatever has been attached — the GST
+  > certificate, the PAN card, the registration.
+  >
+  > Open a customer to **⤴ Attach a KYC record**. It goes into the Drive **KYC**
+  > folder under that customer's name, and the list records who attached it and
+  > when. Attaching saves immediately; **Remove** unlinks the record and leaves
+  > the file in Drive.
+  >
+  > **Verified with nothing attached is still Verified.** The status is a
+  > decision somebody made — the screen says separately that the evidence is
+  > missing rather than arguing with the decision. It never works the other way
+  > round: documents alone do not make a customer verified.
+
 - **Product Database** `/product-database` — every machine by serial, with its
   warranty, contract and current owner. This is where a call reads cover from.
   It keeps **all 32 columns** of the ProdMaster file — Item Code, the address,
@@ -512,6 +659,14 @@ typed into a form that reads it.
   > *ageing of four days*. You see a section only for a register you can already
   > open, so nothing here grants you anything you did not have.
   > The counts are the registers' own, so a card and the list it opens agree.
+
+  > **Installations waiting on Commercial** lists every installation request
+  > that has not become a call yet, split by the question that decides whether
+  > it can proceed: **customer KYC verified**, **waiting on KYC**, or
+  > **customer not on the Party Master**. The last is kept separate because it
+  > needs a different fix — add the customer first, then verify them. Clicking a
+  > card opens the Call Request register on that exact slice, with each
+  > customer's KYC shown on the row.
 
 ## Across every register
 

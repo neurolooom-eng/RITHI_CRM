@@ -2718,10 +2718,26 @@ console.log('\n-- the scope test reads rbacRole, never the coarse role --');
     /export function seesEveryRecord\(\s*user:/.test(rb), true);
   eq('...and reads rbacRole', /user\?\.rbacRole/.test(rb), true);
   eq('...and never the coarse one', /user\?\.role\b/.test(rb), false);
-  for (const f of readdirSync('src/modules').filter((x) => x.endsWith('.tsx'))) {
-    const src = code(readFileSync(`src/modules/${f}`, 'utf8'));
-    if (!/seesEveryRecord\(/.test(src)) continue;
-    eq(`${f} passes the user, not user.role`,
+  // EVERY CALL SITE, NOT EVERY MODULE. This read `src/modules` alone, and the
+  // first caller written outside it -- the conversion card under
+  // `src/components/report` -- was simply not covered: the check went on
+  // passing while the rule it enforces had a hole the width of a directory.
+  // Same fault as the module-name parser that absorbed `product_database_2`
+  // into its neighbour.
+  const callSites: string[] = [];
+  const findCallers = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = `${dir}/${e.name}`;
+      if (e.isDirectory()) { findCallers(full); continue; }
+      if (!/\.tsx?$/.test(e.name)) continue;
+      if (full.endsWith('src/lib/rbac.ts')) continue;            // where it is defined
+      if (/seesEveryRecord\(/.test(code(readFileSync(full, 'utf8')))) callSites.push(full);
+    }
+  };
+  findCallers('src');
+  for (const full of callSites) {
+    const src = code(readFileSync(full, 'utf8'));
+    eq(`${full.replace('src/', '')} passes the user, not user.role`,
       /seesEveryRecord\(\s*user\s*,/.test(src) && !/seesEveryRecord\(\s*String\(/.test(src), true);
   }
 }
@@ -3813,7 +3829,14 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   const rp = readFileSync('src/modules/RolePermissions.tsx', 'utf8');
   eq('the matrix draws a column per stored role, not per coded one',
     /roles\.map\(\(r\) => <th/.test(rp) && !/ROLES\.map\(\(r\) => <th/.test(rp), true);
-  eq('and saving walks the same list', /for \(const r of roles\)/.test(rp), true);
+  // THE PROPERTY, NOT THE OLD SHAPE. This matched `for (const r of roles)`
+  // literally, and broke the day the save stopped writing every role. What it
+  // has always been about is the LIST: the save must be derived from the stored
+  // roles (`roles`), never from the coded `ROLES`, or a role somebody added
+  // here would exist and never be written.
+  eq('and saving walks the same list',
+    /const toWrite = roles\.filter\(/.test(rp)
+    && !/for \(const r of ROLES\)|ROLES\.filter\(/.test(rp), true);
 }
 
 // ---------------------------------------------------------------------------
@@ -5319,6 +5342,232 @@ console.log('\n-- the Product Database and the Product Master are two registers 
     /retired line takes no new sale/.test(reg), true);
 }
 
+console.log('\n-- a call request can be corrected until it becomes a call --');
+{
+  const rr = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+
+  eq('a request can be corrected', /\u270e Correct this request/.test(rr), true);
+  // ONLY WHILE PENDING. Once it is a call, the call carries these details and
+  // is what everything downstream reads; the screen says where the correction
+  // belongs rather than refusing silently.
+  eq('...only while it is pending', /isPending\(detail\) \?/.test(rr), true);
+  eq('...and says where the correction belongs otherwise',
+    /correct them on the call, where the change is recorded/.test(rr), true);
+  // THE DATABASE'S OWN WORDS reach the screen: 0232 names the fields it
+  // refused, and "Could not save" would throw away the only useful part.
+  eq('a refusal is shown as the database worded it',
+    /res\.error \?\? 'Could not save the correction\.'/.test(rr), true);
+  // THE DRAFT IS SEPARATE FROM THE ROW, so a failed save leaves the register
+  // showing what is stored rather than what somebody typed.
+  eq('a failed save does not move the row', /const \[editRow, setEditRow\]/.test(rr), true);
+
+  // ucn AND status ARE NOT EDITABLE FIELDS. They are the request's
+  // DISPOSITION, written by registering or cancelling -- a form that could set
+  // them would let somebody mark a request Registered with no call behind it.
+  const wl = /const CALL_REQUEST_EDITABLE: Record<string, string> = \{([\s\S]*?)\};/.exec(sb)?.[1] ?? '';
+  eq('the editable whitelist is not empty', wl.length > 0, true);
+  eq('...and does not include the UCN or the status',
+    /\bucn\b|\bstatus\b/.test(wl), false);
+  // A date column takes null for "not set", never ''.
+  eq('a cleared plan date is sent as null, not an empty string',
+    /col === 'plan_date' \? \(v === '' \? null : v\) : v/.test(sb), true);
+}
+
+console.log('\n-- the cover registers are two windows --');
+{
+  const reg2 = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+  const sp = readFileSync('src/components/ui/SplitPane.tsx', 'utf8');
+
+  // The user, 2026-09-22: "Make the Warranty Entry and Contract as a 2 window
+  // view [Adjustable width]". A drawer OVER the list is right for one record
+  // and wrong for working down a list -- open, read, close, find your place.
+  eq('an open entry sits beside the list, not over it',
+    /<SplitPane storageKey=\{`cover-\$\{kind\}`\}/.test(reg2), true);
+  eq('...and the drawer is gone rather than left unused', /<Drawer/.test(reg2), false);
+  // A SPLIT WITH NOTHING IN ITS SECOND PANE is half a screen given to a box.
+  eq('one window when nothing is open', /\) : entriesTable/.test(reg2), true);
+
+  // PERCENTAGES, NOT PIXELS: a width remembered on a wide monitor is a pane
+  // that fills a laptop.
+  eq('the divider stores a percentage', /String\(Math\.round\(cur\)\)/.test(sp), true);
+  // A divider dragged to the edge is indistinguishable from a broken screen,
+  // and there is nothing left to grab to undo it.
+  eq('a pane cannot be dragged out of existence',
+    /Math\.min\(Math\.max\(pct, min\), max\)/.test(sp), true);
+  // A private window throws on the storage accessor itself.
+  eq('...and a layout preference is never worth an error',
+    /catch \{ \/\* a layout is not worth an error \*\/ \}/.test(sp), true);
+  {
+    // ON A PHONE THERE IS NO ROOM FOR TWO, and a divider that does nothing is
+    // worse than no divider.
+    const css = readFileSync('src/components/ui/splitpane.css', 'utf8');
+    eq('it stacks on a narrow screen', /@media \(max-width: 900px\)[\s\S]{0,200}\.split-bar \{ display: none/.test(css), true);
+  }
+}
+
+console.log('\n-- KYC: the status and its evidence, both on the row --');
+{
+  const pm = readFileSync('src/modules/PartyMaster.tsx', 'utf8');
+
+  // The user, 2026-09-22: "Display KYC and Report in the table view itself" --
+  // Commercial decides whether to proceed from the row, and opening a drawer
+  // per customer to find out is the step the request is about.
+  eq('the KYC status is a chip on the row', /render: \(r\) => <KycChip status=\{r\.kyc_status\} \/>/.test(pm), true);
+  eq('the records are on the row too', /key: 'kyc_docs', header: 'KYC Records'/.test(pm), true);
+  // A LINK PER RECORD, not a count: the point is to open the certificate, and a
+  // number tells somebody there is one without letting them see it.
+  eq('...as links rather than a count', /href=\{d\.url\} target="_blank"/.test(pm), true);
+  // ONE WORDING, so the register and the drawer cannot describe one customer
+  // two ways to the person deciding whether to sell to them.
+  eq('"KYC Verified" is said in one place', /const KycChip = /.test(pm), true);
+
+  // ATTACHING SAVES IMMEDIATELY. The file is in Drive by then; leaving the link
+  // in an unsaved draft means Cancel loses it and the document sits in Drive
+  // attached to nothing.
+  eq('an attached record is written straight away',
+    /await writeDocs\(withKycDoc\(edit\.kyc_docs, doc\)/.test(pm), true);
+  eq('...into the KYC folder, under the customer\u2019s name',
+    /uploadToDrive\(f, `KYC - \$\{String\(edit\.party_name \?\? ''\)\}`, 'kyc'\)/.test(pm), true);
+  // REMOVING UNLINKS; it does not delete the file. A KYC record somebody relied
+  // on is worth keeping wherever it sits.
+  eq('removing a record says the file stays in Drive',
+    /The file itself stays in Drive/.test(pm), true);
+  // VERIFIED WITH NOTHING ATTACHED IS STILL VERIFIED -- the status is a
+  // decision a person made, and the screen says separately that the evidence is
+  // missing rather than contradicting the decision.
+  eq('...and a verification with no record is not contradicted',
+    /Marked Verified with no record attached\. The status stands/.test(pm), true);
+}
+
+console.log('\n-- the Warranty Sale asks for what it cannot work out, and no more --');
+{
+  // The user, 2026-09-22: the party is a searched pick-list, the entry date is
+  // stamped, the period is entered in MONTHS and the end date follows.
+  const cover = readFileSync('src/lib/cover.ts', 'utf8');
+  const reg = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+
+  const saleField = (name: string) => {
+    const i = cover.indexOf('export const SALE');
+    const j = cover.indexOf('export const CONTRACT');
+    const block = cover.slice(i, j);
+    const m = new RegExp(`\\{ name: '${name}',[^}]*\\}`, 's').exec(block);
+    return m ? m[0] : '';
+  };
+
+  eq('the party is a searched pick-list, not a text box',
+    /optionsFrom: 'party'/.test(saleField('party_name')), true);
+  // A TEXT BOX HERE IS THE BUG, not a lesser version of the feature: a typed
+  // customer fills nothing and matches nothing downstream.
+  eq('...and it reaches the Party Master rather than a downloaded list',
+    /onSearch=\{\(term\) => sbSearchParties\(term, 50\)\}/.test(reg), true);
+  eq('choosing a party fills the entry', /void fillFromParty\(v\)/.test(reg), true);
+  // CHANGING THE PARTY MUST CLEAR WHAT THE NEW ONE HAS NOT GOT. Keeping the
+  // previous customer's address is the worst outcome available here, and
+  // `check:cover-party` is where that is proved -- this only holds the wiring.
+  eq('...through the one mapping', /partyFillForSale\(info\)/.test(reg), true);
+
+  eq('the entry date is stamped, not typed', /derived: 'stamped when the entry is created'/.test(saleField('entry_at')), true);
+  eq('the end date follows the start and the months',
+    /derived: 'Warranty Start \+ Period \(months\)'/.test(saleField('warranty_end')), true);
+  eq('the years follow the months', /derived: 'the months above'/.test(saleField('warranty_years')), true);
+  // PM VISITS ARE TYPED (the user, 2026-09-22: "It varies based on PO"). Three
+  // a year is the standard OFFER; what was sold is on the purchase order. They
+  // follow the period until somebody changes them and are theirs from then on,
+  // which `check:cover-party` proves -- this holds the wiring, because passing
+  // the row BEFORE the edit is what makes the question answerable at all.
+  eq('PM visits are typed, not derived', /derived:/.test(saleField('pm_visits')), false);
+  eq('...and the derivation is told what the row was before the edit',
+    /deriveHeader\(kind, f\.name, next, d\)/.test(reg), true);
+
+  // RE-READING THE CUSTOMER onto a sale that already names them. A hospital
+  // that moves leaves every sale already raised carrying the old address.
+  eq('a sale can be updated from the Party Master',
+    /\u21ba Update from Party Master/.test(reg), true);
+  // A DELIBERATE ACT WITH A NAMED EFFECT, not a background sync: the
+  // installation address legitimately differs from the registered one, and a
+  // sale that changed quietly under somebody who corrected it by hand is worse
+  // than one that is visibly stale.
+  eq('...and it names every field it will change first',
+    /Update \$\{changes\.length\} field\(s\)/.test(reg), true);
+  // Blanking the sale because the master has never heard of this customer
+  // would destroy the only address anybody has.
+  eq('...and changes nothing where the master has no such customer',
+    /so there is nothing to update from\. Nothing was changed/.test(reg), true);
+  // A DERIVED FIELD MUST NOT BE TYPEABLE. A box somebody can type into is a box
+  // whose value they expect to keep, and the next keystroke on the field that
+  // drives it would overwrite that silently.
+  eq('a derived field is shown and not typeable',
+    /if \(field\.derived\) \{[\s\S]{0,520}readOnly/.test(reg), true);
+  // EVERY DATE ON THIS REGISTER READS dd-MMM-yyyy, derived or typed. A native
+  // date input renders in the BROWSER'S locale and cannot be told otherwise --
+  // two machines in one office showed `2026-09-12` and `09/11/2026` for the
+  // same field. A register that reads two ways is one people read twice.
+  eq('a typed date reads dd-MMM-yyyy',
+    /if \(field\.type === 'date'\) \{\s*return <LongDateInput/.test(reg), true);
+  eq('...and so does a derived one',
+    /field\.type === 'date'\s*\? <LongDateText/.test(reg), true);
+  eq('...and no date field is left as a raw native input',
+    /type=\{field\.type === 'date' \? 'date'/.test(reg), false);
+  {
+    // NOTHING IS PARSED OUT OF THE TEXT. A box holding "20-Apr-2026" that is
+    // saved as typed puts a formatted string in a date column, which is the
+    // fault this project's date rules exist against -- it is invisible until
+    // something tries to sort or subtract it. The value that leaves the
+    // component is the native date input's own.
+    const ld = readFileSync('src/components/ui/LongDate.tsx', 'utf8');
+    eq('the long date field hands back the date input\u2019s own value',
+      /type="date"[\s\S]{0,240}onChange=\{\(e\) => onChange\(e\.target\.value\)\}/.test(ld), true);
+    eq('...and parses nothing out of what was typed',
+      /parseAnyDate|toIsoDate|parseDateParts/.test(ld), false);
+    eq('the resting box cannot be typed into', /readOnly/.test(ld), true);
+  }
+  eq('a new sale starts its warranty today',
+    /warranty_start: new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/.test(reg), true);
+  // Re-stamping on every save would silently re-date a sale each time somebody
+  // fixed a typo.
+  eq('the entry date is stamped on creation only',
+    /!draft\.id && kind === 'sale' && !draft\.entry_at/.test(reg), true);
+
+  // FORCE UPDATE CHILD RECORDS is destructive with no undo, so it must say what
+  // it will destroy BEFORE it does it -- and the number that matters is how
+  // many pinned values DIFFER from the entry, not how many exist. Clearing one
+  // that merely repeats the entry changes nothing anybody can see.
+  eq('forcing inheritance says what it will clear first',
+    /window\.confirm\(\s*`Put all/.test(reg) && /DIFFER from the entry and will be lost/.test(reg), true);
+  eq('...counted by the same rule the write uses', /summarisePinned\(cfg\.itemFields/.test(reg), true);
+  // A button that does nothing is one people press to find out what it does.
+  eq('...and it is offered only when something is pinned',
+    /pinnedNow\.total > 0 && \(/.test(reg), true);
+  // ONE STATEMENT, not one per machine: a forty-machine sale is forty round
+  // trips otherwise, any of which can fail half way and leave the entry
+  // half-inherited -- the state this exists to resolve.
+  eq('it clears every machine in one statement',
+    /\.from\(cfg\.itemTable\)\.update\(patch\)\.eq\(cfg\.key, key\)/.test(cover), true);
+
+  // THE INSTALLATION CALL A SALE RAISES. The mapping itself is proved by
+  // check:cover-party; these hold the two properties that are about the SCREEN.
+  //
+  // It disables itself by the mapping actually being there, not by a flag
+  // somebody has to keep in step -- a machine whose call exists must never be
+  // offered a second one.
+  eq('the installation-call button counts what still needs one',
+    /machinesNeedingInstallCall\(items\)/.test(reg), true);
+  eq('...and is replaced by a statement once none do',
+    /Every machine here has its installation call/.test(reg), true);
+  // A CALL IS WRITTEN BACK TO ITS MACHINE, and a failure between the two writes
+  // STOPS rather than continuing: they are not one transaction, so carrying on
+  // would leave a machine with a call nothing points at, hidden among the
+  // successes.
+  eq('the call is mapped back onto the machine',
+    /\.from\('sale_items'\)\.update\(\{ inst_call: ucn \}\)/.test(cover), true);
+  eq('...and a failure between the two writes stops and names the machine',
+    /was created but could not be written back to the machine/.test(cover), true);
+  // Nothing is written until the operator has seen what it will say.
+  eq('the operator is told what the call will contain first',
+    /questions will be answered NO, and the customer contact will be left blank/.test(reg), true);
+}
+
 console.log('\n-- one machine, across every register --');
 {
   const mh = readFileSync('src/modules/MachineHistory.tsx', 'utf8');
@@ -6621,10 +6870,27 @@ console.log('\n-- My Workload: the queues left the registers, and open what they
   // covered two of the three registers — and the one it skipped was the one
   // most likely to be wrong. A check that looks like it covers everything and
   // covers two thirds is the shape this project keeps finding.
-  const sent = [...wl.matchAll(/path: '([^']+)', state: \{ (\w+)/g)]
-    .map((m) => ({ path: m[1], key: m[2] }));
+  //
+  // AND IT ONLY EVER LOOKED AT THE FIRST KEY. `state: { status: 'Pending',
+  // callType: 'INSTALL', kyc }` was covered by its `status` alone, so two of
+  // the three filters the Commercial card sends went unchecked -- the same
+  // two-thirds shape the comment above describes, one level in. Every key in
+  // the object is taken now.
+  //
+  // SPLIT ON COMMAS, THEN TAKE THE KEY. A regex over the whole object body
+  // cannot tell a key from a value: `{ stageFilter: stage }` matched both, and
+  // the check then demanded the register read a filter called `stage` that
+  // nothing sends.
+  const sent = [...wl.matchAll(/path: '([^']+)', state: \{([^}]*)\}/g)]
+    .flatMap((m) => m[2].split(',')
+      .map((part) => part.split(':')[0].trim())
+      .filter((k) => /^\w+$/.test(k))
+      .map((key) => ({ path: m[1], key })));
   const pairs = new Set(sent.map((x) => `${x.path}|${x.key}`));
-  eq('every register a card filters is covered here', pairs.size, 3);
+  // A COUNT RATHER THAN A LIST, so a card that stops sending a filter is
+  // noticed as well as one that starts. Six today: three registers with one
+  // filter each, and the Commercial installation card's three.
+  eq('every register a card filters is covered here', pairs.size, 6);
   sent.forEach(({ path, key }) => {
     const mod = routeOf.get(path);
     const src = mod && existsSync(`src/modules/${mod}.tsx`)
@@ -7864,6 +8130,238 @@ console.log('\n-- bulk report mapping never overwrites a report that is there --
   // A NEW visit carries the status the rule names, whatever the file said.
   eq('a filed visit is marked completed',
     /call_status: SOLVED_REPORT_COMPLETED/.test(rm), true);
+}
+
+console.log('\n-- converting the references already in the register --');
+{
+  // 7,538 visits hold an AppSheet reference where a Drive link should be. What
+  // the conversion DECIDES is held in check:mapping; these hold the wiring,
+  // and every one of them is about something it must not do to a live record.
+  const cv = readFileSync('src/components/report/ConvertLoadedReports.tsx', 'utf8');
+  const rm = readFileSync('src/modules/ReportMapping.tsx', 'utf8');
+  const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+
+  // TWO COLUMNS AND A STAMP -- ONE FEWER THAN ATTACHING. The obvious tidy-up
+  // here is to reuse `attachReportsToVisits`, which also writes
+  // `call_status: 'Solved - Report Completed'`. That is right when a recovered
+  // report is being ATTACHED to a visit that had none, and wrong here: changing
+  // the FORM of a reference says nothing new about what the engineer did, and a
+  // status written on this path would move which visit decides the call's own
+  // status (0032) on up to 7,538 calls in one pass.
+  eq('converting writes the link, the original and the stamp',
+    /\.update\(\{ manual_report: r\.manual_report, source_ref: r\.source_ref, mapped_at:/.test(sb), true);
+  eq('...and NOT the status', /convertReportLinks[\s\S]{0,600}call_status/.test(sb), false);
+  eq('...nor updated_at', /convertReportLinks[\s\S]{0,600}updated_at:/.test(sb), false);
+  // `reports.uid` is NULLABLE (0002; 0071 made the index total, not the column),
+  // so a visit loaded without one is unreachable by uid and would be skipped in
+  // silence for ever. `id` is the primary key and every row has one.
+  eq('...keyed on the primary key, which every row has', /\.eq\('id', r\.id\)/.test(sb), true);
+
+  // REGISTER-SIZED, SO IT PAGES. 12,254 visits against PostgREST's silent
+  // 1,000-row cap: an unpaged read would report the first thousand as the whole
+  // register and the operator would believe the job was done.
+  eq('the register is read through the pager',
+    /loadedReportRefs[\s\S]{0,400}allRows[\s\S]{0,200}\.from\('reports'\)[\s\S]{0,400}\.range\(from, to\)/.test(sb), true);
+  eq('...in a deterministic order', /loadedReportRefs[\s\S]{0,600}\.order\('id', \{ ascending: true \}\)/.test(sb), true);
+
+  // NOTHING IS WRITTEN UNTIL IT HAS BEEN SEEN. The screen's standing rule, and
+  // the reason this is three buttons rather than one.
+  eq('survey, resolve and convert are three separate steps',
+    /void survey\(\)/.test(cv) && /void resolve\(\)/.test(cv) && /void convert\(\)/.test(cv), true);
+  eq('the convert button is dead until the lookup has run',
+    /disabled=\{!!busy \|\| phase !== 'resolved' \|\| !writes\.length\}/.test(cv), true);
+  // The write list is derived from the SAME function the preview counts, so the
+  // number on the button is the number of rows that will change.
+  eq('the button states what will be written', /⤵ Convert \{writes\.length\}/.test(cv), true);
+  eq('...from writesFor, not from the row count', /const writes = useMemo\(\(\) => writesFor\(pass, links\)/.test(cv), true);
+
+  // ONE FOLDER FIELD. Two copies is how the operator searches their whole Drive
+  // from one card and a folder from the other, with nothing saying why the two
+  // disagreed.
+  eq('the Drive folder is the screen’s state, not the card’s',
+    /<ConvertLoadedReports folderId=\{folderId\} onFolderId=\{setFolderId\} \/>/.test(rm), true);
+
+  // AN EMPTY SURVEY PROVES WHAT THE READER WAS SHOWN, NEVER WHAT EXISTS.
+  // `reports_read` is admin OR can_view_all_calls() OR own-and-team, so
+  // "12,254 visits carry a report" is a claim about the REGISTER that only an
+  // office role's number supports. The helper takes the USER, because
+  // `user.role` collapses four office roles to 'engineer' and reads perfectly
+  // correct while being the wrong answer for four of the six.
+  eq('the survey says whose visits it counted', /seesEveryRecord\(user, can\)/.test(cv), true);
+  // Asked of the CODE, not the file: the comment above says `user.role` in
+  // order to warn about it, and a check that reads its own warning as the fault
+  // is the GST check matching "18%" in its own comment.
+  // BOTH FORMS. `user?.role` is the one that actually gets written -- the
+  // `User` type's index signature makes every shape of it type-check -- and a
+  // pattern matching only `user.role` would have waved the real mistake through.
+  eq('...and does not reach for user.role', /user\s*\??\.role\b/.test(code(cv)), false);
+}
+
+console.log('\n-- an installation call is raised the same way from either place --');
+{
+  const cr = code(readFileSync('src/modules/CoverRegister.tsx', 'utf8'));
+  const cs = code(readFileSync('src/lib/coverspec.ts', 'utf8'));
+
+  // ONE IMPLEMENTATION, CALLED WITH A LIST OF ONE. The entry pane raises calls
+  // for a whole sale and the by-machine list for the row in front of you; if
+  // the second re-implemented the rules, the two would drift about what the
+  // call carries, which machines are eligible and whether the UCN is written
+  // back -- which is the duplicated-list fault this codebase keeps finding.
+  eq('the by-machine button calls raiseInstallCalls, it does not rebuild it',
+    /raiseInstallCalls\(r, \[r\]\)/.test(cr), true);
+  eq('...and there is only one place that builds the call record',
+    (cs.match(/callType: 'INSTALLATION'/g) ?? []).length, 1);
+
+  // A MACHINE REACHES A CONTRACT ALREADY INSTALLED. An action that cannot make
+  // sense for the record in front of somebody is worse than a missing one,
+  // because they press it to find out what it does.
+  eq('it is offered on the sale register only', /kind === 'sale' && \(\s*isCallNumber\(r\.inst_call\)/.test(cr), true);
+  // The UCN IS the evidence the button disables itself by, so showing it is
+  // showing the reason -- not a greyed-out button with no explanation.
+  // A UCN, NOT ANY VALUE. The AppSheet export writes the literal "To Check"
+  // into INST Call, so testing for presence showed the placeholder where the
+  // UCN goes and hid the button on most of the register (reported 2026-09-23).
+  // ONE RULE, TWO LANGUAGES. `is_call_number()` (0234) discards a non-call
+  // value on its way into sale_items; `isCallNumber()` decides whether to offer
+  // the button. If they disagreed, a value the database stored would be one the
+  // screen refused to treat as a call, or the other way about -- and this is a
+  // pattern that has drifted here before (cover_code/coverCode, SEE_ALL_ROLES).
+  {
+    const sql = readFileSync('supabase/migrations/0234_inst_call_is_a_call.sql', 'utf8');
+    const mSql = /\^\[0-9\]\{2\}\[A-L\]\[0-9\]\{2\}\[A-Z\]\[0-9\]\{4\}\$/.test(sql);
+    const mTs = /\^\\d\{2\}\[A-L\]\\d\{2\}\[A-Z\]\\d\{4\}\$/
+      .test(readFileSync('src/lib/coverspec.ts', 'utf8'));
+    eq('the client and the database agree what a call number looks like', [mSql, mTs], [true, true]);
+    // DISCARD, NOT REFUSE -- the 0113/0114 rule. Refusing makes an honest
+    // importer fail on a file it cannot help; discarding makes a careless one
+    // harmless.
+    eq('...and a non-call value is discarded rather than refused',
+      /new\.inst_call := '';/.test(sql) && !/raise exception[\s\S]{0,120}inst_call/i.test(sql), true);
+    // The one that protects work already done: coverImport upserts on uid, so
+    // a re-import would otherwise wipe the UCN of every call raised since the
+    // file was exported.
+    eq('...and a re-import can never replace a real UCN with a blank',
+      /is_call_number\(old\.inst_call\)[\s\S]{0,160}new\.inst_call := old\.inst_call/.test(sql), true);
+  }
+
+  eq('the badge is shown for a UCN, not for anything non-empty',
+    /isCallNumber\(r\.inst_call\)/.test(cr) && !/isPinnedValue\(r\.inst_call\)\s*\n?\s*\?/.test(cr), true);
+  eq('a machine that has its call shows the UCN instead', /\{str\(r\.inst_call\)\}/.test(cr), true);
+  // Hiding the placeholder would move the surprise to the confirm dialog.
+  eq('...and whatever is in there is still shown beside the button',
+    /Not a call number/.test(cr), true);
+  eq('the confirm names what it is about to replace', /It will be replaced by the new UCN/.test(cr), true);
+
+  // THE ENGINEER IS ON THE SALE AND INHERITED BY ITS MACHINES (the user,
+  // 2026-09-23: "In warranty sale entry also engineer name should be present.
+  // And it should be inherited by the child records."). It already was --
+  // header field and item field with `inherits: true` -- and the call's
+  // Allotted To now reads it, so it must not quietly go away.
+  const cvcfg = readFileSync('src/lib/cover.ts', 'utf8');
+  const saleCfg = cvcfg.slice(cvcfg.indexOf('export const SALE'), cvcfg.indexOf('export const CONTRACT'));
+  eq('the sale entry names an engineer',
+    /\{ name: 'engineer', label: '[^']*', section: 'Installation' \}/.test(saleCfg), true);
+  eq('...and its machines inherit it',
+    /\{ name: 'engineer', label: '[^']*', section: 'Installation', inherits: true \}/.test(saleCfg), true);
+  // It arrives from the Party Master when the customer is chosen, which is
+  // what makes "allotted to the engineer as per party master" true.
+  eq('...from the Party Master, so Allotted To is the master\u2019s answer',
+    /engineer: text\(q\.service_engineer\)/.test(code(readFileSync('src/lib/coverspec.ts', 'utf8'))), true);
+
+  // AN ERROR BANNER WITH NO TEXT SAYS SOMETHING WENT WRONG AND REFUSES TO SAY
+  // WHAT. `?? ` passes an EMPTY message straight through; `||` does not.
+  const cv2 = code(readFileSync('src/lib/cover.ts', 'utf8'));
+  eq('an empty database message still produces words',
+    /gave no reason/.test(cv2) && !/new Error\(e\?\.message \?\? /.test(cv2), true);
+  // The totals used to be awaited inside the table's own try, so a failing
+  // count threw away 1,500 rows that had already arrived.
+  eq('a failing total does not take the table down with it',
+    /catch \(ce\) \{[\s\S]{0,200}countErr =/.test(cr), true);
+  // Leaving the cache stale would put the button back on the next visit and
+  // offer a second call for a machine that has one.
+  eq('the cache is patched with the new UCN, not left stale',
+    /saveCache\(cacheKey\('machines'\), rows\)/.test(cr), true);
+
+  // NOT COUNTED IS NOT ZERO. Reported 2026-09-23: three tiles read 0 over
+  // 1,500 machines every one of which said ACTIVE. A number that looks exact
+  // and is not is worse than no number -- three of them over a populated list
+  // say the register is empty.
+  eq('an uncounted tile reads a dash, never 0', /counts\[s\] == null \? '—'/.test(cr), true);
+  // A DASH ON ITS OWN DOES NOT SAY WHY. Both paths that count now set every
+  // tile to "not counted" AND report the reason -- as information, because the
+  // register itself loaded.
+  eq('...and a failed count says so rather than leaving zeros',
+    (cr.match(/setCounts\(Object\.fromEntries\(STATES\.map\(\(x\) => \[x, null\]\)\)\)/g) ?? []).length, 2);
+  eq('...naming the reason, not just that it failed',
+    /The three totals did not/.test(cr), true);
+}
+
+console.log('\n-- Roles & Permissions saves what was touched, and nothing else --');
+{
+  // Reported 2026-09-23: "Role & Permission are not working."
+  //
+  // `rolePerms` STARTS AS DEFAULT_PERMS (auth.tsx) and is replaced when
+  // app_roles arrives. A `useState` initialiser runs once, at mount -- so a
+  // matrix built that way showed the CODE DEFAULTS whenever the screen opened
+  // before the roles had loaded, and nothing corrected it. The save then wrote
+  // EVERY role, so one tick replaced all twelve tuned rows with those defaults
+  // and reported "Permissions saved".
+  const rp = code(readFileSync('src/modules/RolePermissions.tsx', 'utf8'));
+
+  // THE MATRIX FOLLOWS THE DATABASE while nothing is in progress.
+  eq('the matrix is re-seeded when the stored roles arrive',
+    /useEffect\(\(\) => \{[\s\S]{0,200}setPerms\(seedFrom\(rolePerms, roles\)\)/.test(rp), true);
+  // ...but never over somebody's half-made edits, which is the other way to
+  // lose work on this screen.
+  eq('...and never over an edit in progress', /if \(touched\.size\) return;/.test(rp), true);
+
+  // THE SAVE IS THE HALF THAT DESTROYS. A role nobody edited must keep its
+  // stored row -- the same "MERGE, never overwrite" rule the migrations follow.
+  eq('the save writes only the roles that were touched',
+    /const toWrite = roles\.filter\(\(r\) => r\.key !== 'admin' && touched\.has\(r\.key\)\)/.test(rp), true);
+  eq('...and every edit records WHICH role it changed',
+    (rp.match(/setTouched\(\(cur\) => new Set\(cur\)\.add\(/g) ?? []).length >= 3, true);
+  eq('...and the flag is cleared once they are written', /setTouched\(new Set\(\)\)/.test(rp), true);
+
+  // ADMIN IS COMPUTED, NOT EDITED. Its row still has to reach app_roles, since
+  // the DATABASE policies read has_perm() -- but only when it has fallen
+  // behind, not on every save.
+  eq('admin is re-asserted only when it has fallen behind',
+    /if \(key\(adminList\) !== key\(rolePerms\.admin \?\? \[\]\)\)/.test(rp), true);
+
+  // AN EMPTY SET IS "NOT CONFIGURED", NOT "NO PERMISSIONS": permsForRole turns
+  // the code fallback back ON for such a role, so saving one GRANTS the
+  // engineer defaults to whoever holds it -- the opposite of what unticking
+  // everything looks like it does.
+  // A GRANT MUST REACH AN OPEN TAB. reloadRoles() ran once at sign-in, so a
+  // permission ticked and saved changed nothing for the person holding that
+  // role until they reloaded -- and the save's own message ("on each user's
+  // next action / reload") is the only place that was ever said.
+  {
+    const au = code(readFileSync('src/lib/auth.tsx', 'utf8'));
+    // THE ADD, NOT THE REMOVE. The first version of this alternated on the word
+    // `visibilitychange`, which the CLEANUP line carries too -- so deleting the
+    // listener left the check passing. Caught by mutating it, which is the only
+    // thing that was ever going to show it.
+    eq('the roles are re-read when the tab comes back',
+      /document\.addEventListener\('visibilitychange', onVisible\)/.test(au)
+      && /const onVisible = \(\) => \{[\s\S]{0,240}void reloadRoles\(\);/.test(au), true);
+    // Not a poll: a permission change is rare, and a request per user per tick
+    // buys an answer that almost never moves.
+    eq('...and not on a timer', /setInterval\([^)]*reloadRoles/.test(au), false);
+    // Alt-tabbing is not a new day.
+    eq('...throttled, so returning to the tab is not a request each time',
+      /Date\.now\(\) - last < 60_000/.test(au), true);
+    // reloadRoles MERGES, so a failed read leaves the session as it was rather
+    // than dropping somebody to the defaults mid-shift.
+    eq('...and a failed read never drops the session to the defaults',
+      /if \(Object\.keys\(p\)\.length\) setRolePerms\(\(cur\) => \(\{ \.\.\.cur, \.\.\.p \}\)\)/.test(au), true);
+  }
+
+  eq('a role emptied of every tick is refused, with the reason',
+    /would be left with NO permissions ticked/.test(rp), true);
+  eq('...and that is what permsForRole actually does',
+    /if \(stored && stored\.length\) return stored;/.test(code(readFileSync('src/lib/rbac.ts', 'utf8'))), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { PageHeader, SectionCard, Toolbar } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
+import { ConvertLoadedReports } from '../components/report/ConvertLoadedReports';
 import { useAuth } from '../lib/auth';
 import { parseCSV } from '../lib/dataImport';
 import { fmtLongSmart } from '../lib/format';
@@ -253,6 +254,13 @@ export function ReportMapping() {
           <button className="btn btn-ghost btn-sm" onClick={() => setMsg(null)}>✕</button>
         </div>
       )}
+
+      {/* THE REGISTER FIRST, THE SHEET SECOND. The conversion below needs no
+          file at all -- it is about the visits already loaded -- and it is the
+          larger job: 7,538 references against a few hundred rows in a typical
+          recovery sheet. It is numbered 0 because it is not a step of the
+          import; the three numbered steps under it still read in order. */}
+      <ConvertLoadedReports folderId={folderId} onFolderId={setFolderId} />
 
       <SectionCard title="1 · The sheet">
         <p className="muted" style={{ marginTop: 0 }}>

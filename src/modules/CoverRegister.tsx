@@ -1,17 +1,29 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
+import { LongDateInput, LongDateText } from '../components/ui/LongDate';
+import { SplitPane } from '../components/ui/SplitPane';
+import { sbSearchParties, sbPartyInfo } from '../lib/supabase';
+import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
+         summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT,
+         // THE VALUE TEST, not the row test. `isPinned` from ./cover takes
+         // (row, field) and asks whether a CHILD overrides its parent; this
+         // asks whether one value is there at all, and they are different
+         // questions with confusingly similar names.
+         isPinnedValue, isCallNumber,
+         partyFillChanges } from '../lib/coverspec';
 import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
 import { listProductLines, sellableNames, sellableCodes, retiredNames, type ProductLine } from '../lib/productLines';
-import { PageHeader, Toolbar, SearchBox, Drawer } from '../components/ui/ui';
+import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtDate, statusBadge, timeAgo } from '../lib/format';
 import { localIsoDate } from '../lib/dates';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
-  configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem,
+  configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit,
+  raiseInstallCalls,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
@@ -112,6 +124,37 @@ function FieldInput({
      /** Options the SCREEN loaded — today, the Product Master's active lines. */
      runtimeOptions?: string[] }) {
   const common = { className: 'input', value, disabled, onChange: (e: { target: { value: string } }) => onChange(e.target.value) };
+  // WORKED OUT, OR STAMPED — never typed. A box somebody can type into is a box
+  // whose value they expect to keep, and the next keystroke on the field that
+  // DRIVES this one would overwrite it without saying so. Shown rather than
+  // hidden, because the value is the answer they came for.
+  if (field.derived) {
+    // A DERIVED DATE READS THE SAME WAY AS A TYPED ONE. A register showing
+    // dd-MMM-yyyy in one box and the browser's locale in the next is a register
+    // people read twice.
+    return field.type === 'date'
+      ? <LongDateText value={value} />
+      : <input className="input" value={value} readOnly disabled
+               title={`Worked out from ${field.derived} — not typed here`} />;
+  }
+  // THE PARTY MASTER, SEARCHED ON THE SERVER. 5,873 customers is a few hundred
+  // KB before the field would work at all; the call registers' own customer box
+  // has searched since v0.9.193 and this is the same mechanism.
+  if (field.optionsFrom === 'party') {
+    return <SelectPicker value={value} onChange={onChange} disabled={disabled}
+                         placeholder="— find the customer —"
+                         options={value ? [value] : []}
+                         onSearch={(term) => sbSearchParties(term, 50)}
+                         // A SALE MAY NAME A CUSTOMER THE MASTER HAS NOT GOT.
+                         // The machine is being sold to them either way, and a
+                         // register that refuses the sale until somebody adds
+                         // the customer elsewhere is a register that gets kept
+                         // in a spreadsheet instead. Nothing is filled in for a
+                         // name the master does not hold, which is honest: it
+                         // has nothing to fill it from.
+                         allowFreeText
+                         emptyHint="Customers come from the Party Master. Typing a name the master has not got is allowed — nothing will be filled in for it." />;
+  }
   if (field.type === 'bool') {
     return <SelectPicker value={value} onChange={onChange} disabled={disabled} placeholder="—"
                          options={['Yes', 'No']} />;
@@ -136,7 +179,14 @@ function FieldInput({
                          options={(field.options ?? []).filter(Boolean)} />;
   }
   if (field.type === 'textarea') return <textarea {...common} rows={2} />;
-  return <input {...common} type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'} placeholder={placeholder} />;
+  // EVERY DATE ON THIS REGISTER READS dd-MMM-yyyy (the user, 2026-09-22). A
+  // native date input renders in the BROWSER'S locale and cannot be told
+  // otherwise; LongDateInput shows the long form at rest and becomes the native
+  // picker while it is being edited, so nothing is ever parsed out of text.
+  if (field.type === 'date') {
+    return <LongDateInput value={value} onChange={onChange} disabled={disabled} />;
+  }
+  return <input {...common} type={field.type === 'number' ? 'number' : 'text'} placeholder={placeholder} />;
 }
 
 // One machine under a header, all its fields, with inheritance made visible.
@@ -162,7 +212,13 @@ function ItemCard({
   // time anybody touched one.
   const set = (f: CoverField, v: string) => setDraft((d) => {
     const next = { ...d, [f.name]: toDb(f, v) };
-    return { ...next, ...deriveItem(kind, f.name, next) };
+    // THE CODE AND THE NAME ARE ONE CHOICE. Filled only where the catalogue
+    // gives one answer — nine codes share the name "CPX CARE", and a guessed
+    // code on a machine record is worse than a blank one.
+    const pair = (f.name === 'product_name' || f.name === 'product_code')
+      ? pairProductCodeAndName(f.name, v, lines)
+      : {};
+    return { ...next, ...pair, ...deriveItem(kind, f.name, next) };
   });
   const unpin = (f: CoverField) => setDraft((d) => ({ ...d, [f.name]: null }));
   const dirty = useMemo(
@@ -515,7 +571,14 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     if (st.search !== undefined) setQ(st.search);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  // NOT COUNTED IS NOT ZERO. The tiles read `0 ACTIVE / 0 ABOUT TO EXPIRE /
+  // 0 INACTIVE` over 1,500 machines every one of which said ACTIVE (reported
+  // 2026-09-23) -- because a tile that has not been counted rendered `?? 0`,
+  // and the one path that fetches them on a cached open swallows its own
+  // failure. A number that looks exact and is not is the fault this project
+  // refuses everywhere else, and three of them sitting over a populated list
+  // say the register is empty. `null` means not counted and renders as a dash.
+  const [counts, setCounts] = useState<Record<string, number | null>>({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     live ? null : { tone: 'info', text: 'Connect the database in Settings to open this register.' },
@@ -535,7 +598,12 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
    *  not being able to suggest one is no reason to refuse the entry. */
   const newEntry = async () => {
     setOpen({}); setItems([]);
-    setDraft({});
+    filledFor.current = '';
+    // WARRANTY START DEFAULTS TO TODAY and is then typed over where the machine
+    // was installed on another day (the user, 2026-09-22). The ENTRY date is
+    // not set here at all: the database stamps it (0230), which is what
+    // "automatic" has to mean if it is to be trusted.
+    setDraft(kind === 'sale' ? { warranty_start: new Date().toISOString().slice(0, 10) } : {});
     try {
       const n = await nextCoverNumber(kind);
       setDraft((d) => (str(d[cfg.key]) ? d : { ...d, [cfg.key]: n }));
@@ -591,6 +659,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const refresh = async (t: Tab = tab) => {
     if (!live) return;
     setBusy(true);
+    let countErr = '';
     try {
       const r = await fetchPages(t, 0, OPEN_PAGES);
       const at = filtered ? feeds[t].at : saveCache(cacheKey(t), r);
@@ -599,11 +668,22 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       setFeed(t, { rows: r, offset: r.length, more: r.length >= OPEN_PAGES * PAGE[t],
                    at, step: OPEN_PAGES });
       if (t === 'machines') {
-        const cs = await Promise.all(STATES.map((x) => countMachines(kind, x, { q })));
-        setCounts(Object.fromEntries(STATES.map((x, i) => [x, cs[i]])));
+        // THE TOTALS MUST NOT TAKE THE TABLE DOWN WITH THEM. They used to be
+        // awaited inside the same try, so a failing count threw away 1,500
+        // rows that had already arrived and left an error banner over an empty
+        // register. They are their own concern and report their own failure.
+        try {
+          const cs = await Promise.all(STATES.map((x) => countMachines(kind, x, { q })));
+          setCounts(Object.fromEntries(STATES.map((x, i) => [x, cs[i]])));
+        } catch (ce) {
+          setCounts(Object.fromEntries(STATES.map((x) => [x, null])));
+          countErr = ce instanceof Error ? ce.message : String(ce);
+        }
       }
       setMsg(r.length
-        ? { tone: 'ok', text: `${r.length}${r.length >= OPEN_PAGES * PAGE[t] ? '+' : ''} ${t === 'entries' ? 'entries' : 'machines'}${filtered ? ' matched' : ''}.` }
+        ? { tone: countErr ? 'info' : 'ok',
+            text: `${r.length}${r.length >= OPEN_PAGES * PAGE[t] ? '+' : ''} ${t === 'entries' ? 'entries' : 'machines'}${filtered ? ' matched' : ''}.`
+              + (countErr ? ` The three totals did not load — ${countErr}` : '') }
         : { tone: 'info', text: filtered ? 'Nothing matched.' : 'Nothing here yet — import the exports in Settings → Bulk Data Import, or add an entry.' });
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
     finally { setBusy(false); }
@@ -641,7 +721,14 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     if (tab === 'machines') {
       void Promise.all(STATES.map((x) => countMachines(kind, x, {})))
         .then((cs) => setCounts(Object.fromEntries(STATES.map((x, i) => [x, cs[i]]))))
-        .catch(() => { /* tiles are a nicety; the table already loaded */ });
+        // THE TABLE HAS ALREADY LOADED, so this does not fail the page -- but
+        // it must not leave three zeros behind either, and a dash on its own
+        // does not say why. The reason is reported as INFORMATION rather than
+        // as an error, because the register itself is fine.
+        .catch((e) => {
+          setCounts(Object.fromEntries(STATES.map((x) => [x, null])));
+          setMsg({ tone: 'info', text: `The machines loaded; the three totals did not — ${e instanceof Error ? e.message : String(e)}` });
+        });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, q, state]);
@@ -661,10 +748,44 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
   };
 
+  // THE PARTY FILLS THE ENTRY IN (the user, 2026-09-22). Only on a SALE, and
+  // only when the name actually changed: re-picking the same customer must not
+  // wipe an installation address somebody typed over it on purpose.
+  //
+  // IT REPLACES ALL ELEVEN FIELDS, BLANKS INCLUDED, and that is the careful
+  // half. Keeping the previous party's address where the new one has none looks
+  // helpful and is the worst outcome available — a sale carrying a DIFFERENT
+  // customer's address, with nothing on screen saying so.
+  const filledFor = useRef('');
+  const fillFromParty = async (name: string) => {
+    const want = name.trim();
+    if (!want || want.toLowerCase() === filledFor.current.toLowerCase()) return;
+    filledFor.current = want;
+    let info = null;
+    try { info = await sbPartyInfo(want); } catch { /* the name still stands */ }
+    // A name the master has not got fills nothing rather than clearing what is
+    // there: it has nothing to fill it FROM, and blanking on a typo would lose
+    // work somebody had already done.
+    if (!info) return;
+    // Still the same customer? A slow lookup must not land on a name that has
+    // since been changed.
+    if (want.toLowerCase() !== filledFor.current.toLowerCase()) return;
+    setDraft((d) => ({ ...d, ...partyFillForSale(info) }));
+    setMsg({ tone: 'info', text: `Address, contact and tax details filled from the Party Master for ${want}.` });
+  };
+
   const saveEntry = async () => {
     setSaving(true);
     try {
-      const saved = await saveHeader(kind, draft);
+      // THE ENTRY DATE IS STAMPED ON CREATION, never typed (the user,
+      // 2026-09-22). Sent from here as well as defaulted in the database
+      // (0230) so the form works on a project that has not run that file yet;
+      // on an UPDATE it is left exactly as it was, because re-stamping it would
+      // silently re-date a sale every time somebody fixed a typo.
+      const toSave = (!draft.id && kind === 'sale' && !draft.entry_at)
+        ? { ...draft, entry_at: new Date().toISOString() }
+        : draft;
+      const saved = await saveHeader(kind, toSave);
       setOpen(saved); setDraft(saved);
       setFeed('entries', { rows: feeds.entries.rows.map((r) => (r.id === saved.id ? { ...r, ...saved } : r)) });
       // The header moved, so every machine that inherits from it moved too.
@@ -672,6 +793,166 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       setMsg({ tone: 'ok', text: `${cfg.keyLabel} ${str(saved[cfg.key])} saved — machines following it were updated.` });
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
     finally { setSaving(false); }
+  };
+
+  // FORCE UPDATE CHILD RECORDS (the user, 2026-09-22). Every machine under this
+  // entry goes back to following it.
+  //
+  // WHAT IT WILL CLEAR IS COUNTED AND NAMED FIRST, because there is no undo and
+  // the two cases are not the same: a pinned value that merely REPEATS the
+  // entry disappears without anybody being able to tell, and one that DIFFERS
+  // is somebody's decision about one machine. The confirmation leads with the
+  // second number.
+  const pinnedNow = useMemo(
+    () => summarisePinned(cfg.itemFields, items, draft), [cfg.itemFields, items, draft],
+  );
+  const forceAll = async () => {
+    const p = pinnedNow;
+    const lines = p.fields.map((f) => `  · ${f.label} — ${f.machines} machine(s)${f.differing ? `, ${f.differing} differing` : ''}`);
+    const ok = window.confirm(
+      `Put all ${items.length} machine(s) back on ${str(draft[cfg.key])}?\n\n`
+      + `${p.differing} value(s) DIFFER from the entry and will be lost — there is no undo.\n`
+      + `${p.total - p.differing} more merely repeat the entry and will look unchanged.\n\n`
+      + `${lines.join('\n')}`);
+    if (!ok) return;
+    setSaving(true);
+    try {
+      const n = await forceInherit(kind, str(draft[cfg.key]));
+      setItems(await listItems(kind, str(draft[cfg.key])));
+      setMsg({ tone: 'ok', text: `${n} machine(s) now follow ${str(draft[cfg.key])} — ${p.total} pinned value(s) cleared.` });
+    } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
+    finally { setSaving(false); }
+  };
+
+  // INSTALLATION CALLS FROM THE SALE ENTRY (the user, 2026-09-22). Every fact
+  // the call needs is already here; re-typing it into the call form is where
+  // the customer, the model or the serial stops matching the sale.
+  //
+  // ONE PER MACHINE THAT HAS NOT GOT ONE, and the UCN is written back onto that
+  // machine's line — so the button disables itself by the only evidence that
+  // counts, which is the mapping actually being there.
+  const needCalls = useMemo(
+    () => (kind === 'sale' ? machinesNeedingInstallCall(items) : []), [kind, items],
+  );
+  // A MACHINE TYPED BUT NOT SAVED IS THE ONE CASE THAT LOOKS LIKE A BUG.
+  // It has a product and a serial, so the operator has done everything the
+  // button asks — and `machinesNeedingInstallCall` refuses it because there is
+  // no row id to write the UCN back to. Saying "every machine here has its
+  // installation call" over that line would be flatly untrue, which is the
+  // message this project keeps having to correct; it says what to do instead.
+  const unsavedMachines = useMemo(
+    () => (kind === 'sale'
+      ? items.filter((i) => !isPinnedValue(i.id)
+          && isPinnedValue(i.product_name) && isPinnedValue(i.serial_number)).length
+      : 0), [kind, items]);
+  const raiseCalls = async () => {
+    const list = needCalls.map((i) => `  · ${str(i.product_name)} · ${str(i.serial_number)}`).join('\n');
+    if (!window.confirm(
+      `Raise ${needCalls.length} installation call(s) for ${str(draft.party_name) || 'this customer'}?\n\n${list}\n\n`
+      + `Standard Complaint and Complaint Reported will read "${INSTALL_COMPLAINT}", the three vigilance `
+      + `questions will be answered NO, and the customer contact will be left blank — nobody reported this.`)) return;
+    setSaving(true);
+    try {
+      const r = await raiseInstallCalls(draft, items, (d, t) => setMsg({ tone: 'info', text: `Raising ${d} of ${t}…` }));
+      setItems(await listItems(kind, str(draft[cfg.key])));
+      if (r.error) {
+        // STOPPED, NOT FAILED. What was created is named, because those calls
+        // exist whatever the message says.
+        setMsg({ tone: 'error', text: `Stopped at ${r.error}${r.created.length ? ` — ${r.created.length} call(s) were raised first: ${r.created.map((c) => c.ucn).join(', ')}.` : ''}` });
+      } else {
+        setMsg({ tone: 'ok', text: `${r.created.length} installation call(s) raised: ${r.created.map((c) => `${c.serial} → ${c.ucn}`).join(' · ')}` });
+      }
+    } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
+    finally { setSaving(false); }
+  };
+
+  // ONE MACHINE, FROM THE BY-MACHINE LIST (the user, 2026-09-23: "I need
+  // + Installation Call"). The entry pane raises them for a whole sale; this
+  // register is where somebody works down a list of machines, and the machine
+  // in front of them is the one they want a call for.
+  //
+  // IT CALLS THE SAME FUNCTION WITH A LIST OF ONE. Every rule -- what the call
+  // carries, that a machine already holding a UCN is refused, that an unsaved
+  // one is refused, that the UCN is written back to the machine -- therefore
+  // cannot drift between the two places, which is the fault this codebase
+  // keeps finding in its own duplicated lists.
+  //
+  // THE VIEW IS ITS OWN HEADER. `warranty_sale_details` resolves the entry's
+  // party, city, state, SA number and warranty onto each machine already, so
+  // the row is passed as both -- there is no second record to fetch and
+  // nothing to disagree with.
+  const [raisingId, setRaisingId] = useState<number | null>(null);
+  const raiseOneCall = async (r: Row) => {
+    if (!machinesNeedingInstallCall([r] as never).length) return;
+    // WHAT IS ABOUT TO BE OVERWRITTEN IS NAMED. The write-back replaces
+    // INST Call, and on this register that field usually holds the AppSheet
+    // placeholder "To Check" -- which is exactly what should be replaced. But
+    // it could hold something somebody typed, and replacing that silently is
+    // not a decision this screen gets to make on its own.
+    const had = str(r.inst_call).trim();
+    if (!window.confirm(
+      `Raise an installation call for ${str(r.product_name)} · ${str(r.serial_number)}`
+      + ` at ${str(r.party_name) || 'this customer'}?\n\n`
+      + `Standard Complaint and Complaint Reported will read "${INSTALL_COMPLAINT}", the three vigilance `
+      + `questions will be answered NO, and the customer contact will be left blank — nobody reported this.`
+      + (had ? `\n\nINST Call currently reads “${had}”, which is not a call number. It will be replaced by the new UCN.` : ''))) return;
+    setRaisingId(Number(r.id));
+    try {
+      const res = await raiseInstallCalls(r, [r]);
+      const ucn = res.created[0]?.ucn ?? '';
+      if (res.error || !ucn) { setMsg({ tone: 'error', text: res.error ?? 'The call was not created.' }); return; }
+      // THE ROW IS PATCHED IN PLACE, AND SO IS THE CACHE. Re-reading 1,500
+      // machines to learn one UCN would be a register-sized request for a value
+      // already in hand -- and leaving the cache stale would put the button
+      // back on the next visit, offering a second call for a machine that has
+      // one.
+      const rows = feeds.machines.rows.map((x) => (x.id === r.id ? { ...x, inst_call: ucn } : x));
+      setFeed('machines', { rows });
+      if (!filtered) saveCache(cacheKey('machines'), rows);
+      setMsg({ tone: 'ok', text: `Installation call ${ucn} raised for ${str(r.serial_number)}.` });
+    } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
+    finally { setRaisingId(null); }
+  };
+
+  // RE-READING THE CUSTOMER ONTO A SALE THAT ALREADY NAMES THEM (the user,
+  // 2026-09-22). A hospital that moves, or a Party Master record corrected
+  // afterwards, leaves every sale already raised carrying the old address --
+  // and those are the ones somebody is trying to deliver to.
+  //
+  // A DELIBERATE ACT WITH A NAMED EFFECT, not a background sync. The
+  // installation address on a sale legitimately differs from the registered
+  // one, and a sale whose address changed quietly under an operator who had
+  // corrected it by hand is worse than one that is visibly out of date.
+  const refreshFromParty = async () => {
+    const name = str(draft.party_name).trim();
+    if (!name) return;
+    setSaving(true);
+    let info = null;
+    try { info = await sbPartyInfo(name); } catch (e) {
+      setSaving(false);
+      setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) });
+      return;
+    }
+    setSaving(false);
+    if (!info) {
+      // NOTHING TO READ FROM. Blanking the sale because the master has never
+      // heard of this customer would destroy the only address anybody has.
+      setMsg({ tone: 'error', text: `The Party Master has no customer called "${name}", so there is nothing to update from. Nothing was changed.` });
+      return;
+    }
+    const fill = partyFillForSale(info);
+    const changes = partyFillChanges(draft, fill);
+    if (!changes.length) {
+      setMsg({ tone: 'ok', text: 'Already matches the Party Master — nothing to change.' });
+      return;
+    }
+    const labelOf = (k: string) => cfg.headerFields.find((f) => f.name === k)?.label ?? k;
+    if (!window.confirm(
+      `Update ${changes.length} field(s) on ${str(draft[cfg.key])} from the Party Master?\n\n`
+      + changes.map((c) => `  · ${labelOf(c.field)}: ${c.from || '(blank)'} → ${c.to || '(blank)'}`).join('\n')
+      + `\n\nSave the entry afterwards to keep this.`)) return;
+    setDraft((d) => ({ ...d, ...fill }));
+    setMsg({ tone: 'info', text: `${changes.length} field(s) updated from the Party Master — press Save entry to keep it.` });
   };
 
   const removeEntry = async () => {
@@ -708,13 +989,233 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       const o = r.overridden as string[] | null;
       return o?.length ? <span className="badge badge-warning" title={o.join(', ')}>{o.length} pinned</span> : <span className="muted">follows entry</span>;
     } },
-    { key: '_call', header: 'Register call', width: 130, sortable: false, wrap: false, render: (r) => (
-      <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); navigate('/field-calls', { state: { prefill: prefillFrom(r, kind) } }); }}>+ Field call</button>
+    { key: '_call', header: 'Register call', width: 230, sortable: false, wrap: false, render: (r) => (
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+        <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); navigate('/field-calls', { state: { prefill: prefillFrom(r, kind) } }); }}>+ Field call</button>
+        {/* INSTALLATION IS A SALE'S EVENT, NOT A CONTRACT'S. A machine reaches
+            a contract already installed, so the button is not offered there --
+            an action that makes no sense for the record in front of you is
+            worse than a missing one, because somebody presses it to find out. */}
+        {kind === 'sale' && (
+          isCallNumber(r.inst_call)
+            // ALREADY DONE, AND IT SAYS WHICH. The UCN is the evidence the
+            // button disables itself by, so showing it is showing the reason.
+            ? <span className="badge badge-neutral" title="This machine already has its installation call">
+                {str(r.inst_call)}
+              </span>
+            : <>
+                <button className="btn btn-sm" disabled={raisingId !== null}
+                  onClick={(e) => { e.stopPropagation(); void raiseOneCall(r); }}
+                  title="Raise the installation call for this machine and map it back">
+                  {raisingId === Number(r.id) ? 'Raising…' : '+ Installation call'}
+                </button>
+                {/* WHATEVER IS IN THERE IS STILL SHOWN. The field usually holds
+                    the AppSheet placeholder "To Check", which is what made the
+                    button vanish in the first place -- hiding it now would just
+                    move the surprise to the confirmation dialog. */}
+                {isPinnedValue(r.inst_call) && (
+                  <span className="muted" style={{ fontSize: 11 }}
+                    title="Not a call number — the AppSheet export writes this where nobody has checked yet">
+                    {str(r.inst_call)}
+                  </span>
+                )}
+              </>
+        )}
+      </div>
     ) },
   ];
 
   const sections = [...new Set(cfg.headerFields.map((f) => f.section))];
 
+  // THE ENTRY, AS THE SECOND WINDOW (the user, 2026-09-22: "Make the Warranty
+  // Entry and Contract as a 2 window view [Adjustable width]"). It used to open
+  // in a drawer OVER the list, which is right when you are looking at one
+  // record and wrong when the job is working down a list: every entry meant
+  // open, read, close, find your place again.
+  const entryPane = open ? (
+    <div style={{ padding: 14 }}>
+      <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 10 }}>
+        <h3 style={{ margin: 0, fontSize: 16 }}>
+          {open.id ? `${cfg.keyLabel} ${str(open[cfg.key])}` : `New ${cfg.keyLabel}`}
+        </h3>
+        <div className="spacer" />
+        <button className="btn btn-sm" onClick={() => setOpen(null)} title="Close this entry">✕</button>
+      </div>
+          <div className="muted" style={{ marginBottom: 10 }}>
+            This is the parent record. A machine below leaves a field empty to follow it — change a
+            date or a period here and every machine that follows moves with it.
+          </div>
+
+          {sections.map((sec) => (
+            <div key={sec} style={{ marginBottom: 10 }}>
+              <div className="field-label" style={{ opacity: 0.75 }}>{sec}</div>
+              <div className="rep-grid">
+                {cfg.headerFields.filter((f) => f.section === sec).map((f) => (
+                  <label key={f.name} className="rep-field">
+                    <span className="field-label">
+                      {f.label}
+                      {f.derived && <span className="muted"> · from {f.derived}</span>}
+                      {kind === 'sale' && SALE_PARTY_FIELDS.includes(f.name)
+                        && <span className="muted"> · from the party</span>}
+                    </span>
+                    <FieldInput field={f} value={fromDb(f, draft[f.name])} disabled={!canEdit}
+                      onChange={(v) => {
+                        setDraft((d) => {
+                          // The register's own arithmetic, from the AppSheet
+                          // definition (src/lib/coverspec.ts). Derived from the
+                          // field just edited, so an end date somebody typed for
+                          // a part-month contract is not undone by an unrelated
+                          // keystroke.
+                          const next = { ...d, [f.name]: toDb(f, v) };
+                          // `d` IS THE ROW BEFORE THIS EDIT, and passing it is
+                          // what lets PM Visits follow the period until
+                          // somebody types over it. Without it the derivation
+                          // would compare against the period it has just moved
+                          // to and read as overridden every time.
+                          return { ...next, ...deriveHeader(kind, f.name, next, d) };
+                        });
+                        if (kind === 'sale' && f.name === 'party_name') void fillFromParty(v);
+                      }} />
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {canEdit && (
+            <div className="row" style={{ gap: 8, marginBottom: 12 }}>
+              <button className="btn btn-primary" onClick={() => void saveEntry()} disabled={saving}>
+                {saving ? 'Saving…' : 'Save entry'}
+              </button>
+              {/* SALES ONLY: a contract entry carries no address of its own. */}
+              {kind === 'sale' && !!str(draft.party_name).trim() && (
+                <button className="btn" disabled={saving} onClick={() => void refreshFromParty()}
+                  title="Re-read the address, contact and tax details from the Party Master">
+                  ↺ Update from Party Master
+                </button>
+              )}
+              {!!open.id && <button className="btn" onClick={() => void removeEntry()}>Delete entry</button>}
+            </div>
+          )}
+
+          <h3 style={{ margin: '14px 0 8px' }}>Machines ({items.length})</h3>
+          {/* WHY A PRODUCT MAY BE MISSING FROM THE LIST, said here rather than
+              left to be inferred from an absence. A reader who cannot find
+              ORION on a new sale should learn that it is retired, not conclude
+              the master is incomplete and type it in anyway. Sale only: a
+              contract may name a retired line. */}
+          {kind === 'sale' && retiredNames(lines).length > 0 && (
+            <div className="muted" style={{ marginBottom: 8, fontSize: 12.5 }}>
+              {retiredNames(lines).length} product line
+              {retiredNames(lines).length === 1 ? ' is' : 's are'} marked <b>Inactive</b> on the
+              Product Master and {retiredNames(lines).length === 1 ? 'is' : 'are'} not offered
+              here — a retired line takes no new sale. It can still take a contract, a call and
+              everything else.
+            </div>
+          )}
+          {!open.id && <div className="muted" style={{ marginBottom: 8 }}>Save the entry first, then add machines to it.</div>}
+          {items.map((it) => (
+            <ItemCard key={str(it.id)} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines}
+              onSaved={(r) => setItems((cur) => cur.map((x) => (x.id === r.id ? r : x)))}
+              onDeleted={(id) => setItems((cur) => cur.filter((x) => x.id !== id))} />
+          ))}
+          {canEdit && !!open.id && (
+            <div className="row" style={{ gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button className="btn btn-sm"
+                onClick={() => setItems((cur) => [...cur, { [cfg.key]: str(draft[cfg.key]) }])}>
+                + Add machine
+              </button>
+              {/* DISABLED ONCE EVERY MACHINE HAS ITS CALL, by the mapping
+                  itself rather than by a flag somebody has to maintain. A line
+                  with no product or no serial is not a machine yet and gets no
+                  call — the call would be about nothing. */}
+              {kind === 'sale' && (
+                needCalls.length > 0
+                  ? <button className="btn btn-sm" disabled={saving} onClick={() => void raiseCalls()}
+                      title="Raise an installation call for each machine that has not got one">
+                      ＋ Installation calls ({needCalls.length})
+                    </button>
+                  : <span className="muted" style={{ fontSize: 12 }}>
+                      {unsavedMachines
+                        ? `Press Save entry first — ${unsavedMachines} machine${unsavedMachines === 1 ? ' is' : 's are'} not saved yet, and a call can only be mapped to a saved machine.`
+                        : items.length ? 'Every machine here has its installation call.' : ''}
+                    </span>
+              )}
+              {/* OFFERED ONLY WHEN THERE IS SOMETHING TO CLEAR. A button that
+                  does nothing is one people press to find out what it does. */}
+              {pinnedNow.total > 0 && (
+                <>
+                  <button className="btn btn-sm" disabled={saving} onClick={() => void forceAll()}
+                    title="Clear every pinned value so all machines follow this entry again">
+                    ↺ Force update child records
+                  </button>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    {pinnedNow.machines} machine(s) pinned · {pinnedNow.total} value(s)
+                    {pinnedNow.differing > 0 && <b> · {pinnedNow.differing} differ from this entry</b>}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* CONTRACTS ONLY, and only once the entry exists. A sale is not
+              renewed — the warranty runs from the sale and that is the end of
+              it; a contract is the thing with a next one. Offered on ANY
+              contract rather than only an expiring one, because renewals are
+              raised in advance and a register that hides the button until the
+              cover has lapsed is asking people to work around it. */}
+          {canEdit && kind === 'contract' && !!open.id && (
+            renewing ? (
+              <RenewPanel
+                header={draft}
+                items={items}
+                onDone={(mc) => {
+                  setRenewing(false);
+                  setOpen(null);
+                  setMsg({ tone: 'ok', text: `Contract ${mc} created, carrying its machines over. Open it to set the rates — they are deliberately blank.` });
+                  void refresh();
+                }}
+              />
+            ) : (
+              <button className="btn" style={{ marginTop: 14 }} onClick={() => setRenewing(true)}>
+                ↻ Renew this contract
+              </button>
+            )
+          )}
+    </div>
+  ) : null;
+
+  const entriesTable = (
+        <DataTable<Row>
+          columns={headerColumns}
+          rows={rows}
+          getRowId={(r) => str(r.id)}
+          storageKey={`cover-${kind}-entries`}
+          // FEWER ROWS WHEN THE PANE IS NARROW. The split gives each side its
+          // own scroller; a table that also wants sixteen rows puts a second
+          // scrollbar inside the first, and the reader has to work out which
+          // one they are in.
+          rowsBeforeScroll={open ? 10 : 16}
+          dense
+          onRowClick={(r) => void openEntry(r)}
+          onLoadMore={loadMore}
+          moreAvailable={feeds.entries.more}
+          loadingMore={busy}
+          emptyText={busy ? 'Loading…' : 'No entries match.'}
+          toolbar={
+            <Toolbar>
+              <SearchBox value={q} onChange={setQ} placeholder={`${cfg.keyLabel} or party…`} />
+              <div className="spacer" />
+              {canEdit && (
+                <button className="btn btn-sm btn-primary" onClick={() => void newEntry()}>+ New entry</button>
+              )}
+              {rows.length > 0 && (
+                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-entries.csv`, headerColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), rows)}>⭳ Export CSV</button>
+              )}
+            </Toolbar>
+          }
+        />
+  );
   return (
     <div>
       {/* The register's size is its entries — the deals — not the machines
@@ -743,7 +1244,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         <div className="pc-summary">
           {STATES.map((s) => (
             <button key={s} className={`pc-tile ${state === s ? 'pc-tile-on' : ''}`} onClick={() => setState(state === s ? '' : s)}>
-              <span className="pc-tile-n">{counts[s] ?? 0}</span>
+              <span className="pc-tile-n" title={counts[s] == null ? 'Not counted yet — press ↻ Refresh' : ''}>
+                {counts[s] == null ? '—' : counts[s]!.toLocaleString()}
+              </span>
               {statusBadge(s, TONES)}
             </button>
           ))}
@@ -751,31 +1254,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       )}
 
       {tab === 'entries' ? (
-        <DataTable<Row>
-          columns={headerColumns}
-          rows={rows}
-          getRowId={(r) => str(r.id)}
-          storageKey={`cover-${kind}-entries`}
-          rowsBeforeScroll={16}
-          dense
-          onRowClick={(r) => void openEntry(r)}
-          onLoadMore={loadMore}
-          moreAvailable={feeds.entries.more}
-          loadingMore={busy}
-          emptyText={busy ? 'Loading…' : 'No entries match.'}
-          toolbar={
-            <Toolbar>
-              <SearchBox value={q} onChange={setQ} placeholder={`${cfg.keyLabel} or party…`} />
-              <div className="spacer" />
-              {canEdit && (
-                <button className="btn btn-sm btn-primary" onClick={() => void newEntry()}>+ New entry</button>
-              )}
-              {rows.length > 0 && (
-                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-entries.csv`, headerColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), rows)}>⭳ Export CSV</button>
-              )}
-            </Toolbar>
-          }
-        />
+        // TWO WINDOWS WHEN AN ENTRY IS OPEN, one when it is not. A split with
+        // nothing in its second pane is half a screen given to an empty box.
+        open ? (
+          <SplitPane storageKey={`cover-${kind}`} left={entriesTable} right={entryPane} />
+        ) : entriesTable
       ) : (
         <DataTable<Row>
           columns={machineColumns}
@@ -800,100 +1283,6 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         />
       )}
 
-      {open && (
-        <Drawer open onClose={() => setOpen(null)} width={860}
-          title={open.id ? `${cfg.keyLabel} ${str(open[cfg.key])}` : `New ${cfg.keyLabel}`}>
-          <div className="muted" style={{ marginBottom: 10 }}>
-            This is the parent record. A machine below leaves a field empty to follow it — change a
-            date or a period here and every machine that follows moves with it.
-          </div>
-
-          {sections.map((sec) => (
-            <div key={sec} style={{ marginBottom: 10 }}>
-              <div className="field-label" style={{ opacity: 0.75 }}>{sec}</div>
-              <div className="rep-grid">
-                {cfg.headerFields.filter((f) => f.section === sec).map((f) => (
-                  <label key={f.name} className="rep-field">
-                    <span className="field-label">{f.label}</span>
-                    <FieldInput field={f} value={fromDb(f, draft[f.name])} disabled={!canEdit}
-                      onChange={(v) => setDraft((d) => {
-                        // The register's own arithmetic, from the AppSheet
-                        // definition (src/lib/coverspec.ts). Derived from the
-                        // field just edited, so an end date somebody typed for
-                        // a part-month contract is not undone by an unrelated
-                        // keystroke.
-                        const next = { ...d, [f.name]: toDb(f, v) };
-                        return { ...next, ...deriveHeader(kind, f.name, next) };
-                      })} />
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          {canEdit && (
-            <div className="row" style={{ gap: 8, marginBottom: 12 }}>
-              <button className="btn btn-primary" onClick={() => void saveEntry()} disabled={saving}>
-                {saving ? 'Saving…' : 'Save entry'}
-              </button>
-              {!!open.id && <button className="btn" onClick={() => void removeEntry()}>Delete entry</button>}
-            </div>
-          )}
-
-          <h3 style={{ margin: '14px 0 8px' }}>Machines ({items.length})</h3>
-          {/* WHY A PRODUCT MAY BE MISSING FROM THE LIST, said here rather than
-              left to be inferred from an absence. A reader who cannot find
-              ORION on a new sale should learn that it is retired, not conclude
-              the master is incomplete and type it in anyway. Sale only: a
-              contract may name a retired line. */}
-          {kind === 'sale' && retiredNames(lines).length > 0 && (
-            <div className="muted" style={{ marginBottom: 8, fontSize: 12.5 }}>
-              {retiredNames(lines).length} product line
-              {retiredNames(lines).length === 1 ? ' is' : 's are'} marked <b>Inactive</b> on the
-              Product Master and {retiredNames(lines).length === 1 ? 'is' : 'are'} not offered
-              here — a retired line takes no new sale. It can still take a contract, a call and
-              everything else.
-            </div>
-          )}
-          {!open.id && <div className="muted" style={{ marginBottom: 8 }}>Save the entry first, then add machines to it.</div>}
-          {items.map((it) => (
-            <ItemCard key={str(it.id)} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines}
-              onSaved={(r) => setItems((cur) => cur.map((x) => (x.id === r.id ? r : x)))}
-              onDeleted={(id) => setItems((cur) => cur.filter((x) => x.id !== id))} />
-          ))}
-          {canEdit && !!open.id && (
-            <button className="btn btn-sm" style={{ marginTop: 8 }}
-              onClick={() => setItems((cur) => [...cur, { [cfg.key]: str(draft[cfg.key]) }])}>
-              + Add machine
-            </button>
-          )}
-
-          {/* CONTRACTS ONLY, and only once the entry exists. A sale is not
-              renewed — the warranty runs from the sale and that is the end of
-              it; a contract is the thing with a next one. Offered on ANY
-              contract rather than only an expiring one, because renewals are
-              raised in advance and a register that hides the button until the
-              cover has lapsed is asking people to work around it. */}
-          {canEdit && kind === 'contract' && !!open.id && (
-            renewing ? (
-              <RenewPanel
-                header={draft}
-                items={items}
-                onDone={(mc) => {
-                  setRenewing(false);
-                  setOpen(null);
-                  setMsg({ tone: 'ok', text: `Contract ${mc} created, carrying its machines over. Open it to set the rates — they are deliberately blank.` });
-                  void refresh();
-                }}
-              />
-            ) : (
-              <button className="btn" style={{ marginTop: 14 }} onClick={() => setRenewing(true)}>
-                ↻ Renew this contract
-              </button>
-            )
-          )}
-        </Drawer>
-      )}
     </div>
   );
 }

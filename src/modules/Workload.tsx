@@ -7,7 +7,8 @@ import { useAccessScope } from '../lib/access';
 import { supabaseConfigured } from '../lib/supabase';
 import {
   spareRequestSection, rmApprovalSection, dispatchSection, handStockSection,
-  materialReturnsSection, stockTransferSection, reviewSection, type WorkloadSection,
+  materialReturnsSection, stockTransferSection, reviewSection, commercialInstallSection,
+  type WorkloadSection,
 } from '../lib/workload';
 import './workload.css';
 
@@ -61,6 +62,11 @@ export function Workload() {
       { needs: 'mod:/spare-rm-approval', run: rmApprovalSection },
       { needs: 'mod:/spare-dispatch', run: dispatchSection },
       { needs: 'mod:/daily-review', run: reviewSection },
+      // WHAT COMMERCIAL IS WAITING ON (the user, 2026-09-22). Shown to
+      // whoever can open the Call Request register, which is this page's
+      // standing rule -- a count over a list somebody cannot read is both
+      // useless and a leak.
+      { needs: 'mod:/request-registration', run: commercialInstallSection },
       { needs: 'mod:/handstock', run: handStockSection },
       { needs: 'mod:/mrn', run: materialReturnsSection },
       { needs: 'mod:/stock-transfer', run: stockTransferSection },

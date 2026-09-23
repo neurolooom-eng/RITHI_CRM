@@ -289,22 +289,61 @@ const CONTRACT_DRIVERS = ['contract_months', 'contract_start'];
 
 /** The header's derived fields, after `changed` was edited. Returns only what
  *  it sets, so a caller can merge it and see what moved. */
-export function deriveHeader(kind: 'sale' | 'contract', changed: string, row: Row): Row {
+// ---------------------------------------------------------------------------
+// PM VISITS ARE SUGGESTED, NOT IMPOSED.
+//
+//   The user, 2026-09-22: "PM visit should editable by the user. It varies
+//   based on PO."
+//
+// The count follows from the period -- three a year under warranty, one every
+// six months under contract -- and that is the right STARTING answer, because
+// it is what the standard offer says. It is not the right FINAL answer: what
+// was actually sold is on the purchase order, and a PO with four visits a year
+// is a PO with four visits a year.
+//
+// SO IT FOLLOWS THE PERIOD UNTIL SOMEBODY CHANGES IT, AND THEN IT IS THEIRS.
+// The test for "has somebody changed it" is whether the value still equals
+// what the period SUGGESTED before this edit -- the same rule as a machine
+// pinning a field away from its entry, and for the same reason. A count that
+// keeps snapping back to three every time the start date is corrected is a
+// field somebody has to re-type until they give up; one that never follows the
+// period at all makes every ordinary sale a manual entry.
+//
+// `prev` IS THE ROW BEFORE THIS EDIT and is what makes the question answerable:
+// after the edit the period has already moved, so "does it match the
+// suggestion" would compare against the NEW one and read as overridden on
+// every period change. Omitting `prev` keeps the old behaviour for callers
+// that do not have it -- the value simply follows.
+// ---------------------------------------------------------------------------
+const stillFollowing = (current: unknown, suggestedBefore: unknown): boolean =>
+  current === null || current === undefined || current === ''
+  || Number(current) === Number(suggestedBefore);
+
+export function deriveHeader(kind: 'sale' | 'contract', changed: string, row: Row, prev?: Row): Row {
   const out: Row = {};
   if (kind === 'sale' && WARRANTY_DRIVERS.includes(changed)) {
     const months = row.warranty_months;
     out.warranty_years = periodYears(months);
     out.warranty_end = periodEnd(String(row.warranty_start ?? ''), months);
-    out.pm_visits = warrantyPmVisits(months);
+    if (!prev || stillFollowing(prev.pm_visits, warrantyPmVisits(prev.warranty_months))) {
+      out.pm_visits = warrantyPmVisits(months);
+    }
   }
   if (kind === 'contract' && CONTRACT_DRIVERS.includes(changed)) {
     const months = row.contract_months;
     out.contract_years = periodYears(months);
     out.contract_end = periodEnd(String(row.contract_start ?? ''), months);
-    out.pm_visits_total = contractPmVisits(months);
+    if (!prev || stillFollowing(prev.pm_visits_total, contractPmVisits(prev.contract_months))) {
+      out.pm_visits_total = contractPmVisits(months);
+    }
   }
   return out;
 }
+
+/** What the period suggests, so a form can offer it back once somebody has
+ *  typed over it. */
+export const suggestedPmVisits = (kind: 'sale' | 'contract', months: unknown): number | null =>
+  (kind === 'sale' ? warrantyPmVisits(months) : contractPmVisits(months));
 
 /** A machine line's derived fields, after `changed` was edited.
  *
@@ -356,6 +395,415 @@ export function deriveItem(kind: 'sale' | 'contract', changed: string, row: Row)
   if (kind === 'contract' && CONTRACT_DRIVERS.includes(changed)) {
     out.contract_years = periodYears(row.contract_months);
     out.contract_end = periodEnd(String(row.contract_start ?? ''), row.contract_months);
+  }
+  return out;
+}
+
+// ===========================================================================
+// THE PARTY FILLS THE SALE IN — one mapping, in one place.
+//
+//   The user, 2026-09-22: "In Warranty Sale - Party Name should be a drop-down
+//   from Party Master - Type Search and select. All relevant fields like city,
+//   state, address should fill in Automatically based on the selected Party."
+//
+// WHY IT IS A FUNCTION AND NOT TEN LINES IN THE FORM: the columns are named
+// differently on the two sides (`phone` is `tel1`, `gstin` is `gst`,
+// `service_engineer` is `engineer`), and a mapping written inline is one nobody
+// can test and everybody can half-copy.
+//
+// CHANGING THE PARTY REPLACES ALL OF THEM, INCLUDING WITH BLANKS, and that is
+// the decision worth stating. Keeping the previous party's address where the
+// new one has none looks helpful and is the worst outcome available: a sale
+// carrying a DIFFERENT customer's address, with nothing on screen saying so.
+// These fields describe the chosen party; if the installation address really
+// differs, it is typed afterwards, over a field that is visibly the party's.
+//
+// A VALUE THE FORM CANNOT OFFER IS DROPPED RATHER THAN FORCED IN. `party_type`
+// and `profile` are pick-lists with a fixed vocabulary, and the Party Master is
+// free-typed in places; a value outside the list would sit in a box that cannot
+// re-select it, which reads as a form that has lost the value.
+// ===========================================================================
+
+export interface PartyFill {
+  state?: unknown; city?: unknown; address?: unknown; pincode?: unknown;
+  phone?: unknown; phone_2?: unknown; pan?: unknown; gstin?: unknown;
+  party_type?: unknown; profile?: unknown; service_engineer?: unknown;
+}
+
+const text = (v: unknown) => String(v ?? '').trim();
+const oneOf = (v: unknown, allowed: string[]) => {
+  const t = text(v).toUpperCase();
+  return allowed.includes(t) ? t : '';
+};
+
+export const SALE_PARTY_TYPES = ['CUSTOMER', 'DEALER'];
+export const SALE_PROFILES = ['PRIVATE', 'GOVERNMENT', 'DEALER', 'GENERAL'];
+
+/** The Sale Entry fields that follow the party, as the party has them. Every
+ *  key is always present, so applying it CLEARS what the new party does not
+ *  have rather than leaving the previous party's value behind. */
+export function partyFillForSale(p: PartyFill | null): Row {
+  const q = p ?? {};
+  return {
+    state: text(q.state),
+    city: text(q.city),
+    address: text(q.address),
+    pincode: text(q.pincode),
+    tel1: text(q.phone),
+    tel2: text(q.phone_2),
+    pan: text(q.pan),
+    gst: text(q.gstin),
+    party_type: oneOf(q.party_type, SALE_PARTY_TYPES),
+    profile: oneOf(q.profile, SALE_PROFILES),
+    engineer: text(q.service_engineer),
+  };
+}
+
+/** Which Sale Entry fields the party fills — so the form can say so beside
+ *  them, and so a check can hold the two lists together. */
+export const SALE_PARTY_FIELDS = Object.keys(partyFillForSale(null));
+
+// ===========================================================================
+// THE PRODUCT CODE AND THE PRODUCT NAME ARE ONE CHOICE, NOT TWO.
+//
+// A sale line asks for both and the Product Master holds both, so typing the
+// second is re-keying something the system already knows — and the pair being
+// out of step is a machine the register cannot match back to its catalogue
+// line.
+//
+// IT FILLS ONLY WHERE THE ANSWER IS UNAMBIGUOUS. Nine catalogue codes share the
+// name "CPX CARE", so choosing that name does not decide a code and the field
+// is LEFT ALONE rather than given the first one — the same rule as a Drive file
+// name matching two files, and for the same reason: a wrong code on a machine
+// record is worse than a blank one, because the blank gets filled in and the
+// wrong one gets believed.
+//
+// It never CLEARS the other field. An unrecognised name is one the catalogue
+// has not got, not a reason to throw away a code somebody typed.
+// ===========================================================================
+
+export interface CatalogueLine { code: string; name: string; active: boolean }
+
+const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
+
+export function pairProductCodeAndName(
+  changed: 'product_name' | 'product_code', value: string, lines: CatalogueLine[],
+): Row {
+  const v = norm(value);
+  if (!v) return {};
+  const live = lines.filter((l) => l.active);
+  if (changed === 'product_name') {
+    const codes = [...new Set(live.filter((l) => norm(l.name) === v).map((l) => l.code).filter(Boolean))];
+    return codes.length === 1 ? { product_code: codes[0] } : {};
+  }
+  const names = [...new Set(live.filter((l) => norm(l.code) === v).map((l) => l.name).filter(Boolean))];
+  return names.length === 1 ? { product_name: names[0] } : {};
+}
+
+// ===========================================================================
+// FORCING EVERY MACHINE BACK ONTO THE ENTRY.
+//
+//   The user, 2026-09-22: "Force inherit — 'Force Update Child Records' the
+//   parent details to all child records."
+//
+// A machine under a Sale or a Contract follows its entry until somebody types
+// into one of its fields; from then on that field is PINNED and the entry no
+// longer moves it. That is the right default — a machine really can carry a
+// different warranty start from the rest of its sale — and it is also how an
+// entry ends up moving nothing at all, because a bulk import once wrote the
+// entry's own values onto every machine and every field is pinned to a value
+// that merely LOOKS inherited.
+//
+// This is the deliberate way back: clear every inheriting field on every
+// machine so they all follow the entry again.
+//
+// IT IS DESTRUCTIVE AND THE SCREEN MUST SAY WHAT IT WILL DESTROY. A pinned
+// value that genuinely differs from the entry is somebody's decision about ONE
+// machine, and there is no undo — the previous values are gone. So the count is
+// computed FIELD BY FIELD and shown before anything is written, and the ones
+// that differ from the entry are counted separately from the ones that merely
+// repeat it: clearing a value identical to the entry changes nothing anybody
+// can see, and clearing one that differs changes the record.
+//
+// PURE, AND HERE RATHER THAN IN cover.ts, for the paging.ts reason: that module
+// reaches supabase.ts and its import.meta.env, so nothing in it can be tested.
+// ===========================================================================
+
+export interface InheritField { name: string; label: string; inherits?: boolean }
+
+export interface PinnedSummary {
+  /** Fields pinned on at least one machine, commonest first. */
+  fields: { name: string; label: string; machines: number; differing: number }[];
+  /** Machines carrying at least one pinned field. */
+  machines: number;
+  /** Pinned values that DIFFER from the entry — the ones with something to lose. */
+  differing: number;
+  /** Every pinned value, differing or not. */
+  total: number;
+}
+
+/** Is this field pinned on this machine? The one copy of the rule — a pinned
+ *  field holds a value of its own; null, undefined and '' all mean "follow the
+ *  entry". */
+export const isPinnedValue = (v: unknown): boolean => v !== null && v !== undefined && v !== '';
+
+const same = (a: unknown, b: unknown) =>
+  String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+
+export function summarisePinned(fields: InheritField[], items: Row[], header: Row): PinnedSummary {
+  const inheriting = fields.filter((f) => f.inherits);
+  const out: PinnedSummary = { fields: [], machines: 0, differing: 0, total: 0 };
+  const touched = new Set<number>();
+
+  for (const f of inheriting) {
+    let machines = 0;
+    let differing = 0;
+    items.forEach((it, i) => {
+      if (!isPinnedValue(it[f.name])) return;
+      machines += 1;
+      touched.add(i);
+      if (!same(it[f.name], header[f.name])) differing += 1;
+    });
+    if (machines) out.fields.push({ name: f.name, label: f.label, machines, differing });
+    out.total += machines;
+    out.differing += differing;
+  }
+  out.fields.sort((a, b) => b.machines - a.machines || a.label.localeCompare(b.label));
+  out.machines = touched.size;
+  return out;
+}
+
+/** The patch that puts every machine back on the entry: every inheriting field
+ *  set to null. Built from the field list, so a field added to the register is
+ *  covered by that fact alone. */
+export const inheritAllPatch = (fields: InheritField[]): Row =>
+  Object.fromEntries(fields.filter((f) => f.inherits).map((f) => [f.name, null]));
+
+// ===========================================================================
+// THE INSTALLATION CALL A SALE ENTRY RAISES.
+//
+//   The user, 2026-09-22: "Provision add Installation Calls in Warranty Sale
+//   Entry. Map the party, Product Details, Standard Complaint - Installation
+//   Calls, Complaint Reported - Installation Calls. All Vigilance questions set
+//   to No, Leave customer details blank. Once the call is created, map it to
+//   the Warranty Sale detail [Product+Serial] is what matters."
+//
+// A machine has been sold and somebody has to go and install it. Every fact
+// that call needs is already on the sale entry, and re-typing it into the call
+// form is where the customer, the model or the serial stops matching the sale.
+//
+// THE VIGILANCE ANSWERS ARE "NO" BECAUSE THE USER SAID SO, and that is worth
+// writing down rather than assuming. Public Health Threat, Death and Serious
+// Incident are asked of a COMPLAINT — an installation is not one, and the three
+// are answered by the Hotline engineer trained to ask them. Set here they are
+// the honest answer to "did a device hurt somebody?" for a machine that has not
+// been switched on yet. They remain editable on the call afterwards, which is
+// what matters: an installation that DOES go wrong is answered by a person.
+//
+// THE CUSTOMER CONTACT IS LEFT BLANK, also on instruction, and also not
+// arbitrary: `person_calling` and the customer block record WHO REPORTED a
+// fault. Nobody reported this. Filling them with the sale's contact would put a
+// name against a report that never happened.
+//
+// THE COVER COMES FROM THE ENTRY where the entry has one. A machine installed
+// under a warranty sale is in warranty; a call raised with no cover reads as
+// OGP and feeds every count that asks who is paying. Where the sale records no
+// warranty at all, the cover is LEFT BLANK rather than guessed — an unknown
+// cover gets asked about, a wrong one gets believed.
+// ===========================================================================
+
+// THE WORDS, EXACTLY AS THE USER GAVE THEM (2026-09-23): "STANDARD COMPLAINT=
+// INSTALLATION CALL , Reported Complaint= INSTALLATION CALL". It was
+// "Installation Calls" until then.
+//
+// CHANGING THIS SPLITS EVERY COUNT UNTIL THE OLD ROWS ARE MOVED, and that is
+// not a small thing on this dimension: every count, filter and frequent-failure
+// match downstream is a `group by` on this value, so two spellings do not read
+// as a typo -- they halve the total silently and the reader believes both
+// halves. 0233 moves the calls already raised and puts the new value on the
+// Standard Complaint master, because a value the master has not got is one the
+// picker cannot offer and this field takes no free text.
+export const INSTALL_COMPLAINT = 'INSTALLATION CALL';
+
+// THE CALL NUMBER A WARRANTY-RAISED CALL CARRIES (the user, 2026-09-23: "Call
+// Number - if Generated from warranty page then "WI-"PRODUCT-SLNO").
+//
+// W for warranty, I for installation, then the machine -- so the number says
+// where it came from and which machine it is about, and reads the same on the
+// call register as on the sale. It is NOT the UCN: the database still issues
+// that on insert (0001's `next_ucn`), and this is the human-facing number
+// beside it.
+//
+// THE PRODUCT IS NOT SQUASHED. "MONNAL TEO NF" keeps its spaces, because this
+// number is matched by eye against the machine row on the register and
+// "WI-MONNALTEONF-210" matches nothing anybody is looking at.
+export const installCallNumber = (product: unknown, serial: unknown): string => {
+  const p = text(product).trim();
+  const s = text(serial).trim();
+  // Both or nothing. `machinesNeedingInstallCall` already requires both, so
+  // this only ever fires for a caller that skipped it -- and "WI--" is a number
+  // that looks like one and identifies nothing.
+  return p && s ? `WI-${p}-${s}` : '';
+};
+
+export interface SaleForCall {
+  party_name?: unknown; city?: unknown; state?: unknown;
+  sa_number?: unknown; warranty_start?: unknown; warranty_end?: unknown;
+  warranty_months?: unknown;
+  /** From the Party Master via `partyFillForSale`, and the call's Allotted To. */
+  engineer?: unknown;
+}
+export interface SaleItemForCall {
+  /** The saved row's key. A machine still only on screen has none — see
+   *  `machinesNeedingInstallCall`, which is why this is part of the shape. */
+  id?: unknown;
+  product_name?: unknown; serial_number?: unknown;
+  warranty_start?: unknown; warranty_end?: unknown; inst_call?: unknown;
+  /** Pinned on the machine where somebody set it there; otherwise the entry's. */
+  engineer?: unknown;
+}
+
+/** The call record for one machine, in the shape `addCall` takes. */
+export function installCallFromSale(header: SaleForCall, item: SaleItemForCall): Row {
+  const pick = (a: unknown, b: unknown) => (isPinnedValue(a) ? a : b);
+  const wStart = pick(item.warranty_start, header.warranty_start);
+  const wEnd = pick(item.warranty_end, header.warranty_end);
+  const covered = isPinnedValue(wEnd) || isPinnedValue(header.warranty_months);
+  return {
+    callType: 'INSTALLATION',
+    // The party, from the entry.
+    partyName: text(header.party_name),
+    city: text(header.city),
+    state: text(header.state),
+    // The machine. A machine is its MODEL and its SERIAL, and both come from
+    // the sale line rather than from anything typed twice.
+    productName: text(item.product_name),
+    serial: text(item.serial_number),
+    // WI- + the machine, so the number says where it came from. The UCN is
+    // still issued by the database on insert; this is the number beside it.
+    callNumber: installCallNumber(item.product_name, item.serial_number),
+    // What the call is for. Both columns, on instruction: one is the coded
+    // reason every count groups by, the other is what a reader sees.
+    standardComplaint: INSTALL_COMPLAINT,
+    complaintReported: INSTALL_COMPLAINT,
+    // THE DATES ARE THE WARRANTY START (the user, 2026-09-23: "complaint date
+    // and breakdown date has to be warranty start date"). An installation is
+    // not a breakdown, so there is no date on which one happened -- the day the
+    // warranty begins is the day the machine became this company's to install,
+    // and dating the call from it keeps the call inside the cover it belongs to.
+    //
+    // NOT GATED ON `covered`, unlike the cover fields below. The ask is about
+    // the DATES, and a sale that records a start date but no period still knows
+    // when it started. Where there is no start date at all they stay EMPTY --
+    // today's date would be a date nobody chose, written into a quality record.
+    complaintDate: text(wStart),
+    breakdownDate: text(wStart),
+    // ALLOTTED TO THE PARTY MASTER'S ENGINEER (same ask). It arrives on the
+    // sale through `partyFillForSale` when the customer is chosen, so this is
+    // the Party Master's answer -- and a machine that pinned its own engineer
+    // wins over the entry, which is the whole point of the pin.
+    allocatedTo: text(pick(item.engineer, header.engineer)),
+    // Vigilance: answered No. An installation is not a complaint.
+    publicHealthThreat: 'NO',
+    death: 'NO',
+    seriousIncident: 'NO',
+    // Nobody reported this, so nobody is recorded as having reported it.
+    personCalling: '',
+    customerName: '',
+    customerNumber: '',
+    customerDesignation: '',
+    emailAddress: '',
+    // The cover, where the sale has one.
+    warrantyNumber: covered ? text(header.sa_number) : '',
+    warrantyStart: covered ? text(wStart) : '',
+    warrantyEnd: covered ? text(wEnd) : '',
+    itemStatus: covered ? 'WGP' : '',
+  };
+}
+
+// ===========================================================================
+// "TO CHECK" IS NOT A CALL NUMBER, AND TREATING IT AS ONE HID THE WHOLE
+// FEATURE (reported 2026-09-23, with a screenshot of the Warranty Register
+// showing `To Check` where the UCN should be).
+//
+// The AppSheet export fills `INST Call`, `INST Date`, `INST Call Status` and
+// `Report` with the literal words **To Check** -- the sheet's way of saying
+// NOBODY HAS LOOKED YET, which is the OPPOSITE of "this machine has its
+// installation call". `check-uploads.ts` has carried that exact value as a
+// fixture since the importer was written, so it is not a stray: it is on a
+// large part of the register.
+//
+// Both buttons tested `isPinnedValue(inst_call)` -- is there anything there --
+// so every one of those machines read as done. The by-machine list showed the
+// placeholder as though it were a UCN, and the entry pane said "Every machine
+// here has its installation call" over machines that had none. The feature was
+// unusable on the only data it was ever going to meet.
+//
+// SO THE TEST IS THE SHAPE, NOT THE PRESENCE. `next_ucn` (0001) builds
+// YY + month letter A-L + DD + a type letter + four digits -- `26I23I0080` --
+// and that is what this application will have written there.
+//
+// IT IS DELIBERATELY STRICT, and the direction matters. Too strict offers a
+// second call for a machine whose UCN is in some older shape; too loose hides
+// the button for ever, which is the fault being fixed. So nothing is decided
+// silently either way: a value that is NOT a UCN leaves the button offered AND
+// is shown, and the confirmation names it before anything overwrites it.
+// ===========================================================================
+const UCN_RE = /^\d{2}[A-L]\d{2}[A-Z]\d{4}$/i;
+
+/** Is this value a UCN this system issued, rather than a note somebody left? */
+export const isCallNumber = (v: unknown): boolean => UCN_RE.test(String(v ?? '').trim());
+
+/** Which machines on this entry still need an installation call. Keyed on
+ *  PRODUCT + SERIAL, which is what identifies a machine; a line with neither
+ *  is not a machine yet and is skipped rather than given a call about nothing.
+ *
+ *  AND IT MUST BE SAVED. The UCN is written back with `.eq('id', item.id)`, so
+ *  a machine added with "+ Add machine" and not yet saved has no id to write
+ *  to: the call is CREATED and the mapping then fails, leaving the line still
+ *  asking for one — so the next press raises a SECOND call for the same
+ *  machine, and calls are not deleted here. Requiring the id refuses the whole
+ *  thing instead, before anything exists. The screen already says "Press Save
+ *  entry" for the same reason and this makes the button agree with it. */
+export function machinesNeedingInstallCall<T extends SaleItemForCall>(items: T[]): T[] {
+  return items.filter((i) => isPinnedValue(i.id)
+    // NOT `isPinnedValue` -- see the note above. "To Check" is not a call.
+    && !isCallNumber(i.inst_call)
+    && isPinnedValue(i.product_name) && isPinnedValue(i.serial_number));
+}
+
+// ===========================================================================
+// RE-READING THE CUSTOMER ONTO A SALE THAT ALREADY NAMES THEM.
+//
+//   The user, 2026-09-22: "Also add a provision to update address in Warranty
+//   Sale based on update from Party Master."
+//
+// The sale takes the customer's address when the customer is CHOSEN. A hospital
+// that moves, or a Party Master record that is corrected afterwards, leaves
+// every sale already raised carrying the old address — and those are the ones
+// somebody is trying to deliver to.
+//
+// IT IS A DELIBERATE ACT WITH A NAMED EFFECT, not a background sync. The
+// installation address on a sale legitimately differs from the customer's
+// registered one, and a sale whose address quietly changed under an operator
+// who had corrected it by hand is worse than one that is out of date: the first
+// is wrong without anybody knowing, the second is visibly stale.
+//
+// SO THIS RETURNS WHAT WOULD CHANGE, AND THE SCREEN SAYS IT. A field the master
+// agrees with is not listed — telling somebody that eleven fields "changed"
+// when nine of them did not is a number they stop reading.
+// ===========================================================================
+
+export interface FieldChange { field: string; from: string; to: string }
+
+/** The differences between a sale entry and what the Party Master would fill.
+ *  Compared on the TRIMMED text, so whitespace alone is not a change. */
+export function partyFillChanges(current: Row, fill: Row): FieldChange[] {
+  const out: FieldChange[] = [];
+  for (const [field, to] of Object.entries(fill)) {
+    const a = String(current[field] ?? '').trim();
+    const b = String(to ?? '').trim();
+    if (a !== b) out.push({ field, from: a, to: b });
   }
   return out;
 }
