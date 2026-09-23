@@ -43,6 +43,48 @@ up)_
 
 ---
 
+## 2026-09-23 — Product Database: two columns stop being stored
+
+> *"Item Status should be a calculated value ... Service Engineer name should be
+> a calculated value. It should always come from Party Master"*
+
+Shipped in v0.9.358. **⚠ RUN `product_database_2.sql`** — `_status.sql` row 180.
+
+**The comparison was read as `>= today`, not `<=`.** Taken literally, an expired
+warranty would read WGP and a machine covered by both would read OGP — all three
+inverted, and OGP is plainly the fallback for a machine covered by nothing.
+0036's `sync_product_cover` already compared with `>= current_date`.
+
+**A VIEW, not a column.** Item Status compares two dates with TODAY, so a stored
+answer is right the day it is written and wrong afterwards — the fault 0222 had
+to correct on Product Database 2.0, where a frozen cover status left 209 machines
+of 10,000 wrong after thirty days, silently. The engineer is the same argument
+one step along: the Party Master is the master, so a copy on the machine is a
+second answer that goes stale the moment the customer's engineer changes.
+
+`public.product_database` computes both. **The table is untouched** — every
+importer still writes `products` — and the stored values are kept beside the
+computed ones as `item_status_keyed` / `service_engineer_keyed`, so the migrated
+system's answer can be compared rather than quietly replaced.
+
+Three reads moved to it: the register, the "everything this customer has" list,
+and **the call form's cover prefill** — so a call raised today gets today's
+cover rather than a stored one.
+
+**`check:replay` caught the filing, twice over.** Put beside the cover registers,
+`sales_contracts.sql` died on `contract_cover_code()` — a view resolves its body
+AT CREATION — and `all.sql` died too, because `cover` runs before
+`product_database_2` in `ALL_ORDER`. It lives in `product_database_2` now, which
+is last for exactly this reason, and declares `partyServiceEngineer` in `needs`
+so the preflight says *"Apply these first"* instead of a Postgres error naming a
+function. Proved by dropping `party_service_engineer()` and running the bundle.
+
+101/101 suites, 22/22 checks. The `_status.sql` row asserts the rule on the view's
+DEFINITION — this report cannot insert a machine to ask about, and a register
+holding no expiring cover agrees either way — mutation-proved both ways.
+
+---
+
 ## 2026-09-23 — ⚠ Roles & Permissions was overwriting every role on every save
 
 > *"Role & Permission are not working"*

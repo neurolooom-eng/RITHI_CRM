@@ -1418,7 +1418,7 @@ export async function sbListPartyItems(party: string, product = ''): Promise<Rec
   // screen that lists "everything they have" is the last place to stop at one.
   const data = await partyRows<Record<string, unknown>>((exact) =>
     allRows((a, b) => {
-      const base = must().from('products').select('*');
+      const base = must().from('product_database').select('*');
       let q = exact ? base.eq('party_name', party.trim()) : base.ilike('party_name', partyLike(party));
       if (product) q = q.eq('item_name', product);
       return q.order('id').range(a, b);
@@ -1469,7 +1469,7 @@ export async function sbProductBySerial(serial: string, product = ''): Promise<R
   if (!key) return null;
 
   if (String(product ?? '').trim()) {
-    const { data, error } = await must().from('products').select('*')
+    const { data, error } = await must().from('product_database').select('*')
       .eq('machine_key', dbMachineKey(product, serial)).limit(1).maybeSingle();
     if (error) throw new Error(errMsg(error));
     return data ? productRowToSheet(data) : null;
@@ -1477,14 +1477,25 @@ export async function sbProductBySerial(serial: string, product = ''): Promise<R
 
   // TWO rows asked for, not one: one is an answer, two is a question, and
   // `.limit(1)` cannot tell them apart.
-  const { data, error } = await must().from('products').select('*').eq('serial_key', key).limit(2);
+  const { data, error } = await must().from('product_database').select('*').eq('serial_key', key).limit(2);
   if (error) throw new Error(errMsg(error));
   const rows = data ?? [];
   return rows.length === 1 ? productRowToSheet(rows[0]) : null;
 }
 
+// ---------------------------------------------------------------------------
+// THE THREE READS THAT WANT THE COVER AS IT IS TODAY go to
+// `public.product_database` (0235) rather than to `products`: Item Status and
+// Service Engineer are WORKED OUT there -- warranty first, then the contract
+// the MC number names, else OGP, and the engineer always from the Party Master.
+//
+// A STORED COVER IS RIGHT ON THE DAY IT IS WRITTEN AND WRONG AFTERWARDS, which
+// is why the register, the party's machine list and the call form's prefill all
+// read the view. Everything that WRITES -- every importer and upsert -- still
+// goes to the table, which is untouched.
+// ---------------------------------------------------------------------------
 export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string; exact?: boolean }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
-  let q = must().from('products').select('*').range(offset, offset + limit - 1);
+  let q = must().from('product_database').select('*').range(offset, offset + limit - 1);
   // An EXACT serial goes through the indexed key, not `eq(serial_number)`:
   // that was case-sensitive AND had no plain btree behind it, so the one
   // filter that meant equality was the one that could not use an index.

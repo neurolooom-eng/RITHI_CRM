@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.358',
+    date: '2026-09-23',
+    title: 'Product Database: Item Status and Service Engineer work themselves out',
+    changes: [
+      'ITEM STATUS is now calculated on every read: in warranty → WGP; otherwise, still under contract → CMC or AMC as the MC number says; otherwise OGP.',
+      'The type comes from the CONTRACT THE MC NUMBER NAMES — down to that machine’s own line on it, so a machine on a Labour line of a Comprehensive contract reads AMC. A contract with no type recorded reads “CONTRACT (TYPE NOT RECORDED)” rather than guessing CMC, which is what the old sync did.',
+      'WARRANTY IS ASKED BEFORE CONTRACT. A machine inside its warranty is not being billed under its contract. The old rule asked the contract first, so a machine still in warranty read CMC — and Product Database 2.0 already decided it this way, so the two registers now agree.',
+      'SERVICE ENGINEER always comes from the Party Master. A customer the master does not carry shows BLANK rather than the old stored name — a silent fallback would make the screen disagree with the master on exactly the customers you need to fix.',
+      'WHAT WAS STORED IS KEPT BESIDE IT, as Item Status (keyed) and Service Engineer (keyed), so the migrated system’s own answer can be compared rather than quietly replaced. Nothing was overwritten and no upload changes.',
+      'The call form’s cover prefill and the “everything this customer has” list read the same calculation, so a call raised today gets today’s cover.',
+      '⚠ RUN product_database_2.sql. _status.sql row 180.',
+    ],
+  },
+  {
     version: '0.9.357',
     date: '2026-09-23',
     title: 'A SQL file to delete specific calls',

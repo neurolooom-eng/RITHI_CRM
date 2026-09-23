@@ -1204,7 +1204,31 @@ with checks(sort_order, bundle, provides, present) as (
          and (to_regclass('public.sale_items') is null
            or not exists (select 1 from public.sale_items
                            where btrim(coalesce(inst_call, '')) <> ''
-                             and not public.is_call_number(inst_call)))))
+                             and not public.is_call_number(inst_call))))),
+    (180, 'Product Database: Item Status and Service Engineer are WORKED OUT', 'the product_database view (0235). The user, 2026-09-23: "Item Status should be a calculated value ... Service Engineer name should be a calculated value. It should always come from Party Master." THE COMPARISON IS READ AS >= TODAY, NOT <=: taken literally an EXPIRED warranty would read WGP and a machine covered by both would read OGP, every one of the three inverted, and OGP is plainly the fallback for a machine covered by nothing. 0036''s sync_product_cover already compared with >= current_date. A VIEW AND NOT A COLUMN, because Item Status compares two dates with TODAY -- a stored answer is right the day it is written and wrong afterwards, which is exactly what 0222 had to correct on Product Database 2.0 where a frozen cover status left 209 machines of 10,000 wrong after thirty days, silently. The engineer is the same argument: the Party Master is the master, so a copy on the machine is a second answer that goes stale the moment the customer''s engineer changes. WARRANTY DECIDES BEFORE CONTRACT, so the two Product Databases now agree (0218); the type comes from the contract THE MC NUMBER NAMES, down to that machine''s own line, and a contract with no type reads CONTRACT (TYPE NOT RECORDED) rather than 0036''s guess of CMC. THE TABLE IS UNTOUCHED -- every importer still writes public.products, and the stored values are kept beside the computed ones as item_status_keyed / service_engineer_keyed so the migrated system''s answer can be compared rather than quietly replaced. THE ROW TESTS THE RULE, NOT THE VIEW''S EXISTENCE: a view that exists and answers the old way reads as covered. NO means the register shows a stored status that decays and an engineer that can disagree with the Party Master. Restore: product_database_2.sql',
+        (to_regclass('public.product_database') is not null
+         and exists (select 1 from pg_views where schemaname='public' and viewname='product_database')
+         -- security_invoker, or the register reads as its owner.
+         and exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace
+                      where n.nspname='public' and c.relname='product_database'
+                        and c.reloptions::text ilike '%security_invoker=on%')
+         -- THE RULE, ASSERTED ON THE DEFINITION, and for 0222's reason: this
+         -- report cannot insert a machine to ask about, and a view read on a
+         -- register that happens to hold no expiring cover agrees either way.
+         -- Three things, because a view that exists and answers the OLD way
+         -- reads as covered: warranty is tested BEFORE the contract, the
+         -- fallback is OGP, and the engineer comes from the Party Master.
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+             'warranty_end >= CURRENT_DATE[\s\S]*contract_end >= CURRENT_DATE'
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) like '%''OGP''::text%'
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) like '%party_service_engineer(%'
+         -- and the columns that keep the migrated system's own answer.
+         and exists (select 1 from information_schema.columns
+                      where table_schema='public' and table_name='product_database'
+                        and column_name = 'item_status_keyed')
+         and exists (select 1 from information_schema.columns
+                      where table_schema='public' and table_name='product_database'
+                        and column_name = 'service_engineer_keyed')))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
