@@ -50,11 +50,46 @@ export function RolePermissions() {
   const [newLabel, setNewLabel] = useState('');
   const [cloneFrom, setCloneFrom] = useState('');
 
-  const [perms, setPerms] = useState<Record<string, Set<string>>>(() => {
+  // ===========================================================================
+  // THE MATRIX MUST SHOW WHAT IS STORED, AND SAVE ONLY WHAT WAS TOUCHED.
+  //
+  // Reported 2026-09-23: "Role & Permission are not working."
+  //
+  // TWO FAULTS, AND THE SECOND DESTROYS WORK. `rolePerms` starts life as
+  // DEFAULT_PERMS (auth.tsx) and is replaced when `app_roles` arrives, so a
+  // `useState` INITIALISER -- which runs once, at mount -- built this whole
+  // matrix from the CODE DEFAULTS whenever the screen was opened before the
+  // roles had loaded. Nothing corrected it afterwards, so an administrator was
+  // reading the code's idea of each role and believing it was the project's.
+  //
+  // And `save()` wrote EVERY role, every time. So one tick on a matrix drawn
+  // from defaults overwrote all twelve tuned rows with those defaults -- every
+  // permission an administrator had ever set, gone, reported as "Permissions
+  // saved". That is the whole complaint: changes appear to save and the system
+  // then behaves as though nobody had configured anything.
+  //
+  // THE FIX IS BOTH HALVES, and the second is the one that matters: while
+  // nothing has been edited the matrix FOLLOWS the database, and the save
+  // writes only the roles somebody actually TOUCHED. Then even if the matrix
+  // were showing the wrong thing, an untouched role's stored row is never
+  // rewritten -- the same "MERGE, never overwrite" rule the migrations follow.
+  // ===========================================================================
+  const seedFrom = (config: Record<string, string[]>, list: RoleDef[]) => {
     const out: Record<string, Set<string>> = {};
-    ROLES.forEach((r) => { out[r.key] = new Set(permsForRole(r.key, rolePerms)); });
+    list.forEach((r) => { out[r.key] = new Set(permsForRole(r.key, config)); });
     return out;
-  });
+  };
+  const [perms, setPerms] = useState<Record<string, Set<string>>>(() => seedFrom(rolePerms, ROLES));
+  // WHICH ROLES THE OPERATOR CHANGED. Not "has anything changed" -- which role,
+  // because that is what decides what gets written.
+  const [touched, setTouched] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    // Only while nothing is in progress: re-seeding over somebody's half-made
+    // edits would throw them away, which is the other way to lose work here.
+    if (touched.size) return;
+    setPerms(seedFrom(rolePerms, roles));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rolePerms, roles]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const [masters, setMasters] = useState<MasterList[]>([]);
@@ -102,6 +137,7 @@ export function RolePermissions() {
   const has = (role: string, action: string) => role === 'admin' || !!perms[role]?.has(action);
   const toggle = (role: string, action: string) => {
     if (role === 'admin') return;
+    setTouched((cur) => new Set(cur).add(role));
     setPerms((cur) => {
       const next = { ...cur, [role]: new Set(cur[role]) };
       if (next[role].has(action)) next[role].delete(action); else next[role].add(action);
@@ -111,6 +147,7 @@ export function RolePermissions() {
   // Tick every action on a page for one role in one go.
   const setPage = (role: string, keys: string[], on: boolean) => {
     if (role === 'admin') return;
+    setTouched((cur) => new Set(cur).add(role));
     setPerms((cur) => {
       const next = { ...cur, [role]: new Set(cur[role]) };
       keys.forEach((k) => { if (on) next[role].add(k); else next[role].delete(k); });
@@ -259,6 +296,9 @@ export function RolePermissions() {
     logAudit({ action: 'rbac.role.add', target: newKey, status: 'ok', meta: { cloned_from: cloneFrom, permissions: source.length } });
     await reloadRoles();
     await refreshRoleList();
+    // A NEW ROLE IS TOUCHED BY DEFINITION: it has no stored row to leave alone,
+    // and `createRole` has already written one, so Save must carry the edits.
+    setTouched((cur) => new Set(cur).add(newKey));
     setPerms((cur) => ({ ...cur, [newKey]: new Set(source) }));
     setAdding(false); setNewLabel(''); setCloneFrom('');
     setMsg({ tone: 'ok', text: `Added "${newLabel.trim()}" (${newKey}) with ${cloneFrom}'s ${source.length} permissions. Untick what it should not have, then Save.` });
@@ -268,17 +308,55 @@ export function RolePermissions() {
     if (!supabaseConfigured()) { setMsg({ tone: 'error', text: 'Connect the database first.' }); return; }
     setBusy(true); setMsg({ tone: 'info', text: 'Saving…' });
     try {
-      for (const r of roles) {
-        const list = r.key === 'admin'
-          ? [...ACTIONS.map((a) => a.key),
-             ...masters.flatMap((m) => [masterAction(m.key), ...masterListActions(m.key)])]
-          : [...(perms[r.key] ?? [])];
-        const res = await setRolePerms(r.key, list, r.label);
+      // ONLY WHAT WAS TOUCHED. This wrote every role on every save, so one tick
+      // on a matrix that had been drawn from the code defaults replaced all
+      // twelve tuned rows with those defaults -- and said "Permissions saved".
+      // A role nobody edited is now left exactly as it is, which is the same
+      // rule the migrations follow when they grant a key.
+      const toWrite = roles.filter((r) => r.key !== 'admin' && touched.has(r.key));
+
+      // ADMIN IS COMPUTED, NOT EDITED, so it is re-asserted whenever it has
+      // fallen behind -- a new action added to the code reaches the DATABASE
+      // policies only through `app_roles`, and `has_perm()` reads that row.
+      // It is safe to overwrite BECAUSE nobody can edit it here: the column is
+      // disabled, so the computed list is the only thing it could ever hold.
+      // Dropping this with the every-role loop would have been a quiet
+      // regression the day somebody added an action.
+      const adminList = [...ACTIONS.map((a) => a.key),
+                         ...masters.flatMap((m) => [masterAction(m.key), ...masterListActions(m.key)])];
+      const key = (xs: string[]) => [...new Set(xs)].sort().join('\u0000');
+      if (key(adminList) !== key(rolePerms.admin ?? [])) {
+        const res = await setRolePerms('admin', adminList, 'Admin');
+        if (!res.ok) { setMsg({ tone: 'error', text: `Save failed for Admin: ${res.error}` }); setBusy(false); return; }
+      }
+
+      // AN EMPTY SET IS NOT "NO PERMISSIONS", IT IS "NOT CONFIGURED", and
+      // `permsForRole` turns the code fallback back ON for such a role -- so
+      // saving one would grant the engineer defaults to whoever holds it, which
+      // is the opposite of what unticking everything looks like it does. It is
+      // refused with the reason rather than written.
+      const emptied = toWrite.filter((r) => (perms[r.key]?.size ?? 0) === 0);
+      if (emptied.length) {
+        setMsg({ tone: 'error', text: `${emptied.map((r) => r.label).join(', ')} would be left with NO permissions ticked. `
+          + 'An empty role means "not configured" and falls back to the built-in defaults, which is not what unticking everything looks like it does — tick at least one, or remove the role.' });
+        setBusy(false); return;
+      }
+
+      if (!toWrite.length) {
+        await reloadRoles();
+        setMsg({ tone: 'info', text: 'Nothing was changed, so nothing was written.' });
+        setBusy(false); return;
+      }
+
+      for (const r of toWrite) {
+        const res = await setRolePerms(r.key, [...(perms[r.key] ?? [])], r.label);
         if (!res.ok) { setMsg({ tone: 'error', text: `Save failed for ${r.label}: ${res.error}` }); setBusy(false); return; }
       }
       await reloadRoles();
-      logAudit({ action: 'rbac.save', status: 'ok', meta: { roles: roles.length } });
-      setMsg({ tone: 'ok', text: 'Permissions saved. They apply on each user’s next action / reload.' });
+      setTouched(new Set());
+      logAudit({ action: 'rbac.save', status: 'ok', meta: { roles: toWrite.map((r) => r.key) } });
+      setMsg({ tone: 'ok', text: `Saved ${toWrite.length} role${toWrite.length === 1 ? '' : 's'}: ${toWrite.map((r) => r.label).join(', ')}. `
+        + 'They apply on each user’s next action / reload.' });
     } catch (e) {
       setMsg({ tone: 'error', text: `Save failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }

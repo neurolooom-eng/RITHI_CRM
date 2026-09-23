@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.354',
+    date: '2026-09-23',
+    title: 'Roles & Permissions saves what you changed, and nothing else',
+    changes: [
+      '⚠ A REAL BUG, AND IT WAS DESTROYING WORK. The permission matrix was built ONCE when the screen opened. If it opened before the roles had finished loading — which is what happens on a reload, or a direct link to that page — it drew the BUILT-IN DEFAULTS instead of what you had configured, and never corrected itself.',
+      'AND SAVE WROTE EVERY ROLE, every time. So one tick on a matrix showing defaults replaced all twelve tuned roles with those defaults — every permission anybody had ever set, gone, and the screen said “Permissions saved”. That is why Roles & Permissions has not been working.',
+      'THE MATRIX NOW FOLLOWS THE DATABASE until you start editing, and SAVE WRITES ONLY THE ROLES YOU TOUCHED. A role you did not change keeps exactly what it had — so even if the matrix were ever wrong again, it can no longer overwrite anything.',
+      'It tells you which roles it wrote, by name. If you changed nothing it says so instead of writing.',
+      'UNTICKING EVERYTHING ON A ROLE IS NOW REFUSED, with the reason. An empty role means “not configured” and falls back to the built-in engineer defaults — the opposite of what unticking everything looks like it does.',
+      'Admin is still kept up to date, but only when it has fallen behind the code — it is computed, not edited.',
+      'NEW: supabase/apply/_what_can_this_role_do.sql — read-only. Point it at a role and it says what that role ACTUALLY holds in the database, who is on it, and whether User Master disagrees. Use it when a tick does not seem to take effect.',
+    ],
+  },
+  {
     version: '0.9.353',
     date: '2026-09-23',
     title: 'INST Call holds a call number, or nothing',

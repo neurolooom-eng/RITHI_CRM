@@ -3829,7 +3829,14 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   const rp = readFileSync('src/modules/RolePermissions.tsx', 'utf8');
   eq('the matrix draws a column per stored role, not per coded one',
     /roles\.map\(\(r\) => <th/.test(rp) && !/ROLES\.map\(\(r\) => <th/.test(rp), true);
-  eq('and saving walks the same list', /for \(const r of roles\)/.test(rp), true);
+  // THE PROPERTY, NOT THE OLD SHAPE. This matched `for (const r of roles)`
+  // literally, and broke the day the save stopped writing every role. What it
+  // has always been about is the LIST: the save must be derived from the stored
+  // roles (`roles`), never from the coded `ROLES`, or a role somebody added
+  // here would exist and never be written.
+  eq('and saving walks the same list',
+    /const toWrite = roles\.filter\(/.test(rp)
+    && !/for \(const r of ROLES\)|ROLES\.filter\(/.test(rp), true);
 }
 
 // ---------------------------------------------------------------------------
@@ -8287,6 +8294,49 @@ console.log('\n-- an installation call is raised the same way from either place 
     (cr.match(/setCounts\(Object\.fromEntries\(STATES\.map\(\(x\) => \[x, null\]\)\)\)/g) ?? []).length, 2);
   eq('...naming the reason, not just that it failed',
     /The three totals did not/.test(cr), true);
+}
+
+console.log('\n-- Roles & Permissions saves what was touched, and nothing else --');
+{
+  // Reported 2026-09-23: "Role & Permission are not working."
+  //
+  // `rolePerms` STARTS AS DEFAULT_PERMS (auth.tsx) and is replaced when
+  // app_roles arrives. A `useState` initialiser runs once, at mount -- so a
+  // matrix built that way showed the CODE DEFAULTS whenever the screen opened
+  // before the roles had loaded, and nothing corrected it. The save then wrote
+  // EVERY role, so one tick replaced all twelve tuned rows with those defaults
+  // and reported "Permissions saved".
+  const rp = code(readFileSync('src/modules/RolePermissions.tsx', 'utf8'));
+
+  // THE MATRIX FOLLOWS THE DATABASE while nothing is in progress.
+  eq('the matrix is re-seeded when the stored roles arrive',
+    /useEffect\(\(\) => \{[\s\S]{0,200}setPerms\(seedFrom\(rolePerms, roles\)\)/.test(rp), true);
+  // ...but never over somebody's half-made edits, which is the other way to
+  // lose work on this screen.
+  eq('...and never over an edit in progress', /if \(touched\.size\) return;/.test(rp), true);
+
+  // THE SAVE IS THE HALF THAT DESTROYS. A role nobody edited must keep its
+  // stored row -- the same "MERGE, never overwrite" rule the migrations follow.
+  eq('the save writes only the roles that were touched',
+    /const toWrite = roles\.filter\(\(r\) => r\.key !== 'admin' && touched\.has\(r\.key\)\)/.test(rp), true);
+  eq('...and every edit records WHICH role it changed',
+    (rp.match(/setTouched\(\(cur\) => new Set\(cur\)\.add\(/g) ?? []).length >= 3, true);
+  eq('...and the flag is cleared once they are written', /setTouched\(new Set\(\)\)/.test(rp), true);
+
+  // ADMIN IS COMPUTED, NOT EDITED. Its row still has to reach app_roles, since
+  // the DATABASE policies read has_perm() -- but only when it has fallen
+  // behind, not on every save.
+  eq('admin is re-asserted only when it has fallen behind',
+    /if \(key\(adminList\) !== key\(rolePerms\.admin \?\? \[\]\)\)/.test(rp), true);
+
+  // AN EMPTY SET IS "NOT CONFIGURED", NOT "NO PERMISSIONS": permsForRole turns
+  // the code fallback back ON for such a role, so saving one GRANTS the
+  // engineer defaults to whoever holds it -- the opposite of what unticking
+  // everything looks like it does.
+  eq('a role emptied of every tick is refused, with the reason',
+    /would be left with NO permissions ticked/.test(rp), true);
+  eq('...and that is what permsForRole actually does',
+    /if \(stored && stored\.length\) return stored;/.test(code(readFileSync('src/lib/rbac.ts', 'utf8'))), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
