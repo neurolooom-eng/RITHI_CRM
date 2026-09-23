@@ -98,37 +98,66 @@ p.id,
   case
     when p.warranty_end >= current_date then 'WGP'
     when p.contract_end >= current_date then
-      coalesce(
-        public.contract_cover_code((
-          select coalesce(nullif(btrim(ci.contract_type), ''), nullif(btrim(ce.contract_type), ''))
-            from public.contract_items ci
-            join public.contract_entries ce on ce.mc_number = ci.mc_number
-           where ci.mc_number = p.contract_number
-             and lower(btrim(ci.serial_number)) = p.serial_key
-           limit 1)),
-        public.contract_cover_code((
-          select nullif(btrim(ce.contract_type), '')
-            from public.contract_entries ce
-           where ce.mc_number = p.contract_number
-           limit 1)),
-        public.contract_cover_code(p.contract_type),
-        'CONTRACT (TYPE NOT RECORDED)')
+      coalesce(public.contract_cover_code(nullif(btrim(ci.contract_type), '')),
+               public.contract_cover_code(nullif(btrim(ce.contract_type), '')),
+               public.contract_cover_code(p.contract_type),
+               'CONTRACT (TYPE NOT RECORDED)')
     else 'OGP'
   end                                               as item_status,
 
   -- ---- SERVICE ENGINEER --------------------------------------------------
-  -- ALWAYS the Party Master (0200). A party the master does not carry answers
-  -- EMPTY rather than falling back to the machine stored name: "it should
-  -- always come from Party Master" is the ask, and a silent fallback would make
-  -- the screen disagree with the master on exactly the customers somebody needs
-  -- to correct.
-  public.party_service_engineer(p.party_name)       as service_engineer,
+  -- ALWAYS the Party Master's (0200). A party the master does not carry
+  -- answers EMPTY rather than falling back to the machine's stored name: "it
+  -- should always come from Party Master" is the ask, and a silent fallback
+  -- would make the screen disagree with the master on exactly the customers
+  -- somebody needs to correct.
+  --
+  -- JOINED, NOT party_service_engineer(p.party_name). The rule is that
+  -- function's, verbatim -- name_key = lower(btrim(party)) -- and check:ui
+  -- holds the two together. It is a JOIN here for the reason below.
+  coalesce(nullif(btrim(pa.service_engineer), ''), '') as service_engineer,
 
   -- What the MIGRATED SYSTEM said, kept beside the computed answer so the two
   -- can be compared rather than one quietly replacing the other.
   p.item_status                                     as item_status_keyed,
   p.service_engineer                                as service_engineer_keyed
-from public.products p;
+from public.products p
+-- ===========================================================================
+-- JOINS, NOT CORRELATED SUBQUERIES, AND THAT IS THE WHOLE PERFORMANCE STORY.
+--
+-- Reported from use the day this shipped: "Search failed: canceling statement
+-- due to statement timeout", with an empty register behind it.
+--
+-- The first version asked the contract question as three correlated subqueries
+-- inside a COALESCE and the engineer as a per-row function call. Measured on a
+-- register of 20,000 machines: 6 ms for one page, because LIMIT stops after a
+-- hundred rows -- and MORE THAN 120 SECONDS the moment anything makes Postgres
+-- produce the columns for every row, which any filter on the register does.
+-- That is why one page looked fine here and the screen died there.
+--
+-- A LEFT JOIN is planned ONCE for the whole query: a hash join over
+-- contract_items and contract_entries instead of two index lookups per row
+-- through two RLS-protected tables. Same answers, and the plan no longer
+-- depends on how many rows survive the filter.
+--
+-- THIS IS 0220's LESSON AND I WALKED INTO IT. That migration measured the same
+-- shape at fifty-two times slower under RLS than as the owner, and wrote it
+-- down. Correctness was proved here on five fixture rows; the SPEED was not
+-- measured until the register was loaded to its real size. A view over a
+-- 20,000-row register is measured at that size or it is not measured.
+-- ===========================================================================
+-- The machine's own line on the contract its MC number names -- "as per the MC
+-- Number", down to the line, so a machine on a Labour line of a Comprehensive
+-- contract reads AMC.
+left join public.contract_items ci
+       on ci.mc_number = p.contract_number
+      and lower(btrim(ci.serial_number)) = p.serial_key
+-- The contract's own type, where the line does not carry one.
+left join public.contract_entries ce
+       on ce.mc_number = p.contract_number
+-- The Party Master, keyed exactly as party_service_engineer() keys it.
+left join public.parties pa
+       on pa.name_key = lower(btrim(coalesce(p.party_name, '')));
 
 -- WITHOUT THIS THE VIEW READS AS ITS OWNER and row-level security stops
 -- applying to whoever is reading -- the fault this project has shipped three

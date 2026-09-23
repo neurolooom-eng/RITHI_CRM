@@ -726,7 +726,11 @@ const MODULES = {
             // INST Call holds a UCN or nothing: the placeholders are mapped or
             // cleared, and a trigger stops the next import putting them back
             // or wiping a real UCN (0234). Guards `calls` with to_regclass.
-            '0234_inst_call_is_a_call.sql'],
+            '0234_inst_call_is_a_call.sql',
+            // LAST in this module: it re-states the four read/write policies
+            // 0036 above creates, as InitPlans. Filed anywhere earlier and
+            // 0036's per-row versions would go straight back on a replay.
+            '0236_cover_policies_are_initplans.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

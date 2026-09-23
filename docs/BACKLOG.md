@@ -43,6 +43,63 @@ up)_
 
 ---
 
+## 2026-09-23 — ⚠ The Product Database timed out, and the cause was not the new view
+
+> *"Search failed: canceling statement due to statement timeout"* — reported
+> within minutes of v0.9.358, with an empty register behind it.
+
+Shipped in v0.9.359. **⚠ RUN `sales_contracts.sql`, then `product_database_2.sql`.**
+`_status.sql` rows 180 and 181.
+
+**My regression.** 0235's first version asked the contract question as three
+correlated subqueries and the engineer as a per-row function call. One page
+measured 6 ms here — because `LIMIT` stops after a hundred rows — and **over
+120 seconds** the moment anything makes Postgres produce the columns for every
+row, which any filter on the register does. Correctness was proved on five
+fixture rows; the SPEED was never measured at the register's real size. **A view
+over a 20,000-row register is measured at that size or it is not measured.**
+
+Rewriting the subqueries as LEFT JOINs took it to 16 s — still hopeless — and
+`EXPLAIN` then named the real cause, which was never the new view:
+
+```
+Seq Scan on contract_items ci  (actual time=16209.182..16209.182 rows=0)
+  Filter: (has_perm('cover.edit') OR has_perm('masters.view') OR ... )
+  Rows Removed by Filter: 20001
+```
+
+**Sixteen seconds to return nothing.** The predicate says nothing about the row
+— it is the same answer for every row — but written bare it is a per-row
+expression, so `has_perm()` ran four times for each of 20,001 rows, each call
+reading `app_roles`. 0036 has written all four cover policies that way since the
+day it was created. It never hurt because the cover registers always read with a
+filter, so the scan was small. **A policy that is fine until somebody writes a
+bigger query is not fine; it is waiting.**
+
+0236 wraps them as InitPlans. Identical semantics, identical audience — the
+third time this project has made this fix (0095 on hand stock, 0164 on `cr_read`
+at 1,840 ms → 7.4 ms).
+
+| measured on 20,000 machines | before | after |
+|---|---|---|
+| one page | 15,813 ms | **18.8 ms** |
+| a filtered search | 5,518 ms | **26.3 ms** |
+| whole register, every computed column | > 120,000 ms | **37.2 ms** |
+
+**The warranty and contract registers get it too**, since they read the same
+four tables.
+
+**Two `_status.sql` clauses were written badly and one of them passed a broken
+database.** The engineer test looked for `p.service_engineer AS service_engineer`
+— but Postgres drops a redundant alias and renders it `p.service_engineer,`, so
+the pattern could never match the mutation it was aimed at. It asks the ROWS now:
+every row must agree with `party_service_engineer()`, which is the rule itself
+and also catches a join written on the wrong key. Both rows mutation-proved
+after that, and both mutations verified as having landed first — two earlier
+attempts silently had not.
+
+---
+
 ## 2026-09-23 — Product Database: two columns stop being stored
 
 > *"Item Status should be a calculated value ... Service Engineer name should be

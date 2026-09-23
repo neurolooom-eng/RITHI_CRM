@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.359',
+    date: '2026-09-23',
+    title: 'Product Database opens again — and the cover registers got faster with it',
+    changes: [
+      '⚠ MY FAULT, AND IT TOOK THE SCREEN DOWN. v0.9.358 pointed the Product Database at a view that asked the contract question separately for every machine. One page looked instant here on five test rows; on 20,000 machines it timed out — “Search failed: canceling statement due to statement timeout”.',
+      'EXPLAIN named the real culprit, and it was not the new view. The row-level security on the four cover tables was being evaluated ONCE PER ROW — sixteen seconds to return nothing — because the permission check was written bare instead of wrapped so Postgres asks it once per query. It has been that way since those tables were created; it never hurt because the cover registers always read with a filter.',
+      'MEASURED ON 20,000 MACHINES: one page 15,813 ms → 18.8 ms. A filtered search 5,518 ms → 26.3 ms. The whole register with every calculated column produced: over 120,000 ms → 37.2 ms.',
+      'NOBODY GAINS OR LOSES A ROW. It is the same permission asked the same way, once instead of twenty thousand times — the third time this fix has been needed here.',
+      'THE WARRANTY AND CONTRACT REGISTERS GET IT TOO, since they read the same four tables. Any unfiltered read of them was carrying the same cost.',
+      '⚠ RUN sales_contracts.sql, then product_database_2.sql. _status.sql rows 180 and 181.',
+    ],
+  },
+  {
     version: '0.9.358',
     date: '2026-09-23',
     title: 'Product Database: Item Status and Service Engineer work themselves out',

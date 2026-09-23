@@ -1221,14 +1221,45 @@ with checks(sort_order, bundle, provides, present) as (
          and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
              'warranty_end >= CURRENT_DATE[\s\S]*contract_end >= CURRENT_DATE'
          and (select pg_get_viewdef('public.product_database'::regclass, true)) like '%''OGP''::text%'
-         and (select pg_get_viewdef('public.product_database'::regclass, true)) like '%party_service_engineer(%'
+         -- The engineer comes from the PARTY MASTER, joined on the same key
+         -- party_service_engineer() uses. It was a per-row call to that
+         -- function until the timeout (0236) made a join necessary; what has
+         -- to stay true is WHERE the value comes from, not how it is fetched.
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+             'JOIN parties [a-z]+ ON [a-z]+\.name_key = lower\(btrim'
+         -- ...AND ASKED OF THE ROWS, not of the text. Postgres renders
+         -- `p.service_engineer as service_engineer` as a bare
+         -- `p.service_engineer,` -- it drops a redundant alias -- so a pattern
+         -- looking for that alias can never match the mutation it is aimed at,
+         -- which is how the first version of this clause passed a database
+         -- where the engineer had gone back to the machine's own column.
+         -- Every row must agree with party_service_engineer(), which is the
+         -- rule itself and also catches a join written on the wrong key.
+         and not exists (
+           select 1
+             from public.product_database v
+             join public.products pp on pp.id = v.id
+            where coalesce(v.service_engineer, '')
+                  is distinct from coalesce(public.party_service_engineer(pp.party_name), ''))
          -- and the columns that keep the migrated system's own answer.
          and exists (select 1 from information_schema.columns
                       where table_schema='public' and table_name='product_database'
                         and column_name = 'item_status_keyed')
          and exists (select 1 from information_schema.columns
                       where table_schema='public' and table_name='product_database'
-                        and column_name = 'service_engineer_keyed')))
+                        and column_name = 'service_engineer_keyed'))),
+    (181, 'Cover: the read policies are asked ONCE per query', 'sale_entries / sale_items / contract_entries / contract_items carry their read and write policies as InitPlans -- (select has_perm(...)) -- rather than bare per-row calls (0236). FOUND BY EXPLAIN after "canceling statement due to statement timeout" on the Product Database: `Seq Scan on contract_items ... Rows Removed by Filter: 20001 ... actual time=16209 ms`. SIXTEEN SECONDS TO RETURN NOTHING. The predicate says nothing about the row -- it is the same answer for every row in the table -- but written bare it is a per-row expression, so has_perm() ran four times for each of 20,001 rows and each call reads app_roles. Wrapping it in a scalar subquery makes it an InitPlan: evaluated once, reused. IDENTICAL AUDIENCE -- nobody gains or loses a row -- which is why this is a performance fix and not a permissions change. Measured on 20,000 machines: one page 15,813 ms -> 18.8 ms, a filtered search 5,518 ms -> 26.3 ms, the whole register with every computed column produced OVER 120,000 ms -> 37.2 ms. IT WAS NOT HURTING BEFORE because the cover registers always read with a filter, so the scan was small and 20,001 evaluations never happened; the Product Database reads the whole install base and joins these tables to it, which is what exposed it -- a policy that is fine until somebody writes a bigger query is not fine, it is waiting. The third time this project has made this fix (0095 on hand stock, 0164 on cr_read at 1,840 ms -> 7.4 ms). NO means the per-row form is back and any unfiltered read of the cover registers will time out. Restore: sales_contracts.sql',
+        (not exists (
+           select 1
+             from pg_policy p
+             join pg_class c on c.oid = p.polrelid
+            where c.relname in ('sale_entries', 'sale_items',
+                                'contract_entries', 'contract_items')
+              -- A policy that CALLS has_perm but does not wrap it in a scalar
+              -- subquery is the per-row form. Rendered, the InitPlan reads
+              -- `( SELECT has_perm('masters.view'::text) AS has_perm)`.
+              and pg_get_expr(p.polqual, p.polrelid) ~ 'has_perm'
+              and pg_get_expr(p.polqual, p.polrelid) !~ 'SELECT has_perm')))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
