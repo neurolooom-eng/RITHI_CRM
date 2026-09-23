@@ -1186,7 +1186,25 @@ with checks(sort_order, bundle, provides, present) as (
           and (to_regclass('public.calls') is null
             or not exists (select 1 from public.calls
                             where upper(coalesce(call_type, '')) like 'INSTALL%'
-                              and upper(btrim(regexp_replace(coalesce(standard_complaint, ''), '\s+', ' ', 'g'))) = 'INSTALLATION CALLS')))))
+                              and upper(btrim(regexp_replace(coalesce(standard_complaint, ''), '\s+', ' ', 'g'))) = 'INSTALLATION CALLS'))))),
+    (179, 'INST Call holds a call number or nothing', 'is_call_number(), the inst_call_repair_log, and zz_sale_item_inst_call_guard on sale_items (0234). The user, 2026-09-23: "Yes clear the placeholder and map the UCN there." The AppSheet cover export fills INST Call with the literal words "To Check" -- the sheet saying NOBODY HAS LOOKED YET, which is the opposite of "this machine has its installation call" -- and coverImport copies the cell straight through, so a large part of sale_items carried it. It read as a call number to every screen that asked whether a machine had one, which is what hid the + Installation call button on almost the whole register. THE TRIGGER IS THE PART THIS ROW REALLY TESTS, and it is not about tidiness: coverImport UPSERTS on uid, so re-importing the AppSheet file overwrites inst_call with whatever the cell says -- undoing the repair, and worse, replacing the UCN of any call raised in the app since that file was exported with a placeholder, leaving the call orphaned with nothing recording the loss. So the guard DISCARDS a value that is not a call number (the 0113/0114 rule: refusing makes an honest importer fail on a file it cannot help, discarding makes a careless one harmless) and NEVER lets a real UCN be replaced by a blank. It still allows one UCN to replace another, because that is somebody correcting a mapping. NOTHING WAS THROWN AWAY: inst_call_repair_log keeps every old value beside the new one with the reason, and a machine that has TWO installation calls is named there rather than silently blanked -- it is cleared like any other, since "To Check" is not a call number whatever else is true, but it is the one that would otherwise be offered a button raising a THIRD call. NO means the placeholders are back, or a re-import can wipe a UCN. Restore: sales_contracts.sql',
+        (to_regprocedure('public.is_call_number(text)') is not null
+         and public.is_call_number('26I23I0080')
+         and public.is_call_number('  26i23i0080 ')
+         -- The words this exists to reject. A row asserting only that the
+         -- function EXISTS would pass on a function that returns true.
+         and not public.is_call_number('To Check')
+         and not public.is_call_number('To Link')
+         and not public.is_call_number('')
+         and to_regclass('public.inst_call_repair_log') is not null
+         and exists (select 1 from pg_trigger
+                      where tgrelid = 'public.sale_items'::regclass
+                        and tgname = 'zz_sale_item_inst_call_guard'
+                        and not tgisinternal)
+         and (to_regclass('public.sale_items') is null
+           or not exists (select 1 from public.sale_items
+                           where btrim(coalesce(inst_call, '')) <> ''
+                             and not public.is_call_number(inst_call)))))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

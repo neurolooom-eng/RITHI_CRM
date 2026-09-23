@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.353',
+    date: '2026-09-23',
+    title: 'INST Call holds a call number, or nothing',
+    changes: [
+      'THE “TO CHECK” PLACEHOLDERS ARE GONE from INST Call — and where an installation call for that machine ALREADY EXISTS, its UCN is written there instead. Matched on MODEL + SERIAL, never the serial alone.',
+      'A MACHINE WITH TWO INSTALLATION CALLS IS NOT GUESSED AT. There is no way to say which one the field means, so it is left blank and NAMED in the repair log with both UCNs, for you to pick by hand.',
+      'NOTHING WAS THROWN AWAY. Every old value is kept beside the new one, with the reason, in inst_call_repair_log — so the repair is reversible and you can check it rather than take my word for it.',
+      'AND IT CANNOT COME BACK. Re-importing the AppSheet cover file used to overwrite INST Call with whatever the cell said. A value that is not a call number is now discarded on the way in — and, more important, a re-import can NEVER replace a real UCN with a blank, which would have orphaned every call raised in the app since that file was exported.',
+      'A UCN can still replace another UCN. That is somebody correcting a mapping, not an import undoing one.',
+      '⚠ RUN sales_contracts.sql — the same bundle as yesterday’s change, so one run covers both. _status.sql row 179.',
+    ],
+  },
+  {
     version: '0.9.352',
     date: '2026-09-23',
     title: 'What an installation call raised from a warranty carries',

@@ -43,6 +43,50 @@ up)_
 
 ---
 
+## 2026-09-23 — INST Call holds a call number or nothing
+
+> *"Yes clear the placeholder and map the UCN there"*
+
+Shipped in v0.9.353. **⚠ RUN `sales_contracts.sql`** — the same bundle as 0233,
+so one run covers both. `_status.sql` row 179.
+
+Three things, and the third is why this is a migration rather than a one-off
+script:
+
+1. **MAP** the UCN where an installation call for that machine already exists —
+   on MODEL + SERIAL, never the serial alone. **Exactly one, or nothing**: where
+   two installation calls name the same machine there is no way to say which the
+   field means, and writing either would be a guess recorded as a fact.
+2. **CLEAR** everything left that is not a call number — not only the words
+   "To Check". The field's meaning is now "the call for this machine, or
+   nothing", and a note left in it reads as a call number to anything that looks.
+3. **A TRIGGER.** `coverImport` upserts on `uid`, so re-importing the AppSheet
+   file overwrites `inst_call` with whatever the cell says — undoing the repair
+   and, worse, replacing the UCN of any call raised in the app since that file
+   was exported, leaving the call orphaned with nothing recording the loss.
+   The guard **discards** a non-call value (the 0113/0114 rule) and **never**
+   lets a real UCN be replaced by a blank. One UCN can still replace another.
+
+**Nothing was thrown away.** `inst_call_repair_log` keeps every old value beside
+the new one with the reason — the placeholder is being destroyed on 1,500+
+machines and "we replaced it with nothing" is not an answer anybody can check.
+The ambiguous machines are named there **with both UCNs**: they are cleared like
+any other, since "To Check" is not a call number whatever else is true, but they
+are the ones that would otherwise be offered a button raising a THIRD call.
+
+`is_call_number()` in SQL and `isCallNumber()` in `coverspec.ts` are the same
+rule in two languages; `check:ui` holds them together, as it does
+`cover_code`/`coverCode`.
+
+Proved on a Postgres built from every migration: one machine mapped, one cleared
+with no call, one cleared and named with its two calls, a real UCN untouched,
+the trigger discarding on both INSERT and UPDATE, a UCN surviving both
+"To Check" and a blank, a new UCN still replacing an old one, and a second run a
+no-op. `_status.sql` row 179 discriminates both ways. **101/101 suites and
+22/22 checks** — the new trigger broke no fixture.
+
+---
+
 ## 2026-09-23 — What a warranty-raised installation call carries
 
 > *"complaint date and breakdown date has to be warranty start date. STANDARD

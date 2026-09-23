@@ -717,7 +717,11 @@ const MODULES = {
             // master and on the calls already raised (0233). It guards both
             // `masters` and `calls` with to_regclass, so it is harmless here
             // even though both belong to `base`.
-            '0233_installation_call_wording.sql'],
+            '0233_installation_call_wording.sql',
+            // INST Call holds a UCN or nothing: the placeholders are mapped or
+            // cleared, and a trigger stops the next import putting them back
+            // or wiping a real UCN (0234). Guards `calls` with to_regclass.
+            '0234_inst_call_is_a_call.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
