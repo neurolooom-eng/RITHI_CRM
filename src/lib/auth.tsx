@@ -272,6 +272,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const reloadUsers = async () => { if (supaMode) { const list = await sbListProfiles(); setSupaUsers(list.map(profileToUser)); } };
 
+  // ===========================================================================
+  // A PERMISSION CHANGE HAS TO REACH A TAB THAT IS ALREADY OPEN.
+  //
+  // Reported 2026-09-23. `reloadRoles()` ran ONCE, at sign-in, and otherwise
+  // only on the Roles & Permissions screen -- which is the administrator's own
+  // session. So an administrator ticked `spare.request` for Technical Support,
+  // saved it, confirmed it was stored, and the person holding that role went on
+  // seeing no button for as long as his tab stayed open. Nothing was wrong with
+  // the grant; nothing ever asked for it again.
+  //
+  // The save even says "they apply on each user's next action / reload", which
+  // is true only of RELOAD -- and the one person who would need to know that is
+  // the one nobody tells.
+  //
+  // ON THE TAB COMING BACK, NOT ON A TIMER. A permission change is rare and a
+  // poll would be a request per user per tick for an answer that almost never
+  // moves; coming back to the tab is both when somebody resumes work and the
+  // moment a change made while they were away should land. Throttled, because
+  // alt-tabbing is not a new day.
+  //
+  // IT ONLY EVER RE-READS. `reloadRoles` merges over what is there, so a failed
+  // request leaves the session exactly as it was rather than dropping somebody
+  // to the defaults mid-shift.
+  useEffect(() => {
+    if (!supaMode) return;
+    let last = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - last < 60_000) return;
+      last = Date.now();
+      void reloadRoles();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supaMode]);
+
   useEffect(() => {
     if (!supaMode || !hasPendingRecovery()) return;
     void sbConsumeRecovery().then((r) => setRecovering(r.ok));

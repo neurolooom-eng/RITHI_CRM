@@ -46,6 +46,53 @@ up)_
 
 ---
 
+## 2026-09-23 — ⚠ Roles & Permissions was overwriting every role on every save
+
+> *"Role & Permission are not working"*
+
+Shipped in v0.9.354. **Client only — no SQL.** But the DAMAGE is in the data: if
+anybody saved the matrix while it was showing defaults, every role's tuned row
+was replaced. `_what_can_this_role_do.sql` (new, read-only) says what each role
+actually holds now.
+
+**Two faults, and the second destroys work.**
+
+1. `rolePerms` starts life as `DEFAULT_PERMS` (auth.tsx) and is replaced when
+   `app_roles` arrives. The matrix was built in a **`useState` initialiser**,
+   which runs once at mount — so a screen opened before the roles had loaded
+   drew the **code defaults**, and nothing corrected it. An administrator was
+   reading the code's idea of each role and believing it was the project's.
+2. `save()` looped `for (const r of roles)` and wrote **every role**. So one tick
+   on a matrix drawn from defaults overwrote all twelve tuned rows with those
+   defaults — and reported *"Permissions saved"*.
+
+**The fix is both halves, and the second is what makes the first survivable:**
+the matrix re-seeds from `rolePerms` whenever it changes *while nothing is being
+edited* (re-seeding over a half-made edit is the other way to lose work here),
+and the save writes **only the roles somebody touched**. An untouched role's row
+is never rewritten — the same MERGE-never-overwrite rule the migrations follow.
+
+Three more things it now gets right:
+
+- It **names the roles it wrote**, and says "nothing was changed" rather than
+  writing when nothing was.
+- **Unticking every action on a role is refused.** An empty array means "not
+  configured" and `permsForRole` turns the *engineer* fallback back on — so
+  saving one GRANTS permissions, which is the opposite of what unticking
+  everything looks like it does.
+- **Admin is still re-asserted**, but only when its computed list has fallen
+  behind. It is computed and never editable here, so overwriting it is correct
+  by construction — dropping it with the every-role loop would have been a quiet
+  regression the day somebody added an action.
+
+**`check:ui` caught its own stale assertion.** *"and saving walks the same list"*
+matched `for (const r of roles)` literally and broke the moment the save stopped
+writing every role. The property it was always about — derived from the STORED
+roles, never the coded `ROLES` — is what it tests now. Two new assertions
+mutation-proved (writing every role again; re-seeding over an edit in progress).
+
+---
+
 ## 2026-09-23 — INST Call holds a call number or nothing
 
 > *"Yes clear the placeholder and map the UCN there"*

@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.354',
+    version: '0.9.357',
     date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,41 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.356',
+    date: '2026-09-23',
+    title: 'A permission you grant now reaches people who are already signed in',
+    changes: [
+      'THE OTHER HALF OF “Roles & Permissions are not working”. The permissions were read ONCE, when somebody signed in. So you could tick an action, save it, confirm it was stored — and the person holding that role went on seeing no button for as long as their tab stayed open. Nothing was wrong with the grant; nothing ever asked for it again.',
+      'They are now re-read when someone comes back to the tab. Grant a permission and it lands the next time they switch back to RITHI, without anybody being told to reload.',
+      'Not a poll — a permission change is rare, and checking on a timer would be a request per person per tick for an answer that almost never moves. And it only ever ADDS what it reads, so a failed request leaves the session exactly as it was rather than dropping somebody to the defaults mid-shift.',
+    ],
+  },
+  {
+    version: '0.9.355',
+    date: '2026-09-23',
+    title: 'The role probe answers before you edit it',
+    changes: [
+      '_what_can_this_role_do.sql now opens with EVERY role and what it holds — how many ACTIONS (what somebody can do) and how many PAGES (what opens), counted apart, because “69 permissions” gets read as “69 things it can do” when most of them are pages.',
+      'So running it unchanged is now the useful first run rather than a dead end. It was a dead end, and somebody ran it that way on the day it shipped — correct, honest, and no help at all.',
+      'A role with NO actions is flagged READ-ONLY, and one with nothing at all is flagged EMPTY — which means “not configured” and falls back to the engineer defaults, not “no permissions”.',
+      'Name a role on the `ask` line for the detail: the actions it holds, who is on it, and where User Master disagrees.',
+    ],
+  },
+  {
+    version: '0.9.354',
+    date: '2026-09-23',
+    title: 'Roles & Permissions saves what you changed, and nothing else',
+    changes: [
+      '⚠ A REAL BUG, AND IT WAS DESTROYING WORK. The permission matrix was built ONCE when the screen opened. If it opened before the roles had finished loading — which is what happens on a reload, or a direct link to that page — it drew the BUILT-IN DEFAULTS instead of what you had configured, and never corrected itself.',
+      'AND SAVE WROTE EVERY ROLE, every time. So one tick on a matrix showing defaults replaced all twelve tuned roles with those defaults — every permission anybody had ever set, gone, and the screen said “Permissions saved”. That is why Roles & Permissions has not been working.',
+      'THE MATRIX NOW FOLLOWS THE DATABASE until you start editing, and SAVE WRITES ONLY THE ROLES YOU TOUCHED. A role you did not change keeps exactly what it had — so even if the matrix were ever wrong again, it can no longer overwrite anything.',
+      'It tells you which roles it wrote, by name. If you changed nothing it says so instead of writing.',
+      'UNTICKING EVERYTHING ON A ROLE IS NOW REFUSED, with the reason. An empty role means “not configured” and falls back to the built-in engineer defaults — the opposite of what unticking everything looks like it does.',
+      'Admin is still kept up to date, but only when it has fallen behind the code — it is computed, not edited.',
+      'NEW: supabase/apply/_what_can_this_role_do.sql — read-only. Point it at a role and it says what that role ACTUALLY holds in the database, who is on it, and whether User Master disagrees. Use it when a tick does not seem to take effect.',
     ],
   },
   {
