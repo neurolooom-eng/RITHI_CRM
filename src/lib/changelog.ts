@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.352',
+    date: '2026-09-23',
+    title: 'What an installation call raised from a warranty carries',
+    changes: [
+      'COMPLAINT DATE and BREAKDOWN DATE are now the WARRANTY START DATE. An installation is not a breakdown, so there is no day on which one happened — the day the warranty begins is the day the machine became ours to install, and dating the call from it keeps the call inside the cover it belongs to. The machine’s own start date wins where it has one. A sale with no start date leaves both EMPTY rather than putting today’s date on a quality record.',
+      'STANDARD COMPLAINT and REPORTED COMPLAINT now read INSTALLATION CALL. They read “Installation Calls” before.',
+      'CALL NUMBER is WI-PRODUCT-SERIAL when the call is raised from the Warranty page — for example WI-MONNAL TEO NF-210. W for warranty, I for installation, then the machine. The product keeps its spaces, because that is how it reads on the register. This is the number BESIDE the UCN; the UCN is still issued by the system.',
+      'ALLOTTED TO is the engineer from the Party Master — the one that arrives on the sale when you pick the customer. A machine that was given its own engineer wins over the entry, which is what pinning is for. A sale naming no engineer allots to nobody rather than guessing.',
+      'The Service Engineer was already on the Sale Entry and already inherited by the machines under it. It is now held by a check so it cannot quietly go away, since the call’s Allotted To reads it.',
+      '⚠ RUN sales_contracts.sql. Standard Complaint is the field every count groups by, so two spellings do not read as a typo — they split the total in half and you believe both halves. 0233 puts INSTALLATION CALL on the Standard Complaint master (the picker takes no free text, so a value the master has not got is one nobody can choose) and moves the installation calls already raised onto it. A FIELD call that happens to say “Installation Calls” is somebody’s own words and is not touched. _status.sql row 178.',
+    ],
+  },
+  {
     version: '0.9.351',
     date: '2026-09-23',
     title: '“To Check” is not an installation call',

@@ -8222,6 +8222,22 @@ console.log('\n-- an installation call is raised the same way from either place 
     /Not a call number/.test(cr), true);
   eq('the confirm names what it is about to replace', /It will be replaced by the new UCN/.test(cr), true);
 
+  // THE ENGINEER IS ON THE SALE AND INHERITED BY ITS MACHINES (the user,
+  // 2026-09-23: "In warranty sale entry also engineer name should be present.
+  // And it should be inherited by the child records."). It already was --
+  // header field and item field with `inherits: true` -- and the call's
+  // Allotted To now reads it, so it must not quietly go away.
+  const cvcfg = readFileSync('src/lib/cover.ts', 'utf8');
+  const saleCfg = cvcfg.slice(cvcfg.indexOf('export const SALE'), cvcfg.indexOf('export const CONTRACT'));
+  eq('the sale entry names an engineer',
+    /\{ name: 'engineer', label: '[^']*', section: 'Installation' \}/.test(saleCfg), true);
+  eq('...and its machines inherit it',
+    /\{ name: 'engineer', label: '[^']*', section: 'Installation', inherits: true \}/.test(saleCfg), true);
+  // It arrives from the Party Master when the customer is chosen, which is
+  // what makes "allotted to the engineer as per party master" true.
+  eq('...from the Party Master, so Allotted To is the master\u2019s answer',
+    /engineer: text\(q\.service_engineer\)/.test(code(readFileSync('src/lib/coverspec.ts', 'utf8'))), true);
+
   // AN ERROR BANNER WITH NO TEXT SAYS SOMETHING WENT WRONG AND REFUSES TO SAY
   // WHAT. `?? ` passes an EMPTY message straight through; `||` does not.
   const cv2 = code(readFileSync('src/lib/cover.ts', 'utf8'));

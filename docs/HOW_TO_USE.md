@@ -342,13 +342,19 @@ against the call it was fitted to.
   > ### Raising the installation calls
   >
   > **＋ Installation calls** raises one call per machine that has not got one.
-  > The party, city, state, model and serial come off the sale; Standard
-  > Complaint and Complaint Reported read **Installation Calls**; the three
-  > vigilance questions are answered **NO**; the customer contact is left blank,
-  > because those fields record who *reported* a fault and nobody reported this.
-  > The SA number, the warranty start and end come across too and the cover
-  > reads **WGP** — unless the sale records no warranty, in which case the cover
-  > is left blank rather than guessed.
+  > Each one carries:
+  >
+  > | | |
+  > |---|---|
+  > | Party, city, state | from the sale entry |
+  > | Product, serial | from that machine's line |
+  > | **Call Number** | `WI-PRODUCT-SERIAL` — e.g. `WI-MONNAL TEO NF-210`. W for warranty, I for installation. This is *beside* the UCN, which the system still issues. |
+  > | Standard Complaint · Reported Complaint | **INSTALLATION CALL** |
+  > | **Complaint Date · Breakdown Date** | the **warranty start date**. An installation is not a breakdown, so there is no day on which one happened. The machine's own start date wins where it has one; no start date at all leaves both empty rather than putting today on the record. |
+  > | **Allotted To** | the **engineer from the Party Master**, which arrives on the sale when you pick the customer. A machine given its own engineer wins over the entry. |
+  > | Vigilance (3 questions) | **NO** |
+  > | Person calling, customer name, number, designation, email | blank — those record who *reported* a fault, and nobody reported this |
+  > | SA number, warranty start/end, item status **WGP** | only where the sale records a warranty; otherwise blank rather than guessed |
   >
   > Each call's UCN lands on that machine's **INST Call** field, and the button
   > goes away once every machine has one.

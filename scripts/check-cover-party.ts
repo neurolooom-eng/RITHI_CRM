@@ -15,7 +15,8 @@
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, inheritAllPatch, isPinnedValue,
          installCallFromSale, machinesNeedingInstallCall, INSTALL_COMPLAINT,
-         partyFillChanges, deriveHeader, suggestedPmVisits, isCallNumber } from '../src/lib/coverspec';
+         partyFillChanges, deriveHeader, suggestedPmVisits, isCallNumber,
+         installCallNumber } from '../src/lib/coverspec';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -180,8 +181,14 @@ console.log('\n-- the installation call a sale entry raises --');
   eq('...with its city and state', [call.city, call.state], ['VARANASI', 'UTTAR PRADESH']);
   // A machine is its MODEL and its SERIAL, both off the sale line.
   eq('the machine comes from the sale line', [call.productName, call.serial], ['MONNAL T75', '11389']);
-  eq('both complaint columns read Installation Calls',
+  eq('both complaint columns read INSTALLATION CALL',
     [call.standardComplaint, call.complaintReported], [INSTALL_COMPLAINT, INSTALL_COMPLAINT]);
+  // THE WORDS THEMSELVES, not just "whatever the constant says". A test that
+  // only compares the value with the constant passes however the constant is
+  // spelled -- and this value is a DIMENSION: every count groups by it, so a
+  // second spelling splits the total and the reader believes both halves.
+  // 0233 puts it on the master and moves the calls already raised.
+  eq('...and those words are exactly the ones asked for', INSTALL_COMPLAINT, 'INSTALLATION CALL');
 
   // THE THREE VIGILANCE QUESTIONS. Answered No on instruction, and they are
   // the honest answer for a machine that has not been switched on yet.
@@ -201,6 +208,40 @@ console.log('\n-- the installation call a sale entry raises --');
   eq('a machine that pinned its own warranty keeps it',
     installCallFromSale(header, { ...item, warranty_start: '2026-06-01', warranty_end: '2028-05-31' }).warrantyStart,
     '2026-06-01');
+
+  // THE CALL NUMBER SAYS WHERE IT CAME FROM (the user, 2026-09-23:
+  // '"WI-"PRODUCT-SLNO'). It is NOT the UCN -- the database still issues that
+  // on insert -- it is the human-facing number beside it.
+  eq('the call number is WI- the product and the serial', call.callNumber, 'WI-MONNAL T75-11389');
+  eq('...the product keeps its spaces, because that is how it reads on the register',
+    installCallNumber('MONNAL TEO NF', '210'), 'WI-MONNAL TEO NF-210');
+  eq('...and a missing half produces no number rather than "WI--"',
+    [installCallNumber('', '210'), installCallNumber('ORION-G', '')], ['', '']);
+
+  // THE DATES ARE THE WARRANTY START (same ask). An installation is not a
+  // breakdown, so there is no date on which one happened.
+  eq('complaint and breakdown are both the warranty start',
+    [call.complaintDate, call.breakdownDate], ['2026-04-20', '2026-04-20']);
+  eq('...the MACHINE\u2019s where it pinned one',
+    installCallFromSale(header, { ...item, warranty_start: '2026-06-01' }).complaintDate, '2026-06-01');
+  // NOT GATED ON COVER, unlike the warranty fields: a sale that records a start
+  // date but no period still knows when it started.
+  eq('...and a sale with a start but no period still dates the call',
+    installCallFromSale({ party_name: 'X', warranty_start: '2026-04-20', warranty_months: null, warranty_end: null }, item).complaintDate,
+    '2026-04-20');
+  // Today's date would be a date nobody chose, written into a quality record.
+  eq('...while no start date at all leaves them EMPTY rather than today',
+    [installCallFromSale({ party_name: 'X' }, item).complaintDate,
+     installCallFromSale({ party_name: 'X' }, item).breakdownDate], ['', '']);
+
+  // ALLOTTED TO THE PARTY MASTER'S ENGINEER (same ask). It reaches the sale
+  // through partyFillForSale when the customer is chosen.
+  eq('the call is allotted to the sale\u2019s engineer',
+    installCallFromSale({ ...header, engineer: 'MEGHANATH' }, item).allocatedTo, 'MEGHANATH');
+  eq('...and a machine that pinned its own engineer wins',
+    installCallFromSale({ ...header, engineer: 'MEGHANATH' }, { ...item, engineer: 'DHRUV PATEL' }).allocatedTo,
+    'DHRUV PATEL');
+  eq('...a sale naming none allots to nobody rather than guessing', call.allocatedTo, '');
 
   // AN UNKNOWN COVER GETS ASKED ABOUT; A WRONG ONE GETS BELIEVED.
   const noWarranty = installCallFromSale(
