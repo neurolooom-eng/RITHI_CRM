@@ -46,6 +46,105 @@ up)_
 
 ---
 
+## 2026-09-23 — ⚠ The Product Database timed out, and the cause was not the new view
+
+> *"Search failed: canceling statement due to statement timeout"* — reported
+> within minutes of v0.9.358, with an empty register behind it.
+
+Shipped in v0.9.359. **⚠ RUN `sales_contracts.sql`, then `product_database_2.sql`.**
+`_status.sql` rows 180 and 181.
+
+**My regression.** 0235's first version asked the contract question as three
+correlated subqueries and the engineer as a per-row function call. One page
+measured 6 ms here — because `LIMIT` stops after a hundred rows — and **over
+120 seconds** the moment anything makes Postgres produce the columns for every
+row, which any filter on the register does. Correctness was proved on five
+fixture rows; the SPEED was never measured at the register's real size. **A view
+over a 20,000-row register is measured at that size or it is not measured.**
+
+Rewriting the subqueries as LEFT JOINs took it to 16 s — still hopeless — and
+`EXPLAIN` then named the real cause, which was never the new view:
+
+```
+Seq Scan on contract_items ci  (actual time=16209.182..16209.182 rows=0)
+  Filter: (has_perm('cover.edit') OR has_perm('masters.view') OR ... )
+  Rows Removed by Filter: 20001
+```
+
+**Sixteen seconds to return nothing.** The predicate says nothing about the row
+— it is the same answer for every row — but written bare it is a per-row
+expression, so `has_perm()` ran four times for each of 20,001 rows, each call
+reading `app_roles`. 0036 has written all four cover policies that way since the
+day it was created. It never hurt because the cover registers always read with a
+filter, so the scan was small. **A policy that is fine until somebody writes a
+bigger query is not fine; it is waiting.**
+
+0236 wraps them as InitPlans. Identical semantics, identical audience — the
+third time this project has made this fix (0095 on hand stock, 0164 on `cr_read`
+at 1,840 ms → 7.4 ms).
+
+| measured on 20,000 machines | before | after |
+|---|---|---|
+| one page | 15,813 ms | **18.8 ms** |
+| a filtered search | 5,518 ms | **26.3 ms** |
+| whole register, every computed column | > 120,000 ms | **37.2 ms** |
+
+**The warranty and contract registers get it too**, since they read the same
+four tables.
+
+**Two `_status.sql` clauses were written badly and one of them passed a broken
+database.** The engineer test looked for `p.service_engineer AS service_engineer`
+— but Postgres drops a redundant alias and renders it `p.service_engineer,`, so
+the pattern could never match the mutation it was aimed at. It asks the ROWS now:
+every row must agree with `party_service_engineer()`, which is the rule itself
+and also catches a join written on the wrong key. Both rows mutation-proved
+after that, and both mutations verified as having landed first — two earlier
+attempts silently had not.
+
+---
+
+## 2026-09-23 — Product Database: two columns stop being stored
+
+> *"Item Status should be a calculated value ... Service Engineer name should be
+> a calculated value. It should always come from Party Master"*
+
+Shipped in v0.9.358. **⚠ RUN `product_database_2.sql`** — `_status.sql` row 180.
+
+**The comparison was read as `>= today`, not `<=`.** Taken literally, an expired
+warranty would read WGP and a machine covered by both would read OGP — all three
+inverted, and OGP is plainly the fallback for a machine covered by nothing.
+0036's `sync_product_cover` already compared with `>= current_date`.
+
+**A VIEW, not a column.** Item Status compares two dates with TODAY, so a stored
+answer is right the day it is written and wrong afterwards — the fault 0222 had
+to correct on Product Database 2.0, where a frozen cover status left 209 machines
+of 10,000 wrong after thirty days, silently. The engineer is the same argument
+one step along: the Party Master is the master, so a copy on the machine is a
+second answer that goes stale the moment the customer's engineer changes.
+
+`public.product_database` computes both. **The table is untouched** — every
+importer still writes `products` — and the stored values are kept beside the
+computed ones as `item_status_keyed` / `service_engineer_keyed`, so the migrated
+system's answer can be compared rather than quietly replaced.
+
+Three reads moved to it: the register, the "everything this customer has" list,
+and **the call form's cover prefill** — so a call raised today gets today's
+cover rather than a stored one.
+
+**`check:replay` caught the filing, twice over.** Put beside the cover registers,
+`sales_contracts.sql` died on `contract_cover_code()` — a view resolves its body
+AT CREATION — and `all.sql` died too, because `cover` runs before
+`product_database_2` in `ALL_ORDER`. It lives in `product_database_2` now, which
+is last for exactly this reason, and declares `partyServiceEngineer` in `needs`
+so the preflight says *"Apply these first"* instead of a Postgres error naming a
+function. Proved by dropping `party_service_engineer()` and running the bundle.
+
+101/101 suites, 22/22 checks. The `_status.sql` row asserts the rule on the view's
+DEFINITION — this report cannot insert a machine to ask about, and a register
+holding no expiring cover agrees either way — mutation-proved both ways.
+
+---
+
 ## 2026-09-23 — ⚠ Roles & Permissions was overwriting every role on every save
 
 > *"Role & Permission are not working"*

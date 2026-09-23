@@ -48,6 +48,11 @@ const NEEDS = {
                '0215_visit_dates_fall_back_to_first_booked.sql (apply bundle: performance)'],
   coverCode: [`to_regprocedure('public.cover_code(text)')`, 'cover_code()',
               '0208_cover_code_normalised.sql (apply bundle: data_integrity)'],
+  // The Product Database's computed Service Engineer (0235). Its OTHER
+  // dependency, contract_cover_code(), is satisfied inside this same module by
+  // 0218, so it needs no preflight -- this one crosses a module boundary.
+  partyServiceEngineer: [`to_regprocedure('public.party_service_engineer(text)')`, 'party_service_engineer()',
+                         '0200_party_service_engineer.sql (apply bundle: masters)'],
   spareLineStages: [`to_regprocedure('public.spare_line_stage(text,text,text,text,timestamptz,text)')`,
                     'per-spare approvals (spare_request_lines.dispatched_at)',
                     '0016_spare_line_approvals.sql (apply bundle: Spare_X.sql)'],
@@ -721,7 +726,11 @@ const MODULES = {
             // INST Call holds a UCN or nothing: the placeholders are mapped or
             // cleared, and a trigger stops the next import putting them back
             // or wiping a real UCN (0234). Guards `calls` with to_regclass.
-            '0234_inst_call_is_a_call.sql'],
+            '0234_inst_call_is_a_call.sql',
+            // LAST in this module: it re-states the four read/write policies
+            // 0036 above creates, as InitPlans. Filed anywhere earlier and
+            // 0036's per-row versions would go straight back on a replay.
+            '0236_cover_policies_are_initplans.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -823,12 +832,25 @@ const MODULES = {
             'one flag write -- and pg_cron rebuilds every five minutes only if',
             'something moved. The COVER STATUS is not stored at all (0222): it',
             'depends on today, so materialising it froze it at the last',
-            'rebuild, and it is computed on every read instead.'],
-    needs: ['importedTs', 'coverCode'],
+            'rebuild, and it is computed on every read instead.',
+            '',
+            'AND IT CARRIES THE 1.0 VIEW TOO (0235). `product_database` gives the',
+            'OLD Product Database the same treatment for two columns -- Item',
+            'Status worked out warranty-first, Service Engineer always from the',
+            'Party Master -- and it is HERE rather than beside `products` for',
+            'exactly the reason this module exists: it calls',
+            '`contract_cover_code()` (0218, above) and `party_service_engineer()`',
+            '(0200, in `masters`), and a view resolves its body AT CREATION.',
+            'Filed with the cover registers it died on the first of those, in',
+            '`all.sql` as well as on its own -- `check:replay` found it, the',
+            'third time that check has caught this exact class.'],
+    needs: ['importedTs', 'coverCode', 'partyServiceEngineer'],
     files: ['0218_product_database_v2.sql', '0220_product_database_2_is_materialised.sql',
             '0221_product_database_2_needs_no_gate.sql',
             '0222_status_is_computed_when_read.sql',
-            '0223_product_database_2_keeps_itself_alive.sql'],
+            '0223_product_database_2_keeps_itself_alive.sql',
+            // AFTER 0218: it calls contract_cover_code(), which that file creates.
+            '0235_product_database_computed.sql'],
   },
   feedback_checks: {
     title: 'Feedback Without a Report',

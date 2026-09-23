@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.357',
+    version: '0.9.360',
     date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,45 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.359',
+    date: '2026-09-23',
+    title: 'Product Database opens again — and the cover registers got faster with it',
+    changes: [
+      '⚠ MY FAULT, AND IT TOOK THE SCREEN DOWN. v0.9.358 pointed the Product Database at a view that asked the contract question separately for every machine. One page looked instant here on five test rows; on 20,000 machines it timed out — “Search failed: canceling statement due to statement timeout”.',
+      'EXPLAIN named the real culprit, and it was not the new view. The row-level security on the four cover tables was being evaluated ONCE PER ROW — sixteen seconds to return nothing — because the permission check was written bare instead of wrapped so Postgres asks it once per query. It has been that way since those tables were created; it never hurt because the cover registers always read with a filter.',
+      'MEASURED ON 20,000 MACHINES: one page 15,813 ms → 18.8 ms. A filtered search 5,518 ms → 26.3 ms. The whole register with every calculated column produced: over 120,000 ms → 37.2 ms.',
+      'NOBODY GAINS OR LOSES A ROW. It is the same permission asked the same way, once instead of twenty thousand times — the third time this fix has been needed here.',
+      'THE WARRANTY AND CONTRACT REGISTERS GET IT TOO, since they read the same four tables. Any unfiltered read of them was carrying the same cost.',
+      '⚠ RUN sales_contracts.sql, then product_database_2.sql. _status.sql rows 180 and 181.',
+    ],
+  },
+  {
+    version: '0.9.358',
+    date: '2026-09-23',
+    title: 'Product Database: Item Status and Service Engineer work themselves out',
+    changes: [
+      'ITEM STATUS is now calculated on every read: in warranty → WGP; otherwise, still under contract → CMC or AMC as the MC number says; otherwise OGP.',
+      'The type comes from the CONTRACT THE MC NUMBER NAMES — down to that machine’s own line on it, so a machine on a Labour line of a Comprehensive contract reads AMC. A contract with no type recorded reads “CONTRACT (TYPE NOT RECORDED)” rather than guessing CMC, which is what the old sync did.',
+      'WARRANTY IS ASKED BEFORE CONTRACT. A machine inside its warranty is not being billed under its contract. The old rule asked the contract first, so a machine still in warranty read CMC — and Product Database 2.0 already decided it this way, so the two registers now agree.',
+      'SERVICE ENGINEER always comes from the Party Master. A customer the master does not carry shows BLANK rather than the old stored name — a silent fallback would make the screen disagree with the master on exactly the customers you need to fix.',
+      'WHAT WAS STORED IS KEPT BESIDE IT, as Item Status (keyed) and Service Engineer (keyed), so the migrated system’s own answer can be compared rather than quietly replaced. Nothing was overwritten and no upload changes.',
+      'The call form’s cover prefill and the “everything this customer has” list read the same calculation, so a call raised today gets today’s cover.',
+      '⚠ RUN product_database_2.sql. _status.sql row 180.',
+    ],
+  },
+  {
+    version: '0.9.357',
+    date: '2026-09-23',
+    title: 'A SQL file to delete specific calls',
+    changes: [
+      'NEW: supabase/apply/_delete_these_calls.sql. Name the UCNs, run it as it is to see exactly what would go, then set one flag to true. Nothing is deleted on the first run.',
+      'IT REFUSES ANY CALL THAT HAS HISTORY — a visit, a spare, feedback, a review, a failure report — and names what it found instead. Nothing in the database protects those: they are joined to a call by the UCN as plain text, with no foreign key anywhere, so deleting a call would leave them pointing at nothing, silently. A test call has none; a call that has one is not a test call.',
+      'It also clears INST Call on any machine that pointed at a deleted call, and puts a Call Request that became one back to Pending rather than deleting it — somebody really did raise it.',
+      'The report prints the party and the date beside every UCN, so a number typed wrong shows up as a call you do not recognise rather than as a deletion you cannot undo.',
+      'A change to 0234 came out of writing it: the guard that stops a re-import wiping a real UCN was also stopping a DBA clearing one that points at a DELETED call. It now applies to the application only — the same test 0049 uses — so the mapping can be corrected while an import still cannot take it backwards.',
     ],
   },
   {
