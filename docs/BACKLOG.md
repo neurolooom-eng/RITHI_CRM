@@ -43,6 +43,48 @@ up)_
 
 ---
 
+## 2026-09-23 — The probe cut its example exactly where the answer was
+
+The 2026-09-22 run of `_where_are_my_service_reports.sql` came back with the
+AppSheet URL shown as
+
+    https://www.appsheet.com/image/getimageurl?appName=Reportsv2-RITHI-391
+
+which reads as a complete URL carrying no `fileName` — so all 2,042 of them
+would be unresolvable. **It is exactly 70 characters, and the file printed
+`left(min(link), 70)` with no ellipsis.** The cut had landed in front of the
+answer, and nothing in the output said a cut had happened.
+
+**A URL's distinguishing part is at the END.** A head-only excerpt of one is not
+a shortened answer, it is a different one — the same class as a `_status.sql`
+row that answers NO for nothing, or a probe defaulting to a live address. Three
+corrections, all in that file:
+
+1. The example prints the head **and the tail** and says how many characters it
+   removed.
+2. **Row 5 counts what actually decides those 2,042**: how many carry a
+   `fileName` to look up. Nothing counted it, and it is the only number that
+   says whether the AppSheet URLs are a job or a dead end.
+3. **"When visits were last entered" was not in date order.** It sorted the
+   formatted `DD-Mon-YYYY` string descending as text, so 31-Oct-2023 came first
+   and 31-May-2026 second — a list that reads as chronological and is
+   alphabetical. And it ran to one row per day (700+ on this project), burying
+   every other row. It is the twenty busiest days now, ordered by count then
+   date with both keys packed into a numeric column, with the distinct-day total
+   stated so nobody reads the twenty as all of them.
+
+Proved against a Postgres built from every migration, with fixture rows in each
+shape — including the exact 70-character URL and a full one carrying a
+`fileName`. The two faults `parseRef` does NOT have were confirmed at the same
+time: it matches AppSheet on the HOST, so `/image/getimageurl` resolves as well
+as `/template/gettablefileurl`, and a URL whose `fileName` is a full path
+reduces to the same base name as the bare-path rows, so one Drive lookup serves
+both.
+
+Client only — no SQL to apply, the file is a read-only diagnostic.
+
+---
+
 ## 2026-09-22 — The 7,538 references already in the register become links
 
 > *"uploaded links are also not getting converted into Drive links"*
