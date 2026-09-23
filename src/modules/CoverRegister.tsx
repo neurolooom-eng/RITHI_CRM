@@ -5,6 +5,11 @@ import { SplitPane } from '../components/ui/SplitPane';
 import { sbSearchParties, sbPartyInfo } from '../lib/supabase';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT,
+         // THE VALUE TEST, not the row test. `isPinned` from ./cover takes
+         // (row, field) and asks whether a CHILD overrides its parent; this
+         // asks whether one value is there at all, and they are different
+         // questions with confusingly similar names.
+         isPinnedValue, isCallNumber,
          partyFillChanges } from '../lib/coverspec';
 import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -566,7 +571,14 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     if (st.search !== undefined) setQ(st.search);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  // NOT COUNTED IS NOT ZERO. The tiles read `0 ACTIVE / 0 ABOUT TO EXPIRE /
+  // 0 INACTIVE` over 1,500 machines every one of which said ACTIVE (reported
+  // 2026-09-23) -- because a tile that has not been counted rendered `?? 0`,
+  // and the one path that fetches them on a cached open swallows its own
+  // failure. A number that looks exact and is not is the fault this project
+  // refuses everywhere else, and three of them sitting over a populated list
+  // say the register is empty. `null` means not counted and renders as a dash.
+  const [counts, setCounts] = useState<Record<string, number | null>>({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     live ? null : { tone: 'info', text: 'Connect the database in Settings to open this register.' },
@@ -647,6 +659,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const refresh = async (t: Tab = tab) => {
     if (!live) return;
     setBusy(true);
+    let countErr = '';
     try {
       const r = await fetchPages(t, 0, OPEN_PAGES);
       const at = filtered ? feeds[t].at : saveCache(cacheKey(t), r);
@@ -655,11 +668,22 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       setFeed(t, { rows: r, offset: r.length, more: r.length >= OPEN_PAGES * PAGE[t],
                    at, step: OPEN_PAGES });
       if (t === 'machines') {
-        const cs = await Promise.all(STATES.map((x) => countMachines(kind, x, { q })));
-        setCounts(Object.fromEntries(STATES.map((x, i) => [x, cs[i]])));
+        // THE TOTALS MUST NOT TAKE THE TABLE DOWN WITH THEM. They used to be
+        // awaited inside the same try, so a failing count threw away 1,500
+        // rows that had already arrived and left an error banner over an empty
+        // register. They are their own concern and report their own failure.
+        try {
+          const cs = await Promise.all(STATES.map((x) => countMachines(kind, x, { q })));
+          setCounts(Object.fromEntries(STATES.map((x, i) => [x, cs[i]])));
+        } catch (ce) {
+          setCounts(Object.fromEntries(STATES.map((x) => [x, null])));
+          countErr = ce instanceof Error ? ce.message : String(ce);
+        }
       }
       setMsg(r.length
-        ? { tone: 'ok', text: `${r.length}${r.length >= OPEN_PAGES * PAGE[t] ? '+' : ''} ${t === 'entries' ? 'entries' : 'machines'}${filtered ? ' matched' : ''}.` }
+        ? { tone: countErr ? 'info' : 'ok',
+            text: `${r.length}${r.length >= OPEN_PAGES * PAGE[t] ? '+' : ''} ${t === 'entries' ? 'entries' : 'machines'}${filtered ? ' matched' : ''}.`
+              + (countErr ? ` The three totals did not load — ${countErr}` : '') }
         : { tone: 'info', text: filtered ? 'Nothing matched.' : 'Nothing here yet — import the exports in Settings → Bulk Data Import, or add an entry.' });
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
     finally { setBusy(false); }
@@ -697,7 +721,14 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     if (tab === 'machines') {
       void Promise.all(STATES.map((x) => countMachines(kind, x, {})))
         .then((cs) => setCounts(Object.fromEntries(STATES.map((x, i) => [x, cs[i]]))))
-        .catch(() => { /* tiles are a nicety; the table already loaded */ });
+        // THE TABLE HAS ALREADY LOADED, so this does not fail the page -- but
+        // it must not leave three zeros behind either, and a dash on its own
+        // does not say why. The reason is reported as INFORMATION rather than
+        // as an error, because the register itself is fine.
+        .catch((e) => {
+          setCounts(Object.fromEntries(STATES.map((x) => [x, null])));
+          setMsg({ tone: 'info', text: `The machines loaded; the three totals did not — ${e instanceof Error ? e.message : String(e)}` });
+        });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, q, state]);
@@ -803,6 +834,17 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const needCalls = useMemo(
     () => (kind === 'sale' ? machinesNeedingInstallCall(items) : []), [kind, items],
   );
+  // A MACHINE TYPED BUT NOT SAVED IS THE ONE CASE THAT LOOKS LIKE A BUG.
+  // It has a product and a serial, so the operator has done everything the
+  // button asks — and `machinesNeedingInstallCall` refuses it because there is
+  // no row id to write the UCN back to. Saying "every machine here has its
+  // installation call" over that line would be flatly untrue, which is the
+  // message this project keeps having to correct; it says what to do instead.
+  const unsavedMachines = useMemo(
+    () => (kind === 'sale'
+      ? items.filter((i) => !isPinnedValue(i.id)
+          && isPinnedValue(i.product_name) && isPinnedValue(i.serial_number)).length
+      : 0), [kind, items]);
   const raiseCalls = async () => {
     const list = needCalls.map((i) => `  · ${str(i.product_name)} · ${str(i.serial_number)}`).join('\n');
     if (!window.confirm(
@@ -822,6 +864,54 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       }
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
     finally { setSaving(false); }
+  };
+
+  // ONE MACHINE, FROM THE BY-MACHINE LIST (the user, 2026-09-23: "I need
+  // + Installation Call"). The entry pane raises them for a whole sale; this
+  // register is where somebody works down a list of machines, and the machine
+  // in front of them is the one they want a call for.
+  //
+  // IT CALLS THE SAME FUNCTION WITH A LIST OF ONE. Every rule -- what the call
+  // carries, that a machine already holding a UCN is refused, that an unsaved
+  // one is refused, that the UCN is written back to the machine -- therefore
+  // cannot drift between the two places, which is the fault this codebase
+  // keeps finding in its own duplicated lists.
+  //
+  // THE VIEW IS ITS OWN HEADER. `warranty_sale_details` resolves the entry's
+  // party, city, state, SA number and warranty onto each machine already, so
+  // the row is passed as both -- there is no second record to fetch and
+  // nothing to disagree with.
+  const [raisingId, setRaisingId] = useState<number | null>(null);
+  const raiseOneCall = async (r: Row) => {
+    if (!machinesNeedingInstallCall([r] as never).length) return;
+    // WHAT IS ABOUT TO BE OVERWRITTEN IS NAMED. The write-back replaces
+    // INST Call, and on this register that field usually holds the AppSheet
+    // placeholder "To Check" -- which is exactly what should be replaced. But
+    // it could hold something somebody typed, and replacing that silently is
+    // not a decision this screen gets to make on its own.
+    const had = str(r.inst_call).trim();
+    if (!window.confirm(
+      `Raise an installation call for ${str(r.product_name)} · ${str(r.serial_number)}`
+      + ` at ${str(r.party_name) || 'this customer'}?\n\n`
+      + `Standard Complaint and Complaint Reported will read "${INSTALL_COMPLAINT}", the three vigilance `
+      + `questions will be answered NO, and the customer contact will be left blank — nobody reported this.`
+      + (had ? `\n\nINST Call currently reads “${had}”, which is not a call number. It will be replaced by the new UCN.` : ''))) return;
+    setRaisingId(Number(r.id));
+    try {
+      const res = await raiseInstallCalls(r, [r]);
+      const ucn = res.created[0]?.ucn ?? '';
+      if (res.error || !ucn) { setMsg({ tone: 'error', text: res.error ?? 'The call was not created.' }); return; }
+      // THE ROW IS PATCHED IN PLACE, AND SO IS THE CACHE. Re-reading 1,500
+      // machines to learn one UCN would be a register-sized request for a value
+      // already in hand -- and leaving the cache stale would put the button
+      // back on the next visit, offering a second call for a machine that has
+      // one.
+      const rows = feeds.machines.rows.map((x) => (x.id === r.id ? { ...x, inst_call: ucn } : x));
+      setFeed('machines', { rows });
+      if (!filtered) saveCache(cacheKey('machines'), rows);
+      setMsg({ tone: 'ok', text: `Installation call ${ucn} raised for ${str(r.serial_number)}.` });
+    } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
+    finally { setRaisingId(null); }
   };
 
   // RE-READING THE CUSTOMER ONTO A SALE THAT ALREADY NAMES THEM (the user,
@@ -899,8 +989,39 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       const o = r.overridden as string[] | null;
       return o?.length ? <span className="badge badge-warning" title={o.join(', ')}>{o.length} pinned</span> : <span className="muted">follows entry</span>;
     } },
-    { key: '_call', header: 'Register call', width: 130, sortable: false, wrap: false, render: (r) => (
-      <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); navigate('/field-calls', { state: { prefill: prefillFrom(r, kind) } }); }}>+ Field call</button>
+    { key: '_call', header: 'Register call', width: 230, sortable: false, wrap: false, render: (r) => (
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+        <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); navigate('/field-calls', { state: { prefill: prefillFrom(r, kind) } }); }}>+ Field call</button>
+        {/* INSTALLATION IS A SALE'S EVENT, NOT A CONTRACT'S. A machine reaches
+            a contract already installed, so the button is not offered there --
+            an action that makes no sense for the record in front of you is
+            worse than a missing one, because somebody presses it to find out. */}
+        {kind === 'sale' && (
+          isCallNumber(r.inst_call)
+            // ALREADY DONE, AND IT SAYS WHICH. The UCN is the evidence the
+            // button disables itself by, so showing it is showing the reason.
+            ? <span className="badge badge-neutral" title="This machine already has its installation call">
+                {str(r.inst_call)}
+              </span>
+            : <>
+                <button className="btn btn-sm" disabled={raisingId !== null}
+                  onClick={(e) => { e.stopPropagation(); void raiseOneCall(r); }}
+                  title="Raise the installation call for this machine and map it back">
+                  {raisingId === Number(r.id) ? 'Raising…' : '+ Installation call'}
+                </button>
+                {/* WHATEVER IS IN THERE IS STILL SHOWN. The field usually holds
+                    the AppSheet placeholder "To Check", which is what made the
+                    button vanish in the first place -- hiding it now would just
+                    move the surprise to the confirmation dialog. */}
+                {isPinnedValue(r.inst_call) && (
+                  <span className="muted" style={{ fontSize: 11 }}
+                    title="Not a call number — the AppSheet export writes this where nobody has checked yet">
+                    {str(r.inst_call)}
+                  </span>
+                )}
+              </>
+        )}
+      </div>
     ) },
   ];
 
@@ -1015,7 +1136,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                       ＋ Installation calls ({needCalls.length})
                     </button>
                   : <span className="muted" style={{ fontSize: 12 }}>
-                      {items.length ? 'Every machine here has its installation call.' : ''}
+                      {unsavedMachines
+                        ? `Press Save entry first — ${unsavedMachines} machine${unsavedMachines === 1 ? ' is' : 's are'} not saved yet, and a call can only be mapped to a saved machine.`
+                        : items.length ? 'Every machine here has its installation call.' : ''}
                     </span>
               )}
               {/* OFFERED ONLY WHEN THERE IS SOMETHING TO CLEAR. A button that
@@ -1121,7 +1244,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         <div className="pc-summary">
           {STATES.map((s) => (
             <button key={s} className={`pc-tile ${state === s ? 'pc-tile-on' : ''}`} onClick={() => setState(state === s ? '' : s)}>
-              <span className="pc-tile-n">{counts[s] ?? 0}</span>
+              <span className="pc-tile-n" title={counts[s] == null ? 'Not counted yet — press ↻ Refresh' : ''}>
+                {counts[s] == null ? '—' : counts[s]!.toLocaleString()}
+              </span>
               {statusBadge(s, TONES)}
             </button>
           ))}

@@ -8195,5 +8195,81 @@ console.log('\n-- converting the references already in the register --');
   eq('...and does not reach for user.role', /user\s*\??\.role\b/.test(code(cv)), false);
 }
 
+console.log('\n-- an installation call is raised the same way from either place --');
+{
+  const cr = code(readFileSync('src/modules/CoverRegister.tsx', 'utf8'));
+  const cs = code(readFileSync('src/lib/coverspec.ts', 'utf8'));
+
+  // ONE IMPLEMENTATION, CALLED WITH A LIST OF ONE. The entry pane raises calls
+  // for a whole sale and the by-machine list for the row in front of you; if
+  // the second re-implemented the rules, the two would drift about what the
+  // call carries, which machines are eligible and whether the UCN is written
+  // back -- which is the duplicated-list fault this codebase keeps finding.
+  eq('the by-machine button calls raiseInstallCalls, it does not rebuild it',
+    /raiseInstallCalls\(r, \[r\]\)/.test(cr), true);
+  eq('...and there is only one place that builds the call record',
+    (cs.match(/callType: 'INSTALLATION'/g) ?? []).length, 1);
+
+  // A MACHINE REACHES A CONTRACT ALREADY INSTALLED. An action that cannot make
+  // sense for the record in front of somebody is worse than a missing one,
+  // because they press it to find out what it does.
+  eq('it is offered on the sale register only', /kind === 'sale' && \(\s*isCallNumber\(r\.inst_call\)/.test(cr), true);
+  // The UCN IS the evidence the button disables itself by, so showing it is
+  // showing the reason -- not a greyed-out button with no explanation.
+  // A UCN, NOT ANY VALUE. The AppSheet export writes the literal "To Check"
+  // into INST Call, so testing for presence showed the placeholder where the
+  // UCN goes and hid the button on most of the register (reported 2026-09-23).
+  eq('the badge is shown for a UCN, not for anything non-empty',
+    /isCallNumber\(r\.inst_call\)/.test(cr) && !/isPinnedValue\(r\.inst_call\)\s*\n?\s*\?/.test(cr), true);
+  eq('a machine that has its call shows the UCN instead', /\{str\(r\.inst_call\)\}/.test(cr), true);
+  // Hiding the placeholder would move the surprise to the confirm dialog.
+  eq('...and whatever is in there is still shown beside the button',
+    /Not a call number/.test(cr), true);
+  eq('the confirm names what it is about to replace', /It will be replaced by the new UCN/.test(cr), true);
+
+  // THE ENGINEER IS ON THE SALE AND INHERITED BY ITS MACHINES (the user,
+  // 2026-09-23: "In warranty sale entry also engineer name should be present.
+  // And it should be inherited by the child records."). It already was --
+  // header field and item field with `inherits: true` -- and the call's
+  // Allotted To now reads it, so it must not quietly go away.
+  const cvcfg = readFileSync('src/lib/cover.ts', 'utf8');
+  const saleCfg = cvcfg.slice(cvcfg.indexOf('export const SALE'), cvcfg.indexOf('export const CONTRACT'));
+  eq('the sale entry names an engineer',
+    /\{ name: 'engineer', label: '[^']*', section: 'Installation' \}/.test(saleCfg), true);
+  eq('...and its machines inherit it',
+    /\{ name: 'engineer', label: '[^']*', section: 'Installation', inherits: true \}/.test(saleCfg), true);
+  // It arrives from the Party Master when the customer is chosen, which is
+  // what makes "allotted to the engineer as per party master" true.
+  eq('...from the Party Master, so Allotted To is the master\u2019s answer',
+    /engineer: text\(q\.service_engineer\)/.test(code(readFileSync('src/lib/coverspec.ts', 'utf8'))), true);
+
+  // AN ERROR BANNER WITH NO TEXT SAYS SOMETHING WENT WRONG AND REFUSES TO SAY
+  // WHAT. `?? ` passes an EMPTY message straight through; `||` does not.
+  const cv2 = code(readFileSync('src/lib/cover.ts', 'utf8'));
+  eq('an empty database message still produces words',
+    /gave no reason/.test(cv2) && !/new Error\(e\?\.message \?\? /.test(cv2), true);
+  // The totals used to be awaited inside the table's own try, so a failing
+  // count threw away 1,500 rows that had already arrived.
+  eq('a failing total does not take the table down with it',
+    /catch \(ce\) \{[\s\S]{0,200}countErr =/.test(cr), true);
+  // Leaving the cache stale would put the button back on the next visit and
+  // offer a second call for a machine that has one.
+  eq('the cache is patched with the new UCN, not left stale',
+    /saveCache\(cacheKey\('machines'\), rows\)/.test(cr), true);
+
+  // NOT COUNTED IS NOT ZERO. Reported 2026-09-23: three tiles read 0 over
+  // 1,500 machines every one of which said ACTIVE. A number that looks exact
+  // and is not is worse than no number -- three of them over a populated list
+  // say the register is empty.
+  eq('an uncounted tile reads a dash, never 0', /counts\[s\] == null \? '—'/.test(cr), true);
+  // A DASH ON ITS OWN DOES NOT SAY WHY. Both paths that count now set every
+  // tile to "not counted" AND report the reason -- as information, because the
+  // register itself loaded.
+  eq('...and a failed count says so rather than leaving zeros',
+    (cr.match(/setCounts\(Object\.fromEntries\(STATES\.map\(\(x\) => \[x, null\]\)\)\)/g) ?? []).length, 2);
+  eq('...naming the reason, not just that it failed',
+    /The three totals did not/.test(cr), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

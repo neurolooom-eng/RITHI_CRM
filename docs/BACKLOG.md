@@ -46,6 +46,55 @@ up)_
 
 ---
 
+## 2026-09-23 — What a warranty-raised installation call carries
+
+> *"complaint date and breakdown date has to be warranty start date. STANDARD
+> COMPLAINT= INSTALLATION CALL , Reported Complaint= INSTALLATION CALL. Call
+> Number - if Generated from warranty page then "WI-"PRODUCT-SLNO. ALLOTED TO
+> the engineer as per party master."*
+
+Shipped in v0.9.352. **⚠ RUN `sales_contracts.sql`** — `_status.sql` row 178.
+
+Four changes to `installCallFromSale`, and one thing that was already true:
+
+- **Complaint Date and Breakdown Date are the warranty start**, not gated on
+  cover: a sale recording a start but no period still knows when it started. No
+  start date at all leaves both EMPTY — today's date would be a date nobody
+  chose, written into a quality record.
+- **`INSTALL_COMPLAINT` is now `INSTALLATION CALL`**, was `Installation Calls`.
+- **Call Number `WI-<product>-<serial>`**, the product unsquashed because the
+  number is matched by eye against the machine row.
+- **Allotted To = the effective engineer**, header's unless the machine pinned
+  one. It reaches the sale from the Party Master's `service_engineer` through
+  `partyFillForSale`, which is what makes "as per party master" true.
+- The **Service Engineer was already on the Sale Entry and already inherited**
+  by its machines. `check:ui` holds both now, since Allotted To reads it.
+
+**0233 is a migration and not just a constant, for one reason.** Standard
+Complaint is the dimension every count groups by, so a second spelling does not
+read as a typo — it splits the total and the reader believes both halves.
+The migration does two things, and the first is the one that is easy to forget:
+
+1. **The master.** That picker takes no free text, so a value `masters` has not
+   got is one nobody can choose and one a call opened in the form cannot show.
+   Seeded under whichever name the project uses (`complaint` or
+   `standardComplaint` — `listMaster` reads both). The OLD value is left on the
+   master: removing it would stop the picker offering a value historical calls
+   still carry.
+2. **The calls already raised** — INSTALLATION calls only, matched
+   case-insensitively and space-squashed. A FIELD call saying "Installation
+   Calls" is somebody's own words and is not touched.
+
+`complaint_date`, `breakdown_date` and `call_number` are NOT back-filled on old
+calls: inventing a `WI-` number for a call raised before the rule existed would
+be writing a fact that was never true.
+
+**`check:ui` caught the Restore clause naming `cover.sql`, which does not
+exist** — the module is `cover` and its bundle is `sales_contracts.sql`. Exactly
+the fault that check was written for, on its author.
+
+---
+
 ## 2026-09-23 — The probe cut its example exactly where the answer was
 
 The 2026-09-22 run of `_where_are_my_service_reports.sql` came back with the

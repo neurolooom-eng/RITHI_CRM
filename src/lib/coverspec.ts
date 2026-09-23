@@ -612,16 +612,55 @@ export const inheritAllPatch = (fields: InheritField[]): Row =>
 // cover gets asked about, a wrong one gets believed.
 // ===========================================================================
 
-export const INSTALL_COMPLAINT = 'Installation Calls';
+// THE WORDS, EXACTLY AS THE USER GAVE THEM (2026-09-23): "STANDARD COMPLAINT=
+// INSTALLATION CALL , Reported Complaint= INSTALLATION CALL". It was
+// "Installation Calls" until then.
+//
+// CHANGING THIS SPLITS EVERY COUNT UNTIL THE OLD ROWS ARE MOVED, and that is
+// not a small thing on this dimension: every count, filter and frequent-failure
+// match downstream is a `group by` on this value, so two spellings do not read
+// as a typo -- they halve the total silently and the reader believes both
+// halves. 0233 moves the calls already raised and puts the new value on the
+// Standard Complaint master, because a value the master has not got is one the
+// picker cannot offer and this field takes no free text.
+export const INSTALL_COMPLAINT = 'INSTALLATION CALL';
+
+// THE CALL NUMBER A WARRANTY-RAISED CALL CARRIES (the user, 2026-09-23: "Call
+// Number - if Generated from warranty page then "WI-"PRODUCT-SLNO").
+//
+// W for warranty, I for installation, then the machine -- so the number says
+// where it came from and which machine it is about, and reads the same on the
+// call register as on the sale. It is NOT the UCN: the database still issues
+// that on insert (0001's `next_ucn`), and this is the human-facing number
+// beside it.
+//
+// THE PRODUCT IS NOT SQUASHED. "MONNAL TEO NF" keeps its spaces, because this
+// number is matched by eye against the machine row on the register and
+// "WI-MONNALTEONF-210" matches nothing anybody is looking at.
+export const installCallNumber = (product: unknown, serial: unknown): string => {
+  const p = text(product).trim();
+  const s = text(serial).trim();
+  // Both or nothing. `machinesNeedingInstallCall` already requires both, so
+  // this only ever fires for a caller that skipped it -- and "WI--" is a number
+  // that looks like one and identifies nothing.
+  return p && s ? `WI-${p}-${s}` : '';
+};
 
 export interface SaleForCall {
   party_name?: unknown; city?: unknown; state?: unknown;
   sa_number?: unknown; warranty_start?: unknown; warranty_end?: unknown;
   warranty_months?: unknown;
+  /** From the Party Master via `partyFillForSale`, and the call's Allotted To. */
+  engineer?: unknown;
 }
 export interface SaleItemForCall {
+  /** The saved row's key. A machine still only on screen has none — see
+   *  `machinesNeedingInstallCall`, which is why this is part of the shape. */
+  id?: unknown;
   product_name?: unknown; serial_number?: unknown;
   warranty_start?: unknown; warranty_end?: unknown; inst_call?: unknown;
+  /** Pinned on the machine where somebody set it there; otherwise the entry's. */
+  engineer?: unknown;
 }
 
 /** The call record for one machine, in the shape `addCall` takes. */
@@ -640,10 +679,30 @@ export function installCallFromSale(header: SaleForCall, item: SaleItemForCall):
     // the sale line rather than from anything typed twice.
     productName: text(item.product_name),
     serial: text(item.serial_number),
+    // WI- + the machine, so the number says where it came from. The UCN is
+    // still issued by the database on insert; this is the number beside it.
+    callNumber: installCallNumber(item.product_name, item.serial_number),
     // What the call is for. Both columns, on instruction: one is the coded
     // reason every count groups by, the other is what a reader sees.
     standardComplaint: INSTALL_COMPLAINT,
     complaintReported: INSTALL_COMPLAINT,
+    // THE DATES ARE THE WARRANTY START (the user, 2026-09-23: "complaint date
+    // and breakdown date has to be warranty start date"). An installation is
+    // not a breakdown, so there is no date on which one happened -- the day the
+    // warranty begins is the day the machine became this company's to install,
+    // and dating the call from it keeps the call inside the cover it belongs to.
+    //
+    // NOT GATED ON `covered`, unlike the cover fields below. The ask is about
+    // the DATES, and a sale that records a start date but no period still knows
+    // when it started. Where there is no start date at all they stay EMPTY --
+    // today's date would be a date nobody chose, written into a quality record.
+    complaintDate: text(wStart),
+    breakdownDate: text(wStart),
+    // ALLOTTED TO THE PARTY MASTER'S ENGINEER (same ask). It arrives on the
+    // sale through `partyFillForSale` when the customer is chosen, so this is
+    // the Party Master's answer -- and a machine that pinned its own engineer
+    // wins over the entry, which is the whole point of the pin.
+    allocatedTo: text(pick(item.engineer, header.engineer)),
     // Vigilance: answered No. An installation is not a complaint.
     publicHealthThreat: 'NO',
     death: 'NO',
@@ -662,11 +721,54 @@ export function installCallFromSale(header: SaleForCall, item: SaleItemForCall):
   };
 }
 
+// ===========================================================================
+// "TO CHECK" IS NOT A CALL NUMBER, AND TREATING IT AS ONE HID THE WHOLE
+// FEATURE (reported 2026-09-23, with a screenshot of the Warranty Register
+// showing `To Check` where the UCN should be).
+//
+// The AppSheet export fills `INST Call`, `INST Date`, `INST Call Status` and
+// `Report` with the literal words **To Check** -- the sheet's way of saying
+// NOBODY HAS LOOKED YET, which is the OPPOSITE of "this machine has its
+// installation call". `check-uploads.ts` has carried that exact value as a
+// fixture since the importer was written, so it is not a stray: it is on a
+// large part of the register.
+//
+// Both buttons tested `isPinnedValue(inst_call)` -- is there anything there --
+// so every one of those machines read as done. The by-machine list showed the
+// placeholder as though it were a UCN, and the entry pane said "Every machine
+// here has its installation call" over machines that had none. The feature was
+// unusable on the only data it was ever going to meet.
+//
+// SO THE TEST IS THE SHAPE, NOT THE PRESENCE. `next_ucn` (0001) builds
+// YY + month letter A-L + DD + a type letter + four digits -- `26I23I0080` --
+// and that is what this application will have written there.
+//
+// IT IS DELIBERATELY STRICT, and the direction matters. Too strict offers a
+// second call for a machine whose UCN is in some older shape; too loose hides
+// the button for ever, which is the fault being fixed. So nothing is decided
+// silently either way: a value that is NOT a UCN leaves the button offered AND
+// is shown, and the confirmation names it before anything overwrites it.
+// ===========================================================================
+const UCN_RE = /^\d{2}[A-L]\d{2}[A-Z]\d{4}$/i;
+
+/** Is this value a UCN this system issued, rather than a note somebody left? */
+export const isCallNumber = (v: unknown): boolean => UCN_RE.test(String(v ?? '').trim());
+
 /** Which machines on this entry still need an installation call. Keyed on
  *  PRODUCT + SERIAL, which is what identifies a machine; a line with neither
- *  is not a machine yet and is skipped rather than given a call about nothing. */
+ *  is not a machine yet and is skipped rather than given a call about nothing.
+ *
+ *  AND IT MUST BE SAVED. The UCN is written back with `.eq('id', item.id)`, so
+ *  a machine added with "+ Add machine" and not yet saved has no id to write
+ *  to: the call is CREATED and the mapping then fails, leaving the line still
+ *  asking for one — so the next press raises a SECOND call for the same
+ *  machine, and calls are not deleted here. Requiring the id refuses the whole
+ *  thing instead, before anything exists. The screen already says "Press Save
+ *  entry" for the same reason and this makes the button agree with it. */
 export function machinesNeedingInstallCall<T extends SaleItemForCall>(items: T[]): T[] {
-  return items.filter((i) => !isPinnedValue(i.inst_call)
+  return items.filter((i) => isPinnedValue(i.id)
+    // NOT `isPinnedValue` -- see the note above. "To Check" is not a call.
+    && !isCallNumber(i.inst_call)
     && isPinnedValue(i.product_name) && isPinnedValue(i.serial_number));
 }
 

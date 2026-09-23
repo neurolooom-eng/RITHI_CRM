@@ -342,16 +342,57 @@ against the call it was fitted to.
   > ### Raising the installation calls
   >
   > **＋ Installation calls** raises one call per machine that has not got one.
-  > The party, city, state, model and serial come off the sale; Standard
-  > Complaint and Complaint Reported read **Installation Calls**; the three
-  > vigilance questions are answered **NO**; the customer contact is left blank,
-  > because those fields record who *reported* a fault and nobody reported this.
-  > The SA number, the warranty start and end come across too and the cover
-  > reads **WGP** — unless the sale records no warranty, in which case the cover
-  > is left blank rather than guessed.
+  > Each one carries:
+  >
+  > | | |
+  > |---|---|
+  > | Party, city, state | from the sale entry |
+  > | Product, serial | from that machine's line |
+  > | **Call Number** | `WI-PRODUCT-SERIAL` — e.g. `WI-MONNAL TEO NF-210`. W for warranty, I for installation. This is *beside* the UCN, which the system still issues. |
+  > | Standard Complaint · Reported Complaint | **INSTALLATION CALL** |
+  > | **Complaint Date · Breakdown Date** | the **warranty start date**. An installation is not a breakdown, so there is no day on which one happened. The machine's own start date wins where it has one; no start date at all leaves both empty rather than putting today on the record. |
+  > | **Allotted To** | the **engineer from the Party Master**, which arrives on the sale when you pick the customer. A machine given its own engineer wins over the entry. |
+  > | Vigilance (3 questions) | **NO** |
+  > | Person calling, customer name, number, designation, email | blank — those record who *reported* a fault, and nobody reported this |
+  > | SA number, warranty start/end, item status **WGP** | only where the sale records a warranty; otherwise blank rather than guessed |
   >
   > Each call's UCN lands on that machine's **INST Call** field, and the button
   > goes away once every machine has one.
+  >
+  > **Save the entry before pressing it.** A machine you have just typed in is
+  > not saved yet, so there is nothing for the call's UCN to be written back to
+  > — the button skips it and says how many are waiting on a Save. It is a
+  > refusal on purpose: raising the call and failing to map it would leave the
+  > machine still asking for one, and the next press would raise a second call
+  > for the same machine.
+  >
+  > **A line needs both a Product and a Serial** to be offered a call. A line
+  > with neither is not a machine yet, and a call about it would be a call about
+  > nothing.
+  >
+  > Nothing is raised until you confirm, and the confirmation lists every
+  > machine by model and serial. If it stops part way it **names the calls it
+  > already created** — those exist whatever the message says.
+  >
+  > ### Or one machine at a time
+  >
+  > **By machine → Register call → ＋ Installation call** does the same thing for
+  > the single machine in front of you, which is what you want when you are
+  > working down the list rather than opening an entry. Same rules, same
+  > function — once it is raised the button is replaced by the **UCN**, which is
+  > the evidence it disables itself by.
+  >
+  > It is offered on the **Warranty** register only. A machine reaches a
+  > contract already installed.
+  >
+  > **If INST Call says "To Check", that machine still needs a call.** Those are
+  > the words the AppSheet export writes where nobody has looked yet — not a
+  > call number — so the button is offered and the text is shown beside it. The
+  > confirmation names it before it is replaced. A field holding a real UCN
+  > shows the UCN instead, and no button.
+  >
+  > **＋ Field call** beside it is different: it does not create anything, it
+  > opens the Field Call form with the machine and customer already filled in.
   >
   > ### Putting the machines back on the entry
   >

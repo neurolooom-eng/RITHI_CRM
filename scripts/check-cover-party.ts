@@ -15,7 +15,8 @@
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, inheritAllPatch, isPinnedValue,
          installCallFromSale, machinesNeedingInstallCall, INSTALL_COMPLAINT,
-         partyFillChanges, deriveHeader, suggestedPmVisits } from '../src/lib/coverspec';
+         partyFillChanges, deriveHeader, suggestedPmVisits, isCallNumber,
+         installCallNumber } from '../src/lib/coverspec';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -180,8 +181,14 @@ console.log('\n-- the installation call a sale entry raises --');
   eq('...with its city and state', [call.city, call.state], ['VARANASI', 'UTTAR PRADESH']);
   // A machine is its MODEL and its SERIAL, both off the sale line.
   eq('the machine comes from the sale line', [call.productName, call.serial], ['MONNAL T75', '11389']);
-  eq('both complaint columns read Installation Calls',
+  eq('both complaint columns read INSTALLATION CALL',
     [call.standardComplaint, call.complaintReported], [INSTALL_COMPLAINT, INSTALL_COMPLAINT]);
+  // THE WORDS THEMSELVES, not just "whatever the constant says". A test that
+  // only compares the value with the constant passes however the constant is
+  // spelled -- and this value is a DIMENSION: every count groups by it, so a
+  // second spelling splits the total and the reader believes both halves.
+  // 0233 puts it on the master and moves the calls already raised.
+  eq('...and those words are exactly the ones asked for', INSTALL_COMPLAINT, 'INSTALLATION CALL');
 
   // THE THREE VIGILANCE QUESTIONS. Answered No on instruction, and they are
   // the honest answer for a machine that has not been switched on yet.
@@ -202,6 +209,40 @@ console.log('\n-- the installation call a sale entry raises --');
     installCallFromSale(header, { ...item, warranty_start: '2026-06-01', warranty_end: '2028-05-31' }).warrantyStart,
     '2026-06-01');
 
+  // THE CALL NUMBER SAYS WHERE IT CAME FROM (the user, 2026-09-23:
+  // '"WI-"PRODUCT-SLNO'). It is NOT the UCN -- the database still issues that
+  // on insert -- it is the human-facing number beside it.
+  eq('the call number is WI- the product and the serial', call.callNumber, 'WI-MONNAL T75-11389');
+  eq('...the product keeps its spaces, because that is how it reads on the register',
+    installCallNumber('MONNAL TEO NF', '210'), 'WI-MONNAL TEO NF-210');
+  eq('...and a missing half produces no number rather than "WI--"',
+    [installCallNumber('', '210'), installCallNumber('ORION-G', '')], ['', '']);
+
+  // THE DATES ARE THE WARRANTY START (same ask). An installation is not a
+  // breakdown, so there is no date on which one happened.
+  eq('complaint and breakdown are both the warranty start',
+    [call.complaintDate, call.breakdownDate], ['2026-04-20', '2026-04-20']);
+  eq('...the MACHINE\u2019s where it pinned one',
+    installCallFromSale(header, { ...item, warranty_start: '2026-06-01' }).complaintDate, '2026-06-01');
+  // NOT GATED ON COVER, unlike the warranty fields: a sale that records a start
+  // date but no period still knows when it started.
+  eq('...and a sale with a start but no period still dates the call',
+    installCallFromSale({ party_name: 'X', warranty_start: '2026-04-20', warranty_months: null, warranty_end: null }, item).complaintDate,
+    '2026-04-20');
+  // Today's date would be a date nobody chose, written into a quality record.
+  eq('...while no start date at all leaves them EMPTY rather than today',
+    [installCallFromSale({ party_name: 'X' }, item).complaintDate,
+     installCallFromSale({ party_name: 'X' }, item).breakdownDate], ['', '']);
+
+  // ALLOTTED TO THE PARTY MASTER'S ENGINEER (same ask). It reaches the sale
+  // through partyFillForSale when the customer is chosen.
+  eq('the call is allotted to the sale\u2019s engineer',
+    installCallFromSale({ ...header, engineer: 'MEGHANATH' }, item).allocatedTo, 'MEGHANATH');
+  eq('...and a machine that pinned its own engineer wins',
+    installCallFromSale({ ...header, engineer: 'MEGHANATH' }, { ...item, engineer: 'DHRUV PATEL' }).allocatedTo,
+    'DHRUV PATEL');
+  eq('...a sale naming none allots to nobody rather than guessing', call.allocatedTo, '');
+
   // AN UNKNOWN COVER GETS ASKED ABOUT; A WRONG ONE GETS BELIEVED.
   const noWarranty = installCallFromSale(
     { party_name: 'X', warranty_months: null, warranty_end: null }, item);
@@ -212,11 +253,12 @@ console.log('\n-- the installation call a sale entry raises --');
 console.log('\n-- which machines still need one --');
 {
   const items = [
-    { product_name: 'MONNAL T75', serial_number: '11389' },                        // needs one
-    { product_name: 'MONNAL T60', serial_number: '20788', inst_call: '26I01P0080' }, // has one
-    { product_name: 'MONNAL T60', serial_number: '20789', inst_call: '' },          // '' is not a call
-    { product_name: '', serial_number: '' },                                        // not a machine yet
-    { product_name: 'ORION-G', serial_number: '' },                                 // half a machine
+    { id: 1, product_name: 'MONNAL T75', serial_number: '11389' },                        // needs one
+    { id: 2, product_name: 'MONNAL T60', serial_number: '20788', inst_call: '26I01P0080' }, // has one
+    { id: 3, product_name: 'MONNAL T60', serial_number: '20789', inst_call: '' },          // '' is not a call
+    { id: 4, product_name: '', serial_number: '' },                                        // not a machine yet
+    { id: 5, product_name: 'ORION-G', serial_number: '' },                                 // half a machine
+    { product_name: 'ORION-G', serial_number: '99999' },                                   // typed, NOT SAVED
   ];
   eq('a machine with a call is not offered another',
     machinesNeedingInstallCall(items).map((i) => i.serial_number), ['11389', '20789']);
@@ -224,6 +266,40 @@ console.log('\n-- which machines still need one --');
   eq('nothing left to raise', machinesNeedingInstallCall([items[1]]).length, 0);
   eq('...so a line with no serial never gets a call about nothing',
     machinesNeedingInstallCall([items[4]]).length, 0);
+
+  // AN UNSAVED MACHINE IS REFUSED BEFORE ANYTHING EXISTS, not half way through.
+  // The UCN is written back with `.eq('id', item.id)`, so a line added with
+  // "+ Add machine" and not yet saved has nothing to write to: the call would
+  // be CREATED and the mapping would then fail, leaving the line still asking
+  // for one -- so the next press raises a SECOND call for the same machine, on
+  // a register where calls are not deleted. Refusing costs a Save; not
+  // refusing costs a duplicate quality record.
+  eq('a machine typed but not saved is not offered a call',
+    machinesNeedingInstallCall([items[5]]).length, 0);
+  eq('...and it is the id that is missing, nothing else',
+    machinesNeedingInstallCall([{ ...items[5], id: 6 }]).map((i) => i.serial_number), ['99999']);
+
+  // "TO CHECK" IS NOT A CALL NUMBER. The AppSheet export writes those literal
+  // words into INST Call, INST Date, INST Call Status and Report -- the sheet's
+  // way of saying nobody has looked yet, which is the OPPOSITE of "this machine
+  // has its call". Testing for a non-empty value read every one of them as
+  // done: the by-machine list showed the placeholder where the UCN goes, and
+  // the entry pane said "every machine here has its installation call" over
+  // machines that had none. Reported 2026-09-23 with a screenshot of it.
+  eq('a UCN is recognised', isCallNumber('26I23I0080'), true);
+  eq('...lower case too, since a file may carry it either way', isCallNumber('26i23i0080'), true);
+  eq('...and surrounding space is not a difference', isCallNumber('  26I23I0080 '), true);
+  eq('"To Check" is not a call number', isCallNumber('To Check'), false);
+  eq('...nor is "To Link"', isCallNumber('To Link'), false);
+  eq('...nor a blank', isCallNumber(''), false);
+  eq('...nor a month letter past L, which no UCN has', isCallNumber('26M23I0080'), false);
+  eq('...nor three digits where there are four', isCallNumber('26I23I080'), false);
+
+  const placeholder = { id: 9, product_name: 'ORION-G', serial_number: '2607', inst_call: 'To Check' };
+  eq('a machine whose INST Call says "To Check" IS offered a call',
+    machinesNeedingInstallCall([placeholder]).map((i) => i.serial_number), ['2607']);
+  eq('...and one holding a real UCN is not',
+    machinesNeedingInstallCall([{ ...placeholder, inst_call: '26I23I0080' }]).length, 0);
 }
 
 console.log('\n-- PM visits follow the period until somebody changes them --');

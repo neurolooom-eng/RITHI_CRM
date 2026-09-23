@@ -712,7 +712,12 @@ const MODULES = {
              // AppSheet formula export finally supplied.
              '0187_cover_expiry_30_days.sql',
             // One ALTER: the Sale Entry Date is stamped by default (0230).
-            '0230_sale_entry_at_stamped.sql'],
+            '0230_sale_entry_at_stamped.sql',
+            // The Standard Complaint an installation call carries, on the
+            // master and on the calls already raised (0233). It guards both
+            // `masters` and `calls` with to_regclass, so it is harmless here
+            // even though both belong to `base`.
+            '0233_installation_call_wording.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

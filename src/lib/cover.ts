@@ -218,7 +218,18 @@ function client() {
   if (!c) throw new Error('Not connected to the database (Settings → Database connection).');
   return c;
 }
-const err = (e: { message?: string } | null) => new Error(e?.message ?? 'Database error');
+// AN ERROR BANNER WITH NO TEXT IN IT IS WORSE THAN NO BANNER — it says
+// something went wrong and refuses to say what, and the reader cannot even tell
+// whether it is about the thing they just did. `?? ` only catches null and
+// undefined, so a PostgREST error carrying an EMPTY message went straight
+// through and painted a blank red bar across the register (seen 2026-09-23).
+// `||` catches the empty string too, and the code is kept where there is one:
+// "42501" and "57014" are the two that tell somebody what to do next.
+const err = (e: { message?: string; code?: string; details?: string; hint?: string } | null) => {
+  const parts = [e?.message, e?.details, e?.hint].map((x) => String(x ?? '').trim()).filter(Boolean);
+  const text = parts.join(' — ') || 'The database refused the request and gave no reason.';
+  return new Error(e?.code ? `${text} (${e.code})` : text);
+};
 const like = (t: string) => `%${t.replace(/[%,()]/g, ' ').trim()}%`;
 
 export interface HeaderFilter { q?: string; party?: string; number?: string; state?: string }

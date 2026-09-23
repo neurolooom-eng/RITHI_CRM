@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.349',
+    version: '0.9.353',
     date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,55 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.352',
+    date: '2026-09-23',
+    title: 'What an installation call raised from a warranty carries',
+    changes: [
+      'COMPLAINT DATE and BREAKDOWN DATE are now the WARRANTY START DATE. An installation is not a breakdown, so there is no day on which one happened — the day the warranty begins is the day the machine became ours to install, and dating the call from it keeps the call inside the cover it belongs to. The machine’s own start date wins where it has one. A sale with no start date leaves both EMPTY rather than putting today’s date on a quality record.',
+      'STANDARD COMPLAINT and REPORTED COMPLAINT now read INSTALLATION CALL. They read “Installation Calls” before.',
+      'CALL NUMBER is WI-PRODUCT-SERIAL when the call is raised from the Warranty page — for example WI-MONNAL TEO NF-210. W for warranty, I for installation, then the machine. The product keeps its spaces, because that is how it reads on the register. This is the number BESIDE the UCN; the UCN is still issued by the system.',
+      'ALLOTTED TO is the engineer from the Party Master — the one that arrives on the sale when you pick the customer. A machine that was given its own engineer wins over the entry, which is what pinning is for. A sale naming no engineer allots to nobody rather than guessing.',
+      'The Service Engineer was already on the Sale Entry and already inherited by the machines under it. It is now held by a check so it cannot quietly go away, since the call’s Allotted To reads it.',
+      '⚠ RUN sales_contracts.sql. Standard Complaint is the field every count groups by, so two spellings do not read as a typo — they split the total in half and you believe both halves. 0233 puts INSTALLATION CALL on the Standard Complaint master (the picker takes no free text, so a value the master has not got is one nobody can choose) and moves the installation calls already raised onto it. A FIELD call that happens to say “Installation Calls” is somebody’s own words and is not touched. _status.sql row 178.',
+    ],
+  },
+  {
+    version: '0.9.351',
+    date: '2026-09-23',
+    title: '“To Check” is not an installation call',
+    changes: [
+      'THE BUTTON WAS HIDING ON ALMOST EVERY MACHINE, and this is why: the AppSheet export fills INST Call with the literal words “To Check” — the sheet’s way of saying nobody has looked yet. Both buttons tested whether the field had ANYTHING in it, so every one of those machines read as done.',
+      'The by-machine list showed “To Check” where the UCN goes, and the entry pane said “Every machine here has its installation call” over machines that had none. The feature was unusable on the only data it was ever going to meet.',
+      'A call number is now recognised by its SHAPE — the UCN this system issues, like 26I23I0080. Anything else is not a call, so the button is offered.',
+      'WHATEVER IS IN THE FIELD IS STILL SHOWN beside the button, and the confirmation names it before replacing it: “INST Call currently reads “To Check”, which is not a call number. It will be replaced by the new UCN.” Nothing is overwritten quietly.',
+      'THE EMPTY RED BANNER IS FIXED. A database error carrying no message painted a blank red bar across the register — something went wrong, refusing to say what. It always says something now, with the error code where there is one.',
+      'AND A FAILING TOTAL NO LONGER TAKES THE TABLE WITH IT. The three tiles were counted inside the table’s own load, so one failing count threw away 1,500 rows that had already arrived. They are their own concern and report their own reason.',
+    ],
+  },
+  {
+    version: '0.9.350',
+    date: '2026-09-23',
+    title: '＋ Installation call, on the machine itself',
+    changes: [
+      'WARRANTY → BY MACHINE → REGISTER CALL now offers ＋ Installation call beside ＋ Field call. Raise one for the machine in front of you, without opening its sale entry — which is what you want when you are working down the list.',
+      'It is the SAME thing the entry’s button does, called for one machine: the call carries the same party, model, serial, cover and vigilance answers, and the UCN is written straight back onto the machine.',
+      'Once raised, the button is REPLACED BY THE UCN. That is the evidence it disables itself by, so showing it is showing the reason — and it survives a reload, rather than offering a second call for a machine that has one.',
+      'Offered on the WARRANTY register only. A machine reaches a contract already installed.',
+      '＋ Field call is unchanged and is a different thing: it creates nothing, it opens the Field Call form with the machine and customer filled in.',
+      'THE THREE TILES NO LONGER READ ZERO WHEN THEY HAVE NOT BEEN COUNTED. “0 ACTIVE / 0 ABOUT TO EXPIRE / 0 INACTIVE” was showing over 1,500 machines every one of which said ACTIVE. They read — until the count arrives, and say so if it fails: three zeros over a full list say the register is empty, which is worse than no number at all.',
+    ],
+  },
+  {
+    version: '0.9.349',
+    date: '2026-09-23',
+    title: 'An installation call is never raised against a machine that is not saved',
+    changes: [
+      '➕ INSTALLATION CALLS SKIPS A MACHINE YOU HAVE JUST TYPED IN, and says how many are waiting on a Save. Press “Save entry” first.',
+      'IT IS A REFUSAL ON PURPOSE. The call’s UCN is written back onto that machine’s line, and an unsaved machine has no line to write it to — so the call would be raised and the mapping would fail, leaving the machine still asking for one. The next press would then raise a SECOND call for the same machine, and calls are not deleted here.',
+      'The line under the button used to read “Every machine here has its installation call” over exactly that case, which was untrue. It now says what to do.',
     ],
   },
   {
