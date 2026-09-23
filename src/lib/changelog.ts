@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.357',
+    date: '2026-09-23',
+    title: 'A SQL file to delete specific calls',
+    changes: [
+      'NEW: supabase/apply/_delete_these_calls.sql. Name the UCNs, run it as it is to see exactly what would go, then set one flag to true. Nothing is deleted on the first run.',
+      'IT REFUSES ANY CALL THAT HAS HISTORY — a visit, a spare, feedback, a review, a failure report — and names what it found instead. Nothing in the database protects those: they are joined to a call by the UCN as plain text, with no foreign key anywhere, so deleting a call would leave them pointing at nothing, silently. A test call has none; a call that has one is not a test call.',
+      'It also clears INST Call on any machine that pointed at a deleted call, and puts a Call Request that became one back to Pending rather than deleting it — somebody really did raise it.',
+      'The report prints the party and the date beside every UCN, so a number typed wrong shows up as a call you do not recognise rather than as a deletion you cannot undo.',
+      'A change to 0234 came out of writing it: the guard that stops a re-import wiping a real UCN was also stopping a DBA clearing one that points at a DELETED call. It now applies to the application only — the same test 0049 uses — so the mapping can be corrected while an import still cannot take it backwards.',
+    ],
+  },
+  {
     version: '0.9.356',
     date: '2026-09-23',
     title: 'A permission you grant now reaches people who are already signed in',

@@ -25774,7 +25774,17 @@ begin
   -- every call raised in the app since that file was exported — leaving the
   -- call with no machine pointing at it and no trace of the loss. The import is
   -- not refused: it simply cannot take this one column backwards.
+  --
+  -- A DBA IN THE SQL EDITOR CAN, and the test is `current_user` -- the same one
+  -- `block_hard_delete` (0049) uses, for the same reason. This guard exists to
+  -- stop a careless CLIENT, not an approved correction: when a call is DELETED
+  -- the mapping to it stops being true, and a guard that preserved it would
+  -- leave the machine reading "this one has its installation call" for ever,
+  -- pointing at a UCN that does not exist. Found by writing
+  -- `_delete_these_calls.sql` and watching this branch put the value back while
+  -- the report said it had been cleared.
   if tg_op = 'UPDATE'
+     and current_user = 'authenticated'
      and public.is_call_number(old.inst_call)
      and coalesce(new.inst_call, '') = '' then
     new.inst_call := old.inst_call;
