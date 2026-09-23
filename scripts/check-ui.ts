@@ -8219,6 +8219,29 @@ console.log('\n-- an installation call is raised the same way from either place 
   // A UCN, NOT ANY VALUE. The AppSheet export writes the literal "To Check"
   // into INST Call, so testing for presence showed the placeholder where the
   // UCN goes and hid the button on most of the register (reported 2026-09-23).
+  // ONE RULE, TWO LANGUAGES. `is_call_number()` (0234) discards a non-call
+  // value on its way into sale_items; `isCallNumber()` decides whether to offer
+  // the button. If they disagreed, a value the database stored would be one the
+  // screen refused to treat as a call, or the other way about -- and this is a
+  // pattern that has drifted here before (cover_code/coverCode, SEE_ALL_ROLES).
+  {
+    const sql = readFileSync('supabase/migrations/0234_inst_call_is_a_call.sql', 'utf8');
+    const mSql = /\^\[0-9\]\{2\}\[A-L\]\[0-9\]\{2\}\[A-Z\]\[0-9\]\{4\}\$/.test(sql);
+    const mTs = /\^\\d\{2\}\[A-L\]\\d\{2\}\[A-Z\]\\d\{4\}\$/
+      .test(readFileSync('src/lib/coverspec.ts', 'utf8'));
+    eq('the client and the database agree what a call number looks like', [mSql, mTs], [true, true]);
+    // DISCARD, NOT REFUSE -- the 0113/0114 rule. Refusing makes an honest
+    // importer fail on a file it cannot help; discarding makes a careless one
+    // harmless.
+    eq('...and a non-call value is discarded rather than refused',
+      /new\.inst_call := '';/.test(sql) && !/raise exception[\s\S]{0,120}inst_call/i.test(sql), true);
+    // The one that protects work already done: coverImport upserts on uid, so
+    // a re-import would otherwise wipe the UCN of every call raised since the
+    // file was exported.
+    eq('...and a re-import can never replace a real UCN with a blank',
+      /is_call_number\(old\.inst_call\)[\s\S]{0,160}new\.inst_call := old\.inst_call/.test(sql), true);
+  }
+
   eq('the badge is shown for a UCN, not for anything non-empty',
     /isCallNumber\(r\.inst_call\)/.test(cr) && !/isPinnedValue\(r\.inst_call\)\s*\n?\s*\?/.test(cr), true);
   eq('a machine that has its call shows the UCN instead', /\{str\(r\.inst_call\)\}/.test(cr), true);
