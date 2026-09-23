@@ -620,6 +620,9 @@ export interface SaleForCall {
   warranty_months?: unknown;
 }
 export interface SaleItemForCall {
+  /** The saved row's key. A machine still only on screen has none — see
+   *  `machinesNeedingInstallCall`, which is why this is part of the shape. */
+  id?: unknown;
   product_name?: unknown; serial_number?: unknown;
   warranty_start?: unknown; warranty_end?: unknown; inst_call?: unknown;
 }
@@ -664,9 +667,18 @@ export function installCallFromSale(header: SaleForCall, item: SaleItemForCall):
 
 /** Which machines on this entry still need an installation call. Keyed on
  *  PRODUCT + SERIAL, which is what identifies a machine; a line with neither
- *  is not a machine yet and is skipped rather than given a call about nothing. */
+ *  is not a machine yet and is skipped rather than given a call about nothing.
+ *
+ *  AND IT MUST BE SAVED. The UCN is written back with `.eq('id', item.id)`, so
+ *  a machine added with "+ Add machine" and not yet saved has no id to write
+ *  to: the call is CREATED and the mapping then fails, leaving the line still
+ *  asking for one — so the next press raises a SECOND call for the same
+ *  machine, and calls are not deleted here. Requiring the id refuses the whole
+ *  thing instead, before anything exists. The screen already says "Press Save
+ *  entry" for the same reason and this makes the button agree with it. */
 export function machinesNeedingInstallCall<T extends SaleItemForCall>(items: T[]): T[] {
-  return items.filter((i) => !isPinnedValue(i.inst_call)
+  return items.filter((i) => isPinnedValue(i.id)
+    && !isPinnedValue(i.inst_call)
     && isPinnedValue(i.product_name) && isPinnedValue(i.serial_number));
 }
 

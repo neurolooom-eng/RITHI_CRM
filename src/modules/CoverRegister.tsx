@@ -5,6 +5,11 @@ import { SplitPane } from '../components/ui/SplitPane';
 import { sbSearchParties, sbPartyInfo } from '../lib/supabase';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT,
+         // THE VALUE TEST, not the row test. `isPinned` from ./cover takes
+         // (row, field) and asks whether a CHILD overrides its parent; this
+         // asks whether one value is there at all, and they are different
+         // questions with confusingly similar names.
+         isPinnedValue,
          partyFillChanges } from '../lib/coverspec';
 import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -803,6 +808,17 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const needCalls = useMemo(
     () => (kind === 'sale' ? machinesNeedingInstallCall(items) : []), [kind, items],
   );
+  // A MACHINE TYPED BUT NOT SAVED IS THE ONE CASE THAT LOOKS LIKE A BUG.
+  // It has a product and a serial, so the operator has done everything the
+  // button asks — and `machinesNeedingInstallCall` refuses it because there is
+  // no row id to write the UCN back to. Saying "every machine here has its
+  // installation call" over that line would be flatly untrue, which is the
+  // message this project keeps having to correct; it says what to do instead.
+  const unsavedMachines = useMemo(
+    () => (kind === 'sale'
+      ? items.filter((i) => !isPinnedValue(i.id)
+          && isPinnedValue(i.product_name) && isPinnedValue(i.serial_number)).length
+      : 0), [kind, items]);
   const raiseCalls = async () => {
     const list = needCalls.map((i) => `  · ${str(i.product_name)} · ${str(i.serial_number)}`).join('\n');
     if (!window.confirm(
@@ -1015,7 +1031,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                       ＋ Installation calls ({needCalls.length})
                     </button>
                   : <span className="muted" style={{ fontSize: 12 }}>
-                      {items.length ? 'Every machine here has its installation call.' : ''}
+                      {unsavedMachines
+                        ? `Press Save entry first — ${unsavedMachines} machine${unsavedMachines === 1 ? ' is' : 's are'} not saved yet, and a call can only be mapped to a saved machine.`
+                        : items.length ? 'Every machine here has its installation call.' : ''}
                     </span>
               )}
               {/* OFFERED ONLY WHEN THERE IS SOMETHING TO CLEAR. A button that

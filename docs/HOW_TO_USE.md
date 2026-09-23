@@ -353,6 +353,21 @@ against the call it was fitted to.
   > Each call's UCN lands on that machine's **INST Call** field, and the button
   > goes away once every machine has one.
   >
+  > **Save the entry before pressing it.** A machine you have just typed in is
+  > not saved yet, so there is nothing for the call's UCN to be written back to
+  > — the button skips it and says how many are waiting on a Save. It is a
+  > refusal on purpose: raising the call and failing to map it would leave the
+  > machine still asking for one, and the next press would raise a second call
+  > for the same machine.
+  >
+  > **A line needs both a Product and a Serial** to be offered a call. A line
+  > with neither is not a machine yet, and a call about it would be a call about
+  > nothing.
+  >
+  > Nothing is raised until you confirm, and the confirmation lists every
+  > machine by model and serial. If it stops part way it **names the calls it
+  > already created** — those exist whatever the message says.
+  >
   > ### Putting the machines back on the entry
   >
   > **↺ Force update child records** clears every pinned value so all the

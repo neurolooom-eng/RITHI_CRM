@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.349',
+    date: '2026-09-23',
+    title: 'An installation call is never raised against a machine that is not saved',
+    changes: [
+      '➕ INSTALLATION CALLS SKIPS A MACHINE YOU HAVE JUST TYPED IN, and says how many are waiting on a Save. Press “Save entry” first.',
+      'IT IS A REFUSAL ON PURPOSE. The call’s UCN is written back onto that machine’s line, and an unsaved machine has no line to write it to — so the call would be raised and the mapping would fail, leaving the machine still asking for one. The next press would then raise a SECOND call for the same machine, and calls are not deleted here.',
+      'The line under the button used to read “Every machine here has its installation call” over exactly that case, which was untrue. It now says what to do.',
+    ],
+  },
+  {
     version: '0.9.348',
     date: '2026-09-22',
     title: 'The reports already loaded can be turned into Drive links',

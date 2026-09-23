@@ -212,11 +212,12 @@ console.log('\n-- the installation call a sale entry raises --');
 console.log('\n-- which machines still need one --');
 {
   const items = [
-    { product_name: 'MONNAL T75', serial_number: '11389' },                        // needs one
-    { product_name: 'MONNAL T60', serial_number: '20788', inst_call: '26I01P0080' }, // has one
-    { product_name: 'MONNAL T60', serial_number: '20789', inst_call: '' },          // '' is not a call
-    { product_name: '', serial_number: '' },                                        // not a machine yet
-    { product_name: 'ORION-G', serial_number: '' },                                 // half a machine
+    { id: 1, product_name: 'MONNAL T75', serial_number: '11389' },                        // needs one
+    { id: 2, product_name: 'MONNAL T60', serial_number: '20788', inst_call: '26I01P0080' }, // has one
+    { id: 3, product_name: 'MONNAL T60', serial_number: '20789', inst_call: '' },          // '' is not a call
+    { id: 4, product_name: '', serial_number: '' },                                        // not a machine yet
+    { id: 5, product_name: 'ORION-G', serial_number: '' },                                 // half a machine
+    { product_name: 'ORION-G', serial_number: '99999' },                                   // typed, NOT SAVED
   ];
   eq('a machine with a call is not offered another',
     machinesNeedingInstallCall(items).map((i) => i.serial_number), ['11389', '20789']);
@@ -224,6 +225,18 @@ console.log('\n-- which machines still need one --');
   eq('nothing left to raise', machinesNeedingInstallCall([items[1]]).length, 0);
   eq('...so a line with no serial never gets a call about nothing',
     machinesNeedingInstallCall([items[4]]).length, 0);
+
+  // AN UNSAVED MACHINE IS REFUSED BEFORE ANYTHING EXISTS, not half way through.
+  // The UCN is written back with `.eq('id', item.id)`, so a line added with
+  // "+ Add machine" and not yet saved has nothing to write to: the call would
+  // be CREATED and the mapping would then fail, leaving the line still asking
+  // for one -- so the next press raises a SECOND call for the same machine, on
+  // a register where calls are not deleted. Refusing costs a Save; not
+  // refusing costs a duplicate quality record.
+  eq('a machine typed but not saved is not offered a call',
+    machinesNeedingInstallCall([items[5]]).length, 0);
+  eq('...and it is the id that is missing, nothing else',
+    machinesNeedingInstallCall([{ ...items[5], id: 6 }]).map((i) => i.serial_number), ['99999']);
 }
 
 console.log('\n-- PM visits follow the period until somebody changes them --');
