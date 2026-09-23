@@ -665,6 +665,39 @@ export function installCallFromSale(header: SaleForCall, item: SaleItemForCall):
   };
 }
 
+// ===========================================================================
+// "TO CHECK" IS NOT A CALL NUMBER, AND TREATING IT AS ONE HID THE WHOLE
+// FEATURE (reported 2026-09-23, with a screenshot of the Warranty Register
+// showing `To Check` where the UCN should be).
+//
+// The AppSheet export fills `INST Call`, `INST Date`, `INST Call Status` and
+// `Report` with the literal words **To Check** -- the sheet's way of saying
+// NOBODY HAS LOOKED YET, which is the OPPOSITE of "this machine has its
+// installation call". `check-uploads.ts` has carried that exact value as a
+// fixture since the importer was written, so it is not a stray: it is on a
+// large part of the register.
+//
+// Both buttons tested `isPinnedValue(inst_call)` -- is there anything there --
+// so every one of those machines read as done. The by-machine list showed the
+// placeholder as though it were a UCN, and the entry pane said "Every machine
+// here has its installation call" over machines that had none. The feature was
+// unusable on the only data it was ever going to meet.
+//
+// SO THE TEST IS THE SHAPE, NOT THE PRESENCE. `next_ucn` (0001) builds
+// YY + month letter A-L + DD + a type letter + four digits -- `26I23I0080` --
+// and that is what this application will have written there.
+//
+// IT IS DELIBERATELY STRICT, and the direction matters. Too strict offers a
+// second call for a machine whose UCN is in some older shape; too loose hides
+// the button for ever, which is the fault being fixed. So nothing is decided
+// silently either way: a value that is NOT a UCN leaves the button offered AND
+// is shown, and the confirmation names it before anything overwrites it.
+// ===========================================================================
+const UCN_RE = /^\d{2}[A-L]\d{2}[A-Z]\d{4}$/i;
+
+/** Is this value a UCN this system issued, rather than a note somebody left? */
+export const isCallNumber = (v: unknown): boolean => UCN_RE.test(String(v ?? '').trim());
+
 /** Which machines on this entry still need an installation call. Keyed on
  *  PRODUCT + SERIAL, which is what identifies a machine; a line with neither
  *  is not a machine yet and is skipped rather than given a call about nothing.
@@ -678,7 +711,8 @@ export function installCallFromSale(header: SaleForCall, item: SaleItemForCall):
  *  entry" for the same reason and this makes the button agree with it. */
 export function machinesNeedingInstallCall<T extends SaleItemForCall>(items: T[]): T[] {
   return items.filter((i) => isPinnedValue(i.id)
-    && !isPinnedValue(i.inst_call)
+    // NOT `isPinnedValue` -- see the note above. "To Check" is not a call.
+    && !isCallNumber(i.inst_call)
     && isPinnedValue(i.product_name) && isPinnedValue(i.serial_number));
 }
 

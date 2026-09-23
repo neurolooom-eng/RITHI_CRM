@@ -15,7 +15,7 @@
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, inheritAllPatch, isPinnedValue,
          installCallFromSale, machinesNeedingInstallCall, INSTALL_COMPLAINT,
-         partyFillChanges, deriveHeader, suggestedPmVisits } from '../src/lib/coverspec';
+         partyFillChanges, deriveHeader, suggestedPmVisits, isCallNumber } from '../src/lib/coverspec';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -237,6 +237,28 @@ console.log('\n-- which machines still need one --');
     machinesNeedingInstallCall([items[5]]).length, 0);
   eq('...and it is the id that is missing, nothing else',
     machinesNeedingInstallCall([{ ...items[5], id: 6 }]).map((i) => i.serial_number), ['99999']);
+
+  // "TO CHECK" IS NOT A CALL NUMBER. The AppSheet export writes those literal
+  // words into INST Call, INST Date, INST Call Status and Report -- the sheet's
+  // way of saying nobody has looked yet, which is the OPPOSITE of "this machine
+  // has its call". Testing for a non-empty value read every one of them as
+  // done: the by-machine list showed the placeholder where the UCN goes, and
+  // the entry pane said "every machine here has its installation call" over
+  // machines that had none. Reported 2026-09-23 with a screenshot of it.
+  eq('a UCN is recognised', isCallNumber('26I23I0080'), true);
+  eq('...lower case too, since a file may carry it either way', isCallNumber('26i23i0080'), true);
+  eq('...and surrounding space is not a difference', isCallNumber('  26I23I0080 '), true);
+  eq('"To Check" is not a call number', isCallNumber('To Check'), false);
+  eq('...nor is "To Link"', isCallNumber('To Link'), false);
+  eq('...nor a blank', isCallNumber(''), false);
+  eq('...nor a month letter past L, which no UCN has', isCallNumber('26M23I0080'), false);
+  eq('...nor three digits where there are four', isCallNumber('26I23I080'), false);
+
+  const placeholder = { id: 9, product_name: 'ORION-G', serial_number: '2607', inst_call: 'To Check' };
+  eq('a machine whose INST Call says "To Check" IS offered a call',
+    machinesNeedingInstallCall([placeholder]).map((i) => i.serial_number), ['2607']);
+  eq('...and one holding a real UCN is not',
+    machinesNeedingInstallCall([{ ...placeholder, inst_call: '26I23I0080' }]).length, 0);
 }
 
 console.log('\n-- PM visits follow the period until somebody changes them --');

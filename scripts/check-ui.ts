@@ -8208,10 +8208,29 @@ console.log('\n-- an installation call is raised the same way from either place 
   // A MACHINE REACHES A CONTRACT ALREADY INSTALLED. An action that cannot make
   // sense for the record in front of somebody is worse than a missing one,
   // because they press it to find out what it does.
-  eq('it is offered on the sale register only', /kind === 'sale' && \(\s*isPinnedValue\(r\.inst_call\)/.test(cr), true);
+  eq('it is offered on the sale register only', /kind === 'sale' && \(\s*isCallNumber\(r\.inst_call\)/.test(cr), true);
   // The UCN IS the evidence the button disables itself by, so showing it is
   // showing the reason -- not a greyed-out button with no explanation.
+  // A UCN, NOT ANY VALUE. The AppSheet export writes the literal "To Check"
+  // into INST Call, so testing for presence showed the placeholder where the
+  // UCN goes and hid the button on most of the register (reported 2026-09-23).
+  eq('the badge is shown for a UCN, not for anything non-empty',
+    /isCallNumber\(r\.inst_call\)/.test(cr) && !/isPinnedValue\(r\.inst_call\)\s*\n?\s*\?/.test(cr), true);
   eq('a machine that has its call shows the UCN instead', /\{str\(r\.inst_call\)\}/.test(cr), true);
+  // Hiding the placeholder would move the surprise to the confirm dialog.
+  eq('...and whatever is in there is still shown beside the button',
+    /Not a call number/.test(cr), true);
+  eq('the confirm names what it is about to replace', /It will be replaced by the new UCN/.test(cr), true);
+
+  // AN ERROR BANNER WITH NO TEXT SAYS SOMETHING WENT WRONG AND REFUSES TO SAY
+  // WHAT. `?? ` passes an EMPTY message straight through; `||` does not.
+  const cv2 = code(readFileSync('src/lib/cover.ts', 'utf8'));
+  eq('an empty database message still produces words',
+    /gave no reason/.test(cv2) && !/new Error\(e\?\.message \?\? /.test(cv2), true);
+  // The totals used to be awaited inside the table's own try, so a failing
+  // count threw away 1,500 rows that had already arrived.
+  eq('a failing total does not take the table down with it',
+    /catch \(ce\) \{[\s\S]{0,200}countErr =/.test(cr), true);
   // Leaving the cache stale would put the button back on the next visit and
   // offer a second call for a machine that has one.
   eq('the cache is patched with the new UCN, not left stale',
@@ -8222,8 +8241,13 @@ console.log('\n-- an installation call is raised the same way from either place 
   // and is not is worse than no number -- three of them over a populated list
   // say the register is empty.
   eq('an uncounted tile reads a dash, never 0', /counts\[s\] == null \? '—'/.test(cr), true);
+  // A DASH ON ITS OWN DOES NOT SAY WHY. Both paths that count now set every
+  // tile to "not counted" AND report the reason -- as information, because the
+  // register itself loaded.
   eq('...and a failed count says so rather than leaving zeros',
-    /\.catch\(\(\) => setCounts\(Object\.fromEntries\(STATES\.map\(\(x\) => \[x, null\]\)\)\)\)/.test(cr), true);
+    (cr.match(/setCounts\(Object\.fromEntries\(STATES\.map\(\(x\) => \[x, null\]\)\)\)/g) ?? []).length, 2);
+  eq('...naming the reason, not just that it failed',
+    /The three totals did not/.test(cr), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

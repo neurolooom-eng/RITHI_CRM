@@ -379,6 +379,12 @@ against the call it was fitted to.
   > It is offered on the **Warranty** register only. A machine reaches a
   > contract already installed.
   >
+  > **If INST Call says "To Check", that machine still needs a call.** Those are
+  > the words the AppSheet export writes where nobody has looked yet — not a
+  > call number — so the button is offered and the text is shown beside it. The
+  > confirmation names it before it is replaced. A field holding a real UCN
+  > shows the UCN instead, and no button.
+  >
   > **＋ Field call** beside it is different: it does not create anything, it
   > opens the Field Call form with the machine and customer already filled in.
   >

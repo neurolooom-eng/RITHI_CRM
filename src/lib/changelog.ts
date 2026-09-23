@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.351',
+    date: '2026-09-23',
+    title: '“To Check” is not an installation call',
+    changes: [
+      'THE BUTTON WAS HIDING ON ALMOST EVERY MACHINE, and this is why: the AppSheet export fills INST Call with the literal words “To Check” — the sheet’s way of saying nobody has looked yet. Both buttons tested whether the field had ANYTHING in it, so every one of those machines read as done.',
+      'The by-machine list showed “To Check” where the UCN goes, and the entry pane said “Every machine here has its installation call” over machines that had none. The feature was unusable on the only data it was ever going to meet.',
+      'A call number is now recognised by its SHAPE — the UCN this system issues, like 26I23I0080. Anything else is not a call, so the button is offered.',
+      'WHATEVER IS IN THE FIELD IS STILL SHOWN beside the button, and the confirmation names it before replacing it: “INST Call currently reads “To Check”, which is not a call number. It will be replaced by the new UCN.” Nothing is overwritten quietly.',
+      'THE EMPTY RED BANNER IS FIXED. A database error carrying no message painted a blank red bar across the register — something went wrong, refusing to say what. It always says something now, with the error code where there is one.',
+      'AND A FAILING TOTAL NO LONGER TAKES THE TABLE WITH IT. The three tiles were counted inside the table’s own load, so one failing count threw away 1,500 rows that had already arrived. They are their own concern and report their own reason.',
+    ],
+  },
+  {
     version: '0.9.350',
     date: '2026-09-23',
     title: '＋ Installation call, on the machine itself',
