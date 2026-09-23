@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.356',
+    date: '2026-09-23',
+    title: 'A permission you grant now reaches people who are already signed in',
+    changes: [
+      'THE OTHER HALF OF “Roles & Permissions are not working”. The permissions were read ONCE, when somebody signed in. So you could tick an action, save it, confirm it was stored — and the person holding that role went on seeing no button for as long as their tab stayed open. Nothing was wrong with the grant; nothing ever asked for it again.',
+      'They are now re-read when someone comes back to the tab. Grant a permission and it lands the next time they switch back to RITHI, without anybody being told to reload.',
+      'Not a poll — a permission change is rare, and checking on a timer would be a request per person per tick for an answer that almost never moves. And it only ever ADDS what it reads, so a failed request leaves the session exactly as it was rather than dropping somebody to the defaults mid-shift.',
+    ],
+  },
+  {
     version: '0.9.355',
     date: '2026-09-23',
     title: 'The role probe answers before you edit it',

@@ -8333,6 +8333,31 @@ console.log('\n-- Roles & Permissions saves what was touched, and nothing else -
   // the code fallback back ON for such a role, so saving one GRANTS the
   // engineer defaults to whoever holds it -- the opposite of what unticking
   // everything looks like it does.
+  // A GRANT MUST REACH AN OPEN TAB. reloadRoles() ran once at sign-in, so a
+  // permission ticked and saved changed nothing for the person holding that
+  // role until they reloaded -- and the save's own message ("on each user's
+  // next action / reload") is the only place that was ever said.
+  {
+    const au = code(readFileSync('src/lib/auth.tsx', 'utf8'));
+    // THE ADD, NOT THE REMOVE. The first version of this alternated on the word
+    // `visibilitychange`, which the CLEANUP line carries too -- so deleting the
+    // listener left the check passing. Caught by mutating it, which is the only
+    // thing that was ever going to show it.
+    eq('the roles are re-read when the tab comes back',
+      /document\.addEventListener\('visibilitychange', onVisible\)/.test(au)
+      && /const onVisible = \(\) => \{[\s\S]{0,240}void reloadRoles\(\);/.test(au), true);
+    // Not a poll: a permission change is rare, and a request per user per tick
+    // buys an answer that almost never moves.
+    eq('...and not on a timer', /setInterval\([^)]*reloadRoles/.test(au), false);
+    // Alt-tabbing is not a new day.
+    eq('...throttled, so returning to the tab is not a request each time',
+      /Date\.now\(\) - last < 60_000/.test(au), true);
+    // reloadRoles MERGES, so a failed read leaves the session as it was rather
+    // than dropping somebody to the defaults mid-shift.
+    eq('...and a failed read never drops the session to the defaults',
+      /if \(Object\.keys\(p\)\.length\) setRolePerms\(\(cur\) => \(\{ \.\.\.cur, \.\.\.p \}\)\)/.test(au), true);
+  }
+
   eq('a role emptied of every tick is refused, with the reason',
     /would be left with NO permissions ticked/.test(rp), true);
   eq('...and that is what permsForRole actually does',
