@@ -48,6 +48,28 @@
 -- corrected status, so you can see them -- it does not act on them.
 --
 -- IT LEAVES PM CALLS ALONE. Only Field and Installation were asked for.
+--
+-- AND THE STAGE DOES NOT MOVE -- CHECKED, NOT ASSUMED. The obvious fear with
+-- correcting item_status on settled requests is 0210's disaster in reverse:
+-- every settled line marching backwards out of Stores. It cannot happen here.
+-- `spare_line_stage` still TAKES item_status as its sixth argument, but its
+-- BODY no longer reads it -- the stage comes from the recorded approvals alone.
+-- Test the body (`prosrc`), not the definition: `pg_get_functiondef` contains
+-- the argument NAME, so a grep over it answers YES and is wrong.
+--
+--   select case when p.prosrc ~ 'item_status'
+--               then 'BODY USES IT -- DO NOT APPLY, settled lines would move'
+--               else 'safe -- the stage is independent of item_status' end
+--     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--    where n.nspname = 'public' and p.proname = 'spare_line_stage';
+--
+-- Run that first if you want to confirm it on your own project.
+--
+-- WHAT IT DOES LEAVE BEHIND, and it is worth knowing before you decide: a
+-- request corrected to AMC or OGP will show that status beside an approval
+-- that was AUTO-GRANTED, because under the old status Commercial and NSM were
+-- not required. That reads as a bypass and was not one -- it was correct under
+-- the rule applied at the time.
 -- ===========================================================================
 
 do $chain$
