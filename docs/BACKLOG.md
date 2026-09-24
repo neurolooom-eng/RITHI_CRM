@@ -43,6 +43,52 @@ up)_
 
 ---
 
+## 2026-09-24 — The whitespace theory was WRONG, and the probe that replaces guessing
+
+`_which_product_names_carry_stray_spaces.sql` came back **all zeros** on the
+live register. Not one product name carries a stray space, in `products`,
+`sale_items` or `contract_items`. **My diagnosis was wrong**, and v0.9.366 —
+matching the product name exactly as the picker offered it — fixed a real
+asymmetry between that read and every other one, but it is **not** what is
+wrong with Extend XT.
+
+I had reproduced the whitespace fault on a FIXTURE I built. Reproducing a fault
+you invented proves the mechanism is possible, not that it is the one happening.
+The probe is what told the difference, and it should have come first.
+
+**`supabase/apply/_where_is_this_machine.sql`** is the replacement for the next
+guess: read-only, two values to edit at the top, and it answers WHICH REGISTER
+holds the machine rather than assuming one. The Call Request's Product box and
+its serial search both read ONE table — `public.products` — while the Warranty
+Register, the Contract Register and Product Database 2.0 read others, so a
+machine can be plainly visible on one screen and invisible to the request form
+with nothing broken in between.
+
+Four verdicts, each exercised against a database before shipping:
+
+* the machine is in the install base → the fault is a SPELLING, and sections 2
+  and 3 print both spellings in brackets;
+* **a different machine carries that serial** → the one being looked for is not
+  there under this model;
+* **sold but never added to the install base** → the Warranty Register has it
+  and `products` does not, which is exactly what **0237** repairs, backfill
+  included. Row 10 counts how many machines of that product are in that state,
+  because one serial is an example and the decision is about the product;
+* not in any register under that serial.
+
+**The first draft judged on the SERIAL ALONE and got it wrong on the first real
+input** — it reported "the machine IS in the install base" while what was
+actually there was an ORION-G with the same serial, and the EXTEND XT was
+missing. That is this project's oldest rule (a machine is its MODEL and its
+SERIAL; eleven are numbered 219) failing in a file written to enforce careful
+thinking. Rows 4 and 5 now separate "this model and this serial" from "other
+models carrying that serial", and the verdict tests them in that order.
+
+Unchanged, it prints `CHANGE-ME-PRODUCT` / `CHANGE-ME-SERIAL` and says so in
+row 1 rather than returning a confident grid about nothing.
+
+No version bump: this adds a diagnostic and changes no behaviour.
+
 ## 2026-09-24 — ⚠ "Extend XT only": the dropdown and the search named the product differently
 
 *"This happens in Extend XT product only."* — and the single word **only** is
