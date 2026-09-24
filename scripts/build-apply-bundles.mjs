@@ -735,7 +735,11 @@ const MODULES = {
             '0237_sale_fills_product_database.sql',
             // AFTER 0237: it replaces that file's upsert so the party comes
             // from the LATER of the sale and the ownership transfer.
-            '0238_machine_belongs_to_its_latest_owner.sql'],
+            '0238_machine_belongs_to_its_latest_owner.sql',
+            // AFTER 0238: it gives the transfer a real timestamp and rewrites
+            // machine_current_party() to compare two timestamps rather than a
+            // date against one.
+            '0240_ownership_transfer_timestamp.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

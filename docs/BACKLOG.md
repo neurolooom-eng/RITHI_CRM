@@ -43,6 +43,67 @@ up)_
 
 ---
 
+## 2026-09-24 — The timestamp rule, and a survey of which tables keep one
+
+> *"Record the Timestamp in Ownership Transfer as well. Ideally all the tables
+> should record the Timestamp, and every Table should have a Key on its own."*
+> *"Applicable to All Tables ; Timestamp - Capturing the Transaction Date and
+> Time in this format dd-mmm-yyyy hh:mm:ss and this should be compatible as a
+> DateTime / Long Date field in Excel."*
+
+Written into `CLAUDE.md` as a standing rule. **Two of its three parts were
+already true everywhere** — `formatDayTime()` is the one display formatter and
+`excelSerial()`/`xlsxDate()` already export a serial plus a format rather than a
+string. What was NOT true is the first part: that every table records when the
+transaction happened.
+
+**0240 fixes the case that was actually costing something.** `transfer_date` on
+`ownership_transfers` is a DATE, and 0238's rule is "the party is whichever of
+the sale and the transfer is LATEST" — so a transfer recorded at 2 pm on the day
+of a sale entered that morning compared as MIDNIGHT and lost. 0238 papered over
+it with a tie-break (a transfer dated the same day wins, since a machine cannot
+be transferred before it is sold), which is right for that case and a **guess**
+for the reverse one: a machine transferred in the morning and sold on in the
+afternoon read as transferred. `transferred_at` makes the comparison exact.
+Proved both ways within a single day.
+
+`transfer_date` is kept and is not derived from it: it is the day the machine
+changed hands, `transferred_at` is when the system was told, and they routinely
+differ.
+
+### The survey — and a correction to it
+
+| | |
+|---|---|
+| tables | 77 |
+| **no `created_at`** | **40** |
+| only a synthetic `id`, no natural key | 22 |
+
+**My first survey said 48 lacked a key and it was wrong**: it counted only
+unique indexes that are not the primary key, so a table whose natural key IS its
+primary key — `product_master`, keyed on `product_code` — read as keyless. The
+number is 22.
+
+**Most of those 22 are correctly keyless**: `audit_log`, `record_audit`,
+`ffr_history`, `notifications`, `call_vigilance_changes`, `password_resets`,
+`export_runs`, `inst_call_repair_log` are append-only logs where every row IS a
+distinct event, and `spare_dispatch_lines`, `stock_transfer_lines` and the three
+`indoor_job_*` tables are child lines that may legitimately repeat. Adding a
+natural key to those would be wrong, not thorough.
+
+**Where it is a real gap**, in order: **`user_directory`** (nothing stops the
+same person appearing twice, and the User Master is "the only place I can map
+and configure"), `pending_registrations`, `kb_articles`, `documents`,
+`tracker_items`, `export_schedules`, `complaint_suggestions`.
+
+**Not done, deliberately.** Adding 22 keys and 40 timestamp columns blind would
+be 62 changes nobody asked for, some of them wrong. Each needs its own answer to
+"what makes a row the same row?", and on a table with existing data a unique
+index fails loudly if that answer is wrong — which is the good outcome only if
+somebody is expecting it.
+
+---
+
 ## 2026-09-24 — A machine belongs to its latest owner, and so does everything attached
 
 > *"What should be displayed is entirely based on the Timestamp of when the change
