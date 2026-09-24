@@ -4,6 +4,7 @@ import { PageHeader, SectionCard } from '../components/ui/ui';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { supabaseConfigured, sbListProductNames, sbListProductSerials } from '../lib/supabase';
 import { archiveNote, machineHistory, machineNow, type MachineEvent, type MachineNow } from '../lib/machineHistory';
+import { isTimeout } from '../lib/dberror';
 // ONE RENDERING OF A MACHINE'S LIFE, shared with the pop-up the Daily
 // Complaint Review Register opens. A second copy would drift, and the drift
 // would be invisible -- both would look perfectly reasonable.
@@ -131,6 +132,25 @@ export function MachineHistory() {
         <span className="muted">
           Showing the registers only — the 2016 archive is not connected on this device
           (Settings → Archive).
+        </span>
+      );
+    }
+    // A TIMEOUT IS NOT A BROKEN ARCHIVE, and the raw words say otherwise.
+    // `archiveHistory` never throws -- it hands the message back as the reason
+    // -- so "canceling statement due to statement timeout" would land here
+    // verbatim and read as a connection fault, sending somebody to check a
+    // Settings page that is working. isTimeout() is main's one rule for this
+    // (0.9.363), used rather than a second test of the same words.
+    //
+    // THE ADVICE DIFFERS FROM THE PRODUCT DATABASE'S deliberately: that screen
+    // tells a searcher to NARROW, and here there is nothing to narrow -- the
+    // reader picked one machine. What is true is that the live half on screen
+    // is complete and only the older half is missing.
+    if (isTimeout(note)) {
+      return (
+        <span className="muted">
+          The 2016 archive took too long to answer, so only the registers are shown above —
+          that half is complete. Search again in a moment.
         </span>
       );
     }
