@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.371',
+    date: '2026-09-24',
+    title: 'Call Type stops appearing inside Extras, and the objective evidence stops at nothing',
+    changes: [
+      'CALL TYPE IS NO LONGER WRITTEN INTO “EXTRA” AS WELL AS ITS OWN COLUMN. The column was never missing — field, installation and PM calls have all carried call_type, and the upload STAMPS it from the register you picked so a PM sheet cannot land as a field call. What happened is that the file’s own “Call Type” heading, being stamped rather than mapped, fell through into the extras blob beside it. Every export carrying extras therefore showed a second Call Type.',
+      'AND THE TWO COULD DISAGREE: a PM sheet loaded through the Field Calls register stored FIELD on the row and PM in the blob. The row is right and the blob was the one on show.',
+      '⚠ FOR THE CALLS ALREADY LOADED, run supabase/apply/_call_type_out_of_extra.sql. It is read-only until you set one flag, and it removes the copy ONLY where it agrees with the column — where it disagrees it leaves it and lists it, because that is a finding about a load rather than noise.',
+      'THE OBJECTIVE EVIDENCE DOWNLOAD NO LONGER STOPS AT 1,000. It came back through the API like any other read and the API caps a response at a thousand rows, so the file said “1000 calls” and looked like the figure had been worked out from a thousand calls.',
+      'IT HAD NOT BEEN. The objectives are counted inside the database over the whole register — no page size reaches that. But a thousand rows of evidence under a figure computed from four thousand cannot confirm the figure, which is the worse half of the two. The banner now says both: every row, and where the figure itself comes from.',
+    ],
+  },
+  {
     version: '0.9.370',
     date: '2026-09-24',
     title: 'KPI Export: every date arrives as a real date',

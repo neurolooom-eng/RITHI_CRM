@@ -453,10 +453,34 @@ export async function setObjectiveCutoffLock(on: boolean): Promise<{ ok: boolean
 
 // THE ROWS BEHIND ONE FIGURE. The same query that produced the number, so the
 // two cannot disagree — counting the evidence reproduces the fraction.
+// ===========================================================================
+// PAGED, AND AN RPC IS NOT EXEMPT FROM THE CAP.
+//
+// Reported 2026-09-24, from the banner this very call writes: "Downloaded the
+// evidence for Preventive Maintenance Calls -- Sep: 1000 calls", and "i think
+// it is calculating only for the first 1000 calls.. That should not be the
+// case."
+//
+// THE FIGURE WAS NEVER CAPPED, and that is the first thing to be clear about:
+// the objectives are computed by `recalc_quality_objectives()` in PL/pgSQL --
+// `count(*)` over the register inside Postgres -- and nothing about a client
+// page size reaches it. What WAS capped is this: the evidence behind the
+// figure, which comes back through PostgREST like any other read, and PostgREST
+// answers at most 1,000 rows however many the function returns. A `SETOF`
+// function is a relation to it.
+//
+// So the number was right and its evidence was short -- which is the worse
+// shape of the two, because the file is what somebody checks the number
+// AGAINST. A thousand rows under a figure computed from four thousand does not
+// disprove the figure; it makes it impossible to confirm, and it reads as if
+// the figure were wrong.
+//
+// `Range` works on an RPC exactly as it does on a table, so `allRows()` pages
+// it the same way as everything else.
+// ===========================================================================
 export async function objectiveEvidence(id: number, month: number): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().rpc('objective_evidence', { p_id: id, p_month: month });
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []) as Record<string, unknown>[];
+  return allRows<Record<string, unknown>>((from, to) =>
+    must().rpc('objective_evidence', { p_id: id, p_month: month }).range(from, to));
 }
 
 // ---------------------------------------------------------------------------
