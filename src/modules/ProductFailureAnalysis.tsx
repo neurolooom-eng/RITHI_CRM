@@ -41,6 +41,7 @@ import './productfailure.css';
 // that drifted would make a click filter on a value no row has, and the page
 // would silently empty.
 import { PERIODS, periodKey, type Period } from './FieldFailureInsights';
+import { partial } from '../lib/exportscope';
 
 type Row = Record<string, unknown>;
 const s = (r: Row, k: string) => String(r[k] ?? '').trim();
@@ -144,8 +145,12 @@ interface Cut { label: string; value: number }
 // ---------------------------------------------------------------------------
 function ParetoBlock({
   title, note, rows, total, dim, picked, onPick, form = 'pareto', raw, rawDateKey, rawDateLabel,
-  onRemove, yearNote, tableSide = 'right',
+  onRemove, yearNote, tableSide = 'right', more = false,
 }: {
+  // WHETHER THE REGISTER BEHIND THIS BLOCK IS COMPLETE. The block cannot know
+  // -- it is handed rows -- and its download must say so, so the parent passes
+  // it down exactly as it passes the rows down.
+  more?: boolean;
   title: string;
   note?: string;
   rows: Cut[];
@@ -294,7 +299,7 @@ function ParetoBlock({
           { Item: 'Downloaded', Value: new Date().toISOString() },
         ],
       },
-    ]);
+    ], partial(more));
     logAudit({ action: 'productfailure.download', target: title, meta: { rows: shown.length, total, scope } });
   };
 
@@ -564,7 +569,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
           { Item: 'Downloaded', Value: new Date().toISOString() },
         ],
       },
-    ]);
+    ], partial(more));
     logAudit({ action: 'productfailure.trend.download', target: period, meta: { total: trendTotal } });
   };
 
@@ -647,6 +652,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
       </KpiGrid>
 
       <ParetoBlock
+        more={more}
         title="Which products fail"
         note="Counted under the product Review 2 says actually failed, so a fault moved to an
               accessory counts there and not against the machine it was logged on."
@@ -654,6 +660,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
         raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
+        more={more}
         title="Failures per cover"
         note="Warranty, contract or out of cover — four categories that add up to the whole, so this
               is a SHARE and not a Pareto. A product failing mostly INSIDE warranty is a
@@ -664,17 +671,20 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
         raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
+        more={more}
         title="Root cause"
         note="The few causes behind most of the failures — which is what the running share is for."
         rows={byRootCause} total={n} dim="root_cause_keyword" picked={picked} onPick={pick}
         raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
+        more={more}
         title="Complaint grouping"
         rows={byGrouping} total={n} dim="complaint_grouping" picked={picked} onPick={pick}
         raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
+        more={more}
         title="What it was reported as"
         note="The complaint the customer gave, before anybody looked. Where this and the root cause
               disagree is where the fault is hard to describe from the outside."
@@ -682,6 +692,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
         raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
+        more={more}
         title="Which spares were implicated"
         note="A short closed list, so it is read as a share of the failures rather than ranked."
         form="share"
@@ -689,6 +700,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
         raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
+        more={more}
         title="Machines that failed more than once"
         note={`The individual UNIT, not the model — a model with four hundred failures across two
               thousand machines is a fleet; one machine with nine is a machine to go and look at.
@@ -699,6 +711,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
         raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
+        more={more}
         title="Software version"
         note="In VERSION ORDER, not ranked by count: the question is whether a newer release is
               failing more than the one before it, and sorting by count hides exactly that. From the
@@ -708,6 +721,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
         raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
+        more={more}
         title="Age at failure"
         note="In its own order, NOT ranked by count: whether failures cluster early or late in a
               machine's life is the finding, and sorting by count would erase it."
@@ -738,6 +752,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
         const cut = tally(rows, c.spec.dim, '(not answered)');
         return (
           <ParetoBlock
+        more={more}
             key={c.id}
             title={c.name}
             note={`Built here${c.role === null ? ' and kept for you'

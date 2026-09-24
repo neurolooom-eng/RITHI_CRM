@@ -14,6 +14,7 @@ import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
 import './fieldcalls.css';
+import { partial } from '../lib/exportscope';
 
 const CACHE_KEY = 'spareConsumption';
 
@@ -364,7 +365,7 @@ export function SpareConsumption() {
             )}
             <div className="spacer" />
             {rows.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('spare-consumption.csv', headerKeys.map((k) => ({ key: k, header: k })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('spare-consumption.csv', headerKeys.map((k) => ({ key: k, header: k })), visible as unknown as Record<string, unknown>[], partial(more))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

@@ -8,6 +8,7 @@ import { formatDay, formatDayTime } from '../lib/dates';
 import { listSolvedWithoutReport, supabaseConfigured } from '../lib/supabase';
 import { loadFailure } from '../lib/dberror';
 import { Ucn } from '../lib/callstate';
+import { COMPLETE } from '../lib/exportscope';
 
 // ===========================================================================
 // SOLVED, BUT NOBODY FILED THE REPORT.
@@ -107,7 +108,7 @@ export function SolvedWithoutReport() {
       // A DOWNLOAD IS NOT THE WIRE: a CSV can only carry text, so the dates go
       // out as dd-MMM-yyyy HH:mm:ss rather than the ISO string the API sent.
       csvExport(`${name}.csv`, EXPORT,
-        visible.map((r) => Object.fromEntries(EXPORT.map((c) => [c.key, xlsxText(r[c.key])]))));
+        visible.map((r) => Object.fromEntries(EXPORT.map((c) => [c.key, xlsxText(r[c.key])]))), COMPLETE);
     } else {
       xlsxDownload(`${name}.xlsx`, [
         { name: 'Solved Without a Report',
@@ -132,7 +133,7 @@ export function SolvedWithoutReport() {
             { Item: 'Rows', Value: String(visible.length) },
             { Item: 'Taken', Value: fmtLongDate(new Date().toISOString()) },
           ] },
-      ]);
+      ], COMPLETE);
     }
     logAudit({ action: 'report.solved_without_report', meta: { rows: visible.length, scope, kind } });
   };

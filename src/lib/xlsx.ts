@@ -21,6 +21,7 @@ import { excelSerial, formatDayTime, hasClockTime } from './dates';
 // ===========================================================================
 
 import { enc, xmlText, zipStore, download } from './zip';
+import { mayExport, type ExportScope } from './exportscope';
 
 export interface Sheet {
   name: string;
@@ -193,7 +194,13 @@ export function buildXlsx(sheets: Sheet[]): Uint8Array {
   return zipStore(parts);
 }
 
-export function xlsxDownload(filename: string, sheets: Sheet[]): void {
+// THE SAME QUESTION AS THE CSV, AND FOR THE SAME REASON. The complaint was
+// about downloads, not about commas: a workbook taken from a half-loaded
+// register is exactly as silent about what it is missing. `sheets[0]` is the
+// data sheet everywhere this is called; the row count in the warning comes from
+// it, and an About sheet beside it does not change the answer.
+export function xlsxDownload(filename: string, sheets: Sheet[], scope: ExportScope): void {
+  if (!mayExport(scope, sheets[0]?.rows.length ?? 0)) return;
   download(filename, buildXlsx(sheets),
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }

@@ -11,6 +11,7 @@ import { loadFailure } from '../lib/dberror';
 import { useAuth } from '../lib/auth';
 import { seesEveryRecord } from '../lib/rbac';
 import { HANDSTOCK_REPORT_COLUMNS, handStockFileName, isLastPage } from '../lib/handstockreport';
+import { COMPLETE, partial } from '../lib/exportscope';
 
 // ===========================================================================
 // HAND STOCK REPORT — every engineer's stock, whole, and only then downloadable.
@@ -159,7 +160,7 @@ export function HandStockReport() {
       // A CSV CAN ONLY CARRY TEXT, so the timestamps go out as
       // dd-MMM-yyyy HH:mm:ss rather than the ISO string the API sent.
       csvExport(name, cols,
-        visible.map((r) => Object.fromEntries(cols.map((c) => [c.key, xlsxText(r[c.key])]))));
+        visible.map((r) => Object.fromEntries(cols.map((c) => [c.key, xlsxText(r[c.key])]))), COMPLETE);
     } else {
       const sheet = {
         name: 'Hand Stock',
@@ -182,8 +183,8 @@ export function HandStockReport() {
           { Item: 'Taken', Value: fmtLongDate(new Date().toISOString()) },
         ],
       };
-      if (kind === 'xlsx') xlsxDownload(name, [sheet, about]);
-      else xlsDownload(name, [sheet, about]);
+      if (kind === 'xlsx') xlsxDownload(name, [sheet, about], COMPLETE);
+      else xlsDownload(name, [sheet, about], COMPLETE);
     }
     logAudit({ action: 'report.handstock', meta: { rows: visible.length, scope, kind, file: name } });
   };

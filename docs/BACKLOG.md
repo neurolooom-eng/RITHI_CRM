@@ -43,6 +43,64 @@ up)_
 
 ---
 
+## 2026-09-24 — A download from a half-loaded table warns first (v0.9.368)
+
+*"if there is more data and user is downloading it give a pop up disclaimer
+that there are more data and you are exporting only a partial data. If table is
+loaded fully (No load more option) then don't show this disclaimer. People keep
+saying data is missing when they download without ensure if all the data is
+loaded or not."*
+
+**THE COMPLAINT IS ABOUT EVIDENCE, NOT ABOUT A DIALOG.** Every register loads in
+pages and the SCREEN is honest about it — the count carries a `+`, a Load more
+button sits beside it. The FILE carries neither. Opened in Excel a day later it
+is just rows, with nothing in it anywhere to say the register had more, so the
+reader concludes the system is missing data and reports it as such.
+
+**ONE PLACE, NOT THIRTY-FIVE.** `csvExport()`, `xlsxDownload()` and
+`xlsDownload()` are the three writers; the rule sits where the bytes are
+produced. This project has the scar for the other way round — `allRows()` went
+into one of thirteen call sites and the other twelve came back a year later as
+a new bug.
+
+**AND THE ANSWER IS A REQUIRED ARGUMENT.** 48 call sites across 35 files now
+have to say what they know: `COMPLETE`, `partial(more)` or
+`cappedAt(rows.length, cap)`. Optional, it would be the thing the next screen
+forgets — silently, which is the fault itself in a new place. `check:ui`
+refuses an inline literal too, so the answer has to be one of the three
+sanctioned words; that is the discipline `FacetChips` already carries for
+`more`.
+
+**`cappedAt` EXISTS BECAUSE SOME SCREENS CANNOT TELL.** Stock Transfer reads
+`listStockTransfers(1000)`, Pending Dispatch 2,000, the FFR register 5,000 —
+no Load more, no `more` state, just a cap. A read that comes back FULL is the
+signature of a truncation, not of an exhausted table, so those answer "there may
+be more" rather than claiming completeness. That is a real gap those screens
+have, now visible at the moment it matters.
+
+**THE POP-UP SAYS THREE THINGS**, in the order somebody needs them: what will be
+in the file, what is missing, and what to do — press Cancel, Load more until the
+button disappears, download again. It never names a total, because the screen
+does not know one; inventing one here would be the same fault in a new place.
+Exporting anyway is allowed: somebody taking the first two hundred rows of a
+filtered view is doing nothing wrong, and a refusal would make the sensible case
+impossible in order to serve the careless one.
+
+**⚠ AND A CORRECTION TO YESTERDAY.** The checks written for the Hand Stock
+Report (v0.9.367) had been APPENDED to `check-ui.ts` **after its
+`process.exit()`** and had never run once. Everything they assert passes — so
+nothing shipped wrong — but the claim "`check:ui` runs them" was false for one
+release. Moved above the exit, and every one of them mutation-tested properly
+this time. The same slip had swallowed the `.xls` byte-level assertions.
+
+**One more assertion was a lie of the `indexOf` kind**: "csvExport asks before
+it builds the file" was `indexOf('mayExport') < indexOf('new Blob(')`, and a
+MISSING needle is `-1`, which is less than everything. Deleting the guard left
+the check green. It tests for presence first now — found by mutating it, which
+is the only way that shape ever is.
+
+`npm run validate` 101/101 suites, 22/22 checks.
+
 ## 2026-09-24 — Hand Stock Report (v0.9.367)
 
 *"Add a Hand Stock Report - Default access to Admin/Super Admin, Rest of the

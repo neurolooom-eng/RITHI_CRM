@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { db, type BaseRecord } from './db';
 import { parseAnyDate } from './dates';
 import type { FieldOption } from '../components/form/Form';
+import { mayExport, type ExportScope } from './exportscope';
 
 export const fmtCurrency = (n: unknown): string => {
   const v = Number(n);
@@ -140,8 +141,22 @@ let _canExport = true;
 export function setCanExport(v: boolean): void { _canExport = v; }
 export function canExportData(): boolean { return _canExport; }
 
-export function csvExport(filename: string, columns: { key: string; header: string }[], rows: Record<string, unknown>[]) {
+// THE FOURTH ARGUMENT IS REQUIRED, and that is the point of it.
+//
+// The user, 2026-09-24: "People keep saying data is missing when they download
+// without ensure if all the data is loaded or not." Every register here loads
+// in pages and SAYS so on screen -- the count carries a `+`, a Load more button
+// sits beside it -- but the FILE carries neither, so a day later in Excel it is
+// just rows with nothing anywhere to say the register had more.
+//
+// Optional, it would be the thing a new screen forgets, silently, which is the
+// fault itself in a new place. Required, TypeScript refuses the call until
+// somebody has answered the question -- the same discipline `FacetChips`
+// carries for `more`, where `{ more: false }` is a claim rather than a default.
+export function csvExport(filename: string, columns: { key: string; header: string }[], rows: Record<string, unknown>[], scope: ExportScope) {
   if (!_canExport) { try { alert('Exporting / downloading data is not permitted for your role.'); } catch { /* ignore */ } return; }
+  // ASKED BEFORE A SINGLE BYTE IS BUILT, so Cancel leaves nothing behind.
+  if (!mayExport(scope, rows.length)) return;
   const esc = (s: unknown) => {
     const v = s == null ? '' : String(s);
     return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;

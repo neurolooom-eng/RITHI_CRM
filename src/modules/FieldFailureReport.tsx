@@ -22,6 +22,7 @@ import { FieldFailureDesk } from './FieldFailureDesk';
 import { useMySignature, signatureBelongsTo } from '../lib/signature';
 import { companyLogoBytes, COMPANY_LOGO_TYPE } from '../lib/brand';
 import './fieldcalls.css';
+import { cappedAt } from '../lib/exportscope';
 
 // ===========================================================================
 // FIELD FAILURE REGISTER — the register, and the report it produces.
@@ -366,7 +367,7 @@ export function FieldFailureReport() {
         // from the one the page appears to be answering, so the search and the
         // status chips stop here. The YEAR does reach it — that is a reporting
         // period, and it is shown beside the tabs so it is never invisible.
-        <FieldFailureInsights rows={inYear} />
+        <FieldFailureInsights rows={inYear} more={rows.length >= 5000} />
       ) : view === 'desk' ? (
         <FieldFailureDesk
           rows={visible}
@@ -383,7 +384,7 @@ export function FieldFailureReport() {
                 <button key={s || 'all'} className={`btn btn-sm ${status === s ? 'btn-primary' : 'btn-ghost'}`}
                         onClick={() => setStatus(s)}>{s || 'All'}</button>
               ))}
-              <button className="btn btn-sm" onClick={() => csvExport('field-failure-register.csv', FFR_COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible)}>⬇ CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('field-failure-register.csv', FFR_COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible, cappedAt(rows.length, 5000))}>⬇ CSV</button>
             </div>
           </div>
 

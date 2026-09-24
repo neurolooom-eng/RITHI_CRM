@@ -10,6 +10,7 @@ import { partDescription } from '../lib/handstock';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
+import { COMPLETE } from '../lib/exportscope';
 
 // ===========================================================================
 // RM APPROVAL — the manager's queue, shaped like Pending Dispatch.
@@ -236,7 +237,7 @@ export function SpareRmApproval() {
         actions={
           <>
             {visible.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('rm-approval.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('rm-approval.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], COMPLETE)}>⭳ Export CSV</button>
             )}
           </>
         }

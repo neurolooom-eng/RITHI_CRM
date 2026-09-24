@@ -17,6 +17,7 @@ import {
   type HandstockBalance, type HandstockMovement, type MovementKind,
 } from '../lib/handstock';
 import './fieldcalls.css';
+import { partial } from '../lib/exportscope';
 
 // ===========================================================================
 // HAND STOCK — the stock level an engineer is carrying, per spare.
@@ -405,7 +406,7 @@ export function HandStock() {
                   }))} />
                 <div className="spacer" />
                 {rows.length > 0 && (
-                  <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+                  <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], partial(more))}>⭳ Export CSV</button>
                 )}
               </Toolbar>
             }
@@ -547,7 +548,7 @@ function Movements({
               options={engineers.map((e) => ({ value: e.engineer_key, label: e.engineer }))} />
             <div className="spacer" />
             {moves.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('hand-stock-movements.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('hand-stock-movements.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], partial(more))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

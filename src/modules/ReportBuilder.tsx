@@ -6,6 +6,7 @@ import { csvExport } from '../lib/format';
 import { logAudit } from '../lib/audit';
 import { formatDayTime } from '../lib/dates';
 import './dccr.css';
+import { COMPLETE } from '../lib/exportscope';
 
 // ===========================================================================
 // ONE REPORT SCREEN, THREE REPORTS.
@@ -164,7 +165,7 @@ export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec
       const stamp = new Date().toISOString().slice(0, 10);
 
       if (kind === 'csv') {
-        csvExport(`${spec.key}-${stamp}.csv`, columns.map((c) => ({ key: c, header: c })), shapedText);
+        csvExport(`${spec.key}-${stamp}.csv`, columns.map((c) => ({ key: c, header: c })), shapedText, COMPLETE);
       } else {
         xlsxDownload(`${spec.key}-${stamp}.xlsx`, [
           { name: spec.title.slice(0, 28), columns, rows: shapedCells },
@@ -183,7 +184,7 @@ export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec
               ...(spec.notes?.length ? [{ Item: '', Value: '' }, ...spec.notes] : []),
             ],
           },
-        ]);
+        ], COMPLETE);
       }
       setMsg(`Downloaded ${rows.length.toLocaleString()} row${rows.length === 1 ? '' : 's'}, ${columns.length} columns.`);
       logAudit({ action: `report.${spec.key}`, target: `${rows.length} rows`,

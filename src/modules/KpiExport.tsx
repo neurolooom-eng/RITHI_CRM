@@ -5,6 +5,7 @@ import { KPI_FIELD_INST_COLUMNS, kpiExportColumns, toKpiExportRow } from '../lib
 import { csvExport } from '../lib/format';
 import { logAudit } from '../lib/audit';
 import './dccr.css';
+import { COMPLETE } from '../lib/exportscope';
 
 // ===========================================================================
 // THE KPI WORKBOOK'S Field_INST TAB, computed from the register.
@@ -55,7 +56,9 @@ export function KpiExport() {
         setMsg(`Read ${all.length.toLocaleString()}…`);
       }
       const span = from || to ? `${from || 'start'}_${to || 'today'}` : new Date().toISOString().slice(0, 10);
-      csvExport(`kpi-field-inst-${span}.csv`, kpiExportColumns(), all.map(toKpiExportRow));
+      csvExport(`kpi-field-inst-${span}.csv`, kpiExportColumns(), all.map(toKpiExportRow),
+        // `all` is every page, read in the loop above.
+        COMPLETE);
       setMsg(`Exported ${all.length.toLocaleString()} call${all.length === 1 ? '' : 's'}.`);
       logAudit({ action: 'kpi.export', target: `${all.length} calls`, meta: { rows: all.length, from, to } });
     } catch (e) {

@@ -14,6 +14,7 @@ import { useAuth } from '../lib/auth';
 import { useAccessScope, previewScoped } from '../lib/access';
 import { engineerKey, num, partDescription, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
 import './fieldcalls.css';
+import { partial } from '../lib/exportscope';
 
 // ===========================================================================
 // MRN — MATERIAL RETURN NOTE. The engineer sends a spare back to Stores.
@@ -172,7 +173,7 @@ export function MaterialReturns() {
               placeholder="All engineers" options={engineers} />
             <div className="spacer" />
             {rows.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('material-returns.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('material-returns.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], partial(more))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

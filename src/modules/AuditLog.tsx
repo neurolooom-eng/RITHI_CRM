@@ -6,6 +6,7 @@ import { csvExport, fmtLongDateTime, timeAgo } from '../lib/format';
 import { queryAudit, supabaseConfigured, type AuditFilter } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
+import { partial } from '../lib/exportscope';
 
 // ===========================================================================
 // AUDIT LOG — actions, logins, errors and durations. Admin-only; reads the
@@ -141,7 +142,7 @@ export function AuditLog() {
             </div>
             <div className="spacer" />
             {rows.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('audit-log.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), rows as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('audit-log.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), rows as unknown as Record<string, unknown>[], partial(more))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

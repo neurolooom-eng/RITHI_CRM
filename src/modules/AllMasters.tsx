@@ -11,6 +11,7 @@ import { clearMasterCache } from '../lib/masters';
 import { fallbackRegistry, masterListPath, usedBy } from './masterLists';
 import { MasterListTable } from './MasterListTable';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { COMPLETE } from '../lib/exportscope';
 
 // ===========================================================================
 // ALL MASTERS — every master the app reads, in one screen.
@@ -231,7 +232,7 @@ export function AllMasters() {
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('all-masters.csv',
                 [{ key: 'label', header: 'Master' }, { key: 'kind', header: 'Kind' }, { key: 'source', header: 'Source' }, { key: 'count', header: 'Entries' }, { key: 'status', header: 'Status' }, { key: 'usedBy', header: 'Used by' }],
-                rows as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+                rows as unknown as Record<string, unknown>[], COMPLETE)}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

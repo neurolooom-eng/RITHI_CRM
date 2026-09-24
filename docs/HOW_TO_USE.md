@@ -678,6 +678,23 @@ typed into a form that reads it.
   > on screen with its count and one click clears it — otherwise you would be
   > looking at part of a register with nothing saying why.
 
+- **Downloading a register that has not finished loading now warns you first.**
+  You get a pop-up saying how many rows will be in the file, that more exist,
+  and what to do about it. Cancel, press **Load more** until the button
+  disappears, then download again.
+  > **Why it exists**: a register loads in pages, and the screen says so — the
+  > count carries a `+` and a Load more button sits beside it. **The file says
+  > nothing.** Opened in Excel a day later it is just rows, and there is nothing
+  > in it, anywhere, to show the register had more. That is how "the data is
+  > missing" gets reported when the data was simply never fetched.
+  >
+  > **A fully loaded table never interrupts you.** No `+`, no Load more, no
+  > pop-up — so seeing one is itself the signal that there is more to fetch.
+  >
+  > **You can still export anyway.** Filtering to one engineer and taking the
+  > first two hundred rows is a perfectly good thing to do. The point is that
+  > nobody can now do it without being told.
+
 ## Analysis & reports
 
 - **KPI & Failure Analysis** `/kpi` — failure rate by product, region × cover, and

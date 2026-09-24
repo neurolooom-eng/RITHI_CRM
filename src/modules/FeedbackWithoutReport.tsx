@@ -8,6 +8,7 @@ import { formatDay, formatDayTime } from '../lib/dates';
 import { listFeedbackWithoutReport, supabaseConfigured } from '../lib/supabase';
 import { loadFailure } from '../lib/dberror';
 import { Ucn } from '../lib/callstate';
+import { COMPLETE } from '../lib/exportscope';
 
 // ===========================================================================
 // THE CUSTOMER ANSWERED, AND NOBODY FILED THE REPORT.
@@ -117,7 +118,7 @@ export function FeedbackWithoutReport() {
       // A DOWNLOAD IS NOT THE WIRE: a CSV can only carry text, so the dates go
       // out as dd-MMM-yyyy HH:mm:ss rather than the ISO string the API sent.
       csvExport(`${name}.csv`, EXPORT,
-        visible.map((r) => Object.fromEntries(EXPORT.map((c) => [c.key, xlsxText(r[c.key])]))));
+        visible.map((r) => Object.fromEntries(EXPORT.map((c) => [c.key, xlsxText(r[c.key])]))), COMPLETE);
     } else {
       xlsxDownload(`${name}.xlsx`, [
         { name: 'Feedback Without a Report',
@@ -142,7 +143,7 @@ export function FeedbackWithoutReport() {
             { Item: 'Rows', Value: String(visible.length) },
             { Item: 'Taken', Value: fmtLongDate(new Date().toISOString()) },
           ] },
-      ]);
+      ], COMPLETE);
     }
     logAudit({ action: 'report.feedback_without_report', meta: { rows: visible.length, scope, kind } });
   };

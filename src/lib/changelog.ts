@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.368',
+    date: '2026-09-24',
+    title: 'A download from a half-loaded table now warns you first',
+    changes: [
+      'EVERY EXPORT IN THE APPLICATION — CSV and both Excel formats, 48 buttons across 35 screens — now checks whether the table has finished loading before it writes a file.',
+      'IF IT HAS NOT, YOU GET A POP-UP saying how many rows will actually be in the file, that more exist in the register, and what to do: Cancel, press Load more until the button disappears, download again.',
+      'IF THE TABLE IS FULLY LOADED, NOTHING CHANGES. No Load more, no “+” on the count, no pop-up — so seeing the pop-up is itself the signal that there is more to fetch.',
+      'YOU CAN STILL EXPORT ANYWAY. Filtering to one engineer and taking the first two hundred rows is a perfectly reasonable thing to do; the point is that nobody can now do it without being told.',
+      'WHY: the screen was already honest about paging and the FILE never was. Opened in Excel a day later it is just rows, with nothing anywhere to say the register had more — which is exactly how “data is missing” gets reported when the data was simply never fetched.',
+      'THE RULE LIVES IN ONE PLACE and the code will not compile without an answer. Every export button now has to state what it knows about completeness, so the next screen someone adds cannot quietly skip it — this app has been bitten before by a fix applied to one of thirteen call sites.',
+      'While wiring it up: the checks I added for last night’s Hand Stock Report were sitting after the check script’s exit line and had never actually run. Moved above it; they pass, and they now catch what they were written to catch.',
+    ],
+  },
+  {
     version: '0.9.367',
     date: '2026-09-24',
     title: 'Hand Stock Report',

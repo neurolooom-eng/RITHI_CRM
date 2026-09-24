@@ -5,6 +5,7 @@ import { getSupabase, supabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { csvExport, fmtLongDate } from '../lib/format';
 import './fieldcalls.css';
+import { COMPLETE } from '../lib/exportscope';
 
 // ===========================================================================
 // PRODUCT MASTER — the catalogue of product LINES.
@@ -133,7 +134,7 @@ export function ProductLines() {
           {shown.length > 0 && (
             <button className="btn btn-sm"
                     onClick={() => csvExport('product-master.csv',
-                      columns.map((c) => ({ key: c.key, header: String(c.header) })), shown)}>
+                      columns.map((c) => ({ key: c.key, header: String(c.header) })), shown, COMPLETE)}>
               ⭳ Export CSV
             </button>
           )}

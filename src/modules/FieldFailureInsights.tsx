@@ -26,6 +26,7 @@ import { BarChart, DonutChart, LineChart, ParetoChart } from '../components/char
 import { ffrDueForReview, ffrEffectWithdrawn } from '../lib/ffr';
 import { xlsxDownload } from '../lib/xlsx';
 import { logAudit } from '../lib/audit';
+import { partial } from '../lib/exportscope';
 
 type Row = Record<string, unknown>;
 
@@ -179,7 +180,7 @@ const PARETO_LEVELS = [
 ] as const;
 type ParetoKey = (typeof PARETO_LEVELS)[number]['key'];
 
-export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
+export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Row[]; more?: boolean }) {
   const [picked, setPicked] = useState<Picked>({});
   const [period, setPeriod] = useState<Period>('month');
   const [trendLabels, setTrendLabels] = useState(false);
@@ -305,7 +306,7 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
           { Item: 'Downloaded', Value: new Date().toISOString() },
         ],
       },
-    ]);
+    ], partial(more));
     logAudit({ action: 'ffr.trend.download', target: `${period} ${when}`,
                meta: { rows: trendRows.length, total: trendTotal, scope } });
   };
@@ -466,7 +467,7 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
           { Item: 'Downloaded', Value: new Date().toISOString() },
         ],
       },
-    ]);
+    ], partial(more));
     logAudit({ action: 'ffr.pareto.download', target: `${paretoBy} ${when}`,
                meta: { rows: paretoRows.length, total: paretoTotal, scope } });
   };

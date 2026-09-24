@@ -14,6 +14,7 @@ import { logAudit } from '../lib/audit';
 import { useAccessScope, scopeLabel } from '../lib/access';
 import './dccr.css';
 import './fieldcalls.css';
+import { COMPLETE } from '../lib/exportscope';
 
 // ===========================================================================
 // OBJECTIVE — the service objectives, measured from the register.
@@ -371,7 +372,7 @@ export function Objective() {
                   : 'This objective is calls over calls — it has no installed base. The denominator is on Sheet 1.' }],
         },
         { name: 'Calculation', columns: ['Item', 'Value'], rows: calc },
-      ]);
+      ], COMPLETE);
       setOMsg(`Downloaded the evidence for ${o.parameter} — ${MONTHS[monthIndex]}: `
         + (isCount
             ? `${reports} report${reports === 1 ? '' : 's'} over `
