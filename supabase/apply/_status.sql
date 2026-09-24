@@ -1275,7 +1275,24 @@ with checks(sort_order, bundle, provides, present) as (
              ~ 'on conflict \(machine_key\)'
          -- and the contract is not among the columns it overwrites.
          and pg_get_functiondef('public.upsert_product_from_sale(bigint)'::regprocedure)
-             !~ 'contract_(number|start|end|type)\s*='))
+             !~ 'contract_(number|start|end|type)\s*=')),
+    (183, 'A machine belongs to its latest owner, and so does everything attached', 'machine_current_party() + zz_transfer_to_product, and the contract / installation-call match in product_database (0238, 0239). The user, 2026-09-24: "What should be displayed is entirely based on the Timestamp of when the change was done ... Contract has to match the product, serial no, party .. Same with Installation calls ... and party is decided by sale entry or ownership transfer whichever is latest." THE SECOND SENTENCE IS THE MECHANISM FOR THE FIRST, and reading it that way is what makes this safe: a re-sale does not DELETE the previous owner''s contract and installation call, they stop MATCHING -- so nothing is destroyed, the registers are untouched, and a machine that returns to that customer gets its cover back by itself, which a rule that deleted could never do. TWO HALVES, KEPT APART DELIBERATELY. The PARTY is STORED, because it is decided by two TIMESTAMPED EVENTS and so does not decay -- nothing about it changes because a day passed. The CONTRACT and the CALL are MATCHED ON READ, because they depend on the party and a stored attachment would disagree with it until something rewrote the row; it also keeps every trigger off installation_calls and contract_items, where a per-row rule would make a twelve-thousand-row import pay for this twelve thousand times. SAME DAY, THE TRANSFER WINS: transfer_date is a DATE and a sale entry is a TIMESTAMP, so a transfer recorded on the day of a sale would otherwise lose to it at midnight -- and a machine cannot be transferred before it is sold. A MACHINE WITH NEITHER A SALE NOR A TRANSFER IS LEFT ENTIRELY ALONE, because twenty thousand came from the AppSheet import and deriving their party from registers that do not mention them would blank the only record of who owns them. MEASURED AT THE REGISTER''S REAL SIZE before shipping -- 20,012 machines, 20,001 contract lines, 9,001 installation calls, under RLS: one page 6.6 ms, a filtered search 72.5 ms, the whole register with every computed column 116.6 ms. NO means a re-sold machine still shows the previous owner''s contract or installation call. Restore: sales_contracts.sql, then product_database_2.sql',
+        (to_regprocedure('public.machine_current_party(text,text)') is not null
+         and exists (select 1 from pg_trigger
+                      where tgrelid = 'public.ownership_transfers'::regclass
+                        and tgname = 'zz_transfer_to_product' and not tgisinternal)
+         -- THE PARTY IS PART OF THE JOIN KEY. That one clause IS the rule, and
+         -- a view that joined on product and serial alone would pass every
+         -- other test here while showing the previous owner''s cover.
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+             'cp\.party_key = lower\(btrim'
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+             'ip\.party_key = lower\(btrim'
+         -- ...and the machine''s own columns are no longer what is shown.
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+             'AS contract_number_keyed'
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+             'AS inst_call_keyed'))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
