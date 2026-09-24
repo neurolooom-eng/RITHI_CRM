@@ -158,4 +158,27 @@ select 6, '...of those, ALREADY APPROVED under the old status',
          where coalesce(btrim(r.ucn), '') <> '' and coalesce(btrim(c.item_status), '') <> ''
            and upper(coalesce(btrim(r.item_status), '')) is distinct from upper(btrim(c.item_status))
            and coalesce(btrim(r.stage), '') not in ('', 'Pending', 'RM')),
-       'READ THIS ONE BEFORE APPLYING. The value is corrected; the approval is NOT re-opened and no stage is touched. These are requests where somebody decided under a status that is about to change, and they are worth a look.';
+       'READ THIS ONE BEFORE APPLYING. The value is corrected; the approval is NOT re-opened and no stage is touched. These are requests where somebody decided under a status that is about to change, and they are worth a look.'
+union all
+select 7, 'machines with an END date but NO START date',
+       (select count(*)::text from public.products
+         where (contract_end is not null and contract_start is null)
+            or (warranty_end  is not null and warranty_start  is null)),
+       'THE ONE SUB-CASE DECIDED WITHOUT ASKING. `start <= day <= end` needs a start; where the register has none this file treats it as NO LOWER BOUND, so the period covers everything up to its end date. The strict alternative is to treat a missing start as not covered at all.'
+union all
+select 8, '...FIELD calls whose answer depends on that choice',
+       (select count(*)::text
+          from public.field_calls c
+          join public.products p
+            on lower(btrim(p.serial_number)) = lower(btrim(c.serial))
+           and lower(btrim(p.item_name))     = lower(btrim(c.product_name))
+         where coalesce(c.complaint_date, c.reg_date) is not null
+           and (
+             (p.contract_start is null and p.contract_end >= coalesce(c.complaint_date, c.reg_date))
+             or (p.contract_start is not null
+                 and not (p.contract_end >= coalesce(c.complaint_date, c.reg_date)
+                          and p.contract_start <= coalesce(c.complaint_date, c.reg_date))
+                 and p.warranty_start is null
+                 and p.warranty_end >= coalesce(c.complaint_date, c.reg_date))
+           )),
+       'These calls are read as COVERED only because the missing start was treated as no lower bound. If that number is small, the choice does not matter; if it is large, say which way you want it before applying.';
