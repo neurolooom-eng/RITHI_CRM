@@ -38,6 +38,8 @@ import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
 import { TESTS } from '../src/lib/validation';
 import { shortForms, type ProductLine } from '../src/lib/productLines';
+import { HANDSTOCK_REPORT_COLUMNS, handStockFileName, isLastPage } from '../src/lib/handstockreport';
+import { buildXls } from '../src/lib/xls';
 import { DEFAULT_PERMS, MODULES, PERM_TREE, ROLES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
 import { URS, FRS, TESTS, MODULES_WITHOUT_REQUIREMENT } from '../src/lib/validation';
 import { modulesWithNoRequirement, badDeclarations, traceabilityMatrix } from '../src/lib/requirements';
@@ -8494,3 +8496,87 @@ console.log('\n-- Roles & Permissions saves what was touched, and nothing else -
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
+
+console.log('\n-- the Hand Stock Report loads whole, then lets you download --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-24: "Default Load as to be 1000 and Auto Load till all
+  // the data is displayed and then Enable Download. Name the Export -
+  // HandStock_DateTime.csv / .xlsx / .xls"
+  // -------------------------------------------------------------------------
+  const hs = readFileSync('src/modules/HandStockReport.tsx', 'utf8');
+
+  // THE PAGE SIZE IS 1,000 AND THAT IS NOT A PREFERENCE: PostgREST caps a
+  // response at a thousand rows however large the range, so a bigger page is
+  // the line that hides the truncation rather than a bigger request.
+  eq('the report pages a thousand at a time', /const PAGE = 1000;/.test(hs), true);
+
+  // A FULL PAGE PROVES NOTHING. Stopping on `batch.length === 0` would cost an
+  // extra round trip every time; stopping on a full page would truncate.
+  eq('it stops on a SHORT page, which is the only end-of-data signal there is',
+    isLastPage(999, 1000) && !isLastPage(1000, 1000) && isLastPage(0, 1000), true);
+  eq('...and the screen asks that rule rather than restating it',
+    /isLastPage\(batch\.length, PAGE\)/.test(hs), true);
+
+  // THE DOWNLOAD IS REFUSED UNTIL EVERY PAGE IS IN. A hand-stock export is
+  // reconciled against, so a partial one is not a shorter answer but a wrong
+  // one: parts read as missing and balances as short, with nothing in the file
+  // saying so.
+  eq('every download button is disabled until the load is complete',
+    (hs.match(/disabled=\{!complete \|\| !visible\.length\}/g) ?? []).length, 1);
+  eq('...and the writer refuses as well, not only the button',
+    /if \(!complete \|\| !visible\.length\) return;/.test(hs), true);
+  // A COUNT OVER PARTLY-LOADED DATA IS A LOWER BOUND and must show `+`; once
+  // every page is in it is exact and a `+` would be wrong the other way.
+  eq('the count says "+" while rows are still coming, and not after',
+    /countMore=\{!complete\}/.test(hs), true);
+
+  // THE FILE NAME the user asked for, with the DateTime spelled the way this
+  // project spells one: month NAMED, so 09-10 cannot be read the other way
+  // round. A colon is not allowed in a Windows file name, so the clock loses
+  // only its separators.
+  const at = new Date(2026, 8, 24, 18, 15, 3);   // 24 Sep 2026, 18:15:03 local
+  eq('HandStock_<DateTime>.csv', handStockFileName('csv', at), 'HandStock_24-Sep-2026_181503.csv');
+  eq('...and .xlsx', handStockFileName('xlsx', at), 'HandStock_24-Sep-2026_181503.xlsx');
+  eq('...and .xls', handStockFileName('xls', at), 'HandStock_24-Sep-2026_181503.xls');
+  eq('a single-digit day and month are padded, never 4-9-2026',
+    handStockFileName('csv', new Date(2026, 3, 4, 9, 5, 7)), 'HandStock_04-Apr-2026_090507.csv');
+  eq('and the screen uses that one namer for all three',
+    (hs.match(/handStockFileName\(kind\)/g) ?? []).length, 1);
+
+  // THE COMPONENTS ARE EXPORTED BESIDE THE TOTAL, or the balance cannot be
+  // checked by the person reconciling it.
+  const heads = HANDSTOCK_REPORT_COLUMNS.map((c) => c.header);
+  ['Engineer', 'Part Code', 'Opening', 'Stock Out', 'Consumed', 'Transferred In',
+   'Transferred Out', 'Returned', 'On Hand'].forEach((h) => {
+    eq(`the export carries ${h}`, heads.includes(h), true);
+  });
+  eq('no heading is duplicated -- buildXlsx looks a cell up BY its column name',
+    heads.length, new Set(heads).size);
+
+  // ---- THE .xls FILE ------------------------------------------------------
+  // Written as SpreadsheetML 2003 rather than as an HTML table, for one
+  // reason: an HTML .xls loses every type, and this project has measured what
+  // that costs (Line ID sorting 1, 10, 100, 2 and a SUM over QTY answering 0).
+  // Proved by reading the bytes, which is the only thing that was ever going
+  // to show it.
+  const xls = buildXls([{ name: 'Hand Stock', columns: ['Part Code', 'On Hand', 'Last Movement'],
+    rows: [{ 'Part Code': '0012345', 'On Hand': 7, 'Last Movement': '2026-09-18T08:51:02.55+00:00' }] }]);
+  eq('Excel is told which application owns the file',
+    xls.includes('<?mso-application progid="Excel.Sheet"?>'), true);
+  eq('a number is a Number, so Excel can sum it',
+    /<Data ss:Type="Number">7<\/Data>/.test(xls), true);
+  eq('a date is a DateTime, so Excel can sort and filter by month',
+    /ss:Type="DateTime"/.test(xls), true);
+  // THE MP-010 RULE IN A SECOND WRITER: a part code of all digits must keep
+  // its leading zeros and stay an identifier.
+  eq('a code of all digits stays TEXT and keeps its leading zero',
+    /<Data ss:Type="String">0012345<\/Data>/.test(xls), true);
+  eq('...and is not written as a number anywhere',
+    /<Data ss:Type="Number">0012345/.test(xls), false);
+  // The month is NAMED in the cell format, the one display rule carried into
+  // the file.
+  eq('the date format names the month', /dd-mmm-yyyy/.test(xls), true);
+  eq('the screen says what the .xls costs rather than leaving somebody to wonder',
+    /format and the extension do not match/i.test(hs), true);
+}

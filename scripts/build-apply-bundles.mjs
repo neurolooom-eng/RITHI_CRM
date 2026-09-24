@@ -186,6 +186,11 @@ const MODULES = {
             // The Product Database 2.0 module key, copied onto whoever already
             // holds the Product Database. app_roles lives in THIS module.
             '0219_product_database_2_key.sql',
+            // The Hand Stock Report's module key. app_roles lives in THIS
+            // module, and the migration writes nothing else -- it grants the
+            // key to `admin` alone, because the user asked for administrators
+            // to begin with and will tick the rest on Roles & Permissions.
+            '0241_handstock_report_permission.sql',
             // User Master is the master: a role set there reaches the
             // sign-in by itself. It redefines nothing, but it needs BOTH
             // app_roles (0005, this module) and user_directory, so this is

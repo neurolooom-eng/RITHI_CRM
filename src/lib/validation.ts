@@ -253,6 +253,10 @@ export interface Req {
   modules?: string[];
 }
 export const URS: Req[] = [
+  { id: 'URS-077', title: 'A stock report is complete, or it is not a report', risk: 'Medium',
+    text: 'The system shall provide a Hand Stock Report of the stock held by each engineer, showing the movements the balance is composed of and not the balance alone. The system shall load every line of that report before permitting it to be exported. A stock figure is RECONCILED AGAINST, so a file cut short is not a shorter answer but a wrong one \u2014 parts read as absent and balances as short, with nothing in the file saying that rows were still arriving when it was written. The balance shall be derived from the recorded movements rather than stored, so the report and the register it is taken from cannot disagree.',
+    modules: ['/handstock-report'],
+    refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a77.5.4', 'ISO 13485 \u00a77.5.8'] },
   { id: 'URS-076', title: 'A date is a date, whoever is reading it', risk: 'Medium',
     text: 'The system shall present every date in one written form. The system shall store every date as a date rather than as the text of one. A form that renders a date in the reader\u2019s own locale presents one record two ways to two people in one office, and a form that stores what was typed puts text in a date column \u2014 which nothing detects until the value is sorted, filtered or subtracted.',
     modules: ['/warranties', '/contracts'],
@@ -471,6 +475,10 @@ export const URS: Req[] = [
 // ---- System / Functional Requirements -------------------------------------
 export interface FReq extends Req { urs: string[] }
 export const FRS: FReq[] = [
+  { id: 'FRS-091', urs: ['URS-077'], title: 'The Hand Stock Report loads whole before it can be exported', risk: 'Medium',
+    text: 'The Hand Stock Report reads `handstock_balance` \u2014 the same derived view the Hand Stock register reads, so the two cannot disagree \u2014 in pages of 1,000, which is the most a single API response can carry however large a range is asked for. It continues until a page returns FEWER rows than it asked for, that being the only end-of-data signal available: a full page says nothing about whether another exists. Each page is shown as it lands, and the row count carries a \u201C+\u201D until the last one is in. Every download control is disabled while rows are still arriving, and the writer refuses as well as the button. The file is named HandStock_dd-MMM-yyyy_HHmmss with the extension of the format chosen \u2014 the month NAMED, as every date in this system is, and the clock stripped of the colons a file name may not carry. The .csv carries dates as text, being all a CSV can carry; the .xlsx carries a number as a number and a date as a serial plus a format; the .xls is SpreadsheetML 2003, chosen over an HTML table so that it too keeps the types. Every workbook carries a second sheet stating its scope, its row count and the time it was taken, a file whose filter is not written down being one somebody later mistakes for the whole register. The export is recorded in the audit trail.',
+    refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a77.5.8'] },
+
   { id: 'FRS-090', urs: ['URS-072', 'URS-074'], risk: 'Medium', title: 'What the period suggests, and what the customer register holds',
     text: 'FRS-090.1 The cover registers shall calculate a PM visit count from the recorded period. FRS-090.2 The cover registers shall accept a PM visit count entered by the operator. FRS-090.3 The cover registers shall retain an entered PM visit count when the period or the start date is subsequently changed. FRS-090.4 The warranty register shall re-read the address, the contact details and the tax registrations of the named customer from the customer register when the operator requests it. FRS-090.5 The warranty register shall state each field that request would change, with its present and its proposed value, before changing any. FRS-090.6 The warranty register shall change no field where the customer register holds no such customer. RATIONALE: .1 and .3 together are the requirement \u2014 three visits a year is the standard OFFER and what was sold is on the purchase order, so a count that keeps reverting to the offer whenever a start date is corrected is a field somebody re-types until they give up, and one that never follows the period makes every ordinary sale a manual entry. The test for "has it been changed" is whether it still equals what the period suggested BEFORE the edit, which is the same rule a machine uses to pin a field away from its entry. .5 because the installation address on a sale legitimately differs from the registered one: a sale whose address changed silently under an operator who had corrected it by hand is worse than one that is visibly out of date, because the first is wrong and nobody knows. .6 because blanking a sale on the ground that the customer register has never heard of the customer would destroy the only address anybody has.' },
   { id: 'FRS-089', urs: ['URS-076'], risk: 'Medium', title: 'A date field reads dd-MMM-yyyy and stores a date',
@@ -1038,6 +1046,20 @@ export type TestPhase = 'IQ' | 'OQ' | 'PQ';
  *  that has to be read on a screen. */
 export interface TestCase { id: string; phase: TestPhase; reqs: string[]; risk: Risk; objective: string; steps: string[]; expected: string; auto?: string }
 export const TESTS: TestCase[] = [
+  { id: 'OQ-79', phase: 'OQ', reqs: ['URS-077', 'FRS-091'], risk: 'Medium',
+    auto: 'npm run check:ui',
+    objective: 'A hand-stock export cannot be taken while rows are still arriving, and the file names and cell types are the ones specified.',
+    steps: [
+      'On a register holding more than 1,000 balance lines, open Reports \u2192 Hand Stock Report and watch it from the first frame.',
+      'While the banner still reads \u201CLoading every line\u201D, attempt each of the three download controls.',
+      'Wait for the load to finish and read the count and the toolbar.',
+      'Download the .csv, the .xlsx and the .xls. Read each file name.',
+      'Open the .xlsx and the .xls. Sort by On Hand; filter Last Movement by month; check a part code of all digits.',
+      'Read the second sheet of each workbook.',
+      'Sign in on a role that is NOT shown every record, granted this screen, and read the subtitle.',
+    ],
+    expected: 'The first 1,000 lines appear without waiting for the rest, and the count carries a \u201C+\u201D while they arrive. Every download control is disabled until the last page lands, after which the count is exact and carries no \u201C+\u201D. The three files are named HandStock_dd-MMM-yyyy_HHmmss.csv / .xlsx / .xls with the month named. In both workbooks On Hand sorts as a number and Last Movement filters by month; a part code of all digits keeps its leading zeros. Excel may warn that the .xls format and extension differ and opens it correctly. The second sheet states the scope, the row count and the time taken. On a role shown only its own records the subtitle says so rather than presenting a partial list as the company\u2019s.' },
+
   { id: 'OQ-58', phase: 'OQ', reqs: ['URS-065', 'FRS-077'], risk: 'High',
     objective: 'Nothing is written from a recovered file until the operator has seen what each row resolved to, and only clean rows are written.',
     steps: [

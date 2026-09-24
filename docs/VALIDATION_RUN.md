@@ -4,10 +4,10 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-09-24T14:25:26.799Z
-- **Took** 78s
-- **Commit** `7c3bcc8` on `claude/tender-rubin-8ian45`
-- **Version** 0.9.367
+- **Run at** 2026-09-24T14:29:16.417Z
+- **Took** 82s
+- **Commit** `9e854fe` on `claude/tender-rubin-8ian45`
+- **Version** 0.9.368
 
 ## Result
 
@@ -29,7 +29,7 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `263 migrations applied to a fresh database` | ✅ pass |  |
+| `264 migrations applied to a fresh database` | ✅ pass |  |
 
 ## Automated checks
 
@@ -52,7 +52,7 @@ stopped working produces a suite that runs clean.
 | `check:reports` | ✅ pass | all passed |
 | `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 224 functions |
 | `check:scheduled-export` | ✅ pass | all passed |
-| `check:status` | ✅ pass | every one of the 193 _status.sql rows reads yes on a fully-applied database (1 skipped) |
+| `check:status` | ✅ pass | every one of the 194 _status.sql rows reads yes on a fully-applied database (1 skipped) |
 | `check:ui` | ✅ pass | all passed |
 | `check:uploads` | ✅ pass | all passed |
 | `check:upserts` | ✅ pass | every upsert target is inferable, and its table accepts the update |

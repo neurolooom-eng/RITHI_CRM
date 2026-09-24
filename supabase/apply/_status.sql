@@ -1308,6 +1308,19 @@ with checks(sort_order, bundle, provides, present) as (
              'AS contract_number_keyed'
          and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
              'AS inst_call_keyed'))
+    ,
+    (184, 'Hand Stock Report: its module key reaches somebody', 'mod:/handstock-report is in app_roles for the admin role (0241). The user, 2026-09-24: "Add a Hand Stock Report - Default access to Admin/Super Admin, Rest of the Access I will select from Roles & Permissions." WITHOUT THE GRANT THE SCREEN IS INVISIBLE TO EVERYBODY AND NOTHING SAYS SO: permsForRole() returns the STORED set whenever it is non-empty, so on a project in use -- where every role has a tuned row -- a key no migration writes reaches nobody, however many roles hold it in DEFAULT_PERMS. The page ships, the menu entry exists, the tick is in the code, and no role can open it. That has happened four times here (Machine History, the Call Report, the Customer Feedback Report, Solved Without a Report). WHO IT GRANTS: admin, and technical_support. Super Admin needs none -- it is not a role but a row in app_super_admins that overrides every check, so a key for it would be written to a role that does not exist. TECHNICAL SUPPORT IS NOT A LIBERTY TAKEN WITH A ROLE THE USER DID NOT NAME: row 114 above asserts the PROPERTY that Technical Support holds every module key the admin holds, which is what that role IS ("Mimic Super Admin - But with Read Only"), and an administrators-only page skipping it breaks the role silently. The first version of 0241 granted admin alone and row 114 went red on the validation run, which is exactly what it is for; 0224 granted the previous administrators-only report the same way. A module key opens a SCREEN and confers no write, so row 117 is untouched. Zoho Migration is left alone: no check requires it, the user named Admin, and the rule here is not to touch a role that was not named. MERGED, never overwritten, and a role with zero permissions is skipped, since an empty array means "not configured" and writing one key into it turns off the fallback giving that role its access. NO means nobody but a Super Admin can open the Hand Stock Report, or the grant was overwritten. Restore: rbac.sql',
+        (to_regclass('public.app_roles') is null
+         or exists (select 1 from public.app_roles
+                     where role = 'admin'
+                       and permissions ? 'mod:/handstock-report'))
+         -- AND IT HAS NOT LEAKED. "Administrators to begin with" is two
+         -- statements, and a grant that also reached a fifth role would pass
+         -- every check that only looks at the first.
+         and not exists (select 1 from public.app_roles
+                          where role not in ('admin', 'technical_support', 'zoho_migration')
+                            and permissions ? 'mod:/handstock-report'
+                            and role <> 'super_admin'))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

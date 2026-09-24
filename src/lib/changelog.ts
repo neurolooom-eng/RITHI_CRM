@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.367',
+    version: '0.9.368',
     date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,23 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.367',
+    date: '2026-09-24',
+    title: 'Hand Stock Report',
+    changes: [
+      'NEW SCREEN under Reports: Hand Stock Report — every engineer’s stock, one line per engineer and part.',
+      'ADMINISTRATORS TO BEGIN WITH, as you asked. It is on Roles & Permissions under Reports, so you can tick it for any other role yourself. ⚠ RUN supabase/apply/rbac.sql — or rather, run just the one migration linked in chat: without it the screen is invisible to everybody including you, because a new permission reaches nobody on a project whose roles are all tuned.',
+      'TECHNICAL SUPPORT GETS IT TOO, and that is not me widening your instruction. That role is defined as “every module the admin has, read-only”, and a check asserts exactly that — granting admin alone turned it red. Zoho Migration is left alone; it is one tick if you want it.',
+      'IT SHOWS THE WORKINGS, not just the number: Opening, Stock Out, Consumed, Transferred In, Transferred Out and Returned sit beside On Hand, so whoever reconciles can add it up instead of taking it on trust. A NEGATIVE On Hand is picked out — it means more was consumed than the system knows was issued.',
+      'LOADS 1,000 AT A TIME AND KEEPS GOING BY ITSELF until every line is in. The count carries a “+” while they are arriving and the download buttons stay greyed out. A stock file is reconciled against, so a short one is not a shorter answer — it is a wrong one, with nothing in the file saying so.',
+      'THREE FORMATS: HandStock_24-Sep-2026_181503.csv / .xlsx / .xls. The month is named, as every date in this system is, and the clock loses only the colons a file name cannot carry.',
+      'USE THE .xlsx WHERE YOU CAN. The .xls is Excel’s 2003 XML format — Excel may warn that the format and the extension do not match, then opens it correctly. It was written that way rather than as an HTML table so that numbers stay numbers and dates stay dates in it too.',
+      'Both workbooks carry an About sheet: what the file covers, how many rows, when it was taken.',
+      'NOTHING IS STORED. Hand stock is derived from the movements, so this report and the Hand Stock register cannot disagree.',
+      'If a role is only shown its own records, the subtitle says so rather than letting a short file read as the company’s.',
     ],
   },
   {
