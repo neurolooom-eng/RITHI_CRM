@@ -730,7 +730,9 @@ const MODULES = {
             // LAST in this module: it re-states the four read/write policies
             // 0036 above creates, as InitPlans. Filed anywhere earlier and
             // 0036's per-row versions would go straight back on a replay.
-            '0236_cover_policies_are_initplans.sql'],
+            '0236_cover_policies_are_initplans.sql',
+            // AFTER 0234: it calls is_call_number(), which that file creates.
+            '0237_sale_fills_product_database.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

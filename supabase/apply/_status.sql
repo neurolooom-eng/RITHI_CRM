@@ -1259,7 +1259,23 @@ with checks(sort_order, bundle, provides, present) as (
               -- subquery is the per-row form. Rendered, the InitPlan reads
               -- `( SELECT has_perm('masters.view'::text) AS has_perm)`.
               and pg_get_expr(p.polqual, p.polrelid) ~ 'has_perm'
-              and pg_get_expr(p.polqual, p.polrelid) !~ 'SELECT has_perm')))
+              and pg_get_expr(p.polqual, p.polrelid) !~ 'SELECT has_perm'))),
+    (182, 'A Warranty Sale puts its machines into the Product Database', 'upsert_product_from_sale() + zz_sale_item_to_product on sale_items + zz_sale_entry_to_products on sale_entries (0237). The user, 2026-09-24: "Every time I add a Warranty Sale entry, all the products should get added to the product database ... same product is sold again to a different customer, in that case the old data should be over written." sale_items has fired sync_product_cover() since 0036, but that function does an UPDATE: it refreshes the cover of a machine ALREADY on the register and does nothing at all for one that is not, so a machine sold today appeared only if the AppSheet import happened to carry it -- the register of what EXISTS was being kept by an import rather than by the act of selling. AND IT KEYS ON THE SERIAL ALONE, which this project settled long ago: a machine is its MODEL and its SERIAL, the install base holds eleven machines numbered 219, and a serial-only match writes one sale''s cover onto a different model. This keys on machine_key, the same key products_machine_key_uniq already enforces -- so RE-SOLD TO A DIFFERENT CUSTOMER falls out of the key rather than needing a rule. IT WRITES WHAT THE SALE KNOWS AND ONLY THAT: the contract columns, `extra` and item_status are left alone, because the sale knows nothing about the contract and a blank there would erase real cover, and item_status has been worked out on read since 0235. THE ONE FIELD NEVER TAKEN BACKWARDS is inst_call -- 0234''s rule, since a sale re-saved with a blank would orphan a call that exists. BOTH TRIGGERS ARE COUNTED, because the party, the address and the warranty dates live on the HEADER and every machine inherits them: with only the item trigger, correcting the customer on the entry would reach none of its machines. NO means a machine sold today does not reach the Product Database, or a re-sale leaves the previous owner on it. Restore: sales_contracts.sql',
+        (to_regprocedure('public.upsert_product_from_sale(bigint)') is not null
+         and exists (select 1 from pg_trigger
+                      where tgrelid = 'public.sale_items'::regclass
+                        and tgname = 'zz_sale_item_to_product' and not tgisinternal)
+         and exists (select 1 from pg_trigger
+                      where tgrelid = 'public.sale_entries'::regclass
+                        and tgname = 'zz_sale_entry_to_products' and not tgisinternal)
+         -- THE KEY IS THE MACHINE, NOT THE SERIAL. A version keyed on the
+         -- serial alone would pass every check above and quietly write one
+         -- sale''s cover onto a different model sharing that number.
+         and pg_get_functiondef('public.upsert_product_from_sale(bigint)'::regprocedure)
+             ~ 'on conflict \(machine_key\)'
+         -- and the contract is not among the columns it overwrites.
+         and pg_get_functiondef('public.upsert_product_from_sale(bigint)'::regprocedure)
+             !~ 'contract_(number|start|end|type)\s*='))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

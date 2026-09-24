@@ -46,6 +46,53 @@ up)_
 
 ---
 
+## 2026-09-24 — A Warranty Sale puts its machines into the Product Database
+
+> *"Every time I add a Warranty Sale entry, all the products should get added to
+> the product database ... same product is sold again to a different customer,
+> in that case the old data should be over written."*
+
+Shipped in v0.9.360. **⚠ RUN `sales_contracts.sql`** — `_status.sql` row 182.
+
+**What was there, and why it was not enough.** `sale_items` has fired
+`sync_product_cover()` since 0036, and that function does an **UPDATE**: it
+refreshes the cover of a machine already on the register and does nothing at all
+for one that is not. So the register of what EXISTS was being kept by an import
+rather than by the act of selling.
+
+**And it keys on the serial alone**, which contradicts the rule written in
+`src/lib/machine.ts`: a machine is its MODEL and its SERIAL, and the install base
+holds eleven numbered 219. 0237 keys on `machine_key`, the same key
+`products_machine_key_uniq` already enforces — so **re-sold to a different
+customer falls out of the key** rather than needing a rule of its own.
+
+**It writes what the sale knows and only that.** The contract columns, `extra`
+and `item_status` are left alone: the sale knows nothing about a contract and a
+blank would erase real cover, and `item_status` has been worked out on read since
+0235. **`inst_call` is never taken backwards** — 0234's rule, since a sale
+re-saved with a blank would orphan a call that exists.
+
+**Both triggers, because inheritance is real**: the party, the address and the
+warranty dates live on the HEADER. With only the item trigger, correcting the
+customer on the entry would reach none of its machines.
+
+Proved on a database built from every migration: a machine re-sold to a new
+customer took the new party, city, SA number and warranty dates while **keeping
+its contract, its installation call and its imported `PO No.`**; a brand-new
+machine was inserted; a **VEGA sharing serial RS-1 with an ORION-G was left
+untouched**; a half-typed line with no serial was skipped; and editing the entry
+reached both its machines and nothing else. Row 182 mutation-proved twice — keyed
+on the serial alone, and overwriting the contract.
+
+**One consequence nobody asked for, stated rather than buried:** an ownership
+transfer also writes `products.party_name`, so a later edit to the sale will now
+overwrite it with the sale's party. The transfer row and the machine's history
+are untouched, but the Product Database would show the original buyer again. If
+that is wrong for this business the rule to add is "do not overwrite the party
+where a transfer is dated after the sale", and it is one clause.
+
+---
+
 ## 2026-09-23 — ⚠ The Product Database timed out, and the cause was not the new view
 
 > *"Search failed: canceling statement due to statement timeout"* — reported
