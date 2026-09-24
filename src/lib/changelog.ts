@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.364',
+    date: '2026-09-24',
+    title: 'The machine you type is the first one offered',
+    changes: [
+      'CALL REGISTRATION REQUEST: THE SERIAL LIST IS SORTED CLOSEST-MATCH FIRST. Type 105 and the machine numbered 105 is row one — then the serials beginning 105, then the ones containing it somewhere.',
+      'IT USED TO BE SORTED BY NOTHING AT ALL. The search asked for “any serial containing 105”, took the first 50 the database happened to hand over, and never said in what order. Measured: 925 machines have a serial containing 105, and the machine actually numbered 105 came back at position 19. Past the 50 it would not have appeared at all.',
+      'WHICH IS WHY THE REQUEST WAS REFUSED for a machine that is plainly on the register: you cannot pick a machine the list never shows, and the customer only arrives with the machine.',
+      'AND THE FORM NOW ASKS THE REGISTER BEFORE REFUSING. “That serial is not on the register” used to mean “this row has no machine attached in your browser”, which is a different statement. On submit it looks the machine up by product AND serial and fills the customer in. A serial that really matches nothing is still refused, in the same words.',
+      'A THIRD FAULT OF THE SAME SHAPE, fixed too: two searches can be in flight at once and the slower one landed last, wiping the machines behind the list you were looking at. What has been found is now kept.',
+      'The list is also stable now — opening it twice shows the same rows in the same order, which it did not before.',
+      'No SQL. Nothing to re-enter.',
+    ],
+  },
+  {
     version: '0.9.363',
     date: '2026-09-24',
     title: 'The Product Database search stops timing out',

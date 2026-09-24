@@ -1979,7 +1979,7 @@ them under a screen would say something the requirement does not.
 - **CR-008** — A later call inherits the site, it does not ask for it again · [full text](CALL_REQUEST_REQUIREMENTS.md)
 - **CR-009** — Changing the first call's customer cannot leave a machine behind · [full text](CALL_REQUEST_REQUIREMENTS.md)
 - **CR-010** — The serial number is mandatory · [full text](CALL_REQUEST_REQUIREMENTS.md)
-- **CR-011** — A serial that names no customer is refused · [full text](CALL_REQUEST_REQUIREMENTS.md)
+- **CR-011** — A serial that names no customer is refused, but only after the register has been asked · [full text](CALL_REQUEST_REQUIREMENTS.md)
 - **CR-012** — An empty master is a master problem, and the form says so · [full text](CALL_REQUEST_REQUIREMENTS.md)
 - **CR-013** — The site is recorded per call, not per request · [full text](CALL_REQUEST_REQUIREMENTS.md)
 - **CR-014** — A value the person typed is never overwritten by the register · [full text](CALL_REQUEST_REQUIREMENTS.md)
@@ -1997,6 +1997,7 @@ them under a screen would say something the requirement does not.
 - **CR-027** — A search that fails must say so, and must never look like an empty result · [full text](CALL_REQUEST_REQUIREMENTS.md)
 - **CR-028** — The person who raised a request is the database's to say · [full text](CALL_REQUEST_REQUIREMENTS.md)
 - **CR-030** — Every field the form collects is written per call row · [full text](CALL_REQUEST_REQUIREMENTS.md)
+- **CR-031** — A capped search must be ordered, and the closest match must be offered · [full text](CALL_REQUEST_REQUIREMENTS.md)
 
 ## Servicing process (ISO 13485)
 
@@ -2099,7 +2100,7 @@ questions for a person.
 
 ---
 
-**76** user requirements · **90** system requirements · **30** call-request · **44** servicing · **86** tests · **5** recorded as non-auditable · **126** of 76 user requirements tied to a module.
+**76** user requirements · **90** system requirements · **31** call-request · **44** servicing · **86** tests · **5** recorded as non-auditable · **126** of 76 user requirements tied to a module.
 ---
 
 ## Non-auditable requirements

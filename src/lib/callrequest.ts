@@ -77,3 +77,53 @@ export function productPlaceholder(
   if (opts.state === 'failed') return '— could not load this customer’s machines —';
   return opts.count > 0 ? PICK_A_PRODUCT : `— no machines found for ${opts.party} —`;
 }
+
+// ===========================================================================
+// CLOSEST FIRST — the order the machine list comes back in.
+//
+// Reported 2026-09-24 with a screenshot: a request for ORION-G serial 105 was
+// refused with "that serial is not on the register", and the user's diagnosis
+// was exact — *"the list is not sorted as per the closest match"*, and if you
+// do not manage to pick from it, the row goes on with a serial and no customer.
+//
+// The search behind that list was one `ilike '%105%'` with `.limit(50)` and NO
+// ORDER, so which fifty of the 925 matching machines came back, and in what
+// order, was decided by the physical order of the rows. Measured: the machine
+// actually numbered 105 came back at RANK 19.
+//
+// TWO GROUPS, AND THE ORDER WITHIN EACH IS THE SERIAL:
+//   0  the serial BEGINS with what was typed
+//   1  the serial contains it somewhere else
+//
+// THE EXACT MATCH IS NOT A THIRD GROUP, AND THAT IS DELIBERATE — it would be
+// dead code. A string sorts before everything it is a prefix of, so the serial
+// you typed is already the first row of group 0; an `=== want` tier on top of
+// that can never change an order. It was written as three groups first, and the
+// mutation test proved it: removing the exact tier altogether changed no
+// result. A tier no test can distinguish is a tier that is not doing anything,
+// and leaving it in would be a claim the code does not support.
+//
+// CASE-INSENSITIVE, because `ilike` is: ranking on a case-sensitive comparison
+// beside a case-insensitive search is how "abc" ends up below "ABCD".
+//
+// DE-DUPLICATED ON MODEL + SERIAL, never the serial alone. The install base
+// holds eleven machines numbered 219 and this list exists to tell them apart;
+// keying the de-duplication on the serial would drop ten of them.
+//
+// HERE RATHER THAN IN supabase.ts, for the reason paging.ts and uploads.ts are
+// their own modules: that file reads `import.meta.env`, so nothing in it can be
+// run by a check. This is pure, and check:ui exercises it.
+// ===========================================================================
+export function rankSerialHits<T extends { serial: string; product: string }>(hits: T[], query: string): T[] {
+  const want = query.trim().toLowerCase();
+  const key = (m: T) => `${m.product.trim().toLowerCase()}|${m.serial.trim().toLowerCase()}`;
+  const by = new Map<string, T>();
+  for (const m of hits) if (!by.has(key(m))) by.set(key(m), m);
+
+  const rank = (serial: string) => {
+    if (!want) return 1;
+    return serial.trim().toLowerCase().startsWith(want) ? 0 : 1;
+  };
+  return [...by.values()].sort((a, b) =>
+    (rank(a.serial) - rank(b.serial)) || a.serial.localeCompare(b.serial));
+}

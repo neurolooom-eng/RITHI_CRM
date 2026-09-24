@@ -112,10 +112,23 @@ serviced, and its cover cannot be established.
 *Status: met* — required on the request and on every call form.
 *Cross-reference: URS-053.*
 
-**CR-011 — A serial that names no customer is refused.**
+**CR-011 — A serial that names no customer is refused, but only after the register has been asked.**
 It means the serial matched no machine, and the call would be filed against
 nobody. The message names the cause: the machine is missing from Product Master.
-*Status: met* — `machineRowProblem()`.
+
+**THE ROW HAVING NO CUSTOMER AND THE MACHINE NOT EXISTING ARE DIFFERENT CLAIMS,
+and they came apart twice** (reported 2026-09-24 with a screenshot: ORION-G
+serial 105 refused, *"the product and serial number combination is very much
+available"*). The customer is filled in when a machine is PICKED, so an empty
+one really says "this row has no machine behind it **in the browser**" — which
+was true when the search never offered the machine (CR-031) and when a stale
+search overwrote the cached hits. The register is the authority and the cache
+never was.
+*Status: met* — `machineRowProblem()`, and `resolveMachines()` asks the register
+by MODEL **and** serial before that rule runs. An ambiguous serial still
+resolves to nothing (`sbProductBySerial` returns null rather than guessing,
+because eleven machines are numbered 219), so a genuinely unanswerable row is
+still refused with the message it always had.
 
 **CR-012 — An empty master is a master problem, and the form says so.**
 It never offers a way round by accepting a typed value instead.
@@ -209,6 +222,29 @@ read is ordered and complete and runs alongside the capped owner list.
 raise a duplicate.
 *Status: met* — `PickList` reports a failed search distinctly and clears it on the
 next success.
+
+**CR-031 — A capped search must be ordered, and the closest match must be offered.**
+Reported 2026-09-24: *"the list is not sorted as per the closest match"*, on a
+request that was then refused for a machine on the register.
+
+The machine search was a single `ilike '%term%'` with `.limit(50)` and **no
+`order` at all**, which breaks the project's own rule that every capped read
+names an order — and the consequence here is not cosmetic. Measured on a
+register where **925** machines carry a serial containing `105`: the machine
+actually numbered 105 came back at **rank 19 of 50**, its position decided by
+the physical order of the rows rather than by the match. Past the cap it is not
+merely far down the list — it is absent, and a machine that cannot be picked
+cannot name its customer (CR-005), so CR-011 refuses a machine that exists.
+
+*Status: met* — two ordered reads run together, `term%` and `%term%`. The prefix
+read is what makes the guarantee: **a string sorts before everything it is a
+prefix of**, so the serial typed is the first row of that read and the cap can
+never remove it. `rankSerialHits()` then puts prefix matches above mid-string
+ones, case-insensitively, because `ilike` is. The ranking is a pure function in
+`lib/callrequest.ts` rather than inside `supabase.ts`, so `check:ui` can run it
+on real inputs — and it is two tiers, not three: an "exact match first" tier was
+written and then removed when mutating it changed no result, since the
+alphabetical tiebreak already does that work.
 
 ## H. Records and evidence
 

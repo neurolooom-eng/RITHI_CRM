@@ -43,6 +43,58 @@ up)_
 
 ---
 
+## 2026-09-24 — The serial list was sorted by nothing, so the machine you typed was not offered
+
+**Reported with a screenshot and a diagnosis** (*"I could reproduce this issue.
+If the user doesn't properly select from the list [which is not sorted as per
+the closest match] and simply moves on to the next field then this happens even
+though the product and serial number combination is very much available"*): a
+New Call Registration Request for **ORION-G serial 105**, refused with *"Call 1:
+that serial is not on the register, so no customer came with it."*
+
+**THREE FAULTS, ONE SYMPTOM.** Each one on its own gives a row a serial with no
+customer, which is the only thing `machineRowProblem()` can see.
+
+**1. The search named no order.** `sbSearchMachines` was a single
+`ilike '%term%'` with `.limit(50)` — no `order`, which breaks this project's own
+rule that every capped read names one. Measured on a fixture where **925**
+machines carry a serial containing `105`: the machine actually numbered 105 came
+back at **rank 19 of 50**, decided by the physical order of the rows. Past the
+cap it is absent, and a machine that cannot be picked cannot name its customer.
+Fixed with two ordered reads run together — `term%` and `%term%` — and the
+prefix read is what carries the guarantee: **a string sorts before everything it
+is a prefix of**, so the serial typed is the first row of it and the cap can
+never remove it. CR-031.
+
+**2. A stale search wiped the machines behind the list.** PickList debounces but
+does not cancel a request already sent, so two can be in flight and the slower
+one lands last. PickList guards its own rows (keyed to the query that produced
+them); the module's `machineHits` map was not guarded at all, so clicking a row
+found nothing behind it. Hits are MERGED now, keyed on model + serial: a machine
+does not stop existing because a later search did not mention it.
+
+**3. The form refused on the wrong evidence.** "That serial is not on the
+register" is a claim about the REGISTER; what the form actually knew was that
+the row had no machine attached IN THE BROWSER. `resolveMachines()` asks the
+register by model and serial on submit, before the rule runs. An ambiguous
+serial still resolves to nothing — `sbProductBySerial` returns null rather than
+guessing, because eleven machines are numbered 219 — so a genuinely unanswerable
+row is refused exactly as before. CR-011 rewritten.
+
+**THE RANKING IS A PURE FUNCTION** (`rankSerialHits` in `lib/callrequest.ts`),
+not a line inside `supabase.ts`, for the `paging.ts` reason: that module reads
+`import.meta.env` and no check can import it. `check:ui` runs it on real inputs.
+
+**AND THE FIRST VERSION OF THAT TEST PROVED NOTHING.** It had three tiers —
+exact, prefix, contains — and removing the exact tier altogether changed no
+result, because a string already sorts before everything it prefixes. Two of
+five mutations went uncaught. The tier is gone (a tier no test can distinguish
+is not doing anything) and the cases were rewritten around `0105`, which
+contains `105` and sorts *before* it — the one shape where the ranking is
+observable. Eight mutations now, all landing, all caught.
+
+Shipped in **v0.9.364**. No SQL. `npm run validate` 101/101 suites, 22/22 checks.
+
 ## 2026-09-24 — ⚠ The Product Database search timed out AGAIN, and this time the fix was already written
 
 **Reported from use**, by a Commercial user (VALARMATHI) searching the install

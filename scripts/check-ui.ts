@@ -18,7 +18,7 @@ import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmou
          ABOUT_TO_EXPIRE_DAYS, SERIES, nextInSeries, deriveHeader, deriveItem,
          upliftRate, itemTaxAmount, totalAfterTax, periodToMonths } from '../src/lib/coverspec';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
-import { machineRowProblem, productPlaceholder, PICK_A_PRODUCT } from '../src/lib/callrequest';
+import { machineRowProblem, productPlaceholder, rankSerialHits, PICK_A_PRODUCT } from '../src/lib/callrequest';
 import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS , FFR_WRITABLE, ffrWritable } from '../src/lib/ffr';
 import { buildFfrDocx, ffrDocName } from '../src/lib/ffrdoc';
 import { localIsoDate } from '../src/lib/dates';
@@ -3508,7 +3508,7 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // reach it. Run its validator's rule rather than matching its source: an
   // item with a product and a problem but no serial must be refused.
   const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
-  const validate = /const validate = \(\): string => \{[\s\S]*?\n  \};/.exec(rq)?.[0] ?? '';
+  const validate = /const validate = \(rows: Item\[\] = filled\): string => \{[\s\S]*?\n  \};/.exec(rq)?.[0] ?? '';
   eq('the request form validates the serial before the problem',
     validate.indexOf('it.serial.trim()') >= 0
       && validate.indexOf('it.serial.trim()') < validate.indexOf('it.reportedProblem.trim()'), true);
@@ -3965,7 +3965,49 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('an empty row is not a duplicate of another empty row',
     machineRowProblem([{ product: '', serial: '', party: '' }, { product: '', serial: '', party: '' }], false), null);
   eq('and the form asks the rule rather than restating it',
-    /machineRowProblem\(filled, isInstall\)/.test(rq), true);
+    /machineRowProblem\(rows, isInstall\)/.test(rq), true);
+  // AND IT ASKS IT OF THE RESOLVED ROWS, not of what the browser happened to
+  // cache. "No customer came with it" is a claim about the REGISTER, and the
+  // form was making it from a lookup table that two separate faults could
+  // empty. The submit path now asks the register first (2026-09-24).
+  eq('submit resolves the machine before it refuses it',
+    /const rows = await resolveMachines\(filled\);\s*\n\s*const v = validate\(rows\);/.test(rq), true);
+  eq('and it looks the machine up by MODEL AND SERIAL, never the serial alone',
+    /sbProductBySerial\(it\.serial\.trim\(\), it\.product\.trim\(\)\)/.test(rq), true);
+  eq('and what it resolved is what gets submitted',
+    /addCallRequestBatch\(base, rows\)/.test(rq), true);
+
+  // ---- CLOSEST FIRST -----------------------------------------------------
+  // The fault reported 2026-09-24, as behaviour rather than as a regex: the
+  // machine you typed must be the FIRST row offered, not somewhere in fifty.
+  const machines = (...ss: string[]) => ss.map((x) => ({ serial: x, product: 'ORION-G' }));
+  const serials = (ms: { serial: string }[]) => ms.map((m) => m.serial);
+  eq('the exact serial is first, however the database returned them',
+    serials(rankSerialHits(machines('X105161', '1054', '10504', '105', '1059'), '105'))[0], '105');
+  // THE CASE THAT DISCRIMINATES. '0105' contains '105' and sorts BEFORE every
+  // serial that begins with it, so plain alphabetical order puts a mid-string
+  // match above the machine you typed. Written without this case first, the
+  // test passed with the ranking removed entirely — which is the whole reason
+  // to mutate a check rather than admire it.
+  eq('...even when a mid-string match sorts earlier than it does',
+    serials(rankSerialHits(machines('0105', '105'), '105')), ['105', '0105']);
+  eq('a serial that BEGINS with it still beats one that merely contains it',
+    serials(rankSerialHits(machines('0105', '1054'), '105')), ['1054', '0105']);
+  eq('then the ones that BEGIN with it, in order',
+    serials(rankSerialHits(machines('X105161', '1054', '10504', '105'), '105')),
+    ['105', '10504', '1054', 'X105161']);
+  eq('a mid-string match is still offered, just last',
+    serials(rankSerialHits(machines('X105161', '105'), '105')), ['105', 'X105161']);
+  eq('case does not decide the rank — ilike is case-insensitive and this must agree',
+    serials(rankSerialHits(machines('ABCD', 'abc'), 'AbC'))[0], 'abc');
+  eq('...and a case-different prefix still beats a mid-string match',
+    serials(rankSerialHits(machines('0ABC', 'ABCD'), 'abc')), ['ABCD', '0ABC']);
+  // ELEVEN MACHINES ARE NUMBERED 219. De-duplicating on the serial would drop
+  // ten of them from the one list whose job is to tell them apart.
+  eq('the same serial on two models is TWO machines',
+    rankSerialHits([{ serial: '219', product: 'ORION-G' }, { serial: '219', product: 'CPX CARE' }], '219').length, 2);
+  eq('and the same machine twice is one',
+    rankSerialHits([{ serial: '219', product: 'ORION-G' }, { serial: '219', product: 'ORION-G' }], '219').length, 1);
 
   // The serial search must span customers — narrowing it by party would put
   // the slow search back in front of the fast one.
@@ -3991,6 +4033,24 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('it filters by product when there is one', /\.eq\('item_name'/.test(fn), true);
   eq('and it is capped so a short serial costs no more than a precise one',
     /\.limit\(limit\)/.test(fn), true);
+  // EVERY CAPPED READ NAMES AN ORDER. Without one the fifty rows that come back
+  // are whichever fifty the plan produced, so the machine you typed can sit at
+  // rank 19 or not appear at all — which is what was reported on 2026-09-24.
+  eq('every capped read of the register names an order',
+    (fn.match(/\.limit\(limit\)/g) ?? []).length,
+    (fn.match(/\.order\('serial_number'\)\.limit\(limit\)/g) ?? []).length);
+  // THE PREFIX READ IS WHAT GUARANTEES THE EXACT MATCH IS THERE AT ALL: a
+  // string sorts before everything it is a prefix of, so serial 105 is the
+  // first row of `105%` ordered ascending and can never be cut off by the cap.
+  // The contains read alone cannot promise that, however it is sorted.
+  eq('it asks for the prefix matches separately, so the exact one survives the cap',
+    /ilike\('serial_number', `\$\{term\}%`\)/.test(fn), true);
+  eq('and still asks for mid-string matches',
+    /ilike\('serial_number', `%\$\{term\}%`\)/.test(fn), true);
+  eq('both in one round trip',
+    /await Promise\.all\(\[/.test(fn), true);
+  eq('and the order it hands back is the pure one, so a check can exercise it',
+    /rankSerialHits\(hits, term\)/.test(fn), true);
   eq('it returns the customer with the machine',
     /party: String\(r\.party_name/.test(fn) && /city: String\(ex\['City'\]/.test(fn), true);
 
@@ -4053,7 +4113,20 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
 
   eq('the results are held per row', /useState<Record<number, MachineHit\[\]>>\(\{\}\)/.test(rq), true);
-  eq('and written under that row', /setMachineHits\(\(h\) => \(\{ \.\.\.h, \[i\]: hits \}\)\)/.test(rq), true);
+  eq('and written under that row', /rememberHits\(i, hits\)/.test(rq), true);
+  // MERGED, NOT REPLACED (2026-09-24). The picker debounces but does not cancel
+  // a request already sent, so two searches can be in flight and the SLOWER one
+  // lands last — overwriting the hits for the list actually on screen, so a
+  // click found no machine and the row got a serial with NO CUSTOMER. That is
+  // the same symptom as the fault above, from a different direction. Keeping
+  // what we have already seen cannot be wrong: a machine does not stop existing
+  // because a later search did not mention it.
+  eq('...and a slower, staler reply cannot delete what we already found',
+    /\[\.\.\.hits, \.\.\.\(h\[i\] \?\? \[\]\)\.filter\(\(m\) => !fresh\.has\(hitKey\(m\)\)\)\]/.test(rq), true);
+  eq('...keyed on MODEL and serial, because eleven machines are numbered 219',
+    /const hitKey = \(m: MachineHit\) => `\$\{m\.product/.test(rq), true);
+  eq('...and capped, since it is a lookup and not a list',
+    /\.slice\(0, REMEMBERED_HITS\)/.test(rq), true);
   // Every read must go through the per-row accessor; one stray shared read
   // brings the whole fault back.
   eq('every read is scoped to the row',
