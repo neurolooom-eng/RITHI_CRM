@@ -12,6 +12,7 @@ import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { useAccessScope, previewScoped } from '../lib/access';
 import './fieldcalls.css';
+import { cappedAt } from '../lib/exportscope';
 
 // ===========================================================================
 // STOCK TRANSFER — engineer to engineer.
@@ -307,7 +308,7 @@ export function StockTransfer() {
             <SearchBox value={search} onChange={setSearch} placeholder="Transfer no, engineer, part…" />
             <div className="spacer" />
             {visible.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('stock-transfers.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('stock-transfers.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], cappedAt(allTransfers.length, 1000))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

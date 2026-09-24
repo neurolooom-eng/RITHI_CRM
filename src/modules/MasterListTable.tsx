@@ -8,6 +8,7 @@ import { addMasterItem, deleteMasterItem, setMasterItemActive, listMasterItems, 
 import { clearMasterCache } from '../lib/masters';
 import { masterEditAction, masterDeleteAction } from '../lib/rbac';
 import { usedBy } from './masterLists';
+import { cappedAt } from '../lib/exportscope';
 
 // ===========================================================================
 // One master value list as its own table: every entry, with Add and Remove.
@@ -187,7 +188,7 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
             {items.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport(`${list.key}-master.csv`,
                 [{ key: 'value', header: list.value_label }, ...list.columns.map((c) => ({ key: c.key, header: c.label })), { key: 'added_on', header: 'Added On' }, { key: 'added_by', header: 'Added By' }],
-                visible.map((i) => ({ value: i.value, ...i.extra, added_on: i.added_on ?? '', added_by: i.added_by })))}>⭳ Export CSV</button>
+                visible.map((i) => ({ value: i.value, ...i.extra, added_on: i.added_on ?? '', added_by: i.added_by })), cappedAt(items.length, 5000))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

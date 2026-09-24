@@ -13,6 +13,7 @@ import {
 import { logAudit } from '../lib/audit';
 import { generatePassword } from '../lib/password';
 import './fieldcalls.css';
+import { COMPLETE, cappedAt } from '../lib/exportscope';
 
 // ===========================================================================
 // USER MASTER — the directory of everyone, whether or not they have ever
@@ -535,7 +536,7 @@ export function UserMasterView() {
               {visibleDir.length > 0 && (
                 <button className="btn btn-sm" onClick={() => csvExport('user-master.csv',
                   liveColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })),
-                  visibleDir as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+                  visibleDir as unknown as Record<string, unknown>[], COMPLETE)}>⭳ Export CSV</button>
               )}
             </Toolbar>
           }
@@ -555,7 +556,7 @@ export function UserMasterView() {
               <button className="btn btn-sm btn-primary" onClick={() => void load()} disabled={busy}>{busy ? '…' : 'Search'}</button>
               <div className="spacer" />
               {sheetRows.length > 0 && (
-                <button className="btn btn-sm" onClick={() => csvExport('user-master.csv', sheetColumns.map((c) => ({ key: c.key, header: c.header })), sheetRows as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+                <button className="btn btn-sm" onClick={() => csvExport('user-master.csv', sheetColumns.map((c) => ({ key: c.key, header: c.header })), sheetRows as unknown as Record<string, unknown>[], cappedAt(sheetRows.length, 300))}>⭳ Export CSV</button>
               )}
             </Toolbar>
           }

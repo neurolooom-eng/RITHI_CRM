@@ -40,6 +40,7 @@ import { TESTS } from '../src/lib/validation';
 import { shortForms, type ProductLine } from '../src/lib/productLines';
 import { HANDSTOCK_REPORT_COLUMNS, handStockFileName, isLastPage } from '../src/lib/handstockreport';
 import { buildXls } from '../src/lib/xls';
+import { COMPLETE, partial, cappedAt, mayExport, partialExportWarning } from '../src/lib/exportscope';
 import { DEFAULT_PERMS, MODULES, PERM_TREE, ROLES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
 import { URS, FRS, TESTS, MODULES_WITHOUT_REQUIREMENT } from '../src/lib/validation';
 import { modulesWithNoRequirement, badDeclarations, traceabilityMatrix } from '../src/lib/requirements';
@@ -8494,9 +8495,6 @@ console.log('\n-- Roles & Permissions saves what was touched, and nothing else -
     /if \(stored && stored\.length\) return stored;/.test(code(readFileSync('src/lib/rbac.ts', 'utf8'))), true);
 }
 
-console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
-process.exit(fail ? 1 : 0);
-
 console.log('\n-- the Hand Stock Report loads whole, then lets you download --');
 {
   // -------------------------------------------------------------------------
@@ -8580,3 +8578,91 @@ console.log('\n-- the Hand Stock Report loads whole, then lets you download --')
   eq('the screen says what the .xls costs rather than leaving somebody to wonder',
     /format and the extension do not match/i.test(hs), true);
 }
+
+console.log('\n-- a download from a half-loaded table says so --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-24: "if there is more data and user is downloading it
+  // give a pop up disclaimer that there are more data and you are exporting
+  // only a partial data ... People keep saying data is missing when they
+  // download without ensure if all the data is loaded or not."
+  //
+  // The screen is already honest about paging — the count carries a `+` and a
+  // Load more button sits beside it. The FILE is not, and a day later in Excel
+  // there is nothing in it, anywhere, to say the register had more.
+  // -------------------------------------------------------------------------
+
+  // ---- the decision, exercised rather than read --------------------------
+  const asked: string[] = [];
+  const ask = (m: string) => { asked.push(m); return false; };
+  eq('a complete table is never interrupted', mayExport(COMPLETE, 500, ask), true);
+  eq('...and nothing is asked', asked.length, 0);
+  eq('a partly-loaded one asks first', mayExport(partial(true), 500, ask), false);
+  eq('...and the answer is obeyed — Cancel writes no file', asked.length, 1);
+  eq('...and Yes still exports', mayExport(partial(true), 500, () => true), true);
+  // A FULL PAGE IS THE SIGNATURE OF A TRUNCATION, not of an exhausted table:
+  // receiving exactly what you asked for says nothing about a next row.
+  eq('a read that filled its cap may have more', cappedAt(1000, 1000).more, true);
+  eq('...one that did not, has not', cappedAt(999, 1000).more, false);
+
+  // ---- what it says -------------------------------------------------------
+  const w = partialExportWarning(1234);
+  eq('the warning states how many rows the file will hold', /1,234 rows/.test(w), true);
+  eq('...says the file itself will not admit it', /will not say so/.test(w), true);
+  eq('...and says what to do instead of only warning', /Load more/.test(w), true);
+  // IT MUST NOT INVENT A TOTAL. The screen does not know one — that is why the
+  // count carries a `+` — and a number here would be the same fault in a new
+  // place.
+  eq('...and never claims to know how many are missing',
+    /\b(of|out of) [\d,]+\b/.test(w), false);
+  eq('one row reads as one row', /1 row\b/.test(partialExportWarning(1)), true);
+
+  // ---- and EVERY export site answers the question -------------------------
+  // TypeScript already refuses a call that omits the argument. This refuses one
+  // that answers it with an inline literal nobody thought about: the answer has
+  // to be one of the three sanctioned words, which is the same discipline
+  // FacetChips carries for `more`.
+  const OK = /(COMPLETE|partial\(|cappedAt\(|exportScope\()/;
+  const offenders: string[] = [];
+  const walk = (dir: string) => readdirSync(dir, { withFileTypes: true }).forEach((e) => {
+    const full = `${dir}/${e.name}`;
+    if (e.isDirectory()) return walk(full);
+    if (!/\.tsx?$/.test(e.name)) return;
+    // COMMENTS STRIPPED FIRST. exportscope.ts NAMES the three writers in its
+    // own prose ("`csvExport()` is the single CSV writer"), and a scanner that
+    // reads prose as code reports the file that documents the rule as the file
+    // breaking it — which is how a check earns a reputation for crying wolf.
+    const src = code(readFileSync(full, 'utf8'));
+    for (const m of src.matchAll(/(csvExport|xlsxDownload|xlsDownload)\(/g)) {
+      // the call's own text, to its matching close paren
+      let d = 0, i = m.index! + m[0].length - 1;
+      for (; i < src.length; i++) {
+        if (src[i] === '(') d++;
+        else if (src[i] === ')' && --d === 0) break;
+      }
+      const call = src.slice(m.index!, i + 1);
+      if (/^export function/.test(src.slice(Math.max(0, m.index! - 16), m.index!))) continue;
+      if (!OK.test(call)) offenders.push(`${full}: ${m[1]}`);
+    }
+  });
+  walk('src');
+  eq('every export names what it knows about completeness', offenders, []);
+
+  // AND THE WRITERS ASK BEFORE THEY BUILD A BYTE, so Cancel leaves nothing.
+  const fmt = code(readFileSync('src/lib/format.tsx', 'utf8'));
+  // `indexOf(...) < indexOf(...)` ALONE PASSES WHEN THE CALL IS GONE: a missing
+  // needle is -1, and -1 is less than everything. The first version of this
+  // line said exactly that, and deleting the guard from csvExport left it
+  // green — caught by mutating it, which is the only way that shape ever is.
+  eq('csvExport asks before it builds the file',
+    fmt.includes('mayExport(scope') && fmt.indexOf('mayExport(scope') < fmt.indexOf('new Blob('), true);
+  const xl = readFileSync('src/lib/xlsx.ts', 'utf8');
+  eq('xlsxDownload asks before it builds the workbook',
+    /if \(!mayExport\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return;/.test(xl), true);
+  const x3 = readFileSync('src/lib/xls.ts', 'utf8');
+  eq('...and so does the .xls writer',
+    /if \(!mayExport\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return;/.test(x3), true);
+}
+
+console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
+process.exit(fail ? 1 : 0);

@@ -72,6 +72,18 @@ export interface MachineEvent {
 let _archiveNote = '';
 export const archiveNote = (): string => _archiveNote;
 
+// WHETHER THE ARCHIVE HALF WAS TRUNCATED, set the same way and for the same
+// reason. archiveHistory() pages to a cap (MAX_ROWS) and already works this
+// out; it was computed and then THROWN AWAY, which stopped mattering the
+// moment main made the CSV button assert COMPLETE -- an export that says it is
+// whole while the archive half stopped at the cap is a file that lies by
+// omission, which is the exact fault main's export scope was built for.
+//
+// The live half is read whole for one machine, so this is the only half that
+// can be short.
+let _archiveCapped = false;
+export const archiveCapped = (): boolean => _archiveCapped;
+
 const s = (v: unknown) => String(v ?? '').trim();
 const day = (v: unknown) => s(v).slice(0, 10);
 
@@ -307,9 +319,14 @@ export async function machineHistory(product: string, serial: string): Promise<M
   // it can fail without taking them with it.
   if (!archiveConfigured()) {
     _archiveNote = 'not-connected';
+    _archiveCapped = false;
   } else {
     const arc = await archiveHistory(product, ser);
     _archiveNote = arc.ok ? '' : `unreadable: ${arc.reason}`;
+    // A read that FAILED is not a read that was truncated: the note above
+    // already says the archive could not be read, and claiming "partial" as
+    // well would put a second, vaguer answer on the same fact.
+    _archiveCapped = arc.ok && arc.history.capped;
     const h = arc.history;
 
     for (const r of h.calls) out.push({

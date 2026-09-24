@@ -8,6 +8,7 @@ import { csvExport, fmtLongDate } from '../lib/format';
 import { logAudit } from '../lib/audit';
 import { UNUSED_SPARE_COLUMNS, EMPTY_UNUSED_FILTER, describeUnusedFilter, type UnusedSpareFilter } from '../lib/reports';
 import './dccr.css';
+import { COMPLETE } from '../lib/exportscope';
 
 // ===========================================================================
 // NOT USED AS PER THE REQUEST — parts that reached the engineer and were never
@@ -80,7 +81,7 @@ export function UnusedSpareReport() {
       const name = `not-consumed-against-call-${stamp}`;
       const cols = UNUSED_SPARE_COLUMNS.map((c) => ({ key: c, header: c }));
       if (kind === 'csv') {
-        csvExport(`${name}.csv`, cols, all);
+        csvExport(`${name}.csv`, cols, all, COMPLETE);
       } else {
         // THE FILE CARRIES ITS OWN SCOPE, like the consumption report: a report
         // whose filter is not written down is one somebody later mistakes for
@@ -101,7 +102,7 @@ export function UnusedSpareReport() {
               { Item: 'Taken', Value: fmtLongDate(new Date().toISOString()) },
             ],
           },
-        ]);
+        ], COMPLETE);
       }
       logAudit({ action: 'report.unused_spares', meta: { rows: all.length, filter: describeUnusedFilter(filter), kind } });
       setMsg(`${all.length.toLocaleString()} row${all.length === 1 ? '' : 's'} downloaded.`);

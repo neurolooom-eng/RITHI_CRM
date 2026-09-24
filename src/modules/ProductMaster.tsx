@@ -10,6 +10,7 @@ import { useAuth } from '../lib/auth';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { isTimeout, errText } from '../lib/dberror';
 import './fieldcalls.css';
+import { partial } from '../lib/exportscope';
 
 const CACHE_KEY = 'productMasterRows';
 
@@ -199,7 +200,7 @@ export function ProductMaster() {
               <button
                 className="btn btn-sm"
                 title="All 32 columns of the install base, not only the ones on screen"
-                onClick={() => csvExport('product-database.csv', ALL_FIELDS, rows as unknown as Record<string, unknown>[])}
+                onClick={() => csvExport('product-database.csv', ALL_FIELDS, rows as unknown as Record<string, unknown>[], partial(more))}
               >
                 ⭳ Export CSV
               </button>

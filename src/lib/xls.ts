@@ -1,4 +1,5 @@
 import { download } from './zip';
+import { mayExport, type ExportScope } from './exportscope';
 import { excelSerial, formatDayTime, hasClockTime } from './dates';
 
 // ===========================================================================
@@ -102,6 +103,9 @@ export function buildXls(sheets: XlsSheet[]): string {
     + '</Workbook>';
 }
 
-export function xlsDownload(filename: string, sheets: XlsSheet[]): void {
+export function xlsDownload(filename: string, sheets: XlsSheet[], scope: ExportScope): void {
+  // Same rule as the other two writers: a file taken from a half-loaded table
+  // says nothing about what it is missing, so the caller is asked first.
+  if (!mayExport(scope, sheets[0]?.rows.length ?? 0)) return;
   download(filename, new TextEncoder().encode(buildXls(sheets)), 'application/vnd.ms-excel');
 }

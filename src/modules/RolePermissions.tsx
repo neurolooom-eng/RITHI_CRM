@@ -9,6 +9,7 @@ import { setRolePerms, listMasterLists, listRoleRows, createRole, supabaseConfig
 import { logAudit } from '../lib/audit';
 import { xlsxDownload } from '../lib/xlsx';
 import './fieldcalls.css';
+import { COMPLETE } from '../lib/exportscope';
 
 // ===========================================================================
 // ROLES & PERMISSIONS — the matrix, grouped the way the app is: header ->
@@ -263,7 +264,7 @@ export function RolePermissions() {
             Detail: 'Each list is grantable on its own and also comes free with the global "Edit masters" right, so a role can reach a list without a Yes against it here.' },
         ],
       },
-    ]);
+    ], COMPLETE);
     logAudit({
       action: 'rbac.export', status: 'ok',
       meta: { roles: roles.length, rows: matrix.length, unsaved: edited },

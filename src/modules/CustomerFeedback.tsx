@@ -8,6 +8,7 @@ import { useAccessScope } from '../lib/access';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
+import { partial } from '../lib/exportscope';
 
 // ===========================================================================
 // CUSTOMER FEEDBACK — the structured feedback captured on each call report,
@@ -189,7 +190,7 @@ export function CustomerFeedback() {
             ))}
             <div className="spacer" />
             {rows.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('customer-feedback.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('customer-feedback.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], partial(more))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

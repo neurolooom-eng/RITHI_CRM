@@ -22,6 +22,7 @@ import { todayISO } from '../lib/format';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
+import { partial } from '../lib/exportscope';
 
 // ===========================================================================
 // REQUEST CALL REGISTRATION — the register of every request raised, whatever
@@ -275,7 +276,7 @@ export function RequestCallRegistration() {
             </div>
             <button
               className="btn btn-sm"
-              onClick={() => csvExport('call-requests.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}
+              onClick={() => csvExport('call-requests.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], partial(moreAvailable))}
             >
               ⭳ Export CSV
             </button>

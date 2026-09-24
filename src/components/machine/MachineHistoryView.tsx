@@ -4,7 +4,8 @@ import { DataTable, type Column } from '../table/DataTable';
 import { Ucn } from '../../lib/callstate';
 import { useCallStates, callStateFor } from '../../lib/callstates';
 import { csvExport, fmtLongDate } from '../../lib/format';
-import { partyDiffers, type MachineEvent, type MachineNow } from '../../lib/machineHistory';
+import { archiveCapped, partyDiffers, type MachineEvent, type MachineNow } from '../../lib/machineHistory';
+import { partial } from '../../lib/exportscope';
 
 // ===========================================================================
 // ONE MACHINE'S LIFE, RENDERED ONCE.
@@ -162,7 +163,18 @@ export function MachineHistoryView({
                         onClick={() => csvExport(
                           `machine-${product}-${serial}.csv`.replace(/[^a-z0-9.-]+/gi, '-'),
                           columns.filter((c) => c.key !== 'ucn').map((c) => ({ key: c.key, header: String(c.header) })),
-                          shown as unknown as Record<string, unknown>[])}>
+                          shown as unknown as Record<string, unknown>[],
+                          // Every LIVE register was read whole for this one
+                          // machine -- but the ARCHIVE half pages to a cap, so
+                          // COMPLETE would be a claim this screen cannot make.
+                          // A machine with more than the cap in one archive
+                          // register exports short, and the file would not say
+                          // so; that is precisely what the scope exists to
+                          // prevent. False whenever the archive is off,
+                          // unreachable or simply under the cap, which is the
+                          // ordinary case, so nobody sees the warning without
+                          // cause.
+                          partial(archiveCapped()))}>
                   ⭳ Export CSV
                 </button>
               )}
