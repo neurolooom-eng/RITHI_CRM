@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.372',
+    version: '0.9.373',
     date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,16 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.372',
+    date: '2026-09-25',
+    title: 'Product Database: newest first, 1,000 a load — and a paging fault fixed on the way',
+    changes: [
+      'THE PRODUCT DATABASE NOW OPENS NEWEST ENTRIES FIRST, and that turned out to be a correctness fix rather than a preference. The register was paged in blocks with NO SORT ORDER AT ALL, which means the database was free to hand back the rows in any order it liked between one block and the next — so “Load more” could show you the same machine twice and miss another one entirely. Nothing announced it: the list simply looked complete.',
+      'It is ordered by when the row was added, newest first, with the machine id as a tiebreak. The tiebreak matters more than it sounds: a full reload writes every machine in the same instant, so after one the whole register shares a timestamp and the id is the only thing keeping the pages stable.',
+      'A LOAD IS NOW 1,000 MACHINES instead of 200. That is the most a single request can carry — it caps there whatever you ask for, and silently — so asking for more would return 1,000 anyway and then wrongly hide the Load more button, telling you the register had ended when it had thousands left.',
     ],
   },
   {

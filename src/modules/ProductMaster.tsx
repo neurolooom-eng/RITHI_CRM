@@ -69,7 +69,13 @@ export function ProductMaster() {
   const { can } = useAuth();
   const cached = loadCache<Row>(CACHE_KEY);
   const [f, setF] = useState<ProdFilters>({ q: '', party: '', product: '', serial: '', status: '' });
-  const PAGE = 200;
+  // 1,000 A LOAD, ONE REQUEST (the user, 2026-09-25: "if it caps at 1000 keep
+  // it 1000 rows in one load more"). That is the most a single PostgREST
+  // response can carry -- it caps there however large the range asks for, and
+  // silently -- so asking for more would come back with 1,000 anyway and the
+  // "did I get a full page?" test would then read FALSE and hide the Load more
+  // button, announcing the end of a register with thousands left.
+  const PAGE = 1000;
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
@@ -81,20 +87,24 @@ export function ProductMaster() {
 
   const set = (k: keyof ProdFilters, v: string) => setF((cur) => ({ ...cur, [k]: v }));
 
+
   const run = async (filters: ProdFilters = f) => {
     if (!dataConfigured()) return;
     setBusy(true);
     setMsg({ tone: 'info', text: 'Searching the Product Database…' });
     try {
       const r = await searchProducts(filters, PAGE, 0);
+      // A SHORT READ IS THE ONLY HONEST END SIGNAL. Receiving exactly what you
+      // asked for says nothing about whether a next row exists.
+      const exhausted = r.length < PAGE;
       const mapped = r.map((p, i) => ({ ...p, id: `${String(p['Item Serial Number'] ?? '')}-${i}` }));
-      setRows(mapped); setOffset(mapped.length); setMore(r.length === PAGE);
+      setRows(mapped); setOffset(mapped.length); setMore(!exhausted);
       const anyFilter = Object.values(filters).some((v) => v && String(v).trim());
       if (!anyFilter) setLastSync(saveCache(CACHE_KEY, mapped)); // cache the browse set
       setMsg({
         tone: r.length ? 'ok' : 'info',
         text: r.length
-          ? `${r.length} products${anyFilter ? ' matched' : ' (browse — refine with the filters)'}${r.length >= 200 ? ' — showing first 200' : ''}.`
+          ? `${r.length} products${anyFilter ? ' matched' : ' (browse — refine with the filters)'}${!exhausted ? ` — showing the first ${r.length.toLocaleString()}` : ''}.`
           : 'No products matched.',
       });
     } catch (e) {
@@ -115,9 +125,10 @@ export function ProductMaster() {
     setBusy(true);
     try {
       const r = await searchProducts(f, PAGE, offset);
+      const exhausted = r.length < PAGE;
       const mapped = r.map((p, i) => ({ ...p, id: `${String(p['Item Serial Number'] ?? '')}-${offset + i}` }));
       const merged = [...rows, ...mapped];
-      setRows(merged); setOffset(offset + r.length); setMore(r.length === PAGE);
+      setRows(merged); setOffset(offset + r.length); setMore(!exhausted);
       const anyFilter = Object.values(f).some((v) => v && String(v).trim());
       if (!anyFilter) setLastSync(saveCache(CACHE_KEY, merged));
     } catch (e) {

@@ -1520,7 +1520,26 @@ export async function sbProductBySerial(serial: string, product = ''): Promise<R
 // goes to the table, which is untouched.
 // ---------------------------------------------------------------------------
 export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string; status?: string; exact?: boolean }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
-  let q = must().from('product_database').select('*').range(offset, offset + limit - 1);
+  // NEWEST ENTRIES FIRST, AND THIS IS A CORRECTNESS FIX BEFORE IT IS A
+  // PREFERENCE (the user, 2026-09-25: "Always show sorted date - Newest
+  // entries first"). This read PAGED 200 AT A TIME WITH NO ORDER AT ALL, which
+  // breaks the project's own rule: without one the database may return the
+  // rows in any order it likes between pages, so "Load more" can show a
+  // machine twice and miss another entirely -- and the result looks complete,
+  // which is worse than a truncation that announces itself.
+  //
+  // `created_at` is WHEN THE ROW WAS ADDED and is published by the view, so
+  // the order column exists -- a missing one is an ERROR from PostgREST and an
+  // EMPTY register, not merely unsorted rows.
+  //
+  // THE TIEBREAK IS NOT DECORATION HERE. A bulk reload writes every machine in
+  // the same instant, so after one the whole register shares a `created_at`
+  // and ordering on it alone is arbitrary; `id desc` makes the paging stable
+  // and, within a load, puts the last rows of the file first.
+  let q = must().from('product_database').select('*')
+    .order('created_at', { ascending: false, nullsFirst: false })
+    .order('id', { ascending: false })
+    .range(offset, offset + limit - 1);
   // An EXACT serial goes through the indexed key, not `eq(serial_number)`:
   // that was case-sensitive AND had no plain btree behind it, so the one
   // filter that meant equality was the one that could not use an index.

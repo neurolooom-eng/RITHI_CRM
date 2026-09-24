@@ -4,10 +4,10 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-09-24T20:18:38.212Z
-- **Took** 97s
-- **Commit** `c718444` on `claude/tender-rubin-8ian45`
-- **Version** 0.9.372
+- **Run at** 2026-09-24T22:15:50.339Z
+- **Took** 96s
+- **Commit** `8a436e1` on `claude/tender-rubin-8ian45`
+- **Version** 0.9.373
 
 ## Result
 
@@ -39,12 +39,12 @@ stopped working produces a suite that runs clean.
 | `check:columns` | ✅ pass | every column of 33 live registers exists |
 | `check:cover-party` | ✅ pass | all passed |
 | `check:dberror` | ✅ pass | all passed |
-| `check:generated` | ✅ pass | every generated bundle matches its migrations (89 checked) |
+| `check:generated` | ✅ pass | every generated bundle matches its migrations (92 checked) |
 | `check:kyc` | ✅ pass | all passed |
 | `check:machine` | ✅ pass | all passed |
 | `check:mapping` | ✅ pass | all passed |
 | `check:nar003` | ✅ pass | all passed |
-| `check:orders` | ✅ pass |   ✓ 120 order columns across 59 relations |
+| `check:orders` | ✅ pass |   ✓ 122 order columns across 59 relations |
 | `check:paging` | ✅ pass | all passed |
 | `check:picklist` | ✅ pass | all passed |
 | `check:picklist:open` | ✅ pass | all passed |
