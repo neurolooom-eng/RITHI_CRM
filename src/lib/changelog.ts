@@ -12,6 +12,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.361',
+    date: '2026-09-24',
+    title: 'A machine belongs to its latest owner — and so does its contract and its installation call',
+    changes: [
+      'WHO OWNS A MACHINE is now decided by the LATER of its newest sale entry and its newest ownership transfer. Whichever happened last is what the Product Database shows.',
+      'A CONTRACT OR AN INSTALLATION CALL ONLY COUNTS while it names that machine AND its current owner. So re-selling a machine takes the previous owner’s contract and installation call off it — exactly what you asked for.',
+      'NOTHING IS DELETED TO ACHIEVE THAT. They stop matching, which is different: the contract register and the call are untouched, and if the machine ever comes back to that customer its cover reappears on its own. Verified — sold, re-sold, transferred, transferred back, and the cover returned without anybody re-entering it.',
+      'THE OLD STORED VALUES ARE STILL THERE to compare against, as Contract Number (keyed) and INST Call (keyed).',
+      'SAME DAY? THE TRANSFER WINS. A transfer carries a date and a sale carries a time, so a transfer recorded on the day of a sale would otherwise lose to it at midnight — and a machine cannot be transferred before it is sold.',
+      'A MACHINE WITH NO SALE AND NO TRANSFER IS LEFT COMPLETELY ALONE. Twenty thousand came from the old import, and deriving their owner from registers that never mention them would blank the only record you have.',
+      'This reverses yesterday’s rule that a sale never cleared the installation call — at your instruction, and it is the better rule.',
+      'Measured before shipping this time: 20,012 machines, 20,001 contract lines, 9,001 installation calls — one page 6.6 ms, a filtered search 72.5 ms, the whole register 116.6 ms.',
+      '⚠ RUN sales_contracts.sql, then product_database_2.sql. _status.sql row 183.',
+    ],
+  },
+  {
     version: '0.9.360',
     date: '2026-09-24',
     title: 'A Warranty Sale puts its machines into the Product Database',

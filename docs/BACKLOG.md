@@ -43,6 +43,60 @@ up)_
 
 ---
 
+## 2026-09-24 — A machine belongs to its latest owner, and so does everything attached
+
+> *"What should be displayed is entirely based on the Timestamp of when the change
+> was done ... Contract has to match the product, serial no, party.. Same with
+> Installation calls ... and party is decided by sale entry or ownership transfer
+> whichever is latest."*
+
+Shipped in v0.9.361. **⚠ RUN `sales_contracts.sql`, then `product_database_2.sql`.**
+`_status.sql` row 183.
+
+**The second sentence is the mechanism for the first**, and reading it that way is
+what makes this safe. A re-sale does not DELETE the previous owner's contract and
+installation call — they stop MATCHING. Nothing is destroyed, the registers are
+untouched, and a machine that returns to that customer gets its cover back by
+itself, which a rule that deleted could never do.
+
+**Two halves, kept apart deliberately:**
+
+- **The party is STORED.** It is decided by two *timestamped events* — the sale
+  entry and the ownership transfer — so it does not decay. Nothing about it
+  changes because a day passed, which is what makes storing it honest (contrast
+  `item_status`, which compares with today and therefore cannot be stored).
+- **The contract and the call are MATCHED ON READ.** They depend on the party,
+  and a stored attachment would disagree with it until something rewrote the row.
+  It also keeps every trigger off `installation_calls` and `contract_items`,
+  where a per-row rule would make a 12,000-row import pay for this 12,000 times.
+
+**Same day, the transfer wins.** `transfer_date` is a DATE and a sale entry is a
+TIMESTAMP, so a transfer recorded on the day of a sale would otherwise lose to it
+at midnight — and a machine cannot be transferred before it is sold.
+
+**A machine with neither a sale nor a transfer is left entirely alone.** Twenty
+thousand came from the AppSheet import; deriving their party from registers that
+do not mention them would blank the only record of who owns them.
+
+Proved end to end on one machine: sold to OLD OWNER (CMC, MC5000, call attached)
+→ re-sold to NEW OWNER (**contract and call gone from the view, both still on
+record as `*_keyed`**) → transferred to THIRD HOSPITAL the same day (transfer
+wins) → transferred back to OLD OWNER (**MC5000 and the call returned, nothing
+re-entered**). Row 183 mutation-proved by dropping the party from the join key —
+the machine immediately showed the previous owner's contract.
+
+**Measured before shipping, which is the lesson from yesterday.** 20,012
+machines, 20,001 contract lines, 9,001 installation calls, under RLS: one page
+**6.6 ms**, a filtered search **72.5 ms**, the whole register with every computed
+column **116.6 ms**. `DISTINCT ON` over each register once, joined — not a
+correlated subquery per machine.
+
+**It reverses yesterday's rule** that a sale never cleared `inst_call`, at the
+user's instruction. That rule was right when the sale owned the field; it is
+wrong now that the call belongs to the machine only while it names the owner.
+
+---
+
 ## 2026-09-24 — A Warranty Sale puts its machines into the Product Database
 
 > *"Every time I add a Warranty Sale entry, all the products should get added to

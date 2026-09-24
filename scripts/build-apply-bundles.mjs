@@ -732,7 +732,10 @@ const MODULES = {
             // 0036's per-row versions would go straight back on a replay.
             '0236_cover_policies_are_initplans.sql',
             // AFTER 0234: it calls is_call_number(), which that file creates.
-            '0237_sale_fills_product_database.sql'],
+            '0237_sale_fills_product_database.sql',
+            // AFTER 0237: it replaces that file's upsert so the party comes
+            // from the LATER of the sale and the ownership transfer.
+            '0238_machine_belongs_to_its_latest_owner.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -852,7 +855,10 @@ const MODULES = {
             '0222_status_is_computed_when_read.sql',
             '0223_product_database_2_keeps_itself_alive.sql',
             // AFTER 0218: it calls contract_cover_code(), which that file creates.
-            '0235_product_database_computed.sql'],
+            '0235_product_database_computed.sql',
+            // AFTER 0235: it replaces that view so the contract and the
+            // installation call match the machine's CURRENT owner.
+            '0239_attachments_follow_the_owner.sql'],
   },
   feedback_checks: {
     title: 'Feedback Without a Report',
