@@ -24,15 +24,23 @@ are cited by function name in `MODULE_REVIEW.md` for the same reason.
 - **Finding 24 is fixed on `main`** (`1bf248e`). Its section, C2, is kept only
   as a pointer.
 - Findings 1–23 and 25–27 were re-checked and still hold.
-- The re-review added **28–32**, as sections A12, A13, B9 and C6. Two of them,
-  **C6 (findings 30 + 31)**, are the most urgent new ones. **Read C6 before
-  anything in Batch A.**
+- The re-review added **28–32**, as sections A12, A13, B9 and C6.
+
+**And again on 2026-09-24, against `main` at `ee732f4`.** All 31 open findings
+still hold. It added **33–46**:
+
+- A14–A17: findings 33, 46, 41 and 45.
+- B10–B13: findings 40, 42, 43 and 44.
+- C7–C10: findings 34, 35 + 36 + 37, 38 and 39.
+
+**Read C10 before anything else on this page**: it is a hand-run file that must
+not be applied as written. **Then C8, then C6.**
 
 ---
 
-## Step 0 — nine queries, before any code
+## Step 0 — fifteen queries, before any code
 
-Nine findings depend on facts about the **live Supabase project** that this
+These findings depend on facts about the **live Supabase project** that this
 repository cannot know. Run these first in the SQL editor; two of them may make a
 fix unnecessary, and two may turn a "possible" into "already happened".
 
@@ -80,10 +88,51 @@ select count(*) from public.call_requests where call_type ilike 'INSTALL%';
 -- 9. Finding 28. Any rows here are MRN lines the screen is drawing as one.
 select uid, row_no, count(*) from public.material_returns
  group by 1, 2 having count(*) > 1 limit 20;
+
+-- 10. Finding 35 (HIGH). Machines whose owner differs depending on whether
+--     transfers are ordered by when they were ENTERED (what 0240 does) or by
+--     their DATE (what the upload promises). Non-zero = owners already moved.
+with t as (select lower(btrim(item_name)) n, lower(btrim(serial_number)) s,
+                  to_party, transfer_date, transferred_at, id
+             from public.ownership_transfers where btrim(coalesce(to_party, '')) <> '')
+select count(*) as machines_where_entry_order_and_date_order_disagree
+  from (select n, s,
+               (array_agg(to_party order by transferred_at desc nulls last, id desc))[1] as by_entry,
+               (array_agg(to_party order by transfer_date  desc nulls last, id desc))[1] as by_date
+          from t group by 1, 2) x
+ where by_entry is distinct from by_date;
+
+-- 11. Finding 34 (HIGH). Roles that open the Product Database but cannot read
+--     contracts, and so see every machine under contract as OGP.
+select role from public.app_roles
+ where permissions ? 'mod:/product-database'
+   and not (permissions ? 'masters.view' or permissions ? 'cover.edit')
+   and role <> 'admin' order by 1;
+
+-- 12. Finding 38. Register sizes; 12.5 s per 500 transfers was measured at
+--     20,000 sale lines and 4,000 transfers, against a 20 s limit.
+select (select count(*) from public.sale_items) as sale_lines,
+       (select count(*) from public.ownership_transfers) as transfers;
+
+-- 13. Finding 39 (HIGH). The contract words the Item Status correction would
+--     copy verbatim. Any row where the two columns differ is a wrong write.
+select contract_type, public.contract_cover_code(contract_type) as should_read, count(*)
+  from public.products where coalesce(btrim(contract_type), '') <> ''
+ group by 1, 2 order by 3 desc;
+
+-- 14. A question (0239), not a finding: machines whose stored contract the
+--     Product Database no longer shows.
+select count(*) from public.product_database
+ where contract_number = '' and coalesce(btrim(contract_number_keyed), '') <> '';
+
+-- 15. Finding 42's question: roles without export.data. No migration has
+--     granted it except to Technical Support.
+select role from public.app_roles where not permissions ? 'export.data' order by 1;
 ```
 
-Queries 6–9 were run against a database built from every migration, so their
-column names are right. They returned nothing there because it holds no data.
+Queries 6–15 were run against a database built from every migration, so their
+column names are right. They return little there because it holds almost no
+data; query 10 returned 1, the back-dated transfer used to measure finding 35.
 **On query 7, two calls for one machine is not always this bug**: a genuine
 re-installation looks the same. The UCNs are listed in the order they were
 created, so compare their dates.
@@ -107,17 +156,19 @@ select l.id, r.or_no, r.engineer, l.part, l.rm_approval, l.stage
 Three batches, and they are ordered by **what a mistake costs**, not by severity:
 
 1. **Batch A — mechanical.** Each is a few lines, none changes a rule, none needs
-   a decision. Do them in one branch, one commit each. ~13 fixes.
+   a decision. Do them in one branch, one commit each. ~17 fixes.
 2. **Batch B — small, but the change has a shape to get right.** Still no
-   decision needed; more care per fix. ~9 fixes.
+   decision needed; more care per fix. ~13 fixes.
 3. **Batch C — needs a decision from you.** These are the ones where the *right*
    answer is a product/ops judgement, not a patch. C2 is fixed. Do not let the
-   rest block A and B, with two exceptions. **C6** is urgent (see below).
-   **C5** is small and about a file that leaves the building.
+   rest block A and B, with these exceptions: **C10** first (a file not to
+   run), then **C8** and **C6** (both urgent), and **C5** (small, and about a
+   file that leaves the building).
 
-Batches A and B together clear 23 of the 31 open findings and touch no SQL, so
-they ship as one ordinary front-end change: `npm run build`, changelog entry,
-version bump, merge, deploy.
+Batches A and B together clear 31 of the 45 open findings and add no migration,
+so they ship as one ordinary front-end change: `npm run build`, changelog entry,
+version bump, merge, deploy. B10 edits hand-run SQL files in `supabase/apply/`,
+which are not migrations and are not bundled.
 
 **C6 comes first, before A, even though it sits in Batch C.** It needs no
 decision for its main fix, only for where the button is shown. Its failure is a
@@ -420,6 +471,92 @@ machine must start ticked.
 
 ---
 
+## A14 · Finding 33 (HIGH) — the Hand Stock Report's .xls dates read `[object Object]`
+
+`src/modules/HandStockReport.tsx:163-187`. Build the sheet twice, not once. The
+.xlsx needs `xlsxCell`; the .xls writer recognises an ISO date on its own and
+must be given the raw value:
+
+```ts
+// current — one sheet for both writers
+rows: visible.map((r) => Object.fromEntries(cols.map((c) => [c.header, xlsxCell(r[c.key])]))),
+```
+
+```ts
+// change — the cell shaping belongs to the writer
+const sheetFor = (shape: (v: unknown) => unknown) => ({
+  name: 'Hand Stock',
+  columns: cols.map((c) => c.header),
+  rows: visible.map((r) => Object.fromEntries(cols.map((c) => [c.header, shape(r[c.key])]))),
+});
+if (kind === 'xlsx') xlsxDownload(name, [sheetFor(xlsxCell), about], COMPLETE);
+else xlsDownload(name, [sheetFor((v) => v), about], COMPLETE);
+```
+
+**Verify** — download the .xls and open it: Last In / Last Out / Last Movement
+must be dates, and the part code must still read `MP-010`. The check that would
+have caught it: have `xls.ts` `cell()` refuse (throw on) an object it does not
+know, rather than printing it.
+
+---
+
+## A15 · Finding 46 — "your own stock only" on a manager's file
+
+`src/modules/HandStockReport.tsx:147` and the subtitle at `:202`. There is no
+client flag for "sees a team". The honest wording that is true for every
+non-office role is the policy's own:
+
+```ts
+everyone ? 'every engineer' : 'your own stock, and your team’s if you manage one',
+```
+
+**Verify** — sign in as an RM with a team; the About sheet must not claim the
+file is only theirs.
+
+---
+
+## A16 · Finding 41 — the Hand Stock Report's menu entry and its page disagree
+
+`src/components/layout/Layout.tsx:227`. Drop `adminOnly` from this one entry, so
+the menu asks for the same key the page does:
+
+```ts
+// current
+{ to: '/handstock-report', label: 'Hand Stock Report', icon: '📦', adminOnly: true },
+// change
+{ to: '/handstock-report', label: 'Hand Stock Report', icon: '📦' },
+```
+
+0241 already grants the key to admin and technical_support, so nobody who sees
+the entry today loses it, and zoho_migration stops seeing an entry it cannot
+open. **Tried**: with only this edit applied, `npm run check:ui` reports `all
+passed`. Its one rule about `adminOnly` checks that the flag accepts
+`admin.view`, not which entries carry it.
+
+**Verify** — tick the report for spare_coordinator on Roles & Permissions; the
+entry must appear for that role and nowhere else new.
+
+---
+
+## A17 · Finding 45 — the half-loaded-download warning
+
+Three separate small edits:
+
+1. **RM Approval** (`src/modules/SpareRmApproval.tsx:240`): `COMPLETE` →
+   `cappedAt(lines.length, 2000)`, the same as Pending Dispatch. `lines` is what
+   `load()` sets from `listPendingRmApproval()` (`:90-91`).
+2. **The wording** (`src/lib/exportscope.ts:68-74`): when the scope came from
+   `cappedAt`, the advice cannot be "press Load more". Carry a reason on the
+   scope (`{ more: true, why: 'capped' }`) and say *"The list stopped at N; there
+   may be more. Narrow the filter and download again."*
+3. **Hand Stock search** (`src/modules/HandStock.tsx:409`): while `hits` is
+   showing, the scope is `cappedAt(hits.length, PAGE_SIZE)`, not `partial(more)`.
+
+The Field/Installation/PM search is finding 18 (B4). Fix it there, and its CSV
+follows.
+
+---
+
 # Batch B — small, with a shape to get right
 
 ## B1 · Finding 16 — five auto-refreshers with a frozen guard
@@ -691,6 +828,81 @@ has loaded far enough back.
 
 ---
 
+## B10 · Finding 40 — probes that return more grids than the editor shows
+
+`_why_do_the_two_report_counts_differ.sql`, `_how_stale_is_item_status.sql`,
+`_why_are_pm_calls_still_open.sql` and `_rebuild_product_database.sql`. Make each
+end in **one** `select … union all select …` report, the way `_status.sql` does,
+so the grid the header describes is the grid the editor shows.
+
+**Do not** do it by moving the important statement to the end: the next edit
+adds a statement after it and the fault returns. Also:
+
+- `_rebuild_product_database.sql`: say `limit 1000` in the output, not only in
+  the SQL.
+- `_pm_call_numbers.sql`: finish it or move it out of `supabase/apply/`.
+
+**Add the check that would have caught it**: `check:ui` already reads every
+hand-run file for meta-commands. It can count top-level statements that return
+rows and refuse more than one.
+
+---
+
+## B11 · Finding 42 — Excel skips the export permission
+
+`src/lib/xlsx.ts:203` and `src/lib/xls.ts:109`: ask the same flag `csvExport`
+asks (`format.tsx:140-141`, `_canExport`, set from `can('export.data')` in
+`auth.tsx:611`). Export a getter from `format.tsx` rather than a second copy of
+the flag:
+
+```ts
+// format.tsx
+export const exportAllowed = (): boolean => _canExport;
+// xlsx.ts / xls.ts, first line of the download function
+if (!exportAllowed()) { try { alert('Exporting / downloading data is not permitted for your role.'); } catch { /* ignore */ } return; }
+```
+
+**Run Step 0 query 15 first.** If the live roles lack `export.data`, this fix
+turns off Excel for everybody whose CSV is already off. That would be correct,
+but it would be a surprise, so grant the permission (a migration merging it, the
+0241 pattern) in the same release.
+
+---
+
+## B12 · Finding 43 — one customer per request
+
+`src/modules/RequestCallRegistration.tsx`, in `submit` after `resolveMachines`
+and before `validate`, or as a rule in `src/lib/callrequest.ts` so it can be
+tested:
+
+```ts
+// lib/callrequest.ts
+export function crossCustomerProblem(rows: RequestRow[], isInstall: boolean): string | null {
+  if (isInstall) return null;
+  const parties = [...new Set(rows.map((r) => String(r.party ?? '').trim().toLowerCase()).filter(Boolean))];
+  return parties.length > 1
+    ? 'These machines belong to different customers. A request is one visit to one site — raise one request per customer.'
+    : null;
+}
+```
+
+**Verify** — type two serials belonging to two customers without picking either;
+the request must be refused with that message. `docs/CALL_REQUEST_REQUIREMENTS.md`
+CR-007's status line stays "met" only once this is in.
+
+---
+
+## B13 · Finding 44 — batch cancel from the screen
+
+Either add the button the `_status.sql` row describes (select calls on the
+register → one reason → `rpc('cancel_calls', …)`, showing the per-UCN result the
+function already returns), or change row 185's text to say the batch is run in
+the SQL editor. **If it stays SQL-only**, have `cancel_call` refuse when
+`auth.uid()` is null, or accept a `p_by` argument there only. A cancellation that
+records nobody is a quality record with its author missing.
+
+---
+
 # Batch C — needs a decision from you
 
 These four are recorded with a recommendation, not a patch, because the right
@@ -889,6 +1101,119 @@ because none is.
 
 ---
 
+## C7 · Finding 34 (HIGH) — four roles see contract machines as OGP
+
+**The bug** `product_database` runs as the reader (correctly), and its cover now
+comes from `contract_items` / `contract_entries`, which only `masters.view`,
+`cover.edit` or admin may read. Everyone else gets **OGP** for every machine
+under contract. Step 0 query 11 lists who.
+
+**Decide:**
+
+- **(a) Widen the contract read policies** to `mod:/product-database` holders.
+  Small, but it hands contract terms (value, rates) to roles that were kept
+  from them on purpose.
+- **(b) A `security definer` function** that returns only the derived columns
+  (Item Status, contract number, contract end) for a list of machine keys, and
+  the view calls it. The view keeps `security_invoker`, and nobody reads a
+  contract's terms. This is the honest one, and `check:views` will still pass,
+  because the view itself stays invoker.
+- **(c) Show "—" instead of OGP when the reader cannot see contracts.** Honest
+  about the gap, but it hides the answer from engineers who need it on site.
+
+**Whichever:** add a suite that reads one contract machine through the view **as
+an engineer** and asserts AMC. Every existing suite reads as a superuser, which
+is why nothing caught this.
+
+---
+
+## C8 · Findings 35 + 36 + 37 (HIGH) — the Product Database's ownership triggers
+
+Three faults in 0237–0240, all **measured**:
+
+1. **35 — order transfers by their date, not by when they were entered.** In
+   `machine_current_party()`, order the transfer side by
+   `transfer_date desc, transferred_at desc, id desc`. That keeps 0240's point
+   (within one day, the time decides) and restores the upload's promise.
+2. **The decision in 35 — what to compare a sale against.** A sale carries a
+   timestamp (`entry_at`); an imported transfer's `transferred_at` is the day of
+   the import, which beats every sale. Compare `transfer_date` with the sale's
+   **date** and use the times only to break a same-day tie, or backfill
+   `transferred_at` from `transfer_date` for imported rows. Only you can say
+   which is right for the AppSheet history.
+3. **36 — take the machine's fields from its latest sale line.** In
+   `upsert_product_from_sale(p_item_id)`, select the latest line for that
+   product + serial and upsert **its** values. Or return early when `p_item_id`
+   is not that line (still re-deciding the party). Give
+   `transfer_to_product()`'s loop an `ORDER BY` so the latest line runs last.
+4. **37 — a corrected serial must re-decide the old machine too.** On `UPDATE`
+   of `sale_items` / `ownership_transfers` where the product or serial changed,
+   re-decide `OLD`'s machine as well. For a sale line, if no other line names the
+   old serial, **ask** whether to delete the phantom. Do not delete silently: a
+   `products` row may have calls against it.
+5. **Deleting a transfer** should fall back to the machine's imported owner
+   (`party_name` before the first transfer is recorded as `from_party`), not to
+   NULL.
+
+**Before shipping, run Step 0 query 10.** Non-zero means owners have already
+been moved, and the corrected function re-derives them. Say so in the changelog,
+because the Product Database will change for those machines the day it ships.
+Each of the five needs a suite. The ones the reviewers wrote to measure them
+are the start: two transfers entered out of order, an old-sale edit, a serial
+correction.
+
+---
+
+## C9 · Finding 38 — the per-row cost of the ownership triggers
+
+**The bug** `machine_current_party()` and `transfer_to_product()` filter on
+`lower(btrim(coalesce(col, '')))`; the indexes are on `lower(btrim(col))` and
+`lower(col)`, so neither is used. Measured: 500 transfers take 12.5 s (0.27 s with
+the trigger off), against a 20 s limit.
+
+**The fix is a migration**, two indexes whose expressions match the filters
+character for character:
+
+```sql
+create index if not exists sale_items_machine_expr_idx on public.sale_items
+  (lower(btrim(coalesce(product_name, ''))), lower(btrim(coalesce(serial_number, ''))));
+create index if not exists ownership_transfers_machine_expr_idx on public.ownership_transfers
+  (lower(btrim(coalesce(item_name, ''))), lower(btrim(coalesce(serial_number, ''))));
+```
+
+These are **new names**, so the `IF NOT EXISTS` trap does not apply. **Measure
+before and after** with Step 0 query 12's sizes: re-run the 500-row batch and
+`EXPLAIN` the function's two lookups. An index the planner does not use fixes
+nothing, and the only way to know is to ask it.
+
+---
+
+## C10 · Finding 39 (HIGH) — do not apply the Item Status correction as written
+
+`supabase/apply/_item_status_as_at_the_complaint_date.sql`. **Leave
+`v_apply := false`** until three things change:
+
+1. `coalesce(nullif(btrim(p.contract_type), ''), 'CMC')` (`:95`, `:138`) →
+   `coalesce(public.contract_cover_code(nullif(btrim(p.contract_type), '')), 'CONTRACT (TYPE NOT RECORDED)')`.
+   **Careful:** `contract_cover_code` is created by **0218**, in the
+   `product_database_2` bundle, the last in `ALL_ORDER` and the one that has
+   failed to apply before. The file avoids helpers on purpose (CLAUDE.md: a
+   diagnostic must not depend on a pending migration). So either confirm 0218
+   is live first, or inline its mapping.
+2. **The order.** Warranty first, then contract, the same as the view. Or, if
+   you want contract first for historic calls, say so and change the view to
+   match. The two must not disagree.
+3. `not in ('', 'Pending', 'RM')` (`:182`) → add `'RM Approval'`.
+
+**The decision** is (2). The file says contract outranks warranty "the same
+order as machine_cover and AppSheet"; the view and CLAUDE.md say warranty
+decides first. One of them is wrong, and it decides whether a spare is charged.
+
+Fix `_how_stale_is_item_status.sql`'s serial-only joins (`:87`, `:108`) to
+product + serial at the same time.
+
+---
+
 # Before any of it ships
 
 From `CLAUDE.md`, and every one of these has bitten this project before:
@@ -926,8 +1251,13 @@ From `CLAUDE.md`, and every one of these has bitten this project before:
 | An MRN line is keyed by its own id | 28 | `MaterialReturns.tsx` |
 | Renew waits for the machines | 29 | `CoverRegister.tsx` |
 | The Commercial card counts what it opens | 32 | `workload.ts`, `supabase.ts` |
+| The Hand Stock Report: .xls dates, its menu entry, its label | 33, 41, 46 | `HandStockReport.tsx`, `Layout.tsx` |
+| The download warning tells the truth | 45 | `exportscope.ts`, `SpareRmApproval.tsx`, `HandStock.tsx` |
+| Excel asks the export permission too | 42 | `xlsx.ts`, `xls.ts`, `format.tsx` (+ a migration granting `export.data`) |
+| One customer per request | 43 | `callrequest.ts`, `RequestCallRegistration.tsx` |
+| Probes that show what they say | 40 | four files in `supabase/apply/` |
 
-Batch C gets one branch each — they are arguments, not edits. **C6 first.**
+Batch C gets one branch each — they are arguments, not edits. **C10 first (do not run), then C8, then C6.**
 
 ---
 
