@@ -351,9 +351,9 @@ per column.
 
 ## 8 — Seven paged reads page with no `order()`
 
-**Where** `src/lib/supabase.ts` — `distinctColumn()` (~:769), `sbSearchProducts()`
-(~:1439), `listDirectoryAsUsers()` (~:2270), `sbEngineerNames()` (~:2411),
-`countCallReviews()` (~:2545), `reviewPickLists()` (~:2576), `listCallReportReviews()`
+**Where** `src/lib/supabase.ts` — `distinctColumn()` (~:794), `sbSearchProducts()`
+(~:1439), `listDirectoryAsUsers()` (~:2427), `sbEngineerNames()` (~:2568),
+`countCallReviews()` (~:2702), `reviewPickLists()` (~:2733), `listCallReportReviews()`
 (~:4652)
 
 **What is wrong.** `paging.ts:19-22` states the rule: *"ORDER IS NOT OPTIONAL
@@ -563,15 +563,15 @@ project has more than 25 consuming products is not known from here.
 
 | Read | Order | Paged by | Ties are certain because |
 | --- | --- | --- | --- |
-| `listFeedbackRows()` (~:3537) | `created_at` | Customer Feedback's Load more | the 24,092-row import shares one timestamp |
-| `listConsumptionRows()` (~:3529) | `created_at` | Spare Consumption's Load more | the bulk consumption upload does |
-| `listSpareRequestLines()` (~:2993) | `created_at` | Spare Requests' Load more | every line of one request is written together |
-| `queryAudit()` (~:2366) | `at` | Audit Log's Load more | a burst of writes shares the second |
-| `queryParties()` (~:1113) | `party_name` | Party Master's Load more | two branches of one hospital group |
-| `listAllHandstockMovements()` (~:3507) | `moved_at` | Hand Stock's Load more | a dispatch moves many parts at once |
-| `listKpiFieldInst()` (~:374) | `Call Registeration Date` | the KPI **export** loop | a date column, by construction |
-| `listAllMasterValues()` (~:2759) | `name` | its own internal loop | a master list is *many values per name* — **but see the note below: nothing calls it today** |
-| `unusedSpareEngineers()` (~:631) | `ucn` | `allRows` | one call carries several parts |
+| `listFeedbackRows()` (~:3694) | `created_at` | Customer Feedback's Load more | the 24,092-row import shares one timestamp |
+| `listConsumptionRows()` (~:3686) | `created_at` | Spare Consumption's Load more | the bulk consumption upload does |
+| `listSpareRequestLines()` (~:3150) | `created_at` | Spare Requests' Load more | every line of one request is written together |
+| `queryAudit()` (~:2523) | `at` | Audit Log's Load more | a burst of writes shares the second |
+| `queryParties()` (~:1138) | `party_name` | Party Master's Load more | two branches of one hospital group |
+| `listAllHandstockMovements()` (~:3664) | `moved_at` | Hand Stock's Load more | a dispatch moves many parts at once |
+| `listKpiFieldInst()` (~:375) | `Call Registeration Date` | the KPI **export** loop | a date column, by construction |
+| `listAllMasterValues()` (~:2916) | `name` | its own internal loop | a master list is *many values per name* — **but see the note below: nothing calls it today** |
+| `unusedSpareEngineers()` (~:656) | `ucn` | `allRows` | one call carries several parts |
 
 **How it fails — measured, in Postgres 16.** 24,000 rows sharing one
 `created_at` plus 12 later ones, paged exactly as `listFeedbackRows` pages:
