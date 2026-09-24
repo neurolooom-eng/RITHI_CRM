@@ -80,6 +80,27 @@ wrong customer and corrected by hand.
 *Status: met* — Product → Serial → customer, per call row.
 *Cross-reference: URS-053.*
 
+**CR-005a — The Product box and the machine search must name the product the same way.**
+Reported 2026-09-24: *"This happens in Extend XT product only."* The Product box
+is filled from `product_register_names`, which groups `products.item_name` and
+returns it VERBATIM; the machine search asked for `item_name = <that>.trim()`.
+For a register row stored as `EXTEND-XT ` the list therefore offered one string
+and the search asked for another — measured, the dropdown said 2 machines and
+the equality found 0. Every serial box under that product was empty, so no
+machine could be picked, so no customer came with it (CR-005), so CR-011 refused
+the request. **Product-specific by construction**, which is how it was reported,
+and invisible to every other product.
+*Status: met* — the product is matched exactly as the picker offered it;
+`check:ui` refuses the trim. **The stray character in the data is a separate
+fault and is deliberately not repaired in code**: a name with a trailing space
+is two products to Postgres and one to a reader, so every `group by item_name`
+splits silently — the same argument as the cover vocabulary. It is the user's to
+correct with numbers in front of them:
+`supabase/apply/_which_product_names_carry_stray_spaces.sql` lists every
+affected name, its machine count, and which are safe to change (a space at
+either end leaves `machine_key` untouched; a non-breaking or zero-width
+character does not, and can collide).
+
 **CR-006 — Identifying the machine must not require identifying the customer first.**
 A customer name is an infix match over ~5,000 names; a serial is a prefix on an
 indexed column. Measured over all 19,253 machines as a signed-in engineer: serial

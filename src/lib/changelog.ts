@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.366',
+    date: '2026-09-24',
+    title: 'Extend XT finds its machines again',
+    changes: [
+      'THE CAUSE WAS NOT THE SERIAL — it was the PRODUCT NAME, and that is why only one product was affected. Extend XT is stored on the register with a stray space on the end. The Product dropdown showed that name exactly as stored; the machine search then asked for the name WITHOUT the space, which matched nothing at all.',
+      'So every serial box under that product was empty, no machine could be picked, no customer arrived with it, and the request was refused for machines that are plainly on the register. Every other product worked perfectly, which is exactly how you described it.',
+      'Measured on a fixture: the dropdown said 2 machines, the search found 0.',
+      'FIXED BY MATCHING THE NAME EXACTLY AS THE DROPDOWN OFFERED IT. Every other place in the app already did this — the trim was the odd one out, not the convention.',
+      'THE STRAY SPACE IN THE DATA IS A SEPARATE THING AND IS STILL THERE. It is worth cleaning, because a name with a trailing space is two products to the database and one to you: every count grouped by product silently splits in two, and the Product list shows what looks like a duplicate. Run supabase/apply/_which_product_names_carry_stray_spaces.sql — it is read-only, lists every affected name with its machine count, and says which are safe to correct and which are not.',
+      'Nothing to run for the fix itself.',
+    ],
+  },
+  {
     version: '0.9.365',
     date: '2026-09-24',
     title: 'Typing 105 now finds INXT 0105',

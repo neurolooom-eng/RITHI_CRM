@@ -1635,7 +1635,34 @@ export async function sbSearchMachines(product: string, query: string, limit = 5
   const cols = 'serial_number,item_name,party_name,extra';
   const base = () => {
     let q = c.from('products').select(cols);
-    if (product.trim()) q = q.eq('item_name', product.trim());
+    // =====================================================================
+    // MATCHED AS OFFERED, NOT TRIMMED — and the `.trim()` that used to be here
+    // broke ONE PRODUCT COMPLETELY while every other one worked.
+    //
+    // Reported 2026-09-24: *"This happens in Extend XT product only."* The
+    // Product box is filled from `product_register_names`, which groups
+    // `products.item_name` and hands back the name VERBATIM; the search then
+    // asked for `item_name = <that name>.trim()`. For a register row stored as
+    // `'EXTEND-XT '` the list therefore offers `'EXTEND-XT '` and the search
+    // asks for `'EXTEND-XT'` — which matches NOTHING. Measured: the dropdown
+    // says 2 machines, the equality finds 0. Every serial box for that product
+    // is empty, so no machine can be picked, so no customer arrives with it,
+    // so the request is refused for machines that are plainly on the register.
+    //
+    // It is product-specific by construction: only a name carrying stray
+    // whitespace is affected, and the rest of the register behaves perfectly,
+    // which is exactly how it was reported.
+    //
+    // AND THIS WAS THE ODD ONE OUT. Every other read of this table matches the
+    // name as it was given — sbSearchProducts, sbListMachinesForParty,
+    // listPartyItems — so the trim was not a convention, it was a difference.
+    //
+    // THE STRAY SPACE IN THE DATA IS A SEPARATE FAULT and is not repaired here:
+    // it also splits every `group by item_name` count in two, silently, and the
+    // register is the user's to correct with numbers in front of them.
+    // `supabase/apply/_which_product_names_carry_stray_spaces.sql` lists them.
+    // =====================================================================
+    if (product.trim()) q = q.eq('item_name', product);
     // NARROWED TO ONE CUSTOMER on the second call onward: the first call fixes
     // whose machines the request is about, so the rest need only look among
     // theirs. EQUALITY on party_name, which is indexed (products_party_name_eq) —

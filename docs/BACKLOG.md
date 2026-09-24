@@ -43,6 +43,50 @@ up)_
 
 ---
 
+## 2026-09-24 — ⚠ "Extend XT only": the dropdown and the search named the product differently
+
+*"This happens in Extend XT product only."* — and the single word **only** is
+what identifies the cause, because a fault in the serial search would not pick
+one product out of forty.
+
+**THE PRODUCT NAME, NOT THE SERIAL.** The Product box is filled from
+`product_register_names`, which groups `products.item_name` and hands it back
+VERBATIM. `sbSearchMachines` then asked for `item_name = <that name>.trim()`.
+A register row stored as `EXTEND-XT ` therefore put `EXTEND-XT ` on screen and
+`EXTEND-XT` on the wire. **Measured: the dropdown says 2 machines, the equality
+finds 0.** Empty serial box → no machine → no customer → CR-011 refuses the
+request. Every other product is untouched.
+
+**AND THE TRIM WAS THE ODD ONE OUT, not the convention.** `sbSearchProducts`,
+`sbListMachinesForParty` and `listPartyItems` all match the name as given; this
+one call trimmed. Removed, and `check:ui` refuses it coming back — mutation
+tested both ways (put the trim back; let a whitespace-only product filter).
+
+**THE DATA IS NOT REPAIRED IN CODE, DELIBERATELY.** A name with a trailing space
+is two products to Postgres and one to a reader: every `group by item_name`
+splits silently and the picker shows an apparent duplicate. That is worth
+correcting, and it is a decision with consequences, so it gets a probe rather
+than an `UPDATE` written on a guess —
+`supabase/apply/_which_product_names_carry_stray_spaces.sql`, read-only.
+
+**IT DISTINGUISHES TWO KINDS AND CHECKS THE CLAIM ON THE USER'S OWN DATA:**
+
+* **a plain space at either end is free to fix** — `machine_key` is generated as
+  `lower(btrim(item_name)) || '|' || lower(btrim(serial_number))`, so it ALREADY
+  ignores the ends: trimming leaves every key byte for byte the same. Row 4
+  proves that against the database rather than asserting it.
+* **a non-breaking or zero-width character is not** — `btrim()` does not remove
+  U+00A0, so it IS part of the key, and sweeping it MOVES the key. Row 5 counts
+  the machines that would then collide with the unique index.
+
+Both branches were exercised by building the cases: a clean twin under the
+trimmed name, and a real-space machine sharing a serial with an NBSP one. The
+first draft of the probe reported a name as **its own** clean twin and counted a
+self-match as a collision; rewritten around one `clean` expression so a row in
+the odd set can never satisfy the twin test.
+
+Shipped in **v0.9.366**. No SQL needed for the fix. CR-005a added.
+
 ## 2026-09-24 — "INXT 0105" — the serial that ENDS with what you type
 
 **Asked the same day yesterday's fix shipped**: *"I have a user case where

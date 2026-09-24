@@ -4058,6 +4058,20 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('and there is no other party filter in it',
     (fn.match(/\.(eq|ilike)\('party_name'/g) ?? []).length, 1);
   eq('it filters by product when there is one', /\.eq\('item_name'/.test(fn), true);
+  // AND IT MATCHES THE NAME AS THE PICKER OFFERED IT, NOT TRIMMED
+  // (reported 2026-09-24: "This happens in Extend XT product only"). The
+  // Product box is filled from `product_register_names`, which groups
+  // `products.item_name` and hands the name back VERBATIM. A `.trim()` here
+  // therefore asks for a DIFFERENT string than the one on screen wherever a
+  // register row carries a stray space: measured on a fixture, the dropdown
+  // said 2 machines and the equality found 0, so every serial box for that one
+  // product was empty and the request was refused for machines on the register.
+  // Product-specific by construction, which is exactly how it was reported.
+  // Every other read of this table already matched the name as given.
+  eq('the product is matched as the picker offered it, never trimmed',
+    /q\.eq\('item_name', product\)/.test(fn) && !/q\.eq\('item_name', product\.trim\(\)\)/.test(fn), true);
+  eq('...while a blank product is still no filter at all',
+    /if \(product\.trim\(\)\) q = q\.eq\('item_name'/.test(fn), true);
   eq('and it is capped so a short serial costs no more than a precise one',
     /\.limit\(limit\)/.test(fn), true);
   // EVERY CAPPED READ NAMES AN ORDER. Without one the fifty rows that come back
