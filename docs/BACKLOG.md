@@ -43,6 +43,43 @@ up)_
 
 ---
 
+## 2026-09-24 — KPI Export: a date Excel accepts (v0.9.370)
+
+*"in the KPI Export under Reports, the Call Registration Date is not recognized
+by Excel. Update all the Date Fields in the KPI to be compatible as a Date Field
+in Excel."*
+
+**THE COLUMN NAMED IS THE ONLY ONE WITH A TIME ON IT**, and that is the whole
+diagnosis. The export was CSV-only, so every date in it was text for Excel to
+parse: it manages `17-Sep-2026` and it does not manage
+`18-Sep-2026 08:51:02`. **There is no spelling of a date in a CSV that every
+Excel reads** — the FORMAT is the limit, not the wording, and re-wording it
+would have been a guess dressed as a fix.
+
+**So the KPI Export now offers a WORKBOOK**, where a date is a number plus a
+format and nothing is parsed. All nine date columns arrive as real dates.
+
+**THE TRAP WAS PRE-FORMATTING.** `toKpiExportRow` renders dates for the CSV, and
+handing its output to the workbook writer would have produced text — because
+`excelSerial()` uses the STRICT ISO test on purpose (it once turned the part
+code `MP-010` into serial 37165), so `24-Sep-2026` is not a date to it.
+`toKpiCellRow` passes the RAW value and lets `xlsxCell` decide, by VALUE and
+never by column name.
+
+**The CSV is unchanged and still offered**: it is what pastes into the KPI
+workbook column for column.
+
+Numbers stay numbers (Attended in Days, Solved in Days, TTA, TTS, Pending Days)
+and a Call Number of all digits stays text with its leading zeros — both halves
+of the rule, both asserted.
+
+**Proved by building the workbook and reading the bytes**: the registration cell
+is `s="1"` with a bare `<v>`, the eight date columns are `s="2"`, and neither is
+`inlineStr`. Four mutations, all caught — including "pre-format the workbook's
+dates", which is the mistake that was there to be made.
+
+`npm run validate` 101/101 suites, 22/22 checks.
+
 ## 2026-09-24 — DCCR mirrors itself to a Google Sheet, from CallReg.gs (v0.9.369)
 
 *"The DCCR Register should be written to the Google Sheet ... Tab 'DCCR_Mirror'

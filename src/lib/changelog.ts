@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.370',
+    date: '2026-09-24',
+    title: 'KPI Export: every date arrives as a real date',
+    changes: [
+      'THE KPI EXPORT NOW OFFERS AN EXCEL WORKBOOK, and that is the fix. Every date in it is a real date — Call Registeration Date, Complaint Date, both warranty dates, both contract dates, Breakdown Date, Call Attended On and Call Solved Date & Time. Sort them, filter by month, subtract one from another.',
+      'WHY THE CSV COULD NOT BE FIXED IN PLACE: a CSV carries text and nothing else, so every date in one is left for Excel to parse. It manages the plain dates and it does not manage “24-Sep-2026 18:51:02” — which is precisely the column you reported, Call Registeration Date being the only one the workbook shows to the second. There is no spelling of a date in a CSV that every Excel reads; the format is the limit, not the wording.',
+      'THE CSV IS STILL THERE and unchanged, because it is what pastes into the KPI workbook column for column. The Excel button is the one to use if you are going to work on the numbers.',
+      'NUMBERS STAY NUMBERS TOO — Attended in Days, Solved in Days, TTA, TTS and Pending Days can be summed and averaged. And a Call Number of all digits stays text, so it keeps its leading zeros instead of turning into a number.',
+      'Checked by building the workbook and reading the bytes, which is the only thing that ever shows this class of fault.',
+    ],
+  },
+  {
     version: '0.9.369',
     date: '2026-09-24',
     title: 'The DCCR Register mirrors itself to your Google Sheet',

@@ -35,13 +35,14 @@ import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies
 import { stateColour, stateBucket } from '../src/lib/callstate';
 import { driveFolderForCall, DRIVE_FOLDER_NAMES } from '../src/lib/drivefolders';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
-import { buildXlsx } from '../src/lib/xlsx';
+import { buildXlsx, xlsxCell } from '../src/lib/xlsx';
 import { TESTS } from '../src/lib/validation';
 import { shortForms, type ProductLine } from '../src/lib/productLines';
 import { HANDSTOCK_REPORT_COLUMNS, handStockFileName, isLastPage } from '../src/lib/handstockreport';
 import { buildXls } from '../src/lib/xls';
 import { COMPLETE, partial, cappedAt, mayExport, partialExportWarning } from '../src/lib/exportscope';
 import { DCCR_EXPORT_COLUMNS, toExportRow } from '../src/lib/dccr';
+import { KPI_FIELD_INST_COLUMNS, kpiExportColumns, toKpiCellRow, toKpiExportRow } from '../src/lib/kpi';
 import { DEFAULT_PERMS, MODULES, PERM_TREE, ROLES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
 import { URS, FRS, TESTS, MODULES_WITHOUT_REQUIREMENT } from '../src/lib/validation';
 import { modulesWithNoRequirement, badDeclarations, traceabilityMatrix } from '../src/lib/requirements';
@@ -8780,6 +8781,98 @@ console.log('\n-- the DCCR mirror is the same register, not a second opinion --'
     /setNumberFormat\(fmt\)/.test(gs) && /'dd-mmm-yyyy'/.test(gs), true);
   eq('a failure is recorded rather than swallowed',
     /_dccrStatus\('FAILED'/.test(gs), true);
+}
+
+console.log('\n-- the KPI export carries dates Excel accepts as dates --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-24: "in the KPI Export under Reports, the Call
+  // Registration Date is not recognized by Excel. Update all the Date Fields in
+  // the KPI to be compatible as a Date Field in Excel."
+  //
+  // A CSV CAN ONLY CARRY TEXT. Every date in it is left for Excel to parse, and
+  // `24-Sep-2026 18:15:03` — Call Registeration Date, the one column the
+  // workbook shows to the second — does not survive that parse. There is no
+  // spelling of a date in a CSV that every Excel reads; the FORMAT is the
+  // limit, not the wording. So the fix is a real workbook, where a date is a
+  // number plus a format and nothing is parsed at all.
+  //
+  // PROVED BY BUILDING ONE AND READING THE BYTES, which is the only thing that
+  // was ever going to show it — the same method that caught `MP-010` becoming
+  // serial 37165 and `0012345` losing its leading zero.
+  // -------------------------------------------------------------------------
+  const raw: Record<string, unknown> = {
+    'UC Number': '26I23I0080',
+    'Call Number': '0012345',                       // all digits, and NOT a number
+    'Call Registeration Date': '2026-09-18T08:51:02.55+00:00',
+    'Complaint Date': '2026-09-17',
+    'Warranty Start Date': '2025-04-01',
+    'Warranty End Date': '2027-03-31',
+    'Contract Start Date': '2026-01-01',
+    'Contract End Date': '2026-12-31',
+    'Breakdown Date': '2026-09-16',
+    'Call Attended On': '2026-09-18',
+    'Call Solved Date & Time': '2026-09-19',
+    'Attended in Days': 1,
+    'Solved in Days': 2,
+    'Pending Days': 0,
+    'Product Name': 'ORION-G',
+  };
+
+  // THE RAW VALUE IS WHAT MUST BE HANDED OVER. `excelSerial()` uses the STRICT
+  // ISO test on purpose, so a value already rendered as `24-Sep-2026` is not a
+  // date to it and would land as text — pre-formatting would defeat the fix.
+  eq('the workbook row passes the value through untouched',
+    toKpiCellRow(raw)['Call Registeration Date'], raw['Call Registeration Date']);
+  eq('...unlike the CSV row, which must render it, being text',
+    /^\d{2}-[A-Z][a-z]{2}-\d{4} /.test(String(toKpiExportRow(raw)['Call Registeration Date'])), true);
+
+  const cols = kpiExportColumns();
+  const cells = Object.fromEntries(cols.map((c) => [c.header, xlsxCell(toKpiCellRow(raw)[c.key])]));
+  // `zipStore` writes the parts UNCOMPRESSED, so the sheet XML is verbatim in
+  // the bytes and needs no inflate — the same way the evidence-workbook check
+  // above reads them.
+  const bytes = buildXlsx([{ name: 'Field_INST', columns: cols.map((c) => c.header), rows: [cells] }]);
+  const xml = Array.from(bytes).map((b) => String.fromCharCode(b)).join('');
+
+  const colLetter = (i: number) => {
+    let n = i + 1, out = '';
+    while (n > 0) { const r = (n - 1) % 26; out = String.fromCharCode(65 + r) + out; n = Math.floor((n - 1) / 26); }
+    return out;
+  };
+  const cellAt = (header: string) => {
+    const i = KPI_FIELD_INST_COLUMNS.indexOf(header as never);
+    return new RegExp(`<c r="${colLetter(i)}2"[^>]*>.*?</c>`).exec(xml)?.[0] ?? '(no cell)';
+  };
+
+  // STYLE 1 IS date+time, STYLE 2 IS date only — see xlsx.ts. A cell with a
+  // style and a bare <v> is a NUMBER Excel formats as a date. A cell carrying
+  // t="inlineStr" is text, whatever it looks like on screen.
+  eq('Call Registeration Date is a real date-and-time cell',
+    /<c r="[A-Z]+2" s="1"><v>\d/.test(cellAt('Call Registeration Date')), true);
+  eq('...and not text', /inlineStr/.test(cellAt('Call Registeration Date')), false);
+
+  const dateCols = ['Complaint Date', 'Warranty Start Date', 'Warranty End Date',
+                    'Contract Start Date', 'Contract End Date', 'Breakdown Date',
+                    'Call Attended On', 'Call Solved Date & Time'];
+  dateCols.forEach((h) => {
+    eq(`${h} is a real date cell`, /<c r="[A-Z]+2" s="2"><v>\d/.test(cellAt(h)), true);
+  });
+
+  // AND THE OTHER HALF OF THE SAME RULE: a number stays a number so the KPI
+  // columns can be summed and averaged, and an identifier of all digits stays
+  // an identifier rather than losing its leading zero.
+  eq('Attended in Days is a number', /<c r="[A-Z]+2"><v>1<\/c>|<c r="[A-Z]+2"><v>1<\/v><\/c>/.test(cellAt('Attended in Days')), true);
+  eq('a Call Number of all digits keeps its leading zero, as text',
+    /inlineStr.*0012345/s.test(cellAt('Call Number')), true);
+
+  // The screen offers both, and the workbook is the one it leads with.
+  const kx = readFileSync('src/modules/KpiExport.tsx', 'utf8');
+  eq('the screen offers the workbook', /run\('xlsx'\)/.test(kx), true);
+  eq('...and still offers the CSV that pastes into the workbook column for column',
+    /run\('csv'\)/.test(kx), true);
+  eq('...and hands xlsxCell the RAW value, not the rendered one',
+    /xlsxCell\(raw\[c\.key\]\)/.test(kx), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
