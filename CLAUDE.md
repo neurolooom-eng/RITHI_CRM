@@ -881,6 +881,39 @@ on testing the old shape. **When a migration replaces a definition, move the
   for rows whose call has no visit, which is deliberate and worth saying out
   loud. Existing rows are NOT rewritten; `_consumption_without_a_visit.sql`
   lists them. `_status.sql` row 166.
+- **EVERY TABLE RECORDS WHEN THE TRANSACTION HAPPENED, AND IT READS
+  `dd-MMM-yyyy HH:mm:ss` EVERYWHERE IT IS SHOWN OR EXPORTED** (the user's
+  standing rule, 2026-09-24: *"Applicable to All Tables ; Timestamp - Capturing
+  the Transaction Date and Time in this format dd-mmm-yyyy hh:mm:ss and this
+  should be compatible as a DateTime / Long Date field in Excel."*). Three
+  separate obligations, and only the middle one was already true everywhere:
+  - **RECORD IT.** A new table carries `created_at timestamptz not null default
+    now()`, and `updated_at` where the row is editable. A table that records
+    only a DATE cannot answer "which happened first" within a day — that is not
+    hypothetical, it is `ownership_transfers` (fixed by 0240, which added
+    `transferred_at` because `transfer_date` is a DATE and the party is decided
+    by whichever of the sale and the transfer is LATEST). **40 of 77 tables have
+    no `created_at`** as of 2026-09-24; most are counters, child lines and views
+    of other tables, but a REGISTER without one cannot be audited or ordered.
+  - **SHOW IT** through `formatDayTime()` in `src/lib/dates.ts` — the one
+    formatter, month NAMED so it cannot be read the other way round. Never the
+    raw string: the database stores UTC, so printing the front of
+    `2026-09-18T08:51:02.55+00:00` puts the wrong TIME on the row and, before
+    05:30 IST, the wrong DAY.
+  - **EXPORT IT AS A NUMBER, NOT A STRING.** An .xlsx date is a serial plus a
+    format (`excelSerial()` + `xlsxDate()` + `styles.xml`); a formatted string
+    is something Excel cannot sort, filter by month, subtract or re-format, and
+    each of those returns something WRONG rather than refusing. `ReportBuilder`
+    applies it BY VALUE, never by column name, because the columns move with the
+    picker. The CSV gets `formatDayTime`, which is all a CSV can carry.
+  **AND EVERY TABLE WANTS A KEY OF ITS OWN** — a natural key, so a re-load
+  CORRECTS rather than duplicates. 22 of 77 have only a synthetic `id`; most are
+  append-only logs and child lines, where every row IS a distinct event and a
+  natural key would be wrong. The ones where it is a real gap are named in
+  `docs/BACKLOG.md` — `user_directory` first, since the User Master is "the only
+  place I can map and configure" and nothing stops the same person appearing
+  twice.
+
 - **One parser, one FORMATTER, one matcher.** Every importer reads dates through
   `src/lib/dates.ts` (day-first, always) and every screen DISPLAYS one through
   `formatDay()` in the same file — `dd-MMM-yyyy`, the month NAMED so it cannot

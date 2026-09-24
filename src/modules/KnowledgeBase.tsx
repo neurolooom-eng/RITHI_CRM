@@ -1,6 +1,8 @@
 import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
+import { MultiPick } from '../components/ui/MultiPick';
+import { listProductLines, sellableNames, type ProductLine } from '../lib/productLines';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PageHeader, Drawer, SearchBox } from '../components/ui/ui';
 import { HOWTO_CATEGORY } from './HowToUse';
@@ -32,6 +34,20 @@ import './knowledgebase.css';
 // category is what decides where it is READ, not where it is typed.
 // ===========================================================================
 const CATEGORIES = ['Field Issue', 'How-To', 'Product Tip', 'Spares', 'Other'];
+
+// ---------------------------------------------------------------------------
+// THE PRODUCTS AN ARTICLE IS ABOUT — several of them (the user, 2026-09-24:
+// "Make the Product as a Multi Select Drop-Down from the Active Product List").
+// One fault usually belongs to a family, and typing it three times into a free
+// text box is three spellings nobody can search across.
+//
+// STORED AS IT ALWAYS WAS, comma-separated in the same text column, so no
+// migration and no re-typing: an article that already names one product reads
+// back as one chosen value. The same shape `tags` uses two fields down.
+// ---------------------------------------------------------------------------
+const splitProducts = (v: string): string[] =>
+  String(v ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+const joinProducts = (v: string[]): string => v.join(', ');
 const emptyForm = { title: '', category: 'Field Issue', product: '', tags: '', body: '', attachments: [] as KbAttachment[] };
 
 export function KnowledgeBase() {
@@ -75,6 +91,23 @@ export function KnowledgeBase() {
   // either, or the two lists disagree the moment anybody types.
   const solutions = useMemo(
     () => articles.filter((a) => a.category !== HOWTO_CATEGORY), [articles]);
+
+  // The catalogue, read once. A failure leaves an EMPTY list rather than a
+  // stuck form -- the field is optional, and an article nobody can file because
+  // a master did not load is worse than one filed without a product.
+  const [lines, setLines] = useState<ProductLine[]>([]);
+  useEffect(() => { void listProductLines().then(setLines).catch(() => setLines([])); }, []);
+
+  // THE ACTIVE LIST, AS ASKED -- plus whatever this article already names.
+  // `active` stops one thing in this system and one only: a NEW SALE ENTRY. A
+  // product retired since an article was written still breaks, so a value
+  // already on the record stays offered; dropping it would make it invisible
+  // AND unpickable, and the next save would quietly lose it.
+  const productOptions = useMemo(() => {
+    const live = sellableNames(lines);
+    const already = splitProducts(edit?.form.product ?? '');
+    return [...new Set([...live, ...already])].sort();
+  }, [lines, edit?.form.product]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -228,7 +261,18 @@ export function KnowledgeBase() {
                   <span className="kb-hint">Read on <b>How to Use RITHI CRM</b>, not here — this category is for instructions.</span>
                 )}</div>
               <div className="field"><label className="field-label">Product / model (optional)</label>
-                <input className="input" value={edit.form.product} onChange={(e) => setF('product', e.target.value)} placeholder="Ventilator XT" /></div>
+                {/* THE ACTIVE LINES, plus anything this article already names.
+                    A product retired since the article was written must stay on
+                    screen: dropped from the options it would be silently
+                    unpickable AND invisible, so the next save would lose it. */}
+                <MultiPick
+                  values={splitProducts(edit.form.product)}
+                  options={productOptions}
+                  onChange={(v) => setF('product', joinProducts(v))}
+                  allLabel="— none —" noun="product" />
+                {!lines.length && (
+                  <span className="kb-hint">The Product Master has not loaded — type nothing here and add it later, or fix the master first.</span>
+                )}</div>
             </div>
             <div className="field"><label className="field-label">Tags (comma-separated, optional)</label>
               <input className="input" value={edit.form.tags} onChange={(e) => setF('tags', e.target.value)} placeholder="power, relay, board" /></div>

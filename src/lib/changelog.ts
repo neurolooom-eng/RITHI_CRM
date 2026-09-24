@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.362',
+    version: '0.9.363',
     date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,19 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.362',
+    date: '2026-09-24',
+    title: 'Field Solutions: pick several products; and an ownership transfer records the time',
+    changes: [
+      'PRODUCT / MODEL on a field solution is now a multi-select from the ACTIVE product list — type to filter, tick as many as apply. One fault usually belongs to a family, and typing it three times into a free-text box was three spellings nobody could search across.',
+      'A PRODUCT ALREADY ON AN ARTICLE STAYS PICKABLE even if that line has since been retired — dropped from the list it would be invisible AND unremovable, and the next save would quietly lose it. Retired products still break.',
+      'Nothing to re-type: an article that already names one product reads back as one chosen value.',
+      'OWNERSHIP TRANSFER NOW RECORDS THE TIME, not just the day. That matters because the machine’s owner is whichever of the sale and the transfer came LAST — and a transfer at 2pm on the day of a morning sale used to compare as midnight and lose. Both orderings within a day are now correct.',
+      'The transfer DATE is kept and unchanged: it is the day the machine changed hands, the new timestamp is when the system was told, and those routinely differ.',
+      '⚠ RUN the two migrations below — not the bundle, which deadlocks against the live app.',
     ],
   },
   {

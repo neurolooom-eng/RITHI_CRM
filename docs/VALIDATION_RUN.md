@@ -4,10 +4,10 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-09-24T06:37:43.011Z
-- **Took** 78s
-- **Commit** `6295f37` on `claude/tender-rubin-8ian45`
-- **Version** 0.9.362
+- **Run at** 2026-09-24T08:33:22.179Z
+- **Took** 107s
+- **Commit** `3562d6c` on `claude/tender-rubin-8ian45`
+- **Version** 0.9.363
 
 ## Result
 
@@ -29,7 +29,7 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `262 migrations applied to a fresh database` | ✅ pass |  |
+| `263 migrations applied to a fresh database` | ✅ pass |  |
 
 ## Automated checks
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
 import { archiveConfigured, archiveLoads, getArchiveCreds, pingArchive, setArchiveCreds, type ArchiveLoad } from '../lib/archive';
+import { formatDayTime } from '../lib/dates';
 
 // ===========================================================================
 // SETTINGS → ARCHIVE (MACHINE HISTORY).
@@ -114,6 +115,14 @@ export function ArchiveConnection({ readOnly = false }: { readOnly?: boolean }) 
               <li key={`${l.target}-${l.source_system}`}>
                 {l.target}: <b>{l.rows.toLocaleString()}</b> rows
                 {l.source_system ? ` — ${l.source_system}` : ' — no source label'}
+                {/* WHEN the batch went in, through formatDayTime like every other
+                    timestamp this application shows (the user's standing rule).
+                    Never the raw value: the archive stores UTC, so printing the
+                    front of it puts the wrong time on the row and, before
+                    05:30 IST, the wrong day. It is the LATEST load under this
+                    label — a re-run of the same export moves it, which is the
+                    question somebody deciding whether to load again is asking. */}
+                {l.loaded_at ? ` — loaded ${formatDayTime(l.loaded_at)}` : ''}
               </li>
             ))}
           </ul>
