@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.360',
+    date: '2026-09-24',
+    title: 'A Warranty Sale puts its machines into the Product Database',
+    changes: [
+      'SAVE A WARRANTY SALE AND ITS MACHINES APPEAR IN THE PRODUCT DATABASE — added if they are new, updated if they are already there. Until now the sale only refreshed the cover of a machine that was ALREADY on the register and did nothing at all for one that was not, so a machine sold today showed up only if the old AppSheet import happened to carry it.',
+      'SOLD AGAIN TO A DIFFERENT CUSTOMER? The old details are overwritten — party, SA number, warranty dates, city, state, address, engineer. The Product Database says who has the machine NOW.',
+      'MATCHED ON MODEL + SERIAL, never the serial alone. Two different models sharing a serial number stay two machines; the install base has eleven numbered 219.',
+      'THE CONTRACT IS NOT TOUCHED. A sale knows nothing about a contract, so writing blanks there would erase real cover. Neither are the columns your old export filled, nor the installation call — a sale re-saved with a blank INST Call would orphan a call that exists.',
+      'A BLANK ON THE SALE IS WRITTEN AS A BLANK. On a re-sale that is the point: keeping the previous owner’s city against the new owner’s machine is not stale data, it is wrong data about somebody else.',
+      'EDITING THE ENTRY reaches every machine under it — the customer, the address and the warranty dates live on the entry and the machines inherit them.',
+      'Every sale line already on file has been brought in once, oldest sale first, so where a machine really was sold twice the latest sale is the one that stands.',
+      '⚠ RUN sales_contracts.sql. _status.sql row 182.',
+    ],
+  },
+  {
     version: '0.9.359',
     date: '2026-09-23',
     title: 'Product Database opens again — and the cover registers got faster with it',
