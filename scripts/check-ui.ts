@@ -41,6 +41,7 @@ import { shortForms, type ProductLine } from '../src/lib/productLines';
 import { HANDSTOCK_REPORT_COLUMNS, handStockFileName, isLastPage } from '../src/lib/handstockreport';
 import { buildXls } from '../src/lib/xls';
 import { COMPLETE, partial, cappedAt, mayExport, partialExportWarning } from '../src/lib/exportscope';
+import { DCCR_EXPORT_COLUMNS, toExportRow } from '../src/lib/dccr';
 import { DEFAULT_PERMS, MODULES, PERM_TREE, ROLES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
 import { URS, FRS, TESTS, MODULES_WITHOUT_REQUIREMENT } from '../src/lib/validation';
 import { modulesWithNoRequirement, badDeclarations, traceabilityMatrix } from '../src/lib/requirements';
@@ -8657,6 +8658,128 @@ console.log('\n-- a download from a half-loaded table says so --');
   const x3 = readFileSync('src/lib/xls.ts', 'utf8');
   eq('...and so does the .xls writer',
     /if \(!mayExport\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return;/.test(x3), true);
+}
+
+console.log('\n-- the DCCR mirror is the same register, not a second opinion --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-24: the DCCR Register written to a Google Sheet, tab
+  // DCCR_Mirror, every six hours from 10 PM -- and then "DCCR - Update the
+  // CallReg google script".
+  //
+  // THE COLUMN LIST IS A COPY, and a copy is only safe while something compares
+  // it. `DCCR_EXPORT_COLUMNS` in src/lib/dccr.ts is the original (the WRR-2026
+  // shape, so an export pastes into that workbook without shifting a column);
+  // the Apps Script cannot import TypeScript, so it carries its own. Left
+  // unchecked the two drift and the sheet quietly becomes a different register
+  // from the download -- which is the `SEE_ALL_ROLES` / `coverCode()` situation
+  // exactly, and those are compared word for word for the same reason.
+  //
+  // THE SANDBOX CANNOT REACH script.google.com, so nothing here proves the
+  // script RUNS. What it proves is that the two definitions agree, which is the
+  // half that rots silently.
+  // -------------------------------------------------------------------------
+  const gs = readFileSync('apps-script/CallReg.gs', 'utf8');
+
+  const list = /var DCCR_COLUMNS = \[([\s\S]*?)\n\];/.exec(gs)?.[1] ?? '';
+  const pairs = [...list.matchAll(/\['([^']+)', '((?:[^'\\]|\\.)*)'\]/g)]
+    .map((m) => ({ key: m[1], header: m[2].replace(/\\'/g, "'") }));
+  eq('the mirror carries the same columns, in the same order',
+    pairs.map((c) => `${c.key}|${c.header}`),
+    DCCR_EXPORT_COLUMNS.map((c) => `${c.key}|${c.header}`));
+
+  // THE BLANK-ON-PURPOSE COLUMNS ARE PART OF THE SHAPE. A column the app leaves
+  // empty and the mirror fills (or the other way round) is the two registers
+  // disagreeing in the least visible way there is.
+  const blanks = /var DCCR_BLANK = \[([\s\S]*?)\];/.exec(gs)?.[1] ?? '';
+  const gsBlank = [...blanks.matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]).sort();
+  // DERIVED BY RUNNING IT, not by reading it, and from a row where EVERY field
+  // carries a value -- so a column that still comes back empty is empty BY
+  // DECISION rather than because the fixture had nothing in it.
+  //
+  // AND COMPARED BOTH WAYS. The first version asked only "is every mirror blank
+  // an app blank", which passes when the mirror stops blanking one -- the very
+  // direction that matters, since that column then fills with data the download
+  // leaves out and the two registers disagree. Caught by mutating it.
+  const full: Record<string, unknown> = {};
+  DCCR_EXPORT_COLUMNS.forEach((c) => { full[c.key] = 'X'; });
+  ['last_status', 'status', 'open_state', 'review1_done', 'review2_done', 'review3_done']
+    .forEach((k) => { full[k] = k.endsWith('_done') ? true : 'X'; });
+  const appBlank = Object.entries(toExportRow(full as never, 0))
+    .filter(([, v]) => v === '').map(([k]) => k).sort();
+  eq('the mirror blanks exactly the columns the app blanks, no more and no fewer',
+    gsBlank, appBlank);
+
+  // The three derived values, which are the only places the shaping is not a
+  // pass-through -- and therefore the only places a hand-written copy can be
+  // wrong while looking right.
+  eq('call status falls back the same way',
+    /o\.call_status = r\.last_status \|\| r\.status \|\| '';/.test(gs), true);
+  eq('current call status falls back the same way',
+    /o\.current_call_status = r\.open_state \|\| r\.last_status \|\| r\.status \|\| '';/.test(gs), true);
+  eq('a completed review reads Yes / No',
+    (gs.match(/r\.review[123]_done \? 'Yes' : 'No'/g) ?? []).length, 3);
+  eq('and the rows are numbered from one',
+    /o\.sl_no = index \+ 1;/.test(gs), true);
+
+  // ---- how it reads ------------------------------------------------------
+  eq('it reads the view the review screen reads',
+    /var DCCR_VIEW\s*=\s*'field_call_review';/.test(gs), true);
+  eq('...in the same order that screen reads it',
+    /var DCCR_ORDER\s*=\s*'reg_date\.desc\.nullslast,id\.desc';/.test(gs), true);
+  // A FULL PAGE IS NOT AN ANSWER. PostgREST caps a response at 1,000 rows
+  // however large the Range asks for, so the loop can only end on a short one.
+  eq('it pages, and stops on a SHORT page',
+    /if \(page\.length < DCCR_PAGE\) break;/.test(gs), true);
+  eq('...a thousand at a time, which is all one response can carry',
+    /var DCCR_PAGE = 1000;/.test(gs), true);
+
+  // ---- the credential ----------------------------------------------------
+  // A SIGN-IN IS TRIED FIRST, so the mirror reads UNDER row-level security as
+  // one named account rather than past it. The service key is a fallback and
+  // the status tab records which was used, because "is this reading as a user
+  // or as the master key?" must be answerable without opening the properties.
+  eq('a real sign-in is preferred over the service key',
+    gs.indexOf("_dccrProp('DCCR_EMAIL')") < gs.indexOf("_dccrProp('SUPABASE_SERVICE_KEY')")
+      && gs.includes("_dccrProp('DCCR_EMAIL')"), true);
+  eq('...and the service key says what it costs, where it is set',
+    /bypasses row-level security/i.test(gs), true);
+  eq('the status tab records which one was used',
+    /'Read as'/.test(gs), true);
+
+  // ---- the schedule ------------------------------------------------------
+  // everyHours(6) counts from whenever the trigger was made and cannot be
+  // anchored to a clock time, so four daily triggers are the only way to mean
+  // "from 10 PM".
+  eq('every six hours from 10 PM, as four daily triggers',
+    /var DCCR_HOURS = \[22, 4, 10, 16\];/.test(gs), true);
+  eq('...and installing them clears the old ones first, so a re-run does not double the schedule',
+    /getHandlerFunction\(\) === 'dccrMirror'\) ScriptApp\.deleteTrigger/.test(gs), true);
+
+  // ---- writing ------------------------------------------------------------
+  eq('the tab is the one that was asked for', /var DCCR_MIRROR_TAB = 'DCCR_Mirror';/.test(gs), true);
+  // Cleared and rewritten, never appended: a review answered today CHANGES a
+  // row that already exists, so an append leaves two versions of one call.
+  // The WRITER'S OWN BODY, not the whole file: "the word clearContent appears
+  // somewhere" passes a version that never calls it (`if (false) ... .clearContent()`),
+  // which is what mutating this found.
+  const writer = /function _dccrWrite\(rows\) \{[\s\S]*?\n\}/.exec(gs)?.[0] ?? '';
+  eq('it clears the old rows, guarded by what was actually there',
+    /if \(lastRow > 0 && lastCol > 0\) sh\.getRange\(1, 1, lastRow, [\s\S]*?\)\.clearContent\(\);/.test(writer), true);
+  eq('...before it writes, or a shorter run leaves the tail of the last one behind',
+    writer.indexOf('clearContent()') < writer.indexOf('setValues(grid)')
+      && writer.includes('clearContent()'), true);
+  eq('...and writes the grid in ONE call, or a four-thousand-row run times out',
+    (writer.match(/setValues\(/g) ?? []).length, 1);
+  // appendRow IS A CALL PER ROW. It belongs in the status tab, which writes one
+  // line a run, and nowhere near a register of thousands.
+  eq('...row by row nowhere in it', /appendRow/.test(writer), false);
+  // A DATE STAYS A DATE and the COLUMN carries the format -- the standing rule,
+  // in the one place a mirror can obey it.
+  eq('dates are written as dates and formatted by the column',
+    /setNumberFormat\(fmt\)/.test(gs) && /'dd-mmm-yyyy'/.test(gs), true);
+  eq('a failure is recorded rather than swallowed',
+    /_dccrStatus\('FAILED'/.test(gs), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

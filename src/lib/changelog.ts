@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.369',
+    date: '2026-09-24',
+    title: 'The DCCR Register mirrors itself to your Google Sheet',
+    changes: [
+      'CallReg.gs now writes the Daily Complaint Review Register to the sheet you named, tab DCCR_Mirror, every six hours from 10 PM — as four daily runs at 22:00, 04:00, 10:00 and 16:00, because Apps Script cannot anchor an “every 6 hours” trigger to a clock time; it counts from whenever the trigger was made.',
+      'SAME COLUMNS AS THE DCCR DOWNLOAD, in the same order — the WRR-2026 shape — so the sheet and the CSV are one register and not two. A check compares the two lists key for key on every build; it caught a heading I had mistyped on its very first run.',
+      'DATES ARE WRITTEN AS DATES, with the column formatted dd-MMM-yyyy, so the sheet sorts and filters them properly instead of holding text that looks like a date.',
+      'IT CLEARS AND REWRITES THE TAB EACH RUN rather than appending. A review answered today changes a row that already exists, so appending would leave two versions of one call with nothing to say which is current.',
+      'A SECOND SMALL TAB, DCCR_Mirror_Status, records every run: when, how many rows, how long, and the error if it failed. A mirror nobody can tell has stopped is a mirror nobody can trust.',
+      '⚠ SETUP IS YOURS AND IT IS FOUR THINGS: paste the new CallReg.gs, set the Script Properties, set the project timezone to Asia/Kolkata, and run installDccrMirror() once. The details are in the comment block at the top of the DCCR section.',
+      'ON THE CREDENTIAL: it prefers a REAL SUPABASE LOGIN made for this job (DCCR_EMAIL / DCCR_PASSWORD) so the mirror reads under row-level security as one named account. The service_role key works as a fallback but bypasses security entirely — the status tab records which one was used, every run.',
+      'I CANNOT TEST THIS FROM HERE. script.google.com is blocked from my sandbox, so the script is written and checked but has never been run. Fire it once by hand before trusting the schedule.',
+    ],
+  },
+  {
     version: '0.9.368',
     date: '2026-09-24',
     title: 'A download from a half-loaded table now warns you first',

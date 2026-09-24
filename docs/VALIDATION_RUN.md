@@ -4,10 +4,10 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-09-24T14:41:25.300Z
-- **Took** 84s
-- **Commit** `1519f8f` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.9.368
+- **Run at** 2026-09-24T18:54:50.795Z
+- **Took** 87s
+- **Commit** `5190228` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.9.369
 
 ## Result
 

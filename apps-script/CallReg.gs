@@ -122,6 +122,13 @@ function _dispatchGet(e) {
   if (action === 'drivefind') return _driveFind(e.parameter.names, e.parameter.folderId);
   // Serve a document the app uploaded, so the app can SHOW it (see _driveFile).
   if (action === 'drivefile') return _driveFile(e.parameter.id);
+  // DCCR mirror, run by hand. The four time-driven triggers call dccrMirror()
+  // directly; this is how somebody fires one now and SEES the answer, which
+  // the trigger log does not make easy. Gated by ACCESS_TOKEN like everything
+  // else here.
+  if (action === 'dccrmirror') return dccrMirror();
+  if (action === 'dccrinstall') return installDccrMirror();
+  if (action === 'dccrremove') return removeDccrMirror();
   if (action === 'getview') return { ok: true, view: _getView(e.parameter.key) };
   if (action === 'setview') return _setView(e.parameter.key, e.parameter.data);
   // Writes are also accepted over GET (JSONP) so they work when the browser
@@ -1210,6 +1217,404 @@ function _setView(key, data) {
   if (!key) return { ok: false, error: 'key required' };
   PropertiesService.getScriptProperties().setProperty('view_' + key, String(data || '{}'));
   return { ok: true };
+}
+
+// ===========================================================================
+// DCCR MIRROR — the Daily Complaint Review Register, written to a Google Sheet.
+//
+//   The user, 2026-09-24: "The DCCR Register should be written to the Google
+//   Sheet ... Tab 'DCCR_Mirror' ; Frequency : every 6 hrs ; Starting today by
+//   10PM", and then: "DCCR - Update the CallReg google script".
+//
+// WHY IT LIVES HERE AND NOT IN THE APP. A browser cannot run on a schedule. The
+// register lives in Supabase and the destination is a Google Sheet, so the one
+// thing that can sit between them on a timer, with rights to both, is this
+// script -- which already holds this operation's Sheets credentials and nothing
+// else does.
+//
+// ----------------------------------------------------------------------------
+// WHAT TO PUT IN SCRIPT PROPERTIES  (Project Settings -> Script Properties)
+//
+//   SUPABASE_URL        https://<project>.supabase.co
+//   SUPABASE_ANON_KEY   the publishable anon key (the same one the web app
+//                       ships; it is public by design and enforces nothing on
+//                       its own)
+//
+//   ...and then ONE of these two, and the FIRST is strongly preferred:
+//
+//   (a)  DCCR_EMAIL / DCCR_PASSWORD
+//        A REAL SUPABASE LOGIN, made for this job and nothing else, on a role
+//        that can read the review register and write nothing. The script signs
+//        in, gets a short-lived token, and reads AS THAT USER -- so row-level
+//        security applies exactly as it does on screen, and the worst a leak of
+//        this property can do is what that one account can do. Revoking it is
+//        deactivating a user.
+//
+//   (b)  SUPABASE_SERVICE_KEY
+//        The service_role key. IT BYPASSES ROW-LEVEL SECURITY ENTIRELY and can
+//        read and WRITE every table in the project. This script will use it if
+//        it is set, because a mirror that cannot read is useless -- but it is a
+//        master key sitting in a Google project, and (a) exists so it does not
+//        have to. The web app has never carried this key and must not.
+//
+// The script's TIMEZONE decides what "10 PM" means: set it to Asia/Kolkata in
+// Project Settings, or the four runs land on somebody else's clock.
+// ----------------------------------------------------------------------------
+var DCCR_MIRROR_ID  = '1AclacXLGRxn21NT5JdrB1wWMsdiqJPU-K-MBlDc_gaI';
+var DCCR_MIRROR_TAB = 'DCCR_Mirror';
+// One small tab beside it, because a mirror nobody can tell has stopped is a
+// mirror nobody can trust: it says when it last ran, how many rows it wrote and
+// what went wrong if anything did. Newest first, capped.
+var DCCR_STATUS_TAB = 'DCCR_Mirror_Status';
+var DCCR_STATUS_KEEP = 200;
+// EVERY SIX HOURS FROM 10 PM. Apps Script cannot anchor `everyHours(6)` to a
+// clock time -- it starts counting from whenever the trigger was made -- so the
+// schedule is four DAILY triggers instead. Apps Script fires a time-driven
+// trigger within about an hour of the stated one; these are the hours it aims
+// at, not a guarantee to the minute.
+var DCCR_HOURS = [22, 4, 10, 16];
+// PostgREST answers at most 1,000 rows however large a range asks for, and a
+// FULL page says nothing about whether another exists -- so the loop below ends
+// on a SHORT one. Same rule as the app's own pager, for the same reason.
+var DCCR_PAGE = 1000;
+// The view the Daily Complaint Review Register itself reads, in the order that
+// screen reads it, so the sheet is the register and not a second opinion.
+var DCCR_VIEW  = 'field_call_review';
+var DCCR_ORDER = 'reg_date.desc.nullslast,id.desc';
+
+// THE COLUMNS, AND THEY ARE A COPY. `DCCR_EXPORT_COLUMNS` in src/lib/dccr.ts is
+// the original -- the WRR-2026 shape, so an export pastes into that workbook
+// without shifting a column -- and `npm run check:ui` compares this list with
+// it KEY FOR KEY AND HEADING FOR HEADING on every run. Change one, change both;
+// the check is what stops the sheet and the CSV drifting into two registers.
+var DCCR_COLUMNS = [
+  ['updated_by', 'Updated By'],
+  ['updated_date', 'Updated Date'],
+  ['sl_no', 'Sl. NO'],
+  ['reg_date', 'CALL DATE'],
+  ['complaint_date', 'COMPLAINT DATE'],
+  ['call_number', 'Call Number'],
+  ['ucn', 'UC Number'],
+  ['party_name', 'CUSTOMER NAME'],
+  ['city', 'PLACE'],
+  ['product_name', 'PRODUCT'],
+  ['serial', 'SERIAL No.'],
+  ['call_type', 'CALL TYPE'],
+  ['standard_complaint', 'Standard Complaint'],
+  ['complaint_reported', 'NATURE OF COMPLAINT'],
+  ['item_status', 'EQUIP. STATUS'],
+  ['allocated_to', 'ENGINEER'],
+  ['call_status', 'CALL STATUS'],
+  ['pending_reason', 'CALL PENDING REASON'],
+  ['warranty_number', 'WARRANTY NO'],
+  ['warranty_start', 'WARRANTY START DATE'],
+  ['call_details', 'CALL DETAILS'],
+  ['visit_remarks', 'VISIT REMARKS'],
+  ['change_product', 'CHANGE PRODUCT?'],
+  ['public_health_threat', 'Public Health Threat?'],
+  ['death', 'Death?'],
+  ['serious_incident', 'Serious Incident?'],
+  ['review1_at', 'DATE OF REVIEW 1'],
+  ['review1_completed', 'Review1 Completed'],
+  ['risk_to_patient', 'RISK TO PATIENT/ANY CLINICAL IMPACT'],
+  ['warranty_failure', 'WARRANTY FAILURE (1YR)'],
+  ['frequent_failure', 'FREQUENT FAILURE'],
+  ['review2_at', 'DATE OF REVIEW 2'],
+  ['review2_completed', 'Review2 Completed'],
+  ['any_potential_effect', 'ANY POTENTIAL EFFECT'],
+  ['action_taken', 'ACTION TAKEN'],
+  ['service_observation', 'Service Dept Observation'],
+  ['complaint_grouping', 'COMPLAINT GROUPING'],
+  ['root_cause_keyword', 'ROOT CAUSE KEY WORD'],
+  ['spare_category', 'SPARE / CONSUMABLE / CORRECTION / CALIBRATION'],
+  ['review3_at', 'DATE OF REVIEW 3'],
+  ['review3_completed', 'Review3 Completed'],
+  ['review_status', 'Review Status'],
+  ['send_email_defective_spare', 'SEND EMAIL FOR DEFECTIVE SPARE'],
+  ['current_call_status', 'CURRENT CALL STATUS'],
+  ['last_visit_at', 'Call Solved Date & Time'],
+  ['visit_details', 'VISIT REMARKS (Reporting)'],
+  ['spares_consumed', 'SPARES CONSUMED'],
+  ['sw_version', 'SW Version'],
+  ['sl_no_t', 'SL NO(T)'],
+  ['complaint', 'Complaint'],
+  ['age_days', 'Failure within how many days/yrs'],
+  ['age_group', 'Failure Within Grouping'],
+  ['dummy_column', 'DUMMY COLUMN'],
+];
+
+// BLANK ON PURPOSE, not "not implemented": these hold the WRR-2026 shape so a
+// paste lands in the right columns. The app's own export leaves exactly these
+// empty, and the two must agree.
+var DCCR_BLANK = ['updated_by', 'updated_date', 'call_details', 'visit_remarks',
+                  'change_product', 'send_email_defective_spare', 'sl_no_t',
+                  'complaint', 'dummy_column'];
+
+// A REAL DATE, NOT THE TEXT OF ONE. A string Excel and Sheets cannot sort,
+// filter by month or subtract is the fault this project has fixed twice in the
+// downloads; a mirror is read the same way. The value written is a Date and the
+// COLUMN carries the format, which is the standing rule -- dd-MMM-yyyy, month
+// NAMED so it cannot be read the other way round.
+var DCCR_DATE_COLS = ['reg_date', 'complaint_date', 'warranty_start',
+                      'review1_at', 'review2_at', 'review3_at'];
+var DCCR_DATETIME_COLS = ['last_visit_at'];
+
+/** The entry point the time-driven triggers call. */
+function dccrMirror() {
+  var started = new Date();
+  try {
+    var rows = _dccrFetchAll();
+    var written = _dccrWrite(rows);
+    _dccrStatus('OK', written, started, '');
+    return { ok: true, rows: written };
+  } catch (err) {
+    // RECORDED, NOT SWALLOWED. A mirror that fails silently is worse than one
+    // that does not exist: the sheet still holds yesterday's rows and reads as
+    // current.
+    _dccrStatus('FAILED', 0, started, String(err));
+    throw err;
+  }
+}
+
+/** Create the four daily triggers. Run this ONCE, by hand, from the editor. */
+function installDccrMirror() {
+  var made = [];
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'dccrMirror') ScriptApp.deleteTrigger(t);
+  });
+  DCCR_HOURS.forEach(function (h) {
+    ScriptApp.newTrigger('dccrMirror').timeBased().atHour(h).nearMinute(0).everyDays(1).create();
+    made.push(h + ':00');
+  });
+  return { ok: true, hours: made, timezone: Session.getScriptTimeZone() };
+}
+
+/** Remove them again. */
+function removeDccrMirror() {
+  var n = 0;
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'dccrMirror') { ScriptApp.deleteTrigger(t); n++; }
+  });
+  return { ok: true, removed: n };
+}
+
+// ---- reading Supabase ------------------------------------------------------
+
+function _dccrProp(name) {
+  return String(PropertiesService.getScriptProperties().getProperty(name) || '').trim();
+}
+
+/**
+ * The Authorization the reads will carry.
+ *
+ * A SIGN-IN IS TRIED FIRST, so the mirror reads under row-level security as one
+ * named account rather than past it. The service key is the fallback and says
+ * so in the status tab, because "which of the two is in use" is a thing
+ * somebody must be able to find out without reading the properties.
+ */
+function _dccrAuth() {
+  var url = _dccrProp('SUPABASE_URL');
+  var anon = _dccrProp('SUPABASE_ANON_KEY');
+  if (!url) throw new Error('Script Property SUPABASE_URL is not set.');
+  if (!anon) throw new Error('Script Property SUPABASE_ANON_KEY is not set.');
+
+  var email = _dccrProp('DCCR_EMAIL');
+  var pass = _dccrProp('DCCR_PASSWORD');
+  if (email && pass) {
+    var res = UrlFetchApp.fetch(url + '/auth/v1/token?grant_type=password', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { apikey: anon },
+      payload: JSON.stringify({ email: email, password: pass }),
+      muteHttpExceptions: true,
+    });
+    var body = _parse(res.getContentText()) || {};
+    if (res.getResponseCode() !== 200 || !body.access_token) {
+      throw new Error('DCCR_EMAIL could not sign in: '
+        + (body.error_description || body.msg || res.getContentText()).toString().slice(0, 200));
+    }
+    return { url: url, apikey: anon, bearer: body.access_token, as: 'signed in as ' + email };
+  }
+
+  var svc = _dccrProp('SUPABASE_SERVICE_KEY');
+  if (svc) return { url: url, apikey: svc, bearer: svc, as: 'service key (bypasses row-level security)' };
+
+  throw new Error('Set DCCR_EMAIL + DCCR_PASSWORD (preferred), or SUPABASE_SERVICE_KEY.');
+}
+
+function _dccrFetchAll() {
+  var auth = _dccrAuth();
+  _dccrAuthUsed = auth.as;
+  var out = [];
+  for (var from = 0; ; from += DCCR_PAGE) {
+    var to = from + DCCR_PAGE - 1;
+    var res = UrlFetchApp.fetch(
+      auth.url + '/rest/v1/' + DCCR_VIEW + '?select=*&order=' + encodeURIComponent(DCCR_ORDER),
+      {
+        method: 'get',
+        headers: {
+          apikey: auth.apikey,
+          Authorization: 'Bearer ' + auth.bearer,
+          Range: from + '-' + to,
+          'Range-Unit': 'items',
+        },
+        muteHttpExceptions: true,
+      });
+    var code = res.getResponseCode();
+    if (code !== 200 && code !== 206) {
+      throw new Error('Supabase answered ' + code + ': ' + res.getContentText().slice(0, 300));
+    }
+    var page = _parse(res.getContentText()) || [];
+    out = out.concat(page);
+    // THE ONLY END-OF-DATA SIGNAL THERE IS. A full page may be the last one or
+    // may not; a short one cannot be anything else.
+    if (page.length < DCCR_PAGE) break;
+    // A guard, not a limit: 200 pages is 200,000 review rows.
+    if (from / DCCR_PAGE > 200) break;
+  }
+  return out;
+}
+var _dccrAuthUsed = '';
+
+// ---- shaping ---------------------------------------------------------------
+
+var DCCR_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** A Date where the value is one, the value itself where it is not. */
+function _dccrDate(v) {
+  var s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? s : d;
+}
+
+function _dccrText(v) { return v == null ? '' : v; }
+
+/** ONE ROW, shaped exactly as toExportRow() in src/lib/dccr.ts shapes it. */
+function _dccrRow(r, index) {
+  var o = {};
+  DCCR_BLANK.forEach(function (k) { o[k] = ''; });
+  o.sl_no = index + 1;
+  o.reg_date = _dccrDate(r.reg_date);
+  o.complaint_date = _dccrDate(r.complaint_date);
+  o.call_number = _dccrText(r.call_number);
+  o.ucn = _dccrText(r.ucn);
+  o.party_name = _dccrText(r.party_name);
+  o.city = _dccrText(r.city);
+  o.product_name = _dccrText(r.product_name);
+  o.serial = _dccrText(r.serial);
+  o.call_type = _dccrText(r.call_type);
+  o.standard_complaint = _dccrText(r.standard_complaint);
+  o.complaint_reported = _dccrText(r.complaint_reported);
+  o.item_status = _dccrText(r.item_status);
+  o.allocated_to = _dccrText(r.allocated_to);
+  o.call_status = r.last_status || r.status || '';
+  o.pending_reason = _dccrText(r.pending_reason);
+  o.warranty_number = _dccrText(r.warranty_number);
+  o.warranty_start = _dccrDate(r.warranty_start);
+  o.public_health_threat = _dccrText(r.public_health_threat);
+  o.death = _dccrText(r.death);
+  o.serious_incident = _dccrText(r.serious_incident);
+  o.review1_at = _dccrDate(r.review1_at);
+  o.review1_completed = r.review1_done ? 'Yes' : 'No';
+  o.risk_to_patient = _dccrText(r.risk_to_patient);
+  o.warranty_failure = _dccrText(r.warranty_failure);
+  o.frequent_failure = _dccrText(r.frequent_failure);
+  o.review2_at = _dccrDate(r.review2_at);
+  o.review2_completed = r.review2_done ? 'Yes' : 'No';
+  o.any_potential_effect = _dccrText(r.any_potential_effect);
+  o.action_taken = _dccrText(r.action_taken);
+  o.service_observation = _dccrText(r.service_observation);
+  o.complaint_grouping = _dccrText(r.complaint_grouping);
+  o.root_cause_keyword = _dccrText(r.root_cause_keyword);
+  o.spare_category = _dccrText(r.spare_category);
+  o.review3_at = _dccrDate(r.review3_at);
+  o.review3_completed = r.review3_done ? 'Yes' : 'No';
+  o.review_status = _dccrText(r.review_status);
+  o.current_call_status = r.open_state || r.last_status || r.status || '';
+  o.last_visit_at = _dccrDate(r.last_visit_at);
+  o.visit_details = _dccrText(r.visit_details);
+  o.spares_consumed = _dccrText(r.spares_consumed);
+  o.sw_version = _dccrText(r.sw_version);
+  o.age_days = _dccrText(r.age_days);
+  o.age_group = _dccrText(r.age_group);
+  return o;
+}
+
+// ---- writing the sheet -----------------------------------------------------
+
+function _dccrSheet(id, name) {
+  var ss = SpreadsheetApp.openById(id);
+  var sh = ss.getSheetByName(name);
+  if (!sh) sh = ss.insertSheet(name);
+  return sh;
+}
+
+function _dccrWrite(rows) {
+  var sh = _dccrSheet(DCCR_MIRROR_ID, DCCR_MIRROR_TAB);
+  var heads = DCCR_COLUMNS.map(function (c) { return c[1]; });
+  var keys = DCCR_COLUMNS.map(function (c) { return c[0]; });
+
+  var grid = [heads];
+  for (var i = 0; i < rows.length; i++) {
+    var o = _dccrRow(rows[i], i);
+    var line = [];
+    for (var c = 0; c < keys.length; c++) line.push(o[keys[c]] === undefined ? '' : o[keys[c]]);
+    grid.push(line);
+  }
+
+  // CLEARED AND REWRITTEN WHOLE, never appended: the register is corrected in
+  // place -- a review answered today changes a row that already exists -- so an
+  // append would leave two versions of one call in the sheet and no way to say
+  // which is current.
+  //
+  // CLEARED FIRST, and only the range that HAD content, so a run that returns
+  // fewer rows than the last does not leave the tail of the old one behind
+  // reading as live data.
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
+  if (lastRow > 0 && lastCol > 0) sh.getRange(1, 1, lastRow, Math.max(lastCol, heads.length)).clearContent();
+
+  // ONE setValues FOR THE WHOLE GRID. Written cell by cell, four thousand rows
+  // is tens of thousands of calls across the Apps Script boundary and the run
+  // hits the six-minute ceiling long before it finishes.
+  sh.getRange(1, 1, grid.length, heads.length).setValues(grid);
+
+  // THE COLUMN CARRIES THE FORMAT, so the value stays a real date and still
+  // READS dd-MMM-yyyy -- the standing rule, in the one place a mirror can obey
+  // it. Applied to the body only; row 1 is the heading.
+  if (grid.length > 1) {
+    keys.forEach(function (k, idx) {
+      var fmt = DCCR_DATE_COLS.indexOf(k) >= 0 ? 'dd-mmm-yyyy'
+              : DCCR_DATETIME_COLS.indexOf(k) >= 0 ? 'dd-mmm-yyyy hh:mm:ss' : '';
+      if (fmt) sh.getRange(2, idx + 1, grid.length - 1, 1).setNumberFormat(fmt);
+    });
+  }
+  sh.setFrozenRows(1);
+  return rows.length;
+}
+
+function _dccrStatus(outcome, rows, started, err) {
+  try {
+    var sh = _dccrSheet(DCCR_MIRROR_ID, DCCR_STATUS_TAB);
+    if (sh.getLastRow() === 0) {
+      sh.appendRow(['Run at', 'Outcome', 'Rows written', 'Seconds', 'Read as', 'Error']);
+      sh.setFrozenRows(1);
+    }
+    var secs = Math.round((new Date().getTime() - started.getTime()) / 100) / 10;
+    // NEWEST FIRST: the answer to "did it run?" is the top of the sheet, not the
+    // bottom of four hundred rows.
+    sh.insertRowAfter(1);
+    sh.getRange(2, 1, 1, 6).setValues([[
+      Utilities.formatDate(started, Session.getScriptTimeZone(), 'dd-MMM-yyyy HH:mm:ss'),
+      outcome, rows, secs, _dccrAuthUsed || '(not reached)', err || '',
+    ]]);
+    var extra = sh.getLastRow() - (DCCR_STATUS_KEEP + 1);
+    if (extra > 0) sh.deleteRows(DCCR_STATUS_KEEP + 2, extra);
+  } catch (e) {
+    // The status tab failing must not take the mirror down with it.
+  }
 }
 
 function _json(obj) {
