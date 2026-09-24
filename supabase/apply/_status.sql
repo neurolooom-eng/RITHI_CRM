@@ -1320,7 +1320,16 @@ with checks(sort_order, bundle, provides, present) as (
          and not exists (select 1 from public.app_roles
                           where role not in ('admin', 'technical_support', 'zoho_migration')
                             and permissions ? 'mod:/handstock-report'
-                            and role <> 'super_admin'))
+                            and role <> 'super_admin')),
+    (185, 'Cancelling a batch of calls adds no new power', 'cancel_calls(text[], text) exists, is SECURITY INVOKER, and loops cancel_call() (0242). The user, 2026-09-24: "Cancel all these calls in 1 Go with Reason as ''Duplicate Call''". THE PROPERTY CHECKED IS prosecdef = false, AND IT IS THE WHOLE POINT OF THE DESIGN. cancel_call() (0108) is the SECURITY DEFINER function that checks has_perm(''calls.cancel''), refuses an empty reason, refuses an unknown UCN and refuses one already cancelled; the batch wrapper is a loop around it and nothing else, so a role that cannot cancel one call cannot cancel fifty. Made a definer itself -- which is the obvious thing to reach for, and which a later rewrite could easily do while ''fixing'' a permission error -- it would run as postgres and the per-call check would be the only thing standing between any signed-in user and the whole register. So both halves are asserted: the function is there, and it is NOT a definer, and its body still CALLS cancel_call rather than writing its own update. EACH CANCELLATION IS ITS OWN SUBTRANSACTION so one already-cancelled call cannot throw away the other nineteen, and the caller gets one row per UCN saying what happened. NO means the bulk Cancel button on the call register answers "function public.cancel_calls(text[], text) does not exist", or -- worse and silently -- that the wrapper has become a definer and is no longer gated by the permission. Restore: call_requests.sql',
+        (to_regprocedure('public.cancel_calls(text[],text)') is not null
+         and not (select p.prosecdef from pg_proc p
+                   where p.oid = to_regprocedure('public.cancel_calls(text[],text)'))
+         -- IT MUST STILL DELEGATE. A wrapper that grew its own `update
+         -- public.calls set cancelled_at = ...` would pass both tests above
+         -- and skip every rule 0108 wrote down.
+         and pg_get_functiondef(to_regprocedure('public.cancel_calls(text[],text)'))
+             ~ 'cancel_call\('))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

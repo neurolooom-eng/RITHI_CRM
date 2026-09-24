@@ -659,6 +659,30 @@ on testing the old shape. **When a migration replaces a definition, move the
   `actual_created_by`; anything checking "may this person see it?" must test
   BOTH, or the stand-in loses sight of the call she just registered.
 
+- **`call_report` AND `reports` DO NOT COUNT THE SAME THING, AND BOTH ARE
+  RIGHT** (the user, 2026-09-24: *"there are 2 reports - call_report and
+  reports ; the count is different in both"*). `public.reports` is ONE ROW PER
+  VISIT — 0001 created it with `unique (ucn)` and **0002 dropped that** and
+  keyed it on `uid`, precisely so a call visited three times keeps three
+  records. `public.call_report` (0191) is ONE ROW PER CALL, over `public.calls`
+  LEFT JOINed to the LATEST visit, and its own comment says why: *"NOT one row
+  per visit. A call with four visits is one call, and a report that repeated it
+  four times would have every count in it wrong."*
+  **THE TWO DIFFER IN BOTH DIRECTIONS AT ONCE**, so "is one bigger?" answers
+  nothing: a call with SEVERAL visits is 1 row there and N here; a call with NO
+  visit is 1 row there and 0 here (the normal state of an open call, not a
+  gap); and a visit whose UCN matches no call is 0 rows there and 1 here.
+  **THAT LAST ONE IS THE ONLY FAULT AMONG THEM**: `reports.ucn` is plain text
+  with NO foreign key, so a mistyped or pre-migration UCN is a visit in no
+  register, no `call_report` row and no call status.
+  **AND A FOURTH REASON THAT IS NOT ARITHMETIC**: they are read under DIFFERENT
+  row-level security — `call_report` is `security_invoker` over `calls`, so the
+  CALL policies bound it (`has_perm('calls.view')` AND the visibility rule),
+  while `reports` has its own `reports_read`. The same person can be shown
+  different numbers by each with nothing missing.
+  `supabase/apply/_why_do_the_two_report_counts_differ.sql` reconciles them on
+  live data line by line and names the orphans; its last row says whether the
+  arithmetic balances, and if it does not, nothing above it should be acted on.
 - `public.reports` is the **visit history** (one row per visit, keyed by `uid`).
   It has `visit_at` and `updated_at` — there is **no `created_at`**. Two
   orderings, deliberately: a **list** of visits reads by `visit_at desc nulls

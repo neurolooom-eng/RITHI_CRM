@@ -286,6 +286,11 @@ const MODULES = {
       // round the generated column would be put back and the cancelled branch
       // lost, which is the "a bundle must carry the LATEST definition" rule.
       '0226_cancelled_is_not_report_pending.sql',
+      // AFTER 0108 above, which defines the cancel_call() this one loops over:
+      // a SQL function body is resolved at CREATION, so filed before it the
+      // batch wrapper dies on `function public.cancel_call(text, text) does
+      // not exist`.
+      '0242_cancel_calls_in_one_go.sql',
       // LAST in this module: 0003 and 0053 both define cr_read, so a bundle
       // replayed alone would otherwise restore the per-row version.
       // A request may be corrected while it is Pending (0232). BEFORE the
