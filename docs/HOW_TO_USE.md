@@ -699,7 +699,11 @@ typed into a form that reads it.
     call's real state, **Archive** rows carry whatever the old system was told
     when somebody closed the call. That is why an archived UCN is not coloured —
     its state cannot be known, and a wrong colour on a code people read is worse
-    than none. A machine that exists only in the archive can still be found.
+    than none. A machine that exists only in the archive can still be found: both
+    pickers offer it, marked **· archive only**. That mark is worth reading — a
+    machine the live register has never heard of is one you cannot raise a call,
+    visit or spare against, and it is better to know that before picking it than
+    after.
   - If it says **Archive not connected**, it is showing the registers only.
     Somebody with admin rights enters that project's key once per device under
     Settings → Archive (Machine History).

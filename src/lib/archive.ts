@@ -288,27 +288,68 @@ export async function archiveHistory(product: string, serial: string):
 // history at all — which would make the archive invisible for exactly the
 // machines it exists to cover. The picker asks both and merges.
 // ---------------------------------------------------------------------------
-export async function archiveSearchMachines(product: string, query: string, limit = 50):
-    Promise<ArchiveMachine[]> {
+// ---------------------------------------------------------------------------
+// THE PICKER MUST OFFER A MACHINE THE LIVE REGISTER HAS NEVER HEARD OF.
+//
+// A ventilator sold in 2016 and retired in 2021 is in the archive and NOT in
+// `products` -- which is precisely the machine the archive exists to cover. The
+// screen's two pickers are fed from the live register alone, so without these
+// two reads that machine cannot be SELECTED at all, and its nine years of
+// history are unreachable however completely they were loaded.
+//
+// It was reachable once: the standalone Product History screen searched both
+// databases and merged them. That screen was dropped in favour of main's
+// /machine-history (the better one -- eleven registers against four) and the
+// merge went with its caller, leaving `archiveSearchMachines` exported and
+// called by NOTHING while the changelog went on promising the capability. A
+// claim nothing checks is the fault this project keeps writing down. That
+// function is gone now -- these two replace it, and unlike it they are read by
+// the screen, so the promise and the code move together.
+//
+// TWO READS RATHER THAN REUSING THE SEARCH, because the shapes differ: a search
+// box is capped at what it will show, and a PICKER LIST must be whole or the
+// serial somebody is looking for is simply absent. Both page through
+// `allRows` with an explicit order, like every register-sized read here.
+// ---------------------------------------------------------------------------
+export async function archiveProductNames(): Promise<string[]> {
   const c = getArchive();
   if (!c) return [];
-  const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
-  // A SEARCH BOX, not a register read: `limit` here is how many rows the
-  // picker will show, chosen by the caller and well under PostgREST's cap.
-  let q = c.from('history_machines')
-    .select('product_name,serial,party_name,city,state,address,item_status,installed_on,source_system')
-    .order('serial', { ascending: true })
-    .limit(limit);
-  if (product.trim()) q = q.eq('product_name', product.trim());
-  if (term) q = q.ilike('serial', `%${term}%`);
-  const { data, error } = await q;
-  if (error) return [];
-  return (data ?? []).map((r) => ({
-    product_name: str(r.product_name), serial: str(r.serial), party_name: str(r.party_name),
-    city: str(r.city), state: str(r.state), address: str(r.address),
-    item_status: str(r.item_status), installed_on: dat(r.installed_on), source_system: str(r.source_system),
-  })).filter((m) => m.serial);
+  try {
+    const rows = await allRows<{ product_name: string | null }>((from, to) =>
+      c.from('history_machines').select('product_name')
+        .order('id', { ascending: true })
+        .range(from, to) as unknown as
+          PromiseLike<{ data: { product_name: string | null }[] | null; error: { message?: string } | null }>,
+      MAX_ROWS);
+    // DISTINCT IN JAVASCRIPT: PostgREST has no `select distinct`, and a view
+    // for it would be a second object to keep in step with ProdHistory_01.
+    // NOT TRIMMED -- the name is offered exactly as the archive stores it, so
+    // the equality that follows can find it. main proved that one the hard way
+    // on 2026-09-24: a register row stored as 'EXTEND-XT ' offered through a
+    // trimming list and matched with an untrimmed equality finds NOTHING, and
+    // the fault is invisible because every other product behaves.
+    return [...new Set(rows.map((r) => String(r.product_name ?? '')).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  } catch { return []; }
 }
+
+// The serials the archive holds for one product. Same rule as the live
+// `sbListProductSerials`: the product is matched AS OFFERED, never trimmed.
+export async function archiveProductSerials(product: string): Promise<string[]> {
+  const c = getArchive();
+  if (!c || !product) return [];
+  try {
+    const rows = await allRows<{ serial: string | null }>((from, to) =>
+      c.from('history_machines').select('serial').eq('product_name', product)
+        .order('id', { ascending: true })
+        .range(from, to) as unknown as
+          PromiseLike<{ data: { serial: string | null }[] | null; error: { message?: string } | null }>,
+      MAX_ROWS);
+    return [...new Set(rows.map((r) => String(r.serial ?? '').trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  } catch { return []; }
+}
+
 
 // What is loaded, straight from the archive's own view (ProdHistory_03.sql).
 // Settings shows it: "connected" is not the same answer as "has data in it",

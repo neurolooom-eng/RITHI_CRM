@@ -1,9 +1,10 @@
 import { useLocation } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
-import { SelectPicker } from '../components/ui/SelectPicker';
+import { SelectPicker, type SelectPickerOption } from '../components/ui/SelectPicker';
 import { supabaseConfigured, sbListProductNames, sbListProductSerials } from '../lib/supabase';
 import { archiveNote, machineHistory, machineNow, type MachineEvent, type MachineNow } from '../lib/machineHistory';
+import { archiveConfigured, archiveProductNames, archiveProductSerials } from '../lib/archive';
 import { isTimeout } from '../lib/dberror';
 // ONE RENDERING OF A MACHINE'S LIFE, shared with the pop-up the Daily
 // Complaint Review Register opens. A second copy would drift, and the drift
@@ -37,10 +38,38 @@ import './fieldcalls.css';
 // ===========================================================================
 
 
+// ---------------------------------------------------------------------------
+// TWO LISTS INTO ONE PICKER, saying which rows the live register does not have.
+//
+// Live first and unlabelled, because that is the ordinary case and a label on
+// every row is a label nobody reads. An entry ONLY the archive knows is marked,
+// for a reason that is not decoration: no call, visit or spare can be raised
+// against it, and a reader who discovers that after picking it has wasted the
+// trip. The VALUE stays the bare name or serial either way, so everything
+// downstream -- the lookup, the deep link, the audit line -- is unchanged.
+//
+// COMPARED WITHOUT TRIMMING OR FOLDING CASE. A name the archive stores with a
+// trailing space is a DIFFERENT string from the live one, and merging them
+// would offer a single row whose value finds rows in only one of the two
+// databases -- the fault main proved on EXTEND-XT on 2026-09-24, in the other
+// direction. Two rows that look alike are a data problem the reader can see
+// and report; one row that silently searches the wrong database is not.
+// ---------------------------------------------------------------------------
+function mergeOptions(liveValues: string[], archiveValues: string[]): SelectPickerOption[] {
+  const seen = new Set(liveValues);
+  return [
+    ...liveValues.map((v) => ({ value: v })),
+    ...archiveValues.filter((v) => !seen.has(v)).map((v) => ({ value: v, label: `${v} · archive only` })),
+  ];
+}
+
 export function MachineHistory() {
   const live = supabaseConfigured();
-  const [products, setProducts] = useState<string[]>([]);
-  const [serials, setSerials] = useState<string[]>([]);
+  // THE PICKERS CARRY LABELS, not bare strings: a machine only the archive
+  // knows is one nobody can raise a call against, and finding that out AFTER
+  // picking it would be worse than being told in the list.
+  const [products, setProducts] = useState<SelectPickerOption[]>([]);
+  const [serials, setSerials] = useState<SelectPickerOption[]>([]);
   const [product, setProduct] = useState('');
   const [serial, setSerial] = useState('');
   const [now, setNow] = useState<MachineNow | null>(null);
@@ -66,11 +95,29 @@ export function MachineHistory() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // BOTH DATABASES FEED BOTH PICKERS.
+  //
+  // A ventilator sold in 2016 and retired in 2021 is in the archive and NOT in
+  // the live register — which is exactly the machine the archive exists to
+  // cover. Fed from the live register alone the picker cannot OFFER it, so its
+  // nine years of history are unreachable however completely they were loaded.
+  //
+  // THE LIVE HALF STILL DECIDES THE SCREEN. An archive that is unconfigured,
+  // unreachable or slow contributes nothing and is not an error: the two reads
+  // settle independently and the live list stands on its own, the same
+  // arrangement the history itself uses.
+  // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!live) return;
-    void sbListProductNames()
-      .then((rows) => setProducts(rows.map((r) => r.name)))
-      .catch(() => setMsg('Could not read the product list.'));
+    let cancelled = false;
+    void Promise.all([
+      sbListProductNames().then((rows) => rows.map((r) => r.name)),
+      archiveConfigured() ? archiveProductNames() : Promise.resolve([] as string[]),
+    ])
+      .then(([liveNames, arcNames]) => { if (!cancelled) setProducts(mergeOptions(liveNames, arcNames)); })
+      .catch(() => { if (!cancelled) setMsg('Could not read the product list.'); });
+    return () => { cancelled = true; };
   }, [live]);
 
   // The serial list follows the product, and CHOOSING A NEW PRODUCT CLEARS THE
@@ -79,7 +126,14 @@ export function MachineHistory() {
   useEffect(() => {
     setSerial(''); setSerials([]); setEvents(null); setNow(null);
     if (!live || !product) return;
-    void sbListProductSerials(product).then(setSerials).catch(() => setSerials([]));
+    let cancelled = false;
+    void Promise.all([
+      sbListProductSerials(product).catch(() => [] as string[]),
+      archiveConfigured() ? archiveProductSerials(product) : Promise.resolve([] as string[]),
+    ])
+      .then(([liveSer, arcSer]) => { if (!cancelled) setSerials(mergeOptions(liveSer, arcSer)); })
+      .catch(() => { if (!cancelled) setSerials([]); });
+    return () => { cancelled = true; };
   }, [product, live]);
 
   // The serial list has arrived — apply the one the link asked for, and look it
@@ -88,7 +142,7 @@ export function MachineHistory() {
     const want = wanted.current;
     if (!want || !serials.length) return;
     wanted.current = null;
-    if (serials.includes(want)) { setSerial(want); setPending(true); }
+    if (serials.some((o) => o.value === want)) { setSerial(want); setPending(true); }
     else setMsg(`${product} has no serial ${want} on the master.`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serials]);
@@ -189,7 +243,7 @@ export function MachineHistory() {
             <SelectPicker value={serial} onChange={setSerial} options={serials}
                           disabled={!product}
                           placeholder={product ? '— choose the serial —' : 'pick a product first'}
-                          emptyHint="Serials come from the Product Database. A machine that is not on it has none here."
+                          emptyHint="Serials come from the Product Database and, where it is connected, the 2016 archive. A machine on neither has none here."
                           // A serial the master has never heard of is still worth
                           // looking up: calls and reports can name a machine the
                           // master is missing, and that gap is itself a finding.
