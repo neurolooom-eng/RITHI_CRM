@@ -4,10 +4,10 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-09-23T11:33:37.651Z
-- **Took** 83s
-- **Commit** `f5f16a1` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.9.352
+- **Run at** 2026-09-24T19:22:45.207Z
+- **Took** 92s
+- **Commit** `c61f1e7` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.9.371
 
 ## Result
 
@@ -29,30 +29,30 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `257 migrations applied to a fresh database` | ✅ pass |  |
+| `264 migrations applied to a fresh database` | ✅ pass |  |
 
 ## Automated checks
 
 | | Result | |
 | --- | --- | --- |
-| `check:bundles` | ✅ pass | no NEW object is split across modules (385 checked, 37 known and listed) |
+| `check:bundles` | ✅ pass | no NEW object is split across modules (391 checked, 37 known and listed) |
 | `check:columns` | ✅ pass | every column of all 33 registers exists |
 | `check:cover-party` | ✅ pass | all passed |
 | `check:dberror` | ✅ pass | all passed |
-| `check:generated` | ✅ pass | every generated bundle matches its migrations (80 checked) |
+| `check:generated` | ✅ pass | every generated bundle matches its migrations (86 checked) |
 | `check:kyc` | ✅ pass | all passed |
 | `check:machine` | ✅ pass | all passed |
 | `check:mapping` | ✅ pass | all passed |
 | `check:nar003` | ✅ pass | all passed |
-| `check:orders` | ✅ pass |   ✓ 121 order columns across 58 relations |
+| `check:orders` | ✅ pass |   ✓ 120 order columns across 59 relations |
 | `check:paging` | ✅ pass | all passed |
 | `check:picklist` | ✅ pass | all passed |
 | `check:picklist:open` | ✅ pass | all passed |
 | `check:replay` | ✅ pass | every bundle (25) replays with no change to the schema |
 | `check:reports` | ✅ pass | all passed |
-| `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 219 functions |
+| `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 224 functions |
 | `check:scheduled-export` | ✅ pass | all passed |
-| `check:status` | ✅ pass | every one of the 189 _status.sql rows reads yes on a fully-applied database (1 skipped) |
+| `check:status` | ✅ pass | every one of the 194 _status.sql rows reads yes on a fully-applied database (1 skipped) |
 | `check:ui` | ✅ pass | all passed |
 | `check:uploads` | ✅ pass | all passed |
 | `check:upserts` | ✅ pass | every upsert target is inferable, and its table accepts the update |

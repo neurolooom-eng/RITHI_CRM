@@ -10,6 +10,7 @@ import { REPORT_FIELD_KEYS } from './CallReporting';
 import { Ucn } from '../lib/callstate';
 import { manualReportLink } from '../lib/reports';
 import { DocPreview } from '../components/doc/DocPreview';
+import { partial } from '../lib/exportscope';
 
 // ===========================================================================
 // VISIT REPORTS / SERVICE REPORTS — the visit history, one row per visit.
@@ -128,8 +129,8 @@ export function Reports() {
         .filter(Boolean).join(' · ')
       : 'every visit loaded';
     if (kind === 'csv') {
-      csvExport(`visit-reports-${stamp}.csv`, cols,
-        src.map((r) => Object.fromEntries(cols.map((c) => [c.key, xlsxText(r[c.key])]))));
+      csvExport(`visit-reports-${stamp}.csv`, cols, /* scope below */
+        src.map((r) => Object.fromEntries(cols.map((c) => [c.key, xlsxText(r[c.key])]))), partial(more));
       return;
     }
     xlsxDownload(`visit-reports-${stamp}.xlsx`, [
@@ -147,7 +148,7 @@ export function Reports() {
           { Item: 'Loaded so far', Value: more ? 'More visits are available — press Load more before exporting for the whole register.' : 'This is every visit matching the filter.' },
           { Item: 'Taken', Value: fmtLongDate(new Date().toISOString()) },
         ] },
-    ]);
+    ], partial(more));
   };
 
   const refresh = async () => {

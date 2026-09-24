@@ -33,6 +33,7 @@ import {
 // disagree about money.
 import { itemTaxAmount, totalAfterTax, upliftRate } from '../lib/coverspec';
 import './fieldcalls.css';
+import { partial } from '../lib/exportscope';
 
 // ===========================================================================
 // WARRANTY / CONTRACT REGISTER — one screen, two shapes.
@@ -1210,7 +1211,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 <button className="btn btn-sm btn-primary" onClick={() => void newEntry()}>+ New entry</button>
               )}
               {rows.length > 0 && (
-                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-entries.csv`, headerColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), rows)}>⭳ Export CSV</button>
+                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-entries.csv`, headerColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), rows, partial(feeds.entries.more))}>⭳ Export CSV</button>
               )}
             </Toolbar>
           }
@@ -1276,7 +1277,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
               <SearchBox value={q} onChange={setQ} placeholder="Serial, product, party…" />
               <div className="spacer" />
               {machines.length > 0 && (
-                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-machines.csv`, machineColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), machines)}>⭳ Export CSV</button>
+                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-machines.csv`, machineColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), machines, partial(feeds.machines.more))}>⭳ Export CSV</button>
               )}
             </Toolbar>
           }

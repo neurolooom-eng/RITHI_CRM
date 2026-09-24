@@ -20,6 +20,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { manualMatchesCall } from './docmatch';
 import { masterValueApplies } from './dccr';
 import { callAging } from './aging';
+import { rankSerialHits } from './callrequest';
 import { manualReportLink } from './reports';
 
 const URL_KEY = 'rithi.supabase.url';
@@ -452,10 +453,34 @@ export async function setObjectiveCutoffLock(on: boolean): Promise<{ ok: boolean
 
 // THE ROWS BEHIND ONE FIGURE. The same query that produced the number, so the
 // two cannot disagree — counting the evidence reproduces the fraction.
+// ===========================================================================
+// PAGED, AND AN RPC IS NOT EXEMPT FROM THE CAP.
+//
+// Reported 2026-09-24, from the banner this very call writes: "Downloaded the
+// evidence for Preventive Maintenance Calls -- Sep: 1000 calls", and "i think
+// it is calculating only for the first 1000 calls.. That should not be the
+// case."
+//
+// THE FIGURE WAS NEVER CAPPED, and that is the first thing to be clear about:
+// the objectives are computed by `recalc_quality_objectives()` in PL/pgSQL --
+// `count(*)` over the register inside Postgres -- and nothing about a client
+// page size reaches it. What WAS capped is this: the evidence behind the
+// figure, which comes back through PostgREST like any other read, and PostgREST
+// answers at most 1,000 rows however many the function returns. A `SETOF`
+// function is a relation to it.
+//
+// So the number was right and its evidence was short -- which is the worse
+// shape of the two, because the file is what somebody checks the number
+// AGAINST. A thousand rows under a figure computed from four thousand does not
+// disprove the figure; it makes it impossible to confirm, and it reads as if
+// the figure were wrong.
+//
+// `Range` works on an RPC exactly as it does on a table, so `allRows()` pages
+// it the same way as everything else.
+// ===========================================================================
 export async function objectiveEvidence(id: number, month: number): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().rpc('objective_evidence', { p_id: id, p_month: month });
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []) as Record<string, unknown>[];
+  return allRows<Record<string, unknown>>((from, to) =>
+    must().rpc('objective_evidence', { p_id: id, p_month: month }).range(from, to));
 }
 
 // ---------------------------------------------------------------------------
@@ -1418,7 +1443,7 @@ export async function sbListPartyItems(party: string, product = ''): Promise<Rec
   // screen that lists "everything they have" is the last place to stop at one.
   const data = await partyRows<Record<string, unknown>>((exact) =>
     allRows((a, b) => {
-      const base = must().from('products').select('*');
+      const base = must().from('product_database').select('*');
       let q = exact ? base.eq('party_name', party.trim()) : base.ilike('party_name', partyLike(party));
       if (product) q = q.eq('item_name', product);
       return q.order('id').range(a, b);
@@ -1469,7 +1494,7 @@ export async function sbProductBySerial(serial: string, product = ''): Promise<R
   if (!key) return null;
 
   if (String(product ?? '').trim()) {
-    const { data, error } = await must().from('products').select('*')
+    const { data, error } = await must().from('product_database').select('*')
       .eq('machine_key', dbMachineKey(product, serial)).limit(1).maybeSingle();
     if (error) throw new Error(errMsg(error));
     return data ? productRowToSheet(data) : null;
@@ -1477,14 +1502,44 @@ export async function sbProductBySerial(serial: string, product = ''): Promise<R
 
   // TWO rows asked for, not one: one is an answer, two is a question, and
   // `.limit(1)` cannot tell them apart.
-  const { data, error } = await must().from('products').select('*').eq('serial_key', key).limit(2);
+  const { data, error } = await must().from('product_database').select('*').eq('serial_key', key).limit(2);
   if (error) throw new Error(errMsg(error));
   const rows = data ?? [];
   return rows.length === 1 ? productRowToSheet(rows[0]) : null;
 }
 
-export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string; exact?: boolean }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
-  let q = must().from('products').select('*').range(offset, offset + limit - 1);
+// ---------------------------------------------------------------------------
+// THE THREE READS THAT WANT THE COVER AS IT IS TODAY go to
+// `public.product_database` (0235) rather than to `products`: Item Status and
+// Service Engineer are WORKED OUT there -- warranty first, then the contract
+// the MC number names, else OGP, and the engineer always from the Party Master.
+//
+// A STORED COVER IS RIGHT ON THE DAY IT IS WRITTEN AND WRONG AFTERWARDS, which
+// is why the register, the party's machine list and the call form's prefill all
+// read the view. Everything that WRITES -- every importer and upsert -- still
+// goes to the table, which is untouched.
+// ---------------------------------------------------------------------------
+export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string; status?: string; exact?: boolean }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
+  // NEWEST ENTRIES FIRST, AND THIS IS A CORRECTNESS FIX BEFORE IT IS A
+  // PREFERENCE (the user, 2026-09-25: "Always show sorted date - Newest
+  // entries first"). This read PAGED 200 AT A TIME WITH NO ORDER AT ALL, which
+  // breaks the project's own rule: without one the database may return the
+  // rows in any order it likes between pages, so "Load more" can show a
+  // machine twice and miss another entirely -- and the result looks complete,
+  // which is worse than a truncation that announces itself.
+  //
+  // `created_at` is WHEN THE ROW WAS ADDED and is published by the view, so
+  // the order column exists -- a missing one is an ERROR from PostgREST and an
+  // EMPTY register, not merely unsorted rows.
+  //
+  // THE TIEBREAK IS NOT DECORATION HERE. A bulk reload writes every machine in
+  // the same instant, so after one the whole register shares a `created_at`
+  // and ordering on it alone is arbitrary; `id desc` makes the paging stable
+  // and, within a load, puts the last rows of the file first.
+  let q = must().from('product_database').select('*')
+    .order('created_at', { ascending: false, nullsFirst: false })
+    .order('id', { ascending: false })
+    .range(offset, offset + limit - 1);
   // An EXACT serial goes through the indexed key, not `eq(serial_number)`:
   // that was case-sensitive AND had no plain btree behind it, so the one
   // filter that meant equality was the one that could not use an index.
@@ -1496,6 +1551,20 @@ export async function sbSearchProducts(filters: { q?: string; party?: string; pr
   if (filters.party) q = q.ilike('party_name', `%${filters.party}%`);
   if (filters.product) q = filters.exact ? q.eq('item_name', filters.product) : q.ilike('item_name', `%${filters.product}%`);
   if (filters.q) q = q.or(`serial_number.ilike.%${filters.q}%,item_name.ilike.%${filters.q}%,party_name.ilike.%${filters.q}%`);
+  // THE STATUS PICKER WAS SILENTLY DROPPED ON THIS PATH. `ProdFilters.status`
+  // has existed since the sheet era and searchProducts() still forwards it to
+  // the Apps Script bridge, but this function never read it -- so on a Supabase
+  // project the Product Database's "Any status" box moved and NOTHING changed,
+  // with no error to say so. Worse than an unimplemented control: a reader who
+  // picks OGP and gets the whole register back concludes every machine is OGP.
+  //
+  // IT IS ONLY ASKABLE NOW. Before 0235 `item_status` was a STORED column that
+  // decayed against current_date, so filtering on it would have returned the
+  // answer as of the last import; it is worked out on read, so the filter and
+  // the column on screen are the same rule. It costs a full pass over the view
+  // (no index can serve a computed column) -- measured at 767 ms on 20,002
+  // machines, against an eight-second ceiling.
+  if (filters.status) q = q.eq('item_status', filters.status.trim().toUpperCase());
   const { data, error } = await q;
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map(productRowToSheet);
@@ -1606,18 +1675,103 @@ export interface MachineHit { serial: string; product: string; party: string; ci
 export async function sbSearchMachines(product: string, query: string, limit = 50, party = ''): Promise<MachineHit[]> {
   const c = getSupabase(); if (!c) return [];
   const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
-  let q = c.from('products').select('serial_number,item_name,party_name,extra').limit(limit);
-  if (product.trim()) q = q.eq('item_name', product.trim());
-  // NARROWED TO ONE CUSTOMER on the second call onward: the first call fixes
-  // whose machines the request is about, so the rest need only look among
-  // theirs. EQUALITY on party_name, which is indexed (products_party_name_eq) —
-  // this is a filter, not a search, so it costs nothing.
-  if (party.trim()) q = q.eq('party_name', party.trim());
-  if (term) q = q.ilike('serial_number', `%${term}%`);
-  else q = q.order('serial_number');
-  const { data, error } = await q;
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []).map((r) => {
+  const cols = 'serial_number,item_name,party_name,extra';
+  const base = () => {
+    let q = c.from('products').select(cols);
+    // =====================================================================
+    // MATCHED AS OFFERED, NOT TRIMMED — and the `.trim()` that used to be here
+    // broke ONE PRODUCT COMPLETELY while every other one worked.
+    //
+    // Reported 2026-09-24: *"This happens in Extend XT product only."* The
+    // Product box is filled from `product_register_names`, which groups
+    // `products.item_name` and hands back the name VERBATIM; the search then
+    // asked for `item_name = <that name>.trim()`. For a register row stored as
+    // `'EXTEND-XT '` the list therefore offers `'EXTEND-XT '` and the search
+    // asks for `'EXTEND-XT'` — which matches NOTHING. Measured: the dropdown
+    // says 2 machines, the equality finds 0. Every serial box for that product
+    // is empty, so no machine can be picked, so no customer arrives with it,
+    // so the request is refused for machines that are plainly on the register.
+    //
+    // It is product-specific by construction: only a name carrying stray
+    // whitespace is affected, and the rest of the register behaves perfectly,
+    // which is exactly how it was reported.
+    //
+    // AND THIS WAS THE ODD ONE OUT. Every other read of this table matches the
+    // name as it was given — sbSearchProducts, sbListMachinesForParty,
+    // listPartyItems — so the trim was not a convention, it was a difference.
+    //
+    // THE STRAY SPACE IN THE DATA IS A SEPARATE FAULT and is not repaired here:
+    // it also splits every `group by item_name` count in two, silently, and the
+    // register is the user's to correct with numbers in front of them.
+    // `supabase/apply/_which_product_names_carry_stray_spaces.sql` lists them.
+    // =====================================================================
+    if (product.trim()) q = q.eq('item_name', product);
+    // NARROWED TO ONE CUSTOMER on the second call onward: the first call fixes
+    // whose machines the request is about, so the rest need only look among
+    // theirs. EQUALITY on party_name, which is indexed (products_party_name_eq) —
+    // this is a filter, not a search, so it costs nothing.
+    if (party.trim()) q = q.eq('party_name', party.trim());
+    return q;
+  };
+
+  // =========================================================================
+  // THE CLOSEST MATCH COMES FIRST, AND THE MACHINE YOU TYPED IS ALWAYS OFFERED.
+  //
+  // Reported 2026-09-24 with a screenshot: a Call Registration Request for
+  // ORION-G serial 105 refused with "that serial is not on the register" —
+  // *"the product and serial number combination is very much available"*, and
+  // *"the list is not sorted as per the closest match"*.
+  //
+  // BOTH HALVES WERE ONE FAULT. The search was a single `ilike '%term%'` with
+  // `.limit(50)` and NO ORDER AT ALL, which breaks this project's own rule that
+  // every capped read must name an order — and here the consequence is not
+  // cosmetic. Measured on a register where 925 machines have a serial
+  // containing "105": the machine actually numbered 105 came back at RANK 19 of
+  // 50, and its position was decided by the physical order of the rows rather
+  // than by the match. Past the 50 it is not merely far down the list, it is
+  // ABSENT — and a machine that cannot be picked cannot name its customer, so
+  // the request is refused for a machine that is plainly on the register.
+  //
+  // THREE READS, RUN TOGETHER, so this costs one round trip of latency:
+  //   PREFIX   `105%` ordered ascending. A string is sorted before everything
+  //            it is a prefix of, so if serial 105 exists it is the FIRST row
+  //            of this read — never cut off, whatever else matches.
+  //   SUFFIX   `%105` — the machine whose serial ENDS with what was typed.
+  //            Added 2026-09-24 for `INXT 0105`: a great many serials here are
+  //            a letter code, a space and a number, and what somebody reads off
+  //            the machine is the number. Through the contains read alone that
+  //            serial was rank 146 of 1,046 and never appeared; there are FOUR
+  //            serials ending in 105, so this read cannot be crowded out.
+  //   CONTAINS `%105%` ordered ascending, for the mid-string matches neither of
+  //            the others can see (X105161, and the engineer who remembers only
+  //            the middle of a serial).
+  //
+  // RANKED AGAIN IN JAVASCRIPT — exact, then prefix, then contains — rather
+  // than trusting the concatenation: `ilike` is case-insensitive and the
+  // database's ordering is not, so "abc" and "ABCD" can come back either way
+  // round. The ranking here says what it means and does not depend on a
+  // collation.
+  // =========================================================================
+  let rows: Record<string, unknown>[];
+  if (!term) {
+    // No search yet: the first page of the register, in a STABLE order — an
+    // unordered page can show a different fifty each time it is opened.
+    const { data, error } = await base().order('serial_number').limit(limit);
+    if (error) throw new Error(errMsg(error));
+    rows = (data ?? []) as Record<string, unknown>[];
+  } else {
+    const [pre, suf, any] = await Promise.all([
+      base().ilike('serial_number', `${term}%`).order('serial_number').limit(limit),
+      base().ilike('serial_number', `%${term}`).order('serial_number').limit(limit),
+      base().ilike('serial_number', `%${term}%`).order('serial_number').limit(limit),
+    ]);
+    if (pre.error) throw new Error(errMsg(pre.error));
+    if (suf.error) throw new Error(errMsg(suf.error));
+    if (any.error) throw new Error(errMsg(any.error));
+    rows = [...(pre.data ?? []), ...(suf.data ?? []), ...(any.data ?? [])] as Record<string, unknown>[];
+  }
+
+  const hits = rows.map((r) => {
     const ex = (r.extra as Record<string, unknown>) ?? {};
     return {
       serial: String(r.serial_number ?? ''),
@@ -1631,6 +1785,9 @@ export async function sbSearchMachines(product: string, query: string, limit = 5
       address: String(ex['Address'] ?? ''),
     };
   }).filter((m) => m.serial);
+  // DE-DUPLICATED AND RANKED CLOSEST-FIRST in one pure function, so the order
+  // the form shows can be exercised by a check — see rankSerialHits().
+  return rankSerialHits(hits, term, limit);
 }
 export async function addCallRequestBatch(base: Record<string, unknown>, items: CallRequestItem[]): Promise<{ ok: boolean; reqid?: string; count?: number; error?: string }> {
   const c = must();

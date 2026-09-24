@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../lib/auth';
 import { listMaster, dataConfigured } from '../lib/sheets';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { partial } from '../lib/exportscope';
 
 // ===========================================================================
 // PART MASTER — live from the ITEM Master rows (Supabase `parts`), the same
@@ -356,7 +357,7 @@ export function PartMaster() {
             </div>
             <div className="spacer" />
             {visible.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('part-master.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('part-master.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], partial(more))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

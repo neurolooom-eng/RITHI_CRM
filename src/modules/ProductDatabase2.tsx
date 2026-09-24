@@ -9,6 +9,7 @@ import { listProductDatabaseV2, diagnoseProductDatabaseV2, refreshProductDatabas
 import { loadFailure, emptyRegisterVerdict } from '../lib/dberror';
 import { useAuth } from '../lib/auth';
 import { seesEveryRecord } from '../lib/rbac';
+import { COMPLETE } from '../lib/exportscope';
 
 // ===========================================================================
 // PRODUCT DATABASE 2.0 — the machine as the five registers together describe it.
@@ -183,7 +184,9 @@ export function ProductDatabase2() {
         toolbar={(
           <button className="btn btn-ghost btn-sm" onClick={() => csvExport(
             `product-database-2-${new Date().toISOString().slice(0, 10)}.csv`,
-            ALL_COLUMNS.map((k) => ({ key: k, header: k })), visible)}>
+            ALL_COLUMNS.map((k) => ({ key: k, header: k })), visible,
+            // listProductDatabaseV2() pages the whole view -- there is no Load more.
+            COMPLETE)}>
             ⭳ Export CSV
           </button>
         )} />

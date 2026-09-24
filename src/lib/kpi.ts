@@ -74,6 +74,37 @@ export const kpiExportColumns = () =>
 // The register's own date shape (dd-mmm-yyyy), which is unambiguous wherever
 // the file is opened — an ISO or a slashed date is read differently by an
 // Excel set to one locale or another, and this file is opened in India.
+// ===========================================================================
+// THE SAME ROW FOR A WORKBOOK, AND IT IS NOT THE SAME SHAPE.
+//
+//   The user, 2026-09-24: "in the KPI Export under Reports, the Call
+//   Registration Date is not recognized by Excel. Update all the Date Fields in
+//   the KPI to be compatible as a Date Field in Excel."
+//
+// A CSV CAN ONLY CARRY TEXT, so `toKpiExportRow` writes `dd-MMM-yyyy` and Excel
+// is left to parse it. It manages the plain dates and it does NOT manage
+// `24-Sep-2026 18:15:03` — which is exactly the column reported, Call
+// Registeration Date being the one the workbook shows to the second. There is
+// no spelling of a date in a CSV that every Excel parses; the format is the
+// limit, not the wording.
+//
+// SO THE ANSWER IS A REAL WORKBOOK, where a date is a NUMBER PLUS A FORMAT and
+// nothing is parsed at all. This hands the value over UNTOUCHED and lets
+// `xlsxCell()` decide, which is the rule this project settled once and applies
+// by VALUE rather than by column name.
+//
+// AND PRE-FORMATTING WOULD DEFEAT IT. `excelSerial()` uses the STRICT ISO test
+// on purpose — it once turned the part code MP-010 into a date — so a value
+// already rendered as `24-Sep-2026` is not a date to it and would land in the
+// workbook as text, which is the very fault being fixed. The raw value is what
+// must be passed.
+// ===========================================================================
+export function toKpiCellRow(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const h of KPI_FIELD_INST_COLUMNS) out[h] = row[h] ?? '';
+  return out;
+}
+
 export function toKpiExportRow(row: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const h of KPI_FIELD_INST_COLUMNS) {

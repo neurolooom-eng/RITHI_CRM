@@ -32,6 +32,10 @@ import { useMaster } from '../lib/masters';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
+// ALIASED: this screen already has a local `partial` (its own "is the list
+// truncated" flag), and shadowing it here would silently change which one the
+// count chips read.
+import { partial as exportScope } from '../lib/exportscope';
 
 // ===========================================================================
 // SPARE REQUESTS.
@@ -995,7 +999,7 @@ export function SpareRequests() {
             <SearchBox value={search} onChange={setSearch} placeholder="UID, UCN, party, part, engineer, DC, status…" />
             <div className="spacer" />
             {rows.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('spare-requests.csv', columns.filter((c) => c.key !== '_wf').map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('spare-requests.csv', columns.filter((c) => c.key !== '_wf').map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], exportScope(more))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

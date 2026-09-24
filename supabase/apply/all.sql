@@ -44,6 +44,7 @@
 --   0213_stores_and_spare_coordinator_see_all.sql
 --   0216_view_all_except_the_three.sql
 --   0219_product_database_2_key.sql
+--   0241_handstock_report_permission.sql
 --   0199_user_master_is_the_master.sql
 --   0087_spare_line_stub_rls.sql
 --   0088_spare_line_parent_visible.sql
@@ -107,6 +108,7 @@
 --   0126_call_allot_permission.sql
 --   0127_call_edit_sections.sql
 --   0226_cancelled_is_not_report_pending.sql
+--   0242_cancel_calls_in_one_go.sql
 --   0232_call_request_edit.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
@@ -210,6 +212,10 @@
 --   0230_sale_entry_at_stamped.sql
 --   0233_installation_call_wording.sql
 --   0234_inst_call_is_a_call.sql
+--   0236_cover_policies_are_initplans.sql
+--   0237_sale_fills_product_database.sql
+--   0238_machine_belongs_to_its_latest_owner.sql
+--   0240_ownership_transfer_timestamp.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -264,6 +270,8 @@
 --   0221_product_database_2_needs_no_gate.sql
 --   0222_status_is_computed_when_read.sql
 --   0223_product_database_2_keeps_itself_alive.sql
+--   0235_product_database_computed.sql
+--   0239_attachments_follow_the_owner.sql
 --   0229_feedback_without_report.sql
 --   0227_data_export.sql
 --   0228_export_schedules.sql
@@ -3206,6 +3214,82 @@ begin
   if skipped is not null then
     raise notice '0219: NOT granted (they do not hold the Product Database either): %', skipped;
   end if;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0241_handstock_report_permission.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE HAND STOCK REPORT'S KEY REACHES SOMEBODY.
+--
+--   The user, 2026-09-24: "Add a Hand Stock Report - Default access to
+--   Admin/Super Admin, Rest of the Access I will select from Roles &
+--   Permissions."
+--
+-- WITHOUT THIS THE SCREEN IS INVISIBLE TO EVERYBODY AND NOTHING SAYS SO.
+-- `permsForRole()` is `if (stored && stored.length) return stored;` -- the code
+-- defaults apply ONLY to a role whose stored set is EMPTY, and on a project in
+-- use every role has a tuned row. So a new module's key must be MERGED into
+-- `app_roles` or the page ships, the menu entry exists, the permission is
+-- ticked in the code, and no role can open it. That has happened four times
+-- here (Machine History, the Call Report, the Customer Feedback Report, Solved
+-- Without a Report); 0195, 0209 and 0224 are the pattern and this is the same
+-- shape.
+--
+-- WHO IT GRANTS, AND WHY IT IS NOT JUST `admin`.
+--
+--   SUPER ADMIN NEEDS NO GRANT. It is not a role -- it is a row in
+--   `app_super_admins` that overrides every check -- so it can already open
+--   this screen, and writing a key for it would be writing to a role that does
+--   not exist.
+--
+--   TECHNICAL SUPPORT IS GRANTED, AND THAT IS NOT A LIBERTY TAKEN WITH A ROLE
+--   THE USER DID NOT NAME. `_status.sql` row 114 asserts a PROPERTY: Technical
+--   Support holds every module key the admin holds. That is what the role IS
+--   (the user, 2026-09-08: "Map this Role to All Modules and Mimic Super Admin
+--   - But with Read Only For now"), and an admin-only page skipping it breaks
+--   the role silently -- which is the fault that row exists to catch. The first
+--   version of this migration granted `admin` alone and row 114 went red on the
+--   validation run, which is exactly what it is for. 0224 granted the previous
+--   administrators-only report the same way.
+--
+--   IT CONFERS NO WRITE. A module key opens a SCREEN; the read policies decide
+--   the rows, and this screen writes nothing at all. Row 117 -- Zoho Migration
+--   holds no write action -- is untouched either way.
+--
+--   ZOHO MIGRATION IS LEFT ALONE. No check requires it, the user named Admin,
+--   and the standing rule here is not to touch a role that was not named. It is
+--   one tick on Roles & Permissions if it is wanted.
+--
+-- MERGED, NEVER OVERWRITTEN, and a role with ZERO permissions is left exactly
+-- as it is: an empty array means "not configured", and writing one key into it
+-- turns off the fallback that is currently giving that role its access.
+--
+-- IDEMPOTENT: a role that already holds the key is not touched, so `updated_at`
+-- does not move on a re-run and the notice reports the truth either way.
+-- ===========================================================================
+
+do $$
+declare n integer;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (
+               select jsonb_array_elements_text(ar.permissions) as v
+               union
+               select unnest(array['mod:/handstock-report']) as v
+             ) u
+         ),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and ar.role in ('admin', 'technical_support')
+     and not (ar.permissions ? 'mod:/handstock-report');
+  get diagnostics n = row_count;
+  raise notice '0241: % of 2 role(s) given mod:/handstock-report (admin + technical_support -- grant the rest on Roles & Permissions)', n;
 end $$;
 
 -- ------------------------------------------------------------------------
@@ -10831,6 +10915,100 @@ begin
   end loop;
   raise notice '0226: open_state is now stamped on % call table(s).', n;
 end $conv$;
+
+-- ------------------------------------------------------------------------
+-- 0242_cancel_calls_in_one_go.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- CANCELLING A BATCH OF CALLS IN ONE GO.
+--
+--   The user, 2026-09-24: "Cancel all these calls in 1 Go with Reason as
+--   'Duplicate Call'".
+--
+-- The everyday case this serves is exactly the one the reason names: a handful
+-- of calls that are the SAME call, raised twice by different people or landed
+-- twice from an import. Cancelling them one at a time is not merely slow — it
+-- is a prompt answered a dozen times, which is how one of them gets a
+-- different reason typed into it and the set stops reading as one decision.
+--
+-- IT ADDS NO NEW POWER, AND THAT IS THE WHOLE DESIGN. This function is
+-- SECURITY INVOKER and does nothing itself: it LOOPS OVER `public.cancel_call`
+-- (0108), which is the definer function that checks `calls.cancel`, refuses an
+-- empty reason, refuses an unknown UCN and refuses one already cancelled. So a
+-- role that cannot cancel one call cannot cancel fifty through here, and no
+-- rule is written down twice — a second copy of a permission check is a second
+-- copy to forget when the first one changes.
+--
+-- PARTIAL SUCCESS IS THE NORMAL OUTCOME AND IS REPORTED PER CALL. A selection
+-- of twenty will routinely contain one that somebody already cancelled, and an
+-- all-or-nothing batch would throw that whole decision away over it. Each
+-- cancellation therefore runs in its OWN subtransaction (`begin ... exception`)
+-- and the function returns one row per UCN saying whether it went through and,
+-- if not, exactly what Postgres said. A batch that reports "18 done, 2 already
+-- cancelled" is an answer; "ERROR" over the same twenty is not.
+--
+-- THE CAP IS 500 AND IT IS DELIBERATE. Cancelling is reversible (`restore_call`)
+-- but it is still aimed at a whole register, and an accidental select-all
+-- should not be able to take out ten thousand calls in one request. 500 is well
+-- above any real duplicate set and below the PostgREST row cap, so the caller
+-- always sees the whole report rather than a silently truncated one.
+--
+-- NOT A DELETE, the same as 0108: every row keeps its UCN, its visits and its
+-- quality records, and reads as Cancelled.
+-- ===========================================================================
+
+create or replace function public.cancel_calls(p_ucns text[], p_reason text)
+returns table (ucn text, ok boolean, error text)
+language plpgsql
+as $$
+declare
+  v_list text[];
+  v_one  text;
+  v_n    int;
+begin
+  -- Asked once, for the batch, rather than being discovered on call 1 of 50.
+  if coalesce(btrim(p_reason), '') = '' then
+    raise exception 'A cancellation needs a reason';
+  end if;
+
+  -- DE-DUPLICATED AND EMPTIES DROPPED. The same UCN twice in one selection is
+  -- a client-side accident, and left alone it produces a row reading
+  -- "already cancelled" against a call THIS batch had just cancelled — which
+  -- reads as a fault and is not one.
+  select coalesce(array_agg(distinct btrim(u)), '{}'::text[])
+    into v_list
+    from unnest(coalesce(p_ucns, '{}'::text[])) as u
+   where coalesce(btrim(u), '') <> '';
+
+  v_n := coalesce(array_length(v_list, 1), 0);
+  if v_n = 0 then return; end if;
+  if v_n > 500 then
+    raise exception 'Too many calls in one go: % (the limit is 500)', v_n;
+  end if;
+
+  foreach v_one in array v_list loop
+    begin
+      perform public.cancel_call(v_one, p_reason);
+      ucn := v_one; ok := true; error := null;
+    exception when others then
+      -- The message is passed through WORD FOR WORD. 0108 already says the
+      -- useful thing ("Call X is already cancelled", "No call with UCN X",
+      -- "RBAC: your role cannot cancel a call"), and a summary written here
+      -- would be a second, worse copy of it.
+      ucn := v_one; ok := false; error := sqlerrm;
+    end;
+    return next;
+  end loop;
+end $$;
+
+revoke all on function public.cancel_calls(text[], text) from public;
+grant execute on function public.cancel_calls(text[], text) to authenticated;
+
+comment on function public.cancel_calls(text[], text) is
+  'Cancel many calls with one reason. Loops cancel_call() per UCN in its own '
+  'subtransaction and returns one row per UCN (ucn, ok, error). SECURITY '
+  'INVOKER by design: the permission check lives in cancel_call().';
 
 -- ------------------------------------------------------------------------
 -- 0232_call_request_edit.sql
@@ -25802,6 +25980,524 @@ comment on function public.sale_item_inst_call_guard() is
   'INST Call holds a UCN or nothing: a non-call value is discarded rather than refused (the 0113/0114 rule), and a re-import can never replace a real UCN with a blank.';
 
 -- ------------------------------------------------------------------------
+-- 0236_cover_policies_are_initplans.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE COVER POLICIES ARE ASKED ONCE PER QUERY, NOT ONCE PER ROW.
+--
+-- Found by EXPLAIN, after "Search failed: canceling statement due to statement
+-- timeout" on the Product Database (2026-09-23). The plan named it exactly:
+--
+--   Seq Scan on contract_items ci  (actual time=16209.182..16209.182 rows=0)
+--     Filter: (has_perm('cover.edit') OR has_perm('masters.view')
+--              OR has_perm('cover.edit') OR is_admin())
+--     Rows Removed by Filter: 20001
+--
+-- SIXTEEN SECONDS TO RETURN NOTHING. The predicate says nothing about the row
+-- -- it is the same answer for every row in the table -- but written bare it is
+-- a per-row expression, so Postgres called has_perm() four times for each of
+-- 20,001 rows and each call reads app_roles.
+--
+-- WRAPPING IT IN A SCALAR SUBQUERY MAKES IT AN InitPlan: evaluated ONCE, at the
+-- start, and the result reused. Identical semantics, identical audience --
+-- nobody gains or loses a row. This project has now made the same fix three
+-- times: 0095 on the hand-stock policies, 0164 on cr_read (measured at 1,840 ms
+-- to 7.4 ms for an engineer), and here.
+--
+-- IT WAS NOT HURTING BEFORE because the cover registers always read with a
+-- filter -- an SA number, a serial -- so the scan was small and 20,001
+-- evaluations never happened. The Product Database reads the WHOLE install base
+-- and joins these tables to it, which is what exposed it. A policy that is
+-- fine until somebody writes a bigger query is not fine; it is waiting.
+--
+-- ALL FOUR TABLES AND BOTH POLICIES, because the write policy has the same
+-- shape and the same fault -- an UPDATE over many rows pays it the same way.
+-- ===========================================================================
+
+do $$
+declare t text;
+begin
+  foreach t in array array['sale_entries', 'sale_items', 'contract_entries', 'contract_items'] loop
+    if to_regclass('public.' || t) is null then continue; end if;
+
+    execute format('drop policy if exists %1$s_read on public.%1$s;', t);
+    execute format($f$create policy %1$s_read on public.%1$s for select
+                        using ((select public.has_perm('masters.view'))
+                            or (select public.has_perm('cover.edit'))
+                            or (select public.is_admin()));$f$, t);
+
+    execute format('drop policy if exists %1$s_write on public.%1$s;', t);
+    execute format($f$create policy %1$s_write on public.%1$s for all
+                        using ((select public.has_perm('cover.edit')))
+                        with check ((select public.has_perm('cover.edit')));$f$, t);
+  end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0237_sale_fills_product_database.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A WARRANTY SALE PUTS ITS MACHINES INTO THE PRODUCT DATABASE.
+--
+-- The user, 2026-09-24: "Every time I add a Warranty Sale entry, all the
+-- products should get added to the product database. There is an opportunity
+-- that same product is sold again to a different customer, in that case the old
+-- data should be over written. All fields should get updated in product
+-- database as per the warranty sale details."
+--
+-- WHAT WAS THERE ALREADY, AND WHY IT WAS NOT ENOUGH. `sale_items` has fired
+-- `sync_product_cover()` since 0036, and that function does an UPDATE: it
+-- refreshes the cover of a machine ALREADY in the register and does nothing at
+-- all for one that is not. So a machine sold today appeared in the Product
+-- Database only if the AppSheet import had happened to carry it. The register
+-- of what exists was being kept by an import rather than by the act of selling.
+--
+-- AND IT KEYS ON THE SERIAL ALONE, which this project settled long ago:
+-- A MACHINE IS ITS MODEL AND ITS SERIAL. The install base holds eleven machines
+-- numbered 219, so a serial-only match writes one sale's cover onto a different
+-- model. This keys on `machine_key` -- the generated lower(model)|lower(serial)
+-- -- which is the same key `products_machine_key_uniq` already enforces.
+--
+-- RE-SOLD TO A DIFFERENT CUSTOMER IS THE CASE THE ASK NAMES, and it falls out
+-- of the key: the same model and serial is the same machine, so the upsert
+-- finds the existing row and the new sale's party, dates and location replace
+-- the previous owner's. That is the whole point -- the Product Database says
+-- who has the machine NOW.
+--
+-- WHAT IT WRITES IS WHAT THE SALE KNOWS, AND ONLY THAT.
+--
+--   written:  party, model, serial, product code, SA number, warranty start /
+--             end / status, PM visits, sold through, state, city, address,
+--             other details, the sale's engineer, and the installation call.
+--   NOT written: everything about the CONTRACT (the sale knows nothing about
+--             it and a blank would erase real cover), `extra` (the import's
+--             kept columns), `item_status` (worked out on read since 0235, and
+--             the stored value is the migrated system's own answer, preserved
+--             deliberately as item_status_keyed), and `active`.
+--
+-- A BLANK ON THE SALE IS WRITTEN AS A BLANK, and that is deliberate rather than
+-- careless: "all fields ... as per the warranty sale details" is the ask, and on
+-- a RE-SALE the alternative is worse -- keeping the previous owner's city
+-- against the new owner's machine is not stale data, it is wrong data about
+-- somebody else.
+--
+-- ONE THING THIS CHANGES THAT NOBODY ASKED FOR, said plainly rather than
+-- buried: an OWNERSHIP TRANSFER also writes products.party_name, and a later
+-- edit to the sale will now overwrite it with the sale's party. The transfer
+-- row is untouched and the machine's history is intact, but the Product
+-- Database would show the original buyer again. It only happens if somebody
+-- edits that sale after the transfer; if that is wrong for this business, the
+-- rule to add is "do not overwrite the party where a transfer is dated after
+-- the sale", and it is one clause.
+-- ===========================================================================
+
+create or replace function public.upsert_product_from_sale(p_item_id bigint)
+returns void language plpgsql security definer set search_path = public as $$
+declare i record; h record;
+begin
+  select * into i from public.sale_items where id = p_item_id;
+  if not found then return; end if;
+
+  -- A MACHINE IS ITS MODEL AND ITS SERIAL. A line with either missing is not a
+  -- machine yet -- a half-typed row on an open entry -- and putting it in the
+  -- install base would create a product nobody can identify.
+  if btrim(coalesce(i.product_name, '')) = '' or btrim(coalesce(i.serial_number, '')) = '' then
+    return;
+  end if;
+
+  select * into h from public.sale_entries where sa_number = i.sa_number;
+
+  insert into public.products as p (
+    item_name, serial_number, party_name,
+    item_code, warranty_number,
+    warranty_start, warranty_end, warranty_status_keyed, pm_visits,
+    sold_through, state, city, address, other_details,
+    service_engineer, inst_call)
+  values (
+    btrim(i.product_name), btrim(i.serial_number), coalesce(h.party_name, ''),
+    coalesce(i.product_code, ''), coalesce(i.sa_number, ''),
+    -- The EFFECTIVE value: the machine's own where it pinned one, else the
+    -- entry's. That is the inheritance the registers already show on screen
+    -- (0036), so the Product Database agrees with what the operator is reading.
+    coalesce(i.warranty_start, h.warranty_start),
+    coalesce(i.warranty_end,   h.warranty_end),
+    coalesce(nullif(btrim(coalesce(i.warranty_status, '')), ''), h.warranty_status, ''),
+    coalesce(i.pm_visits, h.pm_visits),
+    coalesce(nullif(btrim(coalesce(i.sold_through, '')), ''), h.sold_through, ''),
+    coalesce(nullif(btrim(coalesce(i.state, '')), ''), h.state, ''),
+    coalesce(nullif(btrim(coalesce(i.city,  '')), ''), h.city,  ''),
+    coalesce(h.address, ''),
+    coalesce(nullif(btrim(coalesce(i.other_details, '')), ''), h.other_details, ''),
+    coalesce(nullif(btrim(coalesce(i.engineer, '')), ''), h.engineer, ''),
+    coalesce(i.inst_call, ''))
+  on conflict (machine_key) do update set
+    party_name            = excluded.party_name,
+    item_code             = excluded.item_code,
+    warranty_number       = excluded.warranty_number,
+    warranty_start        = excluded.warranty_start,
+    warranty_end          = excluded.warranty_end,
+    warranty_status_keyed = excluded.warranty_status_keyed,
+    pm_visits             = excluded.pm_visits,
+    sold_through          = excluded.sold_through,
+    state                 = excluded.state,
+    city                  = excluded.city,
+    address               = excluded.address,
+    other_details         = excluded.other_details,
+    service_engineer      = excluded.service_engineer,
+    -- THE ONE FIELD THAT IS NEVER TAKEN BACKWARDS. 0234's rule: a UCN already
+    -- on the machine is a call that exists, and a sale re-saved with a blank
+    -- INST Call would orphan it. A real UCN on the sale still replaces one.
+    inst_call             = case when public.is_call_number(excluded.inst_call)
+                                 then excluded.inst_call else p.inst_call end;
+end $$;
+
+comment on function public.upsert_product_from_sale(bigint) is
+  'Puts one Warranty Sale machine into the Product Database, keyed on MODEL + SERIAL, overwriting what the sale knows and leaving the contract, `extra` and item_status alone.';
+
+-- ---- the two triggers ------------------------------------------------------
+-- THE ITEM, for a machine added, corrected or re-serialled.
+create or replace function public.sale_item_to_product()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.upsert_product_from_sale(new.id);
+  return null;
+end $$;
+
+drop trigger if exists zz_sale_item_to_product on public.sale_items;
+create trigger zz_sale_item_to_product
+  after insert or update on public.sale_items
+  for each row execute function public.sale_item_to_product();
+
+-- THE ENTRY, because the party, the address and the warranty dates live on the
+-- HEADER and every machine under it inherits them: correcting the customer on
+-- the entry has to reach all of its machines, not none of them.
+create or replace function public.sale_entry_to_products()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare r record;
+begin
+  for r in select id from public.sale_items where sa_number = new.sa_number loop
+    perform public.upsert_product_from_sale(r.id);
+  end loop;
+  return null;
+end $$;
+
+drop trigger if exists zz_sale_entry_to_products on public.sale_entries;
+create trigger zz_sale_entry_to_products
+  after insert or update on public.sale_entries
+  for each row execute function public.sale_entry_to_products();
+
+-- ---- the machines already on the register ----------------------------------
+-- EVERY SALE LINE ALREADY FILED, brought into the Product Database once. A rule
+-- that only applies to sales made after today would leave the register as two
+-- kinds of machine, and nothing on screen would say which.
+--
+-- OLDEST SALE FIRST, so where a machine really has been sold twice the LATEST
+-- sale is the one that lands -- the same answer the trigger gives from now on.
+do $$
+declare r record; n bigint := 0;
+begin
+  if to_regclass('public.sale_items') is null then return; end if;
+  for r in select i.id from public.sale_items i
+            left join public.sale_entries h on h.sa_number = i.sa_number
+           where btrim(coalesce(i.product_name, '')) <> ''
+             and btrim(coalesce(i.serial_number, '')) <> ''
+           order by coalesce(h.entry_at, i.created_at) nulls first, i.id loop
+    perform public.upsert_product_from_sale(r.id);
+    n := n + 1;
+  end loop;
+  raise notice '0237: % sale machine(s) put into the Product Database.', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0238_machine_belongs_to_its_latest_owner.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A MACHINE BELONGS TO WHOEVER OWNS IT NOW, AND SO DOES EVERYTHING ATTACHED.
+--
+-- The user, 2026-09-24:
+--   "What should be displayed is entirely based on the Timestamp of when the
+--    change was done. When a new sale entry is added [Resold machine] .. it
+--    should remove contract, installation call and every other details attached
+--    as part of the product previously. Or let's say Contract has to match the
+--    product, serial no, party.. Same with Installation calls -- it should match
+--    Product, serial no, party .. and party is decided by sale entry or
+--    ownership transfer whichever is latest."
+--
+-- THE SECOND SENTENCE IS THE MECHANISM FOR THE FIRST, and taking it that way is
+-- what makes this safe. A re-sale does not DELETE the old contract and the old
+-- installation call; they simply stop matching, because they name the previous
+-- owner. Nothing is destroyed, the contract register is untouched, and if the
+-- machine ever comes back to that customer its cover reappears by itself. A
+-- rule that deletes cannot do any of that.
+--
+-- TWO HALVES, KEPT APART ON PURPOSE:
+--
+--   THE PARTY IS STORED (0237's upsert, extended here). It is decided by two
+--   TIMESTAMPED EVENTS -- the sale entry and the ownership transfer -- so it
+--   does not decay: nothing about it changes because a day passed. Storing a
+--   value that only moves when somebody records something is honest.
+--
+--   THE CONTRACT AND THE INSTALLATION CALL ARE MATCHED ON READ, in
+--   `product_database`. They depend on the party, and the party can change, so
+--   deriving them where they are read means they can never disagree with it.
+--   It also means no trigger on `installation_calls` or `contract_items` --
+--   two of the highest-volume tables here, where a per-row trigger would make
+--   a twelve-thousand-row import pay for this rule twelve thousand times.
+--
+-- SAME DAY? THE TRANSFER WINS. `transfer_date` is a DATE and a sale entry is a
+-- TIMESTAMP, so a transfer recorded on the day of a sale would otherwise lose
+-- to it at midnight. You cannot transfer a machine before selling it, so a
+-- transfer bearing the same date is the later event.
+--
+-- A MACHINE WITH NEITHER A SALE NOR A TRANSFER IS LEFT ENTIRELY ALONE. Twenty
+-- thousand machines came from the AppSheet import and have no sale entry
+-- behind them; deriving their party from registers that do not mention them
+-- would blank the only record of who owns them.
+-- ===========================================================================
+
+-- ---- 1. the party is the latest event's -----------------------------------
+create or replace function public.machine_current_party(p_item_name text, p_serial text)
+returns text language sql stable set search_path = public as $$
+  with m as (select lower(btrim(coalesce(p_item_name, ''))) as n,
+                    lower(btrim(coalesce(p_serial, '')))    as s),
+  sale as (
+    select coalesce(h.party_name, '') as party, coalesce(h.entry_at, i.created_at) as at
+      from public.sale_items i
+      join public.sale_entries h on h.sa_number = i.sa_number, m
+     where lower(btrim(coalesce(i.product_name, ''))) = m.n
+       and lower(btrim(coalesce(i.serial_number, ''))) = m.s
+     order by coalesce(h.entry_at, i.created_at) desc nulls last, i.id desc
+     limit 1),
+  xfer as (
+    select coalesce(t.to_party, '') as party, t.transfer_date as on_date
+      from public.ownership_transfers t, m
+     where lower(btrim(coalesce(t.item_name, ''))) = m.n
+       and lower(btrim(coalesce(t.serial_number, ''))) = m.s
+       and btrim(coalesce(t.to_party, '')) <> ''
+     order by t.transfer_date desc nulls last, t.id desc
+     limit 1)
+  -- THE TRANSFER WINS A TIE, for the reason at the top of this file.
+  select case
+    when not exists (select 1 from xfer) then (select party from sale)
+    when not exists (select 1 from sale) then (select party from xfer)
+    when (select on_date from xfer) >= (select at from sale)::date then (select party from xfer)
+    else (select party from sale)
+  end;
+$$;
+
+comment on function public.machine_current_party(text, text) is
+  'Who owns this machine NOW: the party from the later of its latest sale entry and its latest ownership transfer. A transfer dated the same day as a sale wins, since a machine cannot be transferred before it is sold.';
+
+-- ---- 2. the upsert writes that party, not the sale's ----------------------
+create or replace function public.upsert_product_from_sale(p_item_id bigint)
+returns void language plpgsql security definer set search_path = public as $$
+declare i record; h record; v_party text;
+begin
+  select * into i from public.sale_items where id = p_item_id;
+  if not found then return; end if;
+
+  if btrim(coalesce(i.product_name, '')) = '' or btrim(coalesce(i.serial_number, '')) = '' then
+    return;
+  end if;
+
+  select * into h from public.sale_entries where sa_number = i.sa_number;
+
+  -- NOT h.party_name. A machine sold and later transferred belongs to whoever
+  -- holds it now, and re-saving the sale must not hand it back to the buyer.
+  v_party := public.machine_current_party(i.product_name, i.serial_number);
+
+  insert into public.products as p (
+    item_name, serial_number, party_name,
+    item_code, warranty_number,
+    warranty_start, warranty_end, warranty_status_keyed, pm_visits,
+    sold_through, state, city, address, other_details, service_engineer)
+  values (
+    btrim(i.product_name), btrim(i.serial_number), coalesce(v_party, ''),
+    coalesce(i.product_code, ''), coalesce(i.sa_number, ''),
+    coalesce(i.warranty_start, h.warranty_start),
+    coalesce(i.warranty_end,   h.warranty_end),
+    coalesce(nullif(btrim(coalesce(i.warranty_status, '')), ''), h.warranty_status, ''),
+    coalesce(i.pm_visits, h.pm_visits),
+    coalesce(nullif(btrim(coalesce(i.sold_through, '')), ''), h.sold_through, ''),
+    coalesce(nullif(btrim(coalesce(i.state, '')), ''), h.state, ''),
+    coalesce(nullif(btrim(coalesce(i.city,  '')), ''), h.city,  ''),
+    coalesce(h.address, ''),
+    coalesce(nullif(btrim(coalesce(i.other_details, '')), ''), h.other_details, ''),
+    coalesce(nullif(btrim(coalesce(i.engineer, '')), ''), h.engineer, ''))
+  on conflict (machine_key) do update set
+    party_name            = excluded.party_name,
+    item_code             = excluded.item_code,
+    warranty_number       = excluded.warranty_number,
+    warranty_start        = excluded.warranty_start,
+    warranty_end          = excluded.warranty_end,
+    warranty_status_keyed = excluded.warranty_status_keyed,
+    pm_visits             = excluded.pm_visits,
+    sold_through          = excluded.sold_through,
+    state                 = excluded.state,
+    city                  = excluded.city,
+    address               = excluded.address,
+    other_details         = excluded.other_details,
+    service_engineer      = excluded.service_engineer;
+  -- `inst_call` IS NO LONGER WRITTEN HERE AT ALL, and that reverses yesterday's
+  -- rule at the user's instruction: the installation call now BELONGS to the
+  -- machine only while it names the current owner, which is decided on read.
+  -- The stored column keeps whatever the import put there, as the keyed value.
+end $$;
+
+-- ---- 3. a transfer re-decides the machine ---------------------------------
+create or replace function public.transfer_to_product()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare r record; m record;
+begin
+  m := case when tg_op = 'DELETE' then old else new end;
+  for r in select i.id from public.sale_items i
+            where lower(btrim(coalesce(i.product_name, ''))) = lower(btrim(coalesce(m.item_name, '')))
+              and lower(btrim(coalesce(i.serial_number, ''))) = lower(btrim(coalesce(m.serial_number, ''))) loop
+    perform public.upsert_product_from_sale(r.id);
+  end loop;
+
+  -- A machine with NO sale entry still changes hands, and the transfer is then
+  -- the only thing that knows who owns it.
+  update public.products p
+     set party_name = public.machine_current_party(p.item_name, p.serial_number)
+   where p.machine_key = lower(btrim(coalesce(m.item_name, ''))) || '|' || lower(btrim(coalesce(m.serial_number, '')))
+     and not exists (select 1 from public.sale_items i
+                      where lower(btrim(coalesce(i.product_name, ''))) = lower(btrim(coalesce(m.item_name, '')))
+                        and lower(btrim(coalesce(i.serial_number, ''))) = lower(btrim(coalesce(m.serial_number, ''))));
+  return null;
+end $$;
+
+drop trigger if exists zz_transfer_to_product on public.ownership_transfers;
+create trigger zz_transfer_to_product
+  after insert or update or delete on public.ownership_transfers
+  for each row execute function public.transfer_to_product();
+
+-- ---- 4. bring every machine that has a sale or a transfer up to date ------
+do $$
+declare r record; n bigint := 0;
+begin
+  for r in select i.id from public.sale_items i
+            left join public.sale_entries h on h.sa_number = i.sa_number
+           where btrim(coalesce(i.product_name, '')) <> ''
+             and btrim(coalesce(i.serial_number, '')) <> ''
+           order by coalesce(h.entry_at, i.created_at) nulls first, i.id loop
+    perform public.upsert_product_from_sale(r.id);
+    n := n + 1;
+  end loop;
+
+  update public.products p
+     set party_name = public.machine_current_party(p.item_name, p.serial_number)
+   where exists (select 1 from public.ownership_transfers t
+                  where lower(btrim(coalesce(t.item_name, ''))) = lower(btrim(coalesce(p.item_name, '')))
+                    and lower(btrim(coalesce(t.serial_number, ''))) = lower(btrim(coalesce(p.serial_number, ''))));
+
+  raise notice '0238: % sale machine(s) re-derived; transferred machines follow their latest owner.', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0240_ownership_transfer_timestamp.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- AN OWNERSHIP TRANSFER RECORDS THE MOMENT IT HAPPENED, NOT JUST THE DAY.
+--
+-- The user, 2026-09-24: "Record the Timestamp in Ownership Transfer as well.
+-- Ideally all the tables should record the Timestamp, and every Table should
+-- have a Key on its own."
+--
+-- THIS IS THE MISSING HALF OF 0238's RULE. "The party is decided by the sale
+-- entry or the ownership transfer, whichever is latest" needs both sides to be
+-- comparable, and they were not: a sale entry carries a TIMESTAMP and
+-- `transfer_date` is a DATE. So a transfer recorded at two in the afternoon on
+-- the day of a sale entered that morning compared as MIDNIGHT and lost. 0238
+-- papered over it with a tie-break -- a transfer dated the same day wins,
+-- since a machine cannot be transferred before it is sold -- which is the right
+-- answer for that case and merely a guess for the reverse one: a machine
+-- transferred in the morning and SOLD ON in the afternoon read as transferred.
+--
+-- `transferred_at` MAKES THE COMPARISON EXACT and the tie-break stops being
+-- load-bearing. It is kept, because two events can still share an instant and
+-- something has to decide.
+--
+-- WHAT THE EXISTING ROWS GET. `created_at` -- when the row was actually written,
+-- which is literally "the Timestamp of when the change was done". Where a row
+-- has none, the transfer date at midnight, which is all that was ever recorded
+-- about it and is not improved by inventing an hour.
+--
+-- `transfer_date` IS NOT DROPPED AND NOT DERIVED FROM THIS. It is the day the
+-- machine changed hands, which is a fact about the business; `transferred_at`
+-- is when the system was told. They routinely differ -- a transfer agreed on
+-- Friday and entered on Monday -- and collapsing them would lose the first.
+-- ===========================================================================
+
+alter table public.ownership_transfers
+  add column if not exists transferred_at timestamptz;
+
+comment on column public.ownership_transfers.transferred_at is
+  'When this transfer was RECORDED, to the second. transfer_date is the day the machine changed hands; these differ and both are kept. Used to order a transfer against a sale entry.';
+
+-- Backfill, then default. In that order: a default set first would leave the
+-- existing rows null anyway, and doing it after means one pass.
+update public.ownership_transfers
+   set transferred_at = coalesce(created_at, transfer_date::timestamptz)
+ where transferred_at is null;
+
+alter table public.ownership_transfers
+  alter column transferred_at set default now();
+
+-- ---- the rule now compares two timestamps ---------------------------------
+create or replace function public.machine_current_party(p_item_name text, p_serial text)
+returns text language sql stable set search_path = public as $$
+  with m as (select lower(btrim(coalesce(p_item_name, ''))) as n,
+                    lower(btrim(coalesce(p_serial, '')))    as s),
+  sale as (
+    select coalesce(h.party_name, '') as party, coalesce(h.entry_at, i.created_at) as at
+      from public.sale_items i
+      join public.sale_entries h on h.sa_number = i.sa_number, m
+     where lower(btrim(coalesce(i.product_name, ''))) = m.n
+       and lower(btrim(coalesce(i.serial_number, ''))) = m.s
+     order by coalesce(h.entry_at, i.created_at) desc nulls last, i.id desc
+     limit 1),
+  xfer as (
+    -- `transferred_at` first, the DATE only where a row predates it and has no
+    -- created_at either. Ordered the same way it is compared, or the row picked
+    -- here would not be the row the comparison then uses.
+    select coalesce(t.to_party, '') as party,
+           coalesce(t.transferred_at, t.created_at, t.transfer_date::timestamptz) as at
+      from public.ownership_transfers t, m
+     where lower(btrim(coalesce(t.item_name, ''))) = m.n
+       and lower(btrim(coalesce(t.serial_number, ''))) = m.s
+       and btrim(coalesce(t.to_party, '')) <> ''
+     order by coalesce(t.transferred_at, t.created_at, t.transfer_date::timestamptz) desc nulls last,
+              t.id desc
+     limit 1)
+  -- THE TRANSFER STILL WINS AN EXACT TIE. Two events sharing an instant need a
+  -- decision, and a machine cannot be transferred before it is sold.
+  select case
+    when not exists (select 1 from xfer) then (select party from sale)
+    when not exists (select 1 from sale) then (select party from xfer)
+    when (select at from xfer) >= (select at from sale) then (select party from xfer)
+    else (select party from sale)
+  end;
+$$;
+
+-- ---- re-derive, since the ordering can now differ within a day ------------
+do $$
+declare n bigint;
+begin
+  update public.products p
+     set party_name = public.machine_current_party(p.item_name, p.serial_number)
+   where exists (select 1 from public.ownership_transfers t
+                  where lower(btrim(coalesce(t.item_name, ''))) = lower(btrim(coalesce(p.item_name, '')))
+                    and lower(btrim(coalesce(t.serial_number, ''))) = lower(btrim(coalesce(p.serial_number, ''))));
+  get diagnostics n = row_count;
+  raise notice '0240: % transferred machine(s) re-checked against the exact times.', n;
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql
 -- ------------------------------------------------------------------------
 
@@ -34658,6 +35354,337 @@ from public.product_database_v2_mv m
 cross join public.product_database_v2_state s;
 alter view public.product_database_v2 set (security_invoker = on);
 grant select on public.product_database_v2 to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0235_product_database_computed.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- PRODUCT DATABASE: ITEM STATUS AND SERVICE ENGINEER ARE WORKED OUT, NOT STORED.
+--
+-- The user, 2026-09-23:
+--   "Item Status should be a calculated value. Logic = If Warranty End Date is
+--    less than equal to today, Then WGP Else if Contract End Date is less than
+--    or Equal to today then CMC / AMC as per the MC Number else OGP"
+--   "Service Engineer name should be a calculated value. It should always come
+--    from Party Master"
+--
+-- THE COMPARISON IS READ AS ">= TODAY", NOT "<= TODAY", and that is a
+-- correction rather than an interpretation. Taken literally, an EXPIRED
+-- warranty would read WGP and a machine covered by both would read OGP --
+-- every one of the three inverted. OGP is the fallback for a machine covered by
+-- nothing, so the intent is plainly "the cover has not run out yet". The
+-- function this replaces (0036 sync_product_cover) already compared with
+-- >= current_date, which is the same reading.
+--
+-- WHY A VIEW AND NOT A COLUMN. Item Status compares two dates with TODAY, so a
+-- stored answer is right on the day it is written and wrong afterwards --
+-- exactly the fault 0222 had to correct on Product Database 2.0, where a
+-- materialised cover status froze at the last rebuild and 209 machines of
+-- 10,000 were wrong after thirty days, silently, beside a caption that looked
+-- like it accounted for it. A value that decays cannot be stored and called
+-- calculated. Neither can the engineer: the Party Master is the master, so a
+-- copy on the machine is a second answer that goes stale the moment somebody
+-- changes the customer's engineer.
+--
+-- THE TABLE IS UNTOUCHED. Every importer, every upsert and every other reader
+-- still writes and reads public.products exactly as before; this view is what
+-- the Product Database SCREEN reads. The stored columns stay where they are --
+-- they are what the AppSheet export carried, and dropping them would throw
+-- away the migrated system own answer with nothing to compare against.
+--
+-- THE COLUMN LIST IS EXPLICIT because two names are being REPLACED, and a
+-- star-expansion beside a column of the same name is a duplicate. A new column
+-- on products therefore has to be added here too -- the same maintenance the
+-- 2.0 view already carries, and the price of computing rather than storing.
+-- ===========================================================================
+
+drop view if exists public.product_database;
+
+create view public.product_database as
+select
+p.id,
+  p.party_name,
+  p.item_name,
+  p.serial_number,
+  p.warranty_number,
+  p.warranty_start,
+  p.warranty_end,
+  p.contract_number,
+  p.contract_start,
+  p.contract_end,
+  p.contract_type,
+  p.active,
+  p.extra,
+  p.created_at,
+  p.machine_key,
+  p.serial_key,
+  p.item_code,
+  p.item_details_long,
+  p.item_details,
+  p.sold_through,
+  p.state,
+  p.city,
+  p.address,
+  p.po_no,
+  p.po_date,
+  p.warranty_status_keyed,
+  p.contract_status_keyed,
+  p.pm_visits,
+  p.other_details,
+  p.prod_final,
+  p.installation_completed,
+  p.inst_call,
+  p.inst_date,
+  p.inst_call_status,
+  p.report,
+  p.associated_accessory,
+
+  -- ---- ITEM STATUS -------------------------------------------------------
+  -- WARRANTY DECIDES FIRST. A machine inside its warranty is not being billed
+  -- under its contract, so asking the contract first (which 0036 did) answers
+  -- CMC for a machine still in warranty. Product Database 2.0 settled this the
+  -- same way in 0218; the two registers now agree.
+  --
+  -- THE TYPE COMES FROM THE CONTRACT THE MC NUMBER NAMES, not from the copy on
+  -- the machine row: "as per the MC Number" is the ask, and the contract
+  -- register is where a type is edited. The machine own value answers only
+  -- where the register cannot -- an imported machine whose contract was never
+  -- loaded.
+  --
+  -- AND A CONTRACT WITH NO TYPE IS NOT GUESSED AT. 0036 answered CMC for one;
+  -- this says CONTRACT (TYPE NOT RECORDED), which is what 0218 chose and for
+  -- the same reason -- a guess written where a reader expects a fact is worse
+  -- than a value that reads as odd, because the odd one gets reported.
+  case
+    when p.warranty_end >= current_date then 'WGP'
+    when p.contract_end >= current_date then
+      coalesce(public.contract_cover_code(nullif(btrim(ci.contract_type), '')),
+               public.contract_cover_code(nullif(btrim(ce.contract_type), '')),
+               public.contract_cover_code(p.contract_type),
+               'CONTRACT (TYPE NOT RECORDED)')
+    else 'OGP'
+  end                                               as item_status,
+
+  -- ---- SERVICE ENGINEER --------------------------------------------------
+  -- ALWAYS the Party Master's (0200). A party the master does not carry
+  -- answers EMPTY rather than falling back to the machine's stored name: "it
+  -- should always come from Party Master" is the ask, and a silent fallback
+  -- would make the screen disagree with the master on exactly the customers
+  -- somebody needs to correct.
+  --
+  -- JOINED, NOT party_service_engineer(p.party_name). The rule is that
+  -- function's, verbatim -- name_key = lower(btrim(party)) -- and check:ui
+  -- holds the two together. It is a JOIN here for the reason below.
+  coalesce(nullif(btrim(pa.service_engineer), ''), '') as service_engineer,
+
+  -- What the MIGRATED SYSTEM said, kept beside the computed answer so the two
+  -- can be compared rather than one quietly replacing the other.
+  p.item_status                                     as item_status_keyed,
+  p.service_engineer                                as service_engineer_keyed
+from public.products p
+-- ===========================================================================
+-- JOINS, NOT CORRELATED SUBQUERIES, AND THAT IS THE WHOLE PERFORMANCE STORY.
+--
+-- Reported from use the day this shipped: "Search failed: canceling statement
+-- due to statement timeout", with an empty register behind it.
+--
+-- The first version asked the contract question as three correlated subqueries
+-- inside a COALESCE and the engineer as a per-row function call. Measured on a
+-- register of 20,000 machines: 6 ms for one page, because LIMIT stops after a
+-- hundred rows -- and MORE THAN 120 SECONDS the moment anything makes Postgres
+-- produce the columns for every row, which any filter on the register does.
+-- That is why one page looked fine here and the screen died there.
+--
+-- A LEFT JOIN is planned ONCE for the whole query: a hash join over
+-- contract_items and contract_entries instead of two index lookups per row
+-- through two RLS-protected tables. Same answers, and the plan no longer
+-- depends on how many rows survive the filter.
+--
+-- THIS IS 0220's LESSON AND I WALKED INTO IT. That migration measured the same
+-- shape at fifty-two times slower under RLS than as the owner, and wrote it
+-- down. Correctness was proved here on five fixture rows; the SPEED was not
+-- measured until the register was loaded to its real size. A view over a
+-- 20,000-row register is measured at that size or it is not measured.
+-- ===========================================================================
+-- The machine's own line on the contract its MC number names -- "as per the MC
+-- Number", down to the line, so a machine on a Labour line of a Comprehensive
+-- contract reads AMC.
+left join public.contract_items ci
+       on ci.mc_number = p.contract_number
+      and lower(btrim(ci.serial_number)) = p.serial_key
+-- The contract's own type, where the line does not carry one.
+left join public.contract_entries ce
+       on ce.mc_number = p.contract_number
+-- The Party Master, keyed exactly as party_service_engineer() keys it.
+left join public.parties pa
+       on pa.name_key = lower(btrim(coalesce(p.party_name, '')));
+
+-- WITHOUT THIS THE VIEW READS AS ITS OWNER and row-level security stops
+-- applying to whoever is reading -- the fault this project has shipped three
+-- times (0040 / 0050 / 0057).
+alter view public.product_database set (security_invoker = on);
+
+-- 28 of the 30 views these migrations create carry this; the one that shipped
+-- without it was invisible to every screen that read it.
+grant select on public.product_database to authenticated;
+
+comment on view public.product_database is
+  'The install base with Item Status and Service Engineer WORKED OUT rather than stored: warranty first, then the contract the MC number names, else OGP; the engineer always from the Party Master. The stored values are kept beside them as *_keyed.';
+
+-- ------------------------------------------------------------------------
+-- 0239_attachments_follow_the_owner.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE CONTRACT AND THE INSTALLATION CALL BELONG TO THE MACHINE'S CURRENT OWNER.
+--
+-- The user, 2026-09-24: "Contract has to match the product, serial no, party..
+-- Same with Installation calls -- it should match Product, serial no, party ..
+-- and party is decided by sale entry or ownership transfer whichever is latest."
+--
+-- 0238 decided the party. This is the other half: what is ATTACHED to a machine
+-- is whatever names the machine AND its current owner. So a re-sale removes the
+-- previous owner's contract and installation call by ceasing to match them --
+-- nothing is deleted, the registers are untouched, and a machine that returns
+-- to that customer gets its cover back by itself.
+--
+-- MATCHED ON READ, NOT STORED. The party can change, and a stored attachment
+-- would then disagree with it until something rewrote the row. It also keeps
+-- every trigger off `contract_items` and `installation_calls`, where a per-row
+-- rule would make a twelve-thousand-row import pay for this twelve thousand
+-- times.
+--
+-- DISTINCT ON, NOT A LATERAL PER ROW. Yesterday's timeout was a correlated
+-- subquery evaluated once per machine; these are one pass over each register,
+-- joined. MEASURED AT THE REGISTER'S REAL SIZE before shipping this time.
+--
+-- THE LATEST ONE WINS where a customer has held the machine under more than one
+-- contract: the contract that ends last, then the newest row. A machine with
+-- several installation calls to the same owner takes the most recent.
+--
+-- THE STORED VALUES ARE KEPT as *_keyed, beside the matched ones, so the
+-- migrated system's answer can still be read and compared.
+-- ===========================================================================
+
+drop view if exists public.product_database;
+
+create view public.product_database as
+with contract_pick as (
+  select distinct on (mk_name, mk_serial, party_key)
+         mk_name, mk_serial, party_key,
+         mc_number, contract_type, contract_start, contract_end
+    from (
+      select lower(btrim(coalesce(ci.product_name, '')))  as mk_name,
+             lower(btrim(coalesce(ci.serial_number, ''))) as mk_serial,
+             lower(btrim(coalesce(nullif(btrim(coalesce(ci.party_name, '')), ''),
+                                  ce.party_name, '')))    as party_key,
+             ci.mc_number,
+             coalesce(nullif(btrim(coalesce(ci.contract_type, '')), ''), ce.contract_type) as contract_type,
+             coalesce(ci.contract_start, ce.contract_start) as contract_start,
+             coalesce(ci.contract_end,   ce.contract_end)   as contract_end,
+             ci.id
+        from public.contract_items ci
+        join public.contract_entries ce on ce.mc_number = ci.mc_number
+    ) c
+   where mk_name <> '' and mk_serial <> ''
+   order by mk_name, mk_serial, party_key, contract_end desc nulls last, id desc
+),
+install_pick as (
+  select distinct on (mk_name, mk_serial, party_key)
+         mk_name, mk_serial, party_key, ucn
+    from (
+      select lower(btrim(coalesce(c.product_name, ''))) as mk_name,
+             lower(btrim(coalesce(c.serial, '')))       as mk_serial,
+             lower(btrim(coalesce(c.party_name, '')))   as party_key,
+             c.ucn, c.reg_date, c.id
+        from public.installation_calls c
+       where coalesce(c.cancelled_at, null) is null
+    ) x
+   where mk_name <> '' and mk_serial <> ''
+   order by mk_name, mk_serial, party_key, reg_date desc nulls last, id desc
+)
+select
+p.id,
+  p.party_name,
+  p.item_name,
+  p.serial_number,
+  p.warranty_number,
+  p.warranty_start,
+  p.warranty_end,
+  p.active,
+  p.extra,
+  p.created_at,
+  p.machine_key,
+  p.serial_key,
+  p.item_code,
+  p.item_details_long,
+  p.item_details,
+  p.sold_through,
+  p.state,
+  p.city,
+  p.address,
+  p.po_no,
+  p.po_date,
+  p.warranty_status_keyed,
+  p.contract_status_keyed,
+  p.pm_visits,
+  p.other_details,
+  p.prod_final,
+  p.installation_completed,
+  p.inst_date,
+  p.inst_call_status,
+  p.report,
+  p.associated_accessory,
+
+  -- ---- ITEM STATUS -------------------------------------------------------
+  -- Warranty first, then the contract THAT MATCHES THIS OWNER, else OGP. A
+  -- machine whose only contract names the previous customer is out of contract,
+  -- which is the point of the whole change.
+  case
+    when p.warranty_end >= current_date then 'WGP'
+    when cp.contract_end >= current_date then
+      coalesce(public.contract_cover_code(nullif(btrim(cp.contract_type), '')),
+               'CONTRACT (TYPE NOT RECORDED)')
+    else 'OGP'
+  end                                               as item_status,
+
+  -- ---- THE CONTRACT, where it names this owner ---------------------------
+  coalesce(cp.mc_number, '')                        as contract_number,
+  cp.contract_start                                 as contract_start,
+  cp.contract_end                                   as contract_end,
+  coalesce(cp.contract_type, '')                    as contract_type,
+
+  -- ---- THE INSTALLATION CALL, where it names this owner ------------------
+  coalesce(ip.ucn, '')                              as inst_call,
+
+  -- ---- SERVICE ENGINEER, always the Party Master's -----------------------
+  coalesce(nullif(btrim(pa.service_engineer), ''), '') as service_engineer,
+
+  -- What the MIGRATED SYSTEM said, kept beside the matched answers.
+  p.item_status                                     as item_status_keyed,
+  p.service_engineer                                as service_engineer_keyed,
+  p.contract_number                                 as contract_number_keyed,
+  p.inst_call                                       as inst_call_keyed
+from public.products p
+left join public.parties pa
+       on pa.name_key = lower(btrim(coalesce(p.party_name, '')))
+-- THE PARTY IS PART OF THE JOIN KEY. That one clause is the whole rule: a
+-- contract or a call that names a different customer simply does not join.
+left join contract_pick cp
+       on cp.mk_name   = lower(btrim(coalesce(p.item_name, '')))
+      and cp.mk_serial = lower(btrim(coalesce(p.serial_number, '')))
+      and cp.party_key = lower(btrim(coalesce(p.party_name, '')))
+left join install_pick ip
+       on ip.mk_name   = lower(btrim(coalesce(p.item_name, '')))
+      and ip.mk_serial = lower(btrim(coalesce(p.serial_number, '')))
+      and ip.party_key = lower(btrim(coalesce(p.party_name, '')));
+
+alter view public.product_database set (security_invoker = on);
+grant select on public.product_database to authenticated;
+
+comment on view public.product_database is
+  'The install base as it stands NOW: the party from the later of the latest sale and the latest ownership transfer (0238), and the contract and installation call that name that machine AND that party. Item Status is warranty-first over the matching contract; the engineer is always the Party Master''s. The stored values are kept beside them as *_keyed.';
 
 -- ------------------------------------------------------------------------
 -- 0229_feedback_without_report.sql

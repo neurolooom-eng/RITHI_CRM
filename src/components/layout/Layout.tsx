@@ -219,6 +219,12 @@ export const NAV: NavGroup[] = [
       // Beside the feedback report it checks, and LAST in the group so the
       // permission matrix's order matches this one.
       { to: '/feedback-without-report', label: 'Feedback Without a Report', icon: '🔎', adminOnly: true },
+      // HAND STOCK REPORT — administrators to begin with (the user,
+      // 2026-09-24: "Default access to Admin/Super Admin, Rest of the Access I
+      // will select from Roles & Permissions"), so `adminOnly` here and
+      // `admin: true` on the module. Everyone else is a tick on Roles &
+      // Permissions, which is where the key now appears.
+      { to: '/handstock-report', label: 'Hand Stock Report', icon: '📦', adminOnly: true },
     ],
   },
   {

@@ -18,6 +18,7 @@ import {
 } from '../lib/sparedispatch';
 import { partDescription } from '../lib/handstock';
 import './fieldcalls.css';
+import { cappedAt } from '../lib/exportscope';
 
 // ===========================================================================
 // PENDING DISPATCH — the Stores queue.
@@ -269,7 +270,7 @@ export function SpareDispatch() {
                   { key: 'qty', header: 'Qty' }, { key: 'req_type', header: 'Type' },
                   { key: 'call_number', header: 'Call' }, { key: 'party_name', header: 'Party' },
                   { key: 'waiting_since', header: 'Waiting since' },
-                ], visible as unknown as Record<string, unknown>[])}
+                ], visible as unknown as Record<string, unknown>[], cappedAt(lines.length, 2000))}
               >⭳ Export CSV</button>
             )}
           </Toolbar>
@@ -597,7 +598,7 @@ export function StockOuts({ onMigrationError, onPrint, onDeclare, onCount }: {
           <div className="spacer" />
           <span className="muted">{visible.length} line{visible.length === 1 ? '' : 's'}</span>
           {visible.length > 0 && (
-            <button className="btn btn-sm" onClick={() => csvExport('stock-out-lines.csv', columns.filter((c) => c.key !== '_doc').map((c) => ({ key: c.key, header: c.header })), visible)}>⭳ Export CSV</button>
+            <button className="btn btn-sm" onClick={() => csvExport('stock-out-lines.csv', columns.filter((c) => c.key !== '_doc').map((c) => ({ key: c.key, header: c.header })), visible, cappedAt(rows.length, 5000))}>⭳ Export CSV</button>
           )}
         </Toolbar>
       }

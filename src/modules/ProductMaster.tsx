@@ -8,7 +8,9 @@ import { searchProducts, dataConfigured, type ProdFilters } from '../lib/sheets'
 import { ITEM_STATUS, productToCallPrefill } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { isTimeout, errText } from '../lib/dberror';
 import './fieldcalls.css';
+import { partial } from '../lib/exportscope';
 
 const CACHE_KEY = 'productMasterRows';
 
@@ -54,12 +56,26 @@ const ALL_FIELDS = [
   'Associated Accessory',
 ].map((k) => ({ key: k, header: k }));
 
+// ONE MESSAGE FOR BOTH READS. A timeout says what to narrow; anything else is
+// the error itself, which is the project's rule — the fault is usually readable
+// in the original text and a friendly hint overwrites it.
+const searchFailure = (e: unknown) =>
+  isTimeout(e)
+    ? `That was too much to answer in one go — the install base is 20,000 machines. Narrow it: a full serial, or a few more letters of the party. The database said: ${errText(e)}`
+    : `Search failed: ${errText(e)}`;
+
 export function ProductMaster() {
   const navigate = useNavigate();
   const { can } = useAuth();
   const cached = loadCache<Row>(CACHE_KEY);
   const [f, setF] = useState<ProdFilters>({ q: '', party: '', product: '', serial: '', status: '' });
-  const PAGE = 200;
+  // 1,000 A LOAD, ONE REQUEST (the user, 2026-09-25: "if it caps at 1000 keep
+  // it 1000 rows in one load more"). That is the most a single PostgREST
+  // response can carry -- it caps there however large the range asks for, and
+  // silently -- so asking for more would come back with 1,000 anyway and the
+  // "did I get a full page?" test would then read FALSE and hide the Load more
+  // button, announcing the end of a register with thousands left.
+  const PAGE = 1000;
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
@@ -71,24 +87,33 @@ export function ProductMaster() {
 
   const set = (k: keyof ProdFilters, v: string) => setF((cur) => ({ ...cur, [k]: v }));
 
+
   const run = async (filters: ProdFilters = f) => {
     if (!dataConfigured()) return;
     setBusy(true);
     setMsg({ tone: 'info', text: 'Searching the Product Database…' });
     try {
       const r = await searchProducts(filters, PAGE, 0);
+      // A SHORT READ IS THE ONLY HONEST END SIGNAL. Receiving exactly what you
+      // asked for says nothing about whether a next row exists.
+      const exhausted = r.length < PAGE;
       const mapped = r.map((p, i) => ({ ...p, id: `${String(p['Item Serial Number'] ?? '')}-${i}` }));
-      setRows(mapped); setOffset(mapped.length); setMore(r.length === PAGE);
+      setRows(mapped); setOffset(mapped.length); setMore(!exhausted);
       const anyFilter = Object.values(filters).some((v) => v && String(v).trim());
       if (!anyFilter) setLastSync(saveCache(CACHE_KEY, mapped)); // cache the browse set
       setMsg({
         tone: r.length ? 'ok' : 'info',
         text: r.length
-          ? `${r.length} products${anyFilter ? ' matched' : ' (browse — refine with the filters)'}${r.length >= 200 ? ' — showing first 200' : ''}.`
+          ? `${r.length} products${anyFilter ? ' matched' : ' (browse — refine with the filters)'}${!exhausted ? ` — showing the first ${r.length.toLocaleString()}` : ''}.`
           : 'No products matched.',
       });
     } catch (e) {
-      setMsg({ tone: 'error', text: `Search failed: ${e instanceof Error ? e.message : String(e)}` });
+      // A TIMEOUT IS NOT A FAILED SEARCH, and saying so cost a support round
+      // trip (2026-09-24, a Commercial user searching for a serial): the rows
+      // on screen were the PREVIOUS search's, so "Search failed" over them
+      // reads as a broken register. The same search narrowed comes back in
+      // milliseconds. The database's own words are kept on the end.
+      setMsg({ tone: 'error', text: searchFailure(e) });
     } finally {
       setBusy(false);
     }
@@ -100,13 +125,14 @@ export function ProductMaster() {
     setBusy(true);
     try {
       const r = await searchProducts(f, PAGE, offset);
+      const exhausted = r.length < PAGE;
       const mapped = r.map((p, i) => ({ ...p, id: `${String(p['Item Serial Number'] ?? '')}-${offset + i}` }));
       const merged = [...rows, ...mapped];
-      setRows(merged); setOffset(offset + r.length); setMore(r.length === PAGE);
+      setRows(merged); setOffset(offset + r.length); setMore(!exhausted);
       const anyFilter = Object.values(f).some((v) => v && String(v).trim());
       if (!anyFilter) setLastSync(saveCache(CACHE_KEY, merged));
     } catch (e) {
-      setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` });
+      setMsg({ tone: 'error', text: searchFailure(e) });
     } finally { setBusy(false); }
   };
 
@@ -185,7 +211,7 @@ export function ProductMaster() {
               <button
                 className="btn btn-sm"
                 title="All 32 columns of the install base, not only the ones on screen"
-                onClick={() => csvExport('product-database.csv', ALL_FIELDS, rows as unknown as Record<string, unknown>[])}
+                onClick={() => csvExport('product-database.csv', ALL_FIELDS, rows as unknown as Record<string, unknown>[], partial(more))}
               >
                 ⭳ Export CSV
               </button>

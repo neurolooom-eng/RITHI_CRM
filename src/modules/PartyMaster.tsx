@@ -18,6 +18,7 @@ import { kycDocs, withKycDoc, withoutKycDoc, isKycVerified, type KycDoc } from '
 // file in, and a form that loses its layout when somebody code-splits the app
 // is a bug waiting for a build change.
 import './knowledgebase.css';
+import { partial } from '../lib/exportscope';
 
 // ===========================================================================
 // PARTY MASTER — live from Supabase `parties`, with a local browser cache +
@@ -383,7 +384,7 @@ export function PartyMaster() {
               </button>
             )}
             {rows.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('party-master.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), rows as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('party-master.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), rows as unknown as Record<string, unknown>[], partial(more))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

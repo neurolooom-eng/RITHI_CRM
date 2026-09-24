@@ -10,6 +10,7 @@ import { allowsAllottee, useAccessScope, useTeamEngineers } from '../lib/access'
 import { csvExport, fmtLongDate, fmtLongSmart, timeAgo } from '../lib/format';
 import { useAuth } from '../lib/auth';
 import './fieldcalls.css';
+import { partial } from '../lib/exportscope';
 
 // ===========================================================================
 // PENDING CALLS — every call that nobody has closed, across Field, Installation
@@ -277,7 +278,7 @@ export function PendingCalls() {
               placeholder="Any status" options={STATES.filter(Boolean).map((s) => String(s))} />
             <button
               className="btn btn-sm"
-              onClick={() => csvExport('pending-calls.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}
+              onClick={() => csvExport('pending-calls.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], partial(moreAvailable))}
             >
               ⭳ Export CSV
             </button>

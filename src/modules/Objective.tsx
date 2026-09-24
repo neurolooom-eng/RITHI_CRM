@@ -14,6 +14,7 @@ import { logAudit } from '../lib/audit';
 import { useAccessScope, scopeLabel } from '../lib/access';
 import './dccr.css';
 import './fieldcalls.css';
+import { COMPLETE } from '../lib/exportscope';
 
 // ===========================================================================
 // OBJECTIVE — the service objectives, measured from the register.
@@ -371,13 +372,21 @@ export function Objective() {
                   : 'This objective is calls over calls — it has no installed base. The denominator is on Sheet 1.' }],
         },
         { name: 'Calculation', columns: ['Item', 'Value'], rows: calc },
-      ]);
+      ], COMPLETE);
+      // A ROUND THOUSAND IS WHAT A CAP LOOKS LIKE, and this banner printed one
+      // (2026-09-24: "Sep: 1000 calls", and "i think it is calculating only for
+      // the first 1000 calls"). The read is paged now, so the number is the
+      // whole of it -- and the banner says WHERE THE FIGURE COMES FROM, because
+      // a count in a message beside a percentage is read as the count the
+      // percentage was worked out from, and it never was: the objective is
+      // computed in the database over the register, not from this file.
       setOMsg(`Downloaded the evidence for ${o.parameter} — ${MONTHS[monthIndex]}: `
         + (isCount
             ? `${reports} report${reports === 1 ? '' : 's'} over `
               + `${calls.length} machine row${calls.length === 1 ? '' : 's'}`
             : `${calls.length} call${calls.length === 1 ? '' : 's'}`
-              + (machines.length ? ` and ${machines.length} machines` : '')) + '.');
+              + (machines.length ? ` and ${machines.length} machines` : ''))
+        + ' — every row, not a page. The figure itself is worked out in the database over the whole register.');
       logAudit({ action: 'objective.evidence', target: `${o.parameter} ${YEAR}-${monthIndex + 1}`,
                  meta: isCount ? { reports, rows: calls.length } : { calls: calls.length, machines: machines.length } });
     } catch (e) {

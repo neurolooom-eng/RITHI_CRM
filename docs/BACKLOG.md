@@ -43,6 +43,738 @@ up)_
 
 ---
 
+## 2026-09-24 — KPI Export: a date Excel accepts (v0.9.370)
+
+*"in the KPI Export under Reports, the Call Registration Date is not recognized
+by Excel. Update all the Date Fields in the KPI to be compatible as a Date Field
+in Excel."*
+
+**THE COLUMN NAMED IS THE ONLY ONE WITH A TIME ON IT**, and that is the whole
+diagnosis. The export was CSV-only, so every date in it was text for Excel to
+parse: it manages `17-Sep-2026` and it does not manage
+`18-Sep-2026 08:51:02`. **There is no spelling of a date in a CSV that every
+Excel reads** — the FORMAT is the limit, not the wording, and re-wording it
+would have been a guess dressed as a fix.
+
+**So the KPI Export now offers a WORKBOOK**, where a date is a number plus a
+format and nothing is parsed. All nine date columns arrive as real dates.
+
+**THE TRAP WAS PRE-FORMATTING.** `toKpiExportRow` renders dates for the CSV, and
+handing its output to the workbook writer would have produced text — because
+`excelSerial()` uses the STRICT ISO test on purpose (it once turned the part
+code `MP-010` into serial 37165), so `24-Sep-2026` is not a date to it.
+`toKpiCellRow` passes the RAW value and lets `xlsxCell` decide, by VALUE and
+never by column name.
+
+**The CSV is unchanged and still offered**: it is what pastes into the KPI
+workbook column for column.
+
+Numbers stay numbers (Attended in Days, Solved in Days, TTA, TTS, Pending Days)
+and a Call Number of all digits stays text with its leading zeros — both halves
+of the rule, both asserted.
+
+**Proved by building the workbook and reading the bytes**: the registration cell
+is `s="1"` with a bare `<v>`, the eight date columns are `s="2"`, and neither is
+`inlineStr`. Four mutations, all caught — including "pre-format the workbook's
+dates", which is the mistake that was there to be made.
+
+`npm run validate` 101/101 suites, 22/22 checks.
+
+## 2026-09-24 — DCCR mirrors itself to a Google Sheet, from CallReg.gs (v0.9.369)
+
+*"The DCCR Register should be written to the Google Sheet ... Tab 'DCCR_Mirror'
+; Frequency : every 6 hrs ; Starting today by 10PM"*, then *"DCCR - Update the
+CallReg google script"* — which settles the credential question I had put to
+the user: it goes in the Apps Script, not in a second Edge Function.
+
+**WHY THERE.** A browser cannot run on a schedule. The register is in Supabase,
+the destination is a Google Sheet, and the only thing that can sit between them
+on a timer with rights to both is this script.
+
+**THE COLUMN LIST IS A COPY, AND A CHECK COMPARES IT.** Apps Script cannot
+import TypeScript, so `DCCR_COLUMNS` in the .gs duplicates
+`DCCR_EXPORT_COLUMNS`. `check:ui` compares them key for key and heading for
+heading — the `SEE_ALL_ROLES` / `coverCode()` treatment, for the same reason.
+**It earned its keep on its first run**, catching `REVIEW STATUS` where the app
+says `Review Status`. The blank-on-purpose columns are compared too, and that
+assertion was wrong at first: it checked one direction only, so the mirror could
+FILL a column the app leaves empty and pass. It derives the app's blanks by
+RUNNING `toExportRow` over a row where every field carries a value, and compares
+both ways.
+
+**FOUR DAILY TRIGGERS, NOT `everyHours(6)`.** That one counts from whenever the
+trigger was created and cannot be anchored to a clock, so "from 10 PM" is
+22:00 / 04:00 / 10:00 / 16:00 as four `atHour().everyDays(1)` triggers.
+`installDccrMirror()` deletes its own before creating, so running it twice does
+not double the schedule. Apps Script fires within about an hour of the stated
+one — stated, not glossed over.
+
+**THE CREDENTIAL, AND THE RECOMMENDATION MADE IN CODE.** It tries
+`DCCR_EMAIL`/`DCCR_PASSWORD` FIRST — a real Supabase login made for this job, so
+the mirror reads UNDER row-level security as one named account and a leaked
+property is worth what that one account is worth. `SUPABASE_SERVICE_KEY` is the
+fallback, says in its own comment that it bypasses RLS entirely, and the status
+tab records which of the two was used on every run. The web app has never
+carried the service key and still does not.
+
+**Written whole each run, never appended** — a review answered today changes a
+row that already exists — in ONE `setValues`, because four thousand rows written
+cell by cell hits the six-minute ceiling. Cleared first, and only the range that
+had content, so a shorter run leaves no tail of the previous one reading as live.
+Dates are written as DATES with the column formatted `dd-mmm-yyyy`.
+
+**⚠ I CANNOT TEST IT.** `script.google.com` is blocked from this sandbox. The
+script is written and its rules are checked; it has never been executed. Fire
+`?action=dccrmirror` once by hand before trusting the schedule.
+
+Setup is four steps and they are in the comment block at the top of the DCCR
+section of `apps-script/CallReg.gs`. **A change to that file is not live until
+the Web App is redeployed.**
+
+`npm run validate` 101/101 suites, 22/22 checks.
+
+## 2026-09-24 — A download from a half-loaded table warns first (v0.9.368)
+
+*"if there is more data and user is downloading it give a pop up disclaimer
+that there are more data and you are exporting only a partial data. If table is
+loaded fully (No load more option) then don't show this disclaimer. People keep
+saying data is missing when they download without ensure if all the data is
+loaded or not."*
+
+**THE COMPLAINT IS ABOUT EVIDENCE, NOT ABOUT A DIALOG.** Every register loads in
+pages and the SCREEN is honest about it — the count carries a `+`, a Load more
+button sits beside it. The FILE carries neither. Opened in Excel a day later it
+is just rows, with nothing in it anywhere to say the register had more, so the
+reader concludes the system is missing data and reports it as such.
+
+**ONE PLACE, NOT THIRTY-FIVE.** `csvExport()`, `xlsxDownload()` and
+`xlsDownload()` are the three writers; the rule sits where the bytes are
+produced. This project has the scar for the other way round — `allRows()` went
+into one of thirteen call sites and the other twelve came back a year later as
+a new bug.
+
+**AND THE ANSWER IS A REQUIRED ARGUMENT.** 48 call sites across 35 files now
+have to say what they know: `COMPLETE`, `partial(more)` or
+`cappedAt(rows.length, cap)`. Optional, it would be the thing the next screen
+forgets — silently, which is the fault itself in a new place. `check:ui`
+refuses an inline literal too, so the answer has to be one of the three
+sanctioned words; that is the discipline `FacetChips` already carries for
+`more`.
+
+**`cappedAt` EXISTS BECAUSE SOME SCREENS CANNOT TELL.** Stock Transfer reads
+`listStockTransfers(1000)`, Pending Dispatch 2,000, the FFR register 5,000 —
+no Load more, no `more` state, just a cap. A read that comes back FULL is the
+signature of a truncation, not of an exhausted table, so those answer "there may
+be more" rather than claiming completeness. That is a real gap those screens
+have, now visible at the moment it matters.
+
+**THE POP-UP SAYS THREE THINGS**, in the order somebody needs them: what will be
+in the file, what is missing, and what to do — press Cancel, Load more until the
+button disappears, download again. It never names a total, because the screen
+does not know one; inventing one here would be the same fault in a new place.
+Exporting anyway is allowed: somebody taking the first two hundred rows of a
+filtered view is doing nothing wrong, and a refusal would make the sensible case
+impossible in order to serve the careless one.
+
+**⚠ AND A CORRECTION TO YESTERDAY.** The checks written for the Hand Stock
+Report (v0.9.367) had been APPENDED to `check-ui.ts` **after its
+`process.exit()`** and had never run once. Everything they assert passes — so
+nothing shipped wrong — but the claim "`check:ui` runs them" was false for one
+release. Moved above the exit, and every one of them mutation-tested properly
+this time. The same slip had swallowed the `.xls` byte-level assertions.
+
+**One more assertion was a lie of the `indexOf` kind**: "csvExport asks before
+it builds the file" was `indexOf('mayExport') < indexOf('new Blob(')`, and a
+MISSING needle is `-1`, which is less than everything. Deleting the guard left
+the check green. It tests for presence first now — found by mutating it, which
+is the only way that shape ever is.
+
+`npm run validate` 101/101 suites, 22/22 checks.
+
+## 2026-09-24 — Hand Stock Report (v0.9.367)
+
+*"Add a Hand Stock Report - Default access to Admin/Super Admin, Rest of the
+Access I will select from Roles & Permissions. Add this under Reports. Ensure
+the Roles & Permission page is update. Default Load as to be 1000 and Auto Load
+till all the data is displayed and then Enable Download. Name the Export -
+HandStock_DateTime.csv / .xlsx / .xls"*
+
+**`/handstock-report`, in the Reports group and NOT under `/exports`** — every
+`mod:/exports/...` key inherits from `mod:/exports`, so filing it there would
+have handed it to every role that can already open Reports, which is the
+opposite of what was asked. Same shape as Feedback Without a Report.
+
+**ALL THREE THINGS MOVED TOGETHER** (the standing rule): `MODULES` + the menu,
+`PERM_TREE` (Reports header, last, matching the menu's order), and **0241**
+merging the key into `app_roles` — without which the page ships, the menu entry
+exists, the tick is in the code, and no role can open it. That has happened four
+times here.
+
+**AND THE GRANT WAS WRONG THE FIRST TIME.** 0241 granted `admin` alone, which is
+the literal reading of the ask — and `_status.sql` row 114 went **red** on the
+validation run. That row asserts a PROPERTY: Technical Support holds every
+module key the admin holds, which is what that role IS ("Mimic Super Admin -
+But with Read Only"). An administrators-only page skipping it breaks the role
+silently, which is precisely what the row exists to catch. Granted to both now,
+with the reason written into the migration. Zoho Migration is left alone — no
+check requires it, and the rule here is not to touch a role that was not named.
+Super Admin needs no grant at all: it is not a role but a row in
+`app_super_admins` that overrides every check.
+
+**IT READS `handstock_balance`, the view the Hand Stock register reads.** Hand
+stock is DERIVED and never stored, so a report with a query of its own could
+disagree with the screen people work from — the one outcome worth ruling out by
+construction.
+
+**PAGES OF 1,000, STOPPING ON A SHORT PAGE.** Not a preference: PostgREST caps a
+response at a thousand rows however large the range, so a bigger page is the
+line that HIDES the truncation. A full page says nothing about whether another
+exists, so the loop can only end on a short one. Each page renders as it lands
+and a run token stops a mid-load Refresh from interleaving two reads.
+
+**THE DOWNLOAD IS REFUSED UNTIL EVERY PAGE IS IN**, which is the user's own
+instruction and the right rule here specifically: a stock file is RECONCILED
+AGAINST, so a partial one is not a shorter answer but a wrong one. Elsewhere a
+`+` makes a partial count honest; there is no `+` for a spreadsheet somebody is
+subtracting from. The button is disabled AND the writer refuses.
+
+**THE COMPONENTS ARE EXPORTED BESIDE THE TOTAL** — opening, stock out, consumed,
+transfers both ways, returned — because `on_hand` alone cannot be checked by
+anybody. A negative balance is inverted against the page rather than tinted
+("highlight" means CONTRAST here).
+
+**THE `.xls` IS SPREADSHEETML 2003, and that is a stated trade-off**, not a
+silent one. The old BIFF binary is a compound document and a record stream, and
+a half-right one is a file Excel refuses — worse than not offering it. The usual
+substitute, an HTML table named `.xls`, loses every type, which this project has
+measured the cost of twice (Line ID sorting 1, 10, 100, 2; a SUM over QTY
+answering 0). SpreadsheetML keeps `Type="Number"` and `Type="DateTime"`. What it
+costs is one warning in Excel 2010+ about the extension, and the button's
+tooltip says so rather than leaving somebody to wonder. Proved by reading the
+bytes: a part code of `0012345` is still a string with its leading zero.
+
+**FILE NAME**: `HandStock_24-Sep-2026_181503.<ext>` — the house date format,
+month NAMED, with the clock stripped of the colons a Windows file name cannot
+carry. Local time, because the name answers "when did I pull this".
+
+The paging rule, the file namer and the column list are PURE and live in
+`lib/handstockreport.ts` rather than in `supabase.ts`, for the `paging.ts`
+reason; `check:ui` runs them, including a workbook built and read back.
+URS-077 / FRS-091 / OQ-79. `npm run validate` 101/101 suites, 22/22 checks.
+
+## 2026-09-24 — The whitespace theory was WRONG, and the probe that replaces guessing
+
+`_which_product_names_carry_stray_spaces.sql` came back **all zeros** on the
+live register. Not one product name carries a stray space, in `products`,
+`sale_items` or `contract_items`. **My diagnosis was wrong**, and v0.9.366 —
+matching the product name exactly as the picker offered it — fixed a real
+asymmetry between that read and every other one, but it is **not** what is
+wrong with Extend XT.
+
+I had reproduced the whitespace fault on a FIXTURE I built. Reproducing a fault
+you invented proves the mechanism is possible, not that it is the one happening.
+The probe is what told the difference, and it should have come first.
+
+**`supabase/apply/_where_is_this_machine.sql`** is the replacement for the next
+guess: read-only, two values to edit at the top, and it answers WHICH REGISTER
+holds the machine rather than assuming one. The Call Request's Product box and
+its serial search both read ONE table — `public.products` — while the Warranty
+Register, the Contract Register and Product Database 2.0 read others, so a
+machine can be plainly visible on one screen and invisible to the request form
+with nothing broken in between.
+
+Four verdicts, each exercised against a database before shipping:
+
+* the machine is in the install base → the fault is a SPELLING, and sections 2
+  and 3 print both spellings in brackets;
+* **a different machine carries that serial** → the one being looked for is not
+  there under this model;
+* **sold but never added to the install base** → the Warranty Register has it
+  and `products` does not, which is exactly what **0237** repairs, backfill
+  included. Row 10 counts how many machines of that product are in that state,
+  because one serial is an example and the decision is about the product;
+* not in any register under that serial.
+
+**The first draft judged on the SERIAL ALONE and got it wrong on the first real
+input** — it reported "the machine IS in the install base" while what was
+actually there was an ORION-G with the same serial, and the EXTEND XT was
+missing. That is this project's oldest rule (a machine is its MODEL and its
+SERIAL; eleven are numbered 219) failing in a file written to enforce careful
+thinking. Rows 4 and 5 now separate "this model and this serial" from "other
+models carrying that serial", and the verdict tests them in that order.
+
+Unchanged, it prints `CHANGE-ME-PRODUCT` / `CHANGE-ME-SERIAL` and says so in
+row 1 rather than returning a confident grid about nothing.
+
+No version bump: this adds a diagnostic and changes no behaviour.
+
+## 2026-09-24 — ⚠ "Extend XT only": the dropdown and the search named the product differently
+
+*"This happens in Extend XT product only."* — and the single word **only** is
+what identifies the cause, because a fault in the serial search would not pick
+one product out of forty.
+
+**THE PRODUCT NAME, NOT THE SERIAL.** The Product box is filled from
+`product_register_names`, which groups `products.item_name` and hands it back
+VERBATIM. `sbSearchMachines` then asked for `item_name = <that name>.trim()`.
+A register row stored as `EXTEND-XT ` therefore put `EXTEND-XT ` on screen and
+`EXTEND-XT` on the wire. **Measured: the dropdown says 2 machines, the equality
+finds 0.** Empty serial box → no machine → no customer → CR-011 refuses the
+request. Every other product is untouched.
+
+**AND THE TRIM WAS THE ODD ONE OUT, not the convention.** `sbSearchProducts`,
+`sbListMachinesForParty` and `listPartyItems` all match the name as given; this
+one call trimmed. Removed, and `check:ui` refuses it coming back — mutation
+tested both ways (put the trim back; let a whitespace-only product filter).
+
+**THE DATA IS NOT REPAIRED IN CODE, DELIBERATELY.** A name with a trailing space
+is two products to Postgres and one to a reader: every `group by item_name`
+splits silently and the picker shows an apparent duplicate. That is worth
+correcting, and it is a decision with consequences, so it gets a probe rather
+than an `UPDATE` written on a guess —
+`supabase/apply/_which_product_names_carry_stray_spaces.sql`, read-only.
+
+**IT DISTINGUISHES TWO KINDS AND CHECKS THE CLAIM ON THE USER'S OWN DATA:**
+
+* **a plain space at either end is free to fix** — `machine_key` is generated as
+  `lower(btrim(item_name)) || '|' || lower(btrim(serial_number))`, so it ALREADY
+  ignores the ends: trimming leaves every key byte for byte the same. Row 4
+  proves that against the database rather than asserting it.
+* **a non-breaking or zero-width character is not** — `btrim()` does not remove
+  U+00A0, so it IS part of the key, and sweeping it MOVES the key. Row 5 counts
+  the machines that would then collide with the unique index.
+
+Both branches were exercised by building the cases: a clean twin under the
+trimmed name, and a real-space machine sharing a serial with an NBSP one. The
+first draft of the probe reported a name as **its own** clean twin and counted a
+self-match as a collision; rewritten around one `clean` expression so a row in
+the odd set can never satisfy the twin test.
+
+Shipped in **v0.9.366**. No SQL needed for the fix. CR-005a added.
+
+## 2026-09-24 — "INXT 0105" — the serial that ENDS with what you type
+
+**Asked the same day yesterday's fix shipped**: *"I have a user case where
+serial number is INXT 0105, will that populate if I type 105?"* Measured rather
+than reasoned about, and the answer was **no**.
+
+That fix guaranteed the serials BEGINNING with the term (a string sorts before
+everything it is a prefix of, so the prefix read cannot cut the exact match
+off). `INXT 0105` only CONTAINS `105`, so it landed in the contains read, was
+sorted alphabetically among **1,046** machines whose serial contains 105, and
+came back at **rank 146** — past the fifty, never offered.
+
+**A THIRD READ, `%term`.** A great many serials here are a letter code, a space
+and a number, and what somebody standing at the machine reads out is the number,
+so "ends with what was typed" is not symmetry — it is the common case. FOUR
+serials end in `105` against 1,046 containing it, so that read cannot be crowded
+out. Rank tiers are now begins-with, ends-with, contains.
+
+**AND THE CAP UNDID THE FIX ONCE BEFORE IT SHIPPED.** Sorting by tier and
+cutting at 50 put `INXT 0105` at **rank 52** — one place past the cap — because
+120 serials in the fixture began with `105` and filled it. `rankSerialHits` now
+applies the limit PER GROUP: every non-empty group gets an equal share, and the
+leftover goes to the closest groups in order. Tier order decides what comes
+first; it must never decide what is reachable.
+
+**End to end, against a database, through the real function:**
+
+| typed | rows from the three reads | rank of INXT 0105 |
+|---|---|---|
+| `105` | 50 | **24** (under the 23 serials that begin 105) |
+| `0105` | 2 | **2** |
+| `INXT 0105` | 1 | **1** |
+
+and in the adverse fixture — 120 serials beginning `105` — rank 49 of 50, still
+offered where it was absent before.
+
+**A limit that is stated rather than hidden**: a fragment buried in the MIDDLE
+of a serial, where more than fifty machines match it, can still sit low. Typing
+more characters is the answer and the picker's footer says so.
+
+Five more mutations, all landing, all caught — including "apply a flat cap
+again", which is the exact mistake made and caught here. CR-031 rewritten.
+
+Shipped in **v0.9.365**. No SQL. `npm run validate` 101/101 suites, 22/22 checks.
+
+## 2026-09-24 — The serial list was sorted by nothing, so the machine you typed was not offered
+
+**Reported with a screenshot and a diagnosis** (*"I could reproduce this issue.
+If the user doesn't properly select from the list [which is not sorted as per
+the closest match] and simply moves on to the next field then this happens even
+though the product and serial number combination is very much available"*): a
+New Call Registration Request for **ORION-G serial 105**, refused with *"Call 1:
+that serial is not on the register, so no customer came with it."*
+
+**THREE FAULTS, ONE SYMPTOM.** Each one on its own gives a row a serial with no
+customer, which is the only thing `machineRowProblem()` can see.
+
+**1. The search named no order.** `sbSearchMachines` was a single
+`ilike '%term%'` with `.limit(50)` — no `order`, which breaks this project's own
+rule that every capped read names one. Measured on a fixture where **925**
+machines carry a serial containing `105`: the machine actually numbered 105 came
+back at **rank 19 of 50**, decided by the physical order of the rows. Past the
+cap it is absent, and a machine that cannot be picked cannot name its customer.
+Fixed with two ordered reads run together — `term%` and `%term%` — and the
+prefix read is what carries the guarantee: **a string sorts before everything it
+is a prefix of**, so the serial typed is the first row of it and the cap can
+never remove it. CR-031.
+
+**2. A stale search wiped the machines behind the list.** PickList debounces but
+does not cancel a request already sent, so two can be in flight and the slower
+one lands last. PickList guards its own rows (keyed to the query that produced
+them); the module's `machineHits` map was not guarded at all, so clicking a row
+found nothing behind it. Hits are MERGED now, keyed on model + serial: a machine
+does not stop existing because a later search did not mention it.
+
+**3. The form refused on the wrong evidence.** "That serial is not on the
+register" is a claim about the REGISTER; what the form actually knew was that
+the row had no machine attached IN THE BROWSER. `resolveMachines()` asks the
+register by model and serial on submit, before the rule runs. An ambiguous
+serial still resolves to nothing — `sbProductBySerial` returns null rather than
+guessing, because eleven machines are numbered 219 — so a genuinely unanswerable
+row is refused exactly as before. CR-011 rewritten.
+
+**THE RANKING IS A PURE FUNCTION** (`rankSerialHits` in `lib/callrequest.ts`),
+not a line inside `supabase.ts`, for the `paging.ts` reason: that module reads
+`import.meta.env` and no check can import it. `check:ui` runs it on real inputs.
+
+**AND THE FIRST VERSION OF THAT TEST PROVED NOTHING.** It had three tiers —
+exact, prefix, contains — and removing the exact tier altogether changed no
+result, because a string already sorts before everything it prefixes. Two of
+five mutations went uncaught. The tier is gone (a tier no test can distinguish
+is not doing anything) and the cases were rewritten around `0105`, which
+contains `105` and sorts *before* it — the one shape where the ranking is
+observable. Eight mutations now, all landing, all caught.
+
+Shipped in **v0.9.364**. No SQL. `npm run validate` 101/101 suites, 22/22 checks.
+
+## 2026-09-24 — ⚠ The Product Database search timed out AGAIN, and this time the fix was already written
+
+**Reported from use**, by a Commercial user (VALARMATHI) searching the install
+base for `1691`: *"Search failed: canceling statement due to statement
+timeout"*, with the PREVIOUS search's rows still on screen underneath. That is
+the worst shape a failure can take here — it reads as a broken register rather
+than a slow one, and the rows below the banner look like the answer.
+
+**The cause is 0236 and it was never applied**, because applying it meant
+running `sales_contracts.sql`, which re-executes seventeen migrations and
+deadlocked against the live app twice. So the fix has been sitting in `main`
+since yesterday while the screen went on failing.
+
+**MEASURED, at the register's real size**, on a throwaway Postgres loaded with
+20,002 machines, 40,006 contract lines and 15,004 installation calls, read
+through RLS as a Commercial user against the 0239 view:
+
+| the read | bare policies | InitPlan policies |
+|---|---|---|
+| the search she typed | 7,695 ms | **184 ms** |
+| the register's opening page | 7,892 ms | **218 ms** |
+| a party contains-match | 7,984 ms | **1,058 ms** |
+
+Supabase stops an `authenticated` statement at **eight seconds**, which is why
+7.7 seconds is not "slow" but an empty screen.
+
+**`supabase/apply/_fix_product_database_timeout.sql`** is the new deliverable:
+0236 and nothing else, in a file small enough to paste, with
+`lock_timeout = '4s'` so it gives up rather than deadlocking, idempotent, and
+ending in a grid that reads the policies back out of `pg_policy` and says which
+are still per-row. ⚠ **RUN IT.**
+
+**I nearly shipped the opposite fix.** The view builds the contract match and
+the installation-call match as two full passes, so the obvious idea was a
+LATERAL that looks each machine up through an index instead. Built it, proved
+it returns byte-identical rows on all 20,002 machines including six adversarial
+cases (two contracts on one machine, a tie on the end date, a blank product
+name, a live contract with no type, a cancelled call, a call naming a different
+customer) — and then measured it: **115,477 ms** against the hash join's 7,695.
+Fifteen times WORSE, under exactly the RLS shape the live project has. That is
+0235's lesson a second time, and the only reason it did not ship is that it was
+measured at the register's size before anybody was told it was faster.
+
+**Two things found while measuring:**
+
+- **The "Any status" picker on the Product Database did nothing on this
+  database.** `ProdFilters.status` has existed since the sheet era and
+  `searchProducts()` still forwards it to the Apps Script bridge, but
+  `sbSearchProducts` never read it — so picking OGP returned the whole register,
+  which quietly tells a reader every machine is OGP. It is `.eq('item_status')`
+  now, which is only askable at all because 0235 made that column computed.
+- **`_status.sql` row 181 could be fooled.** Its test was *contains
+  `SELECT has_perm`*, which passes a policy with one branch wrapped and the
+  other left bare — exactly what a later migration editing one branch produces,
+  and still 7.7 seconds. It COUNTS the calls now, reads `with check` as well as
+  `using`, and was proved against a policy built that way on purpose: the old
+  test said YES, the new one says NO.
+
+**A timeout no longer reads as a failed search.** `isTimeout()` in `dberror.ts`,
+wired into `loadFailure()` and into the Product Database's own banner: it says
+what to narrow and still prints the database's words underneath, which is the
+project's rule about never overwriting the real message with a hint.
+
+Shipped in **v0.9.363**. `npm run validate` 101/101 suites, 22/22 checks.
+
+## 2026-09-24 — The timestamp rule, and a survey of which tables keep one
+
+> *"Record the Timestamp in Ownership Transfer as well. Ideally all the tables
+> should record the Timestamp, and every Table should have a Key on its own."*
+> *"Applicable to All Tables ; Timestamp - Capturing the Transaction Date and
+> Time in this format dd-mmm-yyyy hh:mm:ss and this should be compatible as a
+> DateTime / Long Date field in Excel."*
+
+Written into `CLAUDE.md` as a standing rule. **Two of its three parts were
+already true everywhere** — `formatDayTime()` is the one display formatter and
+`excelSerial()`/`xlsxDate()` already export a serial plus a format rather than a
+string. What was NOT true is the first part: that every table records when the
+transaction happened.
+
+**0240 fixes the case that was actually costing something.** `transfer_date` on
+`ownership_transfers` is a DATE, and 0238's rule is "the party is whichever of
+the sale and the transfer is LATEST" — so a transfer recorded at 2 pm on the day
+of a sale entered that morning compared as MIDNIGHT and lost. 0238 papered over
+it with a tie-break (a transfer dated the same day wins, since a machine cannot
+be transferred before it is sold), which is right for that case and a **guess**
+for the reverse one: a machine transferred in the morning and sold on in the
+afternoon read as transferred. `transferred_at` makes the comparison exact.
+Proved both ways within a single day.
+
+`transfer_date` is kept and is not derived from it: it is the day the machine
+changed hands, `transferred_at` is when the system was told, and they routinely
+differ.
+
+### The survey — and a correction to it
+
+| | |
+|---|---|
+| tables | 77 |
+| **no `created_at`** | **40** |
+| only a synthetic `id`, no natural key | 22 |
+
+**My first survey said 48 lacked a key and it was wrong**: it counted only
+unique indexes that are not the primary key, so a table whose natural key IS its
+primary key — `product_master`, keyed on `product_code` — read as keyless. The
+number is 22.
+
+**Most of those 22 are correctly keyless**: `audit_log`, `record_audit`,
+`ffr_history`, `notifications`, `call_vigilance_changes`, `password_resets`,
+`export_runs`, `inst_call_repair_log` are append-only logs where every row IS a
+distinct event, and `spare_dispatch_lines`, `stock_transfer_lines` and the three
+`indoor_job_*` tables are child lines that may legitimately repeat. Adding a
+natural key to those would be wrong, not thorough.
+
+**Where it is a real gap**, in order: **`user_directory`** (nothing stops the
+same person appearing twice, and the User Master is "the only place I can map
+and configure"), `pending_registrations`, `kb_articles`, `documents`,
+`tracker_items`, `export_schedules`, `complaint_suggestions`.
+
+**Not done, deliberately.** Adding 22 keys and 40 timestamp columns blind would
+be 62 changes nobody asked for, some of them wrong. Each needs its own answer to
+"what makes a row the same row?", and on a table with existing data a unique
+index fails loudly if that answer is wrong — which is the good outcome only if
+somebody is expecting it.
+
+---
+
+## 2026-09-24 — A machine belongs to its latest owner, and so does everything attached
+
+> *"What should be displayed is entirely based on the Timestamp of when the change
+> was done ... Contract has to match the product, serial no, party.. Same with
+> Installation calls ... and party is decided by sale entry or ownership transfer
+> whichever is latest."*
+
+Shipped in v0.9.361. **⚠ RUN `sales_contracts.sql`, then `product_database_2.sql`.**
+`_status.sql` row 183.
+
+**The second sentence is the mechanism for the first**, and reading it that way is
+what makes this safe. A re-sale does not DELETE the previous owner's contract and
+installation call — they stop MATCHING. Nothing is destroyed, the registers are
+untouched, and a machine that returns to that customer gets its cover back by
+itself, which a rule that deleted could never do.
+
+**Two halves, kept apart deliberately:**
+
+- **The party is STORED.** It is decided by two *timestamped events* — the sale
+  entry and the ownership transfer — so it does not decay. Nothing about it
+  changes because a day passed, which is what makes storing it honest (contrast
+  `item_status`, which compares with today and therefore cannot be stored).
+- **The contract and the call are MATCHED ON READ.** They depend on the party,
+  and a stored attachment would disagree with it until something rewrote the row.
+  It also keeps every trigger off `installation_calls` and `contract_items`,
+  where a per-row rule would make a 12,000-row import pay for this 12,000 times.
+
+**Same day, the transfer wins.** `transfer_date` is a DATE and a sale entry is a
+TIMESTAMP, so a transfer recorded on the day of a sale would otherwise lose to it
+at midnight — and a machine cannot be transferred before it is sold.
+
+**A machine with neither a sale nor a transfer is left entirely alone.** Twenty
+thousand came from the AppSheet import; deriving their party from registers that
+do not mention them would blank the only record of who owns them.
+
+Proved end to end on one machine: sold to OLD OWNER (CMC, MC5000, call attached)
+→ re-sold to NEW OWNER (**contract and call gone from the view, both still on
+record as `*_keyed`**) → transferred to THIRD HOSPITAL the same day (transfer
+wins) → transferred back to OLD OWNER (**MC5000 and the call returned, nothing
+re-entered**). Row 183 mutation-proved by dropping the party from the join key —
+the machine immediately showed the previous owner's contract.
+
+**Measured before shipping, which is the lesson from yesterday.** 20,012
+machines, 20,001 contract lines, 9,001 installation calls, under RLS: one page
+**6.6 ms**, a filtered search **72.5 ms**, the whole register with every computed
+column **116.6 ms**. `DISTINCT ON` over each register once, joined — not a
+correlated subquery per machine.
+
+**It reverses yesterday's rule** that a sale never cleared `inst_call`, at the
+user's instruction. That rule was right when the sale owned the field; it is
+wrong now that the call belongs to the machine only while it names the owner.
+
+---
+
+## 2026-09-24 — A Warranty Sale puts its machines into the Product Database
+
+> *"Every time I add a Warranty Sale entry, all the products should get added to
+> the product database ... same product is sold again to a different customer,
+> in that case the old data should be over written."*
+
+Shipped in v0.9.360. **⚠ RUN `sales_contracts.sql`** — `_status.sql` row 182.
+
+**What was there, and why it was not enough.** `sale_items` has fired
+`sync_product_cover()` since 0036, and that function does an **UPDATE**: it
+refreshes the cover of a machine already on the register and does nothing at all
+for one that is not. So the register of what EXISTS was being kept by an import
+rather than by the act of selling.
+
+**And it keys on the serial alone**, which contradicts the rule written in
+`src/lib/machine.ts`: a machine is its MODEL and its SERIAL, and the install base
+holds eleven numbered 219. 0237 keys on `machine_key`, the same key
+`products_machine_key_uniq` already enforces — so **re-sold to a different
+customer falls out of the key** rather than needing a rule of its own.
+
+**It writes what the sale knows and only that.** The contract columns, `extra`
+and `item_status` are left alone: the sale knows nothing about a contract and a
+blank would erase real cover, and `item_status` has been worked out on read since
+0235. **`inst_call` is never taken backwards** — 0234's rule, since a sale
+re-saved with a blank would orphan a call that exists.
+
+**Both triggers, because inheritance is real**: the party, the address and the
+warranty dates live on the HEADER. With only the item trigger, correcting the
+customer on the entry would reach none of its machines.
+
+Proved on a database built from every migration: a machine re-sold to a new
+customer took the new party, city, SA number and warranty dates while **keeping
+its contract, its installation call and its imported `PO No.`**; a brand-new
+machine was inserted; a **VEGA sharing serial RS-1 with an ORION-G was left
+untouched**; a half-typed line with no serial was skipped; and editing the entry
+reached both its machines and nothing else. Row 182 mutation-proved twice — keyed
+on the serial alone, and overwriting the contract.
+
+**One consequence nobody asked for, stated rather than buried:** an ownership
+transfer also writes `products.party_name`, so a later edit to the sale will now
+overwrite it with the sale's party. The transfer row and the machine's history
+are untouched, but the Product Database would show the original buyer again. If
+that is wrong for this business the rule to add is "do not overwrite the party
+where a transfer is dated after the sale", and it is one clause.
+
+---
+
+## 2026-09-23 — ⚠ The Product Database timed out, and the cause was not the new view
+
+> *"Search failed: canceling statement due to statement timeout"* — reported
+> within minutes of v0.9.358, with an empty register behind it.
+
+Shipped in v0.9.359. **⚠ RUN `sales_contracts.sql`, then `product_database_2.sql`.**
+`_status.sql` rows 180 and 181.
+
+**My regression.** 0235's first version asked the contract question as three
+correlated subqueries and the engineer as a per-row function call. One page
+measured 6 ms here — because `LIMIT` stops after a hundred rows — and **over
+120 seconds** the moment anything makes Postgres produce the columns for every
+row, which any filter on the register does. Correctness was proved on five
+fixture rows; the SPEED was never measured at the register's real size. **A view
+over a 20,000-row register is measured at that size or it is not measured.**
+
+Rewriting the subqueries as LEFT JOINs took it to 16 s — still hopeless — and
+`EXPLAIN` then named the real cause, which was never the new view:
+
+```
+Seq Scan on contract_items ci  (actual time=16209.182..16209.182 rows=0)
+  Filter: (has_perm('cover.edit') OR has_perm('masters.view') OR ... )
+  Rows Removed by Filter: 20001
+```
+
+**Sixteen seconds to return nothing.** The predicate says nothing about the row
+— it is the same answer for every row — but written bare it is a per-row
+expression, so `has_perm()` ran four times for each of 20,001 rows, each call
+reading `app_roles`. 0036 has written all four cover policies that way since the
+day it was created. It never hurt because the cover registers always read with a
+filter, so the scan was small. **A policy that is fine until somebody writes a
+bigger query is not fine; it is waiting.**
+
+0236 wraps them as InitPlans. Identical semantics, identical audience — the
+third time this project has made this fix (0095 on hand stock, 0164 on `cr_read`
+at 1,840 ms → 7.4 ms).
+
+| measured on 20,000 machines | before | after |
+|---|---|---|
+| one page | 15,813 ms | **18.8 ms** |
+| a filtered search | 5,518 ms | **26.3 ms** |
+| whole register, every computed column | > 120,000 ms | **37.2 ms** |
+
+**The warranty and contract registers get it too**, since they read the same
+four tables.
+
+**Two `_status.sql` clauses were written badly and one of them passed a broken
+database.** The engineer test looked for `p.service_engineer AS service_engineer`
+— but Postgres drops a redundant alias and renders it `p.service_engineer,`, so
+the pattern could never match the mutation it was aimed at. It asks the ROWS now:
+every row must agree with `party_service_engineer()`, which is the rule itself
+and also catches a join written on the wrong key. Both rows mutation-proved
+after that, and both mutations verified as having landed first — two earlier
+attempts silently had not.
+
+---
+
+## 2026-09-23 — Product Database: two columns stop being stored
+
+> *"Item Status should be a calculated value ... Service Engineer name should be
+> a calculated value. It should always come from Party Master"*
+
+Shipped in v0.9.358. **⚠ RUN `product_database_2.sql`** — `_status.sql` row 180.
+
+**The comparison was read as `>= today`, not `<=`.** Taken literally, an expired
+warranty would read WGP and a machine covered by both would read OGP — all three
+inverted, and OGP is plainly the fallback for a machine covered by nothing.
+0036's `sync_product_cover` already compared with `>= current_date`.
+
+**A VIEW, not a column.** Item Status compares two dates with TODAY, so a stored
+answer is right the day it is written and wrong afterwards — the fault 0222 had
+to correct on Product Database 2.0, where a frozen cover status left 209 machines
+of 10,000 wrong after thirty days, silently. The engineer is the same argument
+one step along: the Party Master is the master, so a copy on the machine is a
+second answer that goes stale the moment the customer's engineer changes.
+
+`public.product_database` computes both. **The table is untouched** — every
+importer still writes `products` — and the stored values are kept beside the
+computed ones as `item_status_keyed` / `service_engineer_keyed`, so the migrated
+system's answer can be compared rather than quietly replaced.
+
+Three reads moved to it: the register, the "everything this customer has" list,
+and **the call form's cover prefill** — so a call raised today gets today's
+cover rather than a stored one.
+
+**`check:replay` caught the filing, twice over.** Put beside the cover registers,
+`sales_contracts.sql` died on `contract_cover_code()` — a view resolves its body
+AT CREATION — and `all.sql` died too, because `cover` runs before
+`product_database_2` in `ALL_ORDER`. It lives in `product_database_2` now, which
+is last for exactly this reason, and declares `partyServiceEngineer` in `needs`
+so the preflight says *"Apply these first"* instead of a Postgres error naming a
+function. Proved by dropping `party_service_engineer()` and running the bundle.
+
+101/101 suites, 22/22 checks. The `_status.sql` row asserts the rule on the view's
+DEFINITION — this report cannot insert a machine to ask about, and a register
+holding no expiring cover agrees either way — mutation-proved both ways.
+
+---
+
 ## 2026-09-23 — ⚠ Roles & Permissions was overwriting every role on every save
 
 > *"Role & Permission are not working"*

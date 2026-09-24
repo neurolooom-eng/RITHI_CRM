@@ -305,7 +305,30 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
           const t = String(v ?? '').trim();
           if (t) extra[h.trim()] = t;
         }
-      } else if (def.extraInto) {
+      } else if (def.extraInto && !stamped.has(norm(h))) {
+        // A HEADER THE REGISTER STAMPS DOES NOT GO INTO `extra` AS WELL.
+        //
+        // Reported 2026-09-24: "Add a Separate Column in Call Register to
+        // Capture the Call Type. At present it is in Extra" -- and then, when
+        // asked which register: "the exports are showing Call type in Extras".
+        //
+        // The column was never missing. `field_calls` has carried `call_type`
+        // since it existed and the upload STAMPS it from the register somebody
+        // picked ('FIELD' / 'INSTALLATION' / 'PM'). But the file's own
+        // "Call Type" header is claimed by no column -- it is stamped, not
+        // mapped -- so it fell through to here and was ALSO written into the
+        // blob. Every export that carries `extra` therefore shows a Call Type
+        // inside it, beside the real one.
+        //
+        // WORSE THAN NOISE: THEY CAN DISAGREE. A PM sheet loaded through the
+        // Field Calls register stores call_type = 'FIELD' (which is the point
+        // of stamping -- a PM sheet cannot land as a field call) and
+        // extra['Call Type'] = 'PM'. Two answers in one row, and the one in the
+        // blob is the one that is wrong.
+        //
+        // The register is the authority on a value it stamps. That is already
+        // why `shapeUpload` does not report the header as unmatched; this makes
+        // the DATA agree with that, instead of only the report.
         const s = String(v ?? '').trim();
         if (s) extra[h.trim()] = s;
       }

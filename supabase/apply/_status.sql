@@ -1204,7 +1204,132 @@ with checks(sort_order, bundle, provides, present) as (
          and (to_regclass('public.sale_items') is null
            or not exists (select 1 from public.sale_items
                            where btrim(coalesce(inst_call, '')) <> ''
-                             and not public.is_call_number(inst_call)))))
+                             and not public.is_call_number(inst_call))))),
+    (180, 'Product Database: Item Status and Service Engineer are WORKED OUT', 'the product_database view (0235). The user, 2026-09-23: "Item Status should be a calculated value ... Service Engineer name should be a calculated value. It should always come from Party Master." THE COMPARISON IS READ AS >= TODAY, NOT <=: taken literally an EXPIRED warranty would read WGP and a machine covered by both would read OGP, every one of the three inverted, and OGP is plainly the fallback for a machine covered by nothing. 0036''s sync_product_cover already compared with >= current_date. A VIEW AND NOT A COLUMN, because Item Status compares two dates with TODAY -- a stored answer is right the day it is written and wrong afterwards, which is exactly what 0222 had to correct on Product Database 2.0 where a frozen cover status left 209 machines of 10,000 wrong after thirty days, silently. The engineer is the same argument: the Party Master is the master, so a copy on the machine is a second answer that goes stale the moment the customer''s engineer changes. WARRANTY DECIDES BEFORE CONTRACT, so the two Product Databases now agree (0218); the type comes from the contract THE MC NUMBER NAMES, down to that machine''s own line, and a contract with no type reads CONTRACT (TYPE NOT RECORDED) rather than 0036''s guess of CMC. THE TABLE IS UNTOUCHED -- every importer still writes public.products, and the stored values are kept beside the computed ones as item_status_keyed / service_engineer_keyed so the migrated system''s answer can be compared rather than quietly replaced. THE ROW TESTS THE RULE, NOT THE VIEW''S EXISTENCE: a view that exists and answers the old way reads as covered. NO means the register shows a stored status that decays and an engineer that can disagree with the Party Master. Restore: product_database_2.sql',
+        (to_regclass('public.product_database') is not null
+         and exists (select 1 from pg_views where schemaname='public' and viewname='product_database')
+         -- security_invoker, or the register reads as its owner.
+         and exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace
+                      where n.nspname='public' and c.relname='product_database'
+                        and c.reloptions::text ilike '%security_invoker=on%')
+         -- THE RULE, ASSERTED ON THE DEFINITION, and for 0222's reason: this
+         -- report cannot insert a machine to ask about, and a view read on a
+         -- register that happens to hold no expiring cover agrees either way.
+         -- Three things, because a view that exists and answers the OLD way
+         -- reads as covered: warranty is tested BEFORE the contract, the
+         -- fallback is OGP, and the engineer comes from the Party Master.
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+             'warranty_end >= CURRENT_DATE[\s\S]*contract_end >= CURRENT_DATE'
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) like '%''OGP''::text%'
+         -- The engineer comes from the PARTY MASTER, joined on the same key
+         -- party_service_engineer() uses. It was a per-row call to that
+         -- function until the timeout (0236) made a join necessary; what has
+         -- to stay true is WHERE the value comes from, not how it is fetched.
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+             'JOIN parties [a-z]+ ON [a-z]+\.name_key = lower\(btrim'
+         -- ...AND ASKED OF THE ROWS, not of the text. Postgres renders
+         -- `p.service_engineer as service_engineer` as a bare
+         -- `p.service_engineer,` -- it drops a redundant alias -- so a pattern
+         -- looking for that alias can never match the mutation it is aimed at,
+         -- which is how the first version of this clause passed a database
+         -- where the engineer had gone back to the machine's own column.
+         -- Every row must agree with party_service_engineer(), which is the
+         -- rule itself and also catches a join written on the wrong key.
+         and not exists (
+           select 1
+             from public.product_database v
+             join public.products pp on pp.id = v.id
+            where coalesce(v.service_engineer, '')
+                  is distinct from coalesce(public.party_service_engineer(pp.party_name), ''))
+         -- and the columns that keep the migrated system's own answer.
+         and exists (select 1 from information_schema.columns
+                      where table_schema='public' and table_name='product_database'
+                        and column_name = 'item_status_keyed')
+         and exists (select 1 from information_schema.columns
+                      where table_schema='public' and table_name='product_database'
+                        and column_name = 'service_engineer_keyed'))),
+    (181, 'Cover: the read policies are asked ONCE per query', 'sale_entries / sale_items / contract_entries / contract_items carry their read and write policies as InitPlans -- (select has_perm(...)) -- rather than bare per-row calls (0236). FOUND BY EXPLAIN after "canceling statement due to statement timeout" on the Product Database: `Seq Scan on contract_items ... Rows Removed by Filter: 20001 ... actual time=16209 ms`. SIXTEEN SECONDS TO RETURN NOTHING. The predicate says nothing about the row -- it is the same answer for every row in the table -- but written bare it is a per-row expression, so has_perm() ran four times for each of 20,001 rows and each call reads app_roles. Wrapping it in a scalar subquery makes it an InitPlan: evaluated once, reused. IDENTICAL AUDIENCE -- nobody gains or loses a row -- which is why this is a performance fix and not a permissions change. Measured on 20,000 machines: one page 15,813 ms -> 18.8 ms, a filtered search 5,518 ms -> 26.3 ms, the whole register with every computed column produced OVER 120,000 ms -> 37.2 ms. IT WAS NOT HURTING BEFORE because the cover registers always read with a filter, so the scan was small and 20,001 evaluations never happened; the Product Database reads the whole install base and joins these tables to it, which is what exposed it -- a policy that is fine until somebody writes a bigger query is not fine, it is waiting. The third time this project has made this fix (0095 on hand stock, 0164 on cr_read at 1,840 ms -> 7.4 ms). RE-MEASURED 2026-09-24 on the 0239 view, after a Commercial user reported the same banner again on a register of 20,002 machines, 40,006 contract lines and 15,004 installation calls: the search she typed 7,695 ms -> 184 ms, the opening page 7,892 ms -> 218 ms, a party contains-match 7,984 ms -> 1,058 ms. Supabase stops a statement at eight seconds, which is why 7.7 seconds is not "slow" but an empty screen. RUN `_fix_product_database_timeout.sql` RATHER THAN THE BUNDLE: it applies exactly this and nothing else, in under a second and with a four-second lock_timeout, where the bundle re-executes seventeen migrations and has deadlocked against the live app twice. NO means the per-row form is back and any unfiltered read of the cover registers will time out. Restore: sales_contracts.sql',
+        (not exists (
+           select 1
+             from pg_policy p
+             join pg_class c on c.oid = p.polrelid
+             -- BOTH HALVES OF THE POLICY. `with check` is evaluated per row on
+             -- an UPDATE exactly as `using` is on a SELECT, so a write policy
+             -- fixed on one side only is still slow on the other.
+             cross join lateral (select coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' '
+                                     || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') as expr) e
+            where c.relname in ('sale_entries', 'sale_items',
+                                'contract_entries', 'contract_items')
+              -- A policy that CALLS has_perm or is_admin without wrapping it in
+              -- a scalar subquery is the per-row form. Rendered, the InitPlan
+              -- reads `( SELECT has_perm('masters.view'::text) AS has_perm)`.
+              --
+              -- IT COUNTS THE CALLS RATHER THAN LOOKING FOR ONE, and the first
+              -- version of this row did the latter: `~ 'has_perm' and !~
+              -- 'SELECT has_perm'` answers YES for a policy with ONE branch
+              -- wrapped and the other left bare, which is exactly what a later
+              -- migration editing one branch produces and is still slow. Proved
+              -- by building that policy: the old test said the fix was in, the
+              -- counting test said PER ROW, and the query took 7.7 seconds.
+              and ((select count(*) from regexp_matches(e.expr, 'has_perm\(', 'g'))
+                 > (select count(*) from regexp_matches(e.expr, 'SELECT has_perm\(', 'g'))
+                or (select count(*) from regexp_matches(e.expr, 'is_admin\(', 'g'))
+                 > (select count(*) from regexp_matches(e.expr, 'SELECT is_admin\(', 'g')))))),
+    (182, 'A Warranty Sale puts its machines into the Product Database', 'upsert_product_from_sale() + zz_sale_item_to_product on sale_items + zz_sale_entry_to_products on sale_entries (0237). The user, 2026-09-24: "Every time I add a Warranty Sale entry, all the products should get added to the product database ... same product is sold again to a different customer, in that case the old data should be over written." sale_items has fired sync_product_cover() since 0036, but that function does an UPDATE: it refreshes the cover of a machine ALREADY on the register and does nothing at all for one that is not, so a machine sold today appeared only if the AppSheet import happened to carry it -- the register of what EXISTS was being kept by an import rather than by the act of selling. AND IT KEYS ON THE SERIAL ALONE, which this project settled long ago: a machine is its MODEL and its SERIAL, the install base holds eleven machines numbered 219, and a serial-only match writes one sale''s cover onto a different model. This keys on machine_key, the same key products_machine_key_uniq already enforces -- so RE-SOLD TO A DIFFERENT CUSTOMER falls out of the key rather than needing a rule. IT WRITES WHAT THE SALE KNOWS AND ONLY THAT: the contract columns, `extra` and item_status are left alone, because the sale knows nothing about the contract and a blank there would erase real cover, and item_status has been worked out on read since 0235. THE ONE FIELD NEVER TAKEN BACKWARDS is inst_call -- 0234''s rule, since a sale re-saved with a blank would orphan a call that exists. BOTH TRIGGERS ARE COUNTED, because the party, the address and the warranty dates live on the HEADER and every machine inherits them: with only the item trigger, correcting the customer on the entry would reach none of its machines. NO means a machine sold today does not reach the Product Database, or a re-sale leaves the previous owner on it. Restore: sales_contracts.sql',
+        (to_regprocedure('public.upsert_product_from_sale(bigint)') is not null
+         and exists (select 1 from pg_trigger
+                      where tgrelid = 'public.sale_items'::regclass
+                        and tgname = 'zz_sale_item_to_product' and not tgisinternal)
+         and exists (select 1 from pg_trigger
+                      where tgrelid = 'public.sale_entries'::regclass
+                        and tgname = 'zz_sale_entry_to_products' and not tgisinternal)
+         -- THE KEY IS THE MACHINE, NOT THE SERIAL. A version keyed on the
+         -- serial alone would pass every check above and quietly write one
+         -- sale''s cover onto a different model sharing that number.
+         and pg_get_functiondef('public.upsert_product_from_sale(bigint)'::regprocedure)
+             ~ 'on conflict \(machine_key\)'
+         -- and the contract is not among the columns it overwrites.
+         and pg_get_functiondef('public.upsert_product_from_sale(bigint)'::regprocedure)
+             !~ 'contract_(number|start|end|type)\s*=')),
+    (183, 'A machine belongs to its latest owner, and so does everything attached', 'machine_current_party() + zz_transfer_to_product, and the contract / installation-call match in product_database (0238, 0239). The user, 2026-09-24: "What should be displayed is entirely based on the Timestamp of when the change was done ... Contract has to match the product, serial no, party .. Same with Installation calls ... and party is decided by sale entry or ownership transfer whichever is latest." THE SECOND SENTENCE IS THE MECHANISM FOR THE FIRST, and reading it that way is what makes this safe: a re-sale does not DELETE the previous owner''s contract and installation call, they stop MATCHING -- so nothing is destroyed, the registers are untouched, and a machine that returns to that customer gets its cover back by itself, which a rule that deleted could never do. TWO HALVES, KEPT APART DELIBERATELY. The PARTY is STORED, because it is decided by two TIMESTAMPED EVENTS and so does not decay -- nothing about it changes because a day passed. The CONTRACT and the CALL are MATCHED ON READ, because they depend on the party and a stored attachment would disagree with it until something rewrote the row; it also keeps every trigger off installation_calls and contract_items, where a per-row rule would make a twelve-thousand-row import pay for this twelve thousand times. SAME DAY, THE TRANSFER WINS: transfer_date is a DATE and a sale entry is a TIMESTAMP, so a transfer recorded on the day of a sale would otherwise lose to it at midnight -- and a machine cannot be transferred before it is sold. A MACHINE WITH NEITHER A SALE NOR A TRANSFER IS LEFT ENTIRELY ALONE, because twenty thousand came from the AppSheet import and deriving their party from registers that do not mention them would blank the only record of who owns them. MEASURED AT THE REGISTER''S REAL SIZE before shipping -- 20,012 machines, 20,001 contract lines, 9,001 installation calls, under RLS: one page 6.6 ms, a filtered search 72.5 ms, the whole register with every computed column 116.6 ms. NO means a re-sold machine still shows the previous owner''s contract or installation call. Restore: sales_contracts.sql, then product_database_2.sql',
+        (to_regprocedure('public.machine_current_party(text,text)') is not null
+         and exists (select 1 from pg_trigger
+                      where tgrelid = 'public.ownership_transfers'::regclass
+                        and tgname = 'zz_transfer_to_product' and not tgisinternal)
+         -- THE PARTY IS PART OF THE JOIN KEY. That one clause IS the rule, and
+         -- a view that joined on product and serial alone would pass every
+         -- other test here while showing the previous owner''s cover.
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+             'cp\.party_key = lower\(btrim'
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+             'ip\.party_key = lower\(btrim'
+         -- ...and the machine''s own columns are no longer what is shown.
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+             'AS contract_number_keyed'
+         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+             'AS inst_call_keyed'))
+    ,
+    (184, 'Hand Stock Report: its module key reaches somebody', 'mod:/handstock-report is in app_roles for the admin role (0241). The user, 2026-09-24: "Add a Hand Stock Report - Default access to Admin/Super Admin, Rest of the Access I will select from Roles & Permissions." WITHOUT THE GRANT THE SCREEN IS INVISIBLE TO EVERYBODY AND NOTHING SAYS SO: permsForRole() returns the STORED set whenever it is non-empty, so on a project in use -- where every role has a tuned row -- a key no migration writes reaches nobody, however many roles hold it in DEFAULT_PERMS. The page ships, the menu entry exists, the tick is in the code, and no role can open it. That has happened four times here (Machine History, the Call Report, the Customer Feedback Report, Solved Without a Report). WHO IT GRANTS: admin, and technical_support. Super Admin needs none -- it is not a role but a row in app_super_admins that overrides every check, so a key for it would be written to a role that does not exist. TECHNICAL SUPPORT IS NOT A LIBERTY TAKEN WITH A ROLE THE USER DID NOT NAME: row 114 above asserts the PROPERTY that Technical Support holds every module key the admin holds, which is what that role IS ("Mimic Super Admin - But with Read Only"), and an administrators-only page skipping it breaks the role silently. The first version of 0241 granted admin alone and row 114 went red on the validation run, which is exactly what it is for; 0224 granted the previous administrators-only report the same way. A module key opens a SCREEN and confers no write, so row 117 is untouched. Zoho Migration is left alone: no check requires it, the user named Admin, and the rule here is not to touch a role that was not named. MERGED, never overwritten, and a role with zero permissions is skipped, since an empty array means "not configured" and writing one key into it turns off the fallback giving that role its access. NO means nobody but a Super Admin can open the Hand Stock Report, or the grant was overwritten. Restore: rbac.sql',
+        (to_regclass('public.app_roles') is null
+         or exists (select 1 from public.app_roles
+                     where role = 'admin'
+                       and permissions ? 'mod:/handstock-report'))
+         -- AND IT HAS NOT LEAKED. "Administrators to begin with" is two
+         -- statements, and a grant that also reached a fifth role would pass
+         -- every check that only looks at the first.
+         and not exists (select 1 from public.app_roles
+                          where role not in ('admin', 'technical_support', 'zoho_migration')
+                            and permissions ? 'mod:/handstock-report'
+                            and role <> 'super_admin')),
+    (185, 'Cancelling a batch of calls adds no new power', 'cancel_calls(text[], text) exists, is SECURITY INVOKER, and loops cancel_call() (0242). The user, 2026-09-24: "Cancel all these calls in 1 Go with Reason as ''Duplicate Call''". THE PROPERTY CHECKED IS prosecdef = false, AND IT IS THE WHOLE POINT OF THE DESIGN. cancel_call() (0108) is the SECURITY DEFINER function that checks has_perm(''calls.cancel''), refuses an empty reason, refuses an unknown UCN and refuses one already cancelled; the batch wrapper is a loop around it and nothing else, so a role that cannot cancel one call cannot cancel fifty. Made a definer itself -- which is the obvious thing to reach for, and which a later rewrite could easily do while ''fixing'' a permission error -- it would run as postgres and the per-call check would be the only thing standing between any signed-in user and the whole register. So both halves are asserted: the function is there, and it is NOT a definer, and its body still CALLS cancel_call rather than writing its own update. EACH CANCELLATION IS ITS OWN SUBTRANSACTION so one already-cancelled call cannot throw away the other nineteen, and the caller gets one row per UCN saying what happened. NO means the bulk Cancel button on the call register answers "function public.cancel_calls(text[], text) does not exist", or -- worse and silently -- that the wrapper has become a definer and is no longer gated by the permission. Restore: call_requests.sql',
+        (to_regprocedure('public.cancel_calls(text[],text)') is not null
+         and not (select p.prosecdef from pg_proc p
+                   where p.oid = to_regprocedure('public.cancel_calls(text[],text)'))
+         -- IT MUST STILL DELEGATE. A wrapper that grew its own `update
+         -- public.calls set cancelled_at = ...` would pass both tests above
+         -- and skip every rule 0108 wrote down.
+         and pg_get_functiondef(to_regprocedure('public.cancel_calls(text[],text)'))
+             ~ 'cancel_call\('))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

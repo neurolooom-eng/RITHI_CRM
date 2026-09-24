@@ -5,6 +5,7 @@ import { Ucn } from '../../lib/callstate';
 import { useCallStates, callStateFor } from '../../lib/callstates';
 import { csvExport, fmtLongDate } from '../../lib/format';
 import { partyDiffers, type MachineEvent, type MachineNow } from '../../lib/machineHistory';
+import { COMPLETE } from '../../lib/exportscope';
 
 // ===========================================================================
 // ONE MACHINE'S LIFE, RENDERED ONCE.
@@ -149,7 +150,10 @@ export function MachineHistoryView({
                         onClick={() => csvExport(
                           `machine-${product}-${serial}.csv`.replace(/[^a-z0-9.-]+/gi, '-'),
                           columns.filter((c) => c.key !== 'ucn').map((c) => ({ key: c.key, header: String(c.header) })),
-                          shown as unknown as Record<string, unknown>[])}>
+                          shown as unknown as Record<string, unknown>[],
+                          // Every register was read WHOLE for this one machine,
+                          // not paged -- see the note on the counts below.
+                          COMPLETE)}>
                   ⭳ Export CSV
                 </button>
               )}

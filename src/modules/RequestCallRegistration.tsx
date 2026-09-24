@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { addCallRequestBatch, listCallRequests, sbPartyInfo, supabaseConfigured,
+import { addCallRequestBatch, listCallRequests, sbPartyInfo, sbProductBySerial, supabaseConfigured,
          updateCallRequest, callRequestEditableKeys, sbKycByParties, kycKeyFor,
          type CallRequestItem } from '../lib/supabase';
 import { csvExport, timeAgo, fmtDateTime, fmtLongDate } from '../lib/format';
@@ -22,6 +22,7 @@ import { todayISO } from '../lib/format';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
+import { partial } from '../lib/exportscope';
 
 // ===========================================================================
 // REQUEST CALL REGISTRATION — the register of every request raised, whatever
@@ -275,7 +276,7 @@ export function RequestCallRegistration() {
             </div>
             <button
               className="btn btn-sm"
-              onClick={() => csvExport('call-requests.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}
+              onClick={() => csvExport('call-requests.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], partial(moreAvailable))}
             >
               ⭳ Export CSV
             </button>
@@ -401,6 +402,27 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
   // register. Five calls, one variable.
   const [machineHits, setMachineHits] = useState<Record<number, MachineHit[]>>({});
   const hitsFor = (i: number): MachineHit[] => machineHits[i] ?? [];
+
+  // MERGED, NOT REPLACED, and that is a second fault of the same shape as the
+  // one above. Two searches can be in flight at once — the picker debounces but
+  // does not cancel the request it has already sent — and the SLOWER one lands
+  // LAST. PickList guards its own rows against that (it keys them to the query
+  // that produced them); this map was not guarded at all, so a stale answer
+  // overwrote the hits for the list actually on screen. Clicking a row then
+  // found no machine behind it and the row got a serial with NO CUSTOMER:
+  // exactly the refusal reported on 2026-09-24, for a machine that is on the
+  // register.
+  //
+  // Keeping what we have already seen cannot be wrong — a machine does not stop
+  // existing because a later search did not mention it — and it makes the order
+  // of two replies stop mattering. Newest first, capped, because this is a
+  // lookup rather than a list: it is only ever read by `.find()`.
+  const REMEMBERED_HITS = 500;
+  const hitKey = (m: MachineHit) => `${m.product.trim().toLowerCase()}|${m.serial.trim().toLowerCase()}`;
+  const rememberHits = (i: number, hits: MachineHit[]) => setMachineHits((h) => {
+    const fresh = new Set(hits.map(hitKey));
+    return { ...h, [i]: [...hits, ...(h[i] ?? []).filter((m) => !fresh.has(hitKey(m)))].slice(0, REMEMBERED_HITS) };
+  });
   // Installation Report / KYC are documents: uploaded to the Drive folder and
   // stored on the request as their Drive link.
   const [docs, setDocs] = useState<Docs>({ installationReport: null, kyc: null });
@@ -591,13 +613,13 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
 
   const filled = items.filter((it) => it.product.trim() || it.serial.trim() || it.standardComplaint.trim() || it.reportedProblem.trim());
 
-  const validate = (): string => {
+  const validate = (rows: Item[] = filled): string => {
     if (!f.callType) return 'Choose a Call Type.';
     // The customer is asked for only on an INSTALLATION now; everywhere else
     // it arrives with the machine, per row, and is checked there.
     if (isInstall && !f.partyName.trim()) return 'Enter the Party Name.';
-    if (!filled.some((it) => it.product.trim())) return 'Add at least one call (Product is required).';
-    const bad = filled.findIndex((it) => !it.product.trim());
+    if (!rows.some((it) => it.product.trim())) return 'Add at least one call (Product is required).';
+    const bad = rows.findIndex((it) => !it.product.trim());
     if (bad >= 0) return `Call ${bad + 1}: Product is required (or clear the other fields).`;
     // The serial is what ties the call to ONE machine. Without it the request's
     // UniqueID reads REQID-Product-NA, every downstream lookup matches the
@@ -605,7 +627,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     // On an installation it is typed (the machine is new); everywhere else it
     // comes from the Product Database, so an empty one is a MASTER to fix, not a
     // field to skip.
-    const noSerial = filled.findIndex((it) => !it.serial.trim());
+    const noSerial = rows.findIndex((it) => !it.serial.trim());
     if (noSerial >= 0)
       return isInstall
         ? `Call ${noSerial + 1}: Serial No is required — type the serial of the machine being installed.`
@@ -614,15 +636,15 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     // customer is not typed, so a row without one means the serial matched no
     // machine — which would file the call against nobody. The rule is in
     // lib/callrequest.ts so it can be run with real inputs.
-    const machineProblem = machineRowProblem(filled, isInstall);
+    const machineProblem = machineRowProblem(rows, isInstall);
     if (machineProblem) return machineProblem;
-    const noProblem = filled.findIndex((it) => !it.reportedProblem.trim());
+    const noProblem = rows.findIndex((it) => !it.reportedProblem.trim());
     if (noProblem >= 0) return `Call ${noProblem + 1}: Reported Problem is required.`;
     // One row per Product + Serial within a request (its UniqueID), so the same
     // pair can't appear twice.
     const seen = new Set<string>();
-    for (let i = 0; i < filled.length; i++) {
-      const key = `${filled[i].product.trim().toLowerCase()}|${filled[i].serial.trim().toLowerCase()}`;
+    for (let i = 0; i < rows.length; i++) {
+      const key = `${rows[i].product.trim().toLowerCase()}|${rows[i].serial.trim().toLowerCase()}`;
       if (seen.has(key)) return `Call ${i + 1}: this Product + Serial is already on the request.`;
       seen.add(key);
     }
@@ -632,8 +654,52 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     return '';
   };
 
+  // =========================================================================
+  // ASK THE REGISTER BEFORE REFUSING A MACHINE (2026-09-24).
+  //
+  // A row carries its customer because a machine was PICKED and the pick filled
+  // it in. So "no customer came with it" really says "this row has no machine
+  // behind it in the browser" — which is NOT the same claim as "that serial is
+  // not on the register", and the two came apart twice: a serial the search
+  // never offered (it was unordered and capped), and a stale search overwriting
+  // the hits for the list on screen. Both are fixed above; this is the net
+  // under them, and it is the right net whatever else goes wrong, because the
+  // register is the authority and the cached hits never were.
+  //
+  // MODEL AND SERIAL BOTH, never the serial alone: the install base holds
+  // eleven machines numbered 219, and sbProductBySerial returns NOTHING for an
+  // ambiguous serial rather than guessing — so an unanswerable row is still
+  // refused, with the message it always had.
+  //
+  // IT RUNS ONLY WHERE THE ROW IS ALREADY GOING TO BE REFUSED: at most five
+  // lookups, on submit, on a request that would otherwise have failed.
+  const resolveMachines = async (rows: Item[]): Promise<Item[]> => {
+    if (isInstall || !supabaseConfigured()) return rows;
+    const out = await Promise.all(rows.map(async (it) => {
+      if (!it.serial.trim() || (it.party ?? '').trim()) return it;
+      const m = await sbProductBySerial(it.serial.trim(), it.product.trim()).catch(() => null);
+      const party = String(m?.['Party Name'] ?? '').trim();
+      if (!m || !party) return it;
+      // The SAME precedence as picking from the list: what somebody typed into
+      // the row is a correction and is never overwritten by the register.
+      return {
+        ...it,
+        party,
+        city: it.city?.trim() ? it.city : String(m['City'] ?? ''),
+        state: it.state?.trim() ? it.state : String(m['State'] ?? ''),
+        address: it.address?.trim() ? it.address : String(m['Address'] ?? ''),
+      };
+    }));
+    // Shown on the form too, so the "Customer:" line under the serial agrees
+    // with what is about to be submitted.
+    const bySerial = new Map(out.filter((it) => it.serial.trim()).map((it) => [it.serial.trim().toLowerCase(), it]));
+    setItems((s2) => s2.map((it) => bySerial.get(it.serial.trim().toLowerCase()) ?? it));
+    return out;
+  };
+
   const submit = async () => {
-    const v = validate();
+    const rows = await resolveMachines(filled);
+    const v = validate(rows);
     if (v) { setMsg({ tone: 'error', text: v }); return; }
     setBusy(true); setMsg({ tone: 'info', text: 'Submitting request…' });
     const base: Record<string, unknown> = {
@@ -647,7 +713,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     };
     const t0 = performance.now();
     try {
-      const res = await addCallRequestBatch(base, filled);
+      const res = await addCallRequestBatch(base, rows);
       logAudit({ action: 'request.create', target: res.reqid ?? '', status: res.ok && !res.error ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0), meta: { products: filled.length, callType: f.callType } });
       if (res.ok) {
         setMsg({ tone: res.error ? 'error' : 'ok', text: res.error ?? `Request ${res.reqid} submitted — ${res.count} call${res.count === 1 ? '' : 's'}. Now in Pending Registrations.` });
@@ -835,7 +901,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                             // Party + product from call 2 onward. On call 1
                             // there is no customer yet, so it is product alone.
                             const hits = await sbSearchMachines(it.product, qq, 50, i > 0 ? lockedParty : '');
-                            setMachineHits((h) => ({ ...h, [i]: hits }));
+                            rememberHits(i, hits);
                             return hits.map((m: MachineHit) => m.serial);
                           }}
                           onPick={(v) => {

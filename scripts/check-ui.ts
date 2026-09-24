@@ -18,7 +18,7 @@ import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmou
          ABOUT_TO_EXPIRE_DAYS, SERIES, nextInSeries, deriveHeader, deriveItem,
          upliftRate, itemTaxAmount, totalAfterTax, periodToMonths } from '../src/lib/coverspec';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
-import { machineRowProblem, productPlaceholder, PICK_A_PRODUCT } from '../src/lib/callrequest';
+import { machineRowProblem, productPlaceholder, rankSerialHits, PICK_A_PRODUCT } from '../src/lib/callrequest';
 import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS , FFR_WRITABLE, ffrWritable } from '../src/lib/ffr';
 import { buildFfrDocx, ffrDocName } from '../src/lib/ffrdoc';
 import { localIsoDate } from '../src/lib/dates';
@@ -35,9 +35,14 @@ import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies
 import { stateColour, stateBucket } from '../src/lib/callstate';
 import { driveFolderForCall, DRIVE_FOLDER_NAMES } from '../src/lib/drivefolders';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
-import { buildXlsx } from '../src/lib/xlsx';
+import { buildXlsx, xlsxCell } from '../src/lib/xlsx';
 import { TESTS } from '../src/lib/validation';
 import { shortForms, type ProductLine } from '../src/lib/productLines';
+import { HANDSTOCK_REPORT_COLUMNS, handStockFileName, isLastPage } from '../src/lib/handstockreport';
+import { buildXls } from '../src/lib/xls';
+import { COMPLETE, partial, cappedAt, mayExport, partialExportWarning } from '../src/lib/exportscope';
+import { DCCR_EXPORT_COLUMNS, toExportRow } from '../src/lib/dccr';
+import { KPI_FIELD_INST_COLUMNS, kpiExportColumns, toKpiCellRow, toKpiExportRow } from '../src/lib/kpi';
 import { DEFAULT_PERMS, MODULES, PERM_TREE, ROLES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
 import { URS, FRS, TESTS, MODULES_WITHOUT_REQUIREMENT } from '../src/lib/validation';
 import { modulesWithNoRequirement, badDeclarations, traceabilityMatrix } from '../src/lib/requirements';
@@ -3508,7 +3513,7 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // reach it. Run its validator's rule rather than matching its source: an
   // item with a product and a problem but no serial must be refused.
   const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
-  const validate = /const validate = \(\): string => \{[\s\S]*?\n  \};/.exec(rq)?.[0] ?? '';
+  const validate = /const validate = \(rows: Item\[\] = filled\): string => \{[\s\S]*?\n  \};/.exec(rq)?.[0] ?? '';
   eq('the request form validates the serial before the problem',
     validate.indexOf('it.serial.trim()') >= 0
       && validate.indexOf('it.serial.trim()') < validate.indexOf('it.reportedProblem.trim()'), true);
@@ -3965,7 +3970,76 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('an empty row is not a duplicate of another empty row',
     machineRowProblem([{ product: '', serial: '', party: '' }, { product: '', serial: '', party: '' }], false), null);
   eq('and the form asks the rule rather than restating it',
-    /machineRowProblem\(filled, isInstall\)/.test(rq), true);
+    /machineRowProblem\(rows, isInstall\)/.test(rq), true);
+  // AND IT ASKS IT OF THE RESOLVED ROWS, not of what the browser happened to
+  // cache. "No customer came with it" is a claim about the REGISTER, and the
+  // form was making it from a lookup table that two separate faults could
+  // empty. The submit path now asks the register first (2026-09-24).
+  eq('submit resolves the machine before it refuses it',
+    /const rows = await resolveMachines\(filled\);\s*\n\s*const v = validate\(rows\);/.test(rq), true);
+  eq('and it looks the machine up by MODEL AND SERIAL, never the serial alone',
+    /sbProductBySerial\(it\.serial\.trim\(\), it\.product\.trim\(\)\)/.test(rq), true);
+  eq('and what it resolved is what gets submitted',
+    /addCallRequestBatch\(base, rows\)/.test(rq), true);
+
+  // ---- CLOSEST FIRST -----------------------------------------------------
+  // The fault reported 2026-09-24, as behaviour rather than as a regex: the
+  // machine you typed must be the FIRST row offered, not somewhere in fifty.
+  const machines = (...ss: string[]) => ss.map((x) => ({ serial: x, product: 'ORION-G' }));
+  const serials = (ms: { serial: string }[]) => ms.map((m) => m.serial);
+  eq('the exact serial is first, however the database returned them',
+    serials(rankSerialHits(machines('X105161', '1054', '10504', '105', '1059'), '105'))[0], '105');
+  // THE CASE THAT DISCRIMINATES. '0105' contains '105' and sorts BEFORE every
+  // serial that begins with it, so plain alphabetical order puts a mid-string
+  // match above the machine you typed. Written without this case first, the
+  // test passed with the ranking removed entirely — which is the whole reason
+  // to mutate a check rather than admire it.
+  eq('...even when a mid-string match sorts earlier than it does',
+    serials(rankSerialHits(machines('0105', '105'), '105')), ['105', '0105']);
+  eq('a serial that BEGINS with it still beats one that merely contains it',
+    serials(rankSerialHits(machines('0105', '1054'), '105')), ['1054', '0105']);
+  eq('then the ones that BEGIN with it, in order',
+    serials(rankSerialHits(machines('X105161', '1054', '10504', '105'), '105')),
+    ['105', '10504', '1054', 'X105161']);
+  eq('a mid-string match is still offered, just last',
+    serials(rankSerialHits(machines('X105161', '105'), '105')), ['105', 'X105161']);
+  eq('case does not decide the rank — ilike is case-insensitive and this must agree',
+    serials(rankSerialHits(machines('ABCD', 'abc'), 'AbC'))[0], 'abc');
+  eq('...and a case-different prefix still beats a mid-string match',
+    serials(rankSerialHits(machines('0ABC', 'ABCD'), 'abc')), ['ABCD', '0ABC']);
+  // INXT 0105 (the user, 2026-09-24). A serial that ENDS with what was typed is
+  // a close match — and on this register it is the COMMON one, since so many
+  // serials are a letter code, a space and a number and people read out the
+  // number. The discriminating case: 'AB105CD' sorts BEFORE 'INXT 0105'
+  // alphabetically, so without the suffix tier it would come first.
+  eq('a serial that ENDS with what was typed beats one that merely contains it',
+    serials(rankSerialHits(machines('AB105CD', 'INXT 0105'), '105')), ['INXT 0105', 'AB105CD']);
+  eq('...and a prefix match still beats them both',
+    serials(rankSerialHits(machines('AB105CD', 'INXT 0105', '1054'), '105')),
+    ['1054', 'INXT 0105', 'AB105CD']);
+  eq('...and typing the whole tail works the same way',
+    serials(rankSerialHits(machines('AB0105CD', 'INXT 0105'), '0105')), ['INXT 0105', 'AB0105CD']);
+
+  // THE CAP MUST NOT UNDO THE RANKING. Measured while answering the INXT
+  // question: 120 serials happened to BEGIN with 105, so sorting by tier and
+  // cutting at 50 put INXT 0105 at rank 52 — one place past the cap, and
+  // therefore not offered at all, which is the very fault being fixed. Tier
+  // order decides what comes FIRST; it must never decide what is REACHABLE.
+  const crowd = ['INXT 0105', ...Array.from({ length: 120 }, (_, n) => `105-${String(n).padStart(4, '0')}`)];
+  const capped = serials(rankSerialHits(machines(...crowd), '105', 50));
+  eq('a huge prefix group cannot starve a tiny ends-with group', capped.includes('INXT 0105'), true);
+  eq('...and the cap is still honoured', capped.length, 50);
+  eq('...and the closest group still comes first', capped[0], '105-0000');
+  // Under the cap nothing is dropped and the order is plain tier order.
+  eq('a list that fits is returned whole, in tier order',
+    serials(rankSerialHits(machines('AB105CD', 'INXT 0105', '1054'), '105', 50)),
+    ['1054', 'INXT 0105', 'AB105CD']);
+  // ELEVEN MACHINES ARE NUMBERED 219. De-duplicating on the serial would drop
+  // ten of them from the one list whose job is to tell them apart.
+  eq('the same serial on two models is TWO machines',
+    rankSerialHits([{ serial: '219', product: 'ORION-G' }, { serial: '219', product: 'CPX CARE' }], '219').length, 2);
+  eq('and the same machine twice is one',
+    rankSerialHits([{ serial: '219', product: 'ORION-G' }, { serial: '219', product: 'ORION-G' }], '219').length, 1);
 
   // The serial search must span customers — narrowing it by party would put
   // the slow search back in front of the fast one.
@@ -3989,8 +4063,49 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('and there is no other party filter in it',
     (fn.match(/\.(eq|ilike)\('party_name'/g) ?? []).length, 1);
   eq('it filters by product when there is one', /\.eq\('item_name'/.test(fn), true);
+  // AND IT MATCHES THE NAME AS THE PICKER OFFERED IT, NOT TRIMMED
+  // (reported 2026-09-24: "This happens in Extend XT product only"). The
+  // Product box is filled from `product_register_names`, which groups
+  // `products.item_name` and hands the name back VERBATIM. A `.trim()` here
+  // therefore asks for a DIFFERENT string than the one on screen wherever a
+  // register row carries a stray space: measured on a fixture, the dropdown
+  // said 2 machines and the equality found 0, so every serial box for that one
+  // product was empty and the request was refused for machines on the register.
+  // Product-specific by construction, which is exactly how it was reported.
+  // Every other read of this table already matched the name as given.
+  eq('the product is matched as the picker offered it, never trimmed',
+    /q\.eq\('item_name', product\)/.test(fn) && !/q\.eq\('item_name', product\.trim\(\)\)/.test(fn), true);
+  eq('...while a blank product is still no filter at all',
+    /if \(product\.trim\(\)\) q = q\.eq\('item_name'/.test(fn), true);
   eq('and it is capped so a short serial costs no more than a precise one',
     /\.limit\(limit\)/.test(fn), true);
+  // EVERY CAPPED READ NAMES AN ORDER. Without one the fifty rows that come back
+  // are whichever fifty the plan produced, so the machine you typed can sit at
+  // rank 19 or not appear at all — which is what was reported on 2026-09-24.
+  eq('every capped read of the register names an order',
+    (fn.match(/\.limit\(limit\)/g) ?? []).length,
+    (fn.match(/\.order\('serial_number'\)\.limit\(limit\)/g) ?? []).length);
+  // THE PREFIX READ IS WHAT GUARANTEES THE EXACT MATCH IS THERE AT ALL: a
+  // string sorts before everything it is a prefix of, so serial 105 is the
+  // first row of `105%` ordered ascending and can never be cut off by the cap.
+  // The contains read alone cannot promise that, however it is sorted.
+  eq('it asks for the prefix matches separately, so the exact one survives the cap',
+    /ilike\('serial_number', `\$\{term\}%`\)/.test(fn), true);
+  eq('and still asks for mid-string matches',
+    /ilike\('serial_number', `%\$\{term\}%`\)/.test(fn), true);
+  // THE SUFFIX READ IS WHAT REACHES `INXT 0105` (2026-09-24). Through the
+  // contains read alone that machine was rank 146 of 1,046 and fell past the
+  // cap; four serials end in 105, so this read cannot be crowded out.
+  eq('and separately for the ones that END with it',
+    /ilike\('serial_number', `%\$\{term\}`\)/.test(fn), true);
+  eq('all of them in one round trip',
+    /await Promise\.all\(\[/.test(fn), true);
+  eq('...and all three results are merged, not just two',
+    /rows = \[\.\.\.\(pre\.data \?\? \[\]\), \.\.\.\(suf\.data \?\? \[\]\), \.\.\.\(any\.data \?\? \[\]\)\]/.test(fn), true);
+  eq('...and every one of them is checked for an error',
+    (fn.match(/if \((pre|suf|any)\.error\) throw/g) ?? []).length, 3);
+  eq('and the order it hands back is the pure one, so a check can exercise it',
+    /rankSerialHits\(hits, term, limit\)/.test(fn), true);
   eq('it returns the customer with the machine',
     /party: String\(r\.party_name/.test(fn) && /city: String\(ex\['City'\]/.test(fn), true);
 
@@ -4053,7 +4168,20 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
 
   eq('the results are held per row', /useState<Record<number, MachineHit\[\]>>\(\{\}\)/.test(rq), true);
-  eq('and written under that row', /setMachineHits\(\(h\) => \(\{ \.\.\.h, \[i\]: hits \}\)\)/.test(rq), true);
+  eq('and written under that row', /rememberHits\(i, hits\)/.test(rq), true);
+  // MERGED, NOT REPLACED (2026-09-24). The picker debounces but does not cancel
+  // a request already sent, so two searches can be in flight and the SLOWER one
+  // lands last — overwriting the hits for the list actually on screen, so a
+  // click found no machine and the row got a serial with NO CUSTOMER. That is
+  // the same symptom as the fault above, from a different direction. Keeping
+  // what we have already seen cannot be wrong: a machine does not stop existing
+  // because a later search did not mention it.
+  eq('...and a slower, staler reply cannot delete what we already found',
+    /\[\.\.\.hits, \.\.\.\(h\[i\] \?\? \[\]\)\.filter\(\(m\) => !fresh\.has\(hitKey\(m\)\)\)\]/.test(rq), true);
+  eq('...keyed on MODEL and serial, because eleven machines are numbered 219',
+    /const hitKey = \(m: MachineHit\) => `\$\{m\.product/.test(rq), true);
+  eq('...and capped, since it is a lookup and not a list',
+    /\.slice\(0, REMEMBERED_HITS\)/.test(rq), true);
   // Every read must go through the per-row accessor; one stray shared read
   // brings the whole fault back.
   eq('every read is scoped to the row',
@@ -8362,6 +8490,389 @@ console.log('\n-- Roles & Permissions saves what was touched, and nothing else -
     /would be left with NO permissions ticked/.test(rp), true);
   eq('...and that is what permsForRole actually does',
     /if \(stored && stored\.length\) return stored;/.test(code(readFileSync('src/lib/rbac.ts', 'utf8'))), true);
+}
+
+console.log('\n-- the Hand Stock Report loads whole, then lets you download --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-24: "Default Load as to be 1000 and Auto Load till all
+  // the data is displayed and then Enable Download. Name the Export -
+  // HandStock_DateTime.csv / .xlsx / .xls"
+  // -------------------------------------------------------------------------
+  const hs = readFileSync('src/modules/HandStockReport.tsx', 'utf8');
+
+  // THE PAGE SIZE IS 1,000 AND THAT IS NOT A PREFERENCE: PostgREST caps a
+  // response at a thousand rows however large the range, so a bigger page is
+  // the line that hides the truncation rather than a bigger request.
+  eq('the report pages a thousand at a time', /const PAGE = 1000;/.test(hs), true);
+
+  // A FULL PAGE PROVES NOTHING. Stopping on `batch.length === 0` would cost an
+  // extra round trip every time; stopping on a full page would truncate.
+  eq('it stops on a SHORT page, which is the only end-of-data signal there is',
+    isLastPage(999, 1000) && !isLastPage(1000, 1000) && isLastPage(0, 1000), true);
+  eq('...and the screen asks that rule rather than restating it',
+    /isLastPage\(batch\.length, PAGE\)/.test(hs), true);
+
+  // THE DOWNLOAD IS REFUSED UNTIL EVERY PAGE IS IN. A hand-stock export is
+  // reconciled against, so a partial one is not a shorter answer but a wrong
+  // one: parts read as missing and balances as short, with nothing in the file
+  // saying so.
+  eq('every download button is disabled until the load is complete',
+    (hs.match(/disabled=\{!complete \|\| !visible\.length\}/g) ?? []).length, 1);
+  eq('...and the writer refuses as well, not only the button',
+    /if \(!complete \|\| !visible\.length\) return;/.test(hs), true);
+  // A COUNT OVER PARTLY-LOADED DATA IS A LOWER BOUND and must show `+`; once
+  // every page is in it is exact and a `+` would be wrong the other way.
+  eq('the count says "+" while rows are still coming, and not after',
+    /countMore=\{!complete\}/.test(hs), true);
+
+  // THE FILE NAME the user asked for, with the DateTime spelled the way this
+  // project spells one: month NAMED, so 09-10 cannot be read the other way
+  // round. A colon is not allowed in a Windows file name, so the clock loses
+  // only its separators.
+  const at = new Date(2026, 8, 24, 18, 15, 3);   // 24 Sep 2026, 18:15:03 local
+  eq('HandStock_<DateTime>.csv', handStockFileName('csv', at), 'HandStock_24-Sep-2026_181503.csv');
+  eq('...and .xlsx', handStockFileName('xlsx', at), 'HandStock_24-Sep-2026_181503.xlsx');
+  eq('...and .xls', handStockFileName('xls', at), 'HandStock_24-Sep-2026_181503.xls');
+  eq('a single-digit day and month are padded, never 4-9-2026',
+    handStockFileName('csv', new Date(2026, 3, 4, 9, 5, 7)), 'HandStock_04-Apr-2026_090507.csv');
+  eq('and the screen uses that one namer for all three',
+    (hs.match(/handStockFileName\(kind\)/g) ?? []).length, 1);
+
+  // THE COMPONENTS ARE EXPORTED BESIDE THE TOTAL, or the balance cannot be
+  // checked by the person reconciling it.
+  const heads = HANDSTOCK_REPORT_COLUMNS.map((c) => c.header);
+  ['Engineer', 'Part Code', 'Opening', 'Stock Out', 'Consumed', 'Transferred In',
+   'Transferred Out', 'Returned', 'On Hand'].forEach((h) => {
+    eq(`the export carries ${h}`, heads.includes(h), true);
+  });
+  eq('no heading is duplicated -- buildXlsx looks a cell up BY its column name',
+    heads.length, new Set(heads).size);
+
+  // ---- THE .xls FILE ------------------------------------------------------
+  // Written as SpreadsheetML 2003 rather than as an HTML table, for one
+  // reason: an HTML .xls loses every type, and this project has measured what
+  // that costs (Line ID sorting 1, 10, 100, 2 and a SUM over QTY answering 0).
+  // Proved by reading the bytes, which is the only thing that was ever going
+  // to show it.
+  const xls = buildXls([{ name: 'Hand Stock', columns: ['Part Code', 'On Hand', 'Last Movement'],
+    rows: [{ 'Part Code': '0012345', 'On Hand': 7, 'Last Movement': '2026-09-18T08:51:02.55+00:00' }] }]);
+  eq('Excel is told which application owns the file',
+    xls.includes('<?mso-application progid="Excel.Sheet"?>'), true);
+  eq('a number is a Number, so Excel can sum it',
+    /<Data ss:Type="Number">7<\/Data>/.test(xls), true);
+  eq('a date is a DateTime, so Excel can sort and filter by month',
+    /ss:Type="DateTime"/.test(xls), true);
+  // THE MP-010 RULE IN A SECOND WRITER: a part code of all digits must keep
+  // its leading zeros and stay an identifier.
+  eq('a code of all digits stays TEXT and keeps its leading zero',
+    /<Data ss:Type="String">0012345<\/Data>/.test(xls), true);
+  eq('...and is not written as a number anywhere',
+    /<Data ss:Type="Number">0012345/.test(xls), false);
+  // The month is NAMED in the cell format, the one display rule carried into
+  // the file.
+  eq('the date format names the month', /dd-mmm-yyyy/.test(xls), true);
+  eq('the screen says what the .xls costs rather than leaving somebody to wonder',
+    /format and the extension do not match/i.test(hs), true);
+}
+
+console.log('\n-- a download from a half-loaded table says so --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-24: "if there is more data and user is downloading it
+  // give a pop up disclaimer that there are more data and you are exporting
+  // only a partial data ... People keep saying data is missing when they
+  // download without ensure if all the data is loaded or not."
+  //
+  // The screen is already honest about paging — the count carries a `+` and a
+  // Load more button sits beside it. The FILE is not, and a day later in Excel
+  // there is nothing in it, anywhere, to say the register had more.
+  // -------------------------------------------------------------------------
+
+  // ---- the decision, exercised rather than read --------------------------
+  const asked: string[] = [];
+  const ask = (m: string) => { asked.push(m); return false; };
+  eq('a complete table is never interrupted', mayExport(COMPLETE, 500, ask), true);
+  eq('...and nothing is asked', asked.length, 0);
+  eq('a partly-loaded one asks first', mayExport(partial(true), 500, ask), false);
+  eq('...and the answer is obeyed — Cancel writes no file', asked.length, 1);
+  eq('...and Yes still exports', mayExport(partial(true), 500, () => true), true);
+  // A FULL PAGE IS THE SIGNATURE OF A TRUNCATION, not of an exhausted table:
+  // receiving exactly what you asked for says nothing about a next row.
+  eq('a read that filled its cap may have more', cappedAt(1000, 1000).more, true);
+  eq('...one that did not, has not', cappedAt(999, 1000).more, false);
+
+  // ---- what it says -------------------------------------------------------
+  const w = partialExportWarning(1234);
+  eq('the warning states how many rows the file will hold', /1,234 rows/.test(w), true);
+  eq('...says the file itself will not admit it', /will not say so/.test(w), true);
+  eq('...and says what to do instead of only warning', /Load more/.test(w), true);
+  // IT MUST NOT INVENT A TOTAL. The screen does not know one — that is why the
+  // count carries a `+` — and a number here would be the same fault in a new
+  // place.
+  eq('...and never claims to know how many are missing',
+    /\b(of|out of) [\d,]+\b/.test(w), false);
+  eq('one row reads as one row', /1 row\b/.test(partialExportWarning(1)), true);
+
+  // ---- and EVERY export site answers the question -------------------------
+  // TypeScript already refuses a call that omits the argument. This refuses one
+  // that answers it with an inline literal nobody thought about: the answer has
+  // to be one of the three sanctioned words, which is the same discipline
+  // FacetChips carries for `more`.
+  const OK = /(COMPLETE|partial\(|cappedAt\(|exportScope\()/;
+  const offenders: string[] = [];
+  const walk = (dir: string) => readdirSync(dir, { withFileTypes: true }).forEach((e) => {
+    const full = `${dir}/${e.name}`;
+    if (e.isDirectory()) return walk(full);
+    if (!/\.tsx?$/.test(e.name)) return;
+    // COMMENTS STRIPPED FIRST. exportscope.ts NAMES the three writers in its
+    // own prose ("`csvExport()` is the single CSV writer"), and a scanner that
+    // reads prose as code reports the file that documents the rule as the file
+    // breaking it — which is how a check earns a reputation for crying wolf.
+    const src = code(readFileSync(full, 'utf8'));
+    for (const m of src.matchAll(/(csvExport|xlsxDownload|xlsDownload)\(/g)) {
+      // the call's own text, to its matching close paren
+      let d = 0, i = m.index! + m[0].length - 1;
+      for (; i < src.length; i++) {
+        if (src[i] === '(') d++;
+        else if (src[i] === ')' && --d === 0) break;
+      }
+      const call = src.slice(m.index!, i + 1);
+      if (/^export function/.test(src.slice(Math.max(0, m.index! - 16), m.index!))) continue;
+      if (!OK.test(call)) offenders.push(`${full}: ${m[1]}`);
+    }
+  });
+  walk('src');
+  eq('every export names what it knows about completeness', offenders, []);
+
+  // AND THE WRITERS ASK BEFORE THEY BUILD A BYTE, so Cancel leaves nothing.
+  const fmt = code(readFileSync('src/lib/format.tsx', 'utf8'));
+  // `indexOf(...) < indexOf(...)` ALONE PASSES WHEN THE CALL IS GONE: a missing
+  // needle is -1, and -1 is less than everything. The first version of this
+  // line said exactly that, and deleting the guard from csvExport left it
+  // green — caught by mutating it, which is the only way that shape ever is.
+  eq('csvExport asks before it builds the file',
+    fmt.includes('mayExport(scope') && fmt.indexOf('mayExport(scope') < fmt.indexOf('new Blob('), true);
+  const xl = readFileSync('src/lib/xlsx.ts', 'utf8');
+  eq('xlsxDownload asks before it builds the workbook',
+    /if \(!mayExport\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return;/.test(xl), true);
+  const x3 = readFileSync('src/lib/xls.ts', 'utf8');
+  eq('...and so does the .xls writer',
+    /if \(!mayExport\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return;/.test(x3), true);
+}
+
+console.log('\n-- the DCCR mirror is the same register, not a second opinion --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-24: the DCCR Register written to a Google Sheet, tab
+  // DCCR_Mirror, every six hours from 10 PM -- and then "DCCR - Update the
+  // CallReg google script".
+  //
+  // THE COLUMN LIST IS A COPY, and a copy is only safe while something compares
+  // it. `DCCR_EXPORT_COLUMNS` in src/lib/dccr.ts is the original (the WRR-2026
+  // shape, so an export pastes into that workbook without shifting a column);
+  // the Apps Script cannot import TypeScript, so it carries its own. Left
+  // unchecked the two drift and the sheet quietly becomes a different register
+  // from the download -- which is the `SEE_ALL_ROLES` / `coverCode()` situation
+  // exactly, and those are compared word for word for the same reason.
+  //
+  // THE SANDBOX CANNOT REACH script.google.com, so nothing here proves the
+  // script RUNS. What it proves is that the two definitions agree, which is the
+  // half that rots silently.
+  // -------------------------------------------------------------------------
+  const gs = readFileSync('apps-script/CallReg.gs', 'utf8');
+
+  const list = /var DCCR_COLUMNS = \[([\s\S]*?)\n\];/.exec(gs)?.[1] ?? '';
+  const pairs = [...list.matchAll(/\['([^']+)', '((?:[^'\\]|\\.)*)'\]/g)]
+    .map((m) => ({ key: m[1], header: m[2].replace(/\\'/g, "'") }));
+  eq('the mirror carries the same columns, in the same order',
+    pairs.map((c) => `${c.key}|${c.header}`),
+    DCCR_EXPORT_COLUMNS.map((c) => `${c.key}|${c.header}`));
+
+  // THE BLANK-ON-PURPOSE COLUMNS ARE PART OF THE SHAPE. A column the app leaves
+  // empty and the mirror fills (or the other way round) is the two registers
+  // disagreeing in the least visible way there is.
+  const blanks = /var DCCR_BLANK = \[([\s\S]*?)\];/.exec(gs)?.[1] ?? '';
+  const gsBlank = [...blanks.matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]).sort();
+  // DERIVED BY RUNNING IT, not by reading it, and from a row where EVERY field
+  // carries a value -- so a column that still comes back empty is empty BY
+  // DECISION rather than because the fixture had nothing in it.
+  //
+  // AND COMPARED BOTH WAYS. The first version asked only "is every mirror blank
+  // an app blank", which passes when the mirror stops blanking one -- the very
+  // direction that matters, since that column then fills with data the download
+  // leaves out and the two registers disagree. Caught by mutating it.
+  const full: Record<string, unknown> = {};
+  DCCR_EXPORT_COLUMNS.forEach((c) => { full[c.key] = 'X'; });
+  ['last_status', 'status', 'open_state', 'review1_done', 'review2_done', 'review3_done']
+    .forEach((k) => { full[k] = k.endsWith('_done') ? true : 'X'; });
+  const appBlank = Object.entries(toExportRow(full as never, 0))
+    .filter(([, v]) => v === '').map(([k]) => k).sort();
+  eq('the mirror blanks exactly the columns the app blanks, no more and no fewer',
+    gsBlank, appBlank);
+
+  // The three derived values, which are the only places the shaping is not a
+  // pass-through -- and therefore the only places a hand-written copy can be
+  // wrong while looking right.
+  eq('call status falls back the same way',
+    /o\.call_status = r\.last_status \|\| r\.status \|\| '';/.test(gs), true);
+  eq('current call status falls back the same way',
+    /o\.current_call_status = r\.open_state \|\| r\.last_status \|\| r\.status \|\| '';/.test(gs), true);
+  eq('a completed review reads Yes / No',
+    (gs.match(/r\.review[123]_done \? 'Yes' : 'No'/g) ?? []).length, 3);
+  eq('and the rows are numbered from one',
+    /o\.sl_no = index \+ 1;/.test(gs), true);
+
+  // ---- how it reads ------------------------------------------------------
+  eq('it reads the view the review screen reads',
+    /var DCCR_VIEW\s*=\s*'field_call_review';/.test(gs), true);
+  eq('...in the same order that screen reads it',
+    /var DCCR_ORDER\s*=\s*'reg_date\.desc\.nullslast,id\.desc';/.test(gs), true);
+  // A FULL PAGE IS NOT AN ANSWER. PostgREST caps a response at 1,000 rows
+  // however large the Range asks for, so the loop can only end on a short one.
+  eq('it pages, and stops on a SHORT page',
+    /if \(page\.length < DCCR_PAGE\) break;/.test(gs), true);
+  eq('...a thousand at a time, which is all one response can carry',
+    /var DCCR_PAGE = 1000;/.test(gs), true);
+
+  // ---- the credential ----------------------------------------------------
+  // A SIGN-IN IS TRIED FIRST, so the mirror reads UNDER row-level security as
+  // one named account rather than past it. The service key is a fallback and
+  // the status tab records which was used, because "is this reading as a user
+  // or as the master key?" must be answerable without opening the properties.
+  eq('a real sign-in is preferred over the service key',
+    gs.indexOf("_dccrProp('DCCR_EMAIL')") < gs.indexOf("_dccrProp('SUPABASE_SERVICE_KEY')")
+      && gs.includes("_dccrProp('DCCR_EMAIL')"), true);
+  eq('...and the service key says what it costs, where it is set',
+    /bypasses row-level security/i.test(gs), true);
+  eq('the status tab records which one was used',
+    /'Read as'/.test(gs), true);
+
+  // ---- the schedule ------------------------------------------------------
+  // everyHours(6) counts from whenever the trigger was made and cannot be
+  // anchored to a clock time, so four daily triggers are the only way to mean
+  // "from 10 PM".
+  eq('every six hours from 10 PM, as four daily triggers',
+    /var DCCR_HOURS = \[22, 4, 10, 16\];/.test(gs), true);
+  eq('...and installing them clears the old ones first, so a re-run does not double the schedule',
+    /getHandlerFunction\(\) === 'dccrMirror'\) ScriptApp\.deleteTrigger/.test(gs), true);
+
+  // ---- writing ------------------------------------------------------------
+  eq('the tab is the one that was asked for', /var DCCR_MIRROR_TAB = 'DCCR_Mirror';/.test(gs), true);
+  // Cleared and rewritten, never appended: a review answered today CHANGES a
+  // row that already exists, so an append leaves two versions of one call.
+  // The WRITER'S OWN BODY, not the whole file: "the word clearContent appears
+  // somewhere" passes a version that never calls it (`if (false) ... .clearContent()`),
+  // which is what mutating this found.
+  const writer = /function _dccrWrite\(rows\) \{[\s\S]*?\n\}/.exec(gs)?.[0] ?? '';
+  eq('it clears the old rows, guarded by what was actually there',
+    /if \(lastRow > 0 && lastCol > 0\) sh\.getRange\(1, 1, lastRow, [\s\S]*?\)\.clearContent\(\);/.test(writer), true);
+  eq('...before it writes, or a shorter run leaves the tail of the last one behind',
+    writer.indexOf('clearContent()') < writer.indexOf('setValues(grid)')
+      && writer.includes('clearContent()'), true);
+  eq('...and writes the grid in ONE call, or a four-thousand-row run times out',
+    (writer.match(/setValues\(/g) ?? []).length, 1);
+  // appendRow IS A CALL PER ROW. It belongs in the status tab, which writes one
+  // line a run, and nowhere near a register of thousands.
+  eq('...row by row nowhere in it', /appendRow/.test(writer), false);
+  // A DATE STAYS A DATE and the COLUMN carries the format -- the standing rule,
+  // in the one place a mirror can obey it.
+  eq('dates are written as dates and formatted by the column',
+    /setNumberFormat\(fmt\)/.test(gs) && /'dd-mmm-yyyy'/.test(gs), true);
+  eq('a failure is recorded rather than swallowed',
+    /_dccrStatus\('FAILED'/.test(gs), true);
+}
+
+console.log('\n-- the KPI export carries dates Excel accepts as dates --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-24: "in the KPI Export under Reports, the Call
+  // Registration Date is not recognized by Excel. Update all the Date Fields in
+  // the KPI to be compatible as a Date Field in Excel."
+  //
+  // A CSV CAN ONLY CARRY TEXT. Every date in it is left for Excel to parse, and
+  // `24-Sep-2026 18:15:03` — Call Registeration Date, the one column the
+  // workbook shows to the second — does not survive that parse. There is no
+  // spelling of a date in a CSV that every Excel reads; the FORMAT is the
+  // limit, not the wording. So the fix is a real workbook, where a date is a
+  // number plus a format and nothing is parsed at all.
+  //
+  // PROVED BY BUILDING ONE AND READING THE BYTES, which is the only thing that
+  // was ever going to show it — the same method that caught `MP-010` becoming
+  // serial 37165 and `0012345` losing its leading zero.
+  // -------------------------------------------------------------------------
+  const raw: Record<string, unknown> = {
+    'UC Number': '26I23I0080',
+    'Call Number': '0012345',                       // all digits, and NOT a number
+    'Call Registeration Date': '2026-09-18T08:51:02.55+00:00',
+    'Complaint Date': '2026-09-17',
+    'Warranty Start Date': '2025-04-01',
+    'Warranty End Date': '2027-03-31',
+    'Contract Start Date': '2026-01-01',
+    'Contract End Date': '2026-12-31',
+    'Breakdown Date': '2026-09-16',
+    'Call Attended On': '2026-09-18',
+    'Call Solved Date & Time': '2026-09-19',
+    'Attended in Days': 1,
+    'Solved in Days': 2,
+    'Pending Days': 0,
+    'Product Name': 'ORION-G',
+  };
+
+  // THE RAW VALUE IS WHAT MUST BE HANDED OVER. `excelSerial()` uses the STRICT
+  // ISO test on purpose, so a value already rendered as `24-Sep-2026` is not a
+  // date to it and would land as text — pre-formatting would defeat the fix.
+  eq('the workbook row passes the value through untouched',
+    toKpiCellRow(raw)['Call Registeration Date'], raw['Call Registeration Date']);
+  eq('...unlike the CSV row, which must render it, being text',
+    /^\d{2}-[A-Z][a-z]{2}-\d{4} /.test(String(toKpiExportRow(raw)['Call Registeration Date'])), true);
+
+  const cols = kpiExportColumns();
+  const cells = Object.fromEntries(cols.map((c) => [c.header, xlsxCell(toKpiCellRow(raw)[c.key])]));
+  // `zipStore` writes the parts UNCOMPRESSED, so the sheet XML is verbatim in
+  // the bytes and needs no inflate — the same way the evidence-workbook check
+  // above reads them.
+  const bytes = buildXlsx([{ name: 'Field_INST', columns: cols.map((c) => c.header), rows: [cells] }]);
+  const xml = Array.from(bytes).map((b) => String.fromCharCode(b)).join('');
+
+  const colLetter = (i: number) => {
+    let n = i + 1, out = '';
+    while (n > 0) { const r = (n - 1) % 26; out = String.fromCharCode(65 + r) + out; n = Math.floor((n - 1) / 26); }
+    return out;
+  };
+  const cellAt = (header: string) => {
+    const i = KPI_FIELD_INST_COLUMNS.indexOf(header as never);
+    return new RegExp(`<c r="${colLetter(i)}2"[^>]*>.*?</c>`).exec(xml)?.[0] ?? '(no cell)';
+  };
+
+  // STYLE 1 IS date+time, STYLE 2 IS date only — see xlsx.ts. A cell with a
+  // style and a bare <v> is a NUMBER Excel formats as a date. A cell carrying
+  // t="inlineStr" is text, whatever it looks like on screen.
+  eq('Call Registeration Date is a real date-and-time cell',
+    /<c r="[A-Z]+2" s="1"><v>\d/.test(cellAt('Call Registeration Date')), true);
+  eq('...and not text', /inlineStr/.test(cellAt('Call Registeration Date')), false);
+
+  const dateCols = ['Complaint Date', 'Warranty Start Date', 'Warranty End Date',
+                    'Contract Start Date', 'Contract End Date', 'Breakdown Date',
+                    'Call Attended On', 'Call Solved Date & Time'];
+  dateCols.forEach((h) => {
+    eq(`${h} is a real date cell`, /<c r="[A-Z]+2" s="2"><v>\d/.test(cellAt(h)), true);
+  });
+
+  // AND THE OTHER HALF OF THE SAME RULE: a number stays a number so the KPI
+  // columns can be summed and averaged, and an identifier of all digits stays
+  // an identifier rather than losing its leading zero.
+  eq('Attended in Days is a number', /<c r="[A-Z]+2"><v>1<\/c>|<c r="[A-Z]+2"><v>1<\/v><\/c>/.test(cellAt('Attended in Days')), true);
+  eq('a Call Number of all digits keeps its leading zero, as text',
+    /inlineStr.*0012345/s.test(cellAt('Call Number')), true);
+
+  // The screen offers both, and the workbook is the one it leads with.
+  const kx = readFileSync('src/modules/KpiExport.tsx', 'utf8');
+  eq('the screen offers the workbook', /run\('xlsx'\)/.test(kx), true);
+  eq('...and still offers the CSV that pastes into the workbook column for column',
+    /run\('csv'\)/.test(kx), true);
+  eq('...and hands xlsxCell the RAW value, not the rendered one',
+    /xlsxCell\(raw\[c\.key\]\)/.test(kx), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

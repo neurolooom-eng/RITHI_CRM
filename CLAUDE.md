@@ -201,7 +201,7 @@ on testing the old shape. **When a migration replaces a definition, move the
 - **`docs/BACKLOG.md`** is the running record — mark what shipped and what is
   still pending (a migration to run, a redeploy to do) as part of the change.
 - **`docs/CALL_REQUEST_REQUIREMENTS.md`** is the standing reference for the CALL
-  REQUEST module — 30 requirements (CR-001…CR-030) covering the keys, the
+  REQUEST module — 31 requirements (CR-001…CR-031) covering the keys, the
   machine-names-the-customer rule, what a request must capture, the installation
   exception, status, visibility, performance and the records. **Read it before
   changing anything on that form.** The module was redesigned on 2026-09-11/12
@@ -659,6 +659,30 @@ on testing the old shape. **When a migration replaces a definition, move the
   `actual_created_by`; anything checking "may this person see it?" must test
   BOTH, or the stand-in loses sight of the call she just registered.
 
+- **`call_report` AND `reports` DO NOT COUNT THE SAME THING, AND BOTH ARE
+  RIGHT** (the user, 2026-09-24: *"there are 2 reports - call_report and
+  reports ; the count is different in both"*). `public.reports` is ONE ROW PER
+  VISIT — 0001 created it with `unique (ucn)` and **0002 dropped that** and
+  keyed it on `uid`, precisely so a call visited three times keeps three
+  records. `public.call_report` (0191) is ONE ROW PER CALL, over `public.calls`
+  LEFT JOINed to the LATEST visit, and its own comment says why: *"NOT one row
+  per visit. A call with four visits is one call, and a report that repeated it
+  four times would have every count in it wrong."*
+  **THE TWO DIFFER IN BOTH DIRECTIONS AT ONCE**, so "is one bigger?" answers
+  nothing: a call with SEVERAL visits is 1 row there and N here; a call with NO
+  visit is 1 row there and 0 here (the normal state of an open call, not a
+  gap); and a visit whose UCN matches no call is 0 rows there and 1 here.
+  **THAT LAST ONE IS THE ONLY FAULT AMONG THEM**: `reports.ucn` is plain text
+  with NO foreign key, so a mistyped or pre-migration UCN is a visit in no
+  register, no `call_report` row and no call status.
+  **AND A FOURTH REASON THAT IS NOT ARITHMETIC**: they are read under DIFFERENT
+  row-level security — `call_report` is `security_invoker` over `calls`, so the
+  CALL policies bound it (`has_perm('calls.view')` AND the visibility rule),
+  while `reports` has its own `reports_read`. The same person can be shown
+  different numbers by each with nothing missing.
+  `supabase/apply/_why_do_the_two_report_counts_differ.sql` reconciles them on
+  live data line by line and names the orphans; its last row says whether the
+  arithmetic balances, and if it does not, nothing above it should be acted on.
 - `public.reports` is the **visit history** (one row per visit, keyed by `uid`).
   It has `visit_at` and `updated_at` — there is **no `created_at`**. Two
   orderings, deliberately: a **list** of visits reads by `visit_at desc nulls
@@ -881,6 +905,39 @@ on testing the old shape. **When a migration replaces a definition, move the
   for rows whose call has no visit, which is deliberate and worth saying out
   loud. Existing rows are NOT rewritten; `_consumption_without_a_visit.sql`
   lists them. `_status.sql` row 166.
+- **EVERY TABLE RECORDS WHEN THE TRANSACTION HAPPENED, AND IT READS
+  `dd-MMM-yyyy HH:mm:ss` EVERYWHERE IT IS SHOWN OR EXPORTED** (the user's
+  standing rule, 2026-09-24: *"Applicable to All Tables ; Timestamp - Capturing
+  the Transaction Date and Time in this format dd-mmm-yyyy hh:mm:ss and this
+  should be compatible as a DateTime / Long Date field in Excel."*). Three
+  separate obligations, and only the middle one was already true everywhere:
+  - **RECORD IT.** A new table carries `created_at timestamptz not null default
+    now()`, and `updated_at` where the row is editable. A table that records
+    only a DATE cannot answer "which happened first" within a day — that is not
+    hypothetical, it is `ownership_transfers` (fixed by 0240, which added
+    `transferred_at` because `transfer_date` is a DATE and the party is decided
+    by whichever of the sale and the transfer is LATEST). **40 of 77 tables have
+    no `created_at`** as of 2026-09-24; most are counters, child lines and views
+    of other tables, but a REGISTER without one cannot be audited or ordered.
+  - **SHOW IT** through `formatDayTime()` in `src/lib/dates.ts` — the one
+    formatter, month NAMED so it cannot be read the other way round. Never the
+    raw string: the database stores UTC, so printing the front of
+    `2026-09-18T08:51:02.55+00:00` puts the wrong TIME on the row and, before
+    05:30 IST, the wrong DAY.
+  - **EXPORT IT AS A NUMBER, NOT A STRING.** An .xlsx date is a serial plus a
+    format (`excelSerial()` + `xlsxDate()` + `styles.xml`); a formatted string
+    is something Excel cannot sort, filter by month, subtract or re-format, and
+    each of those returns something WRONG rather than refusing. `ReportBuilder`
+    applies it BY VALUE, never by column name, because the columns move with the
+    picker. The CSV gets `formatDayTime`, which is all a CSV can carry.
+  **AND EVERY TABLE WANTS A KEY OF ITS OWN** — a natural key, so a re-load
+  CORRECTS rather than duplicates. 22 of 77 have only a synthetic `id`; most are
+  append-only logs and child lines, where every row IS a distinct event and a
+  natural key would be wrong. The ones where it is a real gap are named in
+  `docs/BACKLOG.md` — `user_directory` first, since the User Master is "the only
+  place I can map and configure" and nothing stops the same person appearing
+  twice.
+
 - **One parser, one FORMATTER, one matcher.** Every importer reads dates through
   `src/lib/dates.ts` (day-first, always) and every screen DISPLAYS one through
   `formatDay()` in the same file — `dd-MMM-yyyy`, the month NAMED so it cannot
