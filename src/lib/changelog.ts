@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.364',
+    version: '0.9.367',
     date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,46 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.366',
+    date: '2026-09-24',
+    title: 'Extend XT finds its machines again',
+    changes: [
+      'THE CAUSE WAS NOT THE SERIAL — it was the PRODUCT NAME, and that is why only one product was affected. Extend XT is stored on the register with a stray space on the end. The Product dropdown showed that name exactly as stored; the machine search then asked for the name WITHOUT the space, which matched nothing at all.',
+      'So every serial box under that product was empty, no machine could be picked, no customer arrived with it, and the request was refused for machines that are plainly on the register. Every other product worked perfectly, which is exactly how you described it.',
+      'Measured on a fixture: the dropdown said 2 machines, the search found 0.',
+      'FIXED BY MATCHING THE NAME EXACTLY AS THE DROPDOWN OFFERED IT. Every other place in the app already did this — the trim was the odd one out, not the convention.',
+      'THE STRAY SPACE IN THE DATA IS A SEPARATE THING AND IS STILL THERE. It is worth cleaning, because a name with a trailing space is two products to the database and one to you: every count grouped by product silently splits in two, and the Product list shows what looks like a duplicate. Run supabase/apply/_which_product_names_carry_stray_spaces.sql — it is read-only, lists every affected name with its machine count, and says which are safe to correct and which are not.',
+      'Nothing to run for the fix itself.',
+    ],
+  },
+  {
+    version: '0.9.365',
+    date: '2026-09-24',
+    title: 'Typing 105 now finds INXT 0105',
+    changes: [
+      'A SERIAL THAT ENDS WITH WHAT YOU TYPE IS NOW A CLOSE MATCH. Lots of serials here are a letter code, a space and a number — INXT 0105 — and what you read off the machine is the number. Type 105 and that machine is now offered.',
+      'IT WAS NOT, AND YESTERDAY’S FIX DID NOT COVER IT. That fix guaranteed the serials BEGINNING with what you type. INXT 0105 only contains it, so it was sorted alphabetically among 1,046 other machines whose serial contains 105 — measured at rank 146, well past the fifty the box shows.',
+      'ON YOUR REGISTER: typing 105 now puts INXT 0105 at rank 24, just under the 23 serials that actually begin with 105. Typing 0105 puts it second; typing the whole serial, first.',
+      'AND THE LIMIT NO LONGER UNDOES THE ORDERING. The first version of this sorted by closeness and then cut at fifty — which put INXT 0105 at rank 52, one place past the cut, on a register where many serials begin with 105. Each group of matches now gets a guaranteed share of the fifty, so a small, very close group can never be crowded out by a large one.',
+      'STILL TRUE, AND WORTH KNOWING: a fragment buried in the MIDDLE of a serial, where hundreds of machines match it, can still sit low in the list. Type a few more characters and it comes to the top.',
+      'No SQL.',
+    ],
+  },
+  {
+    version: '0.9.364',
+    date: '2026-09-24',
+    title: 'The machine you type is the first one offered',
+    changes: [
+      'CALL REGISTRATION REQUEST: THE SERIAL LIST IS SORTED CLOSEST-MATCH FIRST. Type 105 and the machine numbered 105 is row one — then the serials beginning 105, then the ones containing it somewhere.',
+      'IT USED TO BE SORTED BY NOTHING AT ALL. The search asked for “any serial containing 105”, took the first 50 the database happened to hand over, and never said in what order. Measured: 925 machines have a serial containing 105, and the machine actually numbered 105 came back at position 19. Past the 50 it would not have appeared at all.',
+      'WHICH IS WHY THE REQUEST WAS REFUSED for a machine that is plainly on the register: you cannot pick a machine the list never shows, and the customer only arrives with the machine.',
+      'AND THE FORM NOW ASKS THE REGISTER BEFORE REFUSING. “That serial is not on the register” used to mean “this row has no machine attached in your browser”, which is a different statement. On submit it looks the machine up by product AND serial and fills the customer in. A serial that really matches nothing is still refused, in the same words.',
+      'A THIRD FAULT OF THE SAME SHAPE, fixed too: two searches can be in flight at once and the slower one landed last, wiping the machines behind the list you were looking at. What has been found is now kept.',
+      'The list is also stable now — opening it twice shows the same rows in the same order, which it did not before.',
+      'No SQL. Nothing to re-enter.',
     ],
   },
   {

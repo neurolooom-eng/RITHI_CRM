@@ -201,7 +201,7 @@ on testing the old shape. **When a migration replaces a definition, move the
 - **`docs/BACKLOG.md`** is the running record — mark what shipped and what is
   still pending (a migration to run, a redeploy to do) as part of the change.
 - **`docs/CALL_REQUEST_REQUIREMENTS.md`** is the standing reference for the CALL
-  REQUEST module — 30 requirements (CR-001…CR-030) covering the keys, the
+  REQUEST module — 31 requirements (CR-001…CR-031) covering the keys, the
   machine-names-the-customer rule, what a request must capture, the installation
   exception, status, visibility, performance and the records. **Read it before
   changing anything on that form.** The module was redesigned on 2026-09-11/12

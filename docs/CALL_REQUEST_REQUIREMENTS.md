@@ -80,6 +80,27 @@ wrong customer and corrected by hand.
 *Status: met* — Product → Serial → customer, per call row.
 *Cross-reference: URS-053.*
 
+**CR-005a — The Product box and the machine search must name the product the same way.**
+Reported 2026-09-24: *"This happens in Extend XT product only."* The Product box
+is filled from `product_register_names`, which groups `products.item_name` and
+returns it VERBATIM; the machine search asked for `item_name = <that>.trim()`.
+For a register row stored as `EXTEND-XT ` the list therefore offered one string
+and the search asked for another — measured, the dropdown said 2 machines and
+the equality found 0. Every serial box under that product was empty, so no
+machine could be picked, so no customer came with it (CR-005), so CR-011 refused
+the request. **Product-specific by construction**, which is how it was reported,
+and invisible to every other product.
+*Status: met* — the product is matched exactly as the picker offered it;
+`check:ui` refuses the trim. **The stray character in the data is a separate
+fault and is deliberately not repaired in code**: a name with a trailing space
+is two products to Postgres and one to a reader, so every `group by item_name`
+splits silently — the same argument as the cover vocabulary. It is the user's to
+correct with numbers in front of them:
+`supabase/apply/_which_product_names_carry_stray_spaces.sql` lists every
+affected name, its machine count, and which are safe to change (a space at
+either end leaves `machine_key` untouched; a non-breaking or zero-width
+character does not, and can collide).
+
 **CR-006 — Identifying the machine must not require identifying the customer first.**
 A customer name is an infix match over ~5,000 names; a serial is a prefix on an
 indexed column. Measured over all 19,253 machines as a signed-in engineer: serial
@@ -112,10 +133,23 @@ serviced, and its cover cannot be established.
 *Status: met* — required on the request and on every call form.
 *Cross-reference: URS-053.*
 
-**CR-011 — A serial that names no customer is refused.**
+**CR-011 — A serial that names no customer is refused, but only after the register has been asked.**
 It means the serial matched no machine, and the call would be filed against
 nobody. The message names the cause: the machine is missing from Product Master.
-*Status: met* — `machineRowProblem()`.
+
+**THE ROW HAVING NO CUSTOMER AND THE MACHINE NOT EXISTING ARE DIFFERENT CLAIMS,
+and they came apart twice** (reported 2026-09-24 with a screenshot: ORION-G
+serial 105 refused, *"the product and serial number combination is very much
+available"*). The customer is filled in when a machine is PICKED, so an empty
+one really says "this row has no machine behind it **in the browser**" — which
+was true when the search never offered the machine (CR-031) and when a stale
+search overwrote the cached hits. The register is the authority and the cache
+never was.
+*Status: met* — `machineRowProblem()`, and `resolveMachines()` asks the register
+by MODEL **and** serial before that rule runs. An ambiguous serial still
+resolves to nothing (`sbProductBySerial` returns null rather than guessing,
+because eleven machines are numbered 219), so a genuinely unanswerable row is
+still refused with the message it always had.
 
 **CR-012 — An empty master is a master problem, and the form says so.**
 It never offers a way round by accepting a typed value instead.
@@ -209,6 +243,50 @@ read is ordered and complete and runs alongside the capped owner list.
 raise a duplicate.
 *Status: met* — `PickList` reports a failed search distinctly and clears it on the
 next success.
+
+**CR-031 — A capped search must be ordered, and the closest match must be offered.**
+Reported 2026-09-24: *"the list is not sorted as per the closest match"*, on a
+request that was then refused for a machine on the register.
+
+The machine search was a single `ilike '%term%'` with `.limit(50)` and **no
+`order` at all**, which breaks the project's own rule that every capped read
+names an order — and the consequence here is not cosmetic. Measured on a
+register where **925** machines carry a serial containing `105`: the machine
+actually numbered 105 came back at **rank 19 of 50**, its position decided by
+the physical order of the rows rather than by the match. Past the cap it is not
+merely far down the list — it is absent, and a machine that cannot be picked
+cannot name its customer (CR-005), so CR-011 refuses a machine that exists.
+
+*Status: met* — **three** ordered reads run together, `term%`, `%term` and
+`%term%`. The prefix read carries the first guarantee: **a string sorts before
+everything it is a prefix of**, so the serial typed is the first row of that
+read and the cap can never remove it.
+
+**THE SUFFIX READ IS THE COMMON CASE HERE, NOT SYMMETRY** (the user, 2026-09-24:
+*"I have a user case where serial number is INXT 0105, will that populate if I
+type 105?"*). A great many serials on this register are a letter code, a space
+and a number — and what somebody standing at the machine reads out is the
+number. Measured: through the prefix and contains reads alone, `INXT 0105` was
+**rank 146 of 1,046** machines whose serial contains `105`, so past the fifty
+and not offered at all. Four serials *end* in `105`, so that read cannot be
+crowded out.
+
+`rankSerialHits()` then orders them — begins-with, ends-with, contains —
+case-insensitively, because `ilike` is. **The cap is applied per group, not to
+the ranked list**: sorting by tier and cutting at 50 put `INXT 0105` at rank 52,
+one place past the cap, undoing the fix with its own limit. Tier order decides
+what comes FIRST; it must not decide what is REACHABLE.
+
+The ranking is a pure function in `lib/callrequest.ts` rather than inside
+`supabase.ts`, so `check:ui` can run it on real inputs. An "exact match first"
+tier was written and then removed when mutating it changed no result — the
+alphabetical tiebreak already does that work, and a tier no test can
+distinguish is not doing anything.
+
+*Known limit, stated rather than hidden*: a term buried in the MIDDLE of a
+serial, on a register where more than fifty machines match it, may still sit
+low in the list. Typing more of the serial is the answer, and the picker's
+footer says so.
 
 ## H. Records and evidence
 

@@ -46,6 +46,193 @@ up)_
 
 ---
 
+## 2026-09-24 — The whitespace theory was WRONG, and the probe that replaces guessing
+
+`_which_product_names_carry_stray_spaces.sql` came back **all zeros** on the
+live register. Not one product name carries a stray space, in `products`,
+`sale_items` or `contract_items`. **My diagnosis was wrong**, and v0.9.366 —
+matching the product name exactly as the picker offered it — fixed a real
+asymmetry between that read and every other one, but it is **not** what is
+wrong with Extend XT.
+
+I had reproduced the whitespace fault on a FIXTURE I built. Reproducing a fault
+you invented proves the mechanism is possible, not that it is the one happening.
+The probe is what told the difference, and it should have come first.
+
+**`supabase/apply/_where_is_this_machine.sql`** is the replacement for the next
+guess: read-only, two values to edit at the top, and it answers WHICH REGISTER
+holds the machine rather than assuming one. The Call Request's Product box and
+its serial search both read ONE table — `public.products` — while the Warranty
+Register, the Contract Register and Product Database 2.0 read others, so a
+machine can be plainly visible on one screen and invisible to the request form
+with nothing broken in between.
+
+Four verdicts, each exercised against a database before shipping:
+
+* the machine is in the install base → the fault is a SPELLING, and sections 2
+  and 3 print both spellings in brackets;
+* **a different machine carries that serial** → the one being looked for is not
+  there under this model;
+* **sold but never added to the install base** → the Warranty Register has it
+  and `products` does not, which is exactly what **0237** repairs, backfill
+  included. Row 10 counts how many machines of that product are in that state,
+  because one serial is an example and the decision is about the product;
+* not in any register under that serial.
+
+**The first draft judged on the SERIAL ALONE and got it wrong on the first real
+input** — it reported "the machine IS in the install base" while what was
+actually there was an ORION-G with the same serial, and the EXTEND XT was
+missing. That is this project's oldest rule (a machine is its MODEL and its
+SERIAL; eleven are numbered 219) failing in a file written to enforce careful
+thinking. Rows 4 and 5 now separate "this model and this serial" from "other
+models carrying that serial", and the verdict tests them in that order.
+
+Unchanged, it prints `CHANGE-ME-PRODUCT` / `CHANGE-ME-SERIAL` and says so in
+row 1 rather than returning a confident grid about nothing.
+
+No version bump: this adds a diagnostic and changes no behaviour.
+
+## 2026-09-24 — ⚠ "Extend XT only": the dropdown and the search named the product differently
+
+*"This happens in Extend XT product only."* — and the single word **only** is
+what identifies the cause, because a fault in the serial search would not pick
+one product out of forty.
+
+**THE PRODUCT NAME, NOT THE SERIAL.** The Product box is filled from
+`product_register_names`, which groups `products.item_name` and hands it back
+VERBATIM. `sbSearchMachines` then asked for `item_name = <that name>.trim()`.
+A register row stored as `EXTEND-XT ` therefore put `EXTEND-XT ` on screen and
+`EXTEND-XT` on the wire. **Measured: the dropdown says 2 machines, the equality
+finds 0.** Empty serial box → no machine → no customer → CR-011 refuses the
+request. Every other product is untouched.
+
+**AND THE TRIM WAS THE ODD ONE OUT, not the convention.** `sbSearchProducts`,
+`sbListMachinesForParty` and `listPartyItems` all match the name as given; this
+one call trimmed. Removed, and `check:ui` refuses it coming back — mutation
+tested both ways (put the trim back; let a whitespace-only product filter).
+
+**THE DATA IS NOT REPAIRED IN CODE, DELIBERATELY.** A name with a trailing space
+is two products to Postgres and one to a reader: every `group by item_name`
+splits silently and the picker shows an apparent duplicate. That is worth
+correcting, and it is a decision with consequences, so it gets a probe rather
+than an `UPDATE` written on a guess —
+`supabase/apply/_which_product_names_carry_stray_spaces.sql`, read-only.
+
+**IT DISTINGUISHES TWO KINDS AND CHECKS THE CLAIM ON THE USER'S OWN DATA:**
+
+* **a plain space at either end is free to fix** — `machine_key` is generated as
+  `lower(btrim(item_name)) || '|' || lower(btrim(serial_number))`, so it ALREADY
+  ignores the ends: trimming leaves every key byte for byte the same. Row 4
+  proves that against the database rather than asserting it.
+* **a non-breaking or zero-width character is not** — `btrim()` does not remove
+  U+00A0, so it IS part of the key, and sweeping it MOVES the key. Row 5 counts
+  the machines that would then collide with the unique index.
+
+Both branches were exercised by building the cases: a clean twin under the
+trimmed name, and a real-space machine sharing a serial with an NBSP one. The
+first draft of the probe reported a name as **its own** clean twin and counted a
+self-match as a collision; rewritten around one `clean` expression so a row in
+the odd set can never satisfy the twin test.
+
+Shipped in **v0.9.366**. No SQL needed for the fix. CR-005a added.
+
+## 2026-09-24 — "INXT 0105" — the serial that ENDS with what you type
+
+**Asked the same day yesterday's fix shipped**: *"I have a user case where
+serial number is INXT 0105, will that populate if I type 105?"* Measured rather
+than reasoned about, and the answer was **no**.
+
+That fix guaranteed the serials BEGINNING with the term (a string sorts before
+everything it is a prefix of, so the prefix read cannot cut the exact match
+off). `INXT 0105` only CONTAINS `105`, so it landed in the contains read, was
+sorted alphabetically among **1,046** machines whose serial contains 105, and
+came back at **rank 146** — past the fifty, never offered.
+
+**A THIRD READ, `%term`.** A great many serials here are a letter code, a space
+and a number, and what somebody standing at the machine reads out is the number,
+so "ends with what was typed" is not symmetry — it is the common case. FOUR
+serials end in `105` against 1,046 containing it, so that read cannot be crowded
+out. Rank tiers are now begins-with, ends-with, contains.
+
+**AND THE CAP UNDID THE FIX ONCE BEFORE IT SHIPPED.** Sorting by tier and
+cutting at 50 put `INXT 0105` at **rank 52** — one place past the cap — because
+120 serials in the fixture began with `105` and filled it. `rankSerialHits` now
+applies the limit PER GROUP: every non-empty group gets an equal share, and the
+leftover goes to the closest groups in order. Tier order decides what comes
+first; it must never decide what is reachable.
+
+**End to end, against a database, through the real function:**
+
+| typed | rows from the three reads | rank of INXT 0105 |
+|---|---|---|
+| `105` | 50 | **24** (under the 23 serials that begin 105) |
+| `0105` | 2 | **2** |
+| `INXT 0105` | 1 | **1** |
+
+and in the adverse fixture — 120 serials beginning `105` — rank 49 of 50, still
+offered where it was absent before.
+
+**A limit that is stated rather than hidden**: a fragment buried in the MIDDLE
+of a serial, where more than fifty machines match it, can still sit low. Typing
+more characters is the answer and the picker's footer says so.
+
+Five more mutations, all landing, all caught — including "apply a flat cap
+again", which is the exact mistake made and caught here. CR-031 rewritten.
+
+Shipped in **v0.9.365**. No SQL. `npm run validate` 101/101 suites, 22/22 checks.
+
+## 2026-09-24 — The serial list was sorted by nothing, so the machine you typed was not offered
+
+**Reported with a screenshot and a diagnosis** (*"I could reproduce this issue.
+If the user doesn't properly select from the list [which is not sorted as per
+the closest match] and simply moves on to the next field then this happens even
+though the product and serial number combination is very much available"*): a
+New Call Registration Request for **ORION-G serial 105**, refused with *"Call 1:
+that serial is not on the register, so no customer came with it."*
+
+**THREE FAULTS, ONE SYMPTOM.** Each one on its own gives a row a serial with no
+customer, which is the only thing `machineRowProblem()` can see.
+
+**1. The search named no order.** `sbSearchMachines` was a single
+`ilike '%term%'` with `.limit(50)` — no `order`, which breaks this project's own
+rule that every capped read names one. Measured on a fixture where **925**
+machines carry a serial containing `105`: the machine actually numbered 105 came
+back at **rank 19 of 50**, decided by the physical order of the rows. Past the
+cap it is absent, and a machine that cannot be picked cannot name its customer.
+Fixed with two ordered reads run together — `term%` and `%term%` — and the
+prefix read is what carries the guarantee: **a string sorts before everything it
+is a prefix of**, so the serial typed is the first row of it and the cap can
+never remove it. CR-031.
+
+**2. A stale search wiped the machines behind the list.** PickList debounces but
+does not cancel a request already sent, so two can be in flight and the slower
+one lands last. PickList guards its own rows (keyed to the query that produced
+them); the module's `machineHits` map was not guarded at all, so clicking a row
+found nothing behind it. Hits are MERGED now, keyed on model + serial: a machine
+does not stop existing because a later search did not mention it.
+
+**3. The form refused on the wrong evidence.** "That serial is not on the
+register" is a claim about the REGISTER; what the form actually knew was that
+the row had no machine attached IN THE BROWSER. `resolveMachines()` asks the
+register by model and serial on submit, before the rule runs. An ambiguous
+serial still resolves to nothing — `sbProductBySerial` returns null rather than
+guessing, because eleven machines are numbered 219 — so a genuinely unanswerable
+row is refused exactly as before. CR-011 rewritten.
+
+**THE RANKING IS A PURE FUNCTION** (`rankSerialHits` in `lib/callrequest.ts`),
+not a line inside `supabase.ts`, for the `paging.ts` reason: that module reads
+`import.meta.env` and no check can import it. `check:ui` runs it on real inputs.
+
+**AND THE FIRST VERSION OF THAT TEST PROVED NOTHING.** It had three tiers —
+exact, prefix, contains — and removing the exact tier altogether changed no
+result, because a string already sorts before everything it prefixes. Two of
+five mutations went uncaught. The tier is gone (a tier no test can distinguish
+is not doing anything) and the cases were rewritten around `0105`, which
+contains `105` and sorts *before* it — the one shape where the ranking is
+observable. Eight mutations now, all landing, all caught.
+
+Shipped in **v0.9.364**. No SQL. `npm run validate` 101/101 suites, 22/22 checks.
+
 ## 2026-09-24 — ⚠ The Product Database search timed out AGAIN, and this time the fix was already written
 
 **Reported from use**, by a Commercial user (VALARMATHI) searching the install
