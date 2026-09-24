@@ -742,6 +742,38 @@ typed into a form that reads it.
   dropped lines are excluded.
 - **Reports — KPI Export** `/exports/kpi` — the workbook's Field_INST tab in its
   own column order; cancelled calls excluded entirely.
+- **Hand Stock Report** `/handstock-report` — **administrators to begin with**;
+  every other role is a tick on Roles & Permissions. Every engineer's stock,
+  one line per engineer and part.
+  > **It shows the workings, not just the number.** Opening, Stock Out,
+  > Consumed, Transferred In, Transferred Out and Returned sit beside On Hand,
+  > so whoever is reconciling can add it up rather than take it on trust.
+  >
+  > **A negative On Hand is a finding, not a rounding error** — it means more
+  > was consumed than this system knows was issued. Those figures are picked
+  > out on screen.
+  >
+  > **It loads in pages of a thousand and keeps going by itself** until every
+  > line is in. The count carries a `+` while they are still arriving and the
+  > download buttons stay greyed out — a stock file is reconciled against, so a
+  > short one is not a shorter answer but a wrong one.
+  >
+  > **Three formats**, named `HandStock_24-Sep-2026_181503` with the extension:
+  > `.csv` (text only), `.xlsx` (numbers stay numbers, dates stay dates — use
+  > this one), and `.xls`, which is the Excel 2003 XML format. Excel may say
+  > the format and the extension do not match before opening the `.xls`; it
+  > opens correctly after that.
+  >
+  > **Both workbooks carry an About sheet** saying what the file covers, how
+  > many rows and when it was taken.
+  >
+  > **Nothing is stored.** Hand stock is derived from the movements — issued −
+  > consumed ± transfers − returns — so this report and the Hand Stock register
+  > cannot disagree.
+  >
+  > **If your role is only shown its own records**, the subtitle says so. The
+  > file is then your stock, not the company's.
+
 - **Feedback Without a Report** `/feedback-without-report` — **administrators
   only.** The customer gave feedback on a visit; the visit was never written up.
   > Feedback is collected **after** a visit, so its existence is evidence the

@@ -43,6 +43,77 @@ up)_
 
 ---
 
+## 2026-09-24 — Hand Stock Report (v0.9.367)
+
+*"Add a Hand Stock Report - Default access to Admin/Super Admin, Rest of the
+Access I will select from Roles & Permissions. Add this under Reports. Ensure
+the Roles & Permission page is update. Default Load as to be 1000 and Auto Load
+till all the data is displayed and then Enable Download. Name the Export -
+HandStock_DateTime.csv / .xlsx / .xls"*
+
+**`/handstock-report`, in the Reports group and NOT under `/exports`** — every
+`mod:/exports/...` key inherits from `mod:/exports`, so filing it there would
+have handed it to every role that can already open Reports, which is the
+opposite of what was asked. Same shape as Feedback Without a Report.
+
+**ALL THREE THINGS MOVED TOGETHER** (the standing rule): `MODULES` + the menu,
+`PERM_TREE` (Reports header, last, matching the menu's order), and **0241**
+merging the key into `app_roles` — without which the page ships, the menu entry
+exists, the tick is in the code, and no role can open it. That has happened four
+times here.
+
+**AND THE GRANT WAS WRONG THE FIRST TIME.** 0241 granted `admin` alone, which is
+the literal reading of the ask — and `_status.sql` row 114 went **red** on the
+validation run. That row asserts a PROPERTY: Technical Support holds every
+module key the admin holds, which is what that role IS ("Mimic Super Admin -
+But with Read Only"). An administrators-only page skipping it breaks the role
+silently, which is precisely what the row exists to catch. Granted to both now,
+with the reason written into the migration. Zoho Migration is left alone — no
+check requires it, and the rule here is not to touch a role that was not named.
+Super Admin needs no grant at all: it is not a role but a row in
+`app_super_admins` that overrides every check.
+
+**IT READS `handstock_balance`, the view the Hand Stock register reads.** Hand
+stock is DERIVED and never stored, so a report with a query of its own could
+disagree with the screen people work from — the one outcome worth ruling out by
+construction.
+
+**PAGES OF 1,000, STOPPING ON A SHORT PAGE.** Not a preference: PostgREST caps a
+response at a thousand rows however large the range, so a bigger page is the
+line that HIDES the truncation. A full page says nothing about whether another
+exists, so the loop can only end on a short one. Each page renders as it lands
+and a run token stops a mid-load Refresh from interleaving two reads.
+
+**THE DOWNLOAD IS REFUSED UNTIL EVERY PAGE IS IN**, which is the user's own
+instruction and the right rule here specifically: a stock file is RECONCILED
+AGAINST, so a partial one is not a shorter answer but a wrong one. Elsewhere a
+`+` makes a partial count honest; there is no `+` for a spreadsheet somebody is
+subtracting from. The button is disabled AND the writer refuses.
+
+**THE COMPONENTS ARE EXPORTED BESIDE THE TOTAL** — opening, stock out, consumed,
+transfers both ways, returned — because `on_hand` alone cannot be checked by
+anybody. A negative balance is inverted against the page rather than tinted
+("highlight" means CONTRAST here).
+
+**THE `.xls` IS SPREADSHEETML 2003, and that is a stated trade-off**, not a
+silent one. The old BIFF binary is a compound document and a record stream, and
+a half-right one is a file Excel refuses — worse than not offering it. The usual
+substitute, an HTML table named `.xls`, loses every type, which this project has
+measured the cost of twice (Line ID sorting 1, 10, 100, 2; a SUM over QTY
+answering 0). SpreadsheetML keeps `Type="Number"` and `Type="DateTime"`. What it
+costs is one warning in Excel 2010+ about the extension, and the button's
+tooltip says so rather than leaving somebody to wonder. Proved by reading the
+bytes: a part code of `0012345` is still a string with its leading zero.
+
+**FILE NAME**: `HandStock_24-Sep-2026_181503.<ext>` — the house date format,
+month NAMED, with the clock stripped of the colons a Windows file name cannot
+carry. Local time, because the name answers "when did I pull this".
+
+The paging rule, the file namer and the column list are PURE and live in
+`lib/handstockreport.ts` rather than in `supabase.ts`, for the `paging.ts`
+reason; `check:ui` runs them, including a workbook built and read back.
+URS-077 / FRS-091 / OQ-79. `npm run validate` 101/101 suites, 22/22 checks.
+
 ## 2026-09-24 — The whitespace theory was WRONG, and the probe that replaces guessing
 
 `_which_product_names_carry_stray_spaces.sql` came back **all zeros** on the

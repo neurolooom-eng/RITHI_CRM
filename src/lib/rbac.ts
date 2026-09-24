@@ -146,6 +146,16 @@ export const MODULES: ModuleDef[] = [
   // role that can open Reports. The user asked for administrators only
   // (2026-09-22), and `admin: true` keeps it out of NON_ADMIN_MODULES.
   { path: '/feedback-without-report', label: 'Feedback Without a Report', admin: true },
+  // HAND STOCK REPORT — in the Reports group and NOT under `/exports`, for
+  // the same reason as the line above: every `mod:/exports/...` key inherits
+  // from `mod:/exports`, so filing it there would hand it to every role that
+  // can open Reports. The user asked for administrators to begin with
+  // (2026-09-24) and said they would grant the rest themselves, so
+  // `admin: true` keeps the key out of NON_ADMIN_MODULES and 0241 writes it
+  // into `app_roles` for `admin` ALONE -- not for the other two roles in
+  // SEES_EVERY_MODULE, because the standing rule is to leave a role alone
+  // unless it was named.
+  { path: '/handstock-report', label: 'Hand Stock Report', admin: true },
   // INDOOR SERVICE — the workshop register (procedure §4.5). Its own module,
   // because a DEMO unit has no call to hang off: the register stands alone and
   // the call is an optional link, not the other way round.
@@ -536,6 +546,9 @@ export const PERM_TREE: PermHeader[] = [
     // that is easy to get wrong — a page filed under the wrong neighbour is
     // how somebody grants the wrong thing believing they granted the right one.
     { path: '/feedback-without-report', label: 'Feedback Without a Report', actions: [] },
+    // ALSO not a child of /exports, and also administrators to begin with. Tick
+    // it here for any other role -- that is the whole point of it having a key.
+    { path: '/handstock-report', label: 'Hand Stock Report', actions: [] },
   ] },
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },
