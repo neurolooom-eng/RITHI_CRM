@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.365',
+    date: '2026-09-24',
+    title: 'Typing 105 now finds INXT 0105',
+    changes: [
+      'A SERIAL THAT ENDS WITH WHAT YOU TYPE IS NOW A CLOSE MATCH. Lots of serials here are a letter code, a space and a number — INXT 0105 — and what you read off the machine is the number. Type 105 and that machine is now offered.',
+      'IT WAS NOT, AND YESTERDAY’S FIX DID NOT COVER IT. That fix guaranteed the serials BEGINNING with what you type. INXT 0105 only contains it, so it was sorted alphabetically among 1,046 other machines whose serial contains 105 — measured at rank 146, well past the fifty the box shows.',
+      'ON YOUR REGISTER: typing 105 now puts INXT 0105 at rank 24, just under the 23 serials that actually begin with 105. Typing 0105 puts it second; typing the whole serial, first.',
+      'AND THE LIMIT NO LONGER UNDOES THE ORDERING. The first version of this sorted by closeness and then cut at fifty — which put INXT 0105 at rank 52, one place past the cut, on a register where many serials begin with 105. Each group of matches now gets a guaranteed share of the fifty, so a small, very close group can never be crowded out by a large one.',
+      'STILL TRUE, AND WORTH KNOWING: a fragment buried in the MIDDLE of a serial, where hundreds of machines match it, can still sit low in the list. Type a few more characters and it comes to the top.',
+      'No SQL.',
+    ],
+  },
+  {
     version: '0.9.364',
     date: '2026-09-24',
     title: 'The machine you type is the first one offered',

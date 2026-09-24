@@ -43,6 +43,51 @@ up)_
 
 ---
 
+## 2026-09-24 — "INXT 0105" — the serial that ENDS with what you type
+
+**Asked the same day yesterday's fix shipped**: *"I have a user case where
+serial number is INXT 0105, will that populate if I type 105?"* Measured rather
+than reasoned about, and the answer was **no**.
+
+That fix guaranteed the serials BEGINNING with the term (a string sorts before
+everything it is a prefix of, so the prefix read cannot cut the exact match
+off). `INXT 0105` only CONTAINS `105`, so it landed in the contains read, was
+sorted alphabetically among **1,046** machines whose serial contains 105, and
+came back at **rank 146** — past the fifty, never offered.
+
+**A THIRD READ, `%term`.** A great many serials here are a letter code, a space
+and a number, and what somebody standing at the machine reads out is the number,
+so "ends with what was typed" is not symmetry — it is the common case. FOUR
+serials end in `105` against 1,046 containing it, so that read cannot be crowded
+out. Rank tiers are now begins-with, ends-with, contains.
+
+**AND THE CAP UNDID THE FIX ONCE BEFORE IT SHIPPED.** Sorting by tier and
+cutting at 50 put `INXT 0105` at **rank 52** — one place past the cap — because
+120 serials in the fixture began with `105` and filled it. `rankSerialHits` now
+applies the limit PER GROUP: every non-empty group gets an equal share, and the
+leftover goes to the closest groups in order. Tier order decides what comes
+first; it must never decide what is reachable.
+
+**End to end, against a database, through the real function:**
+
+| typed | rows from the three reads | rank of INXT 0105 |
+|---|---|---|
+| `105` | 50 | **24** (under the 23 serials that begin 105) |
+| `0105` | 2 | **2** |
+| `INXT 0105` | 1 | **1** |
+
+and in the adverse fixture — 120 serials beginning `105` — rank 49 of 50, still
+offered where it was absent before.
+
+**A limit that is stated rather than hidden**: a fragment buried in the MIDDLE
+of a serial, where more than fifty machines match it, can still sit low. Typing
+more characters is the answer and the picker's footer says so.
+
+Five more mutations, all landing, all caught — including "apply a flat cap
+again", which is the exact mistake made and caught here. CR-031 rewritten.
+
+Shipped in **v0.9.365**. No SQL. `npm run validate` 101/101 suites, 22/22 checks.
+
 ## 2026-09-24 — The serial list was sorted by nothing, so the machine you typed was not offered
 
 **Reported with a screenshot and a diagnosis** (*"I could reproduce this issue.

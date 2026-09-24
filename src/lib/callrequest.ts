@@ -91,9 +91,22 @@ export function productPlaceholder(
 // order, was decided by the physical order of the rows. Measured: the machine
 // actually numbered 105 came back at RANK 19.
 //
-// TWO GROUPS, AND THE ORDER WITHIN EACH IS THE SERIAL:
+// THREE GROUPS, AND THE ORDER WITHIN EACH IS THE SERIAL:
 //   0  the serial BEGINS with what was typed
-//   1  the serial contains it somewhere else
+//   1  the serial ENDS with it
+//   2  the serial contains it somewhere in the middle
+//
+// THE SUFFIX GROUP IS NOT SYMMETRY, IT IS THE COMMON CASE (the user, 2026-09-24:
+// *"I have a user case where serial number is INXT 0105, will that populate if I
+// type 105?"*). A great many serials on this register are a letter code, a
+// space and a number — INXT 0105, MT75 1132 — and what somebody standing at the
+// machine reads out is the NUMBER. With only prefix and contains, "105" put
+// INXT 0105 in the contains group and it was sorted alphabetically among 1,046
+// other machines whose serial contains 105: measured at RANK 146, so past the
+// fifty and not offered at all. A serial that ENDS with what was typed is a
+// close match by any reading, and there are very few of them — four, against
+// 1,046 — so promoting them costs nothing and it is what makes the machine
+// reachable.
 //
 // THE EXACT MATCH IS NOT A THIRD GROUP, AND THAT IS DELIBERATE — it would be
 // dead code. A string sorts before everything it is a prefix of, so the serial
@@ -110,20 +123,49 @@ export function productPlaceholder(
 // holds eleven machines numbered 219 and this list exists to tell them apart;
 // keying the de-duplication on the serial would drop ten of them.
 //
+// A SMALL, VERY CLOSE GROUP MUST NOT BE CROWDED OUT BY A LARGE ONE, which is
+// why `limit` is applied per group rather than to the ranked list. Measured
+// while answering the INXT question: sorting by tier and then cutting at 50 put
+// INXT 0105 at rank 52 — one place past the cap — because 120 serials happened
+// to BEGIN with 105 and filled it. Tier order decides what comes FIRST; it must
+// not decide what is REACHABLE, or the fix above is undone by its own cap. Each
+// non-empty group is guaranteed an equal share of the fifty, and whatever is
+// left over is handed back to the closest groups in order.
+//
 // HERE RATHER THAN IN supabase.ts, for the reason paging.ts and uploads.ts are
 // their own modules: that file reads `import.meta.env`, so nothing in it can be
 // run by a check. This is pure, and check:ui exercises it.
 // ===========================================================================
-export function rankSerialHits<T extends { serial: string; product: string }>(hits: T[], query: string): T[] {
+export function rankSerialHits<T extends { serial: string; product: string }>(hits: T[], query: string, limit = 0): T[] {
   const want = query.trim().toLowerCase();
   const key = (m: T) => `${m.product.trim().toLowerCase()}|${m.serial.trim().toLowerCase()}`;
   const by = new Map<string, T>();
   for (const m of hits) if (!by.has(key(m))) by.set(key(m), m);
 
   const rank = (serial: string) => {
-    if (!want) return 1;
-    return serial.trim().toLowerCase().startsWith(want) ? 0 : 1;
+    if (!want) return 2;
+    const v = serial.trim().toLowerCase();
+    if (v.startsWith(want)) return 0;
+    if (v.endsWith(want)) return 1;
+    return 2;
   };
-  return [...by.values()].sort((a, b) =>
-    (rank(a.serial) - rank(b.serial)) || a.serial.localeCompare(b.serial));
+  const all = [...by.values()];
+  const tiers = [0, 1, 2].map((t) => all.filter((m) => rank(m.serial) === t)
+    .sort((a, b) => a.serial.localeCompare(b.serial)));
+
+  if (!limit || all.length <= limit) return tiers.flat();
+
+  // EVERY NON-EMPTY GROUP GETS A SHARE FIRST, then the closest groups take what
+  // is left. The order of the result is still tier order — this decides how
+  // many of each are kept, never which comes first.
+  const live = tiers.filter((t) => t.length).length;
+  const share = Math.max(1, Math.floor(limit / live));
+  const kept = tiers.map((t) => t.slice(0, share));
+  let room = limit - kept.reduce((n, t) => n + t.length, 0);
+  for (let i = 0; i < tiers.length && room > 0; i++) {
+    const more = tiers[i].slice(kept[i].length, kept[i].length + room);
+    kept[i] = [...kept[i], ...more];
+    room -= more.length;
+  }
+  return kept.flat();
 }

@@ -1662,13 +1662,19 @@ export async function sbSearchMachines(product: string, query: string, limit = 5
   // ABSENT — and a machine that cannot be picked cannot name its customer, so
   // the request is refused for a machine that is plainly on the register.
   //
-  // TWO READS, RUN TOGETHER, so this costs one round trip of latency:
+  // THREE READS, RUN TOGETHER, so this costs one round trip of latency:
   //   PREFIX   `105%` ordered ascending. A string is sorted before everything
   //            it is a prefix of, so if serial 105 exists it is the FIRST row
   //            of this read — never cut off, whatever else matches.
-  //   CONTAINS `%105%` ordered ascending, for the mid-string matches the
-  //            prefix read cannot see (X105161, and the engineer who remembers
-  //            only the middle of a serial).
+  //   SUFFIX   `%105` — the machine whose serial ENDS with what was typed.
+  //            Added 2026-09-24 for `INXT 0105`: a great many serials here are
+  //            a letter code, a space and a number, and what somebody reads off
+  //            the machine is the number. Through the contains read alone that
+  //            serial was rank 146 of 1,046 and never appeared; there are FOUR
+  //            serials ending in 105, so this read cannot be crowded out.
+  //   CONTAINS `%105%` ordered ascending, for the mid-string matches neither of
+  //            the others can see (X105161, and the engineer who remembers only
+  //            the middle of a serial).
   //
   // RANKED AGAIN IN JAVASCRIPT — exact, then prefix, then contains — rather
   // than trusting the concatenation: `ilike` is case-insensitive and the
@@ -1684,13 +1690,15 @@ export async function sbSearchMachines(product: string, query: string, limit = 5
     if (error) throw new Error(errMsg(error));
     rows = (data ?? []) as Record<string, unknown>[];
   } else {
-    const [pre, any] = await Promise.all([
+    const [pre, suf, any] = await Promise.all([
       base().ilike('serial_number', `${term}%`).order('serial_number').limit(limit),
+      base().ilike('serial_number', `%${term}`).order('serial_number').limit(limit),
       base().ilike('serial_number', `%${term}%`).order('serial_number').limit(limit),
     ]);
     if (pre.error) throw new Error(errMsg(pre.error));
+    if (suf.error) throw new Error(errMsg(suf.error));
     if (any.error) throw new Error(errMsg(any.error));
-    rows = [...(pre.data ?? []), ...(any.data ?? [])] as Record<string, unknown>[];
+    rows = [...(pre.data ?? []), ...(suf.data ?? []), ...(any.data ?? [])] as Record<string, unknown>[];
   }
 
   const hits = rows.map((r) => {
@@ -1709,7 +1717,7 @@ export async function sbSearchMachines(product: string, query: string, limit = 5
   }).filter((m) => m.serial);
   // DE-DUPLICATED AND RANKED CLOSEST-FIRST in one pure function, so the order
   // the form shows can be exercised by a check — see rankSerialHits().
-  return rankSerialHits(hits, term).slice(0, limit);
+  return rankSerialHits(hits, term, limit);
 }
 export async function addCallRequestBatch(base: Record<string, unknown>, items: CallRequestItem[]): Promise<{ ok: boolean; reqid?: string; count?: number; error?: string }> {
   const c = must();

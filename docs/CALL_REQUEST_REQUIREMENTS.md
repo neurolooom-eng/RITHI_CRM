@@ -236,15 +236,36 @@ the physical order of the rows rather than by the match. Past the cap it is not
 merely far down the list — it is absent, and a machine that cannot be picked
 cannot name its customer (CR-005), so CR-011 refuses a machine that exists.
 
-*Status: met* — two ordered reads run together, `term%` and `%term%`. The prefix
-read is what makes the guarantee: **a string sorts before everything it is a
-prefix of**, so the serial typed is the first row of that read and the cap can
-never remove it. `rankSerialHits()` then puts prefix matches above mid-string
-ones, case-insensitively, because `ilike` is. The ranking is a pure function in
-`lib/callrequest.ts` rather than inside `supabase.ts`, so `check:ui` can run it
-on real inputs — and it is two tiers, not three: an "exact match first" tier was
-written and then removed when mutating it changed no result, since the
-alphabetical tiebreak already does that work.
+*Status: met* — **three** ordered reads run together, `term%`, `%term` and
+`%term%`. The prefix read carries the first guarantee: **a string sorts before
+everything it is a prefix of**, so the serial typed is the first row of that
+read and the cap can never remove it.
+
+**THE SUFFIX READ IS THE COMMON CASE HERE, NOT SYMMETRY** (the user, 2026-09-24:
+*"I have a user case where serial number is INXT 0105, will that populate if I
+type 105?"*). A great many serials on this register are a letter code, a space
+and a number — and what somebody standing at the machine reads out is the
+number. Measured: through the prefix and contains reads alone, `INXT 0105` was
+**rank 146 of 1,046** machines whose serial contains `105`, so past the fifty
+and not offered at all. Four serials *end* in `105`, so that read cannot be
+crowded out.
+
+`rankSerialHits()` then orders them — begins-with, ends-with, contains —
+case-insensitively, because `ilike` is. **The cap is applied per group, not to
+the ranked list**: sorting by tier and cutting at 50 put `INXT 0105` at rank 52,
+one place past the cap, undoing the fix with its own limit. Tier order decides
+what comes FIRST; it must not decide what is REACHABLE.
+
+The ranking is a pure function in `lib/callrequest.ts` rather than inside
+`supabase.ts`, so `check:ui` can run it on real inputs. An "exact match first"
+tier was written and then removed when mutating it changed no result — the
+alphabetical tiebreak already does that work, and a tier no test can
+distinguish is not doing anything.
+
+*Known limit, stated rather than hidden*: a term buried in the MIDDLE of a
+serial, on a register where more than fifty machines match it, may still sit
+low in the list. Typing more of the serial is the answer, and the picker's
+footer says so.
 
 ## H. Records and evidence
 

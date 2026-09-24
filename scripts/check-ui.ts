@@ -4002,6 +4002,33 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     serials(rankSerialHits(machines('ABCD', 'abc'), 'AbC'))[0], 'abc');
   eq('...and a case-different prefix still beats a mid-string match',
     serials(rankSerialHits(machines('0ABC', 'ABCD'), 'abc')), ['ABCD', '0ABC']);
+  // INXT 0105 (the user, 2026-09-24). A serial that ENDS with what was typed is
+  // a close match — and on this register it is the COMMON one, since so many
+  // serials are a letter code, a space and a number and people read out the
+  // number. The discriminating case: 'AB105CD' sorts BEFORE 'INXT 0105'
+  // alphabetically, so without the suffix tier it would come first.
+  eq('a serial that ENDS with what was typed beats one that merely contains it',
+    serials(rankSerialHits(machines('AB105CD', 'INXT 0105'), '105')), ['INXT 0105', 'AB105CD']);
+  eq('...and a prefix match still beats them both',
+    serials(rankSerialHits(machines('AB105CD', 'INXT 0105', '1054'), '105')),
+    ['1054', 'INXT 0105', 'AB105CD']);
+  eq('...and typing the whole tail works the same way',
+    serials(rankSerialHits(machines('AB0105CD', 'INXT 0105'), '0105')), ['INXT 0105', 'AB0105CD']);
+
+  // THE CAP MUST NOT UNDO THE RANKING. Measured while answering the INXT
+  // question: 120 serials happened to BEGIN with 105, so sorting by tier and
+  // cutting at 50 put INXT 0105 at rank 52 — one place past the cap, and
+  // therefore not offered at all, which is the very fault being fixed. Tier
+  // order decides what comes FIRST; it must never decide what is REACHABLE.
+  const crowd = ['INXT 0105', ...Array.from({ length: 120 }, (_, n) => `105-${String(n).padStart(4, '0')}`)];
+  const capped = serials(rankSerialHits(machines(...crowd), '105', 50));
+  eq('a huge prefix group cannot starve a tiny ends-with group', capped.includes('INXT 0105'), true);
+  eq('...and the cap is still honoured', capped.length, 50);
+  eq('...and the closest group still comes first', capped[0], '105-0000');
+  // Under the cap nothing is dropped and the order is plain tier order.
+  eq('a list that fits is returned whole, in tier order',
+    serials(rankSerialHits(machines('AB105CD', 'INXT 0105', '1054'), '105', 50)),
+    ['1054', 'INXT 0105', 'AB105CD']);
   // ELEVEN MACHINES ARE NUMBERED 219. De-duplicating on the serial would drop
   // ten of them from the one list whose job is to tell them apart.
   eq('the same serial on two models is TWO machines',
@@ -4047,10 +4074,19 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     /ilike\('serial_number', `\$\{term\}%`\)/.test(fn), true);
   eq('and still asks for mid-string matches',
     /ilike\('serial_number', `%\$\{term\}%`\)/.test(fn), true);
-  eq('both in one round trip',
+  // THE SUFFIX READ IS WHAT REACHES `INXT 0105` (2026-09-24). Through the
+  // contains read alone that machine was rank 146 of 1,046 and fell past the
+  // cap; four serials end in 105, so this read cannot be crowded out.
+  eq('and separately for the ones that END with it',
+    /ilike\('serial_number', `%\$\{term\}`\)/.test(fn), true);
+  eq('all of them in one round trip',
     /await Promise\.all\(\[/.test(fn), true);
+  eq('...and all three results are merged, not just two',
+    /rows = \[\.\.\.\(pre\.data \?\? \[\]\), \.\.\.\(suf\.data \?\? \[\]\), \.\.\.\(any\.data \?\? \[\]\)\]/.test(fn), true);
+  eq('...and every one of them is checked for an error',
+    (fn.match(/if \((pre|suf|any)\.error\) throw/g) ?? []).length, 3);
   eq('and the order it hands back is the pure one, so a check can exercise it',
-    /rankSerialHits\(hits, term\)/.test(fn), true);
+    /rankSerialHits\(hits, term, limit\)/.test(fn), true);
   eq('it returns the customer with the machine',
     /party: String\(r\.party_name/.test(fn) && /city: String\(ex\['City'\]/.test(fn), true);
 
