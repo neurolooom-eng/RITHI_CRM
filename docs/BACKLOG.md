@@ -43,6 +43,71 @@ up)_
 
 ---
 
+## 2026-09-24 — ⚠ The Product Database search timed out AGAIN, and this time the fix was already written
+
+**Reported from use**, by a Commercial user (VALARMATHI) searching the install
+base for `1691`: *"Search failed: canceling statement due to statement
+timeout"*, with the PREVIOUS search's rows still on screen underneath. That is
+the worst shape a failure can take here — it reads as a broken register rather
+than a slow one, and the rows below the banner look like the answer.
+
+**The cause is 0236 and it was never applied**, because applying it meant
+running `sales_contracts.sql`, which re-executes seventeen migrations and
+deadlocked against the live app twice. So the fix has been sitting in `main`
+since yesterday while the screen went on failing.
+
+**MEASURED, at the register's real size**, on a throwaway Postgres loaded with
+20,002 machines, 40,006 contract lines and 15,004 installation calls, read
+through RLS as a Commercial user against the 0239 view:
+
+| the read | bare policies | InitPlan policies |
+|---|---|---|
+| the search she typed | 7,695 ms | **184 ms** |
+| the register's opening page | 7,892 ms | **218 ms** |
+| a party contains-match | 7,984 ms | **1,058 ms** |
+
+Supabase stops an `authenticated` statement at **eight seconds**, which is why
+7.7 seconds is not "slow" but an empty screen.
+
+**`supabase/apply/_fix_product_database_timeout.sql`** is the new deliverable:
+0236 and nothing else, in a file small enough to paste, with
+`lock_timeout = '4s'` so it gives up rather than deadlocking, idempotent, and
+ending in a grid that reads the policies back out of `pg_policy` and says which
+are still per-row. ⚠ **RUN IT.**
+
+**I nearly shipped the opposite fix.** The view builds the contract match and
+the installation-call match as two full passes, so the obvious idea was a
+LATERAL that looks each machine up through an index instead. Built it, proved
+it returns byte-identical rows on all 20,002 machines including six adversarial
+cases (two contracts on one machine, a tie on the end date, a blank product
+name, a live contract with no type, a cancelled call, a call naming a different
+customer) — and then measured it: **115,477 ms** against the hash join's 7,695.
+Fifteen times WORSE, under exactly the RLS shape the live project has. That is
+0235's lesson a second time, and the only reason it did not ship is that it was
+measured at the register's size before anybody was told it was faster.
+
+**Two things found while measuring:**
+
+- **The "Any status" picker on the Product Database did nothing on this
+  database.** `ProdFilters.status` has existed since the sheet era and
+  `searchProducts()` still forwards it to the Apps Script bridge, but
+  `sbSearchProducts` never read it — so picking OGP returned the whole register,
+  which quietly tells a reader every machine is OGP. It is `.eq('item_status')`
+  now, which is only askable at all because 0235 made that column computed.
+- **`_status.sql` row 181 could be fooled.** Its test was *contains
+  `SELECT has_perm`*, which passes a policy with one branch wrapped and the
+  other left bare — exactly what a later migration editing one branch produces,
+  and still 7.7 seconds. It COUNTS the calls now, reads `with check` as well as
+  `using`, and was proved against a policy built that way on purpose: the old
+  test said YES, the new one says NO.
+
+**A timeout no longer reads as a failed search.** `isTimeout()` in `dberror.ts`,
+wired into `loadFailure()` and into the Product Database's own banner: it says
+what to narrow and still prints the database's words underneath, which is the
+project's rule about never overwriting the real message with a hint.
+
+Shipped in **v0.9.363**. `npm run validate` 101/101 suites, 22/22 checks.
+
 ## 2026-09-24 — The timestamp rule, and a survey of which tables keep one
 
 > *"Record the Timestamp in Ownership Transfer as well. Ideally all the tables

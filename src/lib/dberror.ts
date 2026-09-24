@@ -110,11 +110,32 @@ export function isRefused(e: unknown): boolean {
   return /row-level security|permission denied|does not have permission|42501/i.test(m);
 }
 
+/** The database GAVE UP on the statement. Not a missing anything and not a
+ *  permission: the read was too big for the ceiling, which on Supabase is eight
+ *  seconds for an `authenticated` statement.
+ *
+ *  It earns a case of its own because the obvious reading of the raw message is
+ *  WRONG in a way that costs a support round trip. Reported 2026-09-24 from the
+ *  Product Database, where a Commercial user searching for a serial got
+ *  "Search failed: canceling statement due to statement timeout" over a
+ *  register still showing the PREVIOUS search's rows — which reads as a broken
+ *  screen and a broken search, when in fact the search was fine and the same
+ *  one narrowed by two characters returns in milliseconds.
+ *
+ *  57014 is Postgres's own code for it, matched beside the words because
+ *  PostgREST does not always forward the code.
+ */
+export function isTimeout(e: unknown): boolean {
+  const m = errText(e);
+  return /statement timeout|canceling statement due to|\b57014\b/i.test(m);
+}
+
 /** What to put on screen. ONE shape for every register that has a migration
  *  behind it, so the three cases cannot drift apart screen by screen:
  *
  *    the table is missing   → the migration, named, with its bundle
  *    the read was refused   → say so; a migration will not help
+ *    the statement timed out → what to narrow, then the error itself
  *    anything else          → the error itself, verbatim
  *
  *  Verbatim matters on the third: the fault that prompted all this was
@@ -127,6 +148,9 @@ export function loadFailure(
   if (isMissingTable(e, ...opts.tables)) return opts.hint;
   if (opts.functions?.length && isMissingFunction(e, ...opts.functions)) return opts.hint;
   if (isRefused(e)) return 'Your role does not have permission to read this.';
+  // The database's own words are KEPT, as on every other branch — what is added
+  // is the one thing the reader can do about it.
+  if (isTimeout(e)) return `That was too much to answer in one go. Narrow it — a serial, a few more letters of the party — and it will come back. The database said: ${errText(e)}`;
   return `Load failed: ${errText(e)}`;
 }
 

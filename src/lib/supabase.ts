@@ -1494,7 +1494,7 @@ export async function sbProductBySerial(serial: string, product = ''): Promise<R
 // read the view. Everything that WRITES -- every importer and upsert -- still
 // goes to the table, which is untouched.
 // ---------------------------------------------------------------------------
-export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string; exact?: boolean }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
+export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string; status?: string; exact?: boolean }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
   let q = must().from('product_database').select('*').range(offset, offset + limit - 1);
   // An EXACT serial goes through the indexed key, not `eq(serial_number)`:
   // that was case-sensitive AND had no plain btree behind it, so the one
@@ -1507,6 +1507,20 @@ export async function sbSearchProducts(filters: { q?: string; party?: string; pr
   if (filters.party) q = q.ilike('party_name', `%${filters.party}%`);
   if (filters.product) q = filters.exact ? q.eq('item_name', filters.product) : q.ilike('item_name', `%${filters.product}%`);
   if (filters.q) q = q.or(`serial_number.ilike.%${filters.q}%,item_name.ilike.%${filters.q}%,party_name.ilike.%${filters.q}%`);
+  // THE STATUS PICKER WAS SILENTLY DROPPED ON THIS PATH. `ProdFilters.status`
+  // has existed since the sheet era and searchProducts() still forwards it to
+  // the Apps Script bridge, but this function never read it -- so on a Supabase
+  // project the Product Database's "Any status" box moved and NOTHING changed,
+  // with no error to say so. Worse than an unimplemented control: a reader who
+  // picks OGP and gets the whole register back concludes every machine is OGP.
+  //
+  // IT IS ONLY ASKABLE NOW. Before 0235 `item_status` was a STORED column that
+  // decayed against current_date, so filtering on it would have returned the
+  // answer as of the last import; it is worked out on read, so the filter and
+  // the column on screen are the same rule. It costs a full pass over the view
+  // (no index can serve a computed column) -- measured at 767 ms on 20,002
+  // machines, against an eight-second ceiling.
+  if (filters.status) q = q.eq('item_status', filters.status.trim().toUpperCase());
   const { data, error } = await q;
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map(productRowToSheet);

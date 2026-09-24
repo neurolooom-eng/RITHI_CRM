@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.363',
+    date: '2026-09-24',
+    title: 'The Product Database search stops timing out',
+    changes: [
+      'SEARCHING THE INSTALL BASE NO LONGER DIES WITH “canceling statement due to statement timeout”. Reported from use: a search for a serial came back with that banner over the PREVIOUS search’s rows, which reads as a broken screen.',
+      'WHAT WAS WRONG: the register joins the contract lines and the installation calls to every machine, and the permission check on the cover tables was being asked once for EVERY contract line instead of once for the query. Same question, same answer, 40,000 times. Supabase stops a statement at eight seconds.',
+      'NOBODY GAINS OR LOSES A ROW. Same permissions, same reach — this is how the question is asked, not what it asks. Roles & Permissions is untouched.',
+      'MEASURED on 20,002 machines, 40,006 contract lines and 15,004 installation calls, read as a Commercial user: the search that failed 7,695 ms → 184 ms, the opening page 7,892 ms → 218 ms, a party contains-match 7,984 ms → 1,058 ms.',
+      'THE “ANY STATUS” BOX NOW ACTUALLY FILTERS. It has been on that screen for a long time and did nothing at all on this database — pick OGP and you got the whole register back, which quietly tells you every machine is OGP. Found while measuring the timeout.',
+      'A TIMEOUT NO LONGER READS AS A FAILED SEARCH. It now says what to narrow, and still prints the database’s own words underneath.',
+      'And the check that was supposed to catch this could be fooled: it passed a policy with one half fixed and the other left slow. It counts now, and was proved against a policy built that way on purpose.',
+      '⚠ RUN supabase/apply/_fix_product_database_timeout.sql — one small file, under a second, safe to re-run. NOT the bundle: that re-runs seventeen migrations and has deadlocked against the live app twice.',
+    ],
+  },
+  {
     version: '0.9.362',
     date: '2026-09-24',
     title: 'Field Solutions: pick several products; and an ownership transfer records the time',

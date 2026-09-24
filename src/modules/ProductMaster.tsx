@@ -8,6 +8,7 @@ import { searchProducts, dataConfigured, type ProdFilters } from '../lib/sheets'
 import { ITEM_STATUS, productToCallPrefill } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { isTimeout, errText } from '../lib/dberror';
 import './fieldcalls.css';
 
 const CACHE_KEY = 'productMasterRows';
@@ -54,6 +55,14 @@ const ALL_FIELDS = [
   'Associated Accessory',
 ].map((k) => ({ key: k, header: k }));
 
+// ONE MESSAGE FOR BOTH READS. A timeout says what to narrow; anything else is
+// the error itself, which is the project's rule — the fault is usually readable
+// in the original text and a friendly hint overwrites it.
+const searchFailure = (e: unknown) =>
+  isTimeout(e)
+    ? `That was too much to answer in one go — the install base is 20,000 machines. Narrow it: a full serial, or a few more letters of the party. The database said: ${errText(e)}`
+    : `Search failed: ${errText(e)}`;
+
 export function ProductMaster() {
   const navigate = useNavigate();
   const { can } = useAuth();
@@ -88,7 +97,12 @@ export function ProductMaster() {
           : 'No products matched.',
       });
     } catch (e) {
-      setMsg({ tone: 'error', text: `Search failed: ${e instanceof Error ? e.message : String(e)}` });
+      // A TIMEOUT IS NOT A FAILED SEARCH, and saying so cost a support round
+      // trip (2026-09-24, a Commercial user searching for a serial): the rows
+      // on screen were the PREVIOUS search's, so "Search failed" over them
+      // reads as a broken register. The same search narrowed comes back in
+      // milliseconds. The database's own words are kept on the end.
+      setMsg({ tone: 'error', text: searchFailure(e) });
     } finally {
       setBusy(false);
     }
@@ -106,7 +120,7 @@ export function ProductMaster() {
       const anyFilter = Object.values(f).some((v) => v && String(v).trim());
       if (!anyFilter) setLastSync(saveCache(CACHE_KEY, merged));
     } catch (e) {
-      setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` });
+      setMsg({ tone: 'error', text: searchFailure(e) });
     } finally { setBusy(false); }
   };
 
