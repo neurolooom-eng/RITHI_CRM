@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.372',
+    date: '2026-09-25',
+    title: 'Product Database: newest first, 1,000 a load — and a paging fault fixed on the way',
+    changes: [
+      'THE PRODUCT DATABASE NOW OPENS NEWEST ENTRIES FIRST, and that turned out to be a correctness fix rather than a preference. The register was paged in blocks with NO SORT ORDER AT ALL, which means the database was free to hand back the rows in any order it liked between one block and the next — so “Load more” could show you the same machine twice and miss another one entirely. Nothing announced it: the list simply looked complete.',
+      'It is ordered by when the row was added, newest first, with the machine id as a tiebreak. The tiebreak matters more than it sounds: a full reload writes every machine in the same instant, so after one the whole register shares a timestamp and the id is the only thing keeping the pages stable.',
+      'A LOAD IS NOW 1,000 MACHINES instead of 200. That is the most a single request can carry — it caps there whatever you ask for, and silently — so asking for more would return 1,000 anyway and then wrongly hide the Load more button, telling you the register had ended when it had thousands left.',
+    ],
+  },
+  {
     version: '0.9.371',
     date: '2026-09-24',
     title: 'Call Type stops appearing inside Extras, and the objective evidence stops at nothing',
