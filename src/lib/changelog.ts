@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.369',
+    version: '0.9.372',
     date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,45 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.371',
+    date: '2026-09-24',
+    title: 'Call Type stops appearing inside Extras, and the objective evidence stops at nothing',
+    changes: [
+      'CALL TYPE IS NO LONGER WRITTEN INTO “EXTRA” AS WELL AS ITS OWN COLUMN. The column was never missing — field, installation and PM calls have all carried call_type, and the upload STAMPS it from the register you picked so a PM sheet cannot land as a field call. What happened is that the file’s own “Call Type” heading, being stamped rather than mapped, fell through into the extras blob beside it. Every export carrying extras therefore showed a second Call Type.',
+      'AND THE TWO COULD DISAGREE: a PM sheet loaded through the Field Calls register stored FIELD on the row and PM in the blob. The row is right and the blob was the one on show.',
+      '⚠ FOR THE CALLS ALREADY LOADED, run supabase/apply/_call_type_out_of_extra.sql. It is read-only until you set one flag, and it removes the copy ONLY where it agrees with the column — where it disagrees it leaves it and lists it, because that is a finding about a load rather than noise.',
+      'THE OBJECTIVE EVIDENCE DOWNLOAD NO LONGER STOPS AT 1,000. It came back through the API like any other read and the API caps a response at a thousand rows, so the file said “1000 calls” and looked like the figure had been worked out from a thousand calls.',
+      'IT HAD NOT BEEN. The objectives are counted inside the database over the whole register — no page size reaches that. But a thousand rows of evidence under a figure computed from four thousand cannot confirm the figure, which is the worse half of the two. The banner now says both: every row, and where the figure itself comes from.',
+    ],
+  },
+  {
+    version: '0.9.370',
+    date: '2026-09-24',
+    title: 'KPI Export: every date arrives as a real date',
+    changes: [
+      'THE KPI EXPORT NOW OFFERS AN EXCEL WORKBOOK, and that is the fix. Every date in it is a real date — Call Registeration Date, Complaint Date, both warranty dates, both contract dates, Breakdown Date, Call Attended On and Call Solved Date & Time. Sort them, filter by month, subtract one from another.',
+      'WHY THE CSV COULD NOT BE FIXED IN PLACE: a CSV carries text and nothing else, so every date in one is left for Excel to parse. It manages the plain dates and it does not manage “24-Sep-2026 18:51:02” — which is precisely the column you reported, Call Registeration Date being the only one the workbook shows to the second. There is no spelling of a date in a CSV that every Excel reads; the format is the limit, not the wording.',
+      'THE CSV IS STILL THERE and unchanged, because it is what pastes into the KPI workbook column for column. The Excel button is the one to use if you are going to work on the numbers.',
+      'NUMBERS STAY NUMBERS TOO — Attended in Days, Solved in Days, TTA, TTS and Pending Days can be summed and averaged. And a Call Number of all digits stays text, so it keeps its leading zeros instead of turning into a number.',
+      'Checked by building the workbook and reading the bytes, which is the only thing that ever shows this class of fault.',
+    ],
+  },
+  {
+    version: '0.9.369',
+    date: '2026-09-24',
+    title: 'The DCCR Register mirrors itself to your Google Sheet',
+    changes: [
+      'CallReg.gs now writes the Daily Complaint Review Register to the sheet you named, tab DCCR_Mirror, every six hours from 10 PM — as four daily runs at 22:00, 04:00, 10:00 and 16:00, because Apps Script cannot anchor an “every 6 hours” trigger to a clock time; it counts from whenever the trigger was made.',
+      'SAME COLUMNS AS THE DCCR DOWNLOAD, in the same order — the WRR-2026 shape — so the sheet and the CSV are one register and not two. A check compares the two lists key for key on every build; it caught a heading I had mistyped on its very first run.',
+      'DATES ARE WRITTEN AS DATES, with the column formatted dd-MMM-yyyy, so the sheet sorts and filters them properly instead of holding text that looks like a date.',
+      'IT CLEARS AND REWRITES THE TAB EACH RUN rather than appending. A review answered today changes a row that already exists, so appending would leave two versions of one call with nothing to say which is current.',
+      'A SECOND SMALL TAB, DCCR_Mirror_Status, records every run: when, how many rows, how long, and the error if it failed. A mirror nobody can tell has stopped is a mirror nobody can trust.',
+      '⚠ SETUP IS YOURS AND IT IS FOUR THINGS: paste the new CallReg.gs, set the Script Properties, set the project timezone to Asia/Kolkata, and run installDccrMirror() once. The details are in the comment block at the top of the DCCR section.',
+      'ON THE CREDENTIAL: it prefers a REAL SUPABASE LOGIN made for this job (DCCR_EMAIL / DCCR_PASSWORD) so the mirror reads under row-level security as one named account. The service_role key works as a fallback but bypasses security entirely — the status tab records which one was used, every run.',
+      'I CANNOT TEST THIS FROM HERE. script.google.com is blocked from my sandbox, so the script is written and checked but has never been run. Fire it once by hand before trusting the schedule.',
     ],
   },
   {

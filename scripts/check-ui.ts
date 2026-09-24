@@ -35,12 +35,14 @@ import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies
 import { stateColour, stateBucket } from '../src/lib/callstate';
 import { driveFolderForCall, DRIVE_FOLDER_NAMES } from '../src/lib/drivefolders';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
-import { buildXlsx } from '../src/lib/xlsx';
+import { buildXlsx, xlsxCell } from '../src/lib/xlsx';
 import { TESTS } from '../src/lib/validation';
 import { shortForms, type ProductLine } from '../src/lib/productLines';
 import { HANDSTOCK_REPORT_COLUMNS, handStockFileName, isLastPage } from '../src/lib/handstockreport';
 import { buildXls } from '../src/lib/xls';
 import { COMPLETE, partial, cappedAt, mayExport, partialExportWarning } from '../src/lib/exportscope';
+import { DCCR_EXPORT_COLUMNS, toExportRow } from '../src/lib/dccr';
+import { KPI_FIELD_INST_COLUMNS, kpiExportColumns, toKpiCellRow, toKpiExportRow } from '../src/lib/kpi';
 import { DEFAULT_PERMS, MODULES, PERM_TREE, ROLES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
 import { URS, FRS, TESTS, MODULES_WITHOUT_REQUIREMENT } from '../src/lib/validation';
 import { modulesWithNoRequirement, badDeclarations, traceabilityMatrix } from '../src/lib/requirements';
@@ -8662,6 +8664,220 @@ console.log('\n-- a download from a half-loaded table says so --');
   const x3 = readFileSync('src/lib/xls.ts', 'utf8');
   eq('...and so does the .xls writer',
     /if \(!mayExport\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return;/.test(x3), true);
+}
+
+console.log('\n-- the DCCR mirror is the same register, not a second opinion --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-24: the DCCR Register written to a Google Sheet, tab
+  // DCCR_Mirror, every six hours from 10 PM -- and then "DCCR - Update the
+  // CallReg google script".
+  //
+  // THE COLUMN LIST IS A COPY, and a copy is only safe while something compares
+  // it. `DCCR_EXPORT_COLUMNS` in src/lib/dccr.ts is the original (the WRR-2026
+  // shape, so an export pastes into that workbook without shifting a column);
+  // the Apps Script cannot import TypeScript, so it carries its own. Left
+  // unchecked the two drift and the sheet quietly becomes a different register
+  // from the download -- which is the `SEE_ALL_ROLES` / `coverCode()` situation
+  // exactly, and those are compared word for word for the same reason.
+  //
+  // THE SANDBOX CANNOT REACH script.google.com, so nothing here proves the
+  // script RUNS. What it proves is that the two definitions agree, which is the
+  // half that rots silently.
+  // -------------------------------------------------------------------------
+  const gs = readFileSync('apps-script/CallReg.gs', 'utf8');
+
+  const list = /var DCCR_COLUMNS = \[([\s\S]*?)\n\];/.exec(gs)?.[1] ?? '';
+  const pairs = [...list.matchAll(/\['([^']+)', '((?:[^'\\]|\\.)*)'\]/g)]
+    .map((m) => ({ key: m[1], header: m[2].replace(/\\'/g, "'") }));
+  eq('the mirror carries the same columns, in the same order',
+    pairs.map((c) => `${c.key}|${c.header}`),
+    DCCR_EXPORT_COLUMNS.map((c) => `${c.key}|${c.header}`));
+
+  // THE BLANK-ON-PURPOSE COLUMNS ARE PART OF THE SHAPE. A column the app leaves
+  // empty and the mirror fills (or the other way round) is the two registers
+  // disagreeing in the least visible way there is.
+  const blanks = /var DCCR_BLANK = \[([\s\S]*?)\];/.exec(gs)?.[1] ?? '';
+  const gsBlank = [...blanks.matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]).sort();
+  // DERIVED BY RUNNING IT, not by reading it, and from a row where EVERY field
+  // carries a value -- so a column that still comes back empty is empty BY
+  // DECISION rather than because the fixture had nothing in it.
+  //
+  // AND COMPARED BOTH WAYS. The first version asked only "is every mirror blank
+  // an app blank", which passes when the mirror stops blanking one -- the very
+  // direction that matters, since that column then fills with data the download
+  // leaves out and the two registers disagree. Caught by mutating it.
+  const full: Record<string, unknown> = {};
+  DCCR_EXPORT_COLUMNS.forEach((c) => { full[c.key] = 'X'; });
+  ['last_status', 'status', 'open_state', 'review1_done', 'review2_done', 'review3_done']
+    .forEach((k) => { full[k] = k.endsWith('_done') ? true : 'X'; });
+  const appBlank = Object.entries(toExportRow(full as never, 0))
+    .filter(([, v]) => v === '').map(([k]) => k).sort();
+  eq('the mirror blanks exactly the columns the app blanks, no more and no fewer',
+    gsBlank, appBlank);
+
+  // The three derived values, which are the only places the shaping is not a
+  // pass-through -- and therefore the only places a hand-written copy can be
+  // wrong while looking right.
+  eq('call status falls back the same way',
+    /o\.call_status = r\.last_status \|\| r\.status \|\| '';/.test(gs), true);
+  eq('current call status falls back the same way',
+    /o\.current_call_status = r\.open_state \|\| r\.last_status \|\| r\.status \|\| '';/.test(gs), true);
+  eq('a completed review reads Yes / No',
+    (gs.match(/r\.review[123]_done \? 'Yes' : 'No'/g) ?? []).length, 3);
+  eq('and the rows are numbered from one',
+    /o\.sl_no = index \+ 1;/.test(gs), true);
+
+  // ---- how it reads ------------------------------------------------------
+  eq('it reads the view the review screen reads',
+    /var DCCR_VIEW\s*=\s*'field_call_review';/.test(gs), true);
+  eq('...in the same order that screen reads it',
+    /var DCCR_ORDER\s*=\s*'reg_date\.desc\.nullslast,id\.desc';/.test(gs), true);
+  // A FULL PAGE IS NOT AN ANSWER. PostgREST caps a response at 1,000 rows
+  // however large the Range asks for, so the loop can only end on a short one.
+  eq('it pages, and stops on a SHORT page',
+    /if \(page\.length < DCCR_PAGE\) break;/.test(gs), true);
+  eq('...a thousand at a time, which is all one response can carry',
+    /var DCCR_PAGE = 1000;/.test(gs), true);
+
+  // ---- the credential ----------------------------------------------------
+  // A SIGN-IN IS TRIED FIRST, so the mirror reads UNDER row-level security as
+  // one named account rather than past it. The service key is a fallback and
+  // the status tab records which was used, because "is this reading as a user
+  // or as the master key?" must be answerable without opening the properties.
+  eq('a real sign-in is preferred over the service key',
+    gs.indexOf("_dccrProp('DCCR_EMAIL')") < gs.indexOf("_dccrProp('SUPABASE_SERVICE_KEY')")
+      && gs.includes("_dccrProp('DCCR_EMAIL')"), true);
+  eq('...and the service key says what it costs, where it is set',
+    /bypasses row-level security/i.test(gs), true);
+  eq('the status tab records which one was used',
+    /'Read as'/.test(gs), true);
+
+  // ---- the schedule ------------------------------------------------------
+  // everyHours(6) counts from whenever the trigger was made and cannot be
+  // anchored to a clock time, so four daily triggers are the only way to mean
+  // "from 10 PM".
+  eq('every six hours from 10 PM, as four daily triggers',
+    /var DCCR_HOURS = \[22, 4, 10, 16\];/.test(gs), true);
+  eq('...and installing them clears the old ones first, so a re-run does not double the schedule',
+    /getHandlerFunction\(\) === 'dccrMirror'\) ScriptApp\.deleteTrigger/.test(gs), true);
+
+  // ---- writing ------------------------------------------------------------
+  eq('the tab is the one that was asked for', /var DCCR_MIRROR_TAB = 'DCCR_Mirror';/.test(gs), true);
+  // Cleared and rewritten, never appended: a review answered today CHANGES a
+  // row that already exists, so an append leaves two versions of one call.
+  // The WRITER'S OWN BODY, not the whole file: "the word clearContent appears
+  // somewhere" passes a version that never calls it (`if (false) ... .clearContent()`),
+  // which is what mutating this found.
+  const writer = /function _dccrWrite\(rows\) \{[\s\S]*?\n\}/.exec(gs)?.[0] ?? '';
+  eq('it clears the old rows, guarded by what was actually there',
+    /if \(lastRow > 0 && lastCol > 0\) sh\.getRange\(1, 1, lastRow, [\s\S]*?\)\.clearContent\(\);/.test(writer), true);
+  eq('...before it writes, or a shorter run leaves the tail of the last one behind',
+    writer.indexOf('clearContent()') < writer.indexOf('setValues(grid)')
+      && writer.includes('clearContent()'), true);
+  eq('...and writes the grid in ONE call, or a four-thousand-row run times out',
+    (writer.match(/setValues\(/g) ?? []).length, 1);
+  // appendRow IS A CALL PER ROW. It belongs in the status tab, which writes one
+  // line a run, and nowhere near a register of thousands.
+  eq('...row by row nowhere in it', /appendRow/.test(writer), false);
+  // A DATE STAYS A DATE and the COLUMN carries the format -- the standing rule,
+  // in the one place a mirror can obey it.
+  eq('dates are written as dates and formatted by the column',
+    /setNumberFormat\(fmt\)/.test(gs) && /'dd-mmm-yyyy'/.test(gs), true);
+  eq('a failure is recorded rather than swallowed',
+    /_dccrStatus\('FAILED'/.test(gs), true);
+}
+
+console.log('\n-- the KPI export carries dates Excel accepts as dates --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-24: "in the KPI Export under Reports, the Call
+  // Registration Date is not recognized by Excel. Update all the Date Fields in
+  // the KPI to be compatible as a Date Field in Excel."
+  //
+  // A CSV CAN ONLY CARRY TEXT. Every date in it is left for Excel to parse, and
+  // `24-Sep-2026 18:15:03` — Call Registeration Date, the one column the
+  // workbook shows to the second — does not survive that parse. There is no
+  // spelling of a date in a CSV that every Excel reads; the FORMAT is the
+  // limit, not the wording. So the fix is a real workbook, where a date is a
+  // number plus a format and nothing is parsed at all.
+  //
+  // PROVED BY BUILDING ONE AND READING THE BYTES, which is the only thing that
+  // was ever going to show it — the same method that caught `MP-010` becoming
+  // serial 37165 and `0012345` losing its leading zero.
+  // -------------------------------------------------------------------------
+  const raw: Record<string, unknown> = {
+    'UC Number': '26I23I0080',
+    'Call Number': '0012345',                       // all digits, and NOT a number
+    'Call Registeration Date': '2026-09-18T08:51:02.55+00:00',
+    'Complaint Date': '2026-09-17',
+    'Warranty Start Date': '2025-04-01',
+    'Warranty End Date': '2027-03-31',
+    'Contract Start Date': '2026-01-01',
+    'Contract End Date': '2026-12-31',
+    'Breakdown Date': '2026-09-16',
+    'Call Attended On': '2026-09-18',
+    'Call Solved Date & Time': '2026-09-19',
+    'Attended in Days': 1,
+    'Solved in Days': 2,
+    'Pending Days': 0,
+    'Product Name': 'ORION-G',
+  };
+
+  // THE RAW VALUE IS WHAT MUST BE HANDED OVER. `excelSerial()` uses the STRICT
+  // ISO test on purpose, so a value already rendered as `24-Sep-2026` is not a
+  // date to it and would land as text — pre-formatting would defeat the fix.
+  eq('the workbook row passes the value through untouched',
+    toKpiCellRow(raw)['Call Registeration Date'], raw['Call Registeration Date']);
+  eq('...unlike the CSV row, which must render it, being text',
+    /^\d{2}-[A-Z][a-z]{2}-\d{4} /.test(String(toKpiExportRow(raw)['Call Registeration Date'])), true);
+
+  const cols = kpiExportColumns();
+  const cells = Object.fromEntries(cols.map((c) => [c.header, xlsxCell(toKpiCellRow(raw)[c.key])]));
+  // `zipStore` writes the parts UNCOMPRESSED, so the sheet XML is verbatim in
+  // the bytes and needs no inflate — the same way the evidence-workbook check
+  // above reads them.
+  const bytes = buildXlsx([{ name: 'Field_INST', columns: cols.map((c) => c.header), rows: [cells] }]);
+  const xml = Array.from(bytes).map((b) => String.fromCharCode(b)).join('');
+
+  const colLetter = (i: number) => {
+    let n = i + 1, out = '';
+    while (n > 0) { const r = (n - 1) % 26; out = String.fromCharCode(65 + r) + out; n = Math.floor((n - 1) / 26); }
+    return out;
+  };
+  const cellAt = (header: string) => {
+    const i = KPI_FIELD_INST_COLUMNS.indexOf(header as never);
+    return new RegExp(`<c r="${colLetter(i)}2"[^>]*>.*?</c>`).exec(xml)?.[0] ?? '(no cell)';
+  };
+
+  // STYLE 1 IS date+time, STYLE 2 IS date only — see xlsx.ts. A cell with a
+  // style and a bare <v> is a NUMBER Excel formats as a date. A cell carrying
+  // t="inlineStr" is text, whatever it looks like on screen.
+  eq('Call Registeration Date is a real date-and-time cell',
+    /<c r="[A-Z]+2" s="1"><v>\d/.test(cellAt('Call Registeration Date')), true);
+  eq('...and not text', /inlineStr/.test(cellAt('Call Registeration Date')), false);
+
+  const dateCols = ['Complaint Date', 'Warranty Start Date', 'Warranty End Date',
+                    'Contract Start Date', 'Contract End Date', 'Breakdown Date',
+                    'Call Attended On', 'Call Solved Date & Time'];
+  dateCols.forEach((h) => {
+    eq(`${h} is a real date cell`, /<c r="[A-Z]+2" s="2"><v>\d/.test(cellAt(h)), true);
+  });
+
+  // AND THE OTHER HALF OF THE SAME RULE: a number stays a number so the KPI
+  // columns can be summed and averaged, and an identifier of all digits stays
+  // an identifier rather than losing its leading zero.
+  eq('Attended in Days is a number', /<c r="[A-Z]+2"><v>1<\/c>|<c r="[A-Z]+2"><v>1<\/v><\/c>/.test(cellAt('Attended in Days')), true);
+  eq('a Call Number of all digits keeps its leading zero, as text',
+    /inlineStr.*0012345/s.test(cellAt('Call Number')), true);
+
+  // The screen offers both, and the workbook is the one it leads with.
+  const kx = readFileSync('src/modules/KpiExport.tsx', 'utf8');
+  eq('the screen offers the workbook', /run\('xlsx'\)/.test(kx), true);
+  eq('...and still offers the CSV that pastes into the workbook column for column',
+    /run\('csv'\)/.test(kx), true);
+  eq('...and hands xlsxCell the RAW value, not the rendered one',
+    /xlsxCell\(raw\[c\.key\]\)/.test(kx), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

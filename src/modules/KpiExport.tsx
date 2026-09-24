@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
 import { supabaseConfigured, countKpiFieldInst, listKpiFieldInst } from '../lib/supabase';
-import { KPI_FIELD_INST_COLUMNS, kpiExportColumns, toKpiExportRow } from '../lib/kpi';
+import { KPI_FIELD_INST_COLUMNS, kpiExportColumns, toKpiExportRow, toKpiCellRow } from '../lib/kpi';
 import { csvExport } from '../lib/format';
+import { xlsxDownload, xlsxCell } from '../lib/xlsx';
 import { logAudit } from '../lib/audit';
 import './dccr.css';
 import { COMPLETE } from '../lib/exportscope';
@@ -41,7 +42,7 @@ export function KpiExport() {
     return () => { cancelled = true; };
   }, [live, from, to]);
 
-  const run = async () => {
+  const run = async (kind: 'csv' | 'xlsx' = 'csv') => {
     if (busy) return;
     setBusy(true);
     setMsg('Reading the calls…');
@@ -56,11 +57,27 @@ export function KpiExport() {
         setMsg(`Read ${all.length.toLocaleString()}…`);
       }
       const span = from || to ? `${from || 'start'}_${to || 'today'}` : new Date().toISOString().slice(0, 10);
-      csvExport(`kpi-field-inst-${span}.csv`, kpiExportColumns(), all.map(toKpiExportRow),
-        // `all` is every page, read in the loop above.
-        COMPLETE);
+      const cols = kpiExportColumns();
+      if (kind === 'csv') {
+        csvExport(`kpi-field-inst-${span}.csv`, cols, all.map(toKpiExportRow),
+          // `all` is every page, read in the loop above.
+          COMPLETE);
+      } else {
+        // EVERY DATE A REAL DATE, so Excel sorts it, filters it by month and
+        // subtracts it — which a CSV cannot offer at all, whatever the dates
+        // are spelled like in it. `xlsxCell` is handed the RAW value and
+        // decides by VALUE, never by column name.
+        xlsxDownload(`kpi-field-inst-${span}.xlsx`, [{
+          name: 'Field_INST',
+          columns: cols.map((c) => c.header),
+          rows: all.map((r) => {
+            const raw = toKpiCellRow(r);
+            return Object.fromEntries(cols.map((c) => [c.header, xlsxCell(raw[c.key])]));
+          }),
+        }], COMPLETE);
+      }
       setMsg(`Exported ${all.length.toLocaleString()} call${all.length === 1 ? '' : 's'}.`);
-      logAudit({ action: 'kpi.export', target: `${all.length} calls`, meta: { rows: all.length, from, to } });
+      logAudit({ action: 'kpi.export', target: `${all.length} calls`, meta: { rows: all.length, from, to, kind } });
     } catch (e) {
       setMsg(`Could not export: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setBusy(false); }
@@ -102,14 +119,30 @@ export function KpiExport() {
             Whole register
           </button>
         )}
+        {/* EXCEL FIRST, AND THAT IS THE POINT OF IT (the user, 2026-09-24:
+            "the Call Registration Date is not recognized by Excel"). A CSV can
+            only carry text, so every date in it is left for Excel to parse and
+            the one with a TIME on it does not survive that. In a workbook a
+            date is a number plus a format and nothing is parsed. */}
         <button
           className="btn btn-primary"
           disabled={!live || busy || count === 0}
-          onClick={() => void run()}
+          title="Dates arrive as real dates — sortable, filterable by month, subtractable"
+          onClick={() => void run('xlsx')}
         >
           {busy ? 'Exporting…'
-            : err ? '⭳ Export'
-            : `⭳ Export ${count == null ? '' : count.toLocaleString()} ${count === 1 ? 'call' : 'calls'}`}
+            : err ? '⭳ Excel (.xlsx)'
+            : `⭳ Excel — ${count == null ? '' : count.toLocaleString()} ${count === 1 ? 'call' : 'calls'}`}
+        </button>
+        {/* KEPT, because it is what pastes into the workbook column for column.
+            Its dates read dd-MMM-yyyy, which is all a CSV can carry. */}
+        <button
+          className="btn"
+          disabled={!live || busy || count === 0}
+          title="Text only — Excel will read the plain dates but not the one carrying a time"
+          onClick={() => void run('csv')}
+        >
+          {busy ? '…' : '⭳ CSV'}
         </button>
       </div>
       {/* A count nobody can tell is stale is worse than an admission. */}

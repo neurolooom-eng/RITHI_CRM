@@ -46,6 +46,96 @@ up)_
 
 ---
 
+## 2026-09-24 — KPI Export: a date Excel accepts (v0.9.370)
+
+*"in the KPI Export under Reports, the Call Registration Date is not recognized
+by Excel. Update all the Date Fields in the KPI to be compatible as a Date Field
+in Excel."*
+
+**THE COLUMN NAMED IS THE ONLY ONE WITH A TIME ON IT**, and that is the whole
+diagnosis. The export was CSV-only, so every date in it was text for Excel to
+parse: it manages `17-Sep-2026` and it does not manage
+`18-Sep-2026 08:51:02`. **There is no spelling of a date in a CSV that every
+Excel reads** — the FORMAT is the limit, not the wording, and re-wording it
+would have been a guess dressed as a fix.
+
+**So the KPI Export now offers a WORKBOOK**, where a date is a number plus a
+format and nothing is parsed. All nine date columns arrive as real dates.
+
+**THE TRAP WAS PRE-FORMATTING.** `toKpiExportRow` renders dates for the CSV, and
+handing its output to the workbook writer would have produced text — because
+`excelSerial()` uses the STRICT ISO test on purpose (it once turned the part
+code `MP-010` into serial 37165), so `24-Sep-2026` is not a date to it.
+`toKpiCellRow` passes the RAW value and lets `xlsxCell` decide, by VALUE and
+never by column name.
+
+**The CSV is unchanged and still offered**: it is what pastes into the KPI
+workbook column for column.
+
+Numbers stay numbers (Attended in Days, Solved in Days, TTA, TTS, Pending Days)
+and a Call Number of all digits stays text with its leading zeros — both halves
+of the rule, both asserted.
+
+**Proved by building the workbook and reading the bytes**: the registration cell
+is `s="1"` with a bare `<v>`, the eight date columns are `s="2"`, and neither is
+`inlineStr`. Four mutations, all caught — including "pre-format the workbook's
+dates", which is the mistake that was there to be made.
+
+`npm run validate` 101/101 suites, 22/22 checks.
+
+## 2026-09-24 — DCCR mirrors itself to a Google Sheet, from CallReg.gs (v0.9.369)
+
+*"The DCCR Register should be written to the Google Sheet ... Tab 'DCCR_Mirror'
+; Frequency : every 6 hrs ; Starting today by 10PM"*, then *"DCCR - Update the
+CallReg google script"* — which settles the credential question I had put to
+the user: it goes in the Apps Script, not in a second Edge Function.
+
+**WHY THERE.** A browser cannot run on a schedule. The register is in Supabase,
+the destination is a Google Sheet, and the only thing that can sit between them
+on a timer with rights to both is this script.
+
+**THE COLUMN LIST IS A COPY, AND A CHECK COMPARES IT.** Apps Script cannot
+import TypeScript, so `DCCR_COLUMNS` in the .gs duplicates
+`DCCR_EXPORT_COLUMNS`. `check:ui` compares them key for key and heading for
+heading — the `SEE_ALL_ROLES` / `coverCode()` treatment, for the same reason.
+**It earned its keep on its first run**, catching `REVIEW STATUS` where the app
+says `Review Status`. The blank-on-purpose columns are compared too, and that
+assertion was wrong at first: it checked one direction only, so the mirror could
+FILL a column the app leaves empty and pass. It derives the app's blanks by
+RUNNING `toExportRow` over a row where every field carries a value, and compares
+both ways.
+
+**FOUR DAILY TRIGGERS, NOT `everyHours(6)`.** That one counts from whenever the
+trigger was created and cannot be anchored to a clock, so "from 10 PM" is
+22:00 / 04:00 / 10:00 / 16:00 as four `atHour().everyDays(1)` triggers.
+`installDccrMirror()` deletes its own before creating, so running it twice does
+not double the schedule. Apps Script fires within about an hour of the stated
+one — stated, not glossed over.
+
+**THE CREDENTIAL, AND THE RECOMMENDATION MADE IN CODE.** It tries
+`DCCR_EMAIL`/`DCCR_PASSWORD` FIRST — a real Supabase login made for this job, so
+the mirror reads UNDER row-level security as one named account and a leaked
+property is worth what that one account is worth. `SUPABASE_SERVICE_KEY` is the
+fallback, says in its own comment that it bypasses RLS entirely, and the status
+tab records which of the two was used on every run. The web app has never
+carried the service key and still does not.
+
+**Written whole each run, never appended** — a review answered today changes a
+row that already exists — in ONE `setValues`, because four thousand rows written
+cell by cell hits the six-minute ceiling. Cleared first, and only the range that
+had content, so a shorter run leaves no tail of the previous one reading as live.
+Dates are written as DATES with the column formatted `dd-mmm-yyyy`.
+
+**⚠ I CANNOT TEST IT.** `script.google.com` is blocked from this sandbox. The
+script is written and its rules are checked; it has never been executed. Fire
+`?action=dccrmirror` once by hand before trusting the schedule.
+
+Setup is four steps and they are in the comment block at the top of the DCCR
+section of `apps-script/CallReg.gs`. **A change to that file is not live until
+the Web App is redeployed.**
+
+`npm run validate` 101/101 suites, 22/22 checks.
+
 ## 2026-09-24 — A download from a half-loaded table warns first (v0.9.368)
 
 *"if there is more data and user is downloading it give a pop up disclaimer
