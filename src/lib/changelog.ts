@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.375',
+    version: '0.9.376',
     date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,22 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.375',
+    date: '2026-09-25',
+    title: 'Lists that keep your place, and searches that say when they stopped short',
+    changes: [
+      'THE HALF-HOURLY REFRESH NO LONGER THROWS AWAY WHAT YOU LOADED. On Spare Requests, Spare Consumption, Customer Feedback and Hand Stock, pressing Load more and then waiting half an hour put you back to the first thousand rows without a word. The refresh now re-reads as far as you had got.',
+      'AND THOSE LISTS CAN NO LONGER REPEAT OR SKIP A ROW BETWEEN PAGES. Rows written in the same instant — a bulk upload writes thousands at once — had no fixed order among themselves, so a page boundary could land in the middle of them. Customer Feedback, Spare Consumption, Spare Requests, the Audit Log and Party Master now page in an order that cannot tie.',
+      'A CALL SEARCH THAT HITS ITS LIMIT SAYS SO. On the Field, Installation and PM registers a search returns at most 1,000 calls; it used to say “1000 matches” as if that were all of them, and its download gave no warning. It now says “1,000+ matches — narrow the search to see the rest”, the count, the table footer, the group headings and the engineer chips all show a “+”, and the download warns you to narrow the search.',
+      'REFRESH KEEPS YOUR SEARCH. Pressing ↻ — or saving a call — while a search was showing replaced the results with the ordinary list, leaving your search words above a list they no longer described. It now runs your search again.',
+      '“LOADED ALL” IS ONLY SAID WHEN IT IS TRUE. The call registers said they had loaded every call when they had loaded the most recent few hundred.',
+      'PRODUCT & PARTY SEARCH SAYS WHEN IT STOPPED AT 200 MACHINES, and asks you to narrow the search, instead of showing 200 as if they were everything that matched.',
+      'HAND STOCK: a search that stopped at its limit now shows a “+” on screen and warns in the download. And a Hand Stock list restored from memory when you come back to the page no longer claims to be complete when it is not.',
+      'PENDING DISPATCH: the queue is read engineer by engineer, A to Z, and stops at 2,000 lines. When it does, a banner now names the engineer it stopped part-way through, and says anyone after them alphabetically is not shown — so a missing engineer is not mistaken for one with nothing waiting.',
+      'AND KEEPING YOUR PLACE STAYS QUICK: when a list re-reads the pages you had loaded (after the half-hourly refresh, or after an approval), it asks for them all at once rather than one after another.',
     ],
   },
   {

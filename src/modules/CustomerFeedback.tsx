@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { readUpTo } from '../lib/paging';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
@@ -72,6 +73,12 @@ export function CustomerFeedback() {
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
+  // HOW FAR THE READER HAS GOT, as a ref because the 30-minute sync is
+  // registered once at mount: a value read from state inside that timer is
+  // the mount-time value for ever, and the sync then re-read only page one,
+  // throwing away every page Load more had added (finding 22).
+  const offsetRef = useRef(offset);
+  offsetRef.current = offset;
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     onDb ? null : { tone: 'info', text: 'Connect the database in Settings to load customer feedback.' },
@@ -81,9 +88,9 @@ export function CustomerFeedback() {
     if (!onDb) return;
     setBusy(true); setMsg({ tone: 'info', text: 'Loading customer feedback…' });
     try {
-      const r = await listFeedbackRows(PAGE, 0);
+      const { rows: r, more: hasMore } = await readUpTo(listFeedbackRows, offsetRef.current, PAGE);
       const mapped = r.map((x, i) => ({ ...x, id: `${g(x, 'call_number')}-${i}` } as Row));
-      setRows(mapped); setOffset(mapped.length); setMore(r.length === PAGE); setLastSync(saveCache(CACHE_KEY, mapped));
+      setRows(mapped); setOffset(mapped.length); setMore(hasMore); setLastSync(saveCache(CACHE_KEY, mapped));
       setMsg({ tone: mapped.length ? 'ok' : 'info', text: mapped.length ? `Synced ${mapped.length} feedback records.` : 'No customer feedback recorded yet.' });
     } catch (e) {
       setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
