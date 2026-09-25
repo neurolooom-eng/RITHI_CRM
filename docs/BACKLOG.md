@@ -46,6 +46,84 @@ up)_
 
 ---
 
+## 2026-09-25 — Module review, batch 2: frozen screens and over-strong counts (v0.9.374)
+
+Findings 1, 6, 16, 17, 19, 21 (in part) and 25 from `docs/MODULE_REVIEW.md`.
+**No SQL.** Batch 1 (v0.9.373, PR #421) is **merged and deployed** — the
+"Deploy to GitHub Pages" run for `50d8497` succeeded.
+
+- **✅ #16** the 30-minute sync is its own effect on Party Master, Part Master,
+  Audit Log, Visit Reports and the Product Database, rebuilt when the filter
+  changes, and off while one is set.
+- **✅ #6** FFR Word report: the columns memo depends on the signature and the
+  two user fields `doc` reads, not on `[]`.
+- **✅ #1** My Workload loads on `scope.ready` (checked: every path through
+  `useAccessScope` sets it; `loadUserMaster()` resolves `[]` on failure).
+- **✅ #17** the three "everything is done" claims are made only with no filter
+  on and `seesEveryRecord(user, can)`; otherwise "nothing matched" or "nothing
+  that you can see".
+- **✅ #19, #25**; **#21 in part** — the chips, the Product Database heading, the
+  Pending Dispatch queue chip and heading (`QUEUE_CAP`), and Stock Out
+  (`STOCK_OUT_CAP`, the false "one request" comment removed). **Still open:**
+  Pending Dispatch's per-engineer `summarise()` totals under a capped queue.
+- **Checks:** 15 new `check:ui` assertions, all confirmed to FAIL on the pre-fix
+  tree (run in a worktree of `50d8497`) and pass now. `npm run build` passes.
+- **RE-REVIEWED BEFORE MERGE** (an independent pass over batches 1 and 2 — no
+  regressions, five incomplete fixes, all corrected in this PR):
+  - **#9** "To be Reviewed" read "N of 0" with the Call Status box on another
+    state: `countCallReviews` now applies that box to the totals only
+    (`totalsState`), and counts the Solved worklist regardless.
+  - **#17** after a FAILED load the three screens still made the strong claim;
+    now "could not be loaded" (`loadFailed` / `err`).
+  - **#29** opening a second contract before the first's machines arrived let
+    the first's reply seed Renew on the second — per-open token (`openSeq`).
+  - **#45** the "narrow the filter" advice could not work on capped screens
+    (their search filters rows already read) — now says the rest cannot be
+    reached from that screen.
+  - **#21/#45** RM Approval's title count takes `+` at `RM_QUEUE_CAP`.
+  - **#28** the Material Returns cache key is `materialReturns.v2`, so a cache
+    with the old keys and order is ignored rather than paged from.
+  - 6 more `check:ui` assertions, each confirmed to fail on `afd84b0` (the
+    batch as first pushed).
+  - **Still open, pre-existing:** a 30-minute sync already in flight when a
+    filter is typed can still overwrite the filtered result (manual ↻ has the
+    same race).
+
+## 2026-09-25 — Module review, batch 1: twelve small fixes (v0.9.373)
+
+The first low-risk batch from `docs/MODULE_REVIEW.md` (findings 2, 3, 9, 28,
+29, 30, 31, 32a, 33, 41, 45 in part, and 46). **No SQL** — nothing to run on
+the live project. On branch `claude/usage-k7slq0` (PR #421); **not on `main`
+until that PR is merged**, so not live yet.
+
+- **✅ #30 Correct this request** — counts the rows the UPDATE changed; zero is
+  "Nothing was saved", not "corrected". Measured beforehand: a Commercial
+  profile's UPDATE matched 0 rows with no error.
+- **✅ #31 + Installation call** — the write-back of the UCN onto the machine is
+  counted the same way; zero now reports the created UCN and asks for no
+  second call. **Still open (a decision, handoff C6):** whether the
+  per-machine button should be hidden from roles without `cover.edit`, or
+  those roles given write on `inst_call`. Until then Hotline can still create
+  a call it cannot link — but is now told so.
+- **✅ #33** Hand Stock Report `.xls` dates (built from raw values; proved on the
+  file's bytes). **✅ #41** its menu entry asks for its own key. **✅ #46** its
+  scope label.
+- **✅ #28** Material Returns keyed on `id`, and `id` added as the paging
+  tiebreaker (same fault as finding 15, found while fixing it).
+- **✅ #2, #3** Dashboard. **✅ #9** DCCR "To be Reviewed". **✅ #32a** the
+  Commercial KYC cards add up. **✅ #29** Renew waits for the machines.
+- **✅ #45 in part** — RM Approval uses `cappedAt`; the warning says "may be
+  more" and names the no-Load-more case. **Still open:** a capped search on
+  Hand Stock and the call registers exporting without a warning.
+- **Checks:** three new `check:ui` assertions (30, 31, 33), each confirmed to
+  FAIL on the old code. `check:ui`, `check:paging`, `check:dberror`,
+  `check:uploads`, `check:generated`, `check:orders` (123 columns) and
+  `npm run build` pass.
+- **Not verified here:** that the live PostgREST returns a count for an
+  UPDATE. `renamePartyServiceEngineer` already relies on the same
+  `{ count: 'exact' }`, and a missing count is treated as success, so the
+  worst case is today's behaviour.
+
 ## 2026-09-24 — KPI Export: a date Excel accepts (v0.9.370)
 
 *"in the KPI Export under Reports, the Call Registration Date is not recognized

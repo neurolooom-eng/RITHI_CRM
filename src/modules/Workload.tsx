@@ -85,7 +85,14 @@ export function Workload() {
     });
   }, [can, email, mayRmApprove]);
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  // ONCE THE SCOPE HAS ARRIVED, not on the first render. `mayRmApprove` reads
+  // the reporting team from useAccessScope(), which starts EMPTY and fills in a
+  // moment later -- so the first (and only) load counted "Awaiting me" against
+  // nobody's team, and a Reporting Manager saw a different number here from
+  // the ⚡ chip on Spare Requests. `scope.ready` goes false -> true once on every
+  // path through the hook (loadUserMaster() cannot reject; it resolves []).
+  // Not `load` in the deps: it is rebuilt whenever the auth context re-renders.
+  useEffect(() => { if (scope.ready) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [scope.ready]);
 
   const total = sections.reduce((n, s) => n + s.cards.length, 0);
 

@@ -782,8 +782,11 @@ typed into a form that reads it.
 - **Reports — KPI Export** `/exports/kpi` — the workbook's Field_INST tab in its
   own column order; cancelled calls excluded entirely.
 - **Hand Stock Report** `/handstock-report` — **administrators to begin with**;
-  every other role is a tick on Roles & Permissions. Every engineer's stock,
-  one line per engineer and part.
+  every other role is a tick on Roles & Permissions, and that tick gives the
+  role the menu entry as well as the page. One line per engineer and part:
+  every engineer's stock for an office role, and for anybody else their own
+  stock plus their team's, if they manage one. The file's About sheet says
+  which.
   > **It shows the workings, not just the number.** Opening, Stock Out,
   > Consumed, Transferred In, Transferred Out and Returned sit beside On Hand,
   > so whoever is reconciling can add it up rather than take it on trust.

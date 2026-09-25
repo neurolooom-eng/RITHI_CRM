@@ -747,7 +747,13 @@ console.log('\n-- the DCCR review desk --');
 
   eq('...and its count is not scoped by the tab that shows it',
     /solvedPending/.test(dccr)
-    && /countCallReviews\(\{ \.\.\.countFilterRef\.current, status: undefined, statuses: undefined \}\)/.test(dccr), true);
+    && /countCallReviews\(\s*\{ \.\.\.countFilterRef\.current, status: undefined, statuses: undefined, callState: undefined \},\s*countFilterRef\.current\.callState \?\? ''\)/.test(dccr), true);
+  // ...AND NOT BY THE CALL STATUS BOX EITHER. The tab is always Solved calls;
+  // a box left on "Unsolved" used to remove every Solved row from the count,
+  // so "To be Reviewed" read "N of 0". The box is applied to the TOTALS only.
+  eq('...and To be Reviewed is counted whatever the Call Status box says',
+    /const inView = todo\s*\?\s*counts\.solvedPending/.test(dccr)
+    && /totalsState = ''/.test(readFileSync('src/lib/supabase.ts', 'utf8')), true);
   eq('and scope it by review status',
     /deskStage = tab === 'r2' \? 'Review 2 Pending' : tab === 'r3' \? 'Review 3 Pending' : ''/.test(dccr), true);
   // Their tab counts come from the full walk, so they are exact and take no "+".
@@ -5688,7 +5694,25 @@ console.log('\n-- the Warranty Sale asks for what it cannot work out, and no mor
   // would leave a machine with a call nothing points at, hidden among the
   // successes.
   eq('the call is mapped back onto the machine',
-    /\.from\('sale_items'\)\.update\(\{ inst_call: ucn \}\)/.test(cover), true);
+    /\.from\('sale_items'\)\s*\.update\(\{ inst_call: ucn \}(, \{ count: 'exact' \})?\)/.test(cover), true);
+  // AND A WRITE ROW-LEVEL SECURITY SKIPPED IS A FAILURE, NOT A SUCCESS. The
+  // call needs `install.create` and this line `cover.edit`; Hotline holds the
+  // first without the second, so the UPDATE matched no rows, PostgREST called
+  // that success, and the machine was offered a SECOND call later. Counted,
+  // and zero goes down the same failure path as an error.
+  // THE SAME FAULT ON A CALL REQUEST. Office roles read every request and may
+  // write only their own, so Save matched no rows and the screen said
+  // "corrected". Counted, and zero is a refusal with a reason.
+  {
+    const sbSrc = readFileSync('src/lib/supabase.ts', 'utf8');
+    const fn = sbSrc.slice(sbSrc.indexOf('export async function updateCallRequest'),
+      sbSrc.indexOf('export async function listCallRequests'));
+    eq('a request correction that changed no row is refused, not reported as saved',
+      /\.update\(row, \{ count: 'exact' \}\)/.test(fn) && /if \(count === 0\)/.test(fn), true);
+  }
+  eq('...and a write-back that changed no row is treated as a failure',
+    /update\(\{ inst_call: ucn \}, \{ count: 'exact' \}\)/.test(cover)
+    && /if \(error \|\| count === 0\)/.test(cover), true);
   eq('...and a failure between the two writes stops and names the machine',
     /was created but could not be written back to the machine/.test(cover), true);
   // Nothing is written until the operator has seen what it will say.
@@ -8511,6 +8535,14 @@ console.log('\n-- the Hand Stock Report loads whole, then lets you download --')
   // the line that hides the truncation rather than a bigger request.
   eq('the report pages a thousand at a time', /const PAGE = 1000;/.test(hs), true);
 
+  // EACH WRITER GETS THE VALUE IN THE SHAPE IT READS. `xlsxCell` makes a date
+  // object only the .xlsx writer understands; handed to the .xls writer it came
+  // out as "[object Object]" in every date column (measured by building the
+  // file). So the .xls sheet is built from the raw values.
+  eq('the .xls download is built from raw values, not xlsxCell objects',
+    /xlsDownload\(name, \[sheet\(\(v\) => v\), about\]/.test(hs)
+    && /xlsxDownload\(name, \[sheet\(xlsxCell\), about\]/.test(hs), true);
+
   // A FULL PAGE PROVES NOTHING. Stopping on `batch.length === 0` would cost an
   // extra round trip every time; stopping on a full page would truncate.
   eq('it stops on a SHORT page, which is the only end-of-data signal there is',
@@ -8878,6 +8910,82 @@ console.log('\n-- the KPI export carries dates Excel accepts as dates --');
     /run\('csv'\)/.test(kx), true);
   eq('...and hands xlsxCell the RAW value, not the rendered one',
     /xlsxCell\(raw\[c\.key\]\)/.test(kx), true);
+}
+
+// ---------------------------------------------------------------------------
+// MODULE REVIEW, BATCH 2 (docs/MODULE_REVIEW.md findings 1, 6, 16, 17, 19,
+// 21, 25). Each of these was a screen reading a value frozen at its first
+// render, or a count/claim stronger than the data under it. They are pinned
+// here so the same shape cannot come back unnoticed.
+// ---------------------------------------------------------------------------
+console.log('\n-- module review batch 2: frozen closures and over-strong counts --');
+{
+  // #16 THE 30-MINUTE SYNC SEES THE CURRENT FILTER. Registered inside a
+  // mount-only effect it read the first render's filter for ever and replaced
+  // a filtered list with the unfiltered first page.
+  for (const f of ['PartyMaster', 'PartMaster', 'AuditLog', 'Reports']) {
+    const src = readFileSync(`src/modules/${f}.tsx`, 'utf8');
+    eq(`${f}: the auto-sync is its own effect, rebuilt when the filter changes`,
+      /\}, \[hasFilter\]\);/.test(src) && !/if \(!hasFilter\) void refresh\(\); \}, SYNC_TTL_MS\)/.test(src), true);
+  }
+  const pm = readFileSync('src/modules/ProductMaster.tsx', 'utf8');
+  eq('Product Database: the auto-sync is rebuilt when the filter changes', /\}, \[anyFilter\]\);/.test(pm), true);
+  // #21 ...and its title count is a lower bound while pages remain.
+  eq('...and its title count takes a + while more pages remain', /countMore=\{more\}/.test(pm), true);
+
+  // #6 THE FFR WORD REPORT SEES THE SIGNATURE. Its columns were memoised on
+  // [], so the button kept the first render's `doc`, before the signature
+  // had loaded, for ever.
+  const ffr = readFileSync('src/modules/FieldFailureReport.tsx', 'utf8');
+  eq('FFR: the columns are rebuilt when the signature arrives',
+    /\], \[mySig, user\?\.email, user\?\.fullName\]\);/.test(ffr), true);
+
+  // #1 MY WORKLOAD COUNTS AGAINST THE TEAM, not against the empty scope the
+  // first render has.
+  const wl = readFileSync('src/modules/Workload.tsx', 'utf8');
+  eq('My Workload loads once the access scope is ready',
+    /if \(scope\.ready\) load\(\);[^\n]*\}, \[scope\.ready\]\);/.test(wl), true);
+
+  // #17 "EVERYTHING IS DONE" IS SAID ONLY WHEN IT CAN BE TRUE: a role that
+  // sees every record, and no filter narrowing the list.
+  for (const [f, claim] of [['CallReview', 'Every solved call has been reviewed'],
+                             ['PendingCalls', 'No pending calls — everything is closed'],
+                             ['SpareRmApproval', 'Every spare has had its first approval']] as const) {
+    const src = readFileSync(`src/modules/${f}.tsx`, 'utf8');
+    // The STRING THE SCREEN SHOWS, quoted -- not the first mention, which may
+    // be the comment explaining the rule.
+    const at = src.indexOf(`'${claim}`);
+    eq(`${f}: "${claim}" is gated on seesEveryRecord`,
+      at > 0 && /seesEveryRecord\(user, can\)/.test(src.slice(Math.max(0, at - 400), at)), true);
+  }
+
+  // #19 / #21 / #25 A COUNT OVER PART OF THE DATA TAKES A +.
+  const cf = readFileSync('src/modules/CustomerFeedback.tsx', 'utf8');
+  eq('Customer Feedback: the origin chips take a + while more pages remain',
+    (cf.match(/\.length\}\{more \? '\+' : ''\}<\/b>/g) ?? []).length >= 2, true);
+  const hsm = readFileSync('src/modules/HandStock.tsx', 'utf8');
+  eq('Hand Stock: the Short chip takes a + while more pages remain',
+    /Short <b>\{totals\.shortLines\}\{more \? '\+' : ''\}<\/b>/.test(hsm), true);
+  const sd = readFileSync('src/modules/SpareDispatch.tsx', 'utf8');
+  eq('Pending Dispatch: a queue that filled its read says so',
+    /countMore=\{lines\.length >= QUEUE_CAP\}/.test(sd) && /listPendingDispatch\(QUEUE_CAP\)/.test(sd), true);
+  // RM APPROVAL: the same cap as Pending Dispatch, named once and shown as +.
+  const rma = readFileSync('src/modules/SpareRmApproval.tsx', 'utf8');
+  eq('RM Approval: a queue that filled its read says so',
+    /countMore=\{lines\.length >= RM_QUEUE_CAP\}/.test(rma) && /listPendingRmApproval\(RM_QUEUE_CAP\)/.test(rma), true);
+  // AN EMPTY LIST AFTER A FAILED READ PROVES NOTHING, so the strong claim is
+  // never made then either.
+  eq('RM Approval and Pending Calls: a failed load is not reported as an empty queue',
+    /loadFailed \? 'The queue could not be loaded'/.test(rma)
+    && /loadFailed \? 'The list could not be loaded/.test(readFileSync('src/modules/PendingCalls.tsx', 'utf8')), true);
+  eq('Call Review: a failed load is not reported as everything reviewed',
+    /err \? 'The list could not be loaded/.test(readFileSync('src/modules/CallReview.tsx', 'utf8')), true);
+  // RENEW: only the latest opened entry may set the machines Renew is seeded from.
+  eq('Contract Renew: a machine read for an entry no longer open is dropped',
+    /if \(seq === openSeq\.current\) setItems\(got\)/.test(readFileSync('src/modules/CoverRegister.tsx', 'utf8')), true);
+  const so = readFileSync('src/modules/StockOut.tsx', 'utf8');
+  eq('Stock Out: no longer claims an exact count over a capped read',
+    !/countMore=\{false\}/.test(so) && /countMore=\{capped\}/.test(so), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

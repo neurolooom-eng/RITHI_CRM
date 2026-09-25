@@ -256,7 +256,12 @@ export async function stockTransferSection(): Promise<WorkloadSection> {
 export async function commercialInstallSection(): Promise<WorkloadSection> {
   const rows = await pendingInstallRequests();
   const cleared = rows.filter((r) => isKycVerified(r.kyc_status));
-  const blocked = rows.filter((r) => !isKycVerified(r.kyc_status));
+  // ON THE MASTER AND NOT VERIFIED. A customer the Party Master has not got
+  // has no KYC status at all, so `!isKycVerified` counted it here AND under
+  // "not on the master" below -- the four cards added up to more than the
+  // queue, and this one opened a list shorter than its number, because the
+  // register's own `unverified` filter is `!!hit && !isKycVerified(...)`.
+  const blocked = rows.filter((r) => r.onMaster && !isKycVerified(r.kyc_status));
   const unknown = rows.filter((r) => !r.onMaster);
   const open = (kyc: string, opens: string) =>
     ({ path: '/request-registration', state: { status: 'Pending', callType: 'INSTALL', kyc }, opens });

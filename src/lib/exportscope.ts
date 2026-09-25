@@ -69,8 +69,16 @@ export function partialExportWarning(rows: number): string {
   const n = rows.toLocaleString();
   return `This table has NOT finished loading.\n\n`
     + `Only the ${n} row${rows === 1 ? '' : 's'} on screen will be in the file. `
-    + `There are more in the register that have not been fetched yet, and the file will not say so.\n\n`
-    + `To export everything: press Cancel, then use “Load more” until the button disappears, and download again.\n\n`
+    // "MAY BE", NOT "ARE". A scope from `cappedAt` means the read came back
+    // full, which is the signature of a truncation and not proof of one.
+    // AND NOT EVERY SCREEN HAS A LOAD MORE: Stock Transfer, User Master,
+    // Pending Dispatch, Stock Out, RM Approval and the Field Failure register
+    // read up to a cap. Their search boxes filter what was ALREADY read, so
+    // "narrow the filter" (an earlier wording) could never reach the missing
+    // rows -- advice that cannot be followed. It says so instead.
+    + `There may be more in the register that have not been fetched, and the file will not say so.\n\n`
+    + `To export everything: press Cancel, then use “Load more” until the button disappears, and download again. `
+    + `Where the screen has no Load more, it reads at most its limit and the rest cannot be reached from this screen.\n\n`
     + `Export these ${n} row${rows === 1 ? '' : 's'} anyway?`;
 }
 

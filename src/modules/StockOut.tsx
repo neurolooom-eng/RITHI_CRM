@@ -28,10 +28,11 @@ export function StockOut() {
   const navigate = useNavigate();
   const [msg, setMsg] = useState<string | null>(null);
   const [count, setCount] = useState(0);
+  const [capped, setCapped] = useState(false);
 
   // Stable, or the effect inside StockOuts that reports the count would see a
   // new function every render and loop — the fault the Call Request search had.
-  const onCount = useCallback((n: number) => setCount(n), []);
+  const onCount = useCallback((n: number, c: boolean) => { setCount(n); setCapped(c); }, []);
 
   return (
     <div>
@@ -40,9 +41,11 @@ export function StockOut() {
         subtitle="Every spare Stores has issued — one row per part, with the DC it went on and the call it was for."
         icon="📄"
         count={count}
-        // The list loads in one request, not in pages, so this is the whole
-        // number rather than a lower bound.
-        countMore={false}
+        // NOT "one request, the whole number" -- that comment was wrong, and a
+        // false justification is what stops the next reader checking. The list
+        // is paged by `listStockOutLines` and STOPS at 5,000 lines, silently;
+        // once it has, the count is a floor and takes a `+`.
+        countMore={capped}
       />
 
       {msg && (

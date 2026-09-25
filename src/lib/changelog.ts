@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.373',
+    version: '0.9.375',
     date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,37 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.374',
+    date: '2026-09-25',
+    title: 'Screens that stopped updating, and numbers that looked exact but were not',
+    changes: [
+      'A FILTERED LIST STAYS FILTERED. On Party Master, Part Master, Audit Log, Visit Reports and the Product Database, the half-hourly refresh ignored any filter you had set: thirty minutes later the list quietly went back to the unfiltered first page while the filter boxes still showed your filter. The refresh now waits while a filter is on.',
+      'THE FIELD FAILURE REPORT’S WORD DOCUMENT CARRIES YOUR SIGNATURE. The 📄 Word button had been set up before your saved signature finished loading, and kept that first version for good — so the signature block was always empty. It now uses your signature, when you are the person who raised the report.',
+      'MY WORKLOAD COUNTS YOUR TEAM. “Awaiting me” was worked out before the page knew who reports to you, so a Reporting Manager’s number here did not match the ⚡ count on Spare Requests. It now waits until your team is known.',
+      '“EVERYTHING IS DONE” IS SAID ONLY WHEN IT CAN BE TRUE. Call Review (“every solved call has been reviewed”), Pending Calls (“everything is closed”) and RM Approval (“every spare has had its first approval”) said so to anybody with an empty list — including somebody whose search matched nothing, or whose role only shows their own team. They now say which: nothing matched, nothing that you can see, or genuinely nothing.',
+      'A COUNT OVER PART OF THE LIST SHOWS A “+”. Customer Feedback’s origin chips, every Hand Stock chip (including ⚠️ Short), the Product Database heading, the Pending Dispatch queue, the RM Approval queue and the Stock Out total read like final numbers while only the first pages were loaded, or after the list had stopped at its limit. They now carry a “+” until the whole list is in.',
+      'AND FOUR THINGS THE FIRST ROUND OF THESE FIXES MISSED, found by reviewing them again before release: “To be Reviewed” read “N of 0” if the Call Status box had been left on something other than Solved — its count now ignores that box, as the tab itself does. A list that FAILED to load no longer says everything is done; it says it could not be loaded. Opening one contract and quickly another could start a renewal with the first contract’s machines — only the contract you are looking at can now fill the Renew panel. And the “not finished loading” download warning no longer suggests narrowing the filter on screens where that cannot help.'
+    ],
+  },
+  {
+    version: '0.9.373',
+    date: '2026-09-25',
+    title: 'Twelve small corrections from the module review — two of them screens that said “saved” when nothing was',
+    changes: [
+      'CORRECTING A CALL REQUEST NOW TELLS YOU WHEN IT WAS NOT SAVED. Commercial, NSM, Stores and the coordinators can open any request, but only the person who raised it, Hotline and the roles that register calls may change one. Pressing Save on somebody else’s request used to say “corrected” and show your change — while the database had quietly kept the old value. It now says nothing was saved, and who can make the correction.',
+      'RAISING AN INSTALLATION CALL FROM THE WARRANTY REGISTER NO LONGER HIDES A FAILED LINK. A role that may raise the call but not edit the warranty register got the call created, the machine left without it, and the button back again later — offering a second call for the same machine. It now says the call was created, gives its UCN, and asks you not to raise another.',
+      'THE HAND STOCK REPORT’S .XLS FILE HAS REAL DATES AGAIN. Every date column read “[object Object]”. The .xlsx and CSV downloads were not affected.',
+      'THE HAND STOCK REPORT APPEARS IN THE MENU FOR ANY ROLE YOU TICK IT FOR on Roles & Permissions. It used to open for them but not appear in their menu — and a role that could see the menu entry was sometimes locked out of the page.',
+      'A MANAGER’S HAND STOCK REPORT NO LONGER SAYS “YOUR OWN STOCK ONLY” while carrying the team’s stock as well. It says what it holds.',
+      'MATERIAL RETURNS SHOWS EVERY LINE. Two parts on one return that shared a row number could hide one another — the list showed one and silently dropped the other. Loading more pages can also no longer repeat or skip a line.',
+      'DASHBOARD: “ENGINEERS ACTIVE” IS THE REAL COUNT. It could never go above 6, because it was counting the bars in the top-six chart. And the Field and Installation call cards no longer say “most recent 300” — they always counted every call you can see, and now say so.',
+      'DAILY COMPLAINT REVIEW: “TO BE REVIEWED” SHOWS ITS OWN NUMBER. Its “of N” was the whole register’s count while the tab’s badge said something smaller.',
+      'MY WORKLOAD: THE COMMERCIAL INSTALLATION CARDS NOW ADD UP. “Waiting on KYC” also counted customers who are not on the Party Master, who are already counted on their own card — so the four cards added to more than the queue, and the card opened a shorter list than it showed.',
+      'CONTRACT RENEWAL WAITS FOR THE MACHINES. Pressing Renew the instant a contract opened started the renewal with no machines on it, and saving then refused. The button now reads “Loading machines…” until they are in.',
+      'THE “NOT FINISHED LOADING” DOWNLOAD WARNING GIVES ADVICE YOU CAN FOLLOW. Several screens have no Load more button; it now says to narrow the filter there instead. RM Approval also shows the warning when its list stopped at its limit, rather than exporting as if it had everything.',
     ],
   },
   {

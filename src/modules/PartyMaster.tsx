@@ -286,10 +286,21 @@ export function PartyMaster() {
     if (!supabaseConfigured()) return;
     if (!rows.length || isStale(lastSync)) void refresh();
     else setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
-    const id = window.setInterval(() => { if (!hasFilter) void refresh(); }, SYNC_TTL_MS);
-    return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // THE 30-MINUTE SYNC, IN ITS OWN EFFECT so it sees the CURRENT filter.
+  // Registered inside the mount-only effect above, its `hasFilter` was the
+  // first render's `false` for ever -- so half an hour after somebody filtered
+  // the list, it was silently replaced by the unfiltered first page while the
+  // filter boxes still showed the filter. Rebuilt whenever the filter turns on
+  // or off; no timer at all while one is set.
+  useEffect(() => {
+    if (!supabaseConfigured() || hasFilter) return;
+    const id = window.setInterval(() => { void refresh(); }, SYNC_TTL_MS);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasFilter]);
 
   // Filters: query the server live (debounced). Clearing them restores the cache.
   useEffect(() => {
