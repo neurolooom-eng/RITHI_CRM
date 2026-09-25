@@ -114,6 +114,10 @@ export function Dashboard() {
   }, [all]);
 
   const uniqueParties = new Set(all.map((r) => g(r, 'partyName').trim()).filter(Boolean)).size;
+  // COUNTED, NOT READ OFF THE CHART. `topEngineers` is the bar chart's top six,
+  // so "Engineers Active" could never read more than 6 however many engineers
+  // carry calls. The same distinct count the card above uses for parties.
+  const activeEngineers = new Set(all.map((r) => g(r, 'allocatedTo').trim()).filter(Boolean)).size;
 
   // SLA — evaluate each open call against the active rules, worst first.
   const slaCalls = useMemo(() => all
@@ -135,15 +139,18 @@ export function Dashboard() {
       {loading && <div className="muted" style={{ padding: 16 }}>Loading live data…</div>}
 
       <KpiGrid min={200}>
-        <KpiCard label="Field Calls" value={fieldS.length} tone="primary" icon="📡" sub="most recent 300" />
-        <KpiCard label="Installation Calls" value={instS.length} tone="info" icon="🔧" sub="most recent 300" />
+        {/* NOT "most recent 300". Both lists page the whole register
+            (listFieldCalls(…, 0) reads up to 100,000), narrowed only by what
+            the reader's role may see -- so the caption says that. */}
+        <KpiCard label="Field Calls" value={fieldS.length} tone="primary" icon="📡" sub="every call you can see" />
+        <KpiCard label="Installation Calls" value={instS.length} tone="info" icon="🔧" sub="every call you can see" />
         <KpiCard label="Pending Registrations" value={pending == null ? '—' : pending} tone="warning" icon="⏳" sub="awaiting UCN" />
         <KpiCard label="Calls This Month" value={thisMonth} tone="success" icon="📅" />
         <KpiCard label="SLA Breached" value={slaBreaches} tone={slaBreaches ? 'danger' : 'success'} icon="⏱️" sub={slaDue ? `${slaDue} due soon` : 'your open calls'} />
         <KpiCard label="Public Health Threats" value={phThreat} tone={phThreat ? 'danger' : 'neutral'} icon="⚠️" />
         <KpiCard label="Serious Incidents" value={serious} tone={serious ? 'danger' : 'neutral'} icon="🚨" />
         <KpiCard label="Parties Served" value={uniqueParties} tone="neutral" icon="🏥" />
-        <KpiCard label="Engineers Active" value={topEngineers.length} tone="neutral" icon="🧑‍🔧" />
+        <KpiCard label="Engineers Active" value={activeEngineers} tone="neutral" icon="🧑‍🔧" />
       </KpiGrid>
 
       {slaCalls.length > 0 && (

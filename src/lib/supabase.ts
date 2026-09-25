@@ -1967,8 +1967,30 @@ export async function updateCallRequest(
     row[col] = col === 'plan_date' ? (v === '' ? null : v) : v;
   }
   if (!Object.keys(row).length) return { ok: true };
-  const { error } = await must().from('call_requests').update(row).eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // A WRITE ROW-LEVEL SECURITY SKIPS IS NOT AN ERROR. `cr_update` lets the
+  // raiser, Hotline and roles that register calls write a request; every office
+  // role can READ every request (`cr_read` starts with can_view_all_calls()),
+  // so Commercial, NSM, Stores and the coordinators could open the drawer,
+  // press Save, and have the UPDATE match NO rows -- which PostgREST reports as
+  // success. The screen then said "corrected" and showed a value the database
+  // never stored. Measured on a database built from every migration.
+  //
+  // COUNTED, NOT RETURNED. `.select()` would need the row to be readable AFTER
+  // the change, and `engineer`/`email` are correctable, so a manager moving a
+  // request to somebody outside his team would see a real save reported as a
+  // failure. The count needs no read-back. A null count (the server sent none)
+  // is left as success -- unknown is not the same as refused.
+  const { error, count } = await must().from('call_requests')
+    .update(row, { count: 'exact' }).eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  if (count === 0) {
+    return {
+      ok: false,
+      error: 'Nothing was saved — your role can correct only the requests you raised yourself. '
+        + 'Ask the person who raised it, or Hotline, to make the correction.',
+    };
+  }
+  return { ok: true };
 }
 
 export async function listCallRequests(limit = 2000): Promise<Record<string, unknown>[]> {
@@ -3614,6 +3636,10 @@ export async function listMaterialReturns(limit = 1000, offset = 0): Promise<Rec
   const { data, error } = await must().from('material_returns').select('*')
     .order('mrn_date', { ascending: false, nullsFirst: false }).order('uid', { ascending: false })
     .order('row_no', { ascending: true })
+    // THE TIEBREAKER THE PAGES NEED. Two parts of one MRN can share a row
+    // number (the unique index includes the part), so the three orders above
+    // tie and a page boundary could double one line and drop another.
+    .order('id', { ascending: true })
     .range(offset, offset + limit - 1);
   if (error) throw new Error(errMsg(error));
   return data ?? [];

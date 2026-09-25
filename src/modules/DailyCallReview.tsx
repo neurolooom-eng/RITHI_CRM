@@ -465,7 +465,17 @@ export function DailyCallReview() {
   // (so every tab keeps its own number), which means `counts.total` is the
   // whole register — right for the Review Register tab, wrong the moment a
   // stage is chosen. This is the number for the stage actually being looked at.
-  const inView = (deskStage || status) ? statusCount(deskStage || status) : counts.total;
+  //
+  // "TO BE REVIEWED" HAS ITS OWN COUNT. That tab lists Solved calls at Review 2
+  // or 3 Pending, but it fell through to `counts.total` -- every Solved call --
+  // so its "of N" disagreed with its own badge. The badge's number,
+  // `solvedPending`, is exactly the tab's list. A desk stage chosen inside the
+  // tab is ANDed with those two stages (applyReviewFilter applies both), so it
+  // can only narrow to one of them, or to nothing.
+  const TODO_STAGES = ['Review 2 Pending', 'Review 3 Pending'];
+  const inView = todo
+    ? (deskStage ? (TODO_STAGES.includes(deskStage) ? statusCount(deskStage) : 0) : counts.solvedPending)
+    : (deskStage || status) ? statusCount(deskStage || status) : counts.total;
 
   // ---- Review 2 in bulk (0119) --------------------------------------------
   // Tick the routine ones and answer them together. A call that failed inside

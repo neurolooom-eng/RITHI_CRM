@@ -36,6 +36,21 @@ still hold. It added **33–46**:
 **Read C10 before anything else on this page**: it is a hand-run file that must
 not be applied as written. **Then C8, then C6.**
 
+**Batch 1 is done (2026-09-25, v0.9.373, on branch `claude/usage-k7slq0`, not
+yet on `main`).** Sections now complete: **A1** (2), **A2** (3), **A3** (9),
+**A12** (28), **A13** (29), **A14** (33), **A15** (46) and **A16** (41).
+Partly done:
+
+- **C6**: the zero-row half of 30 and 31 is fixed with `update(…, { count:
+  'exact' })`, not `.select('id')`. `.select` needs the row to be readable
+  after the change, and `engineer`/`email` are correctable, so a real save
+  could have been reported as a failure. **Still a decision:** who sees the two
+  buttons.
+- **B9**: step 1 only. Step 2, the unpaged read, is still open.
+- **A17**: items 1 and 2 are done; item 3 (the Hand Stock search) is still open.
+
+`docs/BACKLOG.md` has the detail.
+
 ---
 
 ## Step 0 — fifteen queries, before any code

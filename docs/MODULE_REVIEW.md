@@ -16,6 +16,11 @@ suite that would have caught it. One has landed since: **24 is fixed on `main`**
 (`1bf248e`). Every other finding (1–23, 25–46) was still true at the latest
 re-review.
 
+**Batch 1 of fixes (2026-09-25, v0.9.373, on this branch, not yet on `main`):**
+2, 3, 9, 28, 29, 30, 33, 41 and 46 are fixed; 31, 32 and 45 are fixed in part
+(the table says which part). Each is marked in the table below. No SQL was
+changed.
+
 **Re-reviewed again on 2026-09-24 against `main` at `ee732f4`** (then `4a75371`, two
 commits to one hand-run file, re-checked for finding 39), after 21 more
 commits (88 files, about 10,800 lines):
@@ -74,14 +79,14 @@ alone — none of them touches anything recorded here, and none of them fixes it
 | # | Module | What | Severity |
 | --- | --- | --- | --- |
 | 1 | My Workload | "Awaiting me" is counted before the access scope exists, and never recounted | High |
-| 2 | Dashboard | "Engineers Active" is capped at 6 by the chart's own `slice` | High |
-| 3 | Dashboard | Two KPI cards say "most recent 300" over a number that is the whole register | Medium |
+| 2 | Dashboard | "Engineers Active" is capped at 6 by the chart's own `slice` — **FIXED in batch 1 (v0.9.373, this branch)** | High |
+| 3 | Dashboard | Two KPI cards say "most recent 300" over a number that is the whole register — **FIXED in batch 1 (v0.9.373, this branch)** | Medium |
 | 4 | Dashboard | A private date parser, month-first, where the project has one day-first parser | Medium |
 | 5 | Product & Party Search | A machine search stops at 200 rows and says nothing | Medium |
 | 6 | Field Failure Register | The Word report can never carry a signature — the handler was frozen before it loaded | High |
 | 7 | *cross-cutting* | Four workbooks and every register CSV carry the wire value, not the date (**measured**) | High |
 | 8 | *cross-cutting* | Seven paged reads page with no `order()` | Medium |
-| 9 | Daily Complaint Review | "To be Reviewed" counts its list against the whole register | Medium |
+| 9 | Daily Complaint Review | "To be Reviewed" counts its list against the whole register — **FIXED in batch 1 (v0.9.373, this branch)** | Medium |
 | 10 | Daily Complaint Review | Two deep loads can interleave; the last writer wins and may be the tab you left | Medium |
 | 11 | KPI & Failure Analysis | The product chip narrows one KPI card and not the two beside it | Medium |
 | 12 | KPI & Failure Analysis | Cover tiles bucket by substring, and the two patterns overlap | Low (latent) |
@@ -100,12 +105,12 @@ alone — none of them touches anything recorded here, and none of them fixes it
 | 25 | Stock Out | An exact count over a read that is paged and capped, under a comment saying it is not paged | Medium |
 | 26 | Call Reporting | A visit dated on the form is stored at UTC midnight and reads back at 05:30 (**measured**) | Medium |
 | 27 | Data Export | Every table is paged with no `order()` — a copy that can double and drop rows | High |
-| 28 | Material Returns | Two lines of one MRN can get the same screen row id, so the table draws one and drops the other (**measured**) | Medium |
-| 29 | Warranty & Contract Registers | Renew opened before the machines load starts with none ticked, and never updates | Low |
-| 30 | Request Registration | "Correct this request" says *corrected* when the database changed nothing (**measured**) | High |
-| 31 | Warranty Register | "+ Installation call" creates the call, silently fails to link it to the machine, and offers a second one (**measured**) | High |
-| 32 | My Workload | "Installations waiting on Commercial": the card's number and the list it opens disagree, and the read is not paged | Medium |
-| 33 | Hand Stock Report | The .xls download writes `[object Object]` in every date column (**measured**) | High |
+| 28 | Material Returns | Two lines of one MRN can get the same screen row id, so the table draws one and drops the other (**measured**) — **FIXED in batch 1 (v0.9.373, this branch)** | Medium |
+| 29 | Warranty & Contract Registers | Renew opened before the machines load starts with none ticked, and never updates — **FIXED in batch 1 (v0.9.373, this branch)** | Low |
+| 30 | Request Registration | "Correct this request" says *corrected* when the database changed nothing (**measured**) — **FIXED in batch 1 (v0.9.373, this branch)** | High |
+| 31 | Warranty Register | "+ Installation call" creates the call, silently fails to link it to the machine, and offers a second one (**measured**) — **PART-FIXED: the failure is now reported; hiding the button is still a decision (batch 1, v0.9.373)** | High |
+| 32 | My Workload | "Installations waiting on Commercial": the card's number and the list it opens disagree, and the read is not paged — **PART-FIXED: the cards add up; the unpaged read is still open (batch 1, v0.9.373)** | Medium |
+| 33 | Hand Stock Report | The .xls download writes `[object Object]` in every date column (**measured**) — **FIXED in batch 1 (v0.9.373, this branch)** | High |
 | 34 | Product Database | Four roles see machines under contract as **OGP**, with no contract number (**measured**) | High |
 | 35 | Product Database | A machine's owner follows the transfer **entered** last, not the one **dated** last (**measured**) | High |
 | 36 | Product Database | Editing an older sale writes that sale's warranty onto the current owner's machine (**measured**) | High |
@@ -113,12 +118,12 @@ alone — none of them touches anything recorded here, and none of them fixes it
 | 38 | Bulk Uploads | A 500-row transfer batch now takes 12.5 s of the 20 s limit, and grows with the register (**measured**) | Medium |
 | 39 | Hand-run SQL | The Item Status correction would send AMC spares past Commercial and NSM if applied (**measured**) | High |
 | 40 | Hand-run SQL | Four new probes return 2–3 result grids; the SQL editor shows only the last (**measured**) | Medium |
-| 41 | Hand Stock Report | The menu entry asks for `admin.view`, the page asks for its own key, so a role granted it has no way in | Medium |
+| 41 | Hand Stock Report | The menu entry asks for `admin.view`, the page asks for its own key, so a role granted it has no way in — **FIXED in batch 1 (v0.9.373, this branch)** | Medium |
 | 42 | *cross-cutting* | Excel and .xls downloads never check `export.data`; only CSV does | Medium |
 | 43 | Request Registration | A request can now be filed with its calls against two different customers (CR-007) | Medium |
 | 44 | Calls | Batch cancel exists only in SQL, where it records nobody as the canceller | Low |
-| 45 | *cross-cutting* | The half-loaded-download warning gives advice that cannot be followed, or is missing where it is needed | Low |
-| 46 | Hand Stock Report | A manager's file says "your own stock only" and holds the team's | Low |
+| 45 | *cross-cutting* | The half-loaded-download warning gives advice that cannot be followed, or is missing where it is needed — **PART-FIXED: RM Approval and the advice; capped searches still export without a warning (batch 1, v0.9.373)** | Low |
+| 46 | Hand Stock Report | A manager's file says "your own stock only" and holds the team's — **FIXED in batch 1 (v0.9.373, this branch)** | Low |
 
 ---
 

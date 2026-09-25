@@ -144,7 +144,11 @@ export function HandStockReport() {
   }, [rows, q]);
 
   const scope = [
-    everyone ? 'every engineer' : 'your own stock only',
+    // NOT "your own stock only": the tables behind handstock_balance show a
+    // manager his reporting team as well, so that label sat on a file carrying
+    // the team's stock. There is no client flag for "has a team", so this says
+    // what the read policies actually allow.
+    everyone ? 'every engineer' : 'your own stock, and your team’s if you manage one',
     q.trim() ? `search: ${q.trim()}` : 'no search filter',
   ].join(' · ');
 
@@ -162,11 +166,16 @@ export function HandStockReport() {
       csvExport(name, cols,
         visible.map((r) => Object.fromEntries(cols.map((c) => [c.key, xlsxText(r[c.key])]))), COMPLETE);
     } else {
-      const sheet = {
+      // THE CELL SHAPING BELONGS TO THE WRITER. `xlsxCell` turns a timestamp
+      // into a date object only the .xlsx writer understands; the .xls writer
+      // recognises an ISO date by itself and printed that object as
+      // "[object Object]" in every date column. So each writer gets the value
+      // in the shape it reads.
+      const sheet = (shape: (v: unknown) => unknown) => ({
         name: 'Hand Stock',
         columns: cols.map((c) => c.header),
-        rows: visible.map((r) => Object.fromEntries(cols.map((c) => [c.header, xlsxCell(r[c.key])]))),
-      };
+        rows: visible.map((r) => Object.fromEntries(cols.map((c) => [c.header, shape(r[c.key])]))),
+      });
       // THE FILE CARRIES ITS OWN SCOPE. A stock report whose filter is not
       // written down is one somebody later reconciles against believing it was
       // the whole company.
@@ -183,8 +192,8 @@ export function HandStockReport() {
           { Item: 'Taken', Value: fmtLongDate(new Date().toISOString()) },
         ],
       };
-      if (kind === 'xlsx') xlsxDownload(name, [sheet, about], COMPLETE);
-      else xlsDownload(name, [sheet, about], COMPLETE);
+      if (kind === 'xlsx') xlsxDownload(name, [sheet(xlsxCell), about], COMPLETE);
+      else xlsDownload(name, [sheet((v) => v), about], COMPLETE);
     }
     logAudit({ action: 'report.handstock', meta: { rows: visible.length, scope, kind, file: name } });
   };
@@ -201,7 +210,7 @@ export function HandStockReport() {
         title="Hand Stock Report" icon="📦"
         subtitle={everyone
           ? 'Every engineer’s hand stock, netted per part. Loads in full before it can be downloaded.'
-          : 'Your hand stock, netted per part. Your role is shown its own stock, so this is not the whole company.'}
+          : 'Your hand stock, and your team’s if you manage one, netted per part. It is not the whole company.'}
         count={visible.length}
         // A COUNT OVER PARTLY-LOADED DATA IS A LOWER BOUND and must say so.
         // Once every page is in it is exact, and a `+` would then be wrong in
@@ -224,7 +233,7 @@ export function HandStockReport() {
         <div className="sheet-banner sheet-banner-ok">
           <span>{everyone
             ? 'No engineer is holding any hand stock.'
-            : 'You are not holding any hand stock.'}</span>
+            : 'No hand stock is held by you, or by anyone reporting to you.'}</span>
         </div>
       )}
 

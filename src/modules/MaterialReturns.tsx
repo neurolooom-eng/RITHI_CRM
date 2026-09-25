@@ -87,7 +87,12 @@ export function MaterialReturns() {
     setBusy(true);
     try {
       const r = await listMaterialReturns(PAGE, 0);
-      const mapped = r.map((x, i) => ({ ...x, id: `${String(x.uid ?? '')}-${String(x.row_no ?? i)}` } as Row));
+      // KEYED ON THE TABLE'S OWN id. `uid-row_no` is not unique: the unique
+      // index is (uid, part, row_no), so two parts of one MRN may share a row
+      // number -- a file that numbers them so loads both -- and React then drew
+      // one row and dropped another with no error. `id` is unique by
+      // construction; the index only falls back where a row somehow lacks it.
+      const mapped = r.map((x, i) => ({ ...x, id: String(x.id ?? `row-${i}`) } as Row));
       setRows(mapped); setOffset(mapped.length); setMore(r.length === PAGE); setLastSync(saveCache(CACHE_KEY, mapped));
       setMsg({ tone: 'ok', text: `Synced ${mapped.length} returned item${mapped.length === 1 ? '' : 's'}.` });
     } catch (e) {
@@ -110,7 +115,7 @@ export function MaterialReturns() {
     setBusy(true);
     try {
       const r = await listMaterialReturns(PAGE, offset);
-      const mapped = r.map((x, i) => ({ ...x, id: `${String(x.uid ?? '')}-${String(x.row_no ?? offset + i)}` } as Row));
+      const mapped = r.map((x, i) => ({ ...x, id: String(x.id ?? `row-${offset + i}`) } as Row));
       const merged = [...rows, ...mapped];
       setRows(merged); setOffset(offset + r.length); setMore(r.length === PAGE); setLastSync(saveCache(CACHE_KEY, merged));
     } catch (e) { setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` }); } finally { setBusy(false); }
