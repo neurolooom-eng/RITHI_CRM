@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { readUpTo } from '../lib/paging';
 import { PickList } from '../components/ui/PickList';
 import { useSearchParams } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -52,6 +53,12 @@ export function SpareConsumption() {
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
+  // HOW FAR THE READER HAS GOT, as a ref because the 30-minute sync is
+  // registered once at mount: a value read from state inside that timer is
+  // the mount-time value for ever, and the sync then re-read only page one,
+  // throwing away every page Load more had added (finding 22).
+  const offsetRef = useRef(offset);
+  offsetRef.current = offset;
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     (onDb || sheetsConfigured()) ? null : { tone: 'info', text: 'Connect the database in Settings to load spare consumption.' },
@@ -219,11 +226,11 @@ export function SpareConsumption() {
     if (onDb) {
       setBusy(true); setMsg({ tone: 'info', text: 'Loading spare consumption…' });
       try {
-        const r = await listConsumptionRows(PAGE, 0);
+        const { rows: r, more: hasMore } = await readUpTo(listConsumptionRows, offsetRef.current, PAGE);
         // The table needs a stable string key, but the DB id is what an
         // adjustment updates — keep both.
         const mapped = r.map((x, i) => ({ ...x, _dbId: x.id, id: `${pick(x, UCN_KEYS)}-${i}` } as Row));
-        setRows(mapped); setOffset(mapped.length); setMore(r.length === PAGE); setLastSync(saveCache(CACHE_KEY, mapped));
+        setRows(mapped); setOffset(mapped.length); setMore(hasMore); setLastSync(saveCache(CACHE_KEY, mapped));
         setMsg({ tone: 'ok', text: `Synced ${mapped.length} consumption lines.` });
       } catch (e) {
         setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });

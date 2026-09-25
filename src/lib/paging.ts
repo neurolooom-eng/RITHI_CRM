@@ -48,3 +48,43 @@ function pageError(e: { message?: string; code?: string }): string {
   if (e?.code === '42501' || /row-level security/i.test(m)) return 'Your role does not have permission for this action.';
   return m;
 }
+
+// ===========================================================================
+// RE-READ AS FAR AS THE READER HAD GOT (finding 22).
+//
+// A register that loads a page at a time and refreshes itself every half hour
+// used to refresh by reading PAGE ONE AGAIN -- so somebody who had pressed
+// Load more twice was put back to the first thousand rows, with no word said.
+// This re-reads the first `want` rows, a page at a time (the server caps every
+// response at PG_PAGE, so one big request is not an option), and says whether
+// more may exist beyond them: true only when the last page came back FULL,
+// which is the same end-of-data signal the pagers use.
+//
+// `page(limit, offset)` is the screen's own list function, so the order is the
+// one it already pages in -- which must be unique, or re-reading several pages
+// can hand one row to two pages and another to none.
+// ===========================================================================
+export async function readUpTo<T>(
+  page: (limit: number, offset: number) => Promise<T[]>,
+  want: number,
+  size = PG_PAGE,
+): Promise<{ rows: T[]; more: boolean }> {
+  // IN PARALLEL. `load()` is also what runs after every approval, so reading
+  // five loaded pages one after another made each action wait five round
+  // trips. How many pages are wanted is known up front, so they are asked for
+  // together and then walked IN ORDER, stopping at the first short page --
+  // exactly the answer the sequential loop gave. The only cost is a request
+  // or two for pages past the end when the register has shrunk.
+  const upTo = Math.max(size, want);
+  const offsets: number[] = [];
+  for (let from = 0; from < upTo; from += size) offsets.push(from);
+  const pages = await Promise.all(offsets.map((from) => page(size, from)));
+  const rows: T[] = [];
+  let more = false;
+  for (const got of pages) {
+    rows.push(...got);
+    more = got.length === size;
+    if (!more) break;
+  }
+  return { rows, more };
+}
