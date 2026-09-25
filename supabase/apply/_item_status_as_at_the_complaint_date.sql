@@ -115,7 +115,23 @@ begin
 
   -- SPARE REQUESTS: whatever the call says. A HandStock request has no call
   -- and no machine behind it, so it is left exactly as it is.
-  update public.spare_requests r set item_status = c.item_status
+  -- AND IT SAYS WHY, ON THE ROW. Every one of these was approved under the old
+  -- status, so afterwards the record shows (say) AMC beside an AUTO-GRANTED
+  -- approval -- which reads as a bypass and was not one. The note is written
+  -- into `extra` rather than `remarks`: remarks is an engineer's own text and
+  -- appending to it would corrupt what a person wrote, while `extra` is
+  -- structured, survives an export, and is where this register already keeps
+  -- everything it was not asked to type. The audit trigger records the change
+  -- itself; this records the REASON, which an audit row cannot.
+  update public.spare_requests r set
+      item_status = btrim(c.item_status),
+      extra = coalesce(r.extra, '{}'::jsonb) || jsonb_build_object(
+        'item_status_corrected', jsonb_build_object(
+          'from', coalesce(btrim(r.item_status), ''),
+          'to',   btrim(c.item_status),
+          'on',   to_char(now() at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI:SS'),
+          'why',  'Set from the call''s item status, which is the cover that applied on the complaint date. '
+                  || 'Any approval recorded on this request was granted under the previous status and has NOT been re-opened.'))
     from public.calls c
    where c.ucn = btrim(r.ucn)
      and coalesce(btrim(r.ucn), '') <> ''
