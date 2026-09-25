@@ -5688,7 +5688,25 @@ console.log('\n-- the Warranty Sale asks for what it cannot work out, and no mor
   // would leave a machine with a call nothing points at, hidden among the
   // successes.
   eq('the call is mapped back onto the machine',
-    /\.from\('sale_items'\)\.update\(\{ inst_call: ucn \}\)/.test(cover), true);
+    /\.from\('sale_items'\)\s*\.update\(\{ inst_call: ucn \}(, \{ count: 'exact' \})?\)/.test(cover), true);
+  // AND A WRITE ROW-LEVEL SECURITY SKIPPED IS A FAILURE, NOT A SUCCESS. The
+  // call needs `install.create` and this line `cover.edit`; Hotline holds the
+  // first without the second, so the UPDATE matched no rows, PostgREST called
+  // that success, and the machine was offered a SECOND call later. Counted,
+  // and zero goes down the same failure path as an error.
+  // THE SAME FAULT ON A CALL REQUEST. Office roles read every request and may
+  // write only their own, so Save matched no rows and the screen said
+  // "corrected". Counted, and zero is a refusal with a reason.
+  {
+    const sbSrc = readFileSync('src/lib/supabase.ts', 'utf8');
+    const fn = sbSrc.slice(sbSrc.indexOf('export async function updateCallRequest'),
+      sbSrc.indexOf('export async function listCallRequests'));
+    eq('a request correction that changed no row is refused, not reported as saved',
+      /\.update\(row, \{ count: 'exact' \}\)/.test(fn) && /if \(count === 0\)/.test(fn), true);
+  }
+  eq('...and a write-back that changed no row is treated as a failure',
+    /update\(\{ inst_call: ucn \}, \{ count: 'exact' \}\)/.test(cover)
+    && /if \(error \|\| count === 0\)/.test(cover), true);
   eq('...and a failure between the two writes stops and names the machine',
     /was created but could not be written back to the machine/.test(cover), true);
   // Nothing is written until the operator has seen what it will say.
@@ -8505,6 +8523,14 @@ console.log('\n-- the Hand Stock Report loads whole, then lets you download --')
   // response at a thousand rows however large the range, so a bigger page is
   // the line that hides the truncation rather than a bigger request.
   eq('the report pages a thousand at a time', /const PAGE = 1000;/.test(hs), true);
+
+  // EACH WRITER GETS THE VALUE IN THE SHAPE IT READS. `xlsxCell` makes a date
+  // object only the .xlsx writer understands; handed to the .xls writer it came
+  // out as "[object Object]" in every date column (measured by building the
+  // file). So the .xls sheet is built from the raw values.
+  eq('the .xls download is built from raw values, not xlsxCell objects',
+    /xlsDownload\(name, \[sheet\(\(v\) => v\), about\]/.test(hs)
+    && /xlsxDownload\(name, \[sheet\(xlsxCell\), about\]/.test(hs), true);
 
   // A FULL PAGE PROVES NOTHING. Stopping on `batch.length === 0` would cost an
   // extra round trip every time; stopping on a full page would truncate.

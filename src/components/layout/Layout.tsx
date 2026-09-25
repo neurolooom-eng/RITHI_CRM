@@ -221,10 +221,17 @@ export const NAV: NavGroup[] = [
       { to: '/feedback-without-report', label: 'Feedback Without a Report', icon: '🔎', adminOnly: true },
       // HAND STOCK REPORT — administrators to begin with (the user,
       // 2026-09-24: "Default access to Admin/Super Admin, Rest of the Access I
-      // will select from Roles & Permissions"), so `adminOnly` here and
-      // `admin: true` on the module. Everyone else is a tick on Roles &
-      // Permissions, which is where the key now appears.
-      { to: '/handstock-report', label: 'Hand Stock Report', icon: '📦', adminOnly: true },
+      // will select from Roles & Permissions"). `admin: true` on the module
+      // keeps the key out of every other role's defaults; 0241 grants it to
+      // admin and technical_support.
+      //
+      // NOT `adminOnly`. That flag shows an entry to whoever holds
+      // `admin.view`, while the page itself asks for `mod:/handstock-report`
+      // -- so a role ticked on Roles & Permissions could open the page and had
+      // no menu entry for it, and Zoho Migration (admin.view, no key) had an
+      // entry that opened the lock screen. The entry asks for the same key the
+      // page does, which is the per-role grant the user said they would make.
+      { to: '/handstock-report', label: 'Hand Stock Report', icon: '📦' },
     ],
   },
   {

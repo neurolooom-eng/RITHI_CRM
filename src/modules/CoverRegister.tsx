@@ -629,6 +629,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // follow the reader onto another contract.
   const [renewing, setRenewing] = useState(false);
   const [items, setItems] = useState<Row[]>([]);
+  // TRUE WHILE AN ENTRY'S MACHINES ARE BEING READ. The Renew panel seeds its
+  // draft ONCE, from `items`, when it opens -- so pressed before the read
+  // lands it started with no machines and never picked them up, and saving
+  // refused with "Tick at least one machine to carry over".
+  const [loadingItems, setLoadingItems] = useState(false);
   const [draft, setDraft] = useState<Row>({});
   const [saving, setSaving] = useState(false);
   // THE PRODUCT MASTER, loaded once and shared by every machine card. Only the
@@ -745,8 +750,10 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const openEntry = async (h: Row) => {
     setRenewing(false);
     setOpen(h); setDraft(h); setItems([]);
+    setLoadingItems(true);
     try { setItems(await listItems(kind, str(h[cfg.key]))); }
     catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
+    finally { setLoadingItems(false); }
   };
 
   // THE PARTY FILLS THE ENTRY IN (the user, 2026-09-22). Only on a SALE, and
@@ -1178,8 +1185,10 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 }}
               />
             ) : (
-              <button className="btn" style={{ marginTop: 14 }} onClick={() => setRenewing(true)}>
-                ↻ Renew this contract
+              <button className="btn" style={{ marginTop: 14 }} disabled={loadingItems}
+                onClick={() => setRenewing(true)}
+                title={loadingItems ? 'Waiting for this contract’s machines to load' : undefined}>
+                {loadingItems ? 'Loading machines…' : '↻ Renew this contract'}
               </button>
             )
           )}
