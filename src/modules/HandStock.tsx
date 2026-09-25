@@ -1,5 +1,5 @@
 import { isMissingTable } from '../lib/dberror';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -17,7 +17,7 @@ import {
   type HandstockBalance, type HandstockMovement, type MovementKind,
 } from '../lib/handstock';
 import './fieldcalls.css';
-import { partial } from '../lib/exportscope';
+import { partial, cappedAt } from '../lib/exportscope';
 
 // ===========================================================================
 // HAND STOCK — the stock level an engineer is carrying, per spare.
@@ -150,6 +150,12 @@ export function HandStock() {
   // have been asked for; `more` says the last page came back full, so there is
   // at least one more.
   const [loaded, setLoaded] = useState(cached?.rows?.length ?? 0);
+  // HOW FAR THE READER HAS GOT, as a ref because the 30-minute sync is
+  // registered once at mount: a value read from state inside that timer is
+  // the mount-time value for ever, and the sync then re-read only page one,
+  // throwing away every page Load more had added (finding 22).
+  const loadedRef = useRef(loaded);
+  loadedRef.current = loaded;
   // Restored from a cache that ends exactly on a page boundary: there was
   // almost certainly another page, so offer it rather than making somebody
   // press Refresh to find out.
@@ -169,7 +175,7 @@ export function HandStock() {
     onDb ? null : { tone: 'info', text: 'Connect the database in Settings to load hand stock.' },
   );
 
-  const load = async (want = Math.max(PAGE_SIZE, loaded)) => {
+  const load = async (want = Math.max(PAGE_SIZE, loadedRef.current)) => {
     if (!onDb) return;
     setBusy(true); setMsg({ tone: 'info', text: 'Loading hand stock…' });
     try {
@@ -405,8 +411,11 @@ export function HandStock() {
                     label: `${e.engineer}${e.onHand === undefined ? '' : ` (${e.onHand})`}`,
                   }))} />
                 <div className="spacer" />
+                {/* WHILE A SEARCH SHOWS, THE FILE IS THE SEARCH: one request of
+                    PAGE_SIZE lines, so it is capped by that, not by whether
+                    the browse list has more pages (finding 45). */}
                 {rows.length > 0 && (
-                  <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], partial(more))}>⭳ Export CSV</button>
+                  <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], hits ? cappedAt(hits.length, PAGE_SIZE) : partial(more))}>⭳ Export CSV</button>
                 )}
               </Toolbar>
             }

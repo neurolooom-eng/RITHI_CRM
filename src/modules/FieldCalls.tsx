@@ -549,6 +549,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   });
 
   const [srch, setSrch] = useState({ ucn: '', productName: '', serial: '', partyName: '', q: '' });
+  // A SEARCH RETURNS AT MOST SEARCH_CAP CALLS -- the server's own cap on one
+  // response -- so a search that comes back with exactly that many may have
+  // more behind it. It used to say "1000 matches" as if that were the answer,
+  // and its download carried no warning (findings 18 and 45).
+  const SEARCH_CAP = 1000;
+  const [searchCapped, setSearchCapped] = useState(false);
   // Engineers default to seeing only OPEN calls (anything not fully Solved),
   // keeping their register small; a toggle reveals closed ones. Everyone else
   // sees all by default. A call is closed only when its state is exactly Solved.
@@ -653,6 +659,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // Pull the register tab on first mount (and on manual refresh). Capped to the
   // most recent `limit` rows — the sheet holds thousands.
   const refresh = async (limit = loadLimit) => {
+    // WHILE A SEARCH IS SHOWING, REFRESH RE-RUNS THE SEARCH. It used to load
+    // the browse set over the search results -- after every save, too --
+    // leaving the search boxes filled in above a list they no longer describe.
+    // A new object re-triggers the search effect with the same terms.
+    if (onDb && searching) { setSrch((s0) => ({ ...s0 })); return; }
     if (!configured) {
       setBanner({ tone: 'info', text: 'No data source connected. Connect the database (or the Google Sheet Web App URL) in Settings to load & publish calls. New calls are saved locally until then.' });
       return;
@@ -671,11 +682,16 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       const now = new Date().toISOString();
       try { localStorage.setItem(syncKey, now); } catch { /* ignore */ }
       setLastSync(now);
-      const capped = !onDb && rows.length >= limit;
+      // NOT "Loaded all" on the database path: `limit` is the most recent
+      // `loadLimit` calls, the same as the sheet path, so a full read is the
+      // newest N and not the register.
+      const capped = rows.length >= limit;
       setBanner({
         tone: 'ok',
         text: onDb
-          ? `Loaded all ${rows.length} ${config.singular.toLowerCase()}s — search covers the full register.`
+          ? (capped
+            ? `Loaded the most recent ${rows.length} ${config.singular.toLowerCase()}s — use “Load more” for older; search covers the full register.`
+            : `Loaded all ${rows.length} ${config.singular.toLowerCase()}s — search covers the full register.`)
           : `Synced ${rows.length} ${config.singular.toLowerCase()}s${capped ? ` — most recent ${limit}; use “Load more” for older` : ''}.`,
       });
     } catch (e) {
@@ -716,14 +732,18 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       setBusy(true);
       try {
         const rows = active
-          ? (await searchCalls(config.callType, srch, 1000)) as unknown as Rec[]
+          ? (await searchCalls(config.callType, srch, SEARCH_CAP)) as unknown as Rec[]
           : (await listFieldCalls('', loadLimit, config.tab)) as unknown as Rec[];
+        const capped = active && rows.length >= SEARCH_CAP;
+        setSearchCapped(capped);
         applyRows(rows);
         const now = new Date().toISOString();
         try { localStorage.setItem(syncKey, now); } catch { /* ignore */ }
         setLastSync(now);
-        setBanner({ tone: 'ok', text: active
-          ? `${rows.length} match${rows.length === 1 ? '' : 'es'} for your search (server-side).`
+        setBanner({ tone: capped ? 'info' : 'ok', text: active
+          ? (capped
+            ? `${SEARCH_CAP.toLocaleString()}+ matches — the first ${SEARCH_CAP.toLocaleString()} are shown. Narrow the search to see the rest.`
+            : `${rows.length} match${rows.length === 1 ? '' : 'es'} for your search (server-side).`)
           : `Showing ${rows.length} ${config.singular.toLowerCase()}s${rows.length >= loadLimit ? ' — Load more for older' : ''}; search finds any call.` });
       } catch (e) {
         setBanner({ tone: 'error', text: `Search failed: ${e instanceof Error ? e.message : String(e)}` });
@@ -1140,7 +1160,10 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         subtitle={config.subtitle}
         icon={config.icon}
         count={visibleRows.length}
-        countMore={moreAvailable}
+        // A capped search is a lower bound too; Load more stays off while one
+        // shows (it pages the browse set, not the search).
+        countMore={moreAvailable || (searching && searchCapped)}
+        moreAvailable={moreAvailable}
         // The count raises the question, so the answer sits beside it. It is
         // NOT also passed to the table — one Load more, in the place the number
         // that prompts it is read.
@@ -1278,7 +1301,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             <button
               className="btn btn-sm"
               onClick={() =>
-                csvExport(config.csvName, COLUMNS.filter((c) => c.key[0] !== '_').map((c) => ({ key: c.key, header: c.header })), visibleRows as unknown as Record<string, unknown>[], partial(moreAvailable))
+                csvExport(config.csvName, COLUMNS.filter((c) => c.key[0] !== '_').map((c) => ({ key: c.key, header: c.header })), visibleRows as unknown as Record<string, unknown>[], partial(moreAvailable || (searching && searchCapped)))
               }
             >
               ⭳ Export CSV

@@ -56,6 +56,12 @@ Pending Dispatch's per-engineer totals), **A8** (25; the read now reports that
 it hit its cap, rather than only the comment being fixed), **A10** (6),
 **A11** (1), **B1** (16) and **B3** (17). **Batch 1 is merged and deployed.**
 
+**Batch 3 is done (2026-09-25, v0.9.375).** Complete: **A9** (5), **B2** (22,
+and on Hand Stock, whose "model" load had the same frozen count), **B4** (18,
+using "a full 1,000 came back" as the signal, because PostgREST never returns a
+1,001st row), **A17** item 3 (45), and the rest of **A7** (21). **C4** is in
+part: five of finding 15's nine reads have an `id` tiebreaker.
+
 ---
 
 ## Step 0 — fifteen queries, before any code

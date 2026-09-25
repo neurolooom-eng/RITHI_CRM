@@ -48,3 +48,35 @@ function pageError(e: { message?: string; code?: string }): string {
   if (e?.code === '42501' || /row-level security/i.test(m)) return 'Your role does not have permission for this action.';
   return m;
 }
+
+// ===========================================================================
+// RE-READ AS FAR AS THE READER HAD GOT (finding 22).
+//
+// A register that loads a page at a time and refreshes itself every half hour
+// used to refresh by reading PAGE ONE AGAIN -- so somebody who had pressed
+// Load more twice was put back to the first thousand rows, with no word said.
+// This re-reads the first `want` rows, a page at a time (the server caps every
+// response at PG_PAGE, so one big request is not an option), and says whether
+// more may exist beyond them: true only when the last page came back FULL,
+// which is the same end-of-data signal the pagers use.
+//
+// `page(limit, offset)` is the screen's own list function, so the order is the
+// one it already pages in -- which must be unique, or re-reading several pages
+// can hand one row to two pages and another to none.
+// ===========================================================================
+export async function readUpTo<T>(
+  page: (limit: number, offset: number) => Promise<T[]>,
+  want: number,
+  size = PG_PAGE,
+): Promise<{ rows: T[]; more: boolean }> {
+  const rows: T[] = [];
+  let more = false;
+  const upTo = Math.max(size, want);
+  for (let from = 0; from < upTo; from += size) {
+    const got = await page(size, from);
+    rows.push(...got);
+    more = got.length === size;
+    if (!more) break;
+  }
+  return { rows, more };
+}

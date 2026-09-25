@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.375',
+    date: '2026-09-25',
+    title: 'Lists that keep your place, and searches that say when they stopped short',
+    changes: [
+      'THE HALF-HOURLY REFRESH NO LONGER THROWS AWAY WHAT YOU LOADED. On Spare Requests, Spare Consumption, Customer Feedback and Hand Stock, pressing Load more and then waiting half an hour put you back to the first thousand rows without a word. The refresh now re-reads as far as you had got.',
+      'AND THOSE LISTS CAN NO LONGER REPEAT OR SKIP A ROW BETWEEN PAGES. Rows written in the same instant — a bulk upload writes thousands at once — had no fixed order among themselves, so a page boundary could land in the middle of them. Customer Feedback, Spare Consumption, Spare Requests, the Audit Log and Party Master now page in an order that cannot tie.',
+      'A CALL SEARCH THAT HITS ITS LIMIT SAYS SO. On the Field, Installation and PM registers a search returns at most 1,000 calls; it used to say “1000 matches” as if that were all of them, and its download gave no warning. It now says “1,000+ matches — narrow the search to see the rest”, the count shows a “+”, and the download warns.',
+      'REFRESH KEEPS YOUR SEARCH. Pressing ↻ — or saving a call — while a search was showing replaced the results with the ordinary list, leaving your search words above a list they no longer described. It now runs your search again.',
+      '“LOADED ALL” IS ONLY SAID WHEN IT IS TRUE. The call registers said they had loaded every call when they had loaded the most recent few hundred.',
+      'PRODUCT & PARTY SEARCH SAYS WHEN IT STOPPED AT 200 MACHINES, and asks you to narrow the search, instead of showing 200 as if they were everything that matched.',
+      'HAND STOCK: a download taken while a search is showing warns when that search stopped at its limit. PENDING DISPATCH: when the queue stops at its 2,000-line limit, a banner says every engineer’s totals below may be short.',
+    ],
+  },
+  {
     version: '0.9.374',
     date: '2026-09-25',
     title: 'Screens that stopped updating, and numbers that looked exact but were not',

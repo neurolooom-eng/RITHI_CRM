@@ -43,6 +43,33 @@ up)_
 
 ---
 
+## 2026-09-25 — Module review, batch 3: lists that keep their place (v0.9.375)
+
+Findings 5, 18, 22, the rest of 21 and 45, and part of 15. **No SQL.** Batch 2
+(#422) is merged.
+
+- **✅ #22** the 30-minute sync re-reads every page the reader had loaded
+  (`readUpTo` in `paging.ts`, tested in `check:paging` against a capped fake
+  server) on Spare Requests, Spare Consumption and Customer Feedback — and on
+  **Hand Stock, which the handoff named as the model and had the same fault**:
+  its timer read `loaded` as it was at mount. All four read the count from a
+  ref now.
+- **✅ #15 in part** `id` tiebreaker on feedback, spare_consumption,
+  spare_request_lines, audit_log and parties (`check:orders`: 128 columns).
+  **Still open:** `handstock_movements` (a view with no unique key — not
+  guessed at), `listKpiFieldInst`, `unusedSpareEngineers`, `listUnusedSpares`,
+  `objectiveEvidence`, and finding 8's six unordered reads.
+- **✅ #18** a call search at its 1,000 cap reads "1,000+", counts as a lower
+  bound and warns in the download; Refresh (and the refresh after a save)
+  re-runs an active search; "Loaded all" only when the read did not fill its
+  limit. **Not the handoff's "ask for 1,001"**: PostgREST returns at most 1,000
+  whatever is asked, so the 1,001st never arrives — a full 1,000 is the signal.
+- **✅ #5** the machine search asks for 201 and says when more matched.
+- **✅ #45** Hand Stock's search export is scoped by the search.
+  **✅ #21** Pending Dispatch flags per-engineer totals under a capped queue.
+- **Checks:** 14 new `check:ui` assertions (all fail on `b5cbb20`, pass here) and
+  10 new `check:paging` behaviour tests.
+
 ## 2026-09-25 — Module review, batch 2: frozen screens and over-strong counts (v0.9.374)
 
 Findings 1, 6, 16, 17, 19, 21 (in part) and 25 from `docs/MODULE_REVIEW.md`.

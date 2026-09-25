@@ -1136,7 +1136,7 @@ export async function deleteSavedChart(id: number): Promise<{ ok: boolean; error
 }
 
 export async function queryParties(filter: PartyFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
-  let q = must().from('parties').select('*').order('party_name').range(offset, offset + limit - 1);
+  let q = must().from('parties').select('*').order('party_name').order('id').range(offset, offset + limit - 1);
   if (filter.name) q = q.ilike('party_name', `%${_san(filter.name)}%`);
   if (filter.city) q = q.ilike('city', `%${_san(filter.city)}%`);
   if (filter.state) q = q.ilike('state', `%${_san(filter.state)}%`);
@@ -2543,7 +2543,7 @@ export async function sbDirectoryNames(): Promise<string[]> {
 // ---- Audit log (admin) -----------------------------------------------------
 export interface AuditFilter { action?: string; email?: string; status?: string }
 export async function queryAudit(filter: AuditFilter, offset = 0, limit = 500): Promise<Record<string, unknown>[]> {
-  let q = must().from('audit_log').select('*').order('at', { ascending: false }).range(offset, offset + limit - 1);
+  let q = must().from('audit_log').select('*').order('at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + limit - 1);
   if (filter.action) q = q.ilike('action', `%${_san(filter.action)}%`);
   if (filter.email) q = q.ilike('email', `%${_san(filter.email)}%`);
   if (filter.status) q = q.eq('status', filter.status);
@@ -3185,7 +3185,7 @@ export async function addSpareRequest(
 export async function listSpareRequestLines(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
     .select('*, spare_requests!inner(uid, or_no, or_req_date, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, complaint, item_status, handstock_reason, remarks, stage, status, created_at)')
-    .order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+    .order('created_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + limit - 1);
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => {
     // One row per part: the request's identity, the line's own workflow state.
@@ -3723,15 +3723,22 @@ export async function listHandstockMovements(engineerKey: string, partCode = '',
 }
 // ---- consumption / feedback ------------------------------------------------
 export async function listConsumptionRows(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('spare_consumption').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+  const { data, error } = await must().from('spare_consumption').select('*').order('created_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + limit - 1);
   if (error) throw new Error(error.message);
   return data ?? [];
 }
 // Customer feedback, newest first. Each answer in the `answers` jsonb becomes
 // its OWN column (prefixed `fb::<question>`) so every field the engineer entered
 // shows as a separate column rather than one consolidated string.
+// A UNIQUE TIEBREAKER ON THE PAGED READS OF feedback, spare_consumption,
+// spare_request_lines, audit_log and parties (finding 15). `created_at`,
+// `at` and `party_name` tie -- a bulk import writes thousands of rows in one
+// instant -- and a page boundary inside a tie can hand the same row to two
+// pages and another to none. `id` is each table's primary key, so the order
+// is total. It matters more now that the 30-minute sync re-reads every page
+// the reader had loaded rather than only the first (finding 22).
 export async function listFeedbackRows(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('feedback').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+  const { data, error } = await must().from('feedback').select('*').order('created_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + limit - 1);
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => {
     const a = (r.answers && typeof r.answers === 'object') ? r.answers as Record<string, unknown> : {};

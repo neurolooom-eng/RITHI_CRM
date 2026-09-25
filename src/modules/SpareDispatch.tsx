@@ -283,6 +283,15 @@ export function SpareDispatch() {
             )}
           </Toolbar>
 
+          {/* A QUEUE THAT FILLED ITS READ. Every per-engineer total below is
+              then a floor, and one banner says so for all of them rather than
+              a "+" threaded through each card (finding 21). */}
+          {lines.length >= QUEUE_CAP && (
+            <div className="sheet-banner sheet-banner-info">
+              <span>The queue stopped at {QUEUE_CAP.toLocaleString()} lines, so there may be more waiting — each engineer’s totals below may be short.</span>
+            </div>
+          )}
+
           {!queues.length ? (
             <EmptyState
               title={lines.length ? 'No spares match this search.' : 'Nothing waiting for dispatch'}

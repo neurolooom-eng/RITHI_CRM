@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { readUpTo } from '../lib/paging';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PickList } from '../components/ui/PickList';
 import { useNavigate } from 'react-router-dom';
@@ -568,6 +569,12 @@ export function SpareRequests() {
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
+  // HOW FAR THE READER HAS GOT, as a ref because the 30-minute sync is
+  // registered once at mount: a value read from state inside that timer is
+  // the mount-time value for ever, and the sync then re-read only page one,
+  // throwing away every page Load more had added (finding 22).
+  const offsetRef = useRef(offset);
+  offsetRef.current = offset;
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [drawer, setDrawer] = useState(false);
   // Who this user may give RM approval to: the engineers reporting to them,
@@ -604,9 +611,9 @@ export function SpareRequests() {
     if (onDb) {
       setBusy(true); setMsg({ tone: 'info', text: 'Loading spare requests…' });
       try {
-        const r = await listSpareRequestLines(PAGE, 0);
+        const { rows: r, more: hasMore } = await readUpTo(listSpareRequestLines, offsetRef.current, PAGE);
         const mapped = r.map((x, i) => ({ ...x, id: String(`${g(x as Row, 'uid')}-${g(x as Row, 'part')}-${i}`) } as Row));
-        setRows(mapped); setOffset(mapped.length); setMore(r.length === PAGE); setLastSync(saveCache(CACHE_KEY, mapped));
+        setRows(mapped); setOffset(mapped.length); setMore(hasMore); setLastSync(saveCache(CACHE_KEY, mapped));
         setMsg({ tone: 'ok', text: `Synced ${mapped.length} spare-request line${mapped.length === 1 ? '' : 's'}.` });
       } catch (e) {
         setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
