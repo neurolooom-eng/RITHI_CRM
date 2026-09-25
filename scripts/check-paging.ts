@@ -101,6 +101,24 @@ console.log('\n-- readUpTo re-reads as far as the reader had got (finding 22) --
   r = await readUpTo(l.fn, 1000);
   eq('a full page of a 1,000-row register: may be more', r.more, true);
   eq('...in one request', l.calls(), 1);
+  // PAGES ARE FETCHED IN PARALLEL, so they can come back out of order. A server
+  // that answers LATER pages FIRST must still give the rows in page order.
+  {
+    const slow = async (limit: number, offset: number) => {
+      await new Promise((r) => setTimeout(r, 30 - offset / 200));   // page 3 first, page 1 last
+      return Array.from({ length: Math.max(0, Math.min(limit, 4200 - offset)) }, (_, i) => ({ i: offset + i }));
+    };
+    const rr = await readUpTo(slow, 3000);
+    const idx = rr.rows.map((x) => (x as { i: number }).i);
+    eq('pages answered out of order still come back in page order',
+      idx.every((v, k) => v === k) && idx.length === 3000, true);
+  }
+  // THE REGISTER SHRANK FAR BELOW WHAT WAS LOADED: later pages come back
+  // empty and are ignored; nothing is invented.
+  l = lister(500);
+  r = await readUpTo(l.fn, 3000);
+  eq('3,000 loaded, register now 500: exactly 500, and that is all',
+    [r.rows.length, r.more], [500, false]);
 }
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 

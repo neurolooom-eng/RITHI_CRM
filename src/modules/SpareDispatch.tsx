@@ -283,18 +283,23 @@ export function SpareDispatch() {
             )}
           </Toolbar>
 
-          {/* A QUEUE THAT FILLED ITS READ. Every per-engineer total below is
-              then a floor, and one banner says so for all of them rather than
-              a "+" threaded through each card (finding 21). */}
+          {/* A QUEUE THAT FILLED ITS READ (finding 21). It is read ENGINEER BY
+              ENGINEER, A to Z (listPendingDispatch orders by engineer, OR, row),
+              so a cut ends part-way through ONE engineer -- whose total is then
+              short -- and everyone after them is not shown at all. Saying "each
+              engineer's totals may be short" pointed at the cards on screen,
+              which are mostly complete, instead of the engineers who are absent. */}
           {lines.length >= QUEUE_CAP && (
             <div className="sheet-banner sheet-banner-info">
-              <span>The queue stopped at {QUEUE_CAP.toLocaleString()} lines, so there may be more waiting — each engineer’s totals below may be short.</span>
+              <span>The queue stopped at {QUEUE_CAP.toLocaleString()} lines. It is read engineer by engineer, A to Z, so it ends part-way through <b>{lines[lines.length - 1]?.engineer || 'the last engineer shown'}</b> — that total may be short — and anyone after them alphabetically is not shown at all.</span>
             </div>
           )}
 
           {!queues.length ? (
             <EmptyState
-              title={lines.length ? 'No spares match this search.' : 'Nothing waiting for dispatch'}
+              title={!lines.length ? 'Nothing waiting for dispatch'
+                : lines.length >= QUEUE_CAP ? 'No spares match this search among the lines loaded'
+                : 'No spares match this search.'}
               hint={lines.length ? undefined : 'A spare appears here once it has cleared every approval it needs.'}
             />
           ) : queues.map((q) => (

@@ -8651,7 +8651,7 @@ console.log('\n-- a download from a half-loaded table says so --');
   // that answers it with an inline literal nobody thought about: the answer has
   // to be one of the three sanctioned words, which is the same discipline
   // FacetChips carries for `more`.
-  const OK = /(COMPLETE|partial\(|cappedAt\(|exportScope\()/;
+  const OK = /(COMPLETE|partial\(|cappedAt\(|searchScope\(|exportScope\()/;
   const offenders: string[] = [];
   const walk = (dir: string) => readdirSync(dir, { withFileTypes: true }).forEach((e) => {
     const full = `${dir}/${e.name}`;
@@ -9001,7 +9001,8 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
     /const load = async \(want = Math\.max\(PAGE_SIZE, loadedRef\.current\)\)/.test(hs3), true);
   // #45 ...and while a search shows, its file is capped by the search.
   eq('Hand Stock: a search export is scoped by the search, not the browse list',
-    /hits \? cappedAt\(hits\.length, PAGE_SIZE\) : partial\(more\)/.test(hs3), true);
+    /hits \? searchScope\(hits\.length >= PAGE_SIZE\) : partial\(more\)/.test(hs3)
+    && /countMore=\{hits \? hits\.length >= PAGE_SIZE : more\}/.test(hs3), true);
 
   // #15 A UNIQUE TIEBREAKER on the reads that refresh now re-reads page by page.
   const sb3 = readFileSync('src/lib/supabase.ts', 'utf8');
@@ -9016,7 +9017,8 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   const fc3 = readFileSync('src/modules/FieldCalls.tsx', 'utf8');
   eq('call registers: a capped search counts as a lower bound, on screen and in the file',
     /countMore=\{moreAvailable \|\| \(searching && searchCapped\)\}/.test(fc3)
-    && /partial\(moreAvailable \|\| \(searching && searchCapped\)\)/.test(fc3), true);
+    && /searching \? searchScope\(searchCapped\) : partial\(moreAvailable\)/.test(fc3)
+    && (fc3.match(/moreAvailable \|\| \(searching && searchCapped\)/g) ?? []).length >= 3, true);
   eq('call registers: Refresh re-runs an active search instead of replacing it',
     /if \(onDb && searching\) \{ setSrch\(\(s0\) => \(\{ \.\.\.s0 \}\)\); return; \}/.test(fc3), true);
   eq('call registers: "Loaded all" only when the read did not fill its limit',
@@ -9027,6 +9029,16 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   eq('Product & Party Search: a machine search that hit its cap says so',
     /exact \}, FOUND_CAP \+ 1\)/.test(lk) && /setFoundTruncated\(rows\.length > FOUND_CAP\)/.test(lk), true);
 
+  // #45 A CAPPED SEARCH'S WARNING SAYS TO NARROW THE SEARCH, not to press a
+  // Load more that is hidden while a search shows.
+  {
+    const w = partialExportWarning(1000, true);
+    eq('a capped search warns to narrow the search, not to Load more',
+      /narrow the search/.test(w) && !/Load more/.test(w) && /will not say so/.test(w) && /1,000 rows/.test(w), true);
+  }
+  // #21 ...and names where the queue stopped, because it is read A to Z.
+  eq('Pending Dispatch: a capped queue names the engineer it stopped part-way through',
+    /it ends part-way through <b>\{lines\[lines\.length - 1\]\?\.engineer/.test(readFileSync('src/modules/SpareDispatch.tsx', 'utf8')), true);
   // #21 PENDING DISPATCH: a capped queue flags every per-engineer total.
   eq('Pending Dispatch: a capped queue says its totals may be short',
     /\{lines\.length >= QUEUE_CAP && \(/.test(readFileSync('src/modules/SpareDispatch.tsx', 'utf8')), true);

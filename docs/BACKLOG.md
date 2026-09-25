@@ -69,6 +69,24 @@ Findings 5, 18, 22, the rest of 21 and 45, and part of 15. **No SQL.** Batch 2
   **✅ #21** Pending Dispatch flags per-engineer totals under a capped queue.
 - **Checks:** 14 new `check:ui` assertions (all fail on `b5cbb20`, pass here) and
   10 new `check:paging` behaviour tests.
+- **RE-REVIEWED BEFORE MERGE** (an independent pass: nothing made worse; four
+  real problems, all corrected in this PR):
+  - **#18** a capped call search still showed exact numbers in the FacetChips,
+    the table footer and the group headings — all now carry the `+`.
+  - **#45** Hand Stock's header and "N matches" line did not admit a capped
+    search (the file did) — both do now; Load more stays hidden during one.
+    The capped-search download warning says to NARROW THE SEARCH
+    (`searchScope`), not to press a Load more that is hidden.
+  - **#21** the Pending Dispatch banner said "each engineer's totals may be
+    short"; the queue is read A→Z and cut part-way through ONE engineer, with
+    everyone after them absent. It now names that engineer.
+  - **Cost:** `readUpTo` fetches the loaded pages IN PARALLEL (it runs after
+    every approval too, not only on the timer); tested for pages that answer
+    out of order and a register that shrank.
+  - **Pre-existing, fixed:** a Hand Stock cache of 1,500 rows restored as
+    complete (`% PAGE_SIZE === 0`); now `>= PAGE_SIZE`.
+  - **Still open, pre-existing:** the 30-minute timer ignores a Load more in
+    flight, so a rare overlap can lose or misplace a page.
 
 ## 2026-09-25 — Module review, batch 2: frozen screens and over-strong counts (v0.9.374)
 

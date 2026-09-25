@@ -17,7 +17,7 @@ import {
   type HandstockBalance, type HandstockMovement, type MovementKind,
 } from '../lib/handstock';
 import './fieldcalls.css';
-import { partial, cappedAt } from '../lib/exportscope';
+import { partial, searchScope } from '../lib/exportscope';
 
 // ===========================================================================
 // HAND STOCK — the stock level an engineer is carrying, per spare.
@@ -159,9 +159,10 @@ export function HandStock() {
   // Restored from a cache that ends exactly on a page boundary: there was
   // almost certainly another page, so offer it rather than making somebody
   // press Refresh to find out.
-  const [more, setMore] = useState(
-    (cached?.rows?.length ?? 0) > 0 && (cached?.rows?.length ?? 0) % PAGE_SIZE === 0,
-  );
+  // A FULL PAGE PROVES NOTHING, so a restored cache of at least one page may
+  // have more behind it. `% PAGE_SIZE === 0` said a 1,500-row cache (the cache
+  // keeps at most 1,500) was the whole register -- no "+", no Load more.
+  const [more, setMore] = useState((cached?.rows?.length ?? 0) >= PAGE_SIZE);
   // A SEARCH ASKS THE DATABASE, not the page already loaded — a part somebody
   // is looking for is exactly the one that has not been paged in yet. These are
   // what came back; while they are set, they are what the table shows.
@@ -312,7 +313,10 @@ export function HandStock() {
         subtitle="Stock level per engineer and spare: stock out from Stores − consumption − transfers out + transfers in."
         icon="🎒"
         count={visible.length}
-        countMore={!hits && more}
+        // A SEARCH THAT FILLED ITS ONE REQUEST IS A LOWER BOUND TOO. Load more
+        // stays hidden while one shows: it pages the browse list, not the search.
+        countMore={hits ? hits.length >= PAGE_SIZE : more}
+        moreAvailable={!hits && more}
         onLoadMore={() => void loadMore()}
         loadingMore={busy}
         status={
@@ -325,7 +329,7 @@ export function HandStock() {
                 ⟳ synced {timeAgo(lastSync)}
               </span>
             )}
-            {hits && <span className="conn-dot conn-on">🔎 searching the whole register — {hits.length} match{hits.length === 1 ? '' : 'es'}</span>}
+            {hits && <span className="conn-dot conn-on">🔎 searching the whole register — {hits.length}{hits.length >= PAGE_SIZE ? '+' : ''} match{hits.length === 1 ? '' : 'es'}</span>}
           </>
         }
         actions={can('stock.transfer') && <button className="btn btn-primary" onClick={() => navigate('/stock-transfer')}>⇄ Transfer stock</button>}
@@ -415,7 +419,7 @@ export function HandStock() {
                     PAGE_SIZE lines, so it is capped by that, not by whether
                     the browse list has more pages (finding 45). */}
                 {rows.length > 0 && (
-                  <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], hits ? cappedAt(hits.length, PAGE_SIZE) : partial(more))}>⭳ Export CSV</button>
+                  <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], hits ? searchScope(hits.length >= PAGE_SIZE) : partial(more))}>⭳ Export CSV</button>
                 )}
               </Toolbar>
             }

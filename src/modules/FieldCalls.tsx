@@ -35,7 +35,7 @@ import { StateBadge, Ucn } from '../lib/callstate';
 import { useUserNames, nameForUserId } from '../lib/userNames';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
-import { partial } from '../lib/exportscope';
+import { partial, searchScope } from '../lib/exportscope';
 import {
   FC_CONTRACT_TYPE,
   FIELD_HEADERS,
@@ -742,7 +742,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         setLastSync(now);
         setBanner({ tone: capped ? 'info' : 'ok', text: active
           ? (capped
-            ? `${SEARCH_CAP.toLocaleString()}+ matches — the first ${SEARCH_CAP.toLocaleString()} are shown. Narrow the search to see the rest.`
+            ? `${SEARCH_CAP.toLocaleString()}+ matches — the search stopped at ${SEARCH_CAP.toLocaleString()}. Narrow it to see the rest.`
             : `${rows.length} match${rows.length === 1 ? '' : 'es'} for your search (server-side).`)
           : `Showing ${rows.length} ${config.singular.toLowerCase()}s${rows.length >= loadLimit ? ' — Load more for older' : ''}; search finds any call.` });
       } catch (e) {
@@ -1217,7 +1217,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         blankLabel="— not allotted —"
         title="Engineer"
         storeKey={`calls.${config.callType}.engineer`}
-        more={moreAvailable}
+        more={moreAvailable || (searching && searchCapped)}
       />
 
       {allotBlocked && (
@@ -1255,7 +1255,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
           { key: 'callState', label: 'Call Status' },
         ]}
         rowsBeforeScroll={12}
-        moreAvailable={moreAvailable}
+        // The footer count and group headings are lower bounds for a capped
+        // search too. No Load more appears: this table is given no onLoadMore.
+        moreAvailable={moreAvailable || (searching && searchCapped)}
         onRowClick={(r) => setDrawer({ mode: 'view', row: r })}
         emptyText={configured ? `No ${config.singular.toLowerCase()}s yet. Click “New ${config.singular}”.` : 'Connect the Google Sheet in Settings to load calls, or add one now (saved locally).'}
         toolbar={
@@ -1301,7 +1303,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             <button
               className="btn btn-sm"
               onClick={() =>
-                csvExport(config.csvName, COLUMNS.filter((c) => c.key[0] !== '_').map((c) => ({ key: c.key, header: c.header })), visibleRows as unknown as Record<string, unknown>[], partial(moreAvailable || (searching && searchCapped)))
+                csvExport(config.csvName, COLUMNS.filter((c) => c.key[0] !== '_').map((c) => ({ key: c.key, header: c.header })), visibleRows as unknown as Record<string, unknown>[], searching ? searchScope(searchCapped) : partial(moreAvailable))
               }
             >
               ⭳ Export CSV

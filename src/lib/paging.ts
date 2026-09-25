@@ -69,11 +69,19 @@ export async function readUpTo<T>(
   want: number,
   size = PG_PAGE,
 ): Promise<{ rows: T[]; more: boolean }> {
+  // IN PARALLEL. `load()` is also what runs after every approval, so reading
+  // five loaded pages one after another made each action wait five round
+  // trips. How many pages are wanted is known up front, so they are asked for
+  // together and then walked IN ORDER, stopping at the first short page --
+  // exactly the answer the sequential loop gave. The only cost is a request
+  // or two for pages past the end when the register has shrunk.
+  const upTo = Math.max(size, want);
+  const offsets: number[] = [];
+  for (let from = 0; from < upTo; from += size) offsets.push(from);
+  const pages = await Promise.all(offsets.map((from) => page(size, from)));
   const rows: T[] = [];
   let more = false;
-  const upTo = Math.max(size, want);
-  for (let from = 0; from < upTo; from += size) {
-    const got = await page(size, from);
+  for (const got of pages) {
     rows.push(...got);
     more = got.length === size;
     if (!more) break;
