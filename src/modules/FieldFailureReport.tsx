@@ -195,7 +195,13 @@ export function FieldFailureReport() {
         </div>
       ),
     },
-  ], []);
+    // NOT []. The 📄 Word button above calls THIS render's `doc`, and `doc`
+    // reads the signature -- which `useMySignature()` loads AFTER the first
+    // render. Memoised on [] the columns kept the first render's `doc` for
+    // ever, so the report never carried a signature and the audit row always
+    // said signed: false. The primitives, not `user`: the auth context rebuilds
+    // its value on every render, and `doc` reads only these three.
+  ], [mySig, user?.email, user?.fullName]);
 
   const doc = async (r: Row) => {
     const raisedBy = String(r.raised_by_name ?? '') || (user?.email ?? '');

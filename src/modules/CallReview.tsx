@@ -3,6 +3,7 @@ import { PageHeader, SearchBox } from '../components/ui/ui';
 import { PickList } from '../components/ui/PickList';
 import { StateBadge } from '../lib/callstate';
 import { useAuth } from '../lib/auth';
+import { seesEveryRecord } from '../lib/rbac';
 import { logAudit } from '../lib/audit';
 import {
   listSolvedCalls, reportsByCall, consumptionForCall, listCallReportReviews,
@@ -253,7 +254,18 @@ export function CallReview() {
             Calls <span className="muted">{filtered.length}{capped ? '+' : ''} listed</span>
           </div>
           {busy && !rows.length && <div className="cr-empty muted">Loading solved calls…</div>}
-          {!busy && !filtered.length && <div className="cr-empty muted">Nothing here. {only === 'pending' ? 'Every solved call has been reviewed.' : 'No solved calls match.'}</div>}
+          {/* AN EMPTY LIST PROVES WHAT THE READER WAS SHOWN, never what exists.
+              "Every solved call has been reviewed" is the strong claim, so it is
+              made only when it can be true: no search narrowing the list, a role
+              that sees every call, and a read that did not stop at its cap. */}
+          {!busy && !filtered.length && <div className="cr-empty muted">Nothing here. {
+            err ? 'The list could not be loaded, so this says nothing about what is waiting.'
+              : q.trim() ? 'Nothing matches your search.'
+              : only !== 'pending' ? 'No solved calls match.'
+              : capped ? 'None of the calls loaded is waiting — but the list stopped at its limit, so there may be more.'
+              : seesEveryRecord(user, can) ? 'Every solved call has been reviewed.'
+              : 'Nothing is waiting that you can see — your role is shown its own calls and its team’s, not the whole register.'
+          }</div>}
           <ul className="cr-list">
             {visible.map((r) => {
               const ucn = g(r, 'ucn');

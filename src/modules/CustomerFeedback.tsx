@@ -179,13 +179,13 @@ export function CustomerFeedback() {
                 is on. */}
             <button type="button" className={`chip ${origin === '' ? 'chip-on' : ''}`}
                     aria-pressed={origin === ''} onClick={() => setOrigin('')}>
-              All <b>{scoped.length}</b>
+              All <b>{scoped.length}{more ? '+' : ''}</b>
             </button>
             {ORIGINS.map((o) => (
               <button key={o} type="button" className={`chip ${origin === o ? 'chip-on' : ''}`}
                       aria-pressed={origin === o}
                       onClick={() => setOrigin((c) => (c === o ? '' : o))}>
-                {o} <b>{scoped.filter((r) => originOf(r) === o).length}</b>
+                {o} <b>{scoped.filter((r) => originOf(r) === o).length}{more ? '+' : ''}</b>
               </button>
             ))}
             <div className="spacer" />

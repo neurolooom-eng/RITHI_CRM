@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.374',
+    date: '2026-09-25',
+    title: 'Screens that stopped updating, and numbers that looked exact but were not',
+    changes: [
+      'A FILTERED LIST STAYS FILTERED. On Party Master, Part Master, Audit Log, Visit Reports and the Product Database, the half-hourly refresh ignored any filter you had set: thirty minutes later the list quietly went back to the unfiltered first page while the filter boxes still showed your filter. The refresh now waits while a filter is on.',
+      'THE FIELD FAILURE REPORT’S WORD DOCUMENT CARRIES YOUR SIGNATURE. The 📄 Word button had been set up before your saved signature finished loading, and kept that first version for good — so the signature block was always empty. It now uses your signature, when you are the person who raised the report.',
+      'MY WORKLOAD COUNTS YOUR TEAM. “Awaiting me” was worked out before the page knew who reports to you, so a Reporting Manager’s number here did not match the ⚡ count on Spare Requests. It now waits until your team is known.',
+      '“EVERYTHING IS DONE” IS SAID ONLY WHEN IT CAN BE TRUE. Call Review (“every solved call has been reviewed”), Pending Calls (“everything is closed”) and RM Approval (“every spare has had its first approval”) said so to anybody with an empty list — including somebody whose search matched nothing, or whose role only shows their own team. They now say which: nothing matched, nothing that you can see, or genuinely nothing.',
+      'A COUNT OVER PART OF THE LIST SHOWS A “+”. Customer Feedback’s origin chips, every Hand Stock chip (including ⚠️ Short), the Product Database heading, the Pending Dispatch queue, the RM Approval queue and the Stock Out total read like final numbers while only the first pages were loaded, or after the list had stopped at its limit. They now carry a “+” until the whole list is in.',
+      'AND FOUR THINGS THE FIRST ROUND OF THESE FIXES MISSED, found by reviewing them again before release: “To be Reviewed” read “N of 0” if the Call Status box had been left on something other than Solved — its count now ignores that box, as the tab itself does. A list that FAILED to load no longer says everything is done; it says it could not be loaded. Opening one contract and quickly another could start a renewal with the first contract’s machines — only the contract you are looking at can now fill the Renew panel. And the “not finished loading” download warning no longer suggests narrowing the filter on screens where that cannot help.'
+    ],
+  },
+  {
     version: '0.9.373',
     date: '2026-09-25',
     title: 'Twelve small corrections from the module review — two of them screens that said “saved” when nothing was',

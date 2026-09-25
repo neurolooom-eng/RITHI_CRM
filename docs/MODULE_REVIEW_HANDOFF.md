@@ -51,6 +51,11 @@ Partly done:
 
 `docs/BACKLOG.md` has the detail.
 
+**Batch 2 is done (2026-09-25, v0.9.374).** Complete: **A7** (19, and 21 except
+Pending Dispatch's per-engineer totals), **A8** (25; the read now reports that
+it hit its cap, rather than only the comment being fixed), **A10** (6),
+**A11** (1), **B1** (16) and **B3** (17). **Batch 1 is merged and deployed.**
+
 ---
 
 ## Step 0 — fifteen queries, before any code

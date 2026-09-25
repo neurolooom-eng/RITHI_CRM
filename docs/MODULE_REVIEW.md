@@ -21,6 +21,9 @@ re-review.
 (the table says which part). Each is marked in the table below. No SQL was
 changed.
 
+**Batch 2 (2026-09-25, v0.9.374):** 1, 6, 16, 17, 19 and 25 are fixed; 21 is
+fixed in part. Batch 1 is merged into `main` (#421) and deployed.
+
 **Re-reviewed again on 2026-09-24 against `main` at `ee732f4`** (then `4a75371`, two
 commits to one hand-run file, re-checked for finding 39), after 21 more
 commits (88 files, about 10,800 lines):
@@ -78,12 +81,12 @@ alone — none of them touches anything recorded here, and none of them fixes it
 
 | # | Module | What | Severity |
 | --- | --- | --- | --- |
-| 1 | My Workload | "Awaiting me" is counted before the access scope exists, and never recounted | High |
+| 1 | My Workload | "Awaiting me" is counted before the access scope exists, and never recounted — **FIXED in batch 2 (v0.9.374)** | High |
 | 2 | Dashboard | "Engineers Active" is capped at 6 by the chart's own `slice` — **FIXED in batch 1 (v0.9.373, this branch)** | High |
 | 3 | Dashboard | Two KPI cards say "most recent 300" over a number that is the whole register — **FIXED in batch 1 (v0.9.373, this branch)** | Medium |
 | 4 | Dashboard | A private date parser, month-first, where the project has one day-first parser | Medium |
 | 5 | Product & Party Search | A machine search stops at 200 rows and says nothing | Medium |
-| 6 | Field Failure Register | The Word report can never carry a signature — the handler was frozen before it loaded | High |
+| 6 | Field Failure Register | The Word report can never carry a signature — the handler was frozen before it loaded — **FIXED in batch 2 (v0.9.374)** | High |
 | 7 | *cross-cutting* | Four workbooks and every register CSV carry the wire value, not the date (**measured**) | High |
 | 8 | *cross-cutting* | Seven paged reads page with no `order()` | Medium |
 | 9 | Daily Complaint Review | "To be Reviewed" counts its list against the whole register — **FIXED in batch 1 (v0.9.373, this branch)** | Medium |
@@ -93,16 +96,16 @@ alone — none of them touches anything recorded here, and none of them fixes it
 | 13 | Spare Insights | The date window is a UTC day, the reader's is an IST one | Low |
 | 14 | Spare Insights | "By product" is the top 25 and does not say so | Low |
 | 15 | *cross-cutting* | Nine paged reads order by a column that is not unique — rows doubled and dropped (**measured in Postgres**) | High |
-| 16 | *cross-cutting* | Five auto-refreshers test a filter flag frozen at the first render, so they overwrite a filtered view | Medium |
-| 17 | *cross-cutting* | Three screens tell everybody "everything is done" from a list that is filtered, scoped and capped | Medium |
+| 16 | *cross-cutting* | Five auto-refreshers test a filter flag frozen at the first render, so they overwrite a filtered view — **FIXED in batch 2 (v0.9.374)** | Medium |
+| 17 | *cross-cutting* | Three screens tell everybody "everything is done" from a list that is filtered, scoped and capped — **FIXED in batch 2 (v0.9.374)** | Medium |
 | 18 | Field Call Register | A search reports its capped 1,000 as the match count; ↻ Refresh claims "Loaded all" over 800 | Medium |
-| 19 | Customer Feedback | The Uploaded / Entered-here chips count only the loaded page, with no `+` | Medium |
+| 19 | Customer Feedback | The Uploaded / Entered-here chips count only the loaded page, with no `+` — **FIXED in batch 2 (v0.9.374)** | Medium |
 | 20 | Spare Requests | "Not Approved" reads as **approved** — a refused line reaches the dispatch queue (**measured**) | High |
-| 21 | Hand Stock · Pending Dispatch | More chips counting one page as if it were the register | Medium |
+| 21 | Hand Stock · Pending Dispatch | More chips counting one page as if it were the register — **PART-FIXED: every chip and count named, except Pending Dispatch's per-engineer totals (batch 2, v0.9.374)** | Medium |
 | 22 | Spare Requests · Spare Consumption · Customer Feedback | The 30-minute auto-sync throws away every page but the first | Medium |
 | 23 | User Master | Correcting somebody's name silently empties their team (**measured**) | High |
 | 24 | Roles & Permissions | Unticking every box and saving **grants** the role its code defaults (**measured**) — **FIXED on `main` by `1bf248e`** | ~~High~~ |
-| 25 | Stock Out | An exact count over a read that is paged and capped, under a comment saying it is not paged | Medium |
+| 25 | Stock Out | An exact count over a read that is paged and capped, under a comment saying it is not paged — **FIXED in batch 2 (v0.9.374)** | Medium |
 | 26 | Call Reporting | A visit dated on the form is stored at UTC midnight and reads back at 05:30 (**measured**) | Medium |
 | 27 | Data Export | Every table is paged with no `order()` — a copy that can double and drop rows | High |
 | 28 | Material Returns | Two lines of one MRN can get the same screen row id, so the table draws one and drops the other (**measured**) — **FIXED in batch 1 (v0.9.373, this branch)** | Medium |

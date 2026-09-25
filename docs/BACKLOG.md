@@ -43,6 +43,49 @@ up)_
 
 ---
 
+## 2026-09-25 — Module review, batch 2: frozen screens and over-strong counts (v0.9.374)
+
+Findings 1, 6, 16, 17, 19, 21 (in part) and 25 from `docs/MODULE_REVIEW.md`.
+**No SQL.** Batch 1 (v0.9.373, PR #421) is **merged and deployed** — the
+"Deploy to GitHub Pages" run for `50d8497` succeeded.
+
+- **✅ #16** the 30-minute sync is its own effect on Party Master, Part Master,
+  Audit Log, Visit Reports and the Product Database, rebuilt when the filter
+  changes, and off while one is set.
+- **✅ #6** FFR Word report: the columns memo depends on the signature and the
+  two user fields `doc` reads, not on `[]`.
+- **✅ #1** My Workload loads on `scope.ready` (checked: every path through
+  `useAccessScope` sets it; `loadUserMaster()` resolves `[]` on failure).
+- **✅ #17** the three "everything is done" claims are made only with no filter
+  on and `seesEveryRecord(user, can)`; otherwise "nothing matched" or "nothing
+  that you can see".
+- **✅ #19, #25**; **#21 in part** — the chips, the Product Database heading, the
+  Pending Dispatch queue chip and heading (`QUEUE_CAP`), and Stock Out
+  (`STOCK_OUT_CAP`, the false "one request" comment removed). **Still open:**
+  Pending Dispatch's per-engineer `summarise()` totals under a capped queue.
+- **Checks:** 15 new `check:ui` assertions, all confirmed to FAIL on the pre-fix
+  tree (run in a worktree of `50d8497`) and pass now. `npm run build` passes.
+- **RE-REVIEWED BEFORE MERGE** (an independent pass over batches 1 and 2 — no
+  regressions, five incomplete fixes, all corrected in this PR):
+  - **#9** "To be Reviewed" read "N of 0" with the Call Status box on another
+    state: `countCallReviews` now applies that box to the totals only
+    (`totalsState`), and counts the Solved worklist regardless.
+  - **#17** after a FAILED load the three screens still made the strong claim;
+    now "could not be loaded" (`loadFailed` / `err`).
+  - **#29** opening a second contract before the first's machines arrived let
+    the first's reply seed Renew on the second — per-open token (`openSeq`).
+  - **#45** the "narrow the filter" advice could not work on capped screens
+    (their search filters rows already read) — now says the rest cannot be
+    reached from that screen.
+  - **#21/#45** RM Approval's title count takes `+` at `RM_QUEUE_CAP`.
+  - **#28** the Material Returns cache key is `materialReturns.v2`, so a cache
+    with the old keys and order is ignored rather than paged from.
+  - 6 more `check:ui` assertions, each confirmed to fail on `afd84b0` (the
+    batch as first pushed).
+  - **Still open, pre-existing:** a 30-minute sync already in flight when a
+    filter is typed can still overwrite the filtered result (manual ↻ has the
+    same race).
+
 ## 2026-09-25 — Module review, batch 1: twelve small fixes (v0.9.373)
 
 The first low-risk batch from `docs/MODULE_REVIEW.md` (findings 2, 3, 9, 28,
