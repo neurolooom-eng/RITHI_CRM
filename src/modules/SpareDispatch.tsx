@@ -46,6 +46,12 @@ import { cappedAt } from '../lib/exportscope';
 // ===========================================================================
 
 const CACHE_KEY = 'spareDispatch';
+// THE MOST THE QUEUE READS. `listPendingDispatch` pages through `allRows` and
+// stops here SILENTLY, so a queue that fills it may hold more than it shows.
+// One constant for the read, the counts and the export, so they cannot drift.
+const QUEUE_CAP = 2000;
+// The same for the flat list of issued spares: `listStockOutLines` stops here.
+const STOCK_OUT_CAP = 5000;
 const MIGRATION_HINT = 'Pending dispatch needs migration 0027_spare_dispatch.sql — run it in the Supabase SQL editor (apply bundle: Spare_1.sql).';
 
 type Tab = 'queue' | 'sent';
@@ -85,7 +91,7 @@ export function SpareDispatch() {
     if (!onDb) return;
     setBusy(true);
     try {
-      const mapped = (await listPendingDispatch()).map(toPendingLine);
+      const mapped = (await listPendingDispatch(QUEUE_CAP)).map(toPendingLine);
       setLines(mapped);
       setPicked((cur) => new Set([...cur].filter((id) => mapped.some((l) => l.line_id === id))));
       setLastSync(saveCache(CACHE_KEY, mapped.map((l) => ({ ...l, id: String(l.line_id) }))));
@@ -238,6 +244,8 @@ export function SpareDispatch() {
         subtitle="Approved spares waiting at Stores, grouped by engineer. Tick and book them out in one stock out."
         icon="🚚"
         count={visible.length}
+        // A QUEUE THAT FILLED THE READ IS A LOWER BOUND, and says so.
+        countMore={lines.length >= QUEUE_CAP}
       />
 
       {msg && (
@@ -249,7 +257,7 @@ export function SpareDispatch() {
 
 
       <div className="stage-chips hs-tabs">
-        <button className={`chip ${tab === 'queue' ? 'chip-on' : ''}`} onClick={() => setTab('queue')}>🚚 Queue <b>{lines.length}</b></button>
+        <button className={`chip ${tab === 'queue' ? 'chip-on' : ''}`} onClick={() => setTab('queue')}>🚚 Queue <b>{lines.length}{lines.length >= QUEUE_CAP ? '+' : ''}</b></button>
         <button className={`chip ${tab === 'sent' ? 'chip-on' : ''}`} onClick={() => setTab('sent')}>📄 Stock outs</button>
       </div>
 
@@ -270,7 +278,7 @@ export function SpareDispatch() {
                   { key: 'qty', header: 'Qty' }, { key: 'req_type', header: 'Type' },
                   { key: 'call_number', header: 'Call' }, { key: 'party_name', header: 'Party' },
                   { key: 'waiting_since', header: 'Waiting since' },
-                ], visible as unknown as Record<string, unknown>[], cappedAt(lines.length, 2000))}
+                ], visible as unknown as Record<string, unknown>[], cappedAt(lines.length, QUEUE_CAP))}
               >⭳ Export CSV</button>
             )}
           </Toolbar>
@@ -506,7 +514,8 @@ export function StockOuts({ onMigrationError, onPrint, onDeclare, onCount }: {
   onMigrationError: () => void; onPrint: (stockOut: string) => void; onDeclare: (stockOut: string) => void;
   // The page above wants the number for its title badge. The tab does not, so
   // it is optional rather than state lifted out of a component that works.
-  onCount?: (n: number) => void;
+  // `capped` says the read filled STOCK_OUT_CAP, so the number is a floor.
+  onCount?: (n: number, capped: boolean) => void;
 }) {
   // A FLAT list: one row per spare actually issued, not a card per stock out —
   // that is what Stores reads to see what went where, and it carries the days
@@ -517,7 +526,7 @@ export function StockOuts({ onMigrationError, onPrint, onDeclare, onCount }: {
 
   useEffect(() => {
     setBusy(true);
-    listStockOutLines()
+    listStockOutLines(STOCK_OUT_CAP)
       .then(setRows)
       .catch((e) => {
         if (isMissingTable(e, 'spare_stock_out_lines', 'spare_dispatches', 'spare_dispatch_lines')) onMigrationError();
@@ -534,7 +543,7 @@ export function StockOuts({ onMigrationError, onPrint, onDeclare, onCount }: {
       .some((k) => g(r, k).toLowerCase().includes(q)));
   }, [rows, search]);
 
-  useEffect(() => { onCount?.(visible.length); }, [visible.length, onCount]);
+  useEffect(() => { onCount?.(visible.length, rows.length >= STOCK_OUT_CAP); }, [visible.length, rows.length, onCount]);
 
   // Slow dispatches are the point of the column, so they are coloured.
   const daysTone = (d: number) => (d >= 7 ? 'danger' : d >= 3 ? 'warning' : 'success');
@@ -598,7 +607,7 @@ export function StockOuts({ onMigrationError, onPrint, onDeclare, onCount }: {
           <div className="spacer" />
           <span className="muted">{visible.length} line{visible.length === 1 ? '' : 's'}</span>
           {visible.length > 0 && (
-            <button className="btn btn-sm" onClick={() => csvExport('stock-out-lines.csv', columns.filter((c) => c.key !== '_doc').map((c) => ({ key: c.key, header: c.header })), visible, cappedAt(rows.length, 5000))}>⭳ Export CSV</button>
+            <button className="btn btn-sm" onClick={() => csvExport('stock-out-lines.csv', columns.filter((c) => c.key !== '_doc').map((c) => ({ key: c.key, header: c.header })), visible, cappedAt(rows.length, STOCK_OUT_CAP))}>⭳ Export CSV</button>
           )}
         </Toolbar>
       }

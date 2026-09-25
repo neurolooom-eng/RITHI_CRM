@@ -43,6 +43,29 @@ up)_
 
 ---
 
+## 2026-09-25 — Module review, batch 2: frozen screens and over-strong counts (v0.9.374)
+
+Findings 1, 6, 16, 17, 19, 21 (in part) and 25 from `docs/MODULE_REVIEW.md`.
+**No SQL.** Batch 1 (v0.9.373, PR #421) is **merged and deployed** — the
+"Deploy to GitHub Pages" run for `50d8497` succeeded.
+
+- **✅ #16** the 30-minute sync is its own effect on Party Master, Part Master,
+  Audit Log, Visit Reports and the Product Database, rebuilt when the filter
+  changes, and off while one is set.
+- **✅ #6** FFR Word report: the columns memo depends on the signature and the
+  two user fields `doc` reads, not on `[]`.
+- **✅ #1** My Workload loads on `scope.ready` (checked: every path through
+  `useAccessScope` sets it; `loadUserMaster()` resolves `[]` on failure).
+- **✅ #17** the three "everything is done" claims are made only with no filter
+  on and `seesEveryRecord(user, can)`; otherwise "nothing matched" or "nothing
+  that you can see".
+- **✅ #19, #25**; **#21 in part** — the chips, the Product Database heading, the
+  Pending Dispatch queue chip and heading (`QUEUE_CAP`), and Stock Out
+  (`STOCK_OUT_CAP`, the false "one request" comment removed). **Still open:**
+  Pending Dispatch's per-engineer `summarise()` totals under a capped queue.
+- **Checks:** 15 new `check:ui` assertions, all confirmed to FAIL on the pre-fix
+  tree (run in a worktree of `50d8497`) and pass now. `npm run build` passes.
+
 ## 2026-09-25 — Module review, batch 1: twelve small fixes (v0.9.373)
 
 The first low-risk batch from `docs/MODULE_REVIEW.md` (findings 2, 3, 9, 28,

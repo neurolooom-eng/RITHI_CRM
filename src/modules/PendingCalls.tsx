@@ -9,6 +9,7 @@ import { StateBadge, Ucn } from '../lib/callstate';
 import { allowsAllottee, useAccessScope, useTeamEngineers } from '../lib/access';
 import { csvExport, fmtLongDate, fmtLongSmart, timeAgo } from '../lib/format';
 import { useAuth } from '../lib/auth';
+import { seesEveryRecord } from '../lib/rbac';
 import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
 
@@ -265,7 +266,13 @@ export function PendingCalls() {
           navigate(fam === 'install' ? '/installations' : fam === 'pm' ? '/pm-calls' : '/field-calls',
             { state: { editUcn: String(r.ucn ?? '') } });
         }}
-        emptyText={busy ? 'Loading…' : 'No pending calls — everything is closed.'}
+        // AN EMPTY LIST PROVES WHAT THE READER WAS SHOWN, never what exists.
+        // "Everything is closed" is said only by a role that sees every call,
+        // with no filter narrowing the list; otherwise the screen says which.
+        emptyText={busy ? 'Loading…'
+          : (q.trim() || type || state || engineerFilter) ? 'No pending calls match these filters.'
+          : (scope.all && seesEveryRecord(user, can)) ? 'No pending calls — everything is closed.'
+          : 'Nothing is pending that you can see — your role is shown its own calls and its team’s, not the whole register.'}
         toolbar={
           <Toolbar>
             <SearchBox value={q} onChange={setQ} placeholder="UCN, party, product, serial, engineer…" />

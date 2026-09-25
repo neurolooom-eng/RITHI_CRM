@@ -6,6 +6,7 @@ import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { listPendingRmApproval, decideSpareLines, supabaseConfigured, type SpareDecision } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
+import { seesEveryRecord } from '../lib/rbac';
 import { partDescription } from '../lib/handstock';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
@@ -252,7 +253,15 @@ export function SpareRmApproval() {
 
 
       {!busy && visible.length === 0 ? (
-        <EmptyState title="✅ Nothing waiting for an RM" hint={onDb ? 'Every spare has had its first approval.' : 'Connect the database to load the queue.'} />
+        // AN EMPTY QUEUE PROVES WHAT THE READER WAS SHOWN. "Every spare has had
+        // its first approval" is a claim about the whole company, so it is made
+        // only by a role that sees every request, with no search on.
+        <EmptyState
+          title={search.trim() ? 'Nothing matches your search' : '✅ Nothing waiting for an RM'}
+          hint={!onDb ? 'Connect the database to load the queue.'
+            : search.trim() ? 'Clear the search to see the whole queue.'
+            : seesEveryRecord(user, can) ? 'Every spare has had its first approval.'
+            : 'Nothing is waiting that you can see — your role is shown its own team’s requests, not the whole company’s.'} />
       ) : (
         <DataTable<RmLine>
           columns={columns}
