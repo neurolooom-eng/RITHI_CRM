@@ -381,6 +381,10 @@ per column.
 
 ## 8 — Seven paged reads page with no `order()`
 
+> **Six still open (2026-09-25).** `sbSearchProducts` was fixed on `main` by
+> `8eee917` and now orders by `created_at desc, id desc`. The other six were
+> re-checked by name and still name no order.
+
 **Where** `src/lib/supabase.ts` — `distinctColumn()` (~:794), `sbSearchProducts()`
 (~:1439), `listDirectoryAsUsers()` (~:2427), `sbEngineerNames()` (~:2568),
 `countCallReviews()` (~:2702), `reviewPickLists()` (~:2733), `listCallReportReviews()`
@@ -1831,7 +1835,7 @@ hand-run file that writes when one word (`v_apply`) is changed to `true`
 **What is wrong**, in order of consequence:
 
 1. **It copies the contract's own word verbatim**:
-   `coalesce(nullif(btrim(p.contract_type), ''), 'CMC')` (`:95`, and `:138` in
+   `coalesce(nullif(btrim(p.contract_type), ''), 'CMC')` (`:95`, and `:154` in
    the report). The contract register holds words like "Labour", and the project
    has a function for exactly this: `contract_cover_code('Labour')` = **AMC**.
    The file does not call it, and the stamp trigger's `cover_code('Labour')`
@@ -1846,7 +1850,7 @@ hand-run file that writes when one word (`v_apply`) is changed to `true`
    word on its old calls and WGP on new ones. The file also guesses **CMC** for a
    contract with no type, where the view says `CONTRACT (TYPE NOT RECORDED)`.
 3. **Its "already approved" count counts requests nobody has approved**:
-   `not in ('', 'Pending', 'RM')` (`:182`), but a new request's stage is
+   `not in ('', 'Pending', 'RM')` (`:198`), but a new request's stage is
    `'RM Approval'` (the column default, checked). The file says to **read that
    row before applying**.
 
@@ -1858,7 +1862,7 @@ trap.
 `main` during this review (`14e208e`, `4a75371`): they added rows 7–8 and
 recorded, correctly, that correcting a request's status does not move its stage.
 Neither touches the three faults above; the line numbers here are from after
-them.
+them, and after `2f5419d`, a third commit that moved them again.
 
 **Before anybody sets `v_apply := true`**: fix 1 and 2 at least. Nothing has
 been written by this file unless somebody already flipped the switch; Step 0
@@ -2018,10 +2022,10 @@ into a file that is reconciled against, though.
   `c.reg_date` (checked in the database). `listUnusedSpares` orders by
   `"Dispatched On", ucn`, which ties for two parts on one call dispatched the
   same day. **Both downloads are marked complete.**
-- **16 (frozen auto-refresh guard)** gains a sixth: the Product Database
-  (`ProductMaster.tsx:143-146`). It reads the filter `f` inside
-  `setInterval(…)` registered with `[]`, so every 30 minutes it reloads the
-  unfiltered browse set over a filtered view.
+- **16 (frozen auto-refresh guard)**: the Product Database instance
+  (`ProductMaster.tsx`, now `:143-146`) was reported again this round. It is
+  **not** a new instance: finding 16 already lists it as `ProductMaster.tsx:117`.
+  An earlier version of this section miscounted it as a sixth.
 - **18 (search cap reported as the answer)**: the same 1,000-row search now
   feeds the register's CSV, with no warning. See 45.
 - **21 (a count over one page)** gains the Product Database's title badge,
@@ -2081,3 +2085,103 @@ Listed so nothing is lost. Each is a candidate, **not** a finding:
   unique.
 - **0241.** It merges, never overwrites, and leaves an empty role alone.
 - **No new hand-run SQL file contains a psql meta-command.**
+
+---
+
+# By module (all 62 screens, `main` at `2f5419d`)
+
+The same findings, filed under the screen they affect, in `MODULES` order.
+**Bold number** = the finding; H / M / L = High / Medium / Low. A finding that
+touches several screens is listed under each. "Improve" lines are limited to
+what this review has evidence for: the check that would have caught a finding,
+or a decision the findings raise. They are not a wish-list. **"Not read
+closely"** means only a scan for the known fault patterns; that is not the
+same as "no bugs".
+
+**Overview**
+
+- **Dashboard** — **2** H "Engineers Active" capped at 6 · **3** M "most recent 300" caption over an exact number · **4** M a private month-first date parser.
+- **My Workload** — **1** H "Awaiting me" counted before the access scope exists · **32** M the Commercial installations card disagrees with the list it opens, and its read is unpaged.
+- **Product & Party Search** — **5** M machine search stops at 200 silently · **34** H cover shown as OGP to roles that cannot read contracts (same view).
+- **Machine History** — no open finding (its row-id bug was fixed on `main`, `1451a2b`). Reported but not re-checked: `machineHistory()` reads 500 calls per serial with no order.
+
+**Quality & analytics**
+
+- **Daily Complaint Review Register** — **9** M "To be Reviewed" counted against the whole register · **10** M two loads can interleave · **8** M `countCallReviews` / `reviewPickLists` page with no order.
+- **Product Failure Analysis** — **7** H workbook dates exported as text · **42** M Excel skips `export.data`.
+- **Spare Insights** — **13** L date window is a UTC day · **14** L "By product" is the top 25 without saying so.
+- **Call Review** — **17** M claims "every solved call has been reviewed" from a filtered list · **8** M `listCallReportReviews` pages with no order.
+- **Field Failure Register** — **6** H the Word report can never carry a signature · **7** H Insights workbooks export dates as text · **45** L download warning offers a Load more that does not exist.
+- **KPI & Failure Analysis** — **11** M the product chip narrows one card of three · **12** L cover tiles bucket by overlapping substrings.
+- **Objective** — **7** H workbook dates as text · **15** H its evidence RPC is paged on `reg_date` alone, and the file is marked complete · **42** M.
+
+**Masters**
+
+- **Party Master** — **15** H paged on `party_name` alone · **16** M 30-minute refresh overwrites a filtered view.
+- **Product Database** — **34** H contract machines read OGP for four roles · **35** H owner follows the transfer entered last, not dated last · **36** H editing an old sale writes its warranty onto the machine · **37** M phantom machine after a serial correction; deleting a transfer blanks the owner · **16** M frozen refresh guard · **21** M title count has no `+`. *Improve:* the 0239 question (stored contracts no longer shown), with a live query.
+- **Product Database 2.0** — no finding.
+- **Product Master (product lines)** — no finding.
+- **User Master** — **23** H correcting a name empties that person's team · **8** M `listDirectoryAsUsers` pages with no order · **45** L export warning advice.
+- **Part Master** — **16** M frozen refresh guard.
+- **All Masters** — no finding. *Note:* `listAllMasterValues` (finding 15's list) has no callers today.
+
+**Knowledge base**
+
+- **How RITHI Functions** — no finding.
+- **Service Manuals**, **QMS Documents** — not read closely.
+
+**Cover**
+
+- **Warranty Register** — **31** H "+ Installation call" creates the call, silently fails to link it for Hotline, and offers a second · the source of **36** and **37** (sale edits and serial corrections).
+- **Contract Register** — **29** L Renew pressed before the machines load starts empty.
+- **Ownership Transfer** — the source of **35** and **37** · **38** M its upload batch now takes 12.5 s of a 20 s limit.
+
+**Service calls**
+
+- **Request Registration** — **30** H "Correct this request" says corrected when nothing was saved · **43** M a request can be filed against two customers (CR-007) · **34** its machine list reads the same view.
+- **Pending Registrations** — no open finding.
+- **Field Call Register**, **Installation Calls**, **Preventive (PM)** (one component) — **18** M a capped search reported as the answer, and "Loaded all" over 800 · **7** H register CSVs carry the wire value, not the date · **26** M a visit dated on the form reads back at 05:30 (Call Reporting, opened from here) · **44** L batch cancel exists only in SQL · **45** L a capped search exports with no warning.
+- **Pending Calls** — **17** M "everything is closed" from a scoped list.
+- **Visit Reports / Service Reports** — **16** M frozen refresh guard · **26** M (Call Reporting is opened from here too) · **42** M.
+- **Bulk Report Mapping** — no finding (checked: its Convert is gated on the same permission its write policy asks for).
+- **PM Bulk Upload** — not read closely.
+- **Bulk Uploads** — **38** M ownership-transfer and sale-line batches slowed by the new triggers.
+- **Data Export** — **27** H every table paged with no order, in a file that leaves the building.
+
+**Spares**
+
+- **Spare Requests** — **20** H "Not Approved" reads as approved, so a refused line reaches Stores · **15** H paged on `created_at` alone · **22** M auto-sync throws away all pages but the first.
+- **RM Approval** — **17** M "every spare has had its first approval" from a scoped list · **45** L exported as complete over a 2,000-row cap.
+- **Pending Dispatch** — **21** M chips count one page as the register · **45** L warning advice.
+- **Stock Out** — **25** M an exact count over a capped read · **45** L warning advice.
+- **Spare Consumption** — **15** H paged on `created_at` alone · **22** M auto-sync keeps only page one.
+- **Hand Stock** — **21** M "Short" chip counts one page · **15** H movements paged on `moved_at` alone · **45** L a 1,000-row search exports with no warning.
+- **Material Returns (MRN)** — **28** M two lines of one MRN share a row id, so one is not drawn.
+- **Stock Transfer** — **45** L warning offers a Load more that does not exist.
+
+**Feedback & reports**
+
+- **Customer Feedback** — **19** M chips count only the loaded page · **15** H paged on `created_at` alone · **22** M auto-sync keeps only page one.
+- **Reports** (hub) and **Consumption Report**, **Call Report**, **Customer Feedback Report** — no open finding; they share `ReportBuilder`, which shapes dates correctly. **42** M its Excel skips `export.data`.
+- **KPI Export** — **15** H paged on the registration date alone, file marked complete · **42** M Excel is now the main button and skips `export.data`. Its new Excel dates were measured correct. The rest of the screen was not read closely.
+- **Not Consumed Against this Call** — **7** H workbook dates as text · **15** H two reads ordered by non-unique columns (`ucn`; `Dispatched On, ucn`), file marked complete.
+- **Feedback Without a Report** — no finding (read closely, clean).
+- **Hand Stock Report** — **33** H `.xls` dates read `[object Object]` · **41** M menu asks for `admin.view`, the page for its own key · **46** L a manager's file labelled "your own stock only" · **42** M.
+- **Indoor Service Register** — no finding.
+- **Solved Without a Report** — not read closely (its export's paging was checked: sound).
+- **Tracker** — not read closely.
+
+**Administration**
+
+- **User Access** — not read closely.
+- **Roles & Permissions** — **24** fixed on `main` (`1bf248e`). No open finding. *Improve:* grant `export.data` by migration if the live roles lack it (finding 42's question).
+- **Audit Log** — **15** H paged on `at` alone · **16** M frozen refresh guard.
+- **Admin Config**, **Software Validation**, **Settings**, **Version History** — not read closely.
+
+**Not a screen**
+
+- **Hand-run SQL in `supabase/apply/`** — **39** H the Item Status correction would route AMC spares past Commercial and NSM if applied · **40** M four probes return more grids than the SQL editor shows.
+- **Checks that would have caught whole classes** (improvements):
+  - Refuse a paged read without a unique order (**8**, **15**, **27**).
+  - Refuse a hand-run file that returns more than one grid (**40**).
+  - A suite that reads or writes **as the affected role** (**30**, **31**, **34**). Many suites already impersonate with `call public.be(...)`, but none covers these three. The one behind 30, `call_request_edit_test.sql`, runs as superuser, so RLS never applies to it.

@@ -1193,7 +1193,7 @@ nothing, and the only way to know is to ask it.
 `supabase/apply/_item_status_as_at_the_complaint_date.sql`. **Leave
 `v_apply := false`** until three things change:
 
-1. `coalesce(nullif(btrim(p.contract_type), ''), 'CMC')` (`:95`, `:138`) →
+1. `coalesce(nullif(btrim(p.contract_type), ''), 'CMC')` (`:95`, `:154`) →
    `coalesce(public.contract_cover_code(nullif(btrim(p.contract_type), '')), 'CONTRACT (TYPE NOT RECORDED)')`.
    **Careful:** `contract_cover_code` is created by **0218**, in the
    `product_database_2` bundle, the last in `ALL_ORDER` and the one that has
@@ -1203,7 +1203,7 @@ nothing, and the only way to know is to ask it.
 2. **The order.** Warranty first, then contract, the same as the view. Or, if
    you want contract first for historic calls, say so and change the view to
    match. The two must not disagree.
-3. `not in ('', 'Pending', 'RM')` (`:182`) → add `'RM Approval'`.
+3. `not in ('', 'Pending', 'RM')` (`:198`) → add `'RM Approval'`.
 
 **The decision** is (2). The file says contract outranks warranty "the same
 order as machine_cover and AppSheet"; the view and CLAUDE.md say warranty
