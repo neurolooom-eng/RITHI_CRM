@@ -34,6 +34,10 @@ import { cappedAt } from '../lib/exportscope';
 // registers, where only a page is loaded.
 // ===========================================================================
 
+// THE MOST THE QUEUE READS. `listPendingRmApproval` pages through `allRows` and
+// stops here SILENTLY, so a queue that fills it may hold more than it shows.
+// One constant for the read, the title count and the export.
+const RM_QUEUE_CAP = 2000;
 const MIGRATION_HINT = 'The RM approval queue needs migration 0116_spare_bulk_approval.sql — run it in the Supabase SQL editor (apply bundle: Spare_1.sql).';
 
 interface RmLine {
@@ -83,12 +87,15 @@ export function SpareRmApproval() {
   const [search, setSearch] = useState('');
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
+  // THE QUEUE FAILED TO LOAD, as distinct from a refused approval (which also
+  // sets `msg`). An empty queue after a failed read proves nothing.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = async () => {
     if (!onDb) return;
     setBusy(true);
     try {
-      const raw = await listPendingRmApproval();
+      const raw = await listPendingRmApproval(RM_QUEUE_CAP);
       setLines(raw.map((r) => {
         const part = String(r.part ?? '');
         return {
@@ -121,9 +128,11 @@ export function SpareRmApproval() {
         };
       }));
       setLastSync(new Date().toISOString());
+      setLoadFailed(false);
       setMsg(null);
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e);
+      setLoadFailed(true);
       setMsg({ tone: 'error', text: isMissingTable(m, 'spare_pending_rm') ? MIGRATION_HINT : `Could not read the queue: ${m}` });
     } finally { setBusy(false); }
   };
@@ -230,6 +239,8 @@ export function SpareRmApproval() {
         subtitle="Every spare waiting for a Reporting Manager — tick and approve."
         icon="✅"
         count={visible.length}
+        // A QUEUE THAT FILLED THE READ IS A LOWER BOUND, and says so.
+        countMore={lines.length >= RM_QUEUE_CAP}
         status={
           <>
             <span className={`conn-dot ${onDb ? 'conn-on' : 'conn-off'}`}>{onDb ? 'Database connected' : 'Not connected'}</span>
@@ -238,7 +249,7 @@ export function SpareRmApproval() {
         actions={
           <>
             {visible.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('rm-approval.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], cappedAt(lines.length, 2000))}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('rm-approval.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], cappedAt(lines.length, RM_QUEUE_CAP))}>⭳ Export CSV</button>
             )}
           </>
         }
@@ -257,8 +268,10 @@ export function SpareRmApproval() {
         // its first approval" is a claim about the whole company, so it is made
         // only by a role that sees every request, with no search on.
         <EmptyState
-          title={search.trim() ? 'Nothing matches your search' : '✅ Nothing waiting for an RM'}
+          title={loadFailed ? 'The queue could not be loaded'
+            : search.trim() ? 'Nothing matches your search' : '✅ Nothing waiting for an RM'}
           hint={!onDb ? 'Connect the database to load the queue.'
+            : loadFailed ? 'See the message above. Nothing here says the queue is empty.'
             : search.trim() ? 'Clear the search to see the whole queue.'
             : seesEveryRecord(user, can) ? 'Every spare has had its first approval.'
             : 'Nothing is waiting that you can see — your role is shown its own team’s requests, not the whole company’s.'} />

@@ -259,7 +259,8 @@ export function CallReview() {
               made only when it can be true: no search narrowing the list, a role
               that sees every call, and a read that did not stop at its cap. */}
           {!busy && !filtered.length && <div className="cr-empty muted">Nothing here. {
-            q.trim() ? 'Nothing matches your search.'
+            err ? 'The list could not be loaded, so this says nothing about what is waiting.'
+              : q.trim() ? 'Nothing matches your search.'
               : only !== 'pending' ? 'No solved calls match.'
               : capped ? 'None of the calls loaded is waiting — but the list stopped at its limit, so there may be more.'
               : seesEveryRecord(user, can) ? 'Every solved call has been reviewed.'

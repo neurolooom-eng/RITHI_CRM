@@ -747,7 +747,13 @@ console.log('\n-- the DCCR review desk --');
 
   eq('...and its count is not scoped by the tab that shows it',
     /solvedPending/.test(dccr)
-    && /countCallReviews\(\{ \.\.\.countFilterRef\.current, status: undefined, statuses: undefined \}\)/.test(dccr), true);
+    && /countCallReviews\(\s*\{ \.\.\.countFilterRef\.current, status: undefined, statuses: undefined, callState: undefined \},\s*countFilterRef\.current\.callState \?\? ''\)/.test(dccr), true);
+  // ...AND NOT BY THE CALL STATUS BOX EITHER. The tab is always Solved calls;
+  // a box left on "Unsolved" used to remove every Solved row from the count,
+  // so "To be Reviewed" read "N of 0". The box is applied to the TOTALS only.
+  eq('...and To be Reviewed is counted whatever the Call Status box says',
+    /const inView = todo\s*\?\s*counts\.solvedPending/.test(dccr)
+    && /totalsState = ''/.test(readFileSync('src/lib/supabase.ts', 'utf8')), true);
   eq('and scope it by review status',
     /deskStage = tab === 'r2' \? 'Review 2 Pending' : tab === 'r3' \? 'Review 3 Pending' : ''/.test(dccr), true);
   // Their tab counts come from the full walk, so they are exact and take no "+".
@@ -8958,6 +8964,20 @@ console.log('\n-- module review batch 2: frozen closures and over-strong counts 
   const sd = readFileSync('src/modules/SpareDispatch.tsx', 'utf8');
   eq('Pending Dispatch: a queue that filled its read says so',
     /countMore=\{lines\.length >= QUEUE_CAP\}/.test(sd) && /listPendingDispatch\(QUEUE_CAP\)/.test(sd), true);
+  // RM APPROVAL: the same cap as Pending Dispatch, named once and shown as +.
+  const rma = readFileSync('src/modules/SpareRmApproval.tsx', 'utf8');
+  eq('RM Approval: a queue that filled its read says so',
+    /countMore=\{lines\.length >= RM_QUEUE_CAP\}/.test(rma) && /listPendingRmApproval\(RM_QUEUE_CAP\)/.test(rma), true);
+  // AN EMPTY LIST AFTER A FAILED READ PROVES NOTHING, so the strong claim is
+  // never made then either.
+  eq('RM Approval and Pending Calls: a failed load is not reported as an empty queue',
+    /loadFailed \? 'The queue could not be loaded'/.test(rma)
+    && /loadFailed \? 'The list could not be loaded/.test(readFileSync('src/modules/PendingCalls.tsx', 'utf8')), true);
+  eq('Call Review: a failed load is not reported as everything reviewed',
+    /err \? 'The list could not be loaded/.test(readFileSync('src/modules/CallReview.tsx', 'utf8')), true);
+  // RENEW: only the latest opened entry may set the machines Renew is seeded from.
+  eq('Contract Renew: a machine read for an entry no longer open is dropped',
+    /if \(seq === openSeq\.current\) setItems\(got\)/.test(readFileSync('src/modules/CoverRegister.tsx', 'utf8')), true);
   const so = readFileSync('src/modules/StockOut.tsx', 'utf8');
   eq('Stock Out: no longer claims an exact count over a capped read',
     !/countMore=\{false\}/.test(so) && /countMore=\{capped\}/.test(so), true);

@@ -33,7 +33,10 @@ import { partial } from '../lib/exportscope';
 // grouped by MRN number, so a submission returning five spares is five rows.
 // ===========================================================================
 
-const CACHE_KEY = 'materialReturns';
+// v2: rows are keyed on `id` and paged with `id` as the tiebreaker. A cache
+// written before that carries the old non-unique `uid-row_no` keys and the old
+// order that Load more would page from, so it is ignored rather than reused.
+const CACHE_KEY = 'materialReturns.v2';
 const MIGRATION_HINT = 'Material returns need migration 0039_material_returns.sql — run it in the Supabase SQL editor (apply bundle: HandStock_X.sql).';
 
 type Row = Record<string, unknown> & { id: string };

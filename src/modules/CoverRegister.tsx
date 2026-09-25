@@ -747,13 +747,25 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, filtered]);
 
+  // ONE READ PER OPEN, AND ONLY THE LATEST MAY LAND. Opening contract A and
+  // then B before A's machines arrived let A's reply set `items` on B's
+  // entry and clear the loading flag -- so Renew was enabled on B, seeded
+  // with A's machines, and B's own reply could not correct a panel that seeds
+  // once. A reply for an entry no longer open is dropped.
+  const openSeq = useRef(0);
   const openEntry = async (h: Row) => {
+    const seq = ++openSeq.current;
     setRenewing(false);
     setOpen(h); setDraft(h); setItems([]);
     setLoadingItems(true);
-    try { setItems(await listItems(kind, str(h[cfg.key]))); }
-    catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
-    finally { setLoadingItems(false); }
+    try {
+      const got = await listItems(kind, str(h[cfg.key]));
+      if (seq === openSeq.current) setItems(got);
+    } catch (e) {
+      if (seq === openSeq.current) setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      if (seq === openSeq.current) setLoadingItems(false);
+    }
   };
 
   // THE PARTY FILLS THE ENTRY IN (the user, 2026-09-22). Only on a SALE, and

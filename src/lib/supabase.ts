@@ -2721,7 +2721,17 @@ export async function callReview(ucn: string): Promise<Record<string, unknown> |
 // How many calls sit at each stage across the WHOLE filtered set (not just the
 // page on screen). Read from `field_call_review_summary`, which carries no
 // per-call report lookups, so counting a year of calls is a plain scan.
-export async function countCallReviews(filter: ReviewFilter = {}): Promise<{ total: number; byStatus: Record<string, number>; effects: number; solvedPending: number }> {
+export async function countCallReviews(
+  filter: ReviewFilter = {},
+  // THE CALL STATUS BOX, APPLIED TO THE TOTALS HERE RATHER THAN IN THE QUERY.
+  // `solvedPending` is the "To be Reviewed" worklist, which is ALWAYS Solved
+  // calls whatever that box says; filtered in the query, a box left on
+  // "Unsolved" removed every Solved row and the worklist counted 0 while it
+  // listed calls. The rule is the query's own (`open_state = <value>`), applied
+  // to the rows the scan already reads. Callers passing it must leave
+  // `filter.callState` unset.
+  totalsState = '',
+): Promise<{ total: number; byStatus: Record<string, number>; effects: number; solvedPending: number }> {
   const PAGE = 1000;
   const byStatus: Record<string, number> = {};
   let total = 0; let effects = 0; let solvedPending = 0;
@@ -2734,8 +2744,12 @@ export async function countCallReviews(filter: ReviewFilter = {}): Promise<{ tot
     const rows = data ?? [];
     rows.forEach((r) => {
       const s = String((r as Record<string, unknown>).review_status ?? '');
-      byStatus[s] = (byStatus[s] ?? 0) + 1;
-      if (String((r as Record<string, unknown>).any_potential_effect ?? '') === 'YES') effects += 1;
+      const inTotals = !totalsState || String((r as Record<string, unknown>).open_state ?? '') === totalsState;
+      if (inTotals) {
+        byStatus[s] = (byStatus[s] ?? 0) + 1;
+        if (String((r as Record<string, unknown>).any_potential_effect ?? '') === 'YES') effects += 1;
+        total += 1;
+      }
       // SOLVED and still waiting on Review 2 or Review 3 — the "To be Reviewed"
       // worklist. Counted here, in the scan that is already happening, because
       // the tab's own filter cannot count itself: a counter narrowed by the
@@ -2743,7 +2757,6 @@ export async function countCallReviews(filter: ReviewFilter = {}): Promise<{ tot
       if (String((r as Record<string, unknown>).open_state ?? '') === 'Solved'
           && (s === 'Review 2 Pending' || s === 'Review 3 Pending')) solvedPending += 1;
     });
-    total += rows.length;
     if (rows.length < PAGE) break;
   }
   return { total, byStatus, effects, solvedPending };

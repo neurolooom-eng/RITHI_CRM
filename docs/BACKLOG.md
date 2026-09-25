@@ -65,6 +65,26 @@ Findings 1, 6, 16, 17, 19, 21 (in part) and 25 from `docs/MODULE_REVIEW.md`.
   Pending Dispatch's per-engineer `summarise()` totals under a capped queue.
 - **Checks:** 15 new `check:ui` assertions, all confirmed to FAIL on the pre-fix
   tree (run in a worktree of `50d8497`) and pass now. `npm run build` passes.
+- **RE-REVIEWED BEFORE MERGE** (an independent pass over batches 1 and 2 — no
+  regressions, five incomplete fixes, all corrected in this PR):
+  - **#9** "To be Reviewed" read "N of 0" with the Call Status box on another
+    state: `countCallReviews` now applies that box to the totals only
+    (`totalsState`), and counts the Solved worklist regardless.
+  - **#17** after a FAILED load the three screens still made the strong claim;
+    now "could not be loaded" (`loadFailed` / `err`).
+  - **#29** opening a second contract before the first's machines arrived let
+    the first's reply seed Renew on the second — per-open token (`openSeq`).
+  - **#45** the "narrow the filter" advice could not work on capped screens
+    (their search filters rows already read) — now says the rest cannot be
+    reached from that screen.
+  - **#21/#45** RM Approval's title count takes `+` at `RM_QUEUE_CAP`.
+  - **#28** the Material Returns cache key is `materialReturns.v2`, so a cache
+    with the old keys and order is ignored rather than paged from.
+  - 6 more `check:ui` assertions, each confirmed to fail on `afd84b0` (the
+    batch as first pushed).
+  - **Still open, pre-existing:** a 30-minute sync already in flight when a
+    filter is typed can still overwrite the filtered result (manual ↻ has the
+    same race).
 
 ## 2026-09-25 — Module review, batch 1: twelve small fixes (v0.9.373)
 
