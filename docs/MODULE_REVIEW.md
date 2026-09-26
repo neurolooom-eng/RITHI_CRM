@@ -5,6 +5,9 @@ something that produces a wrong answer, hides a right one, or contradicts a rule
 this project has already written down. Style preferences and "could be nicer"
 are not here.
 
+**What is fixed, what is pending, and when each happened** is kept in
+[`MODULE_REVIEW_LOG.md`](MODULE_REVIEW_LOG.md). Start there.
+
 **How to read a finding.** Each says what is wrong, *how it fails* (the concrete
 path that produces the wrong output), and **how it was established** — read from
 the code, measured against a database, or reasoned about. The last one is the
