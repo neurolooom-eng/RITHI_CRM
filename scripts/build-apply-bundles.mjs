@@ -471,6 +471,9 @@ const MODULES = {
             // 0225 REVERSES 0112 and must stay AFTER it: replaying this bundle
             // otherwise re-runs the drop and leaves the trail off.
             '0225_record_audit_on.sql',
+            // AFTER 0225: the table's description says the audit is ON again,
+            // where 0112 left it saying "historical, not maintained".
+            '0246_record_audit_description.sql',
             // The FFR register's retention trigger. HERE, not beside the table
             // in 0165: block_hard_delete() is defined in this module, which runs
             // after daily_review — check:replay caught the fresh apply failing.
@@ -753,7 +756,10 @@ const MODULES = {
             // AFTER 0238: it gives the transfer a real timestamp and rewrites
             // machine_current_party() to compare two timestamps rather than a
             // date against one.
-            '0240_ownership_transfer_timestamp.sql'],
+            '0240_ownership_transfer_timestamp.sql',
+            // LAST: the two cover admin functions (0036/0037) ask for cover.edit
+            // (finding 51), redefined from the database's current bodies.
+            '0247_cover_maintenance_needs_cover_edit.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -941,6 +947,22 @@ const MODULES = {
     // definition word for word. LAST in the module, or 0244 would run after it.
     files: ['0244_sys_columns.sql', '0245_sys_columns_view_tail.sql'],
   },
+  lockdown: {
+    title: 'What the public key can reach',
+    blurb: ['Row-level security ON for the Party Key counter, and EXECUTE withdrawn',
+            'from the API roles on the owner-rights functions the app never calls:',
+            'raise_ffr(), the register-wide maintenance functions and every',
+            'numbered-series generator. Each is reached from inside the database by',
+            'a definer trigger or function, so it keeps working there. The three the',
+            'app does call keep signed-in access and lose only the not-signed-in',
+            'role. Findings 49-52 of the table review, 2026-09-26.',
+            '',
+            'LAST IN THE ORDER so every function it names exists when it runs; each',
+            'is guarded, so it is harmless on a project behind on other modules.',
+            '_status.sql rows 188 and 189 say whether it holds.'],
+    needs: [],
+    files: ['0248_lock_down_internal_functions.sql'],
+  },
 };
 
 // Read queries for the objects above, kept with them so whoever applies the
@@ -1072,7 +1094,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'sys_columns'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'sys_columns', 'lockdown'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

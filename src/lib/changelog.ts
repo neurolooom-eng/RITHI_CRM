@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.379',
+    date: '2026-09-26',
+    title: 'The database no longer answers requests it should not',
+    changes: [
+      'CLOSED: SOMEONE NOT SIGNED IN COULD CHANGE THE PARTY KEY SERIES. The counter behind Party-1, Party-2 and so on was the one table left open to anyone holding the app’s public web key. It is now locked like every other counter; new parties still get their key as before.',
+      'CLOSED: A FIELD FAILURE REPORT COULD BE RAISED FROM OUTSIDE THE APP. The database routine that raises an FFR could be called directly, even without signing in. Now only the Daily Complaint Review can raise one, as intended.',
+      'CLOSED: NUMBERS COULD BE USED UP WITHOUT A RECORD. UCN, OR, DC, MRN, stock transfer and Party Key numbers could be drawn directly, leaving gaps in the series. They are now issued only when the record they belong to is saved.',
+      'DATA IMPORT: “finish the cover import” now needs the permission to edit cover (or admin). Anyone who can import cover already has it. Before, any signed-in user could re-fold every sale and contract line.',
+      'NEEDS THE SQL applied once by an administrator: lockdown.sql, sales_contracts.sql (for the cover step) and data_integrity.sql (a corrected description of the audit table).',
+    ],
+  },
+  {
     version: '0.9.378',
     date: '2026-09-26',
     title: 'Every table now records who created and last changed each row, and when',
