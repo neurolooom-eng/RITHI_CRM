@@ -905,6 +905,16 @@ on testing the old shape. **When a migration replaces a definition, move the
   for rows whose call has no visit, which is deliberate and worth saying out
   loud. Existing rows are NOT rewritten; `_consumption_without_a_visit.sql`
   lists them. `_status.sql` row 166.
+  **A RECONCILIATION IS EXEMPT (0243, the user, 2026-09-26)** — "Add
+  consumption (reconciliation)" exists for a part fitted but never reported, so
+  under 0214 alone it could not save on exactly the calls it was built for, and
+  the refusal landed behind the drawer where nobody saw it (finding 47). It is
+  not a hole: `cons_write` demands `consumption.reconcile` for that source, so
+  an engineer who writes `source = 'Reconciliation'` is refused by the POLICY;
+  `reconciliation_needs_no_visit_test` proves both halves. **0214's comment says
+  such a line shows BLANK visit dates — it does not, since 0215**: both show the
+  booking time (the last fallback) and only `Visit UID` is blank. Measured, not
+  read. `_status.sql` row 186 checks the exemption AND the rule.
 - **EVERY TABLE RECORDS WHEN THE TRANSACTION HAPPENED, AND IT READS
   `dd-MMM-yyyy HH:mm:ss` EVERYWHERE IT IS SHOWN OR EXPORTED** (the user's
   standing rule, 2026-09-24: *"Applicable to All Tables ; Timestamp - Capturing

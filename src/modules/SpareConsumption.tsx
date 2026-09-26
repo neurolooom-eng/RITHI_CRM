@@ -173,6 +173,7 @@ export function SpareConsumption() {
     const ucn = params.get('ucn') ?? '';
     if (!ucn || !mayReconcile || !onDb) return;
     const engineer = params.get('engineer') ?? '';
+    setMsg(null);
     setForm({
       ucn, call_number: params.get('call') ?? '', engineer,
       remarks: '', lines: [{ part: '', qty: '1', grir: '' }],
@@ -191,6 +192,7 @@ export function SpareConsumption() {
 
   const openAdjust = async (row: Row) => {
     const cur = Number(g(row, 'qty')) || 0;
+    setMsg(null);
     setAdjust({ row, qty: String(cur), reason: '', max: cur });
     // Raising it consumes more, so the ceiling is what is still in hand plus
     // what this line already accounts for.
@@ -336,6 +338,16 @@ export function SpareConsumption() {
   }
   const allFields = headerKeys.map((k) => ({ key: k, header: k }));
 
+  // AN ERROR RAISED FROM INSIDE A DRAWER IS SHOWN INSIDE IT (finding 47). The
+  // page banner sits under the drawer's full-screen overlay, so a refusal
+  // written only there left Save looking as though it had done nothing -- which
+  // is how a database refusal on "Add consumption" went unseen and was reported
+  // as the hand stock not reaching the form. The page banner still gets the
+  // message; this repeats it where the reader is looking.
+  const drawerError = msg?.tone === 'error'
+    ? <div className="sheet-banner sheet-banner-error" role="alert"><span>{msg.text}</span></div>
+    : null;
+
   return (
     <div>
       <PageHeader
@@ -366,7 +378,7 @@ export function SpareConsumption() {
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="UCN, part, party, engineer…" />
             {mayReconcile && onDb && (
-              <button className="btn btn-sm btn-primary" onClick={() => setForm({ ...emptyForm })}>
+              <button className="btn btn-sm btn-primary" onClick={() => { setMsg(null); setForm({ ...emptyForm }); }}>
                 ＋ Add consumption
               </button>
             )}
@@ -409,6 +421,8 @@ export function SpareConsumption() {
                 onChange={(e) => setAdjust((a) => a && ({ ...a, reason: e.target.value }))}
                 placeholder="e.g. engineer keyed 2, actually fitted 4" />
             </div>
+            {drawerError}
+
             <div className="kb-form-actions">
               <button className="btn btn-primary" onClick={() => void saveAdjust()} disabled={adjusting}>
                 {adjusting ? 'Saving…' : 'Save adjustment'}
@@ -501,6 +515,7 @@ export function SpareConsumption() {
             </div>
 
             {!!formProblem() && <div className="sheet-banner sheet-banner-error"><span>{formProblem()}</span></div>}
+            {drawerError}
 
             <div className="kb-form-actions">
               <button className="btn btn-primary" onClick={() => void saveReconciliation()}

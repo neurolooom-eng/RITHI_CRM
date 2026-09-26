@@ -213,6 +213,15 @@ against the call it was fitted to.
 5. The engineer **acknowledges receipt**.
 6. **Spare Consumption** `/spare-consumption` — the part is booked against the
    call.
+   > **A spare needs a visit report on its call — except a reconciliation.**
+   > Spares booked from Call Reporting or the bulk upload are refused on a call
+   > with no visit report. **Add consumption (reconciliation)** is for a part
+   > fitted but never reported, so it is accepted without one: it still needs
+   > the call, the part in that engineer's hand stock, and your reason. Until a
+   > visit is filed, the Consumption Report shows the booking time as the visit
+   > dates and leaves Visit UID empty; filing the visit later corrects all
+   > three. If a save is refused, the reason now shows inside the form, above
+   > Save.
 
 - **Stock Out** `/stock-out` — a flat list of what Stores has issued; a different
   question from the dispatch queue, and now grantable separately.
