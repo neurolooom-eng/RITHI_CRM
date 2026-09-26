@@ -37,6 +37,7 @@ import { useCallStates, callStateFor } from '../lib/callstates';
 // truncated" flag), and shadowing it here would silently change which one the
 // count chips read.
 import { partial as exportScope } from '../lib/exportscope';
+import { isSysColumn } from '../lib/syscols';
 
 // ===========================================================================
 // SPARE REQUESTS.
@@ -882,7 +883,7 @@ export function SpareRequests() {
 
   const allFields = useMemo(() => {
     const ks = new Set<string>();
-    rows.slice(0, 40).forEach((r) => Object.keys(r).forEach((k) => { if (k && !k.startsWith('_') && k !== 'id') ks.add(k); }));
+    rows.slice(0, 40).forEach((r) => Object.keys(r).forEach((k) => { if (k && !k.startsWith('_') && k !== 'id' && !isSysColumn(k)) ks.add(k); }));
     return [...ks].map((k) => (k === 'approval_data'
       // The Commercial and NSM answers are jsonb. Raw they are unreadable, so
       // the column shows what each stage actually answered.

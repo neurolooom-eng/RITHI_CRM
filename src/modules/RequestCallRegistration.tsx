@@ -23,6 +23,7 @@ import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
 import { partial } from '../lib/exportscope';
+import { isSysColumn } from '../lib/syscols';
 
 // ===========================================================================
 // REQUEST CALL REGISTRATION — the register of every request raised, whatever
@@ -340,7 +341,7 @@ export function RequestCallRegistration() {
               ))
             ) : (
             Object.entries(detail)
-              .filter(([k, v]) => k !== 'id' && !k.startsWith('_') && v != null && String(v).trim() !== '')
+              .filter(([k, v]) => k !== 'id' && !k.startsWith('_') && !isSysColumn(k) && v != null && String(v).trim() !== '')
               .map(([k, v]) => (
                 <div className="reg-detail-row" key={k}>
                   <div className="reg-detail-k">{LABELS[k] ?? k}</div>

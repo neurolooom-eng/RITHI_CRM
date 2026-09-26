@@ -15,6 +15,7 @@ import { useAuth } from '../lib/auth';
 import { listMaster, dataConfigured } from '../lib/sheets';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { partial } from '../lib/exportscope';
+import { isSysColumn } from '../lib/syscols';
 
 // ===========================================================================
 // PART MASTER — live from the ITEM Master rows (Supabase `parts`), the same
@@ -162,7 +163,7 @@ export function PartMaster() {
 
   const allFields = useMemo(() => {
     const ks = new Set<string>();
-    rows.slice(0, 40).forEach((r) => Object.keys(r).forEach((k) => { if (k && k !== 'id' && k !== 'extra') ks.add(k); }));
+    rows.slice(0, 40).forEach((r) => Object.keys(r).forEach((k) => { if (k && k !== 'id' && k !== 'extra' && !isSysColumn(k)) ks.add(k); }));
     return [...ks].map((k) => ({ key: k, header: k }));
   }, [rows]);
 

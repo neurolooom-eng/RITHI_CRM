@@ -91,6 +91,13 @@ restored) or **closed without a visit**; neither deletes anything.
   The audit trails are deliberately not offered. Row counts beside each table are
   the database's own **estimates**, so they say "approx." rather than pretending
   to be exact.
+  Every table carries five **system columns** — `sys_id`, `sys_created_by`,
+  `sys_created_on`, `sys_updated_by`, `sys_updated_on` — which the database fills
+  on every save from whoever was signed in. They are separate from the table's
+  own "created"/"updated" fields and never replace them. `sys_created_by` and
+  `sys_updated_by` are login ids. Rows that existed before these columns were
+  added were filled from the table's own fields where it had them, and are empty
+  where it never recorded one.
 
   > ### Scheduling one
   >

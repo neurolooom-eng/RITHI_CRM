@@ -915,6 +915,30 @@ on testing the old shape. **When a migration replaces a definition, move the
   such a line shows BLANK visit dates — it does not, since 0215**: both show the
   booking time (the last fallback) and only `Visit UID` is blank. Measured, not
   read. `_status.sql` row 186 checks the exemption AND the rule.
+- **EVERY TABLE HAS FIVE SYSTEM COLUMNS, AND THE DATABASE WRITES THEM** (0244,
+  the user, 2026-09-26: *"sys_created_by, sys_created_on shouldn't overlap with
+  any of the other fields"*). `sys_id` (unique), `sys_created_by`,
+  `sys_created_on`, `sys_updated_by`, `sys_updated_on` on every table except the
+  nine number counters; `sys_stamp()` (trigger `zzz_sys_stamp`, named to run
+  LAST) writes them and DISCARDS what a signed-in caller sends. Four rules:
+  - **NEVER REUSE THEM FOR BUSINESS MEANING, OR THE REVERSE.** `created_by` on a
+    call is the Hotline DESK; `reports.updated_at` is the Visit Entry Date. The
+    sys columns answer one question everywhere — which login wrote the row, and
+    when — which is the point of keeping them apart.
+  - **A NEW TABLE GETS THEM BY RE-RUNNING `sys_columns.sql`** — the module is
+    LAST in `ALL_ORDER` and attaches itself to every table that exists, so a
+    fresh apply covers everything; on the live project a table added later reads
+    NO on `_status.sql` row 187 until it is re-run. A new COUNTER table must be
+    added to the exclusion list in 0244, the row and the suite.
+  - **A VIEW WRITTEN `select t.*` OVER A TABLE IS MIRRORED IN 0245**, because
+    `*` is expanded at creation and re-running the owner's bundle would rebuild
+    it with different columns. Changing `calls`, `pending_calls`,
+    `field_failure_register`, `indoor_job_list`, `tracker_list` or
+    `export_schedule_state` means changing 0245 to match — `check:bundles`
+    fails until you do. A NEW `t.*` view over a table goes there too, or
+    `check:replay` fails.
+  - **A SCREEN THAT BUILDS COLUMNS FROM A ROW'S KEYS USES `isSysColumn()`**
+    (`src/lib/syscols.ts`), or five columns appear on it, two of them login ids.
 - **EVERY TABLE RECORDS WHEN THE TRANSACTION HAPPENED, AND IT READS
   `dd-MMM-yyyy HH:mm:ss` EVERYWHERE IT IS SHOWN OR EXPORTED** (the user's
   standing rule, 2026-09-24: *"Applicable to All Tables ; Timestamp - Capturing

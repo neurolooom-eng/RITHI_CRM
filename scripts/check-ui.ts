@@ -9044,6 +9044,25 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
     /\{lines\.length >= QUEUE_CAP && \(/.test(readFileSync('src/modules/SpareDispatch.tsx', 'utf8')), true);
 }
 
+// THE SYSTEM COLUMNS (0244) ARRIVE ON EVERY select('*'), so every screen that
+// builds its columns from a row's own keys must leave them out, or it grows five
+// columns overnight -- two of them raw login ids. ONE client list, and it must
+// name exactly the columns the migration adds: a sixth added there and not here
+// would appear on six screens at once.
+{
+  console.log('\n-- the database-written system columns stay off the screens --');
+  const sysSrc = readFileSync('src/lib/syscols.ts', 'utf8');
+  const clientList = (/SYS_COLUMNS = \[([^\]]*)\]/.exec(sysSrc)?.[1] ?? '')
+    .split(',').map((x) => x.trim().replace(/'/g, '')).filter(Boolean).sort();
+  const mig = readFileSync('supabase/migrations/0244_sys_columns.sql', 'utf8');
+  const sqlList = [...new Set([...mig.matchAll(/add column (sys_[a-z_]+)/g)].map((m) => m[1]))].sort();
+  eq('the client list of system columns is the migration\'s, exactly', clientList.join(','), sqlList.join(','));
+  for (const f of ['PartyMaster', 'PartMaster', 'SpareRequests', 'SpareConsumption', 'Reports', 'RequestCallRegistration']) {
+    eq(`${f}: columns built from row keys leave out the system columns`,
+      /isSysColumn\(k\)/.test(readFileSync(`src/modules/${f}.tsx`, 'utf8')), true);
+  }
+}
+
 // #47 A REFUSAL RAISED FROM A DRAWER IS SHOWN IN THE DRAWER. Spare Consumption
 // wrote every save error to the page banner, which sits under the drawer's
 // full-screen overlay -- so a database refusal on "Add consumption" left Save

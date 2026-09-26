@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-26 (RECONCILIATION NEEDS NO VISIT — 0243, v0.9.377: RUN
+_Last updated: 2026-09-26 (SYSTEM COLUMNS ON EVERY TABLE — 0244/0245, v0.9.378:
+RUN `supabase/apply/sys_columns.sql` once, then _status.sql row 187 reads yes.
+Before that: RECONCILIATION NEEDS NO VISIT — 0243, v0.9.377: RUN
 `supabase/migrations/0243_reconciliation_needs_no_visit.sql` once, then
 _status.sql row 186 reads yes; HandStock_X.sql carries it for a rebuild.
 Before that: ⚠️ THE SCHEDULED REPORTS HAVE NEVER RUN — the
@@ -56,6 +58,52 @@ rows **166** and **167**, bundle `HandStock_X.sql` at the repository ROOT.
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-26 — System columns on every table (0244/0245, v0.9.378) — R1
+
+**The user's requirement and decisions** (2026-09-26): *"I need a key,
+Timestamp, sys_created_by, sys_updated_by in all the tables"*, and *"sys_created_by,
+sys_created_on shouldn't overlap with any of the other fields"*. Answers:
+a new `sys_id` as the key; the author columns hold the login id; existing rows
+filled from existing fields; every table except the counters.
+
+**Shipped:**
+- ✅ 0244 — `sys_id` (unique), `sys_created_by`, `sys_created_on`,
+  `sys_updated_by`, `sys_updated_on` on 68 tables; the 9 counters untouched.
+  `sys_stamp()` (`zzz_sys_stamp`, runs last) writes them on every insert and
+  update and DISCARDS what a signed-in caller sends; a trusted role may supply
+  them (a restore).
+- ✅ The one-time fill copies same-meaning fields only — `created_at`;
+  `actual_created_by`, else `created_by`, else `recorded_by`; `updated_at`;
+  `updated_by` — through a generated-then-plain column, a table rewrite that
+  fires NO trigger (no audit rows, no call statuses recomputed). On calls the
+  creator is `actual_created_by`, never the desk.
+- ✅ 0245 — a guarded MIRROR rebuilding the six `select t.*` views (`calls`,
+  `pending_calls`, `field_failure_register`, `indoor_job_list`, `tracker_list`,
+  `export_schedule_state`) so they carry the columns. Without it
+  `check:replay` failed on five bundles, and re-running `data_export.sql` would
+  have stopped with "cannot change name of view column".
+- ✅ Kept off the six screens that build columns from row keys
+  (`isSysColumn`); Data Export includes them.
+- ✅ `sys_columns_test` (coverage, the fill, no trigger fired, forged values
+  discarded directly and through the `calls` view, a trusted restore, sys_id
+  unique), `_status.sql` row 187, 7 `check:ui` assertions (6 fail on the old
+  screens), `DATABASE_SCHEMA.md` regenerated. Validation: 104 suites, 22
+  checks.
+
+**Measured:** the migration took 1.2 s on a database with 25,000 feedback rows
+and 12,000 visits; the trigger adds about 13 µs a row (a 20,000-row insert went
+from ~330 ms to ~590 ms). Not measured on the live project.
+
+**PENDING — the user's step:** run
+[`sys_columns.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/sys_columns.sql)
+once. It is safe to re-run, and re-running it is also how a table added later
+gets the columns (row 187 says when).
+
+**NOT DONE:** showing the columns on screens with people's names (R2/R3 work);
+natural keys per table (a separate question from `sys_id`).
 
 ---
 

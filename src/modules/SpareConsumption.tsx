@@ -16,6 +16,7 @@ import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
 import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
+import { isSysColumn } from '../lib/syscols';
 
 const CACHE_KEY = 'spareConsumption';
 
@@ -275,7 +276,7 @@ export function SpareConsumption() {
 
   const headerKeys = useMemo(() => {
     const ks = new Set<string>();
-    rows.slice(0, 60).forEach((r) => Object.keys(r).forEach((k) => { if (k && !k.startsWith('_') && k !== 'id' && k !== 'data' && !/^Page.*Header$/i.test(k)) ks.add(k); }));
+    rows.slice(0, 60).forEach((r) => Object.keys(r).forEach((k) => { if (k && !k.startsWith('_') && k !== 'id' && k !== 'data' && !isSysColumn(k) && !/^Page.*Header$/i.test(k)) ks.add(k); }));
     return [...ks];
   }, [rows]);
 

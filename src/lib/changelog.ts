@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.378',
+    date: '2026-09-26',
+    title: 'Every table now records who created and last changed each row, and when',
+    changes: [
+      'FIVE SYSTEM COLUMNS ON EVERY TABLE: sys_id (a key of its own), sys_created_by, sys_created_on, sys_updated_by and sys_updated_on — on every table except the nine number counters.',
+      'THE DATABASE FILLS THEM, NOBODY ELSE. They are written on every save from whoever is signed in, and anything typed or uploaded into them is ignored. They do not replace or change any existing field: “Created By” on a call still means the Hotline desk it is filed to, and the Visit Entry Date is still the visit’s own date.',
+      'EXISTING ROWS WERE FILLED ONCE FROM THE FIELDS THAT MEAN THE SAME THING — when it was created, who created it, when and by whom it was last changed. Where a table never recorded one of those, the column is left empty rather than guessed. On calls, the creator is the person who typed the call in, not the desk.',
+      'WHERE YOU SEE THEM: in Data Export, which downloads the whole row. They are kept off the other screens for now — two of them are login ids, and showing them as people’s names is the next step.',
+      'NEEDS ONE DATABASE CHANGE, applied once by an administrator in the Supabase SQL editor: sys_columns.sql. Until then nothing changes.',
+    ],
+  },
+  {
     version: '0.9.377',
     date: '2026-09-26',
     title: 'Add consumption (reconciliation) works on a call nobody has visited yet',

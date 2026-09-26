@@ -1333,7 +1333,20 @@ with checks(sort_order, bundle, provides, present) as (
     (186, 'A reconciliation can be booked on a call nobody has visited', 'consumption_needs_a_visit() passes a Reconciliation line and still refuses every other source (0243). The user, 2026-09-26: "Exempt reconciliation from the visit rule and fix it" (finding 47). "Add consumption (reconciliation)" exists for a part fitted but never reported, which is exactly a call with no visit -- so under 0214 alone the screen built for that case could not save on it, and the refusal landed behind the drawer where nobody saw it. BOTH HALVES ARE ASSERTED, because each alone passes a broken database: the body must name Reconciliation (the exemption) AND must still raise "No visit has been filed" (the rule, for Call Reporting and the bulk upload). NOT A WAY ROUND THE RULE FOR EVERYBODY: cons_write requires consumption.reconcile for a Reconciliation row, so an engineer who writes that source to skip the visit is refused by the policy. WHAT IT COSTS, said plainly and MEASURED: on such a line the Consumption Report shows the BOOKING time in Visit Entry Date and Visit Date & Time (0215''s last fallback -- an approximation standing in for a visit) and a blank Visit UID; filing the visit later replaces all three through the join, with nothing re-entered. NO means the reconciliation drawer is refused on every call with no visit, again. Restore: HandStock_X.sql',
         (to_regprocedure('public.consumption_needs_a_visit()') is null
          or (select p.prosrc ~ 'Reconciliation' and p.prosrc ~ 'No visit has been filed'
-               from pg_proc p where p.oid = to_regprocedure('public.consumption_needs_a_visit()'))))
+               from pg_proc p where p.oid = to_regprocedure('public.consumption_needs_a_visit()')))),
+    (187, 'Every table carries its system columns', 'sys_id, sys_created_by, sys_created_on, sys_updated_by and sys_updated_on, a unique index on sys_id and the zzz_sys_stamp trigger, on EVERY table in public except the nine number counters (0244). The user, 2026-09-26: "I need a key, Timestamp, sys_created_by, sys_updated_by in all the tables" and "sys_created_by, sys_created_on shouldn''t overlap with any of the other fields". THE DATABASE WRITES THEM, never the app: sys_stamp() discards what a signed-in caller sends and stamps the login (auth.uid()) and now(); only a trusted role -- the SQL editor, a migration, a SECURITY DEFINER function -- may supply a value, so a restore can put back what it saved. THEY OVERLAP NOTHING: created_at, created_by and the rest keep their business meaning, which is not always the author -- on a call, created_by is the Hotline DESK. Rows that existed before were filled ONCE from same-meaning fields (created_at; actual_created_by, else created_by, else recorded_by; updated_at; updated_by) by a table rewrite that fires no trigger, and left blank where nothing was recorded. _tables_without_key_time_author.sql NAMES the tables missing it (its sys_columns column). The usual cause of a NO is a table added AFTER 0244 ran: the bundle attaches itself to whatever exists when it runs, so re-running it covers the new table and touches nothing else. NO means a table can be written without saying who or when. Restore: sys_columns.sql',
+        (to_regprocedure('public.sys_stamp()') is not null
+         and not exists (
+           select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname = 'public' and c.relkind = 'r'
+              and c.relname not in ('call_number_seq', 'ffr_counters', 'indoor_job_counters',
+                                    'material_return_counters', 'party_key_seq', 'spare_dispatch_counters',
+                                    'spare_or_counters', 'stock_transfer_counters', 'ucn_counters',
+                                    'harness', 'schema_migrations')
+              and not (
+                (select count(*) from pg_attribute a where a.attrelid = c.oid and not a.attisdropped
+                   and a.attname in ('sys_id', 'sys_created_by', 'sys_created_on', 'sys_updated_by', 'sys_updated_on')) = 5
+                and exists (select 1 from pg_trigger t where t.tgrelid = c.oid and t.tgname = 'zzz_sys_stamp')))))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

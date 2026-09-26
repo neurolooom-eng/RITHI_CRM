@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**75 tables · 30 views · 1925 columns · 146 policies · 50 foreign keys.**
+**78 tables · 34 views · 2425 columns · 149 policies · 52 foreign keys.**
 
 ## How to read this
 
@@ -46,6 +46,8 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [contract_entries](#contract-entries)
 - [contract_items](#contract-items)
 - [documents](#documents)
+- [export_runs](#export-runs)
+- [export_schedules](#export-schedules)
 - [feedback](#feedback)
 - [ffr_counters](#ffr-counters)
 - [ffr_history](#ffr-history)
@@ -60,6 +62,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [indoor_job_counters](#indoor-job-counters)
 - [indoor_job_parts](#indoor-job-parts)
 - [indoor_jobs](#indoor-jobs)
+- [inst_call_repair_log](#inst-call-repair-log)
 - [installation_calls](#installation-calls)
 - [kb_articles](#kb-articles)
 - [master_lists](#master-lists)
@@ -122,6 +125,15 @@ Views are listed [after the tables](#views).
 | 2 | `label` | text | yes | `''::text` |  |
 | 3 | `permissions` | jsonb | **no** | `'[]'::jsonb` |  |
 | 4 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 5 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 6 | `sys_created_by` | uuid | yes |  |  |
+| 7 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 8 | `sys_updated_by` | uuid | yes |  |  |
+| 9 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(app_roles_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -141,6 +153,15 @@ Views are listed [after the tables](#views).
 | 1 | `key` | text | **no** |  |  |
 | 2 | `value` | text | **no** |  |  |
 | 3 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 4 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 5 | `sys_created_by` | uuid | yes |  |  |
+| 6 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 7 | `sys_updated_by` | uuid | yes |  |  |
+| 8 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(app_settings_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -159,6 +180,15 @@ Views are listed [after the tables](#views).
 | --- | --- | --- | --- | --- | --- |
 | 1 | `email` | text | **no** |  |  |
 | 2 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 3 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 4 | `sys_created_by` | uuid | yes |  |  |
+| 5 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 6 | `sys_updated_by` | uuid | yes |  |  |
+| 7 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(app_super_admins_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -186,8 +216,15 @@ Views are listed [after the tables](#views).
 | 10 | `error` | text | yes | `''::text` |  |
 | 11 | `duration_ms` | integer | yes |  |  |
 | 12 | `meta` | jsonb | **no** | `'{}'::jsonb` |  |
+| 13 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 14 | `sys_created_by` | uuid | yes |  |  |
+| 15 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 16 | `sys_updated_by` | uuid | yes |  |  |
+| 17 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Triggers:** `audit_biu` → `audit_before_insert()`
+**Unique:** `sys_id` _(audit_log_sys_id_key)_
+
+**Triggers:** `audit_biu` → `audit_before_insert()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -211,10 +248,19 @@ Views are listed [after the tables](#views).
 | 3 | `turned_on` | boolean | **no** |  |  |
 | 4 | `reason` | text | **no** |  |  |
 | 5 | `changed_by` | uuid | yes |  | → users(id) |
+| 6 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 7 | `sys_created_by` | uuid | yes |  |  |
+| 8 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 9 | `sys_updated_by` | uuid | yes |  |  |
+| 10 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(audit_mode_changes_sys_id_key)_
 
 **References:**
 
 - `changed_by` → **users**(`id`) · on delete no action _(audit_mode_changes_changed_by_fkey)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -254,8 +300,15 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 5 | `reviewed_by_name` | text | **no** | `''::text` |  |
 | 6 | `reviewed_at` | timestamp with time zone | **no** | `now()` |  |
 | 7 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 8 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 9 | `sys_created_by` | uuid | yes |  |  |
+| 10 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 11 | `sys_updated_by` | uuid | yes |  |  |
+| 12 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Triggers:** `zz_call_report_reviews_stamp` → `call_report_reviews_stamp()`
+**Unique:** `sys_id` _(call_report_reviews_sys_id_key)_
+
+**Triggers:** `zz_call_report_reviews_stamp` → `call_report_reviews_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -305,14 +358,19 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 30 | `actioned_by` | text | yes | `''::text` |  |
 | 31 | `actioned_at` | timestamp with time zone | yes |  |  |
 | 32 | `extra` | jsonb | **no** | `'{}'::jsonb` |  |
+| 33 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 34 | `sys_created_by` | uuid | yes |  |  |
+| 35 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 36 | `sys_updated_by` | uuid | yes |  |  |
+| 37 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `unique_key` _(call_requests_unique_key_uidx)_
+**Unique:** `sys_id` _(call_requests_sys_id_key)_ · `unique_key` _(call_requests_unique_key_uidx)_
 
 **References:**
 
 - `created_by` → **users**(`id`) · on delete no action _(call_requests_created_by_fkey)_
 
-**Triggers:** `call_requests_biu` → `call_requests_biu()`
+**Triggers:** `call_requests_biu` → `call_requests_biu()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_call_request_content_frozen` → `call_request_content_frozen()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -353,6 +411,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 21 | `review2_by_uid` | uuid | yes |  | → users(id) · WHO completed Review 2, from auth.uid() at the moment it was completed. The text column beside it is the display name; this is the identity. |
 | 22 | `review3_by_uid` | uuid | yes |  | → users(id) |
 | 23 | `actual_product` | text | **no** | `''::text` | Set in Review 2 where the thing that failed is not the product the call names — an accessory logged against the machine it is fitted to. Empty means the call was right. The call is never rewritten: this is what the review determined, and field_failure_register.live_product_name is the one the counts use. |
+| 24 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 25 | `sys_created_by` | uuid | yes |  |  |
+| 26 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 27 | `sys_updated_by` | uuid | yes |  |  |
+| 28 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(call_reviews_sys_id_key)_
 
 **References:**
 
@@ -360,7 +425,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 - `review3_by_uid` → **users**(`id`) · on delete no action _(call_reviews_review3_by_uid_fkey)_
 - `updated_by` → **users**(`id`) · on delete no action _(call_reviews_updated_by_fkey)_
 
-**Triggers:** `call_reviews_stamp` → `call_review_stamp()` · `zz_ffr_from_review` → `ffr_from_review()` · `zz_ffr_observation` → `ffr_observation_from_review()` · `zzz_call_review_reviewer` → `call_review_reviewer_stamp()`
+**Triggers:** `call_reviews_stamp` → `call_review_stamp()` · `zz_ffr_from_review` → `ffr_from_review()` · `zz_ffr_observation` → `ffr_observation_from_review()` · `zzz_call_review_reviewer` → `call_review_reviewer_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -384,6 +449,15 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 5 | `now_is` | text | **no** | `''::text` |  |
 | 6 | `changed_by` | uuid | yes |  |  |
 | 7 | `changed_at` | timestamp with time zone | **no** | `now()` |  |
+| 8 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 9 | `sys_created_by` | uuid | yes |  |  |
+| 10 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 11 | `sys_updated_by` | uuid | yes |  |  |
+| 12 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(call_vigilance_changes_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -409,8 +483,15 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 8 | `accepted` | text | **no** | `''::text` |  |
 | 9 | `accepted_rank` | integer | yes |  |  |
 | 10 | `ucn` | text | **no** | `''::text` |  |
+| 11 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 12 | `sys_created_by` | uuid | yes |  |  |
+| 13 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 14 | `sys_updated_by` | uuid | yes |  |  |
+| 15 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Triggers:** `complaint_suggestions_bi` → `complaint_suggestions_bi()`
+**Unique:** `sys_id` _(complaint_suggestions_sys_id_key)_
+
+**Triggers:** `complaint_suggestions_bi` → `complaint_suggestions_bi()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -445,8 +526,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 16 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 17 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 18 | `created_by` | uuid | yes | `auth.uid()` | → users(id) |
+| 19 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 20 | `sys_created_by` | uuid | yes |  |  |
+| 21 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 22 | `sys_updated_by` | uuid | yes |  |  |
+| 23 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `mc_number` _(contract_entries_mc_number_key)_ · `mc_number` _(contract_entries_mc_number_key)_
+**Unique:** `mc_number` _(contract_entries_mc_number_key)_ · `mc_number` _(contract_entries_mc_number_key)_ · `sys_id` _(contract_entries_sys_id_key)_
 
 **References:**
 
@@ -454,14 +540,14 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Referenced by:** `contract_items.mc_number`
 
-**Triggers:** `contract_entries_sync_cover` → `cover_header_sync()` · `contract_entries_touch` → `touch_updated_at()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
+**Triggers:** `contract_entries_sync_cover` → `cover_header_sync()` · `contract_entries_touch` → `touch_updated_at()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `contract_entries_write` | `has_perm('cover.edit'::text)` | `has_perm('cover.edit'::text)` |
-| SELECT | `contract_entries_read` | `(has_perm('masters.view'::text) OR has_perm('cover.edit'::text) OR is_admin())` | — |
+| ALL | `contract_entries_write` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` |
+| SELECT | `contract_entries_read` | `(( SELECT has_perm('masters.view'::text) AS has_perm) OR ( SELECT has_perm('cover.edit'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
 
 ---
 
@@ -502,22 +588,27 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 29 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 30 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 31 | `created_by` | uuid | yes | `auth.uid()` | → users(id) |
+| 32 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 33 | `sys_created_by` | uuid | yes |  |  |
+| 34 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 35 | `sys_updated_by` | uuid | yes |  |  |
+| 36 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `uid` _(contract_items_uid_key)_ · `uid` _(contract_items_uid_key)_
+**Unique:** `uid` _(contract_items_uid_key)_ · `sys_id` _(contract_items_sys_id_key)_ · `uid` _(contract_items_uid_key)_
 
 **References:**
 
 - `created_by` → **users**(`id`) · on delete no action _(contract_items_created_by_fkey)_
 - `mc_number` → **contract_entries**(`mc_number`) · on delete cascade _(contract_items_mc_number_fkey)_
 
-**Triggers:** `contract_items_cover_code` → `present_cover_code_stamp()` · `contract_items_defaults` → `contract_items_defaults()` · `contract_items_stub_header` → `contract_items_stub_header()` · `contract_items_sync_cover` → `cover_item_sync()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
+**Triggers:** `contract_items_cover_code` → `present_cover_code_stamp()` · `contract_items_defaults` → `contract_items_defaults()` · `contract_items_stub_header` → `contract_items_stub_header()` · `contract_items_sync_cover` → `cover_item_sync()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `contract_items_write` | `has_perm('cover.edit'::text)` | `has_perm('cover.edit'::text)` |
-| SELECT | `contract_items_read` | `(has_perm('masters.view'::text) OR has_perm('cover.edit'::text) OR is_admin())` | — |
+| ALL | `contract_items_write` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` |
+| SELECT | `contract_items_read` | `(( SELECT has_perm('masters.view'::text) AS has_perm) OR ( SELECT has_perm('cover.edit'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
 
 ---
 
@@ -543,12 +634,19 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 14 | `uploaded_by_name` | text | **no** | `''::text` |  |
 | 15 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 16 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 17 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 18 | `sys_created_by` | uuid | yes |  |  |
+| 19 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 20 | `sys_updated_by` | uuid | yes |  |  |
+| 21 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(documents_sys_id_key)_
 
 **References:**
 
 - `uploaded_by` → **users**(`id`) · on delete no action _(documents_uploaded_by_fkey)_
 
-**Triggers:** `documents_biu` → `documents_before_write()`
+**Triggers:** `documents_biu` → `documents_before_write()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -558,6 +656,95 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | INSERT | `documents_insert` | — | `CASE     WHEN (kind = 'qms'::text) THEN has_perm('qms.manage'::text)     ELSE has_perm('docs.manage'::text) END` |
 | SELECT | `documents_read` | `(auth.role() = 'authenticated'::text)` | — |
 | UPDATE | `documents_update` | `CASE     WHEN (kind = 'qms'::text) THEN has_perm('qms.manage'::text)     ELSE has_perm('docs.manage'::text) END` | `CASE     WHEN (kind = 'qms'::text) THEN has_perm('qms.manage'::text)     ELSE has_perm('docs.manage'::text) END` |
+
+---
+
+## export_runs
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('export_runs_id_seq'::regclass)` |  |
+| 2 | `schedule_id` | bigint | yes |  | → export_schedules(id) |
+| 3 | `label` | text | yes |  |  |
+| 4 | `started_at` | timestamp with time zone | **no** | `now()` |  |
+| 5 | `finished_at` | timestamp with time zone | yes |  |  |
+| 6 | `tables` | ARRAY | yes |  |  |
+| 7 | `row_count` | bigint | yes |  |  |
+| 8 | `bytes` | bigint | yes |  |  |
+| 9 | `recipients` | integer | yes |  |  |
+| 10 | `status` | text | yes |  |  |
+| 11 | `detail` | text | yes |  |  |
+| 12 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 13 | `sys_created_by` | uuid | yes |  |  |
+| 14 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 15 | `sys_updated_by` | uuid | yes |  |  |
+| 16 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(export_runs_sys_id_key)_
+
+**References:**
+
+- `schedule_id` → **export_schedules**(`id`) · on delete set null _(export_runs_schedule_id_fkey)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| SELECT | `export_runs_read` | `is_admin()` | — |
+
+---
+
+## export_schedules
+
+> What to export and when. NO DESTINATION: the recipients are a deployment secret on the Edge Function (EXPORT_TO), not a column here — see the header of 0228.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('export_schedules_id_seq'::regclass)` |  |
+| 2 | `label` | text | **no** |  |  |
+| 3 | `tables` | ARRAY | **no** |  |  |
+| 4 | `frequency` | text | **no** | `'daily'::text` | ((((hour_ist >= 0) AND (hour_ist <= 23)) AND ((minute_ist >= 0) AND (minute_ist <= 59)) AND (((frequency = 'daily'::text) AND (day_of_week IS NULL)) OR ((frequency = 'weekly'::text) AND ((day_of_week >= 0) AND (day_of_week <= 6)))))) |
+| 5 | `day_of_week` | smallint | yes |  | ((((hour_ist >= 0) AND (hour_ist <= 23)) AND ((minute_ist >= 0) AND (minute_ist <= 59)) AND (((frequency = 'daily'::text) AND (day_of_week IS NULL)) OR ((frequency = 'weekly'::text) AND ((day_of_week >= 0) AND (day_of_week <= 6)))))) |
+| 6 | `hour_ist` | smallint | **no** | `23` | ((((hour_ist >= 0) AND (hour_ist <= 23)) AND ((minute_ist >= 0) AND (minute_ist <= 59)) AND (((frequency = 'daily'::text) AND (day_of_week IS NULL)) OR ((frequency = 'weekly'::text) AND ((day_of_week >= 0) AND (day_of_week <= 6)))))) |
+| 7 | `minute_ist` | smallint | **no** | `0` | ((((hour_ist >= 0) AND (hour_ist <= 23)) AND ((minute_ist >= 0) AND (minute_ist <= 59)) AND (((frequency = 'daily'::text) AND (day_of_week IS NULL)) OR ((frequency = 'weekly'::text) AND ((day_of_week >= 0) AND (day_of_week <= 6)))))) |
+| 8 | `enabled` | boolean | **no** | `true` |  |
+| 9 | `created_by` | uuid | yes |  | → users(id) |
+| 10 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 11 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 12 | `last_run_at` | timestamp with time zone | yes |  |  |
+| 13 | `last_status` | text | yes |  |  |
+| 14 | `last_detail` | text | yes |  |  |
+| 15 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 16 | `sys_created_by` | uuid | yes |  |  |
+| 17 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 18 | `sys_updated_by` | uuid | yes |  |  |
+| 19 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(export_schedules_sys_id_key)_
+
+**References:**
+
+- `created_by` → **users**(`id`) · on delete no action _(export_schedules_created_by_fkey)_
+
+**Referenced by:** `export_runs.schedule_id`
+
+**Constraints:**
+
+- `export_schedules_when_check` — `CHECK ((((hour_ist >= 0) AND (hour_ist <= 23)) AND ((minute_ist >= 0) AND (minute_ist <= 59)) AND (((frequency = 'daily'::text) AND (day_of_week IS NULL)) OR ((frequency = 'weekly'::text) AND ((day_of…`
+
+**Triggers:** `zz_export_schedule_guard` → `export_schedule_guard()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| ALL | `export_schedules_admin` | `is_admin()` | `is_admin()` |
 
 ---
 
@@ -587,14 +774,19 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 16 | `ucn_key` | text _(generated)_ | yes |  |  |
 | 17 | `entry_at` | timestamp with time zone | **no** | `now()` | When the feedback was taken. For a migrated row this is the export's "Visit Entry Date"; for one recorded here it is when it was recorded. NOT created_at, which is when the ROW was written and reads as the upload date on every migrated feedback. |
 | 18 | `imported_from` | text | **no** | `''::text` | The file this feedback was loaded from; EMPTY means it was recorded in this system. Lets a figure drawn from both report the split. |
+| 19 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 20 | `sys_created_by` | uuid | yes |  |  |
+| 21 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 22 | `sys_updated_by` | uuid | yes |  |  |
+| 23 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `ucn_key` _(feedback_ucn_key_uniq)_
+**Unique:** `sys_id` _(feedback_sys_id_key)_ · `ucn_key` _(feedback_ucn_key_uniq)_
 
 **References:**
 
 - `created_by` → **users**(`id`) · on delete no action _(feedback_created_by_fkey)_
 
-**Triggers:** `no_hard_delete` → `block_hard_delete()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -635,13 +827,20 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 6 | `changed_by_name` | text | **no** | `''::text` |  |
 | 7 | `action` | text | **no** | `'update'::text` |  |
 | 8 | `changes` | jsonb | **no** | `'{}'::jsonb` |  |
+| 9 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 10 | `sys_created_by` | uuid | yes |  |  |
+| 11 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 12 | `sys_updated_by` | uuid | yes |  |  |
+| 13 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(ffr_history_sys_id_key)_
 
 **References:**
 
 - `changed_by` → **users**(`id`) · on delete no action _(ffr_history_changed_by_fkey)_
 - `ffr_id` → **field_failure_reports**(`id`) · on delete cascade _(ffr_history_ffr_id_fkey)_
 
-**Triggers:** `zz_no_delete` → `block_hard_delete()`
+**Triggers:** `zz_no_delete` → `block_hard_delete()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -697,7 +896,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 38 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 39 | `last_status` | text | yes | `''::text` |  |
 | 40 | `last_visit_at` | timestamp with time zone | yes |  |  |
-| 41 | `open_state` | text _(generated)_ | yes |  |  |
+| 41 | `open_state` | text | yes |  |  |
 | 42 | `added_on` | date | yes |  |  |
 | 43 | `reg_at` | timestamp with time zone | yes |  |  |
 | 44 | `reopened_at` | timestamp with time zone | yes |  |  |
@@ -706,8 +905,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 47 | `cancel_reason` | text | **no** | `''::text` |  |
 | 48 | `cancelled_by` | uuid | yes |  |  |
 | 49 | `actual_created_by` | uuid | yes |  | → users(id) · The signed-in user who registered the call. Stamped by the database, never accepted from the caller. created_by is the DESK of record (the Hotline engineer); the two disagreeing is the vigilance finding. |
+| 50 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 51 | `sys_created_by` | uuid | yes |  |  |
+| 52 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 53 | `sys_updated_by` | uuid | yes |  |  |
+| 54 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `ucn` _(field_calls_ucn_key)_ · `ucn` _(field_calls_ucn_key)_
+**Unique:** `ucn` _(field_calls_ucn_key)_ · `sys_id` _(field_calls_sys_id_key)_ · `ucn` _(field_calls_ucn_key)_
 
 **References:**
 
@@ -718,7 +922,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `field_calls_type_ck` — `CHECK ((call_table_for(call_type) = 'field'::text))`
 
-**Triggers:** `calls_biu` → `calls_before_insert()` · `field_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()`
+**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `field_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -777,12 +981,17 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 37 | `reviewed_at` | date | yes |  | The weekly FFR review. NOT updated_at: any edit moves that, and the question is which reports have not been looked at. |
 | 38 | `reviewed_by_name` | text | **no** | `''::text` |  |
 | 39 | `imported_from` | text | **no** | `''::text` | The file this report was loaded from. EMPTY means this system raised it. Kept so a figure over the register can report the split (URS-037) — a 2016 sheet row and a report raised by the Daily Call Review are not the same kind of evidence. |
+| 40 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 41 | `sys_created_by` | uuid | yes |  |  |
+| 42 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 43 | `sys_updated_by` | uuid | yes |  |  |
+| 44 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `ffr_no, product_serial` _(ffr_no_machine_uniq)_
+**Unique:** `ffr_no, product_serial` _(ffr_no_machine_uniq)_ · `sys_id` _(field_failure_reports_sys_id_key)_
 
 **Referenced by:** `ffr_history.ffr_id`
 
-**Triggers:** `no_hard_delete` → `block_hard_delete()` · `zz_ffr_history` → `ffr_history_write()` · `zz_ffr_history_created` → `ffr_history_created()` · `zz_ffr_stamp` → `ffr_stamp()`
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `zz_ffr_history` → `ffr_history_write()` · `zz_ffr_history_created` → `ffr_history_created()` · `zz_ffr_stamp` → `ffr_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -815,14 +1024,19 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 13 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 14 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 15 | `data` | jsonb | **no** | `'{}'::jsonb` |  |
+| 16 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 17 | `sys_created_by` | uuid | yes |  |  |
+| 18 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 19 | `sys_updated_by` | uuid | yes |  |  |
+| 20 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `engineer_key, part_code, source_key` _(handstock_opening_uniq)_
+**Unique:** `sys_id` _(handstock_opening_sys_id_key)_ · `engineer_key, part_code, source_key` _(handstock_opening_uniq)_
 
 **References:**
 
 - `recorded_by` → **users**(`id`) · on delete no action _(handstock_opening_recorded_by_fkey)_
 
-**Triggers:** `handstock_opening_biu` → `handstock_opening_biu()`
+**Triggers:** `handstock_opening_biu` → `handstock_opening_biu()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -844,10 +1058,19 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 3 | `closed_at` | timestamp with time zone | yes |  |  |
 | 4 | `closed_by` | uuid | yes |  |  |
 | 5 | `closed_by_name` | text | **no** | `''::text` |  |
+| 6 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 7 | `sys_created_by` | uuid | yes |  |  |
+| 8 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 9 | `sys_updated_by` | uuid | yes |  |  |
+| 10 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(handstock_period_sys_id_key)_
 
 **Constraints:**
 
 - `handstock_period_singleton_check` — `CHECK (singleton)`
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -884,12 +1107,19 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 3 | `caption` | text | **no** | `''::text` |  |
 | 4 | `updated_by` | uuid | yes |  | → users(id) |
 | 5 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 6 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 7 | `sys_created_by` | uuid | yes |  |  |
+| 8 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 9 | `sys_updated_by` | uuid | yes |  |  |
+| 10 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(help_screenshots_sys_id_key)_
 
 **References:**
 
 - `updated_by` → **users**(`id`) · on delete no action _(help_screenshots_updated_by_fkey)_
 
-**Triggers:** `help_shot_biu` → `help_shot_before_write()`
+**Triggers:** `help_shot_biu` → `help_shot_before_write()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -915,10 +1145,19 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 5 | `tag_no` | text | **no** | `''::text` |  |
 | 6 | `returned` | boolean | **no** | `false` |  |
 | 7 | `note` | text | **no** | `''::text` |  |
+| 8 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 9 | `sys_created_by` | uuid | yes |  |  |
+| 10 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 11 | `sys_updated_by` | uuid | yes |  |  |
+| 12 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(indoor_job_accessories_sys_id_key)_
 
 **References:**
 
 - `job_id` → **indoor_jobs**(`id`) · on delete cascade _(indoor_job_accessories_job_id_fkey)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -945,10 +1184,19 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 8 | `instrument` | text | **no** | `''::text` |  |
 | 9 | `instrument_serial` | text | **no** | `''::text` |  |
 | 10 | `calibration_due` | date | yes |  |  |
+| 11 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 12 | `sys_created_by` | uuid | yes |  |  |
+| 13 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 14 | `sys_updated_by` | uuid | yes |  |  |
+| 15 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(indoor_job_checks_sys_id_key)_
 
 **References:**
 
 - `job_id` → **indoor_jobs**(`id`) · on delete cascade _(indoor_job_checks_job_id_fkey)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -988,6 +1236,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 6 | `condition_grade` | text | **no** | `''::text` | (empty) · Serviceable · Repairable · Scrap |
 | 7 | `destination` | text | **no** | `''::text` |  |
 | 8 | `note` | text | **no** | `''::text` |  |
+| 9 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 10 | `sys_created_by` | uuid | yes |  |  |
+| 11 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 12 | `sys_updated_by` | uuid | yes |  |  |
+| 13 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(indoor_job_parts_sys_id_key)_
 
 **References:**
 
@@ -997,7 +1252,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `indoor_job_parts_qty_check` — `CHECK ((qty >= (0)::numeric))`
 
-**Triggers:** `zz_indoor_job_parts_guard` → `indoor_job_parts_guard()`
+**Triggers:** `zz_indoor_job_parts_guard` → `indoor_job_parts_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1089,8 +1344,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 71 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 72 | `updated_by` | uuid | yes |  |  |
 | 73 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 74 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 75 | `sys_created_by` | uuid | yes |  |  |
+| 76 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 77 | `sys_updated_by` | uuid | yes |  |  |
+| 78 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `job_no` _(indoor_jobs_job_no_key)_ · `job_no` _(indoor_jobs_job_no_key)_
+**Unique:** `job_no` _(indoor_jobs_job_no_key)_ · `job_no` _(indoor_jobs_job_no_key)_ · `sys_id` _(indoor_jobs_sys_id_key)_
 
 **Referenced by:** `indoor_job_accessories.job_id` · `indoor_job_checks.job_id` · `indoor_job_parts.job_id`
 
@@ -1099,7 +1359,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 - `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
 - `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 
-**Triggers:** `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()`
+**Triggers:** `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1108,6 +1368,41 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | INSERT | `indoor_insert` | — | `has_perm('indoor.receive'::text)` |
 | SELECT | `indoor_read` | `has_perm('mod:/indoor'::text)` | — |
 | UPDATE | `indoor_update` | `(has_perm('indoor.receive'::text) OR has_perm('indoor.work'::text) OR has_perm('indoor.qc'::text) OR has_perm('indoor.dispatch'::text) OR has_perm('indoor.condemn'::text))` | `(has_perm('indoor.receive'::text) OR has_perm('indoor.work'::text) OR has_perm('indoor.qc'::text) OR has_perm('indoor.dispatch'::text) OR has_perm('indoor.condemn'::text))` |
+
+---
+
+## inst_call_repair_log
+
+> Every INST Call value 0234 changed, with the value it replaced. Kept so the repair is reversible and checkable.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `sale_item_id` | bigint | **no** |  |  |
+| 3 | `sa_number` | text | **no** | `''::text` |  |
+| 4 | `product_name` | text | **no** | `''::text` |  |
+| 5 | `serial_number` | text | **no** | `''::text` |  |
+| 6 | `old_value` | text | **no** | `''::text` |  |
+| 7 | `new_value` | text | **no** | `''::text` |  |
+| 8 | `why` | text | **no** | `''::text` |  |
+| 9 | `changed_at` | timestamp with time zone | **no** | `now()` |  |
+| 10 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 11 | `sys_created_by` | uuid | yes |  |  |
+| 12 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 13 | `sys_updated_by` | uuid | yes |  |  |
+| 14 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(inst_call_repair_log_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| SELECT | `inst_call_repair_log_read` | `is_admin()` | — |
 
 ---
 
@@ -1157,7 +1452,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 38 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 39 | `last_status` | text | yes | `''::text` |  |
 | 40 | `last_visit_at` | timestamp with time zone | yes |  |  |
-| 41 | `open_state` | text _(generated)_ | yes |  |  |
+| 41 | `open_state` | text | yes |  |  |
 | 42 | `added_on` | date | yes |  |  |
 | 43 | `reg_at` | timestamp with time zone | yes |  |  |
 | 44 | `reopened_at` | timestamp with time zone | yes |  |  |
@@ -1166,8 +1461,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 47 | `cancel_reason` | text | **no** | `''::text` |  |
 | 48 | `cancelled_by` | uuid | yes |  |  |
 | 49 | `actual_created_by` | uuid | yes |  | → users(id) |
+| 50 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 51 | `sys_created_by` | uuid | yes |  |  |
+| 52 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 53 | `sys_updated_by` | uuid | yes |  |  |
+| 54 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `ucn` _(installation_calls_ucn_key)_ · `ucn` _(installation_calls_ucn_key)_
+**Unique:** `ucn` _(installation_calls_ucn_key)_ · `sys_id` _(installation_calls_sys_id_key)_ · `ucn` _(installation_calls_ucn_key)_
 
 **References:**
 
@@ -1178,7 +1478,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `installation_calls_type_ck` — `CHECK ((call_table_for(call_type) = 'installation'::text))`
 
-**Triggers:** `calls_biu` → `calls_before_insert()` · `installation_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
+**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `installation_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1208,12 +1508,19 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 10 | `created_by` | uuid | yes |  | → users(id) |
 | 11 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 12 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 13 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 14 | `sys_created_by` | uuid | yes |  |  |
+| 15 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 16 | `sys_updated_by` | uuid | yes |  |  |
+| 17 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(kb_articles_sys_id_key)_
 
 **References:**
 
 - `created_by` → **users**(`id`) · on delete no action _(kb_articles_created_by_fkey)_
 
-**Triggers:** `kb_biu` → `kb_before_write()`
+**Triggers:** `kb_biu` → `kb_before_write()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1239,6 +1546,15 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 5 | `sort_order` | integer | **no** | `100` |  |
 | 6 | `active` | boolean | **no** | `true` |  |
 | 7 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 8 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 9 | `sys_created_by` | uuid | yes |  |  |
+| 10 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 11 | `sys_updated_by` | uuid | yes |  |  |
+| 12 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(master_lists_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1264,8 +1580,15 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 7 | `active` | boolean | **no** | `true` |  |
 | 8 | `stage_key` | text _(generated)_ | yes |  |  |
 | 9 | `product_key` | text _(generated)_ | yes |  |  |
+| 10 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 11 | `sys_created_by` | uuid | yes |  |  |
+| 12 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 13 | `sys_updated_by` | uuid | yes |  |  |
+| 14 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `name, value, stage_key, product_key` _(masters_name_value_keys_uniq)_
+**Unique:** `name, value, stage_key, product_key` _(masters_name_value_keys_uniq)_ · `sys_id` _(masters_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1321,8 +1644,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 20 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 21 | `created_by` | uuid | yes | `auth.uid()` | → users(id) |
 | 22 | `extra` | jsonb | **no** | `'{}'::jsonb` | Everything the source export carried that has no field of its own, kept as written. |
+| 23 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 24 | `sys_created_by` | uuid | yes |  |  |
+| 25 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 26 | `sys_updated_by` | uuid | yes |  |  |
+| 27 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `uid, part_code(part), COALESCE(row_no, 0)` _(material_returns_uid_part_idx)_
+**Unique:** `sys_id` _(material_returns_sys_id_key)_ · `uid, part_code(part), COALESCE(row_no, 0)` _(material_returns_uid_part_idx)_
 
 **References:**
 
@@ -1332,7 +1660,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `material_returns_qty_positive` — `CHECK (((COALESCE(good_qty, (0)::numeric) + COALESCE(defective_qty, (0)::numeric)) > (0)::numeric))`
 
-**Triggers:** `material_returns_assign_row_no` → `material_returns_assign_row_no()` · `material_returns_check_stock` → `material_returns_check_stock()` · `material_returns_immutable` → `material_returns_immutable()`
+**Triggers:** `material_returns_assign_row_no` → `material_returns_assign_row_no()` · `material_returns_check_stock` → `material_returns_check_stock()` · `material_returns_immutable` → `material_returns_immutable()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1359,10 +1687,19 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 7 | `link` | text | yes | `''::text` |  |
 | 8 | `read` | boolean | **no** | `false` |  |
 | 9 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 10 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 11 | `sys_created_by` | uuid | yes |  |  |
+| 12 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 13 | `sys_updated_by` | uuid | yes |  |  |
+| 14 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(notifications_sys_id_key)_
 
 **References:**
 
 - `recipient_id` → **users**(`id`) · on delete no action _(notifications_recipient_id_fkey)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1386,10 +1723,19 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 3 | `cutoff_date` | date | **no** |  |  |
 | 4 | `updated_by` | uuid | yes |  |  |
 | 5 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 6 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 7 | `sys_created_by` | uuid | yes |  |  |
+| 8 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 9 | `sys_updated_by` | uuid | yes |  |  |
+| 10 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(objective_cutoffs_sys_id_key)_
 
 **Constraints:**
 
 - `objective_cutoffs_month_check` — `CHECK (((month >= 1) AND (month <= 12)))`
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1420,8 +1766,14 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 13 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 14 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 15 | `extra` | jsonb | **no** | `'{}'::jsonb` | Everything the source export carried that has no field of its own, kept as written. |
+| 16 | `transferred_at` | timestamp with time zone | yes | `now()` | When this transfer was RECORDED, to the second. transfer_date is the day the machine changed hands; these differ and both are kept. Used to order a transfer against a sale entry. |
+| 17 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 18 | `sys_created_by` | uuid | yes |  |  |
+| 19 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 20 | `sys_updated_by` | uuid | yes |  |  |
+| 21 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `reference_no, serial_number` _(ownership_transfer_key_uniq)_
+**Unique:** `reference_no, serial_number` _(ownership_transfer_key_uniq)_ · `sys_id` _(ownership_transfers_sys_id_key)_
 
 **References:**
 
@@ -1431,7 +1783,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `ownership_transfer_parties_differ` — `CHECK ((btrim(lower(from_party)) IS DISTINCT FROM btrim(lower(to_party))))`
 
-**Triggers:** `ownership_transfer_aiu` → `ownership_transfer_move()` · `ownership_transfer_biu` → `ownership_transfer_apply()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
+**Triggers:** `ownership_transfer_aiu` → `ownership_transfer_move()` · `ownership_transfer_biu` → `ownership_transfer_apply()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zz_transfer_to_product` → `transfer_to_product()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1454,6 +1806,15 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 2 | `old_key` | text | **no** |  |  |
 | 3 | `new_detail` | text | **no** |  |  |
 | 4 | `at` | timestamp with time zone | **no** | `now()` |  |
+| 5 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 6 | `sys_created_by` | uuid | yes |  |  |
+| 7 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 8 | `sys_updated_by` | uuid | yes |  |  |
+| 9 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(part_rename_ticket_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1497,10 +1858,20 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 28 | `kyc_notes` | text | yes | `''::text` |  |
 | 29 | `kyc_verified_by` | uuid | yes |  |  |
 | 30 | `kyc_verified_at` | timestamp with time zone | yes |  |  |
+| 31 | `kyc_docs` | jsonb | **no** | `'[]'::jsonb` | The KYC records attached to this party: a list of { name, url, at, by }. The files live in Drive; this holds the link, the file name and who attached it when. Evidence for kyc_status — a verification with no record behind it is an assertion. |
+| 32 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 33 | `sys_created_by` | uuid | yes |  |  |
+| 34 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 35 | `sys_updated_by` | uuid | yes |  |  |
+| 36 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `name_key` _(parties_name_key_uniq)_ · `party_key) WHERE (party_key IS NOT NULL` _(partial)_ _(parties_party_key_uniq)_
+**Unique:** `name_key` _(parties_name_key_uniq)_ · `party_key) WHERE (party_key IS NOT NULL` _(partial)_ _(parties_party_key_uniq)_ · `sys_id` _(parties_sys_id_key)_
 
-**Triggers:** `parties_aii` → `parties_after_insert()` · `parties_biu` → `parties_before_write()` · `parties_kyc_stamp` → `parties_kyc_stamp()`
+**Constraints:**
+
+- `parties_kyc_docs_is_list` — `CHECK ((jsonb_typeof(kyc_docs) = 'array'::text))`
+
+**Triggers:** `parties_aii` → `parties_after_insert()` · `parties_biu` → `parties_before_write()` · `parties_kyc_stamp` → `parties_kyc_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1534,8 +1905,15 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 15 | `source_added_on` | timestamp with time zone | yes |  | When the SUPERSEDED system recorded this part. Not this system's created_at, which is when the row arrived here. |
 | 16 | `source_modified_on` | timestamp with time zone | yes |  |  |
 | 17 | `source_inactive_on` | timestamp with time zone | yes |  |  |
+| 18 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 19 | `sys_created_by` | uuid | yes |  |  |
+| 20 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 21 | `sys_updated_by` | uuid | yes |  |  |
+| 22 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `item_detail_key` _(parts_item_detail_key_uniq)_
+**Unique:** `item_detail_key` _(parts_item_detail_key_uniq)_ · `sys_id` _(parts_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1577,6 +1955,15 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 4 | `reset_by` | uuid | yes |  |  |
 | 5 | `reset_by_email` | text | **no** | `''::text` |  |
 | 6 | `reset_at` | timestamp with time zone | **no** | `now()` |  |
+| 7 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 8 | `sys_created_by` | uuid | yes |  |  |
+| 9 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 10 | `sys_updated_by` | uuid | yes |  |  |
+| 11 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(password_resets_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1606,10 +1993,19 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 12 | `ucn` | text | yes | `''::text` |  |
 | 13 | `extra` | jsonb | **no** | `'{}'::jsonb` |  |
 | 14 | `created_by` | uuid | yes |  | → users(id) |
+| 15 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 16 | `sys_created_by` | uuid | yes |  |  |
+| 17 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 18 | `sys_updated_by` | uuid | yes |  |  |
+| 19 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(pending_registrations_sys_id_key)_
 
 **References:**
 
 - `created_by` → **users**(`id`) · on delete no action _(pending_registrations_created_by_fkey)_
+
+**Triggers:** `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1667,7 +2063,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 38 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 39 | `last_status` | text | yes | `''::text` |  |
 | 40 | `last_visit_at` | timestamp with time zone | yes |  |  |
-| 41 | `open_state` | text _(generated)_ | yes |  |  |
+| 41 | `open_state` | text | yes |  |  |
 | 42 | `added_on` | date | yes |  |  |
 | 43 | `reg_at` | timestamp with time zone | yes |  |  |
 | 44 | `reopened_at` | timestamp with time zone | yes |  |  |
@@ -1676,8 +2072,13 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 47 | `cancel_reason` | text | **no** | `''::text` |  |
 | 48 | `cancelled_by` | uuid | yes |  |  |
 | 49 | `actual_created_by` | uuid | yes |  | → users(id) |
+| 50 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 51 | `sys_created_by` | uuid | yes |  |  |
+| 52 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 53 | `sys_updated_by` | uuid | yes |  |  |
+| 54 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `ucn` _(pm_calls_ucn_key)_ · `ucn` _(pm_calls_ucn_key)_
+**Unique:** `ucn` _(pm_calls_ucn_key)_ · `sys_id` _(pm_calls_sys_id_key)_ · `ucn` _(pm_calls_ucn_key)_
 
 **References:**
 
@@ -1688,7 +2089,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 
 - `pm_calls_type_ck` — `CHECK ((call_table_for(call_type) = 'pm'::text))`
 
-**Triggers:** `calls_biu` → `calls_before_insert()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `pm_calls_cover_code` → `cover_code_stamp()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()`
+**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `pm_calls_cover_code` → `cover_code_stamp()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1727,14 +2128,19 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 19 | `serial_key` | text _(generated)_ | yes |  |  |
 | 20 | `extra` | jsonb | **no** | `'{}'::jsonb` |  |
 | 21 | `machine_key` | text _(generated)_ | yes |  |  |
+| 22 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 23 | `sys_created_by` | uuid | yes |  |  |
+| 24 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 25 | `sys_updated_by` | uuid | yes |  |  |
+| 26 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `machine_key` _(product_additional_entries_machine_key_uniq)_
+**Unique:** `machine_key` _(product_additional_entries_machine_key_uniq)_ · `sys_id` _(product_additional_entries_sys_id_key)_
 
 **References:**
 
 - `recorded_by` → **users**(`id`) · on delete no action _(product_additional_entries_recorded_by_fkey)_
 
-**Triggers:** `product_additional_entry_aiu` → `product_additional_entry_apply()` · `product_additional_entry_biu` → `product_additional_entry_biu()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
+**Triggers:** `product_additional_entry_aiu` → `product_additional_entry_apply()` · `product_additional_entry_biu` → `product_additional_entry_biu()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1756,10 +2162,19 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 3 | `rows_built` | integer | **no** | `0` |  |
 | 4 | `refreshed_by` | uuid | yes |  |  |
 | 5 | `stale` | boolean | **no** | `true` | Set by the source registers when they change (0223); cleared by a refresh. The screen reads it to say whether it is showing live figures or figures waiting on the next rebuild. |
+| 6 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 7 | `sys_created_by` | uuid | yes |  |  |
+| 8 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 9 | `sys_updated_by` | uuid | yes |  |  |
+| 10 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(product_database_v2_state_sys_id_key)_
 
 **Constraints:**
 
 - `product_database_v2_state_only_row_check` — `CHECK (only_row)`
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1791,12 +2206,19 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 11 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 12 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 13 | `created_by` | uuid | yes | `auth.uid()` | → users(id) |
+| 14 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 15 | `sys_created_by` | uuid | yes |  |  |
+| 16 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 17 | `sys_updated_by` | uuid | yes |  |  |
+| 18 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(product_master_sys_id_key)_
 
 **References:**
 
 - `created_by` → **users**(`id`) · on delete no action _(product_master_created_by_fkey)_
 
-**Triggers:** `product_master_touch` → `product_master_touch()`
+**Triggers:** `product_master_touch` → `product_master_touch()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1851,10 +2273,15 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 36 | `inst_call_status` | text | **no** | `''::text` |  |
 | 37 | `report` | text | **no** | `''::text` |  |
 | 38 | `associated_accessory` | text | **no** | `''::text` |  |
+| 39 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 40 | `sys_created_by` | uuid | yes |  |  |
+| 41 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 42 | `sys_updated_by` | uuid | yes |  |  |
+| 43 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `machine_key` _(products_machine_key_uniq)_
+**Unique:** `machine_key` _(products_machine_key_uniq)_ · `sys_id` _(products_sys_id_key)_
 
-**Triggers:** `products_cover_code` → `cover_code_stamp()`
+**Triggers:** `products_cover_code` → `cover_code_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1882,14 +2309,19 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 9 | `active` | boolean | **no** | `true` |  |
 | 10 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 11 | `extra_permissions` | jsonb | **no** | `'[]'::jsonb` |  |
+| 12 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 13 | `sys_created_by` | uuid | yes |  |  |
+| 14 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 15 | `sys_updated_by` | uuid | yes |  |  |
+| 16 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `email` _(profiles_email_key)_ · `email` _(profiles_email_key)_
+**Unique:** `email` _(profiles_email_key)_ · `email` _(profiles_email_key)_ · `sys_id` _(profiles_sys_id_key)_
 
 **References:**
 
 - `id` → **users**(`id`) · on delete cascade _(profiles_id_fkey)_
 
-**Triggers:** `profiles_role_guard` → `profiles_role_guard()`
+**Triggers:** `profiles_role_guard` → `profiles_role_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1934,10 +2366,15 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 26 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 27 | `calc_key` | text | **no** | `''::text` | Which calculation produces this objective's monthly figures, or '' when the figure is typed. failure_rate_12m = failures on a product in the trailing 12 months over the installed base; open_rate_monthly = calls of a family registered in the period that were not solved by the cut-off; attended_within_days = calls attended inside a day limit; ffr_count_monthly = how many Field Failure Reports were registered in the period, counted by FFR number. |
 | 28 | `calc_params` | jsonb | **no** | `'{}'::jsonb` |  |
+| 29 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 30 | `sys_created_by` | uuid | yes |  |  |
+| 31 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 32 | `sys_updated_by` | uuid | yes |  |  |
+| 33 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `year, lower(btrim(parameter))` _(quality_objectives_year_param_uniq)_
+**Unique:** `sys_id` _(quality_objectives_sys_id_key)_ · `year, lower(btrim(parameter))` _(quality_objectives_year_param_uniq)_
 
-**Triggers:** `zz_quality_objectives_cutoff_guard` → `quality_objectives_cutoff_guard()` · `zz_quality_objectives_stamp` → `quality_objectives_stamp()`
+**Triggers:** `zz_quality_objectives_cutoff_guard` → `quality_objectives_cutoff_guard()` · `zz_quality_objectives_stamp` → `quality_objectives_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1965,6 +2402,15 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 7 | `changed_at` | timestamp with time zone | **no** | `now()` |  |
 | 8 | `old_data` | jsonb | yes |  |  |
 | 9 | `new_data` | jsonb | yes |  |  |
+| 10 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 11 | `sys_created_by` | uuid | yes |  |  |
+| 12 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 13 | `sys_updated_by` | uuid | yes |  |  |
+| 14 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(record_audit_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1995,14 +2441,19 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 13 | `uid` | text | yes |  |  |
 | 14 | `source_ref` | text | **no** | `''::text` | The original AppSheet file reference this row's manual_report was derived from. Kept so a wrong link can be re-resolved. |
 | 15 | `mapped_at` | timestamp with time zone | yes |  | Set when the row was loaded by the bulk report → call mapping, not reported live. |
+| 16 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 17 | `sys_created_by` | uuid | yes |  |  |
+| 18 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 19 | `sys_updated_by` | uuid | yes |  |  |
+| 20 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `uid` _(reports_uid_uniq)_
+**Unique:** `sys_id` _(reports_sys_id_key)_ · `uid` _(reports_uid_uniq)_
 
 **References:**
 
 - `updated_by` → **users**(`id`) · on delete no action _(reports_updated_by_fkey)_
 
-**Triggers:** `no_hard_delete` → `block_hard_delete()` · `reports_touch_call` → `reports_touch_call()` · `reports_visit_date_guard` → `reports_visit_date_guard()`
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `reports_touch_call` → `reports_touch_call()` · `reports_visit_date_guard` → `reports_visit_date_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2027,10 +2478,19 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 4 | `set_at` | bigint | **no** | `((EXTRACT(epoch FROM now()) * (1000)::numeric))::bigint` |  |
 | 5 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 6 | `updated_by` | uuid | yes |  | → users(id) |
+| 7 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 8 | `sys_created_by` | uuid | yes |  |  |
+| 9 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 10 | `sys_updated_by` | uuid | yes |  |  |
+| 11 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(role_table_views_sys_id_key)_
 
 **References:**
 
 - `updated_by` → **users**(`id`) · on delete no action _(role_table_views_updated_by_fkey)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2049,7 +2509,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 | --- | --- | --- | --- | --- | --- |
 | 1 | `id` | bigint _(identity)_ | **no** |  |  |
 | 2 | `sa_number` | text | **no** |  |  |
-| 3 | `entry_at` | timestamp with time zone | yes |  |  |
+| 3 | `entry_at` | timestamp with time zone | yes | `now()` | When the Sale Entry was made. Stamped by default; a value supplied by an import is kept, because the AppSheet export carries the real historical date. Not typed on the form. |
 | 4 | `party_name` | text | yes | `''::text` |  |
 | 5 | `sold_through` | text | yes | `''::text` |  |
 | 6 | `invoice_no` | text | yes | `''::text` |  |
@@ -2078,8 +2538,13 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 29 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 30 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 31 | `created_by` | uuid | yes | `auth.uid()` | → users(id) |
+| 32 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 33 | `sys_created_by` | uuid | yes |  |  |
+| 34 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 35 | `sys_updated_by` | uuid | yes |  |  |
+| 36 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `sa_number` _(sale_entries_sa_number_key)_ · `sa_number` _(sale_entries_sa_number_key)_
+**Unique:** `sa_number` _(sale_entries_sa_number_key)_ · `sa_number` _(sale_entries_sa_number_key)_ · `sys_id` _(sale_entries_sys_id_key)_
 
 **References:**
 
@@ -2087,14 +2552,14 @@ _No policies, RLS off — reachable by anything with table privileges._
 
 **Referenced by:** `sale_items.sa_number`
 
-**Triggers:** `sale_entries_sync_cover` → `cover_header_sync()` · `sale_entries_touch` → `touch_updated_at()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
+**Triggers:** `sale_entries_sync_cover` → `cover_header_sync()` · `sale_entries_touch` → `touch_updated_at()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zz_sale_entry_to_products` → `sale_entry_to_products()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `sale_entries_write` | `has_perm('cover.edit'::text)` | `has_perm('cover.edit'::text)` |
-| SELECT | `sale_entries_read` | `(has_perm('masters.view'::text) OR has_perm('cover.edit'::text) OR is_admin())` | — |
+| ALL | `sale_entries_write` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` |
+| SELECT | `sale_entries_read` | `(( SELECT has_perm('masters.view'::text) AS has_perm) OR ( SELECT has_perm('cover.edit'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
 
 ---
 
@@ -2137,22 +2602,27 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 31 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 32 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 33 | `created_by` | uuid | yes | `auth.uid()` | → users(id) |
+| 34 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 35 | `sys_created_by` | uuid | yes |  |  |
+| 36 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 37 | `sys_updated_by` | uuid | yes |  |  |
+| 38 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `uid` _(sale_items_uid_key)_ · `uid` _(sale_items_uid_key)_
+**Unique:** `uid` _(sale_items_uid_key)_ · `sys_id` _(sale_items_sys_id_key)_ · `uid` _(sale_items_uid_key)_
 
 **References:**
 
 - `created_by` → **users**(`id`) · on delete no action _(sale_items_created_by_fkey)_
 - `sa_number` → **sale_entries**(`sa_number`) · on delete cascade _(sale_items_sa_number_fkey)_
 
-**Triggers:** `sale_items_defaults` → `sale_items_defaults()` · `sale_items_stub_header` → `sale_items_stub_header()` · `sale_items_sync_cover` → `cover_item_sync()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
+**Triggers:** `sale_items_defaults` → `sale_items_defaults()` · `sale_items_stub_header` → `sale_items_stub_header()` · `sale_items_sync_cover` → `cover_item_sync()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zz_sale_item_inst_call_guard` → `sale_item_inst_call_guard()` · `zz_sale_item_to_product` → `sale_item_to_product()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `sale_items_write` | `has_perm('cover.edit'::text)` | `has_perm('cover.edit'::text)` |
-| SELECT | `sale_items_read` | `(has_perm('masters.view'::text) OR has_perm('cover.edit'::text) OR is_admin())` | — |
+| ALL | `sale_items_write` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` |
+| SELECT | `sale_items_read` | `(( SELECT has_perm('masters.view'::text) AS has_perm) OR ( SELECT has_perm('cover.edit'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
 
 ---
 
@@ -2174,15 +2644,20 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 8 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 9 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 10 | `updated_by` | uuid | yes |  | → users(id) |
+| 11 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 12 | `sys_created_by` | uuid | yes |  |  |
+| 13 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 14 | `sys_updated_by` | uuid | yes |  |  |
+| 15 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `page, owner, name) WHERE (role IS NULL` _(partial)_ _(saved_charts_mine_uniq)_ · `page, role, name) WHERE (role IS NOT NULL` _(partial)_ _(saved_charts_shared_uniq)_
+**Unique:** `page, owner, name) WHERE (role IS NULL` _(partial)_ _(saved_charts_mine_uniq)_ · `page, role, name) WHERE (role IS NOT NULL` _(partial)_ _(saved_charts_shared_uniq)_ · `sys_id` _(saved_charts_sys_id_key)_
 
 **References:**
 
 - `owner` → **users**(`id`) · on delete no action _(saved_charts_owner_fkey)_
 - `updated_by` → **users**(`id`) · on delete no action _(saved_charts_updated_by_fkey)_
 
-**Triggers:** `saved_charts_stamp` → `saved_charts_stamp()`
+**Triggers:** `saved_charts_stamp` → `saved_charts_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2206,8 +2681,15 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 4 | `active` | boolean | **no** | `true` |  |
 | 5 | `sort_order` | integer | **no** | `0` |  |
 | 6 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 7 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 8 | `sys_created_by` | uuid | yes |  |  |
+| 9 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 10 | `sys_updated_by` | uuid | yes |  |  |
+| 11 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Triggers:** `sla_rules_touch` → `sla_rules_touch()`
+**Unique:** `sys_id` _(sla_rules_sys_id_key)_
+
+**Triggers:** `sla_rules_touch` → `sla_rules_touch()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2244,14 +2726,19 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 18 | `grir` | text | **no** | `''::text` | GRIR / traceability reference for the part actually fitted — batch, goods-receipt or serial. Recorded by the engineer at consumption. |
 | 19 | `source_ref` | text | **no** | `''::text` | The row id this line came from when it was imported. Lets a re-load correct rather than duplicate. |
 | 20 | `source_ref_key` | text _(generated)_ | yes |  |  |
+| 21 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 22 | `sys_created_by` | uuid | yes |  |  |
+| 23 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 24 | `sys_updated_by` | uuid | yes |  |  |
+| 25 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `source_ref_key` _(spare_consumption_source_ref_uniq)_
+**Unique:** `source_ref_key` _(spare_consumption_source_ref_uniq)_ · `sys_id` _(spare_consumption_sys_id_key)_
 
 **References:**
 
 - `created_by` → **users**(`id`) · on delete no action _(spare_consumption_created_by_fkey)_
 
-**Triggers:** `consumption_adjust_guard` → `consumption_adjust_guard()` · `consumption_biu` → `consumption_before_insert()` · `consumption_reconcile_guard` → `consumption_reconcile_guard()` · `no_hard_delete` → `block_hard_delete()` · `zz_consumption_needs_visit` → `consumption_needs_a_visit()`
+**Triggers:** `consumption_adjust_guard` → `consumption_adjust_guard()` · `consumption_biu` → `consumption_before_insert()` · `consumption_reconcile_guard` → `consumption_reconcile_guard()` · `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_consumption_needs_visit` → `consumption_needs_a_visit()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2287,8 +2774,13 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 16 | `recorded_by` | uuid | yes |  | → users(id) |
 | 17 | `recorded_by_name` | text | **no** | `''::text` |  |
 | 18 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 19 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 20 | `sys_created_by` | uuid | yes |  |  |
+| 21 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 22 | `sys_updated_by` | uuid | yes |  |  |
+| 23 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `source_key, ref` _(spare_consumption_history_ref_uniq)_
+**Unique:** `source_key, ref` _(spare_consumption_history_ref_uniq)_ · `sys_id` _(spare_consumption_history_sys_id_key)_
 
 **References:**
 
@@ -2298,7 +2790,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 
 - `spare_consumption_history_qty_check` — `CHECK ((qty >= (0)::numeric))`
 
-**Triggers:** `spare_consumption_history_biu` → `spare_consumption_history_biu()`
+**Triggers:** `spare_consumption_history_biu` → `spare_consumption_history_biu()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2342,10 +2834,19 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 9 | `received_by` | text | yes | `''::text` |  |
 | 10 | `receipt_remarks` | text | yes | `''::text` |  |
 | 11 | `refurbished` | boolean | **no** | `false` |  |
+| 12 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 13 | `sys_created_by` | uuid | yes |  |  |
+| 14 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 15 | `sys_updated_by` | uuid | yes |  |  |
+| 16 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(spare_dispatch_lines_sys_id_key)_
 
 **References:**
 
 - `line_id` → **spare_request_lines**(`id`) · on delete cascade _(spare_dispatch_lines_line_id_fkey)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2376,14 +2877,19 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 12 | `dispatched_at` | timestamp with time zone | **no** | `now()` |  |
 | 13 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 14 | `created_by` | uuid | yes | `auth.uid()` | → users(id) |
+| 15 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 16 | `sys_created_by` | uuid | yes |  |  |
+| 17 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 18 | `sys_updated_by` | uuid | yes |  |  |
+| 19 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `uid` _(spare_dispatches_uid_key)_ · `uid` _(spare_dispatches_uid_key)_
+**Unique:** `uid` _(spare_dispatches_uid_key)_ · `sys_id` _(spare_dispatches_sys_id_key)_ · `uid` _(spare_dispatches_uid_key)_
 
 **References:**
 
 - `created_by` → **users**(`id`) · on delete no action _(spare_dispatches_created_by_fkey)_
 
-**Triggers:** `spare_dispatches_assign_no` → `spare_dispatches_assign_no()` · `spare_dispatches_stamp_actor` → `spare_dispatches_stamp_actor()`
+**Triggers:** `spare_dispatches_assign_no` → `spare_dispatches_assign_no()` · `spare_dispatches_stamp_actor` → `spare_dispatches_stamp_actor()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2418,8 +2924,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 15 | `recorded_by` | uuid | yes |  | → users(id) |
 | 16 | `recorded_by_name` | text | **no** | `''::text` |  |
 | 17 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 18 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 19 | `sys_created_by` | uuid | yes |  |  |
+| 20 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 21 | `sys_updated_by` | uuid | yes |  |  |
+| 22 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `source_key, ref` _(spare_issue_history_ref_uniq)_
+**Unique:** `source_key, ref` _(spare_issue_history_ref_uniq)_ · `sys_id` _(spare_issue_history_sys_id_key)_
 
 **References:**
 
@@ -2429,7 +2940,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `spare_issue_history_qty_check` — `CHECK ((qty > (0)::numeric))`
 
-**Triggers:** `spare_issue_history_biu` → `spare_issue_history_biu()`
+**Triggers:** `spare_issue_history_biu` → `spare_issue_history_biu()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2472,10 +2983,19 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 9 | `changed_at` | timestamp with time zone | **no** | `now()` |  |
 | 10 | `changed_by` | uuid | yes |  |  |
 | 11 | `changed_by_name` | text | yes | `''::text` |  |
+| 12 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 13 | `sys_created_by` | uuid | yes |  |  |
+| 14 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 15 | `sys_updated_by` | uuid | yes |  |  |
+| 16 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(spare_request_engineer_log_sys_id_key)_
 
 **References:**
 
 - `request_uid` → **spare_requests**(`uid`) · on delete cascade _(spare_request_engineer_log_request_uid_fkey)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2527,8 +3047,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 34 | `dispatched_qty` | numeric | **no** | `0` |  |
 | 35 | `received_qty` | numeric | **no** | `0` |  |
 | 36 | `extra` | jsonb | **no** | `'{}'::jsonb` |  |
+| 37 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 38 | `sys_created_by` | uuid | yes |  |  |
+| 39 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 40 | `sys_updated_by` | uuid | yes |  |  |
+| 41 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `line_uid` _(spare_request_lines_line_uid_idx)_
+**Unique:** `line_uid` _(spare_request_lines_line_uid_idx)_ · `sys_id` _(spare_request_lines_sys_id_key)_
 
 **References:**
 
@@ -2536,7 +3061,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Referenced by:** `spare_dispatch_lines.line_id`
 
-**Triggers:** `no_hard_delete` → `block_hard_delete()` · `notify_dispatch` → `notify_spare_dispatched()` · `spare_request_line_stub_parent` → `spare_request_line_stub_parent()` · `spare_request_lines_answer_guard` → `spare_request_lines_answer_guard()` · `spare_request_lines_assign_row_no` → `spare_request_lines_assign_row_no()` · `spare_request_lines_dispatch_guard` → `spare_request_lines_dispatch_guard()` · `spare_request_lines_guard` → `spare_request_lines_guard()` · `spare_request_lines_line_uid` → `spare_request_lines_set_line_uid()` · `spare_request_lines_rm_scope_guard` → `spare_request_lines_rm_scope_guard()` · `spare_request_lines_rollup` → `spare_request_lines_rollup()` · `spare_request_lines_set_stage` → `spare_request_lines_set_stage()` · `spare_request_lines_uid_immutable` → `spare_request_lines_uid_immutable()`
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `notify_dispatch` → `notify_spare_dispatched()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_request_line_stub_parent` → `spare_request_line_stub_parent()` · `spare_request_lines_answer_guard` → `spare_request_lines_answer_guard()` · `spare_request_lines_assign_row_no` → `spare_request_lines_assign_row_no()` · `spare_request_lines_dispatch_guard` → `spare_request_lines_dispatch_guard()` · `spare_request_lines_guard` → `spare_request_lines_guard()` · `spare_request_lines_line_uid` → `spare_request_lines_set_line_uid()` · `spare_request_lines_rm_scope_guard` → `spare_request_lines_rm_scope_guard()` · `spare_request_lines_rollup` → `spare_request_lines_rollup()` · `spare_request_lines_set_stage` → `spare_request_lines_set_stage()` · `spare_request_lines_uid_immutable` → `spare_request_lines_uid_immutable()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2595,8 +3120,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 39 | `or_no` | text | yes |  |  |
 | 40 | `or_req_date` | date | yes |  |  |
 | 41 | `extra` | jsonb | **no** | `'{}'::jsonb` | Everything the source export carried that has no field of its own, kept as written. |
+| 42 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 43 | `sys_created_by` | uuid | yes |  |  |
+| 44 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 45 | `sys_updated_by` | uuid | yes |  |  |
+| 46 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `uid` _(spare_requests_uid_key)_ · `or_no` _(spare_requests_or_no_idx)_ · `uid` _(spare_requests_uid_key)_
+**Unique:** `uid` _(spare_requests_uid_key)_ · `or_no` _(spare_requests_or_no_idx)_ · `sys_id` _(spare_requests_sys_id_key)_ · `uid` _(spare_requests_uid_key)_
 
 **References:**
 
@@ -2604,7 +3134,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Referenced by:** `spare_request_engineer_log.request_uid` · `spare_request_lines.request_uid`
 
-**Triggers:** `no_hard_delete` → `block_hard_delete()` · `spare_request_engineer_guard` → `spare_request_engineer_guard()` · `spare_requests_assign_or_no` → `spare_requests_assign_or_no()` · `spare_requests_cover_code` → `cover_code_stamp()` · `spare_requests_number_immutable` → `spare_requests_number_immutable()` · `spare_requests_stage_guard` → `spare_requests_stage_guard()`
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_request_engineer_guard` → `spare_request_engineer_guard()` · `spare_requests_assign_or_no` → `spare_requests_assign_or_no()` · `spare_requests_cover_code` → `cover_code_stamp()` · `spare_requests_number_immutable` → `spare_requests_number_immutable()` · `spare_requests_stage_guard` → `spare_requests_stage_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2644,6 +3174,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 4 | `part` | text | **no** |  |  |
 | 5 | `qty` | numeric | **no** |  |  |
 | 6 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 7 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 8 | `sys_created_by` | uuid | yes |  |  |
+| 9 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 10 | `sys_updated_by` | uuid | yes |  |  |
+| 11 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(stock_transfer_lines_sys_id_key)_
 
 **References:**
 
@@ -2653,7 +3190,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `stock_transfer_lines_qty_check` — `CHECK ((qty > (0)::numeric))`
 
-**Triggers:** `stock_transfer_lines_check_stock` → `stock_transfer_lines_check_stock()` · `stock_transfer_lines_row_no` → `stock_transfer_lines_row_no()`
+**Triggers:** `stock_transfer_lines_check_stock` → `stock_transfer_lines_check_stock()` · `stock_transfer_lines_row_no` → `stock_transfer_lines_row_no()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2681,8 +3218,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 9 | `created_by` | uuid | yes | `auth.uid()` | → users(id) |
 | 10 | `extra` | jsonb | **no** | `'{}'::jsonb` | Everything the source export carried that has no field of its own, kept as written. |
 | 11 | `source` | text | **no** | `''::text` | import for a transfer loaded from the sheet era, as material_returns.source already means; empty for one made here. |
+| 12 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 13 | `sys_created_by` | uuid | yes |  |  |
+| 14 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 15 | `sys_updated_by` | uuid | yes |  |  |
+| 16 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Unique:** `uid` _(stock_transfers_uid_key)_ · `uid` _(stock_transfers_uid_key)_
+**Unique:** `uid` _(stock_transfers_uid_key)_ · `sys_id` _(stock_transfers_sys_id_key)_ · `uid` _(stock_transfers_uid_key)_
 
 **References:**
 
@@ -2694,7 +3236,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `stock_transfer_distinct_parties` — `CHECK ((lower(TRIM(BOTH FROM from_engineer)) <> lower(TRIM(BOTH FROM to_engineer))))`
 
-**Triggers:** `stock_transfers_assign_no` → `stock_transfers_assign_no()`
+**Triggers:** `stock_transfers_assign_no` → `stock_transfers_assign_no()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2726,8 +3268,15 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 10 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 11 | `updated_by` | uuid | yes |  |  |
 | 12 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 13 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 14 | `sys_created_by` | uuid | yes |  |  |
+| 15 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 16 | `sys_updated_by` | uuid | yes |  |  |
+| 17 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Triggers:** `zz_tracker_items_stamp` → `tracker_items_stamp()`
+**Unique:** `sys_id` _(tracker_items_sys_id_key)_
+
+**Triggers:** `zz_tracker_items_stamp` → `tracker_items_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2774,8 +3323,15 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 13 | `state` | text | yes | `''::text` |  |
 | 14 | `phone` | text | yes | `''::text` |  |
 | 15 | `role` | text | yes | `''::text` | RBAC role key (app_roles.role) granted when this person first signs in. |
+| 16 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 17 | `sys_created_by` | uuid | yes |  |  |
+| 18 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 19 | `sys_updated_by` | uuid | yes |  |  |
+| 20 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
-**Triggers:** `user_directory_address_guard` → `user_directory_address_guard()` · `user_directory_profile_sync` → `sync_profile_from_user_directory()`
+**Unique:** `sys_id` _(user_directory_sys_id_key)_
+
+**Triggers:** `user_directory_address_guard` → `user_directory_address_guard()` · `user_directory_profile_sync` → `sync_profile_from_user_directory()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2798,12 +3354,19 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 3 | `name_line` | text | **no** | `''::text` |  |
 | 4 | `title_line` | text | **no** | `''::text` |  |
 | 5 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 6 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 7 | `sys_created_by` | uuid | yes |  |  |
+| 8 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 9 | `sys_updated_by` | uuid | yes |  |  |
+| 10 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(user_signatures_sys_id_key)_
 
 **References:**
 
 - `user_id` → **users**(`id`) · on delete cascade _(user_signatures_user_id_fkey)_
 
-**Triggers:** `zz_user_signature_stamp` → `user_signature_stamp()`
+**Triggers:** `zz_user_signature_stamp` → `user_signature_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2830,12 +3393,19 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 6 | `executed_at` | timestamp with time zone | yes |  |  |
 | 7 | `recorded_by` | uuid | yes |  | → users(id) |
 | 8 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 9 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 10 | `sys_created_by` | uuid | yes |  |  |
+| 11 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 12 | `sys_updated_by` | uuid | yes |  |  |
+| 13 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(validation_results_sys_id_key)_
 
 **References:**
 
 - `recorded_by` → **users**(`id`) · on delete no action _(validation_results_recorded_by_fkey)_
 
-**Triggers:** `validation_results_stamp` → `validation_results_stamp()`
+**Triggers:** `validation_results_stamp` → `validation_results_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2857,31 +3427,35 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `app_user_names` | _not set_ | 2 |
 | `call_report` | **on** | 51 |
 | `call_state` | **on** | 6 |
-| `calls` | **on** | 49 |
+| `calls` | **on** | 54 |
 | `consumption_report` | **on** | 40 |
 | `contract_details` | **on** | 33 |
 | `engineer_stock` | _not set_ | 3 |
+| `export_schedule_state` | **on** | 20 |
 | `failure_modes_by_product` | **on** | 4 |
 | `failure_rate_by_product` | **on** | 6 |
 | `feedback_report` | **on** | 28 |
+| `feedback_without_report` | **on** | 21 |
 | `field_call_review` | **on** | 57 |
 | `field_call_review_summary` | **on** | 11 |
-| `field_failure_register` | **on** | 57 |
+| `field_failure_register` | **on** | 62 |
 | `handstock_balance` | **on** | 20 |
 | `handstock_movements` | **on** | 16 |
-| `indoor_job_list` | **on** | 83 |
+| `indoor_job_list` | **on** | 88 |
 | `kpi_field_inst` | **on** | 34 |
 | `machine_cover` | **on** | 19 |
-| `pending_calls` | **on** | 49 |
+| `pending_calls` | **on** | 54 |
+| `product_database` | **on** | 42 |
 | `product_database_v2` | **on** | 35 |
 | `product_party_names` | **on** | 2 |
 | `product_register_names` | **on** | 2 |
+| `solved_without_report` | **on** | 16 |
 | `spare_pending_dispatch` | **on** | 31 |
 | `spare_pending_rm` | **on** | 24 |
 | `spare_stock_out_lines` | **on** | 26 |
 | `spare_usage` | **on** | 14 |
 | `spare_usage_rollup` | **on** | 8 |
-| `tracker_list` | **on** | 15 |
+| `tracker_list` | **on** | 20 |
 | `unused_spare_report` | **on** | 25 |
 | `warranty_sale_details` | **on** | 46 |
 
@@ -2891,11 +3465,17 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 
 **`feedback_report`** — One row per customer feedback, with the export's own questions as named columns. A blank on a question is "not asked of that kind of visit", not a missing answer. security_invoker, so it shows a reader exactly the feedback they may see.
 
+**`feedback_without_report`** — Customer feedback with no "Solved - Report Completed" visit behind it. The feedback is the evidence that a visit happened; the report is the record of it, and a call carrying one without the other is a visit that was never written up. `missing` names which of the four findings applies. Administrators only, by the module key rather than by a rule of its own (0229).
+
 **`kpi_field_inst`** — The KPI workbook's Field_INST tab, columns A-AG. The per-call lookups into reports and spare_requests are LATERAL so the caller's date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).
+
+**`product_database`** — The install base as it stands NOW: the party from the later of the latest sale and the latest ownership transfer (0238), and the contract and installation call that name that machine AND that party. Item Status is warranty-first over the matching contract; the engineer is always the Party Master's. The stored values are kept beside them as *_keyed.
 
 **`product_database_v2`** — Product Database 2.0 — one row per machine. The ASSEMBLY is stored (refreshed_at says when); the cover STATUS is computed on every read, because it depends on today's date and storing it froze it at the last rebuild (0222).
 
 **`product_party_names`** — Distinct party names FROM THE PRODUCT REGISTER, with how many machines each holds — the source for every Party→Product→Serial picker. The Party Master is a maintained list; this is the record of what exists, and a party with no machines cannot answer "whose machine is this?". Installation call requests are the one exception and fall back to the Party Master and free text, because an installation reaches a customer who has no machine yet (0160).
+
+**`solved_without_report`** — Calls reading Solved whose visit record is incomplete — no visit at all, no visit date, no visit entry date, or no service report. `missing` names every gap on the row. Administrators only, by the module key rather than by a rule of its own (0224).
 
 **`spare_pending_rm`** — Every spare line waiting for a Reporting Manager, with the REQUEST around it: the call, the customer, the product, the SERIAL, the cover, the complaint, the request type and when it was raised. Stage is computed rather than read, because `stage` is a cache and may be stale. security_invoker, so an RM sees only their own team's lines (0116, complaint added 0154).
 

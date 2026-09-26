@@ -920,6 +920,27 @@ const MODULES = {
     needs: ['isAdmin'],
     files: ['0227_data_export.sql', '0228_export_schedules.sql'],
   },
+  sys_columns: {
+    title: 'System columns on every table',
+    blurb: ['sys_id, sys_created_by, sys_created_on, sys_updated_by and',
+            'sys_updated_on on every table except the number counters, written',
+            'by the DATABASE on every insert and update, and never by the app.',
+            'They overlap no existing field: created_at, created_by and the rest',
+            'keep their business meaning (on a call, created_by is the Hotline',
+            'desk). Rows already there are filled ONCE from same-meaning fields',
+            '-- created_at, the author column, updated_at, updated_by -- without',
+            'firing a single trigger, and left blank where nothing was recorded.',
+            '',
+            'LAST IN THE ORDER, AND THAT IS THE POINT: it attaches itself to',
+            'every table that exists when it runs. A table added later is',
+            'covered by running this bundle again; _status.sql row 187 names any',
+            'table still without it.'],
+    needs: ['profiles'],
+    // 0245 is a GUARDED MIRROR (check:bundles MIRRORS): the views written
+    // `select t.*` rebuilt so they carry the new columns, each its owner's
+    // definition word for word. LAST in the module, or 0244 would run after it.
+    files: ['0244_sys_columns.sql', '0245_sys_columns_view_tail.sql'],
+  },
 };
 
 // Read queries for the objects above, kept with them so whoever applies the
@@ -1051,7 +1072,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'sys_columns'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

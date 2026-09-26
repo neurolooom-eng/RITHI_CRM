@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-26. Finding 47 fixed in v0.9.377 — its SQL (0243) still to be applied. R1–R3 pending._
+_Last updated: 2026-09-26. R1 built in v0.9.378 and finding 47 fixed in v0.9.377 — the SQL for both (0243; sys_columns.sql) still to be applied. R2–R3 pending. Finding 48 new._
 
 ---
 
@@ -17,8 +17,8 @@ _Last updated: 2026-09-26. Finding 47 fixed in v0.9.377 — its SQL (0243) still
 | ✅ **Fixed and live** | **21** | 1, 2, 3, 5, 6, 9, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 33, 41, 45, 46 |
 | ✅ **Fixed, SQL still to run** | **1** | 47 (v0.9.377: the screen part is live; the database part needs 0243 applied) |
 | ◐ **Partly fixed** | **3** | 15, 31, 32 |
-| ⏳ **Open** | **22** | 4, 7, 8, 10, 11, 12, 13, 14, 20, 23, 26, 27, 34, 35, 36, 37, 38, 39, 40, 42, 43, 44 |
-| | **47** | |
+| ⏳ **Open** | **23** | 4, 7, 8, 10, 11, 12, 13, 14, 20, 23, 26, 27, 34, 35, 36, 37, 38, 39, 40, 42, 43, 44, 48 |
+| | **48** | |
 
 **Batches 1–3 were front end only.** Finding 47 is the first fix with SQL:
 **apply [`0243_reconciliation_needs_no_visit.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/migrations/0243_reconciliation_needs_no_visit.sql)
@@ -50,6 +50,7 @@ below). They apply to every table and every date, not to one finding.
 
 | # | What |
 | --- | --- |
+| **48** | An edit through the `calls` view answers **"UPDATE 1" when row-level security let nothing through** — the view's INSTEAD OF trigger returns the row whatever the table update did. **Measured** 2026-09-26 (a role without `calls.edit`: `UPDATE 1`, the call unchanged). The same false-"saved" class as 30/31, one layer down. Which screens write through `calls` and trust that answer is **not yet checked**. |
 | **38** | Two expression indexes so the ownership triggers stop scanning. A 500-row transfer upload measured 12.5 s against a 20 s limit. |
 | **13** | Spare Insights' date window is a UTC day, not an IST one (SQL function). |
 | **40** | Four hand-run probes return 2–3 result grids; the SQL editor shows only the last. |
@@ -104,11 +105,13 @@ dates are shown and exported, not how they are stored.**
 
 | # | Requirement | Already true | Still to do |
 | --- | --- | --- | --- |
-| **R1** | Key, timestamp, `sys_created_by`, `sys_updated_by` on every table | 1 of 77 tables has all of it under some name. `BACKLOG.md` ("The survey") already names the natural-key gaps that matter most: `user_directory` first. | Add the columns. Stamp both authors from the signed-in session by trigger, discarding any value a client sends (the rule `calls` already follows, 0113/0114). Add natural keys table by table. Needs your answers to Q1–Q5 first. |
+| **R1** | Key, timestamp, `sys_created_by`, `sys_updated_by` on every table | ✅ **Built, v0.9.378** (0244/0245): `sys_id`, `sys_created_by`, `sys_created_on`, `sys_updated_by`, `sys_updated_on` on 68 tables, written only by the database; existing rows filled from same-meaning fields. | **Your step: run `sys_columns.sql` once.** Not done: showing them on screens with names (R2/R3); natural keys per table (a separate question). |
 | **R2** | Date fields as `dd-mmm-yyyy`, readable by Excel | `formatDay()` in `src/lib/dates.ts` is that format, and the Excel downloads built by `ReportBuilder` already write real Excel dates. | Finding **7**: four workbooks and the register CSVs export raw database dates. Screens have **not** been audited for dates shown any other way, so that audit is the first step. |
 | **R3** | Date-time fields as `dd-mmm-yyyy hh:mm:ss`, readable by Excel | `formatDayTime()` is that format, and `ReportBuilder` applies it on the way out. It was already your rule (2026-09-24). | The same audit as R2, for date-times. |
 
-**Questions R1 needs answered before any of it is built:**
+**Your answers (2026-09-26)**, which is what was built: Q1 → a new `sys_id` on every table; Q2 → separate `sys_created_on` / `sys_updated_on`, overlapping no existing field; Q3 → the login id; Q4 → fill existing rows from existing fields; Q5 → every table except the counters. The questions as they were asked:
+
+**Questions R1 needed answered before any of it was built:**
 
 - **Q1 — "a key".** A natural key where one exists (a re-load then corrects a
   row instead of duplicating it)? Every table already has a system key. The
@@ -163,6 +166,22 @@ dates are shown and exported, not how they are stored.**
 
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
+
+### 2026-09-26 — R1 built (v0.9.378): system columns on every table
+- Your decisions: a new `sys_id`; login ids; existing rows filled from
+  existing fields; every table but the counters; and *"shouldn't overlap with
+  any of the other fields"*.
+- 0244 adds and stamps the five columns on 68 tables; 0245 rebuilds the six
+  `select t.*` views so re-running any bundle leaves them the same.
+- The fill copies same-meaning fields only, by a table rewrite that fires no
+  trigger. On calls the creator is the person who typed it, not the desk.
+- **Proved**: `sys_columns_test` (7 sections, including forged values sent
+  through the `calls` view); `_status.sql` row 187; 7 `check:ui` assertions;
+  104 suites and 22 checks. **Measured**: 1.2 s to apply on 37,000 rows; about
+  13 µs added per row written.
+- **Found on the way — finding 48**: an edit through `calls` answers
+  "UPDATE 1" even when nothing was saved.
+- **Your step**: run `sys_columns.sql` once. Not done yet.
 
 ### 2026-09-26 — Finding 47 fixed (v0.9.377) — your decision: exempt reconciliation
 - **0243**: a Reconciliation line no longer needs a visit on its call; every

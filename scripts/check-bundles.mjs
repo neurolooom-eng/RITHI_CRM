@@ -98,6 +98,7 @@ const MIRRORS = new Set([
   '0122_stock_transfer_replay_tail.sql',    // stock_transfer -> handstock
   '0122_notifications_replay_tail.sql',     // notifications  -> handstock
   '0122_user_directory_replay_tail.sql',    // user_directory -> rbac (a DROP, so nothing to compare)
+  '0245_sys_columns_view_tail.sql',         // call_requests, daily_review, indoor, tracker, data_export -> sys_columns
 ]);
 
 const where = new Map();   // object -> Map(module -> [files])
