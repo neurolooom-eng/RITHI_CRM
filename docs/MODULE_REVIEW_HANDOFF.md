@@ -5,6 +5,10 @@ wrong, how it fails, and how each claim was established. This one says **what to
 change, in what order, and how to know it worked** — written so it can be worked
 straight into `main` without going back to the session that produced it.
 
+**Some of this is already done.** Batches 1–3 are on `main`. Before starting a
+patch, check its finding in [`MODULE_REVIEW_LOG.md`](MODULE_REVIEW_LOG.md),
+which shows each finding's status and what was shipped when.
+
 **The patches below are written, not compiled.** Every line number and every
 "current" snippet was read off the tree, but no patch here has been applied or
 type-checked. Treat them as precise descriptions of the change, not as diffs to
