@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { db, type BaseRecord } from './db';
-import { parseAnyDate } from './dates';
+import { parseAnyDate, formatDayTime } from './dates';
 import type { FieldOption } from '../components/form/Form';
 import { mayExport, type ExportScope } from './exportscope';
 
@@ -157,8 +157,12 @@ export function csvExport(filename: string, columns: { key: string; header: stri
   if (!_canExport) { try { alert('Exporting / downloading data is not permitted for your role.'); } catch { /* ignore */ } return; }
   // ASKED BEFORE A SINGLE BYTE IS BUILT, so Cancel leaves nothing behind.
   if (!mayExport(scope, rows.length)) return;
+  // A DATE IN THE FILE READS dd-MMM-yyyy [HH:mm:ss] (finding 7; the user's
+  // R2/R3), in the reader's own time — never the database's UTC wire string.
+  // By VALUE, not by column: formatDayTime rewrites only a whole-cell ISO date
+  // or timestamp and hands every other value back as it came.
   const esc = (s: unknown) => {
-    const v = s == null ? '' : String(s);
+    const v = s == null ? '' : typeof s === 'string' ? formatDayTime(s) : String(s);
     return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
   };
   const head = columns.map((c) => esc(c.header)).join(',');

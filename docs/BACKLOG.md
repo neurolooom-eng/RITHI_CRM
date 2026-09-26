@@ -66,6 +66,21 @@ up)_
 
 ---
 
+## 2026-09-26 — Module review, batch 5: dates in downloads, honest call edits (v0.9.381)
+
+- ✅ **7 / R2 / R3 (downloads)**: `buildXlsx` shapes every body cell; `csvExport`
+  formats date values. Front end, live on merge.
+- ✅ **32 (rest)** and **40** — front end and hand-run files, live on merge.
+  **40b** (12 more multi-grid probes) is open and listed in `check:ui`.
+- ⏳ **SQL to run**, each proved NO-before / yes-after on `_status.sql`:
+  - `objective.sql` — **0249**, objective evidence tiebreakers (row 191, finding 15);
+  - `sales_contracts.sql` — **0250**, ownership trigger indexes (row 192,
+    finding 38; 500 transfers 15.6 s → 0.57 s measured);
+  - `sys_columns.sql` — **0245** regenerated with the honest calls update
+    (row 193, finding 48). 0114 carries the same generator, so
+    `call_requests.sql` restores it too.
+- ⏳ `_pm_call_numbers.sql` still cut off; needs the rest of the user's list.
+
 ## 2026-09-26 — Module review, batch 4: rows that could be missed or doubled (v0.9.380)
 
 Front end only, no SQL. ✅ Shipped on merge.

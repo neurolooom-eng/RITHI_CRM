@@ -1378,7 +1378,18 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.refresh_product_cover()') is null
          or (select bool_and(p.prosrc ~ 'cover\.edit') from pg_proc p
               where p.oid in (to_regprocedure('public.refresh_product_cover()'),
-                              to_regprocedure('public.cover_unpin_inherited()')))))
+                              to_regprocedure('public.cover_unpin_inherited()'))))),
+    (191, 'The Objective evidence file is read in a fixed order', 'objective_evidence() breaks the tie on every ORDER BY it pages by (0249): the call branches by the UCN after the registration date, the machine branch by item name and id after the serial. The app reads the evidence a thousand rows at a time and every page re-runs the function, so a tie left unordered could put a row on two pages or on none -- in the file somebody checks the Objective''s figure against (finding 15). NO means the evidence export can double or drop rows on a large objective. Restore: objective.sql',
+        (to_regprocedure('public.objective_evidence(bigint,integer)') is null
+         or (select p.prosrc ~ 'reg_date desc, c\.ucn' and p.prosrc ~ 'serial_number, pr\.item_name, pr\.id'
+               from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')))),
+    (192, 'The ownership triggers look machines up by index', 'sale_items_machine_expr_idx and ownership_transfers_machine_expr_idx (0250) are built on lower(btrim(coalesce(model, ''''))), lower(btrim(coalesce(serial, ''''))) -- the expressions machine_current_party() and transfer_to_product() filter on, character for character. Without them every row of a sale-line or ownership-transfer upload scans both registers: 500 transfers measured 15.6 s against a 20 s statement limit at 20,000 sale lines and 4,000 transfers, and 0.57 s with them (finding 38). NO means large uploads to either register can time out. Restore: sales_contracts.sql',
+        ((to_regclass('public.sale_items') is null or to_regclass('public.sale_items_machine_expr_idx') is not null)
+         and (to_regclass('public.ownership_transfers') is null or to_regclass('public.ownership_transfers_machine_expr_idx') is not null))),
+    (193, 'An edit through the calls view reports only what it wrote', 'calls_view_update() returns NULL when the update it routes to field_calls / installation_calls / pm_calls matched no row (0245, the regenerated trigger; 0114 carries the same generator). Row-level security answers an edit the caller may not make with ZERO rows, not an error, and the trigger used to return the row regardless -- so a role that may see a call but not change it was told "UPDATE 1" over a call left as it was, and the screens said Saved (finding 48, measured). NO means a refused call edit or re-allotment can still be reported as saved. Restore: sys_columns.sql',
+        (to_regprocedure('public.calls_view_update()') is null
+         or (select p.prosrc ~ 'if not found then return null' from pg_proc p
+              where p.oid = to_regprocedure('public.calls_view_update()'))))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

@@ -22,57 +22,73 @@
 --
 -- AND THE RULE'S LAST BRANCH IS A CATCH-ALL: anything it does not recognise
 -- returns 'Report pending'. A visit loaded with a blank Call Status, or with a
--- word outside cancelled/unsolved/report pending/solved, lands there. Row 5
--- lists those words, because they are the ones nobody has looked at.
+-- word outside cancelled/unsolved/report pending/solved, lands there. Rows 101
+-- onwards list every status word behind a PM call and what it becomes,
+-- because the ones that fell through are the ones nobody has looked at.
+-- Rows 501 onwards count the unvisited calls by registration month: a cliff
+-- means a load stopped at a date, an even spread means it never carried them.
 --
--- READ-ONLY. Run the whole file; the last block needs no editing.
+-- ONE STATEMENT, ONE GRID (finding 40). The SQL editor shows only the LAST
+-- result, and this file used to be three queries, so the headline rows 1-4
+-- never reached the screen.
+--
+-- READ-ONLY. Run the whole file; nothing needs editing.
 -- ===========================================================================
 
--- ---- 1. the shape of the PM register as the database holds it --------------
 with base as (
   select c.ucn, c.reg_date, c.open_state, c.cancelled_at, c.reopened_at,
          c.last_status, c.last_visit_at,
          exists (select 1 from public.reports r where r.ucn = c.ucn) as has_visit
     from public.pm_calls c
+),
+-- Every distinct visit status behind a PM call, and what it becomes. A status
+-- the rule does not recognise silently becomes 'Report pending'.
+statuses as (
+  select visit_status_as_stored, becomes, count(*) as calls,
+         bool_or(becomes = 'Report pending' and raw not like '%report pending%') as fell_through
+    from (
+      select coalesce(nullif(btrim(c.last_status), ''), '(blank)') as visit_status_as_stored,
+             public.call_open_state(c.last_status, c.last_visit_at) as becomes,
+             lower(coalesce(c.last_status, '')) as raw
+        from public.pm_calls c
+       where c.last_visit_at is not null or coalesce(c.last_status, '') <> ''
+    ) x
+   group by visit_status_as_stored, becomes
+),
+months as (
+  select to_char(date_trunc('month', reg_date), 'YYYY-MM') as reg_month, count(*) as n
+    from base where not has_visit
+   group by 1
 )
-select 1 as row, 'PM calls in the database' as measure, count(*)::text as value,
-       'The source register exports 7,038 rows, 9 of which cannot load (blank UC Number). If this is MORE than 7,029 the database holds PM calls that export does not -- and those extra calls, having no visit, are Unattended and are part of the excess.' as what_it_means
-  from base
-union all
-select 2, 'PM calls with NO visit row at all', count(*) filter (where not has_visit)::text,
-       'THE HEADLINE NUMBER. The export says only 1,470 PM calls have never been visited. Every one beyond that is a call whose visit was not loaded, and it reads Unattended for that reason alone.'
-  from base
-union all
-select 3, 'PM calls open right now', count(*) filter (where cancelled_at is null and (open_state <> 'Solved' or reopened_at is not null))::text,
-       'The same rule the Pending Calls screen uses. Compare with the export''s 1,632.'
-  from base
-union all
-select 4, 'PM calls the database calls Solved', count(*) filter (where open_state = 'Solved' and cancelled_at is null and reopened_at is null)::text,
-       'The export says 5,397. The shortfall here is the same number as the excess in row 3 -- they are one fault seen from two sides, not two faults.'
-  from base;
-
--- ---- 2. every distinct visit status behind a PM call, and what it becomes ---
--- A status the rule does not recognise silently becomes 'Report pending'. This
--- is the list of words actually in the data, so nothing has to be guessed at.
-select visit_status_as_stored, becomes, count(*) as calls,
-       case when becomes = 'Report pending' and lower(raw) not like '%report pending%'
-            then 'FELL THROUGH THE CATCH-ALL -- not a word the rule knows' else '' end as note
-  from (
-    select coalesce(nullif(btrim(c.last_status), ''), '(blank)') as visit_status_as_stored,
-           public.call_open_state(c.last_status, c.last_visit_at) as becomes,
-           lower(coalesce(c.last_status, '')) as raw
-      from public.pm_calls c
-     where c.last_visit_at is not null or coalesce(c.last_status, '') <> ''
-  ) x
- group by visit_status_as_stored, becomes, note
- order by calls desc;
-
--- ---- 3. the unvisited calls by registration month --------------------------
--- If the missing visits stop at a date, this shows it as a cliff. If they are
--- spread evenly the load did not stop -- it never carried those rows.
-select to_char(date_trunc('month', c.reg_date), 'YYYY-MM') as reg_month,
-       count(*) as pm_calls_with_no_visit
-  from public.pm_calls c
- where not exists (select 1 from public.reports r where r.ucn = c.ucn)
- group by 1
- order by 1;
+select * from (
+  select 1 as row, 'PM calls in the database' as measure, count(*)::text as value,
+         'The source register exports 7,038 rows, 9 of which cannot load (blank UC Number). If this is MORE than 7,029 the database holds PM calls that export does not -- and those extra calls, having no visit, are Unattended and are part of the excess.' as what_it_means
+    from base
+  union all
+  select 2, 'PM calls with NO visit row at all', count(*) filter (where not has_visit)::text,
+         'THE HEADLINE NUMBER. The export says only 1,470 PM calls have never been visited. Every one beyond that is a call whose visit was not loaded, and it reads Unattended for that reason alone. Rows 501 onwards spread them by month.'
+    from base
+  union all
+  select 3, 'PM calls open right now', count(*) filter (where cancelled_at is null and (open_state <> 'Solved' or reopened_at is not null))::text,
+         'The same rule the Pending Calls screen uses. Compare with the export''s 1,632.'
+    from base
+  union all
+  select 4, 'PM calls the database calls Solved', count(*) filter (where open_state = 'Solved' and cancelled_at is null and reopened_at is null)::text,
+         'The export says 5,397. The shortfall here is the same number as the excess in row 3 -- they are one fault seen from two sides, not two faults.'
+    from base
+  union all
+  select * from (
+    select (100 + row_number() over (order by calls desc, visit_status_as_stored, becomes))::int,
+           'visit status: ' || visit_status_as_stored,
+           calls::text || ' call(s)',
+           'becomes ' || coalesce(becomes, '(nothing)')
+           || case when fell_through then ' -- FELL THROUGH THE CATCH-ALL, not a word the rule knows' else '' end
+      from statuses
+  ) st
+  union all
+  select (500 + row_number() over (order by reg_month))::int,
+         'unvisited PM calls registered ' || coalesce(reg_month, '(no date)'),
+         n::text,
+         'A cliff at a date means a load stopped there; an even spread means it never carried these visits.'
+    from months
+) g order by row;

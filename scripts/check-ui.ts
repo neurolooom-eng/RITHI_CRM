@@ -5282,7 +5282,11 @@ console.log('\n-- the cover registers carry the AppSheet arithmetic --');
     const spec = readFileSync('docs/APPSHEET_ADMIN_APPDEF.md', 'utf8');
     const day = (n: number) => {
       const d = new Date(2026, 5, 15); d.setDate(d.getDate() + n);
-      return d.toISOString().slice(0, 10);
+      // The LOCAL calendar day. `toISOString()` is the UTC one, which east of
+      // Greenwich is the day BEFORE local midnight -- so run in India this
+      // helper handed coverStatus yesterday's date and two boundaries failed
+      // with the application perfectly right.
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
     const on = (n: number) => coverStatus(day(n), new Date(2026, 5, 15));
 
@@ -9149,6 +9153,147 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   // #14 the top-25 product list says it is the top 25.
   eq('#14 Spare Insights: a full product list says it is the top twenty-five',
     /by_product\.length >= 25/.test(rd('src/modules/SpareInsights.tsx')), true);
+}
+
+// #7 / R2 / R3: EVERY WORKBOOK WRITES A DATE AS A DATE, whether or not the
+// screen shaped its rows. Built from a row exactly as PostgREST sends it, then
+// read back from the bytes -- the only way this class has ever been found.
+{
+  console.log('\n-- #7 a raw row still reaches Excel with real dates --');
+  const raw = {
+    'Dispatched On': '2026-09-18',
+    'Received On': '2026-09-18T08:51:02.55+00:00',
+    'Serial No': '0012345',
+    'Part Code': 'MP-010',
+    'Qty Sent': 2,
+    'Remark': '2026-09-18 pump replaced',
+  };
+  const cols = Object.keys(raw);
+  const bytes = buildXlsx([{ name: 'Raw', columns: cols, rows: [raw] }]);
+  const xml = Array.from(bytes).map((b) => String.fromCharCode(b)).join('');
+  const at = (h: string) => new RegExp(`<c r="${String.fromCharCode(65 + cols.indexOf(h))}2"[^>]*>.*?</c>`).exec(xml)?.[0] ?? '(no cell)';
+  eq('#7 a date-only value is a date cell (style 2), not text', /s="2"><v>46283<\/v>/.test(at('Dispatched On')), true);
+  eq('#7 a timestamp is a date-and-time cell (style 1)', /s="1"><v>46283\./.test(at('Received On')), true);
+  eq('#7 a serial keeps its leading zeros as text', /inlineStr.*>0012345</.test(at('Serial No')), true);
+  eq('#7 a part code is never turned into a date', /inlineStr.*>MP-010</.test(at('Part Code')), true);
+  eq('#7 a number stays a number', /<c r="E2"><v>2<\/v><\/c>/.test(at('Qty Sent')), true);
+  eq('#7 a remark that begins with a date stays text', /inlineStr.*>2026-09-18 pump replaced</.test(at('Remark')), true);
+  eq('#7 the header row is written as given', /<c r="A1" t="inlineStr"><is><t xml:space="preserve">Dispatched On</.test(xml), true);
+  // An already-shaped value (what ReportBuilder passes) is not shaped twice.
+  const pre = buildXlsx([{ name: 'Pre', columns: ['D'], rows: [{ D: xlsxCell('2026-09-18') }] }]);
+  eq('#7 a value already shaped by xlsxCell passes through unchanged',
+    /<c r="A2" s="2"><v>46283<\/v><\/c>/.test(Array.from(pre).map((b) => String.fromCharCode(b)).join('')), true);
+  // The CSV cannot carry a serial, so it carries the formatted text -- by value.
+  eq('#7 every register CSV formats a date value on the way out',
+    /typeof s === 'string' \? formatDayTime\(s\)/.test(readFileSync('src/lib/format.tsx', 'utf8')), true);
+}
+
+// #48 / #32 (batch 5): a write counts what it WROTE, and a filtered count over
+// a partial load admits it.
+{
+  console.log('\n-- #48 a call edit counts the rows it changed --');
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+  const body = (name: string) => {
+    const at = sb.search(new RegExp(`export async function ${name}\\b`));
+    const next = sb.indexOf('\nexport ', at + 10);
+    return at < 0 ? '' : sb.slice(at, next < 0 ? undefined : next);
+  };
+  eq('#48 updateCall asks which rows it changed, and none is a refusal',
+    /\.eq\('ucn', ucn\)\.select\('ucn'\)/.test(body('updateCall')) && /CALL_NOT_SAVED/.test(body('updateCall')), true);
+  eq('#48 reallocateCalls counts the rows each chunk moved, not the rows it asked for',
+    /updated \+= \(data \?\? \[\]\)\.length/.test(body('reallocateCalls')) && !/updated \+= part\.length/.test(body('reallocateCalls')), true);
+  eq('#48 ...and says how many were not moved',
+    /The other \$\{list\.length - updated\} were not changed/.test(body('reallocateCalls')), true);
+  for (const f of ['FieldCalls', 'PendingCalls']) {
+    eq(`#48 ${f}: a partial re-allot re-reads, so the moved calls show where they went`,
+      /if \(res\.updated\) void (refresh|load)\(\)/.test(readFileSync(`src/modules/${f}.tsx`, 'utf8')), true);
+  }
+  // The database half is proved by calls_view_honest_update_test.sql; here, that
+  // both copies of the generator carry it, since check:bundles only says they agree.
+  for (const f of ['0114_call_registrant_split.sql', '0245_sys_columns_view_tail.sql']) {
+    eq(`#48 ${f}: the calls view update returns NULL when nothing was written`,
+      /if not found then return null; end if;\s*return new;/.test(readFileSync(`supabase/migrations/${f}`, 'utf8')), true);
+  }
+  console.log('\n-- #32 the request register admits a partial filtered count --');
+  const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  eq('#32 a filtered count over a partial load carries the "+"', /countMore=\{moreAvailable\}/.test(rq), true);
+  eq('#32 a blank request status is Pending, as a null one is',
+    /status: String\(r\.status \?\? ''\)\.trim\(\) \|\| 'Pending'/.test(sb), true);
+}
+
+// #40 A HAND-RUN FILE SHOWS ONE GRID. The Supabase SQL editor displays only
+// the LAST result, so a probe that returns two leaves the first -- usually the
+// summary its header tells you to read -- off the screen. Counted by splitting
+// the file into top-level statements (comments, quoted text and $tag$ bodies
+// skipped) and asking which of them return rows: judged at the TOP LEVEL only,
+// so a `with ... select` is a grid and a `with ... update` without RETURNING is
+// not. The files below predate the rule and are listed so a NEW offender fails;
+// each is a candidate to convert, not a pass.
+{
+  console.log('\n-- #40 a hand-run SQL file returns one result grid --');
+  const statementsOf = (sql: string): string[] => {
+    const out: string[] = []; let cur = ''; let i = 0;
+    while (i < sql.length) {
+      const c = sql[i], n = sql[i + 1];
+      if (c === '-' && n === '-') { const e = sql.indexOf('\n', i); i = e < 0 ? sql.length : e; continue; }
+      if (c === '/' && n === '*') { const e = sql.indexOf('*/', i + 2); i = e < 0 ? sql.length : e + 2; cur += ' '; continue; }
+      if (c === "'" || c === '"') {
+        let j = i + 1;
+        while (j < sql.length) { if (sql[j] === c) { if (sql[j + 1] === c) { j += 2; continue; } break; } j++; }
+        cur += sql.slice(i, j + 1); i = j + 1; continue;
+      }
+      if (c === '$') {
+        const m = /^\$[A-Za-z_]*\$/.exec(sql.slice(i));
+        if (m) { const e = sql.indexOf(m[0], i + m[0].length); const j = e < 0 ? sql.length : e + m[0].length; cur += sql.slice(i, j); i = j; continue; }
+      }
+      if (c === ';') { if (cur.trim()) out.push(cur.trim()); cur = ''; i++; continue; }
+      cur += c; i++;
+    }
+    if (cur.trim()) out.push(cur.trim());
+    return out;
+  };
+  const topLevel = (st: string) => {
+    let t = st.replace(/'(?:[^']|'')*'/g, "''").replace(/"(?:[^"]|"")*"/g, 'x')
+      .replace(/\$([A-Za-z_]*)\$[\s\S]*?\$\1\$/g, ' ');
+    let prev: string;
+    do { prev = t; t = t.replace(/\([^()]*\)/g, ' '); } while (t !== prev);
+    return t.toLowerCase();
+  };
+  const returnsRows = (st: string) => {
+    const t = topLevel(st);
+    if (/^\s*(select|values|table)\b/.test(t)) return true;
+    if (/^\s*with\b/.test(t)) return /\breturning\b/.test(t) || !/\b(update|insert|delete|merge)\b/.test(t);
+    return /^\s*(update|insert|delete|merge)\b/.test(t) && /\breturning\b/.test(t);
+  };
+  const grids = (sql: string) => statementsOf(sql).filter(returnsRows).length;
+  // The counter itself, on inputs whose answer is known.
+  eq('#40 counter: two selects are two grids', grids('select 1; select 2;'), 2);
+  eq('#40 counter: a CTE ending in select is one grid', grids("with a as (select 1) select * from a;"), 1);
+  eq('#40 counter: a do block is no grid', grids("do $x$ begin perform 1; end $x$;"), 0);
+  eq('#40 counter: a semicolon inside a string or comment splits nothing',
+    grids("select 'a;b' as x -- c;d\n;"), 1);
+  eq('#40 counter: a CTE that updates without RETURNING is no grid',
+    grids('with a as (select 1) update t set x = 1 from a;'), 0);
+  const GRANDFATHERED = [
+    '_admin_grant_check.sql', '_dedupe_part_product_keys.sql', '_load_check.sql',
+    '_move_blank_status_visits.sql', '_party_name_normalise.sql', '_party_search_diagnose.sql',
+    '_reassign_spare_engineer.sql', '_registered_by_check.sql', '_reset_for_production.sql',
+    '_stray_cover_rows.sql', '_why_is_it_empty_2.sql', '_yearly_consumption_check.sql',
+  ];
+  const dir = 'supabase/apply/';
+  const over = readdirSync(dir)
+    .filter((f) => f.startsWith('_') && f.endsWith('.sql') && !GRANDFATHERED.includes(f))
+    .filter((f) => grids(readFileSync(dir + f, 'utf8')) > 1);
+  eq('#40 no hand-run SQL file returns more than one result grid', over, []);
+  // The four the review named are converted, and stay converted.
+  for (const f of ['_why_do_the_two_report_counts_differ.sql', '_how_stale_is_item_status.sql',
+                   '_why_are_pm_calls_still_open.sql', '_rebuild_product_database.sql']) {
+    eq(`#40 ${f} returns exactly one grid`, grids(readFileSync(dir + f, 'utf8')), 1);
+  }
+  // A grandfathered file that has been fixed must come off the list, or the
+  // list stops meaning anything.
+  eq('#40 every grandfathered file still needs to be', GRANDFATHERED.filter((f) =>
+    existsSync(dir + f) && grids(readFileSync(dir + f, 'utf8')) <= 1), []);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

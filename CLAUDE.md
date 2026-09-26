@@ -932,6 +932,21 @@ on testing the old shape. **When a migration replaces a definition, move the
   for exactly that reason. A new table also needs row-level security ON even
   when it has no policy (the counters' pattern), or Supabase's default grants
   hand it to `anon` -- `party_key_seq` was the one that was missed.
+- **NO ERROR IS NOT "SAVED" — ROW-LEVEL SECURITY REFUSES AN UPDATE WITH ZERO
+  ROWS** (finding 48, measured 2026-09-26). An UPDATE the policies do not allow
+  matches nothing and succeeds, so a client that checks only `error` reports a
+  refused edit as saved. Through a view with an INSTEAD OF trigger it was worse:
+  `calls_view_update()` returned NEW regardless and the database itself said
+  `UPDATE 1`. It returns NULL when nothing was written now (0114 and its 0245
+  mirror — change BOTH), and a write whose success matters asks for its rows
+  (`.select('ucn')`) and counts them, as `updateCall` and `reallocateCalls` do.
+  `calls_view_honest_update_test` proves it as `authenticated`.
+- **A HAND-RUN FILE RETURNS ONE GRID.** The Supabase SQL editor shows only the
+  LAST result, so a probe ending in a detail query hid the summary its header
+  pointed at (finding 40). Fold the detail into the same statement as numbered
+  rows (101 onwards), the `_status.sql` way. `check:ui` counts the row-returning
+  top-level statements in every `supabase/apply/_*.sql` and refuses more than
+  one; the twelve older files that break it are listed there by name.
 - **EVERY TABLE HAS FIVE SYSTEM COLUMNS, AND THE DATABASE WRITES THEM** (0244,
   the user, 2026-09-26: *"sys_created_by, sys_created_on shouldn't overlap with
   any of the other fields"*). `sys_id` (unique), `sys_created_by`,
