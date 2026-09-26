@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.376',
+    version: '0.9.377',
     date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,15 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.376',
+    date: '2026-09-26',
+    title: 'The new CallReg address, baked in',
+    changes: [
+      'THE APPS SCRIPT WEB APP WAS REDEPLOYED AND ITS ADDRESS CHANGED, so the new one is built into this release. You do not have to touch Settings: every device notices that the built-in address is newer than the one it had stored and switches to it by itself. That is the whole point of doing it this way — the alternative is somebody walking round pasting a URL into each phone.',
+      'If a device was deliberately pointed at a different address in Settings, this will supersede it. Set it again afterwards if that was on purpose.',
     ],
   },
   {
