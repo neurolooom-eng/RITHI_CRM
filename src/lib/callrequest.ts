@@ -46,6 +46,23 @@ export function machineRowProblem(rows: RequestRow[], isInstall: boolean): strin
     if (first !== undefined) return `Call ${i + 1}: that machine is already on this request as call ${first + 1}.`;
     seen.set(k, i);
   }
+
+  // ONE REQUEST, ONE CUSTOMER (CR-007, finding 43). A request is one visit to
+  // one site. Picking from the list keeps it so, but a serial TYPED rather than
+  // picked is looked up in the register at submit, row by row, and nothing
+  // compared what came back — so two typed serials could file one request
+  // against two customers. Compared on the name with case and spacing ignored,
+  // so a difference only in how it was keyed does not refuse a real request.
+  const squash = (v: unknown) => String(v ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const firstParty = rows.findIndex((r) => r.serial.trim() !== '' && squash(r.party) !== '');
+  if (firstParty >= 0) {
+    const other = rows.findIndex((r) => r.serial.trim() !== '' && squash(r.party) !== ''
+      && squash(r.party) !== squash(rows[firstParty].party));
+    if (other >= 0) {
+      return `Call ${other + 1}: that machine belongs to ${String(rows[other].party).trim()}, but call ${firstParty + 1} is for `
+           + `${String(rows[firstParty].party).trim()}. A request is one visit to one customer — raise a separate request for this machine.`;
+    }
+  }
   return null;
 }
 

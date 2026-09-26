@@ -375,6 +375,9 @@ export async function countKpiFieldInst(range: KpiRange = {}): Promise<number> {
 export async function listKpiFieldInst(range: KpiRange = {}, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
   const { data, error } = await kpiQuery(range)
     .order('Call Registeration Date', { ascending: true })
+    // One row per call, so the UCN breaks a tie on the date (finding 15). This
+    // read feeds a FILE, where a doubled or missing call cannot be seen.
+    .order('UC Number', { ascending: true })
     .range(offset, offset + limit - 1);
   if (error) throw new Error(errMsg(error));
   return (data ?? []) as Record<string, unknown>[];
@@ -660,7 +663,9 @@ export async function unusedSpareEngineers(): Promise<string[]> {
   let data: Record<string, unknown>[];
   try {
     data = await allRows<Record<string, unknown>>((a, b) =>
-      c.from('unused_spare_report').select('Engineer').order('ucn').range(a, b), 20000);
+      // Ordered by the value it keeps (finding 15): `ucn` repeats, one call per
+      // several parts, so its ties could drop a name at a page boundary.
+      c.from('unused_spare_report').select('Engineer').order('Engineer', { ascending: true, nullsFirst: false }).range(a, b), 20000);
   } catch { return []; }
   const names = new Set<string>();
   data.forEach((r) => {
@@ -682,6 +687,9 @@ export async function listUnusedSpares(
     const { data, error } = await unusedQuery(f)
       .order('Dispatched On', { ascending: false })
       .order('ucn', { ascending: false })
+      // The view is one row per call AND part (0147 groups by both), so the part
+      // code completes the key; `ucn` alone ties on every multi-part call (15).
+      .order('Part Code', { ascending: true })
       .range(offset, offset + page - 1);
     if (error) throw new Error(errMsg(error));
     const rows = (data ?? []) as Record<string, unknown>[];
@@ -796,7 +804,10 @@ async function distinctColumn(table: string, column: string, opts?: { eq?: [stri
   const set = new Set<string>();
   const PAGE = 1000; const max = opts?.max ?? 40000;
   for (let from = 0; from < max; from += PAGE) {
-    let q = c.from(table).select(column).range(from, from + PAGE - 1);
+    // Ordered by the column itself (finding 8): only the VALUES are kept, and a
+    // sorted column puts the same value at each position whatever order its ties
+    // come in, so no value can fall between two pages.
+    let q = c.from(table).select(column).order(column, { ascending: true, nullsFirst: false }).range(from, from + PAGE - 1);
     if (opts?.eq) q = q.eq(opts.eq[0], opts.eq[1] as never);
     const { data, error } = await q;
     if (error) break;
@@ -1884,15 +1895,19 @@ export const kycKeyFor = (name: string): string => partyKey(name);
 
 export async function pendingInstallRequests(): Promise<PendingInstall[]> {
   const c = must();
-  const { data, error } = await c.from('call_requests')
-    .select('id,reqid,submitted_at,party_name,city,product,serial_no,engineer,status,call_type')
-    // `like 'INSTALL%'` is the same test the UCN generator and the call router
-    // use (0001, 0040), so "INSTALLATION" and "INSTALLATION CALL" are one thing
-    // here as they are everywhere else.
-    .ilike('call_type', 'INSTALL%')
-    .order('submitted_at', { ascending: true, nullsFirst: false })
-    .order('id', { ascending: true });
-  if (error) throw new Error(errMsg(error));
+  // PAGED (finding 32). This reads every installation request of every status,
+  // oldest first, and a single response stops at 1,000 rows — so once the
+  // register had held more than that, the ones cut off were the NEWEST, which is
+  // where the pending ones are, under a card that says its count is exact.
+  const data = await allRows<Record<string, unknown>>((a, b) => c.from('call_requests')
+      .select('id,reqid,submitted_at,party_name,city,product,serial_no,engineer,status,call_type')
+      // `like 'INSTALL%'` is the same test the UCN generator and the call router
+      // use (0001, 0040), so "INSTALLATION" and "INSTALLATION CALL" are one thing
+      // here as they are everywhere else.
+      .ilike('call_type', 'INSTALL%')
+      .order('submitted_at', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true })
+      .range(a, b));
   // PENDING IS FILTERED HERE, NOT IN THE QUERY. PostgREST's `status.eq.` for an
   // empty string is a corner nobody should have to reason about, and "" and
   // null both mean pending -- a row loaded before the column existed has no
@@ -1908,8 +1923,12 @@ export async function pendingInstallRequests(): Promise<PendingInstall[]> {
   // Chunked: a very long `in` list is a very long URL, and PostgREST is not the
   // place to find that out.
   for (let i = 0; i < keys.length; i += 200) {
-    const { data: ps } = await c.from('parties')
+    const { data: ps, error: pe } = await c.from('parties')
       .select('name_key,kyc_status,kyc_docs').in('name_key', keys.slice(i, i + 200));
+    // A failed lookup is an ERROR, not an empty master (finding 32): ignored, it
+    // made every customer read as "not on the master" and the whole queue as
+    // waiting on KYC.
+    if (pe) throw new Error(errMsg(pe));
     (ps ?? []).forEach((p) => kyc.set(String(p.name_key ?? ''),
       { status: String(p.kyc_status ?? ''), docs: p.kyc_docs }));
   }
@@ -2451,7 +2470,9 @@ export async function listDirectoryAsUsers(): Promise<Record<string, unknown>[]>
   const out: Record<string, unknown>[] = [];
   const PAGE = 1000;
   for (let from = 0; from < 20000; from += PAGE) {
-    const { data, error } = await c.from('user_directory').select('*').range(from, from + PAGE - 1);
+    // Ordered by id (finding 8): unordered pages can overlap, and a dropped row
+    // is an engineer who vanishes from their manager's team.
+    const { data, error } = await c.from('user_directory').select('*').order('id', { ascending: true }).range(from, from + PAGE - 1);
     if (error) break;
     const rows = data ?? [];
     rows.forEach((r) => out.push({
@@ -2591,7 +2612,8 @@ export async function sbEngineerNames(): Promise<string[]> {
   const names = new Set<string>();
   const PAGE = 1000;
   for (let from = 0; from < 20000; from += PAGE) {
-    const { data, error } = await must().from('calls').select('allocated_to').range(from, from + PAGE - 1);
+    // Ordered by the value it keeps (finding 8) — see distinctColumn.
+    const { data, error } = await must().from('calls').select('allocated_to').order('allocated_to', { ascending: true, nullsFirst: false }).range(from, from + PAGE - 1);
     if (error) break;
     const rows = data ?? [];
     rows.forEach((r) => { const v = String(r.allocated_to ?? '').trim(); if (v) names.add(v); });
@@ -2737,7 +2759,9 @@ export async function countCallReviews(
   let total = 0; let effects = 0; let solvedPending = 0;
   for (let from = 0; ; from += PAGE) {
     let q = must().from('field_call_review_summary')
-      .select('review_status,any_potential_effect,open_state').range(from, from + PAGE - 1);
+      // Ordered by id, one row per call (finding 8): this total is shown as
+      // EXACT, and unordered pages can count a row twice or not at all.
+      .select('review_status,any_potential_effect,open_state').order('id', { ascending: true }).range(from, from + PAGE - 1);
     q = applyReviewFilter(q as never, filter) as never;
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error));
@@ -2770,7 +2794,8 @@ export async function reviewPickLists(): Promise<{ products: string[]; engineers
   const products = new Set<string>(); const engineers = new Set<string>();
   for (let from = 0; from < 40000; from += PAGE) {
     const { data, error } = await must().from('field_call_review_summary')
-      .select('product_name,allocated_to').range(from, from + PAGE - 1);
+      // Ordered by the two values it keeps (finding 8) — see distinctColumn.
+      .select('product_name,allocated_to').order('product_name', { ascending: true, nullsFirst: false }).order('allocated_to', { ascending: true, nullsFirst: false }).range(from, from + PAGE - 1);
     if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
     rows.forEach((r) => {
@@ -2953,7 +2978,7 @@ export async function listAllMasterValues(max = 20000): Promise<{ name: string; 
   const out: { name: string; value: string }[] = [];
   const PAGE = 1000;
   for (let from = 0; from < max; from += PAGE) {
-    const { data, error } = await c.from('masters').select('name,value').neq('active', false).order('name').range(from, from + PAGE - 1);
+    const { data, error } = await c.from('masters').select('name,value').neq('active', false).order('name').order('id').range(from, from + PAGE - 1);
     if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
     rows.forEach((r) => {
@@ -3698,6 +3723,11 @@ export async function handstockForEngineer(engineer: string, limit = 1000): Prom
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
+// Every column of handstock_movements after `moved_at`, in the view's order.
+const HANDSTOCK_MOVEMENT_TIEBREAK = [
+  'direction', 'movement', 'engineer_key', 'engineer', 'engineer_email', 'part_code', 'part',
+  'qty', 'ref', 'ref_type', 'ref_uid', 'ucn', 'call_number', 'party_name', 'remarks',
+] as const;
 // Every movement, newest first — the Movements tab of the Hand Stock register.
 // Optional engineer / part filters narrow it server-side.
 export async function listAllHandstockMovements(
@@ -3706,9 +3736,14 @@ export async function listAllHandstockMovements(
   let q = must().from('handstock_movements').select('*');
   if (filter.engineerKey) q = q.eq('engineer_key', filter.engineerKey);
   if (filter.partCode) q = q.eq('part_code', filter.partCode);
-  const { data, error } = await q
-    .order('moved_at', { ascending: false, nullsFirst: false })
-    .range(offset, offset + limit - 1);
+  // The view has NO unique column, so the tie on `moved_at` (a dispatch moves
+  // many parts at once) is broken on EVERY column (finding 15). Two rows equal
+  // in all of them are the same row to the reader, so their order cannot drop
+  // or double anything.
+  const { data, error } = await HANDSTOCK_MOVEMENT_TIEBREAK.reduce(
+    (acc, col) => acc.order(col, { ascending: true, nullsFirst: false }),
+    q.order('moved_at', { ascending: false, nullsFirst: false }),
+  ).range(offset, offset + limit - 1);
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
@@ -5307,7 +5342,9 @@ export async function listCallReportReviews(): Promise<Record<string, { status: 
   // and review it twice.
   for (let from = 0; from < 60000; from += PAGE) {
     const { data, error } = await c.from('call_report_reviews')
-      .select('ucn,status,remarks,reviewed_by_name,reviewed_at').range(from, from + PAGE - 1);
+      // Ordered by ucn, the table's key (finding 8): paging without an order can
+      // still drop the row at position 1001.
+      .select('ucn,status,remarks,reviewed_by_name,reviewed_at').order('ucn', { ascending: true }).range(from, from + PAGE - 1);
     if (error) break;
     const rows = data ?? [];
     rows.forEach((r) => {

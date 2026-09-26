@@ -333,12 +333,23 @@ export function DailyCallReview() {
   const deepRef = useRef<boolean>(deep);
   deepRef.current = deep;
 
+  // ONLY THE LATEST LOAD MAY WRITE (finding 10). A desk load is a loop of up to
+  // twenty requests, and switching tab while one runs started a second loop
+  // beside it: whichever finished LAST owned the screen, so Review 2's calls
+  // could sit under the Review 3 tab with its header and count around them.
+  // Every load takes a number; one that is no longer the newest stops at its
+  // next await and writes nothing — rows, filter, count or message.
+  const loadSeq = useRef(0);
+
   const load = async (f: ReviewFilter) => {
     const deep = deepRef.current;
     if (!live) return;
+    const seq = ++loadSeq.current;
+    const current = () => seq === loadSeq.current;
     setBusy(true);
     try {
       const page = (await listCallReviews(f, 0, PAGE)) as ReviewRow[];
+      if (!current()) return;
       // A WORKLIST IS LOADED WHOLE; the Review Register keeps its Load more,
       // which is an explicit choice on a 4,000-row register rather than a
       // truncation. `all` starts as the first page either way, so the register
@@ -353,6 +364,7 @@ export function DailyCallReview() {
         setRows(all);
         while (all.length < MAX_DESK) {
           const next = (await listCallReviews(f, all.length, PAGE)) as ReviewRow[];
+          if (!current()) return;
           all = all.concat(next);
           setRows(all);
           if (next.length < PAGE) break;
@@ -395,18 +407,21 @@ export function DailyCallReview() {
       void countCallReviews(
         { ...countFilterRef.current, status: undefined, statuses: undefined, callState: undefined },
         countFilterRef.current.callState ?? '')
-        .then((c) => { setCounts(c); setCountErr(false); setCounted(true); })
-        .catch(() => { setCounts({ total: 0, byStatus: {}, effects: 0, solvedPending: 0 }); setCountErr(true); setCounted(true); });
+        .then((c) => { if (!current()) return; setCounts(c); setCountErr(false); setCounted(true); })
+        .catch(() => { if (!current()) return; setCounts({ total: 0, byStatus: {}, effects: 0, solvedPending: 0 }); setCountErr(true); setCounted(true); });
     } catch (e) {
-      setMsg({ tone: 'error', text: `Could not read the review register: ${e instanceof Error ? e.message : String(e)}` });
-    } finally { setBusy(false); }
+      if (current()) setMsg({ tone: 'error', text: `Could not read the review register: ${e instanceof Error ? e.message : String(e)}` });
+    } finally { if (current()) setBusy(false); }
   };
 
   const loadMore = async () => {
     if (loadingMore) return;
     setLoadingMore(true);
+    // A page asked for under one load is not appended to the next one's rows.
+    const seq = loadSeq.current;
     try {
       const next = (await listCallReviews(applied, rows.length, PAGE)) as ReviewRow[];
+      if (seq !== loadSeq.current) return;
       setRows((r) => [...r, ...next]);
       setMore(next.length === PAGE);
     } catch (e) {

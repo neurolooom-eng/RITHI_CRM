@@ -3973,6 +3973,16 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     /already on this request as call 1/.test(machineRowProblem([ok, ok], false) ?? ''), true);
   eq('two different machines are fine',
     machineRowProblem([ok, { ...ok, serial: '10916' }], false), null);
+  // CR-007 (finding 43): typed serials resolved one by one could name two
+  // customers, and nothing compared them.
+  eq('two machines of two customers are refused',
+    /one visit to one customer/.test(machineRowProblem([ok, { ...ok, serial: '10916', party: 'ANOTHER HOSPITAL' }], false) ?? ''), true);
+  eq('and the refusal names the row that differs',
+    /^Call 2: .*ANOTHER HOSPITAL.*call 1 is for JAIPUR HOSPITAL/.test(machineRowProblem([ok, { ...ok, serial: '10916', party: 'ANOTHER HOSPITAL' }], false) ?? ''), true);
+  eq('a customer keyed with different case or spacing is the same customer',
+    machineRowProblem([ok, { ...ok, serial: '10916', party: ' jaipur   hospital ' }], false), null);
+  eq('an installation may still name its customer per row',
+    machineRowProblem([ok, { ...ok, serial: '10916', party: 'ANOTHER HOSPITAL' }], true), null);
   eq('an empty row is not a duplicate of another empty row',
     machineRowProblem([{ product: '', serial: '', party: '' }, { product: '', serial: '', party: '' }], false), null);
   eq('and the form asks the rule rather than restating it',
@@ -9085,6 +9095,60 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   eq('Spare Consumption: opening a drawer clears a stale page error',
     /\{ setMsg\(null\); setForm\(\{ \.\.\.emptyForm \}\); \}/.test(sc)
     && /const openAdjust = async \(row: Row\) => \{[\s\S]{0,80}setMsg\(null\);/.test(sc), true);
+}
+
+// BATCH 4 (module review). Each assertion fails on the code before its fix.
+{
+  console.log('\n-- batch 4: dates, paging order, stale loads, KPI scope --');
+  const rd = (f: string) => readFileSync(f, 'utf8');
+  const sb = rd('src/lib/supabase.ts');
+  // The body of one exported function, up to the next top-level export.
+  const fnBody = (name: string) => {
+    const at = sb.search(new RegExp(`(export )?(async )?function ${name}\\b`));
+    if (at < 0) return '';
+    const next = sb.indexOf('\nexport ', at + 10);
+    return sb.slice(at, next < 0 ? undefined : next);
+  };
+  // #4 the Dashboard reads dates through the project's day-first parser.
+  const dash = rd('src/modules/Dashboard.tsx');
+  eq('#4 Dashboard: dates go through parseAnyDate, not a private new Date(s)',
+    /parseAnyDate/.test(dash) && !/const d = new Date\(s\)/.test(dash), true);
+  // #8 every hand-rolled paged read names an order.
+  for (const f of ['distinctColumn', 'listDirectoryAsUsers', 'sbEngineerNames', 'countCallReviews',
+                   'reviewPickLists', 'listCallReportReviews']) {
+    const b = fnBody(f);
+    eq(`#8 ${f}: pages with an order`, b.length > 0 && /\.range\(/.test(b) && /\.order\(/.test(b), true);
+  }
+  // #15 the tie on a non-unique first column is broken.
+  eq('#15 listKpiFieldInst: the registration date is tie-broken by the UCN',
+    /\.order\('Call Registeration Date'[^\n]*\n(?:\s*\/\/[^\n]*\n)*\s*\.order\('UC Number'/.test(fnBody('listKpiFieldInst')), true);
+  eq('#15 listAllHandstockMovements: moved_at is tie-broken on every column',
+    /HANDSTOCK_MOVEMENT_TIEBREAK\.reduce/.test(fnBody('listAllHandstockMovements')), true);
+  eq('#15 listUnusedSpares: the part code completes the key',
+    /\.order\('ucn'[^\n]*\n(?:\s*\/\/[^\n]*\n)*\s*\.order\('Part Code'/.test(fnBody('listUnusedSpares')), true);
+  eq('#15 unusedSpareEngineers: ordered by the value it keeps',
+    /\.order\('Engineer'/.test(fnBody('unusedSpareEngineers')), true);
+  eq('#15 listAllMasterValues: name is tie-broken by id',
+    /\.order\('name'\)\.order\('id'\)/.test(fnBody('listAllMasterValues')), true);
+  // #32 the pending-installations read is paged, and a failed master lookup is an error.
+  const pir = fnBody('pendingInstallRequests');
+  eq('#32 pendingInstallRequests: paged through allRows', /allRows<Record<string, unknown>>\(\(a, b\) => c\.from\('call_requests'\)/.test(pir), true);
+  eq('#32 pendingInstallRequests: a failed Party Master lookup throws', /if \(pe\) throw/.test(pir), true);
+  // #10 only the newest Daily Complaint Review load may write.
+  const dcr = rd('src/modules/DailyCallReview.tsx');
+  eq('#10 Daily Complaint Review: every load takes a number', /const seq = \+\+loadSeq\.current;/.test(dcr), true);
+  eq('#10 ...and a superseded one stops after each read',
+    (dcr.match(/await listCallReviews\(f, [^\n]*\n\s*if \(!current\(\)\) return;/g) ?? []).length, 2);
+  eq('#10 ...and Load more does not append to a newer load', /if \(seq !== loadSeq\.current\) return;/.test(dcr), true);
+  // #11 / #12 the KPI cards follow the product chip, and cover goes through coverCode.
+  const kpi = rd('src/modules/KpiAnalytics.tsx');
+  eq('#11 KPI: machines and failure rate follow the product chip', /const rateBase = product \? rateRows : rates;/.test(kpi)
+    && !/const fleet = rates\.reduce/.test(kpi), true);
+  eq('#12 KPI: cover tiles bucket through coverCode, not overlapping substrings',
+    /coverCode\(c\.label\) === code/.test(kpi) && !/ogp\|out of/.test(kpi), true);
+  // #14 the top-25 product list says it is the top 25.
+  eq('#14 Spare Insights: a full product list says it is the top twenty-five',
+    /by_product\.length >= 25/.test(rd('src/modules/SpareInsights.tsx')), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
