@@ -4,7 +4,20 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-21 (⚠️ A CANCELLED CALL now reads Cancelled, not
+_Last updated: 2026-09-26 (⚠️ THE SCHEDULED REPORTS HAVE NEVER RUN — the
+Edge Function was never deployed, so every schedule anybody set has been saved
+and silently ignored; same for the daily digest. Four steps, none doable from
+this repository, in the 26-Sep entry. Before that: Item Status is the cover on
+the COMPLAINT DAY, traced through to the spare —
+`_item_status_as_at_the_complaint_date.sql`, read-only; 660 field / 456
+installation / 1,065 spares, all 1,065 already approved. Before that: the
+Product Database was emptied and reloaded (✅ done, the user's new file is in),
+and is now paged NEWEST FIRST, 1,000 a load (v0.9.372) — it had NO ORDER AT ALL.
+Before that: 0242 cancels a batch of calls in one go — RUN call_requests.sql,
+_status.sql row 185; the BUTTON is not built yet. STILL TO RUN: _status.sql,
+_fix_product_database_timeout.sql, sales_contracts.sql then
+product_database_2.sql, call_requests.sql, _call_type_out_of_extra.sql.
+Before that: ⚠️ A CANCELLED CALL now reads Cancelled, not
 "Report pending" — 0226. RUN call_requests.sql, _status.sql row 173. No
 re-upload needed: open_state is derived. Before that: the 144 recovered visits are SOLVED — no repair
 needed; OPEN: 3,600 of 3,744 bulk-loaded visits carry NO call status, which is
@@ -40,6 +53,47 @@ rows **166** and **167**, bundle `HandStock_X.sql` at the repository ROOT.
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-26 — ⚠ The scheduled reports have never run, and never could have
+
+*"The scheduled reports are also not running"* — reported from use.
+
+**NOT A FAULT TO DEBUG. A DEPLOYMENT THAT WAS NEVER DONE.** The screen works,
+the schedules are stored correctly, the due-time arithmetic is right — and
+nothing has ever come to collect them. `supabase/functions/scheduled-export`
+has never been deployed, so no mail has ever been sent. Every schedule anybody
+has set has been saved and silently ignored.
+
+It was already recorded, which is the uncomfortable part: `REQUIREMENTS.md`
+marks NAR-004.9 to .19 **"SPECIFIED AND UNVERIFIED"** with the words *"NOTHING
+IS SENT UNTIL THAT IS DONE"*, and the two deployment items below have been in
+this backlog for days. What was missing was anyone saying it to the person
+setting the schedules. **A screen that accepts a setting nothing acts on is
+worse than one that refuses it**, and that is the defect here rather than
+anything in the code.
+
+**THE SAME IS TRUE OF THE DAILY DIGEST** — built, never deployed, so no
+off-database archive of the audit trail exists.
+
+**FOUR STEPS, none of which can be done from this repository** (they need the
+Supabase CLI holding the project keys):
+1. A Resend API key, domain verified.
+2. `supabase secrets set RESEND_API_KEY / EXPORT_FROM / EXPORT_TO /
+   EXPORT_SECRET`, then
+   `supabase functions deploy scheduled-export --no-verify-jwt`.
+3. RUN `call_requests.sql` — it carries 0227 and 0228 (the tables, the guards,
+   `due_export_schedules()`).
+4. `schedule_scheduled_export.sql` with `<PROJECT_REF>` and `<EXPORT_SECRET>`
+   filled in — the fifteen-minute poke.
+
+**WHY THE RECIPIENTS ARE NOT IN THE APPLICATION, since it will be asked again:**
+an earlier design kept the destination in a settings row and was refused as an
+exfiltration primitive. It is a nightly copy of every customer, serial and
+contract, and a destination an administrator can edit is one that can be
+redirected silently with nothing on any screen looking different the next
+morning. What and when are data; who receives it is a deployment secret.
 
 ---
 
@@ -165,6 +219,158 @@ until that PR is merged**, so not live yet.
   UPDATE. `renamePartyServiceEngineer` already relies on the same
   `{ count: 'exact' }`, and a missing count is treated as success, so the
   worst case is today's behaviour.
+
+---
+
+## 2026-09-25 — Item Status: the cover on the complaint day, traced to the spare
+
+*"update Item Status in Calls based on the Status on the date of Complaint --
+this is for both Field and Installation Call. In Installation call, it has to
+be WGP always."* … *"trace the item status back to Spare request as well."*
+
+One chain: the machine's dates → the FIELD call as at its complaint date →
+INSTALLATION always WGP → the SPARE REQUEST from its call.
+`_item_status_as_at_the_complaint_date.sql`, read-only until one word changes.
+
+**THE RULE IS NOT THE ONE ALREADY IN THE DATABASE.** Every existing cover rule
+here asks only `end >= current_date` and never looks at the START — fine for
+"covered today", wrong when asked about an older date, and wrong in the
+direction that always grants cover. This checks both ends. On a fixture, a
+complaint dated between the warranty ending and the contract starting reads
+OGP where the old rule says AMC.
+
+**MEASURED ON THE LIVE REGISTER:** 660 field calls change, 456 installation
+calls, 1,065 spare requests — and **all 1,065 of those are already approved**,
+so "correct only the ones in flight" was a no-op. Four of the five caveats came
+back zero (no call lacks a complaint date; every machine resolves; no period
+has an end without a start).
+
+**A FALSE ALARM, RETRACTED.** A check for whether the spare STAGE derives from
+item_status answered "YES — changing it moves settled lines", and it was wrong:
+it grepped `pg_get_functiondef`, which contains the argument NAME. The body is
+the test (`prosrc`), and the body does not read it. Disproved properly on a
+DISPATCHED request: status moved WGP → AMC, stage stayed Dispatched, remarks
+untouched, an existing `extra` key survived. **Test the body, never the
+definition.**
+
+Each corrected request records WHY in `extra` — from, to, when, and that any
+approval on it was granted under the previous status and has NOT been
+re-opened. The note goes in `extra` rather than `remarks` because remarks is an
+engineer's own text. The audit trigger records the change; only this records
+the reason.
+
+**PENDING:** the user is correcting and uploading it themselves rather than
+running the SQL. Item Status is uploadable on all three registers — Calls
+(keyed UCN, needs `calls.edit.customer`), Spare Request (keyed **OR number**,
+not UID), Product Database (keyed machine_key). And the repair fixes HISTORY
+only: new calls still stamp from the Product Database, so a forward-stamping
+rule is still owed.
+
+---
+
+## 2026-09-25 — Product Database: emptied, rebuilt, and paged in an order
+
+*"delete all records in product database and re-build through bulk import"* —
+asked for after being told what it costs, confirmed, and done. The reload
+landed: *"i uploaded the new file and it seems to be working."*
+
+`_rebuild_product_database.sql` backs up to `products_backup_<stamp>` in the
+same transaction before deleting, with RLS on and no policies. Not hedging the
+decision: **nothing references `products` by foreign key and it has no delete
+guard**, so without a copy the rows are simply gone. It also lists the
+model+serial pairs that calls and spares actually reference — the set the
+reload file has to bring back — because every register finds a machine by
+serial as TEXT, so the delete orphans lookups silently rather than erroring.
+
+**AND THE REGISTER WAS PAGED WITH NO ORDER AT ALL** (v0.9.372). Asked for a
+sort; found `sbSearchProducts` built a `.range()` read and never called
+`.order()`. Between one page and the next the database was free to return rows
+in any order — "Load more" could repeat a machine and drop another, and the
+result looked complete. Now `created_at desc, id desc`; the tiebreak matters
+because a full reload writes every machine in the same instant.
+
+**1,000 a load, not 2,000** — the user's call, and the right one: PostgREST
+caps a response there whatever the range asks for, so 2,000 returns 1,000 and
+the "full page?" test then hides Load more on a register with thousands left.
+
+**WHY THE OLD DATES KEPT COMING BACK, reproduced:** `sync_product_cover()`
+rebuilds the machine from the sale and contract registers with
+`coalesce(new, old)` on every date — **it can only add a value, never remove
+one**. A correction made in the Product Database survives until the next edit
+to that machine's paperwork, then the register writes the old date straight
+back. Proved by running it: cleared → null → any later edit → back.
+
+**PENDING:** the nightly refresh. `refresh_product_cover()` already exists and
+sets item_status with no coalesce, but it ALSO rewrites the dates with one — so
+scheduling it as-is would undo hand corrections every night. It needs an
+item-status-only variant first.
+
+---
+
+## 2026-09-25 — call_report and reports do not count the same thing
+
+*"there are 2 reports - call_report and reports ; the count is different in
+both. Analyse and store it in memory"* — analysed, and written into CLAUDE.md.
+
+`reports` is ONE ROW PER VISIT (0001 created it `unique (ucn)`; **0002 dropped
+that** and keyed it on `uid`). `call_report` is ONE ROW PER CALL. They differ in
+BOTH DIRECTIONS AT ONCE, so "is one bigger?" answers nothing: several visits on
+one call, calls with no visit at all, and visits whose UCN matches no call.
+**Only the last is a fault** — `reports.ucn` has no foreign key, so a mistyped
+UCN is a visit in no register and no call status. And they are read under
+DIFFERENT RLS besides.
+`_why_do_the_two_report_counts_differ.sql` reconciles them line by line.
+
+---
+
+## 2026-09-25 — PM: the open-call count, and what the two exports proved
+
+*"i have about 1000+ call difference in the Count of pending"*, then two
+exports.
+
+**THE EXPORTS ARE NOT AT FAULT** — checked row by row: the pending list is
+exactly the 1,632 `Open` rows of the 7,038-row register, every Solved row
+carries a visit date, every Unattended row carries none, no duplicate UCNs.
+Nine rows are junk (blank UC Number, `#VALUE!`) and cannot load, UCN being the
+one required column.
+
+The database says 3,706 open against the export's 1,632. A call's state comes
+from its LATEST VISIT, so a PM call whose visit was never loaded reads
+Unattended however firmly the register calls it closed — 1,722 such calls
+account for the whole excess.
+
+**A DATE CUTOFF WAS TESTED AND REJECTED**: the best-fitting cutoff misses by
+2,195 rows, and **September is NEGATIVE** (310 unvisited where the file says
+391). A negative cannot be missing visits, so the database's PM calls are not
+the same 7,038 rows as this export.
+**BLOCKED** on rows 1, 2 and 4 of `_why_are_pm_calls_still_open.sql`.
+
+**SEPARATELY, AND NOT THE SAME THING:** Pending Calls loads 2,000 and stops,
+and states a bare number in its banner and its four state tiles with no `+`.
+That is the "1000+ difference" as seen on screen. NOT YET FIXED.
+
+---
+
+## 2026-09-24 — Cancel a batch of calls in one go (0242)
+
+*"Cancel all these calls in 1 Go with Reason as 'Duplicate Call'"*.
+
+`cancel_calls(text[], text)` is a SECURITY INVOKER loop over `cancel_call()`
+(0108) and adds no new power — the permission, the empty reason, the unknown
+UCN and the already-cancelled one are all still refused by the function it
+delegates to. Each cancellation runs in its own subtransaction, so twenty are
+not thrown away by one somebody already cancelled. Capped at 500.
+
+**THE SUITE ASSERTS WITH `raise exception`, NOT A PRINTED GRID**, because the
+runner judges ERRORS and a grid nothing checks is not an assertion. Worth doing
+rather than assuming: a mutation that made the function write its own UPDATE
+instead of delegating left the printed grid reading ok=true and the suite
+passing. Five mutations run, all caught.
+
+**PENDING: the button.** The database half is done; Field Calls still cancels
+one call at a time through its own prompt.
+
+---
 
 ## 2026-09-24 — KPI Export: a date Excel accepts (v0.9.370)
 
