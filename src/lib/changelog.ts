@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.376',
+    date: '2026-09-26',
+    title: 'The new CallReg address, baked in',
+    changes: [
+      'THE APPS SCRIPT WEB APP WAS REDEPLOYED AND ITS ADDRESS CHANGED, so the new one is built into this release. You do not have to touch Settings: every device notices that the built-in address is newer than the one it had stored and switches to it by itself. That is the whole point of doing it this way — the alternative is somebody walking round pasting a URL into each phone.',
+      'If a device was deliberately pointed at a different address in Settings, this will supersede it. Set it again afterwards if that was on purpose.',
+    ],
+  },
+  {
     version: '0.9.375',
     date: '2026-09-25',
     title: 'Lists that keep your place, and searches that say when they stopped short',
