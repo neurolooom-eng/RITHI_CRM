@@ -696,6 +696,22 @@ be 62 changes nobody asked for, some of them wrong. Each needs its own answer to
 index fails loudly if that answer is wrong — which is the good outcome only if
 somebody is expecting it.
 
+**2026-09-26 — the user asked for it on every table.** Their words: *"I need a
+key, Timestamp, sys_created_by, sys_updated_by in all the tables"*, plus
+`dd-mmm-yyyy` and `dd-mmm-yyyy hh:mm:ss` for every date and date-time,
+readable by Excel. Recorded as R1–R3 in `docs/MODULE_REVIEW_LOG.md` with a
+fresh baseline:
+- 0 of 77 tables lack a primary key;
+- 22 lack a natural key, plus 3 with only a partial or expression unique index;
+- 40 lack `created_at`, 46 lack `updated_at`;
+- 57 have no created-by column and 68 no updated-by column;
+- none carries `sys_created_by` or `sys_updated_by`.
+
+`supabase/apply/_tables_without_key_time_author.sql` gives the same table on
+the live project. **PENDING**: five questions to the user (what "key" means for
+logs, the timestamp names, what the author columns hold, existing rows,
+counters), then the migration.
+
 ---
 
 ## 2026-09-24 — A machine belongs to its latest owner, and so does everything attached
