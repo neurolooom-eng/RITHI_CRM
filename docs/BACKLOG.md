@@ -97,6 +97,131 @@ morning. What and when are data; who receives it is a deployment secret.
 
 ---
 
+## 2026-09-25 — Module review, batch 3: lists that keep their place (v0.9.375)
+
+Findings 5, 18, 22, the rest of 21 and 45, and part of 15. **No SQL.** Batch 2
+(#422) is merged.
+
+- **✅ #22** the 30-minute sync re-reads every page the reader had loaded
+  (`readUpTo` in `paging.ts`, tested in `check:paging` against a capped fake
+  server) on Spare Requests, Spare Consumption and Customer Feedback — and on
+  **Hand Stock, which the handoff named as the model and had the same fault**:
+  its timer read `loaded` as it was at mount. All four read the count from a
+  ref now.
+- **✅ #15 in part** `id` tiebreaker on feedback, spare_consumption,
+  spare_request_lines, audit_log and parties (`check:orders`: 128 columns).
+  **Still open:** `handstock_movements` (a view with no unique key — not
+  guessed at), `listKpiFieldInst`, `unusedSpareEngineers`, `listUnusedSpares`,
+  `objectiveEvidence`, and finding 8's six unordered reads.
+- **✅ #18** a call search at its 1,000 cap reads "1,000+", counts as a lower
+  bound and warns in the download; Refresh (and the refresh after a save)
+  re-runs an active search; "Loaded all" only when the read did not fill its
+  limit. **Not the handoff's "ask for 1,001"**: PostgREST returns at most 1,000
+  whatever is asked, so the 1,001st never arrives — a full 1,000 is the signal.
+- **✅ #5** the machine search asks for 201 and says when more matched.
+- **✅ #45** Hand Stock's search export is scoped by the search.
+  **✅ #21** Pending Dispatch flags per-engineer totals under a capped queue.
+- **Checks:** 14 new `check:ui` assertions (all fail on `b5cbb20`, pass here) and
+  10 new `check:paging` behaviour tests.
+- **RE-REVIEWED BEFORE MERGE** (an independent pass: nothing made worse; four
+  real problems, all corrected in this PR):
+  - **#18** a capped call search still showed exact numbers in the FacetChips,
+    the table footer and the group headings — all now carry the `+`.
+  - **#45** Hand Stock's header and "N matches" line did not admit a capped
+    search (the file did) — both do now; Load more stays hidden during one.
+    The capped-search download warning says to NARROW THE SEARCH
+    (`searchScope`), not to press a Load more that is hidden.
+  - **#21** the Pending Dispatch banner said "each engineer's totals may be
+    short"; the queue is read A→Z and cut part-way through ONE engineer, with
+    everyone after them absent. It now names that engineer.
+  - **Cost:** `readUpTo` fetches the loaded pages IN PARALLEL (it runs after
+    every approval too, not only on the timer); tested for pages that answer
+    out of order and a register that shrank.
+  - **Pre-existing, fixed:** a Hand Stock cache of 1,500 rows restored as
+    complete (`% PAGE_SIZE === 0`); now `>= PAGE_SIZE`.
+  - **Still open, pre-existing:** the 30-minute timer ignores a Load more in
+    flight, so a rare overlap can lose or misplace a page.
+
+## 2026-09-25 — Module review, batch 2: frozen screens and over-strong counts (v0.9.374)
+
+Findings 1, 6, 16, 17, 19, 21 (in part) and 25 from `docs/MODULE_REVIEW.md`.
+**No SQL.** Batch 1 (v0.9.373, PR #421) is **merged and deployed** — the
+"Deploy to GitHub Pages" run for `50d8497` succeeded.
+
+- **✅ #16** the 30-minute sync is its own effect on Party Master, Part Master,
+  Audit Log, Visit Reports and the Product Database, rebuilt when the filter
+  changes, and off while one is set.
+- **✅ #6** FFR Word report: the columns memo depends on the signature and the
+  two user fields `doc` reads, not on `[]`.
+- **✅ #1** My Workload loads on `scope.ready` (checked: every path through
+  `useAccessScope` sets it; `loadUserMaster()` resolves `[]` on failure).
+- **✅ #17** the three "everything is done" claims are made only with no filter
+  on and `seesEveryRecord(user, can)`; otherwise "nothing matched" or "nothing
+  that you can see".
+- **✅ #19, #25**; **#21 in part** — the chips, the Product Database heading, the
+  Pending Dispatch queue chip and heading (`QUEUE_CAP`), and Stock Out
+  (`STOCK_OUT_CAP`, the false "one request" comment removed). **Still open:**
+  Pending Dispatch's per-engineer `summarise()` totals under a capped queue.
+- **Checks:** 15 new `check:ui` assertions, all confirmed to FAIL on the pre-fix
+  tree (run in a worktree of `50d8497`) and pass now. `npm run build` passes.
+- **RE-REVIEWED BEFORE MERGE** (an independent pass over batches 1 and 2 — no
+  regressions, five incomplete fixes, all corrected in this PR):
+  - **#9** "To be Reviewed" read "N of 0" with the Call Status box on another
+    state: `countCallReviews` now applies that box to the totals only
+    (`totalsState`), and counts the Solved worklist regardless.
+  - **#17** after a FAILED load the three screens still made the strong claim;
+    now "could not be loaded" (`loadFailed` / `err`).
+  - **#29** opening a second contract before the first's machines arrived let
+    the first's reply seed Renew on the second — per-open token (`openSeq`).
+  - **#45** the "narrow the filter" advice could not work on capped screens
+    (their search filters rows already read) — now says the rest cannot be
+    reached from that screen.
+  - **#21/#45** RM Approval's title count takes `+` at `RM_QUEUE_CAP`.
+  - **#28** the Material Returns cache key is `materialReturns.v2`, so a cache
+    with the old keys and order is ignored rather than paged from.
+  - 6 more `check:ui` assertions, each confirmed to fail on `afd84b0` (the
+    batch as first pushed).
+  - **Still open, pre-existing:** a 30-minute sync already in flight when a
+    filter is typed can still overwrite the filtered result (manual ↻ has the
+    same race).
+
+## 2026-09-25 — Module review, batch 1: twelve small fixes (v0.9.373)
+
+The first low-risk batch from `docs/MODULE_REVIEW.md` (findings 2, 3, 9, 28,
+29, 30, 31, 32a, 33, 41, 45 in part, and 46). **No SQL** — nothing to run on
+the live project. On branch `claude/usage-k7slq0` (PR #421); **not on `main`
+until that PR is merged**, so not live yet.
+
+- **✅ #30 Correct this request** — counts the rows the UPDATE changed; zero is
+  "Nothing was saved", not "corrected". Measured beforehand: a Commercial
+  profile's UPDATE matched 0 rows with no error.
+- **✅ #31 + Installation call** — the write-back of the UCN onto the machine is
+  counted the same way; zero now reports the created UCN and asks for no
+  second call. **Still open (a decision, handoff C6):** whether the
+  per-machine button should be hidden from roles without `cover.edit`, or
+  those roles given write on `inst_call`. Until then Hotline can still create
+  a call it cannot link — but is now told so.
+- **✅ #33** Hand Stock Report `.xls` dates (built from raw values; proved on the
+  file's bytes). **✅ #41** its menu entry asks for its own key. **✅ #46** its
+  scope label.
+- **✅ #28** Material Returns keyed on `id`, and `id` added as the paging
+  tiebreaker (same fault as finding 15, found while fixing it).
+- **✅ #2, #3** Dashboard. **✅ #9** DCCR "To be Reviewed". **✅ #32a** the
+  Commercial KYC cards add up. **✅ #29** Renew waits for the machines.
+- **✅ #45 in part** — RM Approval uses `cappedAt`; the warning says "may be
+  more" and names the no-Load-more case. **Still open:** a capped search on
+  Hand Stock and the call registers exporting without a warning.
+- **Checks:** three new `check:ui` assertions (30, 31, 33), each confirmed to
+  FAIL on the old code. `check:ui`, `check:paging`, `check:dberror`,
+  `check:uploads`, `check:generated`, `check:orders` (123 columns) and
+  `npm run build` pass.
+- **Not verified here:** that the live PostgREST returns a count for an
+  UPDATE. `renamePartyServiceEngineer` already relies on the same
+  `{ count: 'exact' }`, and a missing count is treated as success, so the
+  worst case is today's behaviour.
+
+---
+
 ## 2026-09-25 — Item Status: the cover on the complaint day, traced to the spare
 
 *"update Item Status in Calls based on the Status on the date of Complaint --

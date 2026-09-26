@@ -435,9 +435,20 @@ export async function raiseInstallCalls(
     if (!ucn) {
       return { created, error: `${str(it.serial_number)}: the call was created but its UCN came back empty, so it could not be mapped to the machine. Find it on the Installation Call register.` };
     }
-    const { error } = await client().from('sale_items').update({ inst_call: ucn }).eq('id', it.id);
-    if (error) {
-      return { created, error: `${str(it.serial_number)}: call ${ucn} was created but could not be written back to the machine — ${error.message}` };
+    // COUNTED, because a write row-level security skips is not an error. The
+    // call is gated on `install.create` and this line on `cover.edit`, and
+    // Hotline holds the first without the second: the call was created, this
+    // UPDATE matched NO rows, PostgREST reported success, and the button came
+    // back later offering a SECOND call for the same machine -- the exact case
+    // the stop-on-failure design above exists to prevent. Measured on a
+    // database built from every migration. A null count (none sent) is left
+    // as success: unknown is not the same as refused.
+    const { error, count } = await client().from('sale_items')
+      .update({ inst_call: ucn }, { count: 'exact' }).eq('id', it.id);
+    if (error || count === 0) {
+      const why = error?.message
+        ?? 'your role can raise the call but cannot edit the warranty register, so the machine was not updated';
+      return { created, error: `${str(it.serial_number)}: call ${ucn} was created but could not be written back to the machine — ${why}. Do not raise another: ask somebody who can edit the warranty register to put ${ucn} in INST Call.` };
     }
     created.push({ serial: str(it.serial_number), ucn });
   }

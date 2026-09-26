@@ -31,7 +31,7 @@
 
 /** What the caller knows about completeness. `more: true` = rows exist beyond
  *  the ones being written. */
-export interface ExportScope { more: boolean }
+export interface ExportScope { more: boolean; search?: boolean }
 
 /** Everything that matches is in hand — no Load more, nothing truncated. */
 export const COMPLETE: ExportScope = { more: false };
@@ -47,6 +47,11 @@ export const partial = (more: boolean): ExportScope => ({ more: !!more });
  *  more" rather than "there are", and the wording below is written for that —
  *  it never claims to know how many are missing, because it does not. */
 export const cappedAt = (got: number, cap: number): ExportScope => ({ more: got >= cap });
+
+/** A SEARCH that may have stopped at its cap. Different advice: Load more is
+ *  hidden while a search shows (it pages the browse list, not the search), so
+ *  the way to everything that matches is a narrower search. */
+export const searchScope = (capped: boolean): ExportScope => ({ more: !!capped, search: true });
 
 // ===========================================================================
 // WHAT THE POP-UP SAYS.
@@ -65,12 +70,27 @@ export const cappedAt = (got: number, cap: number): ExportScope => ({ more: got 
 // refusal would make the sensible case impossible to serve the careless one.
 // The point is that nobody can now do it WITHOUT BEING TOLD.
 // ===========================================================================
-export function partialExportWarning(rows: number): string {
+export function partialExportWarning(rows: number, search = false): string {
   const n = rows.toLocaleString();
+  if (search) {
+    return `This search stopped at its limit.\n\n`
+      + `Only the ${n} row${rows === 1 ? '' : 's'} on screen will be in the file. `
+      + `More may match, and the file will not say so.\n\n`
+      + `To export everything that matches: press Cancel, narrow the search until it comes back under its limit, and download again.\n\n`
+      + `Export these ${n} row${rows === 1 ? '' : 's'} anyway?`;
+  }
   return `This table has NOT finished loading.\n\n`
     + `Only the ${n} row${rows === 1 ? '' : 's'} on screen will be in the file. `
-    + `There are more in the register that have not been fetched yet, and the file will not say so.\n\n`
-    + `To export everything: press Cancel, then use “Load more” until the button disappears, and download again.\n\n`
+    // "MAY BE", NOT "ARE". A scope from `cappedAt` means the read came back
+    // full, which is the signature of a truncation and not proof of one.
+    // AND NOT EVERY SCREEN HAS A LOAD MORE: Stock Transfer, User Master,
+    // Pending Dispatch, Stock Out, RM Approval and the Field Failure register
+    // read up to a cap. Their search boxes filter what was ALREADY read, so
+    // "narrow the filter" (an earlier wording) could never reach the missing
+    // rows -- advice that cannot be followed. It says so instead.
+    + `There may be more in the register that have not been fetched, and the file will not say so.\n\n`
+    + `To export everything: press Cancel, then use “Load more” until the button disappears, and download again. `
+    + `Where the screen has no Load more, it reads at most its limit and the rest cannot be reached from this screen.\n\n`
     + `Export these ${n} row${rows === 1 ? '' : 's'} anyway?`;
 }
 
@@ -91,7 +111,7 @@ export function partialExportWarning(rows: number): string {
 export function mayExport(scope: ExportScope, rows: number,
                           ask: (message: string) => boolean = defaultAsk): boolean {
   if (!scope.more) return true;
-  return ask(partialExportWarning(rows));
+  return ask(partialExportWarning(rows, !!scope.search));
 }
 
 function defaultAsk(message: string): boolean {

@@ -140,13 +140,21 @@ export function ProductMaster() {
   useEffect(() => {
     if (!rows.length || isStale(lastSync)) void run({});
     else setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
-    const id = window.setInterval(() => {
-      const anyFilter = Object.values(f).some((v) => v && String(v).trim());
-      if (!anyFilter) void run({});
-    }, SYNC_TTL_MS);
-    return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // THE 30-MINUTE SYNC, IN ITS OWN EFFECT so it sees the CURRENT filter.
+  // Registered inside the mount-only effect above, it read the first render's
+  // `f` (empty) for ever, so it replaced a filtered result with the unfiltered
+  // browse set every half hour while the boxes still showed the filter. No
+  // timer at all while a filter is set.
+  const anyFilter = Object.values(f).some((v) => v && String(v).trim());
+  useEffect(() => {
+    if (anyFilter) return;
+    const id = window.setInterval(() => { void run({}); }, SYNC_TTL_MS);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anyFilter]);
 
   const register = (row: Row, path: string) =>
     navigate(path, { state: { prefill: productToCallPrefill(row) } });
@@ -171,6 +179,9 @@ export function ProductMaster() {
         subtitle="Search the install base and register a call straight from a product."
         icon="🩺"
         count={rows.length}
+        // A LOWER BOUND WHILE MORE PAGES REMAIN. The register is ~20,000 machines
+        // loaded 1,000 at a time, so "1000" alone read as the whole of it.
+        countMore={more}
       />
 
       {msg && (

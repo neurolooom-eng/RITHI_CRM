@@ -389,7 +389,12 @@ export function DailyCallReview() {
       // loaded rows is a number nobody can tell is unfinished, which is the
       // fault this file already records for a stale total.
       setCounted(false);
-      void countCallReviews({ ...countFilterRef.current, status: undefined, statuses: undefined })
+      // Call Status is passed as the TOTALS' state, not as a query filter, so
+      // the "To be Reviewed" count (always Solved) survives a box left on
+      // another state. countCallReviews explains why.
+      void countCallReviews(
+        { ...countFilterRef.current, status: undefined, statuses: undefined, callState: undefined },
+        countFilterRef.current.callState ?? '')
         .then((c) => { setCounts(c); setCountErr(false); setCounted(true); })
         .catch(() => { setCounts({ total: 0, byStatus: {}, effects: 0, solvedPending: 0 }); setCountErr(true); setCounted(true); });
     } catch (e) {
@@ -465,7 +470,16 @@ export function DailyCallReview() {
   // (so every tab keeps its own number), which means `counts.total` is the
   // whole register — right for the Review Register tab, wrong the moment a
   // stage is chosen. This is the number for the stage actually being looked at.
-  const inView = (deskStage || status) ? statusCount(deskStage || status) : counts.total;
+  //
+  // "TO BE REVIEWED" HAS ITS OWN COUNT. That tab lists Solved calls at Review 2
+  // or 3 Pending, but it fell through to `counts.total`, so its "of N" disagreed
+  // with its own badge. `solvedPending` is exactly the tab's list, and it
+  // ignores the Call Status box the way the tab does (countCallReviews'
+  // `totalsState`). `deskStage` is never set on this tab -- it comes only from
+  // the R2 and R3 tabs.
+  const inView = todo
+    ? counts.solvedPending
+    : (deskStage || status) ? statusCount(deskStage || status) : counts.total;
 
   // ---- Review 2 in bulk (0119) --------------------------------------------
   // Tick the routine ones and answer them together. A call that failed inside

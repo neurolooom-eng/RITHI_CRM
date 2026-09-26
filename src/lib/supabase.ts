@@ -1136,7 +1136,7 @@ export async function deleteSavedChart(id: number): Promise<{ ok: boolean; error
 }
 
 export async function queryParties(filter: PartyFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
-  let q = must().from('parties').select('*').order('party_name').range(offset, offset + limit - 1);
+  let q = must().from('parties').select('*').order('party_name').order('id').range(offset, offset + limit - 1);
   if (filter.name) q = q.ilike('party_name', `%${_san(filter.name)}%`);
   if (filter.city) q = q.ilike('city', `%${_san(filter.city)}%`);
   if (filter.state) q = q.ilike('state', `%${_san(filter.state)}%`);
@@ -1967,8 +1967,30 @@ export async function updateCallRequest(
     row[col] = col === 'plan_date' ? (v === '' ? null : v) : v;
   }
   if (!Object.keys(row).length) return { ok: true };
-  const { error } = await must().from('call_requests').update(row).eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // A WRITE ROW-LEVEL SECURITY SKIPS IS NOT AN ERROR. `cr_update` lets the
+  // raiser, Hotline and roles that register calls write a request; every office
+  // role can READ every request (`cr_read` starts with can_view_all_calls()),
+  // so Commercial, NSM, Stores and the coordinators could open the drawer,
+  // press Save, and have the UPDATE match NO rows -- which PostgREST reports as
+  // success. The screen then said "corrected" and showed a value the database
+  // never stored. Measured on a database built from every migration.
+  //
+  // COUNTED, NOT RETURNED. `.select()` would need the row to be readable AFTER
+  // the change, and `engineer`/`email` are correctable, so a manager moving a
+  // request to somebody outside his team would see a real save reported as a
+  // failure. The count needs no read-back. A null count (the server sent none)
+  // is left as success -- unknown is not the same as refused.
+  const { error, count } = await must().from('call_requests')
+    .update(row, { count: 'exact' }).eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  if (count === 0) {
+    return {
+      ok: false,
+      error: 'Nothing was saved — your role can correct only the requests you raised yourself. '
+        + 'Ask the person who raised it, or Hotline, to make the correction.',
+    };
+  }
+  return { ok: true };
 }
 
 export async function listCallRequests(limit = 2000): Promise<Record<string, unknown>[]> {
@@ -2521,7 +2543,7 @@ export async function sbDirectoryNames(): Promise<string[]> {
 // ---- Audit log (admin) -----------------------------------------------------
 export interface AuditFilter { action?: string; email?: string; status?: string }
 export async function queryAudit(filter: AuditFilter, offset = 0, limit = 500): Promise<Record<string, unknown>[]> {
-  let q = must().from('audit_log').select('*').order('at', { ascending: false }).range(offset, offset + limit - 1);
+  let q = must().from('audit_log').select('*').order('at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + limit - 1);
   if (filter.action) q = q.ilike('action', `%${_san(filter.action)}%`);
   if (filter.email) q = q.ilike('email', `%${_san(filter.email)}%`);
   if (filter.status) q = q.eq('status', filter.status);
@@ -2699,7 +2721,17 @@ export async function callReview(ucn: string): Promise<Record<string, unknown> |
 // How many calls sit at each stage across the WHOLE filtered set (not just the
 // page on screen). Read from `field_call_review_summary`, which carries no
 // per-call report lookups, so counting a year of calls is a plain scan.
-export async function countCallReviews(filter: ReviewFilter = {}): Promise<{ total: number; byStatus: Record<string, number>; effects: number; solvedPending: number }> {
+export async function countCallReviews(
+  filter: ReviewFilter = {},
+  // THE CALL STATUS BOX, APPLIED TO THE TOTALS HERE RATHER THAN IN THE QUERY.
+  // `solvedPending` is the "To be Reviewed" worklist, which is ALWAYS Solved
+  // calls whatever that box says; filtered in the query, a box left on
+  // "Unsolved" removed every Solved row and the worklist counted 0 while it
+  // listed calls. The rule is the query's own (`open_state = <value>`), applied
+  // to the rows the scan already reads. Callers passing it must leave
+  // `filter.callState` unset.
+  totalsState = '',
+): Promise<{ total: number; byStatus: Record<string, number>; effects: number; solvedPending: number }> {
   const PAGE = 1000;
   const byStatus: Record<string, number> = {};
   let total = 0; let effects = 0; let solvedPending = 0;
@@ -2712,8 +2744,12 @@ export async function countCallReviews(filter: ReviewFilter = {}): Promise<{ tot
     const rows = data ?? [];
     rows.forEach((r) => {
       const s = String((r as Record<string, unknown>).review_status ?? '');
-      byStatus[s] = (byStatus[s] ?? 0) + 1;
-      if (String((r as Record<string, unknown>).any_potential_effect ?? '') === 'YES') effects += 1;
+      const inTotals = !totalsState || String((r as Record<string, unknown>).open_state ?? '') === totalsState;
+      if (inTotals) {
+        byStatus[s] = (byStatus[s] ?? 0) + 1;
+        if (String((r as Record<string, unknown>).any_potential_effect ?? '') === 'YES') effects += 1;
+        total += 1;
+      }
       // SOLVED and still waiting on Review 2 or Review 3 — the "To be Reviewed"
       // worklist. Counted here, in the scan that is already happening, because
       // the tab's own filter cannot count itself: a counter narrowed by the
@@ -2721,7 +2757,6 @@ export async function countCallReviews(filter: ReviewFilter = {}): Promise<{ tot
       if (String((r as Record<string, unknown>).open_state ?? '') === 'Solved'
           && (s === 'Review 2 Pending' || s === 'Review 3 Pending')) solvedPending += 1;
     });
-    total += rows.length;
     if (rows.length < PAGE) break;
   }
   return { total, byStatus, effects, solvedPending };
@@ -3150,7 +3185,7 @@ export async function addSpareRequest(
 export async function listSpareRequestLines(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
     .select('*, spare_requests!inner(uid, or_no, or_req_date, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, complaint, item_status, handstock_reason, remarks, stage, status, created_at)')
-    .order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+    .order('created_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + limit - 1);
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => {
     // One row per part: the request's identity, the line's own workflow state.
@@ -3614,6 +3649,10 @@ export async function listMaterialReturns(limit = 1000, offset = 0): Promise<Rec
   const { data, error } = await must().from('material_returns').select('*')
     .order('mrn_date', { ascending: false, nullsFirst: false }).order('uid', { ascending: false })
     .order('row_no', { ascending: true })
+    // THE TIEBREAKER THE PAGES NEED. Two parts of one MRN can share a row
+    // number (the unique index includes the part), so the three orders above
+    // tie and a page boundary could double one line and drop another.
+    .order('id', { ascending: true })
     .range(offset, offset + limit - 1);
   if (error) throw new Error(errMsg(error));
   return data ?? [];
@@ -3684,15 +3723,22 @@ export async function listHandstockMovements(engineerKey: string, partCode = '',
 }
 // ---- consumption / feedback ------------------------------------------------
 export async function listConsumptionRows(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('spare_consumption').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+  const { data, error } = await must().from('spare_consumption').select('*').order('created_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + limit - 1);
   if (error) throw new Error(error.message);
   return data ?? [];
 }
 // Customer feedback, newest first. Each answer in the `answers` jsonb becomes
 // its OWN column (prefixed `fb::<question>`) so every field the engineer entered
 // shows as a separate column rather than one consolidated string.
+// A UNIQUE TIEBREAKER ON THE PAGED READS OF feedback, spare_consumption,
+// spare_request_lines, audit_log and parties (finding 15). `created_at`,
+// `at` and `party_name` tie -- a bulk import writes thousands of rows in one
+// instant -- and a page boundary inside a tie can hand the same row to two
+// pages and another to none. `id` is each table's primary key, so the order
+// is total. It matters more now that the 30-minute sync re-reads every page
+// the reader had loaded rather than only the first (finding 22).
 export async function listFeedbackRows(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('feedback').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+  const { data, error } = await must().from('feedback').select('*').order('created_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + limit - 1);
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => {
     const a = (r.answers && typeof r.answers === 'object') ? r.answers as Record<string, unknown> : {};

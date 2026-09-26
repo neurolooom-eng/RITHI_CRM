@@ -1,5 +1,5 @@
 import { isMissingTable } from '../lib/dberror';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -17,7 +17,7 @@ import {
   type HandstockBalance, type HandstockMovement, type MovementKind,
 } from '../lib/handstock';
 import './fieldcalls.css';
-import { partial } from '../lib/exportscope';
+import { partial, searchScope } from '../lib/exportscope';
 
 // ===========================================================================
 // HAND STOCK — the stock level an engineer is carrying, per spare.
@@ -150,12 +150,19 @@ export function HandStock() {
   // have been asked for; `more` says the last page came back full, so there is
   // at least one more.
   const [loaded, setLoaded] = useState(cached?.rows?.length ?? 0);
+  // HOW FAR THE READER HAS GOT, as a ref because the 30-minute sync is
+  // registered once at mount: a value read from state inside that timer is
+  // the mount-time value for ever, and the sync then re-read only page one,
+  // throwing away every page Load more had added (finding 22).
+  const loadedRef = useRef(loaded);
+  loadedRef.current = loaded;
   // Restored from a cache that ends exactly on a page boundary: there was
   // almost certainly another page, so offer it rather than making somebody
   // press Refresh to find out.
-  const [more, setMore] = useState(
-    (cached?.rows?.length ?? 0) > 0 && (cached?.rows?.length ?? 0) % PAGE_SIZE === 0,
-  );
+  // A FULL PAGE PROVES NOTHING, so a restored cache of at least one page may
+  // have more behind it. `% PAGE_SIZE === 0` said a 1,500-row cache (the cache
+  // keeps at most 1,500) was the whole register -- no "+", no Load more.
+  const [more, setMore] = useState((cached?.rows?.length ?? 0) >= PAGE_SIZE);
   // A SEARCH ASKS THE DATABASE, not the page already loaded — a part somebody
   // is looking for is exactly the one that has not been paged in yet. These are
   // what came back; while they are set, they are what the table shows.
@@ -169,7 +176,7 @@ export function HandStock() {
     onDb ? null : { tone: 'info', text: 'Connect the database in Settings to load hand stock.' },
   );
 
-  const load = async (want = Math.max(PAGE_SIZE, loaded)) => {
+  const load = async (want = Math.max(PAGE_SIZE, loadedRef.current)) => {
     if (!onDb) return;
     setBusy(true); setMsg({ tone: 'info', text: 'Loading hand stock…' });
     try {
@@ -306,7 +313,10 @@ export function HandStock() {
         subtitle="Stock level per engineer and spare: stock out from Stores − consumption − transfers out + transfers in."
         icon="🎒"
         count={visible.length}
-        countMore={!hits && more}
+        // A SEARCH THAT FILLED ITS ONE REQUEST IS A LOWER BOUND TOO. Load more
+        // stays hidden while one shows: it pages the browse list, not the search.
+        countMore={hits ? hits.length >= PAGE_SIZE : more}
+        moreAvailable={!hits && more}
         onLoadMore={() => void loadMore()}
         loadingMore={busy}
         status={
@@ -319,7 +329,7 @@ export function HandStock() {
                 ⟳ synced {timeAgo(lastSync)}
               </span>
             )}
-            {hits && <span className="conn-dot conn-on">🔎 searching the whole register — {hits.length} match{hits.length === 1 ? '' : 'es'}</span>}
+            {hits && <span className="conn-dot conn-on">🔎 searching the whole register — {hits.length}{hits.length >= PAGE_SIZE ? '+' : ''} match{hits.length === 1 ? '' : 'es'}</span>}
           </>
         }
         actions={can('stock.transfer') && <button className="btn btn-primary" onClick={() => navigate('/stock-transfer')}>⇄ Transfer stock</button>}
@@ -335,7 +345,7 @@ export function HandStock() {
 
       {/* Tabs: the level, and the ledger it is made of. */}
       <div className="stage-chips hs-tabs">
-        <button className={`chip ${tab === 'levels' ? 'chip-on' : ''}`} onClick={() => setTab('levels')}>📊 Stock Level <b>{rows.length}</b></button>
+        <button className={`chip ${tab === 'levels' ? 'chip-on' : ''}`} onClick={() => setTab('levels')}>📊 Stock Level <b>{rows.length}{more ? '+' : ''}</b></button>
         <button className={`chip ${tab === 'moves' ? 'chip-on' : ''}`} onClick={() => setTab('moves')}>🧾 Movements</button>
       </div>
 
@@ -344,10 +354,10 @@ export function HandStock() {
       ) : (
         <>
           <div className="stage-chips">
-            <button className={`chip ${holding === 'held' ? 'chip-on' : ''}`} onClick={() => setHolding('held')}>In hand <b>{rows.filter((r) => r.on_hand > 0).length}</b></button>
-            <button className={`chip ${holding === 'short' ? 'chip-on' : ''}`} onClick={() => setHolding('short')}>⚠️ Short <b>{totals.shortLines}</b></button>
-            <button className={`chip ${holding === 'settled' ? 'chip-on' : ''}`} onClick={() => setHolding('settled')}>Settled <b>{rows.filter((r) => r.on_hand === 0).length}</b></button>
-            <button className={`chip ${holding === '' ? 'chip-on' : ''}`} onClick={() => setHolding('')}>All <b>{rows.length}</b></button>
+            <button className={`chip ${holding === 'held' ? 'chip-on' : ''}`} onClick={() => setHolding('held')}>In hand <b>{rows.filter((r) => r.on_hand > 0).length}{more ? '+' : ''}</b></button>
+            <button className={`chip ${holding === 'short' ? 'chip-on' : ''}`} onClick={() => setHolding('short')}>⚠️ Short <b>{totals.shortLines}{more ? '+' : ''}</b></button>
+            <button className={`chip ${holding === 'settled' ? 'chip-on' : ''}`} onClick={() => setHolding('settled')}>Settled <b>{rows.filter((r) => r.on_hand === 0).length}{more ? '+' : ''}</b></button>
+            <button className={`chip ${holding === '' ? 'chip-on' : ''}`} onClick={() => setHolding('')}>All <b>{rows.length}{more ? '+' : ''}</b></button>
             <span className="spacer" />
             {/* Not a filter — it changes what the numbers MEAN, so it sits apart
                 from the chips that narrow the list, and the screen says which
@@ -405,8 +415,11 @@ export function HandStock() {
                     label: `${e.engineer}${e.onHand === undefined ? '' : ` (${e.onHand})`}`,
                   }))} />
                 <div className="spacer" />
+                {/* WHILE A SEARCH SHOWS, THE FILE IS THE SEARCH: one request of
+                    PAGE_SIZE lines, so it is capped by that, not by whether
+                    the browse list has more pages (finding 45). */}
                 {rows.length > 0 && (
-                  <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], partial(more))}>⭳ Export CSV</button>
+                  <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], hits ? searchScope(hits.length >= PAGE_SIZE) : partial(more))}>⭳ Export CSV</button>
                 )}
               </Toolbar>
             }
@@ -523,9 +536,9 @@ function Movements({
       {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span><button className="btn btn-ghost btn-sm" onClick={() => setErr('')}>✕</button></div>}
 
       <div className="stage-chips">
-        <button className={`chip ${kind === '' ? 'chip-on' : ''}`} onClick={() => setKind('')}>All <b>{moves.length}</b></button>
+        <button className={`chip ${kind === '' ? 'chip-on' : ''}`} onClick={() => setKind('')}>All <b>{moves.length}{more ? '+' : ''}</b></button>
         {KINDS.map((k) => (
-          <button key={k} className={`chip ${kind === k ? 'chip-on' : ''}`} onClick={() => setKind(kind === k ? '' : k)}>{k} <b>{counts[k] ?? 0}</b></button>
+          <button key={k} className={`chip ${kind === k ? 'chip-on' : ''}`} onClick={() => setKind(kind === k ? '' : k)}>{k} <b>{counts[k] ?? 0}{more ? '+' : ''}</b></button>
         ))}
       </div>
 

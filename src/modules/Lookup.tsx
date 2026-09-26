@@ -52,6 +52,11 @@ export function Lookup() {
   const [serial, setSerial] = useState('');
   const [partyQ, setPartyQ] = useState('');
   const [found, setFound] = useState<Row[] | null>(null);
+  // THE MACHINE SEARCH SHOWS AT MOST FOUND_CAP. It asks for one more than that,
+  // so a result that DID stop at the cap can say so; it used to show 200 and
+  // present them as everything that matched (finding 5).
+  const FOUND_CAP = 200;
+  const [foundTruncated, setFoundTruncated] = useState(false);
   const [partyHits, setPartyHits] = useState<Party[] | null>(null);
   const [party, setParty] = useState<Party | null>(null);
   const [items, setItems] = useState<Row[]>([]);
@@ -141,8 +146,9 @@ export function Lookup() {
       // serial typed by hand while no product is chosen is still a contains
       // search, which is the point of leaving that box free text.
       const exact = !!product.trim();
-      const rows = await searchProducts({ product: product.trim(), serial: serial.trim(), exact }, 200);
-      const list = rows.map((r, i) => ({ ...r, id: String(i) })) as Row[];
+      const rows = await searchProducts({ product: product.trim(), serial: serial.trim(), exact }, FOUND_CAP + 1);
+      const list = rows.slice(0, FOUND_CAP).map((r, i) => ({ ...r, id: String(i) })) as Row[];
+      setFoundTruncated(rows.length > FOUND_CAP);
       setFound(list);
       // One machine, one party: go straight to the answer.
       if (list.length === 1) await openParty(g(list[0], 'Party Name'));
@@ -228,6 +234,11 @@ export function Lookup() {
       </div>
 
       {/* Machines that matched — click one to open its party. */}
+      {found && !party && foundTruncated && (
+        <div className="sheet-banner sheet-banner-info">
+          <span>Showing the first {FOUND_CAP} machines — more matched. Narrow the search (a serial, or more of the product name) to see the rest.</span>
+        </div>
+      )}
       {found && !party && (
         found.length ? (
           <DataTable<Row>

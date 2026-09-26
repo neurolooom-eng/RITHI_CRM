@@ -9,6 +9,7 @@ import { StateBadge, Ucn } from '../lib/callstate';
 import { allowsAllottee, useAccessScope, useTeamEngineers } from '../lib/access';
 import { csvExport, fmtLongDate, fmtLongSmart, timeAgo } from '../lib/format';
 import { useAuth } from '../lib/auth';
+import { seesEveryRecord } from '../lib/rbac';
 import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
 
@@ -84,6 +85,10 @@ export function PendingCalls() {
   const [state, setState] = useState<CallState | ''>('');
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
+  // THE LIST FAILED TO LOAD, as distinct from any other error on this screen
+  // (a re-allotment that was refused also sets `msg`). An empty list after a
+  // failed read proves nothing, so the empty text must not claim anything.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load pending calls.' },
   );
@@ -96,9 +101,11 @@ export function PendingCalls() {
       const r = await listPendingCalls('', want);
       setRows(r.map((c, i) => ({ ...c, id: String(c._id ?? c.ucn ?? i) })) as Row[]);
       setLastSync(Date.now());
+      setLoadFailed(false);
       setMsg({ tone: 'ok', text: `${r.length} pending call${r.length === 1 ? '' : 's'} — nothing here has been closed yet.` });
     } catch (e) {
       const text = e instanceof Error ? e.message : String(e);
+      setLoadFailed(true);
       setMsg({
         tone: 'error',
         text: isMissingTable(text, 'pending_calls')
@@ -265,7 +272,14 @@ export function PendingCalls() {
           navigate(fam === 'install' ? '/installations' : fam === 'pm' ? '/pm-calls' : '/field-calls',
             { state: { editUcn: String(r.ucn ?? '') } });
         }}
-        emptyText={busy ? 'Loading…' : 'No pending calls — everything is closed.'}
+        // AN EMPTY LIST PROVES WHAT THE READER WAS SHOWN, never what exists.
+        // "Everything is closed" is said only by a role that sees every call,
+        // with no filter narrowing the list; otherwise the screen says which.
+        emptyText={busy ? 'Loading…'
+          : loadFailed ? 'The list could not be loaded — see the message above.'
+          : (q.trim() || type || state || engineerFilter) ? 'No pending calls match these filters.'
+          : (scope.all && seesEveryRecord(user, can)) ? 'No pending calls — everything is closed.'
+          : 'Nothing is pending that you can see — your role is shown its own calls and its team’s, not the whole register.'}
         toolbar={
           <Toolbar>
             <SearchBox value={q} onChange={setQ} placeholder="UCN, party, product, serial, engineer…" />
