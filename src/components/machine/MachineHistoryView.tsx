@@ -4,8 +4,8 @@ import { DataTable, type Column } from '../table/DataTable';
 import { Ucn } from '../../lib/callstate';
 import { useCallStates, callStateFor } from '../../lib/callstates';
 import { csvExport, fmtLongDate } from '../../lib/format';
-import { partyDiffers, type MachineEvent, type MachineNow } from '../../lib/machineHistory';
-import { COMPLETE } from '../../lib/exportscope';
+import { archiveCapped, partyDiffers, type MachineEvent, type MachineNow } from '../../lib/machineHistory';
+import { partial } from '../../lib/exportscope';
 
 // ===========================================================================
 // ONE MACHINE'S LIFE, RENDERED ONCE.
@@ -59,7 +59,12 @@ export function MachineHistoryView({
     [events, only],
   );
   // A UCN carries the call's colour wherever it appears — every module.
-  useCallStates(shown.map((e) => e.ucn).filter(Boolean));
+  // ONLY THE LIVE UCNs, though. An archived call belongs to a system this
+  // project has never heard of, so there is no state to look up — asking
+  // would be a request that can only come back empty, and colouring a chip
+  // from an empty answer is the wrong-colour-on-a-code fault the rule exists
+  // to prevent.
+  useCallStates(shown.filter((e) => !e.archive).map((e) => e.ucn).filter(Boolean));
 
   const counts = useMemo(() => {
     const m = new Map<string, number>();
@@ -70,11 +75,19 @@ export function MachineHistoryView({
   const columns: Column<Record<string, unknown>>[] = [
     { key: 'on', header: 'When', width: 120, wrap: false,
       render: (r) => (r.on ? fmtLongDate(r.on) : <span className="muted">no date</span>) },
-    { key: 'source', header: 'Register', width: 130, wrap: false },
+    // WHICH DATABASE, in words rather than a second colour: the one colour
+    // language on this row is the call state, and a second would weaken it.
+    { key: 'source', header: 'Register', width: 150, wrap: false,
+      render: (r) => (r.archive
+        ? <span>{String(r.source)} <span className="muted">· archive</span></span>
+        : String(r.source)) },
     { key: 'what', header: 'What', width: 150 },
     { key: 'ref', header: 'Reference', width: 150, wrap: false,
       render: (r) => (r.ucn
-        ? <Ucn ucn={String(r.ucn)} state={callStateFor(String(r.ucn))} />
+        // An archived UCN renders PLAIN — the archive cannot know the call's
+        // state, and a wrong colour on a code people have learned to read is
+        // worse than no colour (the same rule the spare registers follow).
+        ? <Ucn ucn={String(r.ucn)} state={r.archive ? undefined : callStateFor(String(r.ucn))} />
         : String(r.ref ?? '')) },
     { key: 'party', header: 'Who', width: 180 },
     { key: 'detail', header: 'Detail' },
@@ -151,9 +164,17 @@ export function MachineHistoryView({
                           `machine-${product}-${serial}.csv`.replace(/[^a-z0-9.-]+/gi, '-'),
                           columns.filter((c) => c.key !== 'ucn').map((c) => ({ key: c.key, header: String(c.header) })),
                           shown as unknown as Record<string, unknown>[],
-                          // Every register was read WHOLE for this one machine,
-                          // not paged -- see the note on the counts below.
-                          COMPLETE)}>
+                          // Every LIVE register was read whole for this one
+                          // machine -- but the ARCHIVE half pages to a cap, so
+                          // COMPLETE would be a claim this screen cannot make.
+                          // A machine with more than the cap in one archive
+                          // register exports short, and the file would not say
+                          // so; that is precisely what the scope exists to
+                          // prevent. False whenever the archive is off,
+                          // unreachable or simply under the cap, which is the
+                          // ordinary case, so nobody sees the warning without
+                          // cause.
+                          partial(archiveCapped()))}>
                   ⭳ Export CSV
                 </button>
               )}

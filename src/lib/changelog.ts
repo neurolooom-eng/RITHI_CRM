@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.377',
+    date: '2026-09-22',
+    title: 'Machine History reaches back to 2016',
+    changes: [
+      'Machine History now shows the years BEFORE this system. The service history from 2016 up to the cut-over lives in a separate database, and the screen reads it alongside the registers \u2014 so a machine with nine years of faults behind it stops looking new.',
+      'Every row says which database it came from. A Live row comes from the registers here and carries the call\u2019s real state; an Archive row carries whatever the old system was told when somebody closed the call. That is why an archived UCN is not coloured \u2014 its state cannot be known, and a wrong colour on a code people read is worse than none.',
+      'A machine that exists ONLY in the archive \u2014 sold in 2016, retired years ago, never carried across \u2014 can still be found and read. Both boxes offer it, marked \u00b7 archive only, and that mark is worth reading: a machine the live register has never heard of is one you cannot raise a call, visit or spare against.',
+      'The old data is loaded from Bulk Uploads, under a new 2016 Archive heading: five registers, one per kind of export (Machines, Calls, Visits, Parts fitted, Cover). They preview before writing and read dates day-first like every other register.',
+      'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
+      'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
+      'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
     version: '0.9.376',
     date: '2026-09-26',
     title: 'The new CallReg address, baked in',

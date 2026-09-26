@@ -514,7 +514,8 @@ console.log('\n-- a column the register was told it does not want --');
 // 32 since the Product Master (the catalogue of product LINES) joined the
 // Product Database (the machines) — the two are different registers and this
 // number is what catches one being added without a test beside it.
-eq('registers defined', UPLOADS.length, 32);
+// 32 live registers + the 5 that write to the 2016 archive project.
+eq('registers defined', UPLOADS.length, 37);
 // THE TWO ARE NOT THE SAME REGISTER, and the names invite confusing them. One
 // is keyed on the MACHINE (model + serial), the other on the product CODE.
 {
@@ -526,6 +527,20 @@ eq('registers defined', UPLOADS.length, 32);
   eq('...and is keyed on the product CODE, not the name', cat.conflict, 'product_code');
   eq('...and they write different tables', db.table !== cat.table, true);
 }
+eq('...five of them write to the archive project, not the live one',
+  UPLOADS.filter((d) => d.db === 'archive').length, 5);
+// EVERY ARCHIVE REGISTER MUST ASK FOR ITS LABEL. The archive's policy refuses a
+// row whose source_system is blank (ProdHistory_06), and that label is the only
+// way to undo a load — these registers have no natural key, so a batch that
+// went in wrong is removed by its label or not at all.
+eq('...and every one of them asks for the export label',
+  UPLOADS.filter((d) => d.db === 'archive' && d.askStamp?.col !== 'source_system').map((d) => d.key), []);
+// NONE of them may claim a conflict key. An upsert on a ten-year-old export
+// means guessing a unique column, which is what cost `feedback` its upload at
+// row 24,092 — and here it would additionally need an UPDATE policy the
+// archive deliberately does not have.
+eq('...and none of them upserts',
+  UPLOADS.filter((d) => d.db === 'archive' && d.conflict).map((d) => d.key), []);
 
 console.log('\n-- call registration requests --');
 const cr = shapeUpload(def('call_requests'), [
@@ -633,8 +648,56 @@ eq('a shared serial is two machines, not one',
 eq('no product means the machine is unknown, so the row is held back',
    shapeUpload(def('product_additional_entries'), [{ 'Serial No': 'SN-9' }]).skipped[0]?.why,
    'no product name');
+// THE ARCHIVE GROUP IS LAST, and that is the assertion rather than an
+// accident of the array: everything above it writes to the live project and it
+// does not. A register that writes to a different database sitting between two
+// that do not is a mistake waiting to be made at speed.
 eq('grouped in reading order', uploadGroups(UPLOADS).map((g) => g.title),
-   ['Calls', 'Visit Reports', 'Spares', 'Quality', 'Masters', 'Cover']);
+   ['Calls', 'Visit Reports', 'Spares', 'Quality', 'Masters', 'Cover', '2016 Archive']);
+
+console.log('\n-- the 2016 archive registers --');
+{
+  // A REAL EXPORT SHAPE: day-first dates, a model spelling that differs from
+  // Product Master's, and two columns nobody has named.
+  const ac = shapeUpload(def('history_calls'), [
+    { 'UCN': '16A01F0001', 'Call No': 'C-1', 'Call Date': '03/04/2016', 'Customer Name': 'APOLLO',
+      'Item Name': 'ORION G', 'Item Serial Number': '201', 'Complaint': 'Battery fault',
+      'Engineer': 'R KUMAR', 'Call Status': 'Closed', 'Region Head': 'South', 'Old Column': 'x' },
+    // No serial: this row can never be found by machine, so it is not a record
+    // with a gap in it — it is a row nothing can reach.
+    { 'UCN': '16A01F0002', 'Item Name': 'ORION G', 'Call Date': '04/04/2016' },
+  ]);
+  eq('the complete row loads', ac.rows.length, 1);
+  eq('...and the one with no serial is held back', ac.skipped[0]?.why, 'no serial');
+  // DAY-FIRST. 03/04/2016 is the third of April. Read the other way it is not
+  // an error anybody ever sees — just a call that happened a month early.
+  eq('dates are day-first', ac.rows[0].reg_date, '2016-04-03');
+  eq('the complaint lands in its own column', ac.rows[0].complaint_reported, 'Battery fault');
+  eq('the closing status is what the old system said', ac.rows[0].closing_status, 'Closed');
+  // NOTHING IS LOST. A column nobody wants today is one somebody wants in 2027,
+  // by which time the spreadsheet is gone.
+  eq('unnamed columns are kept on the row',
+    Object.keys(ac.rows[0].extra as object).sort(), ['Old Column', 'Region Head']);
+
+  // The machine key is computed by the DATABASE from these two, so the register
+  // must never send one of its own — there is no such column to write to.
+  eq('no register writes machine_key',
+    UPLOADS.filter((d) => d.db === 'archive' && d.cols.some((c) => c.to === 'machine_key')).map((d) => d.key), []);
+
+  // Every archive register must key the machine, or its rows are unreachable.
+  for (const d of UPLOADS.filter((x) => x.db === 'archive')) {
+    eq(`${d.key} requires the model and the serial`,
+      ['product_name', 'serial'].filter((c) => d.cols.some((x) => x.to === c && x.required)).length, 2);
+  }
+
+  const ap = shapeUpload(def('history_parts'), [
+    { 'Item Name': 'ORION-G', 'Serial No': '201', 'Part Code': 'BATT-01', 'Qty': '2', 'Date': '12-May-2016' },
+    { 'Item Name': 'ORION-G', 'Serial No': '201' },     // no part: nothing to record
+  ]);
+  eq('a part line loads with its quantity and date',
+    [ap.rows.length, ap.rows[0].qty, ap.rows[0].consumed_on], [1, 2, '2016-05-12']);
+  eq('...and a line naming no part is held back', ap.skipped[0]?.why, 'no part');
+}
 
 console.log('\n-- a batch is one shape --');
 // PostgREST writes a batch as ONE insert whose column list is the union of the

@@ -38,7 +38,22 @@ rows.split('\n').forEach((line) => {
 if (!cols.size) { console.error('No columns came back — check the psql arguments.'); process.exit(2); }
 
 // The master value lists all share one table; one representative is enough.
-const defs = [...UPLOADS, masterUpload({ key: 'complaint', label: 'Standard Complaint' })];
+const all = [...UPLOADS, masterUpload({ key: 'complaint', label: 'Standard Complaint' })];
+
+// THE ARCHIVE REGISTERS ARE IN A DIFFERENT DATABASE, so which ones this run can
+// check depends on which database you pointed it at. Checked when the
+// connection has the history tables, reported as skipped when it does not —
+// never silently passed, because "no table history_calls" against the live
+// project is the correct answer and would otherwise read as a broken register.
+const isArchiveDb = cols.has('history_calls');
+const defs = all.filter((d) => (d.db === 'archive') === isArchiveDb);
+const skipped = all.length - defs.length;
+if (skipped) {
+  console.log(`${skipped} ${isArchiveDb ? 'live' : 'archive'} register(s) skipped — `
+    + `this connection is the ${isArchiveDb ? 'ARCHIVE' : 'LIVE'} database. `
+    + `Run it again against the other one to check those.`);
+}
+
 const problems: string[] = [];
 for (const def of defs) {
   const have = cols.get(def.table);
@@ -58,4 +73,4 @@ if (problems.length) {
   console.error('\nAdd the column in a migration, or stop writing it.');
   process.exit(1);
 }
-console.log(`every column of all ${defs.length} registers exists`);
+console.log(`every column of ${defs.length} ${isArchiveDb ? 'archive' : 'live'} registers exists`);
