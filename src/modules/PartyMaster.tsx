@@ -19,6 +19,7 @@ import { kycDocs, withKycDoc, withoutKycDoc, isKycVerified, type KycDoc } from '
 // is a bug waiting for a build change.
 import './knowledgebase.css';
 import { partial } from '../lib/exportscope';
+import { isSysColumn } from '../lib/syscols';
 
 // ===========================================================================
 // PARTY MASTER — live from Supabase `parties`, with a local browser cache +
@@ -346,7 +347,7 @@ export function PartyMaster() {
   // need a better word than their key ("Serviceman", "KYC").
   const allFields = useMemo(() => {
     const ks = new Set<string>();
-    rows.slice(0, 40).forEach((r) => Object.keys(r).forEach((k) => { if (k && k !== 'id' && k !== 'extra') ks.add(k); }));
+    rows.slice(0, 40).forEach((r) => Object.keys(r).forEach((k) => { if (k && k !== 'id' && k !== 'extra' && !isSysColumn(k)) ks.add(k); }));
     return [...ks].map((k) => ({ key: k }));
   }, [rows]);
 

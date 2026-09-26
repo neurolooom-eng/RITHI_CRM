@@ -11,6 +11,7 @@ import { Ucn } from '../lib/callstate';
 import { manualReportLink } from '../lib/reports';
 import { DocPreview } from '../components/doc/DocPreview';
 import { partial } from '../lib/exportscope';
+import { isSysColumn } from '../lib/syscols';
 
 // ===========================================================================
 // VISIT REPORTS / SERVICE REPORTS — the visit history, one row per visit.
@@ -78,7 +79,7 @@ const EXPORT_HEADERS: Record<string, string> = {
 function exportColumns(rows: Record<string, unknown>[]): { key: string; header: string }[] {
   const seen = new Set<string>();
   rows.forEach((r) => Object.keys(r).forEach((k) => {
-    if (k === 'data' || k === 'id' || k.startsWith('_')) return;
+    if (k === 'data' || k === 'id' || k.startsWith('_') || isSysColumn(k)) return;
     seen.add(k);
   }));
   // The stored columns first, in the order the upload names them, then every
