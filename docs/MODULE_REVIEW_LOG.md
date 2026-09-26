@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-26. 49–52 fixed in v0.9.379 (SQL to run). Table review done — findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs). R1 built in v0.9.378 and finding 47 fixed in v0.9.377 — the SQL for both (0243; sys_columns.sql) still to be applied. R2–R3 pending._
+_Last updated: 2026-09-26. Batch 4 (front end) in v0.9.380: 4, 8, 10, 11, 12, 14, 43 fixed, more of 15 and 32; 26 needs a decision. 49–52 fixed in v0.9.379 (SQL to run). Table review done — findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs). R1 built in v0.9.378 and finding 47 fixed in v0.9.377 — the SQL for both (0243; sys_columns.sql) still to be applied. R2–R3 pending._
 
 ---
 
@@ -14,10 +14,10 @@ _Last updated: 2026-09-26. 49–52 fixed in v0.9.379 (SQL to run). Table review 
 
 | | Count | Findings |
 | --- | --- | --- |
-| ✅ **Fixed and live** | **21** | 1, 2, 3, 5, 6, 9, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 33, 41, 45, 46 |
+| ✅ **Fixed and live** | **28** | 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 14, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 33, 41, 43, 45, 46 |
 | ✅ **Fixed, SQL still to run** | **5** | 47 (v0.9.377, needs 0243); 49, 50, 51, 52 (v0.9.379, need `lockdown.sql` + `sales_contracts.sql`) |
 | ◐ **Partly fixed** | **3** | 15, 31, 32 |
-| ⏳ **Open** | **27** | 4, 7, 8, 10, 11, 12, 13, 14, 20, 23, 26, 27, 34, 35, 36, 37, 38, 39, 40, 42, 43, 44, 48, 53, 54, 55, 56 |
+| ⏳ **Open** | **20** | 7, 13, 20, 23, 26, 27, 34, 35, 36, 37, 38, 39, 40, 42, 44, 48, 53, 54, 55, 56 |
 | | **56** | |
 
 **Batches 1–3 were front end only.** Finding 47 is the first fix with SQL:
@@ -48,6 +48,7 @@ below). They apply to every table and every date, not to one finding.
 | **42** | downloads | Excel skips the export permission. Should the permission be granted to roles by migration first? Step 0 query 15 shows who lacks it. |
 | **27** | Data Export | Where each table's order key comes from (a migration returning it), and whether to refuse views that have no key. |
 | **44** | Calls | Batch cancel: build the button, or keep it SQL-only and record who cancelled. |
+| **26** | Call Reporting | **Moved here from C (2026-09-26): it is not a one-line fix.** The form stores a visit date as UTC midnight (reads back 05:30); the upload stores it as IST midnight, which is 18:30 UTC the day before. **Five live database objects** cast `visit_at` to a date — `objective_value`, `objective_evidence`, `reliability_wrr`, `machine_install_start` and the `kpi_field_inst` export (counted on a database built from every migration) — and on a database in UTC (the test database is; `show timezone` on the live project was NOT checked) that makes an UPLOADED visit's day one day EARLY in those calculations — so "fixing" the form to match the upload would move form-entered visits a day early too. Options: set the database time zone to `Asia/Kolkata` (also settles 13), **or** keep UTC and store every date-only visit at UTC midnight on BOTH paths. Run `show timezone;` in the SQL editor first. |
 
 ### B. SQL or performance, no decision needed
 
@@ -59,21 +60,13 @@ below). They apply to every table and every date, not to one finding.
 | **13** | Spare Insights' date window is a UTC day, not an IST one (SQL function). |
 | **40** | Four hand-run probes return 2–3 result grids; the SQL editor shows only the last. |
 
-### C. Front end, no decision needed — candidates for batch 4
+### C. Front end, no decision needed
 
 | # | What |
 | --- | --- |
-| **10** | Daily Complaint Review: two loads can interleave, and the last writer wins. |
-| **4** | Dashboard: a private month-first date parser. |
-| **7** | Four workbooks and the register CSVs export raw database dates. |
-| **14** | Spare Insights "By product" is the top 25 without saying so. |
-| **11** | KPI: the product chip narrows one card of three. |
-| **12** | KPI cover tiles bucket by substring; the two patterns overlap. |
-| **26** | Call Reporting: a visit date entered on the form reads back at 05:30. |
-| **43** | Request Registration: one request can span two customers (CR-007). |
-| **15** (rest) | Four more paged reads need a unique order, plus `handstock_movements`, a view with no unique key. |
-| **8** | Six reads page with no order at all. |
-| **32** (rest) | The Commercial installations card's read is not paged. |
+| **7** | Four workbooks and the register CSVs export raw database dates (overlaps R2/R3). |
+| **15** (rest) | The Objective evidence RPC is ordered by `reg_date` alone INSIDE the function; a tiebreaker needs the function redefined (SQL). Every client-side read is now tie-broken. |
+| **32** (rest) | An empty-string request status is counted on the card but not listed, and the register loads the newest 2,000 requests, so an older pending installation is counted but not listed. |
 
 ### R. Your standing requirements (added 2026-09-26)
 
@@ -170,6 +163,24 @@ dates are shown and exported, not how they are stored.**
 
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
+
+### 2026-09-26 — Batch 4, front end (v0.9.380)
+- **Fixed:** 4 (Dashboard dates day-first through `parseAnyDate`), 8 (six
+  paged reads now name an order), 10 (only the newest Daily Complaint Review
+  load may write, Load more included), 11 (KPI machines and failure rate
+  follow the product chip), 12 (cover tiles through `coverCode()`), 14 (the
+  top-25 product list says so), 43 (a request whose machines name two
+  customers is refused, CR-007).
+- **More of 15:** tiebreakers on the KPI export (UCN), Hand Stock movements
+  (every column — the view has no key), Not Used report (part code), its
+  engineer list and the master values. Left: the Objective evidence function.
+- **More of 32:** the installations card's read is paged, and a failed Party
+  Master lookup is an error rather than "every customer is unknown".
+- **26 moved to A:** it interlocks with five database objects that cast the visit to a date, and with the database's
+  time zone — see the row there.
+- **Checks:** 22 new `check:ui` assertions, every one failing on `main` before
+  the fix and passing after; `check:orders` against a database (133 order
+  columns, all exist); `check:paging`; build.
 
 ### 2026-09-26 — Low-hanging fruit from the table review fixed (v0.9.379)
 - **49** Party Key counter locked (RLS on, grants withdrawn). **50, 52**

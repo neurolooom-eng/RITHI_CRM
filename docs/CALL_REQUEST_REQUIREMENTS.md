@@ -113,7 +113,11 @@ one, because that would restore the old ordering.
 **CR-007 — The first call fixes the customer for the request.**
 A request is one visit to one site (user's rule, 2026-09-12).
 *Status: met* — calls 2–5 inherit the customer and are offered only that
-customer's products and machines.
+customer's products and machines, and **submit refuses a request whose machines
+name two customers** (`machineRowProblem`, v0.9.380). That second half closes a
+gap found in review (finding 43): a serial TYPED rather than picked is looked up
+in the register row by row at submit, and nothing compared the customers that
+came back.
 
 **CR-008 — A later call inherits the site, it does not ask for it again.**
 Customer, city, state, address and both contacts are copied from the first call.

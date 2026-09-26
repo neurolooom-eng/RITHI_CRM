@@ -66,6 +66,27 @@ up)_
 
 ---
 
+## 2026-09-26 — Module review, batch 4: rows that could be missed or doubled (v0.9.380)
+
+Front end only, no SQL. ✅ Shipped on merge.
+
+- **4** Dashboard dates through `parseAnyDate` (day-first). **8** six hand-rolled
+  paged reads name an order. **10** Daily Complaint Review: a load sequence, so
+  a superseded load (and its Load more) writes nothing. **11** KPI machines and
+  failure rate follow the product chip. **12** KPI cover tiles through
+  `coverCode()`. **14** Spare Insights says when By product is the top 25.
+  **43** a request whose machines name two customers is refused (CR-007).
+- **15, more of it:** tiebreakers on the KPI export, Hand Stock movements (every
+  column; the view has no key), the Not Used report, its engineer list and the
+  master values. ⏳ Left: `objective_evidence()` orders by `reg_date` alone
+  inside the function — needs the function redefined.
+- **32, more of it:** `pendingInstallRequests` paged; a failed Party Master
+  lookup throws. ⏳ Left: empty-string status and the register's 2,000-row window.
+- ⏳ **26 needs a decision** (moved to group A in `MODULE_REVIEW_LOG.md`): the form
+  and the upload store a date-only visit at different instants, and five
+  database objects cast `visit_at` to a date in the server's time zone. Check
+  `show timezone;` on the live project first.
+
 ## 2026-09-26 — The table review's low-hanging fruit (v0.9.379) — 49, 50, 51, 52, 54
 
 **The user: "Fix all low hanging fruits".** The decision-free table-review findings:

@@ -8,6 +8,7 @@ import { listSlaRules, callFamily, supabaseConfigured } from '../lib/supabase';
 import { allowsAllottee, scopeLabel, useAccessScope } from '../lib/access';
 import { evaluateCallSla, DEFAULT_SLA_RULES, slaTone, slaLabel, slaWhen, type SlaRule } from '../lib/sla';
 import { fmtLongDate } from '../lib/format';
+import { parseAnyDate } from '../lib/dates';
 
 // ===========================================================================
 // SERVICE DASHBOARD — computed from the live Field + Installation call data
@@ -17,15 +18,10 @@ import { fmtLongDate } from '../lib/format';
 type Rec = Record<string, unknown>;
 const g = (r: Rec, k: string) => String(r[k] ?? '');
 
-const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-function parseSheetDate(v: unknown): Date | null {
-  if (!v) return null;
-  const s = String(v).trim();
-  const m = s.match(/^(\d{1,2})-([A-Za-z]+)-(\d{4})/); // e.g. 24-October-2025
-  if (m) { const mo = MONTHS.indexOf(m[2].toLowerCase()); if (mo >= 0) return new Date(+m[3], mo, +m[1]); }
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? null : d;
-}
+// Dates go through the project's one parser, day-first (finding 4): a private
+// `new Date(s)` fallback read 09-10-2026 as 10 September and put the call in
+// the wrong month on the chart, silently.
+const parseSheetDate = (v: unknown): Date | null => parseAnyDate(v);
 
 const last6Months = () => {
   const out: { key: string; label: string }[] = [];

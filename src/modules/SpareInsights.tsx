@@ -193,6 +193,14 @@ export function SpareInsights() {
                 </tbody>
               </table>
             </div>
+            {/* The database keeps the top 25 (0148), and this list said nothing
+                about it (finding 14): a product missing from a full list read as
+                one that consumed nothing. Under 25 rows the list IS complete. */}
+            <p className="muted" style={{ fontSize: 12.5 }}>
+              {data.by_product.length >= 25
+                ? 'The twenty-five biggest consuming products in this window — a product not listed consumed less, not nothing.'
+                : 'Every product that consumed a spare in this window.'}
+            </p>
           </>
         ) : <p className="muted" style={{ fontSize: 13 }}>{busy ? 'Reading…' : 'Nothing to show.'}</p>}
       </SectionCard>

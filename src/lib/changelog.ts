@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.380',
+    date: '2026-09-26',
+    title: 'Counts and lists that could quietly miss or double a row',
+    changes: [
+      'CALL REQUEST: A REQUEST CAN NO LONGER BE FILED AGAINST TWO CUSTOMERS. When serials were typed rather than picked, each was looked up on its own at submit and the customers were never compared. Now the request is refused and the message says which call belongs to whom — raise a separate request for the other machine.',
+      'DAILY COMPLAINT REVIEW: switching tabs while a long worklist was still loading could leave the first tab’s calls under the second tab’s heading and count. Only the latest load is shown now.',
+      'KPI & FAILURE ANALYSIS: choosing a product now narrows “Machines in the field” and “Failure rate” too, not only the calls — before, the three cards side by side described different things. The “Out of guarantee” and “Under warranty” tiles now read the cover the same way as the rest of the application, so one unusual spelling can no longer be counted in both.',
+      'SPARE INSIGHTS: the By product table says when it is the top twenty-five, so a product missing from it is not read as one that used nothing.',
+      'DASHBOARD: dates are read day first, like everywhere else, so a call dated 09-10-2026 is counted in October, not September.',
+      'LONG LISTS NO LONGER DROP OR REPEAT ROWS BETWEEN PAGES: the User Master behind team visibility, the review count, the picklists, the call report reviews, Hand Stock movements, the Not Used report and the KPI export file now read in a fixed order.',
+      'MY WORKLOAD: the “Installations waiting on Commercial” card now reads every installation request, not the first 1,000, and says so if the customer list could not be read instead of showing every customer as unknown.',
+    ],
+  },
+  {
     version: '0.9.379',
     date: '2026-09-26',
     title: 'The database no longer answers requests it should not',

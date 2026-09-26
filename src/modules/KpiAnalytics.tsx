@@ -11,6 +11,7 @@ import {
 } from '../lib/supabase';
 import { useAccessScope, scopeLabel } from '../lib/access';
 import { timeAgo } from '../lib/format';
+import { coverCode } from '../lib/fieldcall';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -115,8 +116,13 @@ export function KpiAnalytics() {
   const partsPerCall = totalCalls ? totalQty / totalCalls : 0;
 
   // Out of guarantee is the one that is paid for, so it is worth its own tile.
-  const ogpQty = byCover.find((c) => /ogp|out of/i.test(c.label))?.qty ?? 0;
-  const warrantyQty = byCover.filter((c) => /warr|wgp/i.test(c.label)).reduce((t, c) => t + c.qty, 0);
+  // Bucketed through coverCode(), the client copy of cover_code() (finding 12):
+  // the substring tests it replaces overlapped, so an unmapped spelling such as
+  // "OUT OF WARRANTY PERIOD" matched BOTH and was added to the two tiles that are
+  // meant to be opposites. An unrecognised value now lands in neither.
+  const coverQty = (code: string) => byCover.filter((c) => coverCode(c.label) === code).reduce((t, c) => t + c.qty, 0);
+  const ogpQty = coverQty('OGP');
+  const warrantyQty = coverQty('WGP');
 
   // ---- failure rate ---------------------------------------------------------
   const rateRows = useMemo<RateRow[]>(
@@ -133,9 +139,14 @@ export function KpiAnalytics() {
       .sort((a, b) => num(b.calls_12m) - num(a.calls_12m) || num(b.calls) - num(a.calls)),
     [modes, product],
   );
-  const fleet = rates.reduce((t, r) => t + num(r.machines), 0);
+  // All three cards follow the product chip (finding 11). Only the calls did, so
+  // choosing a product put ITS calls beside EVERY product's machines and rate.
+  // With no product chosen the fleet figures stay over EVERY rate row, as before,
+  // including any with a blank product that the table leaves out.
+  const rateBase = product ? rateRows : rates;
+  const fleet = rateBase.reduce((t, r) => t + num(r.machines), 0);
   const calls12 = rateRows.reduce((t, r) => t + num(r.calls_12m), 0);
-  const fleetRate = fleet ? (rates.reduce((t, r) => t + num(r.calls_12m), 0) * 100) / fleet : 0;
+  const fleetRate = fleet ? (rateBase.reduce((t, r) => t + num(r.calls_12m), 0) * 100) / fleet : 0;
 
   const productChips = useMemo(() => {
     const by = new Map<string, number>();
@@ -167,9 +178,9 @@ export function KpiAnalytics() {
 
 
       <KpiGrid min={200}>
-        <KpiCard label="Machines in the field" value={fmt(fleet)} tone="neutral" icon="🏭" sub="the Product Register" />
+        <KpiCard label="Machines in the field" value={fmt(fleet)} tone="neutral" icon="🏭" sub={product ? `${product} · the Product Register` : 'the Product Register'} />
         <KpiCard label="Calls · 12 months" value={fmt(calls12)} tone="primary" icon="📞" sub={product || 'every product'} />
-        <KpiCard label="Failure rate" value={fleetRate ? fleetRate.toFixed(1) : '—'} tone={fleetRate > 100 ? 'danger' : fleetRate > 50 ? 'warning' : 'success'} icon="📉" sub="calls per 100 machines / year" />
+        <KpiCard label="Failure rate" value={fleetRate ? fleetRate.toFixed(1) : '—'} tone={fleetRate > 100 ? 'danger' : fleetRate > 50 ? 'warning' : 'success'} icon="📉" sub={`calls per 100 machines / year${product ? ` · ${product}` : ''}`} />
         <KpiCard label="Spares consumed" value={fmt(totalQty)} tone="info" icon="📦" sub={`${fmt(totalCalls)} calls`} />
         <KpiCard label="Parts per call" value={partsPerCall ? partsPerCall.toFixed(2) : '—'} tone="neutral" icon="🔩" />
         <KpiCard label="Out of guarantee" value={fmt(ogpQty)} tone="warning" icon="💰" sub="parts on OGP calls" />
