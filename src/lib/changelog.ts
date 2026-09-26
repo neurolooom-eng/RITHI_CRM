@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.381',
+    date: '2026-09-26',
+    title: 'Dates in every download are real dates, and a refused call edit says so',
+    changes: [
+      'EVERY EXCEL DOWNLOAD NOW CARRIES REAL DATES. The Not Used report, Product Failure Analysis, Field Failure Insights and the Objective evidence file wrote their dates as text, which Excel cannot sort in order, filter by month or subtract. They now arrive as dates shown dd-mmm-yyyy (and hh:mm:ss where a time was recorded), like the reports already did. Serial numbers and part codes stay exactly as they are.',
+      'EVERY REGISTER’S CSV EXPORT READS dates as 18-Sep-2026 or 18-Sep-2026 14:21:02, in your own time, instead of the database’s raw 2026-09-18T08:51:02+00:00.',
+      'A CALL EDIT OR RE-ALLOTMENT THAT YOUR ROLE MAY NOT MAKE NOW SAYS “Not saved” instead of appearing to succeed. Re-allotting a batch says how many moved and how many did not. Needs sys_columns.sql run once by an administrator; until then it behaves as before.',
+      'REQUEST CALL REGISTRATION: a filtered count shows “+” while older requests are still unloaded, so “Waiting on KYC” opened from My Workload no longer looks complete when it is not. A request saved with a blank status now counts as Pending everywhere.',
+      'OBJECTIVE: the evidence file behind a figure can no longer repeat or skip a row between its pages. Needs objective.sql run once.',
+      'FASTER UPLOADS: an Ownership Transfer upload of 500 rows took about 15 seconds against a 20-second limit on a register of 20,000 sales, and now takes under one second. Needs sales_contracts.sql run once.',
+      'FOUR DIAGNOSTIC SQL FILES NOW SHOW THEIR WHOLE ANSWER in the Supabase SQL editor, which only displays the last result: the report-count reconciliation, Item Status staleness, open PM calls and the Product Database rebuild.',
+    ],
+  },
+  {
     version: '0.9.380',
     date: '2026-09-26',
     title: 'Counts and lists that could quietly miss or double a row',

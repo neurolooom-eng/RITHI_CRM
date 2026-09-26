@@ -35,8 +35,12 @@
 -- directly — what you see, beside what exists.
 --
 -- READ-ONLY. Nothing here writes. Run the whole file in the Supabase SQL
--- editor; the grid reconciles the two totals line by line and the last row
--- states whether they add up.
+-- editor; the grid reconciles the two totals line by line, row 9 states
+-- whether they add up, and rows 101 onwards name the orphan visits.
+--
+-- ONE STATEMENT, ONE GRID. The SQL editor shows only the LAST result, and this
+-- file used to end in a second query listing the orphans -- so the
+-- reconciliation the header points at was never on screen (finding 40).
 -- ===========================================================================
 
 with
@@ -45,7 +49,12 @@ rep           as (select ucn from public.reports),
 rep_ucns      as (select distinct ucn from public.reports),
 orphan_visits as (select r.ucn from public.reports r
                    where not exists (select 1 from public.calls c where c.ucn = r.ucn)),
-multi         as (select ucn, count(*) as n from public.reports group by ucn having count(*) > 1),
+-- CALLS visited more than once. An orphan UCN's repeat visits are NOT counted
+-- here: they are already in orphan_visit_rows, and counting them twice made row
+-- 9 read "DOES NOT RECONCILE" on data that reconciled (measured 2026-09-26).
+multi         as (select r.ucn, count(*) as n from public.reports r
+                   where exists (select 1 from public.calls c where c.ucn = r.ucn)
+                   group by r.ucn having count(*) > 1),
 n as (
   select
     (select count(*) from calls_all)                                   as calls,
@@ -80,7 +89,7 @@ select * from (
          'Visits beyond the first, per call. reports is larger than call_report by this much, before the two corrections below.' from n
   union all
   select 7, 'ORPHAN visits -- a UCN with no call', orphan_visit_rows::text || ' row(s) across ' || orphan_ucns::text || ' UCN(s)',
-         'THE ONLY LINE HERE THAT IS A FAULT IF IT IS NOT ZERO. reports.ucn carries no foreign key, so a mistyped or pre-migration UCN is a visit nobody can reach: it is in no call register, no call_report row, and no call status. Row 9 names them.' from n
+         'THE ONLY LINE HERE THAT IS A FAULT IF IT IS NOT ZERO. reports.ucn carries no foreign key, so a mistyped or pre-migration UCN is a visit nobody can reach: it is in no call register, no call_report row, and no call status. Rows 101 onwards name them.' from n
   union all
   select 8, 'what YOU can see, right now', 
          (select count(*)::text from public.call_report) || ' call_report / '
@@ -96,18 +105,21 @@ select * from (
               then 'RECONCILED -- the two counts differ for exactly the reasons above and nothing is missing.'
               else 'DOES NOT RECONCILE. Something else is going on; do not act on the numbers above until this line balances.' end
     from n
+  union all
+  -- THE ORPHANS BY NAME, up to 200, as rows 101 onwards. Nothing is deleted or
+  -- repaired here: an unreachable visit is still a record, and 0049's rule is
+  -- that a quality record is corrected rather than removed.
+  select * from (
+    select (100 + row_number() over (order by count(*) desc, r.ucn))::int,
+           'orphan visit UCN ' || r.ucn,
+           count(*)::text || ' visit row(s)',
+           'first ' || coalesce(min(r.visit_at)::text, '(no date)')
+           || ', last ' || coalesce(max(r.visit_at)::text, '(no date)')
+           || ', engineer(s): ' || coalesce(string_agg(distinct nullif(btrim(r.engineer), ''), ', '), '(none)')
+      from public.reports r
+     where not exists (select 1 from public.calls c where c.ucn = r.ucn)
+     group by r.ucn
+     order by count(*) desc, r.ucn
+     limit 200
+  ) o
 ) g order by row;
-
--- ---------------------------------------------------------------------------
--- The orphans by name, if row 7 was not zero. Nothing is deleted or repaired
--- here: an unreachable visit is still a record, and 0049's rule is that a
--- quality record is corrected rather than removed.
--- ---------------------------------------------------------------------------
-select r.ucn as orphan_ucn, count(*) as visit_rows,
-       min(r.visit_at) as first_visit, max(r.visit_at) as last_visit,
-       string_agg(distinct nullif(btrim(r.engineer), ''), ', ') as engineers
-  from public.reports r
- where not exists (select 1 from public.calls c where c.ucn = r.ucn)
- group by r.ucn
- order by count(*) desc, r.ucn
- limit 200;

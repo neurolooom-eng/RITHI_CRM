@@ -448,7 +448,10 @@ const MODULES = {
              // the module's final word on all three -- five earlier files in
              // here define objective_value alone, and the bundles replay one at
              // a time.
-             '0142_objective_ffr_count.sql'],
+             '0142_objective_ffr_count.sql',
+             // After 0142, which it copies: objective_evidence with a tiebreaker
+             // on four ORDER BYs and nothing else (finding 15).
+             '0249_objective_evidence_tiebreak.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -757,6 +760,9 @@ const MODULES = {
             // machine_current_party() to compare two timestamps rather than a
             // date against one.
             '0240_ownership_transfer_timestamp.sql',
+            // Indexes matching 0238/0240's lookups character for character, so
+            // the per-row ownership triggers stop scanning both registers (38).
+            '0250_ownership_trigger_indexes.sql',
             // LAST: the two cover admin functions (0036/0037) ask for cover.edit
             // (finding 51), redefined from the database's current bodies.
             '0247_cover_maintenance_needs_cover_edit.sql'],

@@ -142,7 +142,8 @@ export function PendingCalls() {
     setAllotBusy(true);
     const res = await reallocateCalls(ucns, allotTo);
     setAllotBusy(false);
-    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not re-allot.' }); return; }
+    // A PARTIAL move still moved some (finding 48): re-read so they show where they now are.
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not re-allot.' }); if (res.updated) void load(); return; }
     setMsg({ tone: 'ok', text: `${res.updated} call${res.updated === 1 ? '' : 's'} allotted to ${allotTo}.` });
     setPicked(new Set()); setAllotTo('');
     void load();

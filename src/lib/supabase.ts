@@ -309,9 +309,16 @@ export async function addCall(rec: Record<string, unknown>): Promise<AddResult> 
   return { ok: true, ucn: '', record: dbToCall({ ...payload }) };
 }
 
+// NO ERROR IS NOT THE SAME AS SAVED (finding 48). Row-level security answers a
+// call the caller may see but not change with ZERO rows, not an error, so the
+// update asks for the rows it changed and treats none as the refusal it is.
+// On a project where the view's trigger predates the fix it still reports the
+// row regardless -- no worse than before, and honest once sys_columns.sql is run.
+export const CALL_NOT_SAVED = 'Not saved — your role may not change this call. Nothing was written.';
 export async function updateCall(ucn: string, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('calls').update(callToDb(patch)).eq('ucn', ucn);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  const { data, error } = await must().from('calls').update(callToDb(patch)).eq('ucn', ucn).select('ucn');
+  if (error) return { ok: false, error: errMsg(error) };
+  return (data ?? []).length ? { ok: true } : { ok: false, error: CALL_NOT_SAVED };
 }
 
 // Re-allot calls in one go. Written through the `calls` view, whose INSTEAD OF
@@ -322,7 +329,9 @@ export async function updateCall(ucn: string, patch: Record<string, unknown>): P
 // Row-level security still decides: the update policy is
 // `can_see_call(allocated_to)` on BOTH sides, so a manager may move a call they
 // can see to someone they can see, and no further. The picker offers their own
-// team for that reason — the database would refuse the rest anyway.
+// team for that reason. What the database refuses it refuses SILENTLY -- zero
+// rows, no error -- so each chunk asks which rows it moved and counts those,
+// rather than counting what it asked for (finding 48).
 export async function reallocateCalls(
   ucns: string[], allocatedTo: string,
 ): Promise<{ ok: boolean; updated: number; error?: string }> {
@@ -333,9 +342,14 @@ export async function reallocateCalls(
   let updated = 0;
   for (let i = 0; i < list.length; i += CH) {
     const part = list.slice(i, i + CH);
-    const { error } = await c.from('calls').update({ allocated_to: allocatedTo }).in('ucn', part);
+    const { data, error } = await c.from('calls').update({ allocated_to: allocatedTo }).in('ucn', part).select('ucn');
     if (error) return { ok: false, updated, error: `${errMsg(error)} (${updated} moved before it stopped.)` };
-    updated += part.length;
+    updated += (data ?? []).length;
+  }
+  if (updated < list.length) {
+    return { ok: false, updated,
+      error: `${updated} of ${list.length} call${list.length === 1 ? '' : 's'} moved. `
+           + `The other ${list.length - updated} were not changed — your role may not re-allot them.` };
   }
   return { ok: true, updated };
 }
@@ -2034,7 +2048,10 @@ export async function listCallRequests(limit = 2000): Promise<Record<string, unk
     installationReport: r.installation_report, kyc: r.kyc,
     callAttended: r.call_attended, attendedDate: r.attended_date, planDate: r.plan_date,
     additionalComments: r.additional_comments,
-    ucn: r.ucn ?? '', status: r.status ?? 'Pending',
+    // A BLANK status is pending, as a null one is (finding 32): the Commercial
+    // card counts '' as pending, and the register matched it against 'Pending'
+    // exactly, so such a request was counted there and never listed here.
+    ucn: r.ucn ?? '', status: String(r.status ?? '').trim() || 'Pending',
     cancelReason: r.cancel_reason ?? '', actionedBy: r.actioned_by ?? '', actionedAt: r.actioned_at ?? '',
   }));
 }

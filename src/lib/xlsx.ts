@@ -149,8 +149,17 @@ function sheetXml(sheet: Sheet): string {
     return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xml(s)}</t></is></c>`;
   };
   const head = `<row r="1">${sheet.columns.map((h, c) => cell(1, c, h)).join('')}</row>`;
+  // EVERY BODY CELL IS SHAPED HERE, not only where the caller remembered to
+  // (finding 7; the user's R2/R3). Three screens passed their values through
+  // xlsxCell and four did not, so Dispatched On, Received On and the call
+  // dates reached Excel as text that cannot be sorted, filtered by month or
+  // subtracted. A value already shaped (an XlsxDate, a number) passes through
+  // unchanged; a string becomes a date only on the STRICT ISO test, so a part
+  // code or a serial is never turned into a number. The header row is left as
+  // written.
+  const shaped = (v: unknown) => (isXlsxDate(v) ? v : xlsxCell(v));
   const body = sheet.rows.map((row, i) =>
-    `<row r="${i + 2}">${sheet.columns.map((h, c) => cell(i + 2, c, row[h])).join('')}</row>`).join('');
+    `<row r="${i + 2}">${sheet.columns.map((h, c) => cell(i + 2, c, shaped(row[h]))).join('')}</row>`).join('');
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
     + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
     + `<sheetData>${head}${body}</sheetData></worksheet>`;

@@ -141,8 +141,8 @@ export function RequestCallRegistration() {
   };
   useEffect(() => { void load(limit); /* eslint-disable-next-line */ }, [limit]);
 
-  // More exist beyond what is loaded — only meaningful with no filter applied,
-  // since a filtered view is a subset of what was fetched, not of the register.
+  // More exist beyond what is loaded. That holds for a FILTERED view as much as
+  // an unfiltered one: a match can be among the requests not loaded yet.
   const moreAvailable = rows.length >= limit;
 
   const visible = useMemo(() => {
@@ -242,7 +242,11 @@ export function RequestCallRegistration() {
         subtitle="Every call registration request raised, and what became of it. REQID is assigned automatically."
         icon="📝"
         count={visible.length}
-        countMore={moreAvailable && !q.trim() && !status}
+        // A FILTERED COUNT OVER A PARTIAL LOAD IS A LOWER BOUND TOO (finding 32).
+        // "Waiting on KYC" opens this screen filtered to Pending, and a pending
+        // request older than the newest 2,000 was counted on the card and simply
+        // absent here, under a number with no "+".
+        countMore={moreAvailable}
         actions={can('request.create') ? <button className="btn btn-primary" onClick={() => setNewOpen(true)}>＋ New Request</button> : undefined}
       />
 

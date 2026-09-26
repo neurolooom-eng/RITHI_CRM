@@ -262,6 +262,12 @@ begin
         when 'pm'           then update public.pm_calls           set %1$s where ucn = old.ucn;
         else                     update public.field_calls        set %1$s where ucn = old.ucn;
       end case;
+      -- NOTHING WRITTEN IS NOTHING REPORTED (finding 48). When row-level
+      -- security lets the caller see a call but not change it, the UPDATE above
+      -- matches no row -- and returning NEW regardless told the client
+      -- "UPDATE 1" over a call left exactly as it was. NULL makes the view
+      -- report the row as not updated, which is the truth.
+      if not found then return null; end if;
       return new;
     end $b$;
   $f$, set_list);
