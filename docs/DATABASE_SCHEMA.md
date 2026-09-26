@@ -1926,7 +1926,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ## party_key_seq
 
-**Primary key:** `singleton` · **Row-level security:** _off_
+**Primary key:** `singleton` · **Row-level security:** **on**
 
 | # | Column | Type | Null | Default | Allowed values / reference |
 | --- | --- | --- | --- | --- | --- |
@@ -1939,7 +1939,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Permissions**
 
-_No policies, RLS off — reachable by anything with table privileges._
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
 
 ---
 
@@ -2387,7 +2387,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 
 ## record_audit
 
-> HISTORICAL. Written by triggers from 0048 until 0112 stopped them (2026-09-05) — audit_log is the trail now. Retained, not maintained: everything here happened while it was running.
+> The row-level audit trail: a before-and-after image of every row changed on the audited tables, written by the record_audit_* triggers (0048, switched off by 0112, back on since 0225). A statement changing more than 150 rows writes one summary row instead. Rows are never edited or deleted through the API.
 
 **Primary key:** `id` · **Row-level security:** **on**
 

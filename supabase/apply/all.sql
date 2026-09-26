@@ -217,6 +217,7 @@
 --   0237_sale_fills_product_database.sql
 --   0238_machine_belongs_to_its_latest_owner.sql
 --   0240_ownership_transfer_timestamp.sql
+--   0247_cover_maintenance_needs_cover_edit.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -242,6 +243,7 @@
 --   0103_record_audit_not_bulk.sql
 --   0112_stop_record_audit.sql
 --   0225_record_audit_on.sql
+--   0246_record_audit_description.sql
 --   0166_ffr_retention_guard.sql
 --   0174_ffr_history.sql
 --   0177_ffr_history_view_right.sql
@@ -278,6 +280,7 @@
 --   0228_export_schedules.sql
 --   0244_sys_columns.sql
 --   0245_sys_columns_view_tail.sql
+--   0248_lock_down_internal_functions.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -26584,6 +26587,120 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0247_cover_maintenance_needs_cover_edit.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE TWO COVER ADMIN FUNCTIONS CHECK WHO IS CALLING (finding 51).
+--
+--   The user, 2026-09-26: "Fix all low hanging fruits", after the table
+--   review found that cover_unpin_inherited() and refresh_product_cover() run
+--   for ANY caller. Both run with the owner's rights and rewrite a whole
+--   register: every sale and contract line, and every machine's stored cover.
+--   Measured: an engineer holding neither cover.edit nor admin ran both
+--   without refusal, and the not-signed-in role ran refresh_product_cover().
+--
+-- THE APP CALLS BOTH, from Data Import's "finish the cover import" step
+-- (finishCoverImport() in src/lib/cover.ts), so they cannot simply be
+-- withdrawn. They now ask for the permission that import already needs:
+-- admin, or cover.edit. That is the recommendation the user accepted with
+-- "low hanging fruits"; a different permission is a one-word change here.
+--
+-- TAKEN FROM THE DATABASE, NOT FROM 0036/0037: each body below is
+-- pg_get_functiondef() of the current definition, with ONE statement added
+-- first after BEGIN. Nothing else moves -- the 0210/0211 lesson about
+-- rewriting a function from an old revision.
+--
+-- WHO STILL PASSES: nobody signed in (auth.uid() null) -- the SQL editor, a
+-- scheduled job -- so a hand-run repair keeps working. The not-signed-in API
+-- role would also pass this test, which is why 0248 withdraws execute from it:
+-- the two together close the path.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.cover_unpin_inherited()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+ SET statement_timeout TO '180s'
+AS $function$
+declare n integer := 0; m integer;
+begin
+  -- 0247: THE COVER ADMIN ACTION IS FOR WHOEVER MAY EDIT COVER. This runs with
+  -- the owner's rights over every sale, contract and machine, so it checks the
+  -- caller itself. A call with nobody signed in (the SQL editor, a scheduled
+  -- job) passes;
+  -- the not-signed-in role cannot call it at all (0248 withdraws it).
+  if auth.uid() is not null and not (public.is_admin() or public.has_perm('cover.edit')) then
+    raise exception 'Only someone who may edit cover (cover.edit) can re-fold cover after an import.';
+  end if;
+  update public.sale_items i set
+    invoice_no      = case when i.invoice_no      is not distinct from h.invoice_no      then null else i.invoice_no end,
+    invoice_date    = case when i.invoice_date    is not distinct from h.invoice_date    then null else i.invoice_date end,
+    sold_through    = case when i.sold_through    is not distinct from h.sold_through    then null else i.sold_through end,
+    warranty_start  = case when i.warranty_start  is not distinct from h.warranty_start  then null else i.warranty_start end,
+    warranty_end    = case when i.warranty_end    is not distinct from h.warranty_end    then null else i.warranty_end end,
+    warranty_years  = case when i.warranty_years  is not distinct from h.warranty_years  then null else i.warranty_years end,
+    warranty_months = case when i.warranty_months is not distinct from h.warranty_months then null else i.warranty_months end,
+    pm_visits       = case when i.pm_visits       is not distinct from h.pm_visits       then null else i.pm_visits end,
+    warranty_status = case when i.warranty_status is not distinct from h.warranty_status then null else i.warranty_status end,
+    other_details   = case when i.other_details   is not distinct from h.other_details   then null else i.other_details end,
+    state           = case when i.state           is not distinct from h.state           then null else i.state end,
+    city            = case when i.city            is not distinct from h.city            then null else i.city end,
+    engineer        = case when i.engineer        is not distinct from h.engineer        then null else i.engineer end
+  from public.sale_entries h where h.sa_number = i.sa_number;
+  get diagnostics m = row_count; n := n + m;
+
+  update public.contract_items i set
+    entry_at         = case when i.entry_at         is not distinct from h.entry_at         then null else i.entry_at end,
+    party_name       = case when i.party_name       is not distinct from h.party_name       then null else i.party_name end,
+    payment_schedule = case when i.payment_schedule is not distinct from h.payment_schedule then null else i.payment_schedule end,
+    bill_generate_at = case when i.bill_generate_at is not distinct from h.bill_generate_at then null else i.bill_generate_at end,
+    contract_type    = case when i.contract_type    is not distinct from h.contract_type    then null else i.contract_type end,
+    contract_start   = case when i.contract_start   is not distinct from h.contract_start   then null else i.contract_start end,
+    contract_end     = case when i.contract_end     is not distinct from h.contract_end     then null else i.contract_end end,
+    contract_years   = case when i.contract_years   is not distinct from h.contract_years   then null else i.contract_years end,
+    contract_months  = case when i.contract_months  is not distinct from h.contract_months  then null else i.contract_months end,
+    pm_visits_total  = case when i.pm_visits_total  is not distinct from h.pm_visits_total  then null else i.pm_visits_total end,
+    status           = case when i.status           is not distinct from h.status           then null else i.status end
+  from public.contract_entries h where h.mc_number = i.mc_number;
+  get diagnostics m = row_count; n := n + m;
+  return n;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.refresh_product_cover()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+ SET statement_timeout TO '180s'
+AS $function$
+declare n integer;
+begin
+  -- 0247: THE COVER ADMIN ACTION IS FOR WHOEVER MAY EDIT COVER. This runs with
+  -- the owner's rights over every sale, contract and machine, so it checks the
+  -- caller itself. A call with nobody signed in (the SQL editor, a scheduled
+  -- job) passes;
+  -- the not-signed-in role cannot call it at all (0248 withdraws it).
+  if auth.uid() is not null and not (public.is_admin() or public.has_perm('cover.edit')) then
+    raise exception 'Only someone who may edit cover (cover.edit) can re-fold cover after an import.';
+  end if;
+  update public.products p set
+    warranty_number = coalesce(m.sa_number, p.warranty_number),
+    warranty_start  = coalesce(m.warranty_start, p.warranty_start),
+    warranty_end    = coalesce(m.warranty_end,   p.warranty_end),
+    contract_number = coalesce(m.mc_number, p.contract_number),
+    contract_start  = coalesce(m.contract_start, p.contract_start),
+    contract_end    = coalesce(m.contract_end,   p.contract_end),
+    contract_type   = coalesce(nullif(m.contract_type, ''), p.contract_type),
+    item_status     = m.item_status
+  from public.machine_cover m
+  where m.serial_key = lower(trim(p.serial_number));
+  get diagnostics n = row_count;
+  return n;
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql
 -- ------------------------------------------------------------------------
 
@@ -31479,6 +31596,26 @@ begin
   end loop;
   raise notice '0225: record_audit armed on % of 10 tables.', n;
 end $on$;
+
+-- ------------------------------------------------------------------------
+-- 0246_record_audit_description.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- record_audit's description says what is true again (finding 54).
+--
+-- 0112 switched the row audit off and described the table as "HISTORICAL ...
+-- Retained, not maintained". 0225 switched it back on and left that
+-- description in place, so for three weeks anybody reading the table's own
+-- description in the dashboard was told the audit was off while its triggers
+-- were writing to it. Found by the table review (2026-09-26), which read the
+-- description beside the list of triggers that actually exist.
+--
+-- AFTER 0225 in this module, so replaying the bundle ends on this text rather
+-- than 0112's.
+-- ===========================================================================
+comment on table public.record_audit is
+  'The row-level audit trail: a before-and-after image of every row changed on the audited tables, written by the record_audit_* triggers (0048, switched off by 0112, back on since 0225). A statement changing more than 150 rows writes one summary row instead. Rows are never edited or deleted through the API.';
 
 -- ------------------------------------------------------------------------
 -- 0166_ffr_retention_guard.sql
@@ -36779,5 +36916,99 @@ select s.*,
 
 alter view public.export_schedule_state set (security_invoker = on);
 grant select on public.export_schedule_state to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0248_lock_down_internal_functions.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- WHAT THE PUBLIC KEY CAN REACH, NARROWED (findings 49, 50, 51, 52).
+--
+--   The user, 2026-09-26: "Fix all low hanging fruits", after the table review
+--   (RITHI Table Atlas) measured, on a database built from the migrations:
+--     49  the NOT-signed-in role set the Party Key counter to 999,999, and the
+--         next key issued was Party-1000000 -- party_key_seq was the one table
+--         with row-level security OFF, and Supabase grants every table to anon;
+--     50  the not-signed-in role called raise_ffr() and a Field Failure Report
+--         was raised on a call of its choosing -- an undeletable quality record
+--         using up a number in the controlled R-SER-03 series;
+--     51  register-wide maintenance functions ran for any caller;
+--     52  every numbered series (UCN, OR, DC, MRN, ST, Party Key, Call Number)
+--         could be consumed by a direct call, leaving gaps.
+--
+-- THE RULE APPLIED: a SECURITY DEFINER function that the APP does not call
+-- is not the API's to call. Every one below is reached from inside the
+-- database -- a trigger function or another function, EACH OF THEM SECURITY
+-- DEFINER, checked against the catalogue before this was written -- so it runs
+-- as the owner there and keeps working. Only the two roles a client speaks as
+-- lose it: anon and authenticated. PUBLIC is revoked too, because that is where
+-- a function's default EXECUTE comes from.
+--
+-- WHAT THE APP DOES CALL keeps authenticated and loses only anon:
+--   next_call_reqid()        -- Request Registration mints a REQID
+--   refresh_product_cover()  -- Data Import, after a cover import
+--   cover_unpin_inherited()  -- the same step; 0247 makes both ask for cover.edit
+--
+-- IDEMPOTENT, and GUARDED: a function a project has not got yet is skipped, not
+-- an error, so this can run on a project behind on other modules. It is the
+-- LAST module for the same reason sys_columns was: a replay of the module that
+-- owns one of these functions uses `create or replace`, which keeps the grants,
+-- but a re-run of THIS bundle is also how to put them back if a rebuild did not.
+-- `_status.sql` rows 188 and 189 say whether it holds.
+-- ===========================================================================
+
+-- ---- 49. the Party Key counter: row-level security on, no policy -----------
+-- Exactly how the other eight counters are kept: nothing but a definer function
+-- may read or write the row. next_party_key() is one, and the parties insert
+-- trigger that calls it is another, so a new party still gets its key.
+do $$
+begin
+  if to_regclass('public.party_key_seq') is null then return; end if;
+  alter table public.party_key_seq enable row level security;
+  revoke all on table public.party_key_seq from anon, authenticated;
+end $$;
+
+-- ---- 50, 51, 52. what the API may call ---------------------------------------
+do $$
+declare
+  fn text;
+  internal text[] := array[
+    -- 50: raised by the review trigger (ffr_from_review) and backfill_ffrs()
+    'public.raise_ffr(public.call_reviews)',
+    -- 51: register-wide maintenance, reached only from definer triggers or cron
+    'public.upsert_product_from_sale(bigint)',
+    'public.sync_product_cover(text)',
+    'public.sync_call_last_visit(text)',
+    'public.purge_audit_log()',
+    -- 52: the numbered series, each assigned by a definer trigger on insert
+    'public.next_ucn(text)',
+    'public.next_party_key()',
+    'public.next_spare_or_no(date)',
+    'public.next_mrn_uid(date)',
+    'public.next_dispatch_no(text,date)',
+    'public.next_stock_out_no(date)',
+    'public.next_stock_transfer_no(date)',
+    'public.next_direct_call_number(text)'];
+  app_called text[] := array[
+    'public.next_call_reqid()',
+    'public.refresh_product_cover()',
+    'public.cover_unpin_inherited()'];
+begin
+  foreach fn in array internal loop
+    if to_regprocedure(fn) is null then continue; end if;
+    execute format('revoke execute on function %s from public', fn);
+    begin execute format('revoke execute on function %s from anon, authenticated', fn);
+    exception when undefined_object then null; end;
+  end loop;
+
+  foreach fn in array app_called loop
+    if to_regprocedure(fn) is null then continue; end if;
+    execute format('revoke execute on function %s from public', fn);
+    begin
+      execute format('revoke execute on function %s from anon', fn);
+      execute format('grant execute on function %s to authenticated', fn);
+    exception when undefined_object then null; end;
+  end loop;
+end $$;
 
 commit;

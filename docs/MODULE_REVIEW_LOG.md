@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-26. Table review done — findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs). R1 built in v0.9.378 and finding 47 fixed in v0.9.377 — the SQL for both (0243; sys_columns.sql) still to be applied. R2–R3 pending._
+_Last updated: 2026-09-26. 49–52 fixed in v0.9.379 (SQL to run). Table review done — findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs). R1 built in v0.9.378 and finding 47 fixed in v0.9.377 — the SQL for both (0243; sys_columns.sql) still to be applied. R2–R3 pending._
 
 ---
 
@@ -15,9 +15,9 @@ _Last updated: 2026-09-26. Table review done — findings 49–56, page: [RITHI 
 | | Count | Findings |
 | --- | --- | --- |
 | ✅ **Fixed and live** | **21** | 1, 2, 3, 5, 6, 9, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 33, 41, 45, 46 |
-| ✅ **Fixed, SQL still to run** | **1** | 47 (v0.9.377: the screen part is live; the database part needs 0243 applied) |
+| ✅ **Fixed, SQL still to run** | **5** | 47 (v0.9.377, needs 0243); 49, 50, 51, 52 (v0.9.379, need `lockdown.sql` + `sales_contracts.sql`) |
 | ◐ **Partly fixed** | **3** | 15, 31, 32 |
-| ⏳ **Open** | **31** | 4, 7, 8, 10, 11, 12, 13, 14, 20, 23, 26, 27, 34, 35, 36, 37, 38, 39, 40, 42, 43, 44, 48, 49, 50, 51, 52, 53, 54, 55, 56 |
+| ⏳ **Open** | **27** | 4, 7, 8, 10, 11, 12, 13, 14, 20, 23, 26, 27, 34, 35, 36, 37, 38, 39, 40, 42, 43, 44, 48, 53, 54, 55, 56 |
 | | **56** | |
 
 **Batches 1–3 were front end only.** Finding 47 is the first fix with SQL:
@@ -39,7 +39,6 @@ below). They apply to every table and every date, not to one finding.
 | **53** | tables | **Records that feed quality and stock can be deleted without trace**: Daily Complaint Review answers (`call_reviews`), dispatch lines, historical issues/consumption, opening stock, MRNs, indoor child records. Decide which are quality records (block delete, void instead) and which are working data (keep delete, add to the audit). |
 | **54** | tables | **The row audit covers 10 tables**; not permission changes, the User Master, complaint reviews, cover registers, machines/parts/parties or stock movements. Decide which to add. (`record_audit`'s description also wrongly says it is switched off.) |
 | **55** | tables | **Links with no foreign key** — UCN on 13 tables, `contract_items.sa_number`, `dispatch_uid`, `spare_request_engineer_log.or_no`. Decide whether to enforce UCN (a trigger over the 3 call tables) and whether existing orphans are stopped or only reported. Probe rows Orphans 1–8 count them. |
-| **51** | functions | **Register-wide maintenance functions run for any caller** (anonymous included, measured). Two are called by the cover admin actions and need a permission inside — confirm `cover.edit`; the rest can be withdrawn. |
 | **39** | Hand-run SQL | ⚠ **Do not run `_item_status_as_at_the_complaint_date.sql` with `v_apply := true`.** Decide first: does **warranty or contract** win when a machine is under both? The file says contract; the Product Database says warranty. It must also map contract words through `contract_cover_code()`. |
 | **35 / 36 / 37** | Product Database | The ownership triggers (handoff C8). Should transfers be ordered by their **date** or by when they were **entered**? And how should an imported transfer compare with a sale's timestamp? The fixes for 36 (edit an old sale) and 37 (corrected serial, deleted transfer) follow from that. |
 | **34** | Product Database | Four roles see contract machines as OGP. Options: widen the contract read policy, **or** a function that returns only the derived cover (recommended), **or** show "—". |
@@ -54,9 +53,6 @@ below). They apply to every table and every date, not to one finding.
 
 | # | What |
 | --- | --- |
-| **49** | ⚠ **High, measured.** `party_key_seq` has row-level security OFF and the not-signed-in role holds every privilege: as anonymous I set the Party Key counter to 999,999 and the next key issued was Party-1000000. Fix: RLS on with no policy + withdraw grants (like the other counters). Probe rows Security 1–2 show the live grants. |
-| **50** | ⚠ **High, measured in SQL** (web path unverified). `raise_ffr()` runs with owner rights, is callable anonymously, checks nobody: as anonymous it raised FFR - 001/26 on a call of my choosing — an undeletable quality record using a controlled number. Fix: withdraw execute (only the review trigger and `backfill_ffrs()` call it, both as owner). |
-| **52** | Numbered series (`next_ucn`, `next_party_key`, `next_spare_or_no`, …) callable by anyone, leaving gaps; 47 owner-rights functions callable anonymously in all. Fix: withdraw from anon; the app calls only `next_call_reqid()`. |
 | **56** | Filter/sort columns with no index on big registers (feedback paging, call_requests paging, spare line stage, …) — candidates only; confirm with the probe's Full scans rows before adding any. |
 | **48** | An edit through the `calls` view answers **"UPDATE 1" when row-level security let nothing through** — the view's INSTEAD OF trigger returns the row whatever the table update did. **Measured** 2026-09-26 (a role without `calls.edit`: `UPDATE 1`, the call unchanged). The same false-"saved" class as 30/31, one layer down. Which screens write through `calls` and trust that answer is **not yet checked**. |
 | **38** | Two expression indexes so the ownership triggers stop scanning. A 500-row transfer upload measured 12.5 s against a 20 s limit. |
@@ -174,6 +170,19 @@ dates are shown and exported, not how they are stored.**
 
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
+
+### 2026-09-26 — Low-hanging fruit from the table review fixed (v0.9.379)
+- **49** Party Key counter locked (RLS on, grants withdrawn). **50, 52**
+  `raise_ffr()`, the maintenance functions and the numbered series withdrawn
+  from the API roles — every caller checked to be a definer first. **51** the
+  two cover functions the app calls now need `cover.edit` or admin (the
+  recommendation, applied with "low hanging fruits"). **54** `record_audit`'s
+  description corrected; which tables to audit is still your call.
+- **Proved** as a signed-in user, not the superuser: the refusals happen, and a
+  call, a party and a review still get their UCN, Party Key and FFR. Status
+  rows 188–190 read NO before and yes after. Full validation.
+- **Your step**: run `lockdown.sql`, `sales_contracts.sql` and
+  `data_integrity.sql` (or just migrations 0246–0248).
 
 ### 2026-09-26 — Table review: all 77 tables — findings 49–56
 - Asked: *"Deep dive into all tables"* — integrity & security, data dictionary,

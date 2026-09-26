@@ -1346,7 +1346,39 @@ with checks(sort_order, bundle, provides, present) as (
               and not (
                 (select count(*) from pg_attribute a where a.attrelid = c.oid and not a.attisdropped
                    and a.attname in ('sys_id', 'sys_created_by', 'sys_created_on', 'sys_updated_by', 'sys_updated_on')) = 5
-                and exists (select 1 from pg_trigger t where t.tgrelid = c.oid and t.tgname = 'zzz_sys_stamp')))))
+                and exists (select 1 from pg_trigger t where t.tgrelid = c.oid and t.tgname = 'zzz_sys_stamp'))))),
+    (188, 'The Party Key counter is closed to the API', 'party_key_seq has row-level security ON and the API roles hold no privilege on it (0248). The table review (2026-09-26, finding 49) measured the opposite: it was the one application table with row-level security OFF, Supabase grants every table to the not-signed-in role, and as that role the counter was set to 999,999 -- the next Party Key issued was Party-1000000. It is now kept exactly as the other eight counters are: nothing but a definer function reads or writes the row, and next_party_key() and the parties insert trigger that calls it are both definers, so a new party still gets its key (lockdown_test proves it as a signed-in user, not as the superuser, who ignores privileges). NO means anyone holding the app''s public key can move the Party Key series. Restore: lockdown.sql',
+        (to_regclass('public.party_key_seq') is null
+         or ((select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.party_key_seq'))
+             and not exists (select 1 from information_schema.role_table_grants g
+                              where g.table_schema = 'public' and g.table_name = 'party_key_seq'
+                                and g.grantee in ('anon', 'authenticated', 'PUBLIC'))))),
+    (189, 'Internal functions are not the API''s to call', 'EXECUTE withdrawn from the API roles on raise_ffr(), the register-wide maintenance functions and the numbered-series generators (0248). The table review (2026-09-26, findings 50-52) measured: the not-signed-in role raised a Field Failure Report on a call of its choosing through raise_ffr(); refresh_product_cover() rewrote a machine for it; an engineer with no cover right ran refresh_product_cover(), cover_unpin_inherited() and purge_audit_log(), and minted a UCN no call will ever have. Every function withdrawn is reached from inside the database by a SECURITY DEFINER trigger or function -- checked against the catalogue -- so calls still get UCNs, parties Party Keys and reviews their FFRs. The three the app calls (next_call_reqid, refresh_product_cover, cover_unpin_inherited) keep signed-in access. THE ROW TESTS TWO THINGS, because each alone passes a half-done state: the anon role can call none of them, and authenticated can call none of the internal ones. The cover.edit check inside the two cover functions is row 190. A NO here usually means a module that owns one of these was rebuilt with DROP FUNCTION, which resets its grants: re-run the bundle named below. Restore: lockdown.sql',
+        (to_regprocedure('public.raise_ffr(public.call_reviews)') is null
+         or (not exists (
+               select 1 from unnest(array[
+                 'public.raise_ffr(public.call_reviews)', 'public.upsert_product_from_sale(bigint)',
+                 'public.sync_product_cover(text)', 'public.sync_call_last_visit(text)', 'public.purge_audit_log()',
+                 'public.next_ucn(text)', 'public.next_party_key()', 'public.next_spare_or_no(date)',
+                 'public.next_mrn_uid(date)', 'public.next_dispatch_no(text,date)', 'public.next_stock_out_no(date)',
+                 'public.next_stock_transfer_no(date)', 'public.next_direct_call_number(text)',
+                 'public.next_call_reqid()', 'public.refresh_product_cover()', 'public.cover_unpin_inherited()']) f
+                where to_regprocedure(f) is not null
+                  and has_function_privilege('anon', to_regprocedure(f), 'EXECUTE'))
+             and not exists (
+               select 1 from unnest(array[
+                 'public.raise_ffr(public.call_reviews)', 'public.upsert_product_from_sale(bigint)',
+                 'public.sync_product_cover(text)', 'public.sync_call_last_visit(text)', 'public.purge_audit_log()',
+                 'public.next_ucn(text)', 'public.next_party_key()', 'public.next_spare_or_no(date)',
+                 'public.next_mrn_uid(date)', 'public.next_dispatch_no(text,date)', 'public.next_stock_out_no(date)',
+                 'public.next_stock_transfer_no(date)', 'public.next_direct_call_number(text)']) f
+                where to_regprocedure(f) is not null
+                  and has_function_privilege('authenticated', to_regprocedure(f), 'EXECUTE'))))),
+    (190, 'Re-folding cover after an import asks for cover.edit', 'cover_unpin_inherited() and refresh_product_cover() refuse a signed-in caller who is neither admin nor holds cover.edit (0247). Both run with the owner''s rights and rewrite a whole register -- every sale and contract line, every machine''s stored cover -- and the table review (2026-09-26, finding 51) measured an engineer with no cover right running both. The app calls them from Data Import''s finish-the-cover-import step, so they could not simply be withdrawn; they now ask for the permission that import already needs. Nobody signed in (the SQL editor, a scheduled job) still passes, and the not-signed-in API role cannot call them at all (row 189). Each body was taken from the database and changed by one statement. NO means any signed-in user can rewrite the cover registers. Restore: sales_contracts.sql',
+        (to_regprocedure('public.refresh_product_cover()') is null
+         or (select bool_and(p.prosrc ~ 'cover\.edit') from pg_proc p
+              where p.oid in (to_regprocedure('public.refresh_product_cover()'),
+                              to_regprocedure('public.cover_unpin_inherited()')))))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

@@ -915,6 +915,23 @@ on testing the old shape. **When a migration replaces a definition, move the
   such a line shows BLANK visit dates — it does not, since 0215**: both show the
   booking time (the last fallback) and only `Visit UID` is blank. Measured, not
   read. `_status.sql` row 186 checks the exemption AND the rule.
+- **A SECURITY DEFINER FUNCTION IS CALLABLE BY THE PUBLIC KEY UNLESS SOMEBODY
+  SAYS OTHERWISE** (table review, 2026-09-26, findings 49-52). Postgres grants
+  EXECUTE to PUBLIC by default and Supabase grants it to `anon`, so a definer
+  function nobody revoked runs with the OWNER'S rights for anybody holding the
+  web key -- measured: the not-signed-in role raised an FFR through
+  `raise_ffr()` and moved the Party Key counter. **A new definer function the
+  APP does not call gets `revoke execute ... from public, anon, authenticated`
+  in the same migration** -- the trigger or definer function that calls it runs
+  as the owner and is unaffected; one the app DOES call gets its own permission
+  check inside. `lockdown.sql` (0248) holds the current list and is LAST in
+  `ALL_ORDER`; `_status.sql` rows 188-190 check it. **And test it as
+  `authenticated`, never as the superuser**: a superuser ignores EXECUTE grants,
+  so a revoke that broke call registration passes every suite that runs as one
+  -- `lockdown_test` registers a call, a party and a review as a signed-in user
+  for exactly that reason. A new table also needs row-level security ON even
+  when it has no policy (the counters' pattern), or Supabase's default grants
+  hand it to `anon` -- `party_key_seq` was the one that was missed.
 - **EVERY TABLE HAS FIVE SYSTEM COLUMNS, AND THE DATABASE WRITES THEM** (0244,
   the user, 2026-09-26: *"sys_created_by, sys_created_on shouldn't overlap with
   any of the other fields"*). `sys_id` (unique), `sys_created_by`,
