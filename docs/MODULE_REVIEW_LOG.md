@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-26. `main` at `162c107` (v0.9.375), deployed._
+_Last updated: 2026-09-26. `main` at `4ef562d` (v0.9.375), deployed. R1–R3 and finding 47 added._
 
 ---
 
@@ -16,11 +16,14 @@ _Last updated: 2026-09-26. `main` at `162c107` (v0.9.375), deployed._
 | --- | --- | --- |
 | ✅ **Fixed and live** | **21** | 1, 2, 3, 5, 6, 9, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 33, 41, 45, 46 |
 | ◐ **Partly fixed** | **3** | 15, 31, 32 |
-| ⏳ **Open** | **22** | 4, 7, 8, 10, 11, 12, 13, 14, 20, 23, 26, 27, 34, 35, 36, 37, 38, 39, 40, 42, 43, 44 |
-| | **46** | |
+| ⏳ **Open** | **23** | 4, 7, 8, 10, 11, 12, 13, 14, 20, 23, 26, 27, 34, 35, 36, 37, 38, 39, 40, 42, 43, 44, 47 |
+| | **47** | |
 
 **Everything fixed so far is front end only. No SQL has been changed, so
 nothing needs running on the live project for batches 1–3.**
+
+**Also pending: three standing requirements you set on 2026-09-26** (R1–R3,
+below). They apply to every table and every date, not to one finding.
 
 ---
 
@@ -30,6 +33,7 @@ nothing needs running on the live project for batches 1–3.**
 
 | # | Screen | The decision |
 | --- | --- | --- |
+| **47** | Spare Consumption | **Add consumption (reconciliation) cannot save against a call with no visit filed**, which is exactly the case it was built for ("a part fitted but never reported"). 0214's `zz_consumption_needs_visit` refuses every source, `Reconciliation` included. The refusal is then written to the page banner **behind the open drawer**, so Save appears to do nothing. Reported 2026-09-26 (AJAY G, UCN 26G06F0006); **reproduced**. Decide: exempt reconciliation from the visit rule, **or** keep the rule and have the drawer say so before Save. Either way the error must show inside the drawer. |
 | **39** | Hand-run SQL | ⚠ **Do not run `_item_status_as_at_the_complaint_date.sql` with `v_apply := true`.** Decide first: does **warranty or contract** win when a machine is under both? The file says contract; the Product Database says warranty. It must also map contract words through `contract_cover_code()`. |
 | **35 / 36 / 37** | Product Database | The ownership triggers (handoff C8). Should transfers be ordered by their **date** or by when they were **entered**? And how should an imported transfer compare with a sale's timestamp? The fixes for 36 (edit an old sale) and 37 (corrected serial, deleted transfer) follow from that. |
 | **34** | Product Database | Four roles see contract machines as OGP. Options: widen the contract read policy, **or** a function that returns only the derived cover (recommended), **or** show "—". |
@@ -64,6 +68,76 @@ nothing needs running on the live project for batches 1–3.**
 | **8** | Six reads page with no order at all. |
 | **32** (rest) | The Commercial installations card's read is not paged. |
 
+### R. Your standing requirements (added 2026-09-26)
+
+In your words:
+
+> - I need a key, Timestamp, sys_created_by, sys_updated_by in all the tables.
+> - All date fields should be long date which is readable by Excel - dd-mmm-yyyy
+> - All DateTime fields should be long date time which is readable by Excel -
+>   dd-mmm-yyyy hh:mm:ss
+
+**Where things stand.** Measured on 2026-09-26 on a database built from all
+265 migrations. The live project may differ.
+[`_tables_without_key_time_author.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/_tables_without_key_time_author.sql)
+is read-only and gives the same table for the live database, one row per
+table.
+
+| Of 77 tables | Missing |
+| --- | --- |
+| A primary key | **0**. Every table has one; mostly a synthetic `id`. |
+| A natural key (what makes a row "the same row" on a re-load) | **22**, plus **3** whose only unique index is partial or an expression, which an upload cannot target |
+| `created_at` | **40** |
+| `updated_at` | **46** |
+| Any timestamp at all | **14**. Mostly counters, plus `masters`, `user_directory` and three `indoor_job_*` child tables. |
+| A "created by" column | **57** |
+| An "updated by" column | **68** |
+| `sys_created_by` / `sys_updated_by` by those names | **77**. No table has them. |
+| All of key + `created_at` + `updated_at` + created by + updated by | **76**. Only `indoor_jobs` has all five. |
+
+Dates in the database are already real types: 73 `date` columns and 139
+timestamp columns. The two text columns with date-like names
+(`bill_generate_at`) hold a choice, not a date. **So R2 and R3 are about how
+dates are shown and exported, not how they are stored.**
+
+| # | Requirement | Already true | Still to do |
+| --- | --- | --- | --- |
+| **R1** | Key, timestamp, `sys_created_by`, `sys_updated_by` on every table | 1 of 77 tables has all of it under some name. `BACKLOG.md` ("The survey") already names the natural-key gaps that matter most: `user_directory` first. | Add the columns. Stamp both authors from the signed-in session by trigger, discarding any value a client sends (the rule `calls` already follows, 0113/0114). Add natural keys table by table. Needs your answers to Q1–Q5 first. |
+| **R2** | Date fields as `dd-mmm-yyyy`, readable by Excel | `formatDay()` in `src/lib/dates.ts` is that format, and the Excel downloads built by `ReportBuilder` already write real Excel dates. | Finding **7**: four workbooks and the register CSVs export raw database dates. Screens have **not** been audited for dates shown any other way, so that audit is the first step. |
+| **R3** | Date-time fields as `dd-mmm-yyyy hh:mm:ss`, readable by Excel | `formatDayTime()` is that format, and `ReportBuilder` applies it on the way out. It was already your rule (2026-09-24). | The same audit as R2, for date-times. |
+
+**Questions R1 needs answered before any of it is built:**
+
+- **Q1 — "a key".** A natural key where one exists (a re-load then corrects a
+  row instead of duplicating it)? Every table already has a system key. The
+  backlog's view is that append-only logs (`audit_log`, `notifications`, …)
+  should **not** get a natural key, because every row there is a separate
+  event. Do you agree, or do you want one there too?
+- **Q2 — the timestamp column names.** Keep the existing `created_at` /
+  `updated_at` and add them where missing? Or use `sys_created_on` /
+  `sys_updated_on` to match the author columns? Renaming would touch every
+  view and report that reads the old names.
+- **Q3 — what `sys_created_by` holds.** The person's login id (never changes)
+  or their email or name (readable, but goes stale when somebody is renamed —
+  finding 23 is that problem)?
+- **Q4 — existing rows.** Who created a row that is already there is not
+  recorded anywhere for most tables. The honest value is blank ("not
+  recorded"), not a guess. Agreed?
+- **Q5 — "all the tables".** Including the counter tables (`ucn_counters` and
+  so on) and settings tables? A counter row has no meaningful author.
+
+**Two things to know before R2/R3 are built:**
+
+- In an **.xlsx** download a date is stored as an Excel date with the format
+  applied. Excel can then sort it, filter it by month and do arithmetic on it.
+  That is already how `ReportBuilder` works.
+- A **CSV** file cannot carry a date type; every cell is text.
+  `26-Sep-2026 14:05:00` in a CSV is text that Excel *may* turn into a date
+  when it opens the file. I am not certain this works under every Windows
+  regional setting (a non-English setting may not read `Sep`), so this should
+  be tested on your machine. Where a real Excel date is needed, the answer is
+  the .xlsx download, not the CSV.
+
 ### D. Also pending, outside the findings list
 
 - **Step 0 — fifteen read-only queries against the live project** (in the
@@ -87,6 +161,42 @@ nothing needs running on the live project for batches 1–3.**
 
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
+
+### 2026-09-26 — Finding 47: reconciliation refused on a call with no visit
+- Reported with screenshots: AJAY G (INDOOR SERVICE) holds 7 parts, all
+  received by transfer, and none could be booked against 26G06F0006.
+- **Ruled out** by reading and measuring:
+  - the hand stock: the picker lists all 7, and transfers in count;
+  - name and part-code matching: the stock cap uses the same keys as the
+    picker;
+  - permission: the drawer only opens for `consumption.reconcile`.
+- **Reproduced** on a copy database, running as the Spare Coordinator, with
+  AJAY's stock received only by transfer:
+  - with no visit on the call, the insert is refused by 0214 ("No visit has
+    been filed on 26G06F0006 yet…");
+  - with one visit added, the identical insert succeeds and on-hand goes
+    from 1 to 0.
+- **Also found:** the refusal goes to the page's banner, which sits under
+  the drawer's full-screen overlay.
+- **Not verified:** whether 26G06F0006 has a visit on the live project.
+  This read-only query shows it:
+  `select (select count(*) from public.calls where ucn = '26G06F0006') as calls,
+  (select count(*) from public.reports where ucn = '26G06F0006') as visits,
+  (select count(*) from public.spare_consumption where ucn = '26G06F0006') as spares_booked;`
+  A `visits` of 0 confirms this cause.
+
+### 2026-09-26 — Your three standing requirements added (R1–R3)
+- Key, timestamp and authors on every table, plus the two Excel date formats.
+  Recorded under Pending → R, with a baseline measured on a database built from
+  every migration.
+- New read-only probe `_tables_without_key_time_author.sql` gives the same
+  table for the live project. It was checked against the local build and its
+  counts matched the separate measurement.
+- One count reconciled: `BACKLOG.md` says 22 tables have no natural key, and a
+  stricter count says 25. Both are right. The three in between
+  (`material_returns`, `quality_objectives`, `saved_charts`) have only a
+  partial or expression unique index, which an upload cannot use.
+- Nothing built yet. R1 waits on Q1–Q5.
 
 ### 2026-09-26
 - **Batch 3 deploy confirmed** — "Deploy to GitHub Pages" run 678 on `162c107`
