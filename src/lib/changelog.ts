@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.377',
+    date: '2026-09-26',
+    title: 'Add consumption (reconciliation) works on a call nobody has visited yet',
+    changes: [
+      'A RECONCILIATION NO LONGER NEEDS A VISIT REPORT ON THE CALL. “Add consumption (reconciliation)” is for a part that was fitted but never reported — and on a call with no visit report filed, it was refused every time, so the parts sat in the engineer’s hand stock with no way to book them. It is now accepted. Everything else about a reconciliation is unchanged: it still needs the Add-consumption permission, the call must exist, the part must be in that engineer’s hand stock, and you must give the reason.',
+      'EVERY OTHER CONSUMPTION STILL NEEDS THE VISIT. Spares booked from Call Reporting, and rows in the bulk consumption upload, are refused on a call with no visit, as before.',
+      'WHAT THE CONSUMPTION REPORT SHOWS FOR SUCH A LINE: Visit Entry Date and Visit Date & Time show when the line was booked (standing in for the visit), and Visit UID is empty. File the visit report later and all three change to the real visit by themselves — nothing needs re-entering.',
+      'A REFUSAL NOW SHOWS INSIDE THE FORM. On Spare Consumption, if the database turned a save down — on “Add consumption” or “Adjust quantity” — the message went to the top of the page, hidden behind the open form, so Save looked as if it had done nothing. It now appears in the form, just above the Save button.',
+      'NEEDS ONE DATABASE CHANGE, applied once by an administrator in the Supabase SQL editor: migration 0243 (reconciliation needs no visit). Until then the form still refuses — but now it says why.',
+    ],
+  },
+  {
     version: '0.9.376',
     date: '2026-09-26',
     title: 'The new CallReg address, baked in',

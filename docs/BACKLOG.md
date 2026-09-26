@@ -4,7 +4,10 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-26 (⚠️ THE SCHEDULED REPORTS HAVE NEVER RUN — the
+_Last updated: 2026-09-26 (RECONCILIATION NEEDS NO VISIT — 0243, v0.9.377: RUN
+`supabase/migrations/0243_reconciliation_needs_no_visit.sql` once, then
+_status.sql row 186 reads yes; HandStock_X.sql carries it for a rebuild.
+Before that: ⚠️ THE SCHEDULED REPORTS HAVE NEVER RUN — the
 Edge Function was never deployed, so every schedule anybody set has been saved
 and silently ignored; same for the daily digest. Four steps, none doable from
 this repository, in the 26-Sep entry. Before that: Item Status is the cover on
@@ -53,6 +56,40 @@ rows **166** and **167**, bundle `HandStock_X.sql` at the repository ROOT.
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-26 — A reconciliation needs no visit (0243, v0.9.377) — finding 47
+
+**Reported with screenshots**: AJAY G (INDOOR SERVICE) held seven parts, all
+received by transfer, and "Add consumption (reconciliation)" could book none of
+them against 26G06F0006.
+
+**Root cause, reproduced**: 0214 refused every consumption source on a call
+with no visit — including Reconciliation, the one path built for "a part fitted
+but never reported". And the refusal went to the page banner under the drawer's
+overlay, so Save looked dead. Ruled out: the hand stock (the picker listed all
+seven, transfers counted), the name/part-code keys, the permission.
+
+**Shipped** (the user's decision: exempt reconciliation):
+- ✅ 0243 — `consumption_needs_a_visit()` passes `source = 'Reconciliation'`;
+  every other source is refused as before. Not a hole: `cons_write` requires
+  `consumption.reconcile` for that source.
+- ✅ Both Spare Consumption drawers show a refusal inside themselves, and open
+  without a stale page error.
+- ✅ `reconciliation_needs_no_visit_test` (fails on the old function, passes on
+  the new), `_status.sql` row 186 (reads NO without 0243), row 166's text
+  corrected, 4 `check:ui` assertions (fail on the old screen). Full validation:
+  103 suites, 22 checks.
+- **Measured, and it contradicts 0214's comment**: on such a line the report
+  shows the BOOKING time in both visit dates (0215's fallback) and a blank
+  Visit UID — not blank dates.
+
+**PENDING — the user's step**: apply
+[`0243_reconciliation_needs_no_visit.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/migrations/0243_reconciliation_needs_no_visit.sql)
+in the SQL editor. It is one `create or replace function` plus the same trigger
+re-created, so it is safe to re-run; the whole `HandStock_X.sql` also carries it
+but re-executes the entire module, which is the lock risk noted above.
 
 ---
 

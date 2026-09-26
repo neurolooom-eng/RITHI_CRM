@@ -9044,5 +9044,29 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
     /\{lines\.length >= QUEUE_CAP && \(/.test(readFileSync('src/modules/SpareDispatch.tsx', 'utf8')), true);
 }
 
+// #47 A REFUSAL RAISED FROM A DRAWER IS SHOWN IN THE DRAWER. Spare Consumption
+// wrote every save error to the page banner, which sits under the drawer's
+// full-screen overlay -- so a database refusal on "Add consumption" left Save
+// looking as though it had done nothing, and was reported as the hand stock
+// not reaching the form. BOTH drawers on the screen, because "Adjust quantity"
+// sends its own checks ("Say why...") the same way.
+{
+  console.log('\n-- a refusal raised from a drawer is shown in the drawer --');
+  const sc = readFileSync('src/modules/SpareConsumption.tsx', 'utf8');
+  const recoDrawer = sc.slice(sc.indexOf('title="Add consumption (reconciliation)"'));
+  const adjDrawer = sc.slice(sc.indexOf('title="Adjust quantity (reconciliation)"'),
+    sc.indexOf('title="Add consumption (reconciliation)"'));
+  eq('Spare Consumption: the drawer error is built from the page message',
+    /const drawerError = msg\?\.tone === 'error'/.test(sc), true);
+  eq('Spare Consumption: "Add consumption" shows it above its Save',
+    /\{drawerError\}[\s\S]*saveReconciliation\(\)/.test(recoDrawer), true);
+  eq('Spare Consumption: "Adjust quantity" shows it above its Save',
+    /\{drawerError\}[\s\S]*saveAdjust\(\)/.test(adjDrawer), true);
+  // ...and a drawer does not open showing an error the page raised earlier.
+  eq('Spare Consumption: opening a drawer clears a stale page error',
+    /\{ setMsg\(null\); setForm\(\{ \.\.\.emptyForm \}\); \}/.test(sc)
+    && /const openAdjust = async \(row: Row\) => \{[\s\S]{0,80}setMsg\(null\);/.test(sc), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
