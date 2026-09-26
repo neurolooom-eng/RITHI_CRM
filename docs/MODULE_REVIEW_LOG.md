@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-26. `main` at `057d644` (v0.9.375), deployed. R1–R3 added._
+_Last updated: 2026-09-26. `main` at `4ef562d` (v0.9.375), deployed. R1–R3 and finding 47 added._
 
 ---
 
@@ -16,8 +16,8 @@ _Last updated: 2026-09-26. `main` at `057d644` (v0.9.375), deployed. R1–R3 add
 | --- | --- | --- |
 | ✅ **Fixed and live** | **21** | 1, 2, 3, 5, 6, 9, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 33, 41, 45, 46 |
 | ◐ **Partly fixed** | **3** | 15, 31, 32 |
-| ⏳ **Open** | **22** | 4, 7, 8, 10, 11, 12, 13, 14, 20, 23, 26, 27, 34, 35, 36, 37, 38, 39, 40, 42, 43, 44 |
-| | **46** | |
+| ⏳ **Open** | **23** | 4, 7, 8, 10, 11, 12, 13, 14, 20, 23, 26, 27, 34, 35, 36, 37, 38, 39, 40, 42, 43, 44, 47 |
+| | **47** | |
 
 **Everything fixed so far is front end only. No SQL has been changed, so
 nothing needs running on the live project for batches 1–3.**
@@ -33,6 +33,7 @@ below). They apply to every table and every date, not to one finding.
 
 | # | Screen | The decision |
 | --- | --- | --- |
+| **47** | Spare Consumption | **Add consumption (reconciliation) cannot save against a call with no visit filed**, which is exactly the case it was built for ("a part fitted but never reported"). 0214's `zz_consumption_needs_visit` refuses every source, `Reconciliation` included. The refusal is then written to the page banner **behind the open drawer**, so Save appears to do nothing. Reported 2026-09-26 (AJAY G, UCN 26G06F0006); **reproduced**. Decide: exempt reconciliation from the visit rule, **or** keep the rule and have the drawer say so before Save. Either way the error must show inside the drawer. |
 | **39** | Hand-run SQL | ⚠ **Do not run `_item_status_as_at_the_complaint_date.sql` with `v_apply := true`.** Decide first: does **warranty or contract** win when a machine is under both? The file says contract; the Product Database says warranty. It must also map contract words through `contract_cover_code()`. |
 | **35 / 36 / 37** | Product Database | The ownership triggers (handoff C8). Should transfers be ordered by their **date** or by when they were **entered**? And how should an imported transfer compare with a sale's timestamp? The fixes for 36 (edit an old sale) and 37 (corrected serial, deleted transfer) follow from that. |
 | **34** | Product Database | Four roles see contract machines as OGP. Options: widen the contract read policy, **or** a function that returns only the derived cover (recommended), **or** show "—". |
@@ -160,6 +161,29 @@ dates are shown and exported, not how they are stored.**
 
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
+
+### 2026-09-26 — Finding 47: reconciliation refused on a call with no visit
+- Reported with screenshots: AJAY G (INDOOR SERVICE) holds 7 parts, all
+  received by transfer, and none could be booked against 26G06F0006.
+- **Ruled out** by reading and measuring:
+  - the hand stock: the picker lists all 7, and transfers in count;
+  - name and part-code matching: the stock cap uses the same keys as the
+    picker;
+  - permission: the drawer only opens for `consumption.reconcile`.
+- **Reproduced** on a copy database, running as the Spare Coordinator, with
+  AJAY's stock received only by transfer:
+  - with no visit on the call, the insert is refused by 0214 ("No visit has
+    been filed on 26G06F0006 yet…");
+  - with one visit added, the identical insert succeeds and on-hand goes
+    from 1 to 0.
+- **Also found:** the refusal goes to the page's banner, which sits under
+  the drawer's full-screen overlay.
+- **Not verified:** whether 26G06F0006 has a visit on the live project.
+  This read-only query shows it:
+  `select (select count(*) from public.calls where ucn = '26G06F0006') as calls,
+  (select count(*) from public.reports where ucn = '26G06F0006') as visits,
+  (select count(*) from public.spare_consumption where ucn = '26G06F0006') as spares_booked;`
+  A `visits` of 0 confirms this cause.
 
 ### 2026-09-26 — Your three standing requirements added (R1–R3)
 - Key, timestamp and authors on every table, plus the two Excel date formats.
