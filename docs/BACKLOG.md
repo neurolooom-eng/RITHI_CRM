@@ -4,7 +4,10 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-26 (SYSTEM COLUMNS ON EVERY TABLE — 0244/0245, v0.9.378:
+_Last updated: 2026-09-26 (TABLE REVIEW — findings 49–56, two HIGH security:
+anonymous rewrite of the Party Key counter, anonymous FFR creation. RUN
+`supabase/apply/_table_health.sql` (read-only). Page: https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs.
+Before that: SYSTEM COLUMNS ON EVERY TABLE — 0244/0245, v0.9.378:
 RUN `supabase/apply/sys_columns.sql` once, then _status.sql row 187 reads yes.
 Before that: RECONCILIATION NEEDS NO VISIT — 0243, v0.9.377: RUN
 `supabase/migrations/0243_reconciliation_needs_no_visit.sql` once, then
@@ -58,6 +61,31 @@ rows **166** and **167**, bundle `HandStock_X.sql` at the repository ROOT.
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-26 — Table review of all 77 tables — findings 49–56
+
+The user: *"Deep dive into all tables"* — security, integrity, a data dictionary,
+performance and live data quality, as a shareable page:
+[RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs).
+
+**⚠ Two HIGH, both measured on a database built from the migrations:**
+- **49** `party_key_seq` has row-level security OFF; the not-signed-in role could
+  set the Party Key counter (999,999 → next key Party-1000000).
+- **50** `raise_ffr()` is callable anonymously and raised an FFR on a call of the
+  caller's choosing (in SQL; whether the web API can pass its row-typed argument
+  is not verified).
+
+Also 51 (maintenance functions for any caller), 52 (numbered series), 53
+(deletable quality/stock records), 54 (audit covers 10 tables), 55 (links without
+foreign keys), 56 (unindexed filters). Details and fixes in
+`docs/MODULE_REVIEW_LOG.md`.
+
+**PENDING — the user's step:** run
+[`_table_health.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/_table_health.sql)
+(read-only) — the live counts and the live grants. **PENDING — decisions:** 51
+(which permission), 53, 54, 55. **NOT DONE:** the fixes themselves.
 
 ---
 
