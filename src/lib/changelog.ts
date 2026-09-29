@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.385',
+    date: '2026-09-29',
+    title: 'A machine download that is waiting now says why',
+    changes: [
+      'WHEN THE MACHINE REGISTER CANNOT DOWNLOAD, THE LINE SAYS WHY. It used to read "Downloading machines… 0 so far" for up to a minute while it quietly retried; it now shows the server\'s own reason after the first failed request, and which attempt it is on.',
+      'For administrators: supabase/apply/_why_wont_the_machines_download.sql times the exact read a device makes, as any person you name, beside the same read as the administrator — to find out why one login downloads and another does not.',
+    ],
+  },
+  {
     version: '0.9.384',
     date: '2026-09-29',
     title: 'Every column of the machine register, and the whole Party Master, kept on your device',
