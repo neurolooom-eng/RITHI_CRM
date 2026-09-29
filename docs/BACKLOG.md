@@ -73,8 +73,10 @@ while another branch fixes something critical. Front end only, no SQL.
 - `todayLocal()` replaces every UTC "today" (`toISOString().slice(0, 10)`),
   which named yesterday from 00:00 to 05:29 IST.
 - Six screens now show dates as `dd-MMM-yyyy [HH:mm:ss]`.
-- ❓ Delivery Challan / Declaration print `dd-mm-yyyy` deliberately — the
-  user's call whether R2 applies to a printed company document.
+- ✅ Delivery Challan / Declaration KEEP `dd-mm-yyyy` (the user, 2026-09-29).
+- ✅ `sales_contracts.sql` timed out on live ("Failed to fetch"): 0238/0240
+  rewrote every machine through an unindexed lookup — 361 s measured. 0250's
+  indexes now run first in the bundle: 7 s on the same data.
 
 ## 2026-09-26 — Module review, batch 5: dates in downloads, honest call edits (v0.9.382)
 

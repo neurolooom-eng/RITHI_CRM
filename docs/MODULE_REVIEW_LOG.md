@@ -97,7 +97,7 @@ dates are shown and exported, not how they are stored.**
 | # | Requirement | Already true | Still to do |
 | --- | --- | --- | --- |
 | **R1** | Key, timestamp, `sys_created_by`, `sys_updated_by` on every table | ✅ **Built, v0.9.378** (0244/0245): `sys_id`, `sys_created_by`, `sys_created_on`, `sys_updated_by`, `sys_updated_on` on 68 tables, written only by the database; existing rows filled from same-meaning fields. | **Your step: run `sys_columns.sql` once.** Not done: showing them on screens with names (R2/R3); natural keys per table (a separate question). |
-| **R2** | Date fields as `dd-mmm-yyyy`, readable by Excel | `formatDay()` in `src/lib/dates.ts` is that format. **Downloads done in v0.9.382 (finding 7):** every .xlsx writes a date as a real Excel date formatted `dd-mmm-yyyy`, whatever screen built it; every register CSV writes `dd-MMM-yyyy`. | **Screens audited 2026-09-29** (below): six fixed. **One question for you**: the Delivery Challan and Declaration print `dd-mm-yyyy` on purpose ("the way the form is filled in by hand") — keep, or change to `dd-mmm-yyyy`? |
+| **R2** | Date fields as `dd-mmm-yyyy`, readable by Excel | `formatDay()` in `src/lib/dates.ts` is that format. **Downloads done in v0.9.382 (finding 7):** every .xlsx writes a date as a real Excel date formatted `dd-mmm-yyyy`, whatever screen built it; every register CSV writes `dd-MMM-yyyy`. | **Screens audited 2026-09-29** (below): six fixed. **Your decision (2026-09-29): the Delivery Challan and Declaration KEEP `dd-mm-yyyy`**, the way the paper form is filled in by hand. |
 | **R3** | Date-time fields as `dd-mmm-yyyy hh:mm:ss`, readable by Excel | `formatDayTime()` is that format. **Downloads done in v0.9.382**, the same way as R2, in your own time rather than the database's UTC. | Screens audited with R2; timestamps now show `dd-MMM-yyyy HH:mm:ss`. |
 
 **Your answers (2026-09-26)**, which is what was built: Q1 → a new `sys_id` on every table; Q2 → separate `sys_created_on` / `sys_updated_on`, overlapping no existing field; Q3 → the login id; Q4 → fill existing rows from existing fields; Q5 → every table except the counters. The questions as they were asked:
@@ -158,6 +158,18 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-09-29 — `sales_contracts.sql` timed out on the live project ("Failed to fetch (api.supabase.com)")
+- **Cause, measured** on a database with 20,000 sale lines and 4,000 transfers:
+  the bundle took **361 s**. Two sections were almost all of it — **0238**
+  (304 s) and **0240** (52 s) — because they rewrite every machine through the
+  per-row ownership lookup that had no index (finding 38). The SQL editor's
+  request gives up long before that; the database was not refusing anything.
+- **Fix, on the branch:** 0250's indexes now run BEFORE 0237/0238/0240 in the
+  bundle. Same data, indexes absent (as on live): the whole bundle takes
+  **7 s**. With the indexes, 0238 is 4 s and 0240 0.4 s.
+- **Without waiting for the branch:** create the two indexes on their own first
+  (a few seconds), then `main`'s `sales_contracts.sql` finishes quickly too.
+
 ### 2026-09-29 — R2/R3 screen audit (branch only, NOT merged — the user asked to hold `main`)
 - **Found and fixed: "today" was the UTC day.** `todayISO()` was
   `toISOString().slice(0, 10)`, which from midnight to 05:29 IST names
@@ -175,7 +187,7 @@ checked.
 - **Already right:** every table column without a formatter goes through the
   table's own ISO → `dd-MMM-yyyy` rule, and every other screen uses the shared
   formatters.
-- **Left as it is, your call:** Delivery Challan / Declaration `dd-mm-yyyy`.
+- **Delivery Challan / Declaration keep `dd-mm-yyyy`** — your decision, 2026-09-29.
 - **Checks:** a `check:ui` behaviour test pins the clock at 00:30 IST and
   expects the 29th; nothing in `src` may take a day from `toISOString()` or
   print one with `toLocaleDateString`. validate 106/106 suites, 22/22 checks.
