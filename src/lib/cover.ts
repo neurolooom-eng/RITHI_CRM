@@ -13,7 +13,7 @@
 // someone types into it.
 // ===========================================================================
 import { getSupabase, addCall } from './supabase';
-import { dayAfter, addPeriod } from './dates';
+import { dayAfter, addPeriod, todayLocal } from './dates';
 import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears,
          inheritAllPatch, isPinnedValue, installCallFromSale, machinesNeedingInstallCall,
          type SaleForCall, type SaleItemForCall } from './coverspec';
@@ -520,7 +520,7 @@ export interface RenewalDraft {
 /** What a renewal of `header` would look like, before anybody edits it. */
 export function proposeRenewal(header: Row, items: Row[]): RenewalDraft {
   const end = str(header.contract_end).slice(0, 10);
-  const start = end ? dayAfter(end) : new Date().toISOString().slice(0, 10);
+  const start = end ? dayAfter(end) : todayLocal();
   // ONE PERIOD, not two added together. A one-year contract is stored as
   // years = 1 AND months = 12 — the same twelve months written twice, because
   // `contract_years` is derived from `contract_months`. This used to read both
@@ -592,7 +592,7 @@ export async function renewContract(
 
   await saveHeader('contract', {
     mc_number: mc,
-    entry_at: new Date().toISOString().slice(0, 10),
+    entry_at: todayLocal(),
     party_name: from.party_name ?? null,
     contract_type: d.contract_type || null,
     // THE LINK BACK. Without it a renewal is just another contract that happens

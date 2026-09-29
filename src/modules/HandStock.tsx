@@ -18,6 +18,7 @@ import {
 } from '../lib/handstock';
 import './fieldcalls.css';
 import { partial, searchScope } from '../lib/exportscope';
+import { formatDayTime } from '../lib/dates';
 
 // ===========================================================================
 // HAND STOCK — the stock level an engineer is carrying, per spare.
@@ -325,7 +326,7 @@ export function HandStock() {
               {onDb ? '● Database connected' : '○ Not connected'}
             </span>
             {!!lastSync && (
-              <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>
+              <span className="conn-dot conn-off" title={`Last synced ${formatDayTime(lastSync)}`}>
                 ⟳ synced {timeAgo(lastSync)}
               </span>
             )}

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { db, type BaseRecord } from './db';
-import { parseAnyDate, formatDayTime } from './dates';
+import { parseAnyDate, formatDayTime, todayLocal } from './dates';
 import type { FieldOption } from '../components/form/Form';
 import { mayExport, type ExportScope } from './exportscope';
 
@@ -47,7 +47,8 @@ export const fmtLongDate = (s: unknown): string => formatShortDate(s, '');
 export const fmtLongDateTime = (s: unknown): string => formatLongDate(s, '');
 export const fmtLongSmart = (s: unknown): string => formatSmartDate(s, '');
 
-export const todayISO = () => new Date().toISOString().slice(0, 10);
+// The LOCAL calendar day (todayLocal in dates.ts) -- never toISOString's UTC one.
+export const todayISO = (): string => todayLocal();
 
 // Request UID: WA-<yyyymmdd>-<short unique>. Used to stamp every spare request
 // with a human-scannable, unique reference (WA = Web App origin).

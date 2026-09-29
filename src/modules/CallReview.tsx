@@ -11,7 +11,7 @@ import {
   handstockForEngineer, supabaseConfigured,
 } from '../lib/supabase';
 import { num, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
-import { parseAnyDate } from '../lib/dates';
+import { formatDay } from '../lib/dates';
 import { isReviewable, REVIEW_DONE } from '../lib/callreview';
 import { CallContext } from '../components/callcontext/CallContext';
 import './dccr.css';
@@ -218,7 +218,8 @@ export function CallReview() {
   };
 
   const visible = filtered.slice(0, shown);
-  const fmt = (v: unknown) => { const d = parseAnyDate(String(v ?? '')); return d ? d.toLocaleDateString('en-GB') : String(v ?? ''); };
+  // dd-MMM-yyyy, the project's one date format (R2) -- en-GB printed 18/09/2026.
+  const fmt = (v: unknown) => formatDay(v);
 
   return (
     <div className="page">

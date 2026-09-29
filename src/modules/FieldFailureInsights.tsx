@@ -27,6 +27,7 @@ import { ffrDueForReview, ffrEffectWithdrawn } from '../lib/ffr';
 import { xlsxDownload } from '../lib/xlsx';
 import { logAudit } from '../lib/audit';
 import { partial } from '../lib/exportscope';
+import { todayLocal } from '../lib/dates';
 
 type Row = Record<string, unknown>;
 
@@ -259,7 +260,7 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
   }, [trend, trendTotal]);
 
   const downloadTrend = () => {
-    const when = new Date().toISOString().slice(0, 10);
+    const when = todayLocal();
     const scope = DIMS.filter((d) => picked[d.key]).map((d) => `${d.label}: ${picked[d.key]}`)
       .join(' · ') || 'the whole register';
     const per = PERIODS.find((x) => x.key === period)!.label;
@@ -406,7 +407,7 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
    *  it — the same standard the Objective evidence pack is held to: a number
    *  somebody may act on has to be checkable without this screen. */
   const downloadPareto = () => {
-    const when = new Date().toISOString().slice(0, 10);
+    const when = todayLocal();
     const scope = PARETO_LEVELS.filter((l) => picked[l.key])
       .map((l) => `${l.label}: ${picked[l.key]}`).join(' · ') || 'the whole register';
     xlsxDownload(`ffr-pareto-${paretoBy}-${when}.xlsx`, [

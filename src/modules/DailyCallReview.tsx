@@ -30,6 +30,7 @@ import { DocPreview } from '../components/doc/DocPreview';
 import { MachineHistoryDialog } from '../components/machine/MachineHistoryDialog';
 import { listProductLines } from '../lib/productLines';
 import { COMPLETE, partial } from '../lib/exportscope';
+import { todayLocal } from '../lib/dates';
 
 // ===========================================================================
 // DAILY COMPLAINT REVIEW REGISTER (R/SER/35) — the DCCR.
@@ -546,7 +547,7 @@ export function DailyCallReview() {
         if (page.length < PAGE) break;
         setMsg({ tone: 'info', text: `Read ${all.length.toLocaleString()} of ${counts.total.toLocaleString()}…` });
       }
-      csvExport(`dccr-${new Date().toISOString().slice(0, 10)}.csv`, DCCR_EXPORT_COLUMNS, all.map((r, i) => toExportRow(r, i)),
+      csvExport(`dccr-${todayLocal()}.csv`, DCCR_EXPORT_COLUMNS, all.map((r, i) => toExportRow(r, i)),
         // Every page was read into `all` above before this line runs.
         COMPLETE);
       setMsg({ tone: 'ok', text: `Exported ${all.length.toLocaleString()} calls.` });

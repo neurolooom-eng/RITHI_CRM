@@ -22,6 +22,8 @@ export const CHANGELOG: ChangeEntry[] = [
       'REQUEST CALL REGISTRATION: a filtered count shows “+” while older requests are still unloaded, so “Waiting on KYC” opened from My Workload no longer looks complete when it is not. A request saved with a blank status now counts as Pending everywhere.',
       'OBJECTIVE: the evidence file behind a figure can no longer repeat or skip a row between its pages. Needs objective.sql run once.',
       'FASTER UPLOADS: an Ownership Transfer upload of 500 rows took about 15 seconds against a 20-second limit on a register of 20,000 sales, and now takes under one second. Needs sales_contracts.sql run once.',
+      'AFTER MIDNIGHT, TODAY IS TODAY. Until 05:30 in the morning the app took “today” from the UTC clock, which is still yesterday then. A visit filed at 1 a.m. was dated the day before, the real date was refused as “in the future”, and the DC, MRN, stock-transfer and sale dates defaulted a day early. Every “today” now comes from your own calendar.',
+      'DATES ON SCREEN READ dd-mmm-yyyy (and hh:mm:ss where a time was recorded) in the places that did not: Indoor Service’s received / cleaned / checked / dispatched stamps, Call Review, Software Validation, PM Bulk Upload’s preview, Hand Stock’s last-sync note, and the Roles & Permissions download.',
       'FOUR DIAGNOSTIC SQL FILES NOW SHOW THEIR WHOLE ANSWER in the Supabase SQL editor, which only displays the last result: the report-count reconciliation, Item Status staleness, open PM calls and the Product Database rebuild.',
     ],
   },

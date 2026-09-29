@@ -4,6 +4,7 @@ import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { BarChart, ColumnChart, DonutChart } from '../components/charts/Charts';
 import { spareInsights, supabaseConfigured, type SpareInsight } from '../lib/supabase';
 import './dccr.css';
+import { todayLocal } from '../lib/dates';
 
 // ===========================================================================
 // SPARE INSIGHTS — what is being consumed, against what cover, into which
@@ -28,7 +29,7 @@ import './dccr.css';
 
 // 1 Jan 2026 to today, per the ask — and selectable.
 const DEFAULT_FROM = '2026-01-01';
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const todayISO = todayLocal;
 
 const n = (v: number) => v.toLocaleString();
 

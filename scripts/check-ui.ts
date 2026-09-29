@@ -9,7 +9,7 @@ import { callFamily } from '../src/lib/calltype';
 import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
-import { dayAfter, addPeriod } from '../src/lib/dates';
+import { dayAfter, addPeriod, todayLocal } from '../src/lib/dates';
 import { configFor } from '../src/lib/cover';
 import { localIsoDate, formatDayTime, excelSerial, hasClockTime } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
@@ -5671,7 +5671,9 @@ console.log('\n-- the Warranty Sale asks for what it cannot work out, and no mor
     eq('the resting box cannot be typed into', /readOnly/.test(ld), true);
   }
   eq('a new sale starts its warranty today',
-    /warranty_start: new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/.test(reg), true);
+    // The LOCAL day (todayLocal): toISOString's UTC day started a sale entered
+    // after midnight IST on the day before.
+    /warranty_start: todayLocal\(\)/.test(reg), true);
   // Re-stamping on every save would silently re-date a sale each time somebody
   // fixed a typo.
   eq('the entry date is stamped on creation only',
@@ -9099,6 +9101,49 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   eq('Spare Consumption: opening a drawer clears a stale page error',
     /\{ setMsg\(null\); setForm\(\{ \.\.\.emptyForm \}\); \}/.test(sc)
     && /const openAdjust = async \(row: Row\) => \{[\s\S]{0,80}setMsg\(null\);/.test(sc), true);
+}
+
+// R2 / R3 ON SCREEN, AND "TODAY" ON THE READER'S CALENDAR.
+{
+  console.log('\n-- R2/R3: screens show dd-MMM-yyyy, and today is the local day --');
+  // BEHAVIOUR, with the clock pinned to 00:30 IST on the 29th -- 19:00 UTC on
+  // the 28th, the window in which toISOString() names the day before.
+  const RealDate = Date;
+  const prevTz = process.env.TZ;
+  class PinnedDate extends RealDate {
+    constructor(...a: unknown[]) { super(...((a.length ? a : ['2026-09-28T19:00:00Z']) as [string])); }
+  }
+  process.env.TZ = 'Asia/Kolkata';
+  (globalThis as { Date: DateConstructor }).Date = PinnedDate as unknown as DateConstructor;
+  const got = todayLocal();
+  (globalThis as { Date: DateConstructor }).Date = RealDate;
+  if (prevTz === undefined) delete process.env.TZ; else process.env.TZ = prevTz;
+  eq('todayLocal at 00:30 IST is the 29th, not UTC\'s 28th', got, '2026-09-29');
+
+  const fmtSrc = readFileSync('src/lib/format.tsx', 'utf8');
+  eq('todayISO is the local day', /export const todayISO = \(\): string => todayLocal\(\);/.test(fmtSrc), true);
+  // Every "today" and every date stamp in the app goes through it -- the only
+  // mention left is the comment in dates.ts saying why not.
+  const utcDay: string[] = [];
+  const walk = (d: string) => {
+    for (const f of readdirSync(d, { withFileTypes: true })) {
+      const p = `${d}/${f.name}`;
+      if (f.isDirectory()) walk(p);
+      else if (/\.tsx?$/.test(f.name) && p !== 'src/lib/dates.ts') {
+        // Code only: a comment explaining why a form is wrong is not a use of it.
+        const t = readFileSync(p, 'utf8').replace(/^\s*(\/\/|\*).*$/gm, '');
+        if (/toISOString\(\)\.slice\(0, 10\)/.test(t)) utcDay.push(p);
+        if (/toLocaleDateString\(|toLocaleTimeString\(/.test(t)) utcDay.push(`${p} (toLocale*)`);
+      }
+    }
+  };
+  walk('src');
+  eq('no screen takes a day from toISOString() or prints one with toLocaleDateString', utcDay, []);
+  eq('IndoorService shows its stage timestamps through formatDayTime',
+    /\.slice\(0, 10\)\}/.test(readFileSync('src/modules/IndoorService.tsx', 'utf8')), false);
+  eq('Hand Stock\'s sync time and PM Bulk Upload\'s registration time use formatDayTime',
+    /formatDayTime\(lastSync\)/.test(readFileSync('src/modules/HandStock.tsx', 'utf8'))
+    && /const fmtAt = \(iso: unknown\) => formatDayTime\(s\(iso\)\);/.test(readFileSync('src/modules/PmBulkUpload.tsx', 'utf8')), true);
 }
 
 // BATCH 4 (module review). Each assertion fails on the code before its fix.

@@ -97,8 +97,8 @@ dates are shown and exported, not how they are stored.**
 | # | Requirement | Already true | Still to do |
 | --- | --- | --- | --- |
 | **R1** | Key, timestamp, `sys_created_by`, `sys_updated_by` on every table | ✅ **Built, v0.9.378** (0244/0245): `sys_id`, `sys_created_by`, `sys_created_on`, `sys_updated_by`, `sys_updated_on` on 68 tables, written only by the database; existing rows filled from same-meaning fields. | **Your step: run `sys_columns.sql` once.** Not done: showing them on screens with names (R2/R3); natural keys per table (a separate question). |
-| **R2** | Date fields as `dd-mmm-yyyy`, readable by Excel | `formatDay()` in `src/lib/dates.ts` is that format. **Downloads done in v0.9.382 (finding 7):** every .xlsx writes a date as a real Excel date formatted `dd-mmm-yyyy`, whatever screen built it; every register CSV writes `dd-MMM-yyyy`. | **Screens** have not been audited for dates shown any other way — that audit is what is left. |
-| **R3** | Date-time fields as `dd-mmm-yyyy hh:mm:ss`, readable by Excel | `formatDayTime()` is that format. **Downloads done in v0.9.382**, the same way as R2, in your own time rather than the database's UTC. | The same screen audit as R2, for date-times. |
+| **R2** | Date fields as `dd-mmm-yyyy`, readable by Excel | `formatDay()` in `src/lib/dates.ts` is that format. **Downloads done in v0.9.382 (finding 7):** every .xlsx writes a date as a real Excel date formatted `dd-mmm-yyyy`, whatever screen built it; every register CSV writes `dd-MMM-yyyy`. | **Screens audited 2026-09-29** (below): six fixed. **One question for you**: the Delivery Challan and Declaration print `dd-mm-yyyy` on purpose ("the way the form is filled in by hand") — keep, or change to `dd-mmm-yyyy`? |
+| **R3** | Date-time fields as `dd-mmm-yyyy hh:mm:ss`, readable by Excel | `formatDayTime()` is that format. **Downloads done in v0.9.382**, the same way as R2, in your own time rather than the database's UTC. | Screens audited with R2; timestamps now show `dd-MMM-yyyy HH:mm:ss`. |
 
 **Your answers (2026-09-26)**, which is what was built: Q1 → a new `sys_id` on every table; Q2 → separate `sys_created_on` / `sys_updated_on`, overlapping no existing field; Q3 → the login id; Q4 → fill existing rows from existing fields; Q5 → every table except the counters. The questions as they were asked:
 
@@ -157,6 +157,28 @@ dates are shown and exported, not how they are stored.**
 
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
+
+### 2026-09-29 — R2/R3 screen audit (branch only, NOT merged — the user asked to hold `main`)
+- **Found and fixed: "today" was the UTC day.** `todayISO()` was
+  `toISOString().slice(0, 10)`, which from midnight to 05:29 IST names
+  YESTERDAY (measured). `visitdate.ts` said it was local — it was not — so a
+  visit filed after midnight defaulted to the day before and the real date was
+  refused as "in the future"; DC, MRN, stock-transfer, sale and Spare Insights
+  defaults were a day early too. `todayLocal()` in `dates.ts` now; every use in
+  `src` goes through it. No database guard compares a client date with the
+  server's `current_date` (checked: the four functions that raise near it do
+  not), so the change cannot trip one.
+- **Display fixed:** Indoor Service (six stage stamps shown as raw UTC
+  `yyyy-mm-dd`), Call Review (`en-GB` 18/09/2026), Software Validation and the
+  Hand Stock sync note (browser locale), PM Bulk Upload (no year), and the
+  Roles & Permissions download's "Taken on".
+- **Already right:** every table column without a formatter goes through the
+  table's own ISO → `dd-MMM-yyyy` rule, and every other screen uses the shared
+  formatters.
+- **Left as it is, your call:** Delivery Challan / Declaration `dd-mm-yyyy`.
+- **Checks:** a `check:ui` behaviour test pins the clock at 00:30 IST and
+  expects the 29th; nothing in `src` may take a day from `toISOString()` or
+  print one with `toLocaleDateString`. validate 106/106 suites, 22/22 checks.
 
 ### 2026-09-26 — Batch 5 (v0.9.382)
 - **7 / R2 / R3 for downloads:** `buildXlsx` shapes every body cell itself, so

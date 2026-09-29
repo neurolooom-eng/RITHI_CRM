@@ -66,6 +66,16 @@ up)_
 
 ---
 
+## 2026-09-29 — "Today" is the local day; dates on screen per R2/R3 (v0.9.382, branch only)
+
+⏳ **On `claude/usage-k7slq0`, NOT merged** — the user asked to hold `main`
+while another branch fixes something critical. Front end only, no SQL.
+- `todayLocal()` replaces every UTC "today" (`toISOString().slice(0, 10)`),
+  which named yesterday from 00:00 to 05:29 IST.
+- Six screens now show dates as `dd-MMM-yyyy [HH:mm:ss]`.
+- ❓ Delivery Challan / Declaration print `dd-mm-yyyy` deliberately — the
+  user's call whether R2 applies to a printed company document.
+
 ## 2026-09-26 — Module review, batch 5: dates in downloads, honest call edits (v0.9.382)
 
 - ✅ **7 / R2 / R3 (downloads)**: `buildXlsx` shapes every body cell; `csvExport`

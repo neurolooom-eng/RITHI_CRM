@@ -1,5 +1,5 @@
 import { coverCode } from './fieldcall';
-import { toIsoDate as toDate } from './dates';
+import { toIsoDate as toDate, todayLocal } from './dates';
 
 // ===========================================================================
 // PM bulk upload — shape a monthly Preventive-Maintenance spreadsheet into
@@ -35,7 +35,7 @@ const ALIASES: Record<string, string[]> = {
 };
 const DATE_COLS = new Set(['reg_date', 'complaint_date']);
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const todayISO = todayLocal;
 const pad = (n: number) => String(n).padStart(2, '0');
 
 // A Date -> the 'YYYY-MM-DDTHH:mm:ss' a <input type="datetime-local"> wants, in

@@ -4,7 +4,7 @@ import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui'
 import { csvExport, fmtLongDate } from '../lib/format';
 import { xlsxDownload, xlsxCell, xlsxText } from '../lib/xlsx';
 import { logAudit } from '../lib/audit';
-import { formatDay, formatDayTime } from '../lib/dates';
+import { formatDay, formatDayTime, todayLocal } from '../lib/dates';
 import { listSolvedWithoutReport, supabaseConfigured } from '../lib/supabase';
 import { loadFailure } from '../lib/dberror';
 import { Ucn } from '../lib/callstate';
@@ -100,7 +100,7 @@ export function SolvedWithoutReport() {
   // rather than leaving somebody to wonder whether they got the lot.
   const download = (kind: 'xlsx' | 'csv') => {
     if (!visible.length) return;
-    const stamp = new Date().toISOString().slice(0, 10);
+    const stamp = todayLocal();
     const name = `solved-without-a-report-${stamp}`;
     const scope = [gap ? `gap: ${gap}` : '', q.trim() ? `search: ${q.trim()}` : '']
       .filter(Boolean).join(' · ') || 'every row';

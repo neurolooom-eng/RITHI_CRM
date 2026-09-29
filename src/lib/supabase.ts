@@ -2109,6 +2109,7 @@ export async function listProductDatabaseV2(): Promise<Record<string, unknown>[]
 // carry no model", never more than is true.
 // ---------------------------------------------------------------------------
 import type { RegisterCount } from './dberror';
+import { todayLocal } from './dates';
 export type RegisterGap = RegisterCount & { register: string; table: string };
 
 const PD2_REGISTERS: { register: string; table: string; model: string }[] = [
@@ -3056,7 +3057,7 @@ export async function listMasterValuesForProduct(key: string, product: string, l
 }
 
 export async function addMasterItem(key: string, value: string, extra: Record<string, string> = {}, addedBy = ''): Promise<{ ok: boolean; error?: string }> {
-  const row = { name: key, value, extra, added_on: new Date().toISOString().slice(0, 10), added_by: addedBy };
+  const row = { name: key, value, extra, added_on: todayLocal(), added_by: addedBy };
   const { error } = await must().from('masters').insert(row);
   // The unique index is what stops a duplicate; say so in words the screen can show.
   if (error) return { ok: false, error: /duplicate key/i.test(errMsg(error)) ? 'That entry is already in this list.' : errMsg(error) };

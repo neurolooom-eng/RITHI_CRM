@@ -4,7 +4,7 @@ import { PageHeader, SectionCard } from '../components/ui/ui';
 import { xlsxDownload, xlsxCell, xlsxText } from '../lib/xlsx';
 import { csvExport } from '../lib/format';
 import { logAudit } from '../lib/audit';
-import { formatDayTime } from '../lib/dates';
+import { formatDayTime, todayLocal } from '../lib/dates';
 import './dccr.css';
 import { COMPLETE } from '../lib/exportscope';
 
@@ -162,7 +162,7 @@ export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec
         Object.fromEntries(columns.map((c) => [c, asText(r[c])])));
       const shapedCells = rows.map((r) =>
         Object.fromEntries(columns.map((c) => [c, asCell(r[c])])));
-      const stamp = new Date().toISOString().slice(0, 10);
+      const stamp = todayLocal();
 
       if (kind === 'csv') {
         csvExport(`${spec.key}-${stamp}.csv`, columns.map((c) => ({ key: c, header: c })), shapedText, COMPLETE);
