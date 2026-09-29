@@ -671,6 +671,11 @@ typed into a form that reads it.
   > **Products** column — several products separated by commas, or blank /
   > `All` for all products. A file **without** a Products column updates the
   > complaints and leaves every product mapping exactly as it is.
+  > **The upload never renames a complaint.** Export CSV carries a **Key**; a
+  > row with a Key updates that complaint's Products only, whatever the name
+  > column says. A row without a Key updates the complaint of that name
+  > (upper/lower case ignored), or is **added** if the list has no such name. A
+  > Key that matches nothing is held back and named.
 - **Service Manuals** `/service-manuals` — indexed by product, so a call shows the
   right ones.
 - **QMS Documents** `/qms` — with number and revision.

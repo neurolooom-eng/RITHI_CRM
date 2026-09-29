@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.392',
+    date: '2026-09-29',
+    title: 'Standard Complaint upload matches by Key and never renames a complaint',
+    changes: [
+      'EXPORT CSV ON THE STANDARD COMPLAINT LIST NOW HAS A KEY COLUMN — each complaint\'s own number. Keep it in the file when you upload it back.',
+      'A ROW WITH A KEY UPDATES THAT COMPLAINT\'S PRODUCTS AND NOTHING ELSE. If the name in the file has been changed, it is ignored and the list keeps its name — the upload can never rename a complaint.',
+      'A ROW WITHOUT A KEY updates the complaint with that name (upper/lower case and extra spaces ignored), or is ADDED as a new complaint if the list has no such name.',
+      'A Key that matches no complaint is held back and named in the message, rather than added. The message before you confirm says how many complaints will be updated, how many added, and how many names in the file differ from the list.',
+    ],
+  },
+  {
     version: '0.9.391',
     date: '2026-09-29',
     title: 'Standard Complaint upload: a Products column sets the mapping, and a file without one no longer wipes it',
