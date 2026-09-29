@@ -9435,6 +9435,18 @@ console.log('-- every Standard Complaint picker follows the product --');
     /admin && s\.duplicates/.test(r('src/components/machine/MachineRegisterNote.tsx')), true);
 }
 
+// A NEW PART NAMES ITS CATEGORY AND PRODUCT (2026-09-30): mandatory when
+// CREATING only -- on the form AND in addPart(), so no caller can skip it --
+// while an edit of an older, blank part still saves.
+console.log('-- a new part must say Spare/Consumable and Product --');
+{
+  const pm = readFileSync('src/modules/PartMaster.tsx', 'utf8');
+  const sbx = readFileSync('src/lib/supabase.ts', 'utf8');
+  eq('the Add form refuses a part with no category or product',
+    /if \(!form\.category\.trim\(\)\) return[\s\S]{0,120}if \(!form\.product\.trim\(\)\) return/.test(pm), true);
+  eq('...and addPart() refuses it too', /if \(!more\.category\.trim\(\)\) return[\s\S]{0,160}if \(!more\.product\.trim\(\)\) return/.test(sbx), true);
+  eq('...while an edit does not demand them', /const saveEdit[\s\S]{0,600}Choose Spare/.test(pm), false);
+}
 console.log('\n-- the background sync waits for a read in flight (D, the sync/Load more race) --');
 {
   const { startBackgroundSync } = await import('../src/lib/cache');

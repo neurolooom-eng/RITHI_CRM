@@ -198,6 +198,14 @@ Also a provision to map the Complaint to all Products."*
   bulk bar (`applyBulkProducts`: replace / add / remove; an all-products
   complaint is never narrowed by add/remove). Saves ten at a time through
   `updateMasterItem`, keeping each entry's other details. No SQL.
+- ✅ **0.9.398 — Part Master: mandatory fields at creation.** The user: *"I want
+  to be able to edit the Part Master. There are certain mandatory fields that
+  need to be filled in during creation"*; asked which: **Spare / Consumable and
+  Product**, **only when creating**. The Add drawer gains both (plus optional
+  Purchase cost) and `addPart()` refuses without them. Edit (0196's rename +
+  the four fields) was already there and is unchanged. The Item Master bulk
+  upload is NOT held to it (86% of that file has no category) -- say so if it
+  should be.
 - ✅ **0.9.391 — the mapping by upload.** The user: *"If I re-upload masters
   with Product Details, will it update?"* It would have, badly: a file with no
   Products column replaced `extra` wholesale and reset every mapping to All,
