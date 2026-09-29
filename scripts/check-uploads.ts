@@ -144,6 +144,13 @@ eq('a list added later needs no code', masterUpload({ key: 'newlist', label: 'Br
   eq('two rows meaning one complaint become one write',
     planComplaintKeys(shapeUpload(sc, [{ Key: '11', 'Complaint Name': 'x', Products: 'A' }, { 'Complaint Name': 'no power', Products: 'B' }]).rows, existing).rows.length, 1);
 
+  // THE REPORT MUST SAY WHAT HAPPENED (2026-09-30: "Still the products are
+  // kept on the row during upload, fix it" -- they were read; the report said
+  // otherwise).
+  const rep = shapeUpload(sc, [{ Key: '11', 'Complaint Name': 'A', Products: 'VEGA' }]);
+  eq('Products and Key are reported as READ, not "kept on the row"', rep.unmatched, []);
+  eq('...and say what each becomes', (rep.consumed ?? []).length, 2);
+
   eq('another list is untouched: its extra columns still load as before',
     (shapeUpload(ct, [{ 'Call Type': 'FIELD', Products: 'VEGA' }]).rows[0].extra as Record<string, unknown>).Products, 'VEGA');
 }

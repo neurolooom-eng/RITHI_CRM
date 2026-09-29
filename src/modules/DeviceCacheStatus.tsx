@@ -66,6 +66,10 @@ const COLUMNS: Column<Row>[] = [
   { key: 'machines_at', header: 'Machines downloaded', width: 230, render: (r) => when(r.machines_at) },
   { key: 'customers', header: 'Customers', width: 90, wrap: false, render: (r) => count(r.customers) },
   { key: 'customers_at', header: 'Customers downloaded', width: 230, render: (r) => when(r.customers_at) },
+  // THE STANDARD COMPLAINTS the call forms filter by product (0253). Blank on a
+  // device running a build older than 0.9.396, which does not report them.
+  { key: 'complaints', header: 'Complaints', width: 100, wrap: false, render: (r) => (r.complaints_at ? count(r.complaints ?? null) : '') },
+  { key: 'complaints_at', header: 'Complaints stored', width: 230, render: (r) => when(r.complaints_at ?? null) },
   { key: 'problem', header: 'Problem', width: 300, sortable: false,
     render: (r) => [
       r.storage_ok === false ? 'This browser will not keep a copy (private window, or site data blocked)' : '',

@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.396',
+    date: '2026-09-30',
+    title: 'Standard Complaints shown as stored on the device, and the upload report says Products are read (one SQL file)',
+    changes: [
+      'THE UPLOAD SCREEN NO LONGER SAYS "KEPT ON THE ROW: PRODUCTS". The Products column was being read as the product mapping all along; the report under the file wrongly listed it as an unused extra. It is now listed with the recognised columns — "Products → the products this complaint applies to", and "Key → which complaint to update (never renamed)".',
+      'THE LINE UNDER THE TITLE on Product & Party Search, Product Database and the Call Request now also says how many Standard Complaints are on the device and when they were stored.',
+      'EVERY DEVICE NOW DOWNLOADS THE STANDARD COMPLAINTS BY ITSELF when the app opens (and again every six hours and when the signal returns), so a Call Request can be filled offline even if no call form was opened while there was a signal.',
+      'DEVICE CACHE STATUS HAS TWO NEW COLUMNS: Complaints and Complaints stored, for each device. They fill as each device reports on this version. Needs supabase/apply/device_cache.sql run once; until then the rest of the report works as before.',
+    ],
+  },
+  {
     version: '0.9.395',
     date: '2026-09-29',
     title: 'The Standard Complaint list follows the product — on the Call Request and every call form, offline too',

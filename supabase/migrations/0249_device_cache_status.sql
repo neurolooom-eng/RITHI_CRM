@@ -102,6 +102,10 @@ revoke all on public.device_cache_status from anon;
 -- only by its owner and user managers, so this is a DEFINER function with the
 -- permission test INSIDE it -- the rule for a definer function the app calls --
 -- and EXECUTE is withdrawn from the not-signed-in role.
+-- DROPPED FIRST: 0253 widens what this returns, and a replay of this bundle
+-- must be able to put this shape back before 0253 widens it again --
+-- create-or-replace cannot change a function's return columns.
+drop function if exists public.device_cache_report();
 create or replace function public.device_cache_report()
 returns table (
   user_id uuid, full_name text, email text, role text, active boolean,

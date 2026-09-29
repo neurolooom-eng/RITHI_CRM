@@ -194,6 +194,7 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
           )}
           <p className="muted" style={{ margin: '4px 0' }}>
             <b>Recognised columns:</b> {def.cols.map((c) => c.to + (c.required ? ' *' : '')).join(' · ')}
+            {(s.consumed ?? []).length > 0 && <> · {(s.consumed ?? []).join(' · ')}</>}
           </p>
           {s.rows.length > 0 && (
             <pre style={{ margin: '4px 0', overflowX: 'auto', maxHeight: 140, background: 'var(--surface-2, #f6f6f6)', padding: 8 }}>

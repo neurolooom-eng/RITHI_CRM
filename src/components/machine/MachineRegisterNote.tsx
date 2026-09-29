@@ -4,6 +4,7 @@ import { timeAgo } from '../../lib/format';
 import { formatDayTime } from '../../lib/dates';
 import { supabaseConfigured } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { storedListInfo, MASTER_STORED_EVENT } from '../../lib/masters';
 
 // ONE LINE SAYING WHAT THIS DEVICE HOLDS. The searches on these screens answer
 // from the copies on the phone or laptop -- the machine register and the Party
@@ -35,13 +36,27 @@ export function MachineRegisterNote() {
   const [m, setM] = useState<MachineRegisterStatus | null>(null);
   const [p, setP] = useState<MachineRegisterStatus | null>(null);
   const { can } = useAuth();
+  // THE STANDARD COMPLAINTS on this device (the list the call forms filter by
+  // product). Read from the dropdown cache, and re-read whenever a list is
+  // stored, so the line follows a refresh without a reload.
+  const [complaints, setComplaints] = useState(() => storedListInfo('complaintProducts'));
+  useEffect(() => {
+    const read = () => setComplaints(storedListInfo('complaintProducts'));
+    window.addEventListener(MASTER_STORED_EVENT, read);
+    return () => window.removeEventListener(MASTER_STORED_EVENT, read);
+  }, []);
   const admin = can('manage-users') || can('admin.view');
   useEffect(() => onMachineRegister(setM), []);
   useEffect(() => onPartyRegister(setP), []);
   if (!m || !p || !supabaseConfigured()) return null;
   return (
     <div className="muted" style={{ fontSize: 12, margin: '4px 0 8px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-      <span>{describe('machines', m, admin)} {describe('customers', p, admin)}</span>
+      <span>
+        {describe('machines', m, admin)} {describe('customers', p, admin)}{' '}
+        {complaints
+          ? `${complaints.count.toLocaleString()} standard complaints on this device, stored ${timeAgo(new Date(complaints.at).toISOString())} (${formatDayTime(new Date(complaints.at).toISOString())}).`
+          : 'Standard complaints not on this device yet.'}
+      </span>
       {!m.downloading && !p.downloading && (
         <button className="btn btn-ghost btn-sm" onClick={() => void refreshMachineRegister({ force: true })}>
           Download again

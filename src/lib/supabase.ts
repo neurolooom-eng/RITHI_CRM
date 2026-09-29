@@ -5826,13 +5826,21 @@ export interface DeviceCacheReport {
   device_id: string; device_label: string; user_agent: string; app_version: string; storage_ok: boolean;
   machines: number; machines_at: string | null; machines_error: string;
   customers: number; customers_at: string | null; customers_error: string;
+  complaints?: number; complaints_at?: string | null;
 }
-/** Never throws: a report that cannot be sent is simply sent next time. */
+/** Never throws: a report that cannot be sent is simply sent next time.
+ *  A project that has not run 0253 has no complaints columns, so a refusal
+ *  naming them is retried without them -- the rest of the report still lands. */
 export async function sbReportDeviceCache(r: DeviceCacheReport): Promise<boolean> {
   const c = getSupabase(); if (!c) return false;
   try {
     const { error } = await c.from('device_cache_status').upsert(r, { onConflict: 'user_id,device_id' });
-    return !error;
+    if (!error) return true;
+    if (!/complaints/i.test(errMsg(error))) return false;
+    const { complaints: _c, complaints_at: _a, ...rest } = r;
+    void _c; void _a;
+    const again = await c.from('device_cache_status').upsert(rest, { onConflict: 'user_id,device_id' });
+    return !again.error;
   } catch { return false; }
 }
 
@@ -5843,6 +5851,7 @@ export interface DeviceCacheRow {
   machines: number | null; machines_at: string | null; machines_error: string | null;
   customers: number | null; customers_at: string | null; customers_error: string | null;
   first_reported_at: string | null; reported_at: string | null;
+  complaints?: number | null; complaints_at?: string | null;
 }
 /** Every person, and every device each has reported from -- a person with no
  *  device reported comes back ONCE with the device fields null. */

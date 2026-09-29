@@ -118,3 +118,20 @@ begin;
   set local role anon;
   select count(*) from public.device_cache_status;
 rollback;
+
+\echo '--- 11. a device reports its Standard Complaints, and the report returns them (0253) ---'
+\echo 'expect: phone-1 complaints 651 with a time'
+call public.be('dc_eng@x.com');
+begin;
+  set local role authenticated;
+  insert into public.device_cache_status (device_id, complaints, complaints_at)
+  values ('phone-1', 651, now())
+  on conflict (user_id, device_id) do update
+    set complaints = excluded.complaints, complaints_at = excluded.complaints_at;
+commit;
+call public.be('dc_admin@x.com');
+begin;
+  set local role authenticated;
+  select device_id, complaints, complaints_at is not null as stored
+    from public.device_cache_report() where device_id = 'phone-1';
+rollback;

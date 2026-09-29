@@ -29,6 +29,7 @@
 //     IndexedDB itself; then the app simply asks the server, as it always did.
 // ===========================================================================
 import { getSupabase, productRowToSheet, sbReportDeviceCache } from './supabase';
+import { storedListInfo, warmMaster, MASTER_STORED_EVENT } from './masters';
 import {
   downloadAfter, packRows, unpackRows, toCached, deviceLabel,
   type CachedMachine, type CachedParty, type DownloadState, type PackedRows,
@@ -243,6 +244,9 @@ export async function reportDeviceCache(opts: { force?: boolean } = {}): Promise
     storage_ok: storageOk,
     machines: m.machines, machines_at: iso(m.at), machines_error: m.downloading ? '' : m.error.slice(0, 300),
     customers: p.machines, customers_at: iso(p.at), customers_error: p.downloading ? '' : p.error.slice(0, 300),
+    // THE STANDARD COMPLAINTS the call forms filter by product (0253).
+    complaints: storedListInfo('complaintProducts')?.count ?? 0,
+    complaints_at: iso(storedListInfo('complaintProducts')?.at ?? null),
   };
   const sig = JSON.stringify(payload);
   try {
@@ -296,10 +300,15 @@ let watching = false;
 export function watchMachineRegister(): void {
   if (watching || typeof window === 'undefined') return;
   watching = true;
-  window.addEventListener('online', () => { void refreshMachineRegister(); });
+  window.addEventListener('online', () => { void refreshMachineRegister(); void warmMaster('complaintProducts'); });
+  // A LIST STORED is something the report should say (the complaints).
+  window.addEventListener(MASTER_STORED_EVENT, () => scheduleReport());
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void refreshMachineRegister();
   });
-  window.setInterval(() => { void refreshMachineRegister(); }, 15 * 60 * 1000);
+  window.setInterval(() => { void refreshMachineRegister(); void warmMaster('complaintProducts'); }, 15 * 60 * 1000);
   void refreshMachineRegister();
+  // THE STANDARD COMPLAINTS TOO, so a Call Request can be filled with no
+  // signal even if no call form was opened while there was one.
+  void warmMaster('complaintProducts');
 }
