@@ -42,6 +42,8 @@
 //   node scripts/apply-migrations.mjs               apply what is pending
 //   node scripts/apply-migrations.mjs --status      run supabase/apply/_status.sql,
 //                                                   READ-ONLY, and print its grid
+//   node scripts/apply-migrations.mjs --probe _x.sql  run one supabase/apply/_*.sql
+//                                                   probe, READ-ONLY, print its grid
 //
 // Reads SUPABASE_DB_URL. It is NEVER printed, logged, or passed on a command
 // line where `ps` could see it -- psql takes it through the environment.
@@ -188,20 +190,33 @@ const scrub = (s) => {
 // transaction is read only, so even a file that tried to write could not.
 // It prints the grid _status.sql returns -- yes/NO per check and what each
 // provides -- and nothing from any register.
-if (args.has('--status')) {
+// --probe: the same, for one of the hand-run diagnostic files (the user,
+// 2026-09-30: "run _handstock_opening_engineers.sql the same way"). ONLY a file
+// in supabase/apply/ whose name starts with "_", and ONLY read-only: a probe
+// whose second half deletes (that one's section B) is commented out, and were
+// it not, the read-only session would refuse it rather than run it.
+const probeAt = argv.indexOf('--probe');
+const probe = probeAt >= 0 ? String(argv[probeAt + 1] ?? '') : '';
+if (probeAt >= 0) {
+  if (!/^_[a-z0-9_]+\.sql$/.test(probe) || !readdirSync('supabase/apply').includes(probe)) {
+    console.error(`--probe: "${probe}" is not a supabase/apply/_*.sql file.`);
+    process.exit(2);
+  }
+}
+if (args.has('--status') || probe) {
   try {
     const out = execFileSync(
       'psql',
-      [url, '-X', '-v', 'ON_ERROR_STOP=1', '-P', 'pager=off', '-A', '-F', ' | ', '-f', 'supabase/apply/_status.sql'],
+      [url, '-X', '-v', 'ON_ERROR_STOP=1', '-P', 'pager=off', '-A', '-F', ' | ', '-f', `supabase/apply/${probe || '_status.sql'}`],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, PGOPTIONS: '-c default_transaction_read_only=on' } },
     );
     const lines = scrub(out).split('\n');
-    const no = lines.filter((l) => / \| NO /.test(l));
+    const no = probe ? [] : lines.filter((l) => / \| NO /.test(l));
     // WRITTEN SYNCHRONOUSLY. console.log to a PIPE is asynchronous, and the
     // process.exit() below ended the first live run with the grid cut off
     // mid-row -- the NO list above it had flushed, the last rows had not.
-    writeSync(1, (no.length ? `${no.length} check(s) read NO:\n${no.join('\n')}\n\n` : 'Every check reads yes.\n\n')
+    writeSync(1, (probe ? `${probe} (read-only):\n\n` : no.length ? `${no.length} check(s) read NO:\n${no.join('\n')}\n\n` : 'Every check reads yes.\n\n')
       + lines.join('\n') + '\n');
     process.exit(0);
   } catch (e) {
