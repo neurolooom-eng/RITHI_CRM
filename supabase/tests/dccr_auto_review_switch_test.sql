@@ -12,7 +12,8 @@
 --   5. an administrator's imported review keeps its file's reviewer and dates,
 --      is not stamped with the uploader, and raises no FFR;
 --   6. a non-administrator cannot mark a review imported to dodge the FFR rule;
---   7. an FFR raised from a review has its CAPA fields blank.
+--   7. an FFR raised from a review has its CAPA fields blank;
+--   8. a Review 2 a person has part-answered is never overwritten by the rule.
 --
 -- Run ONCE after _stub.sql + every migration.
 -- Every error printed is labelled `expect ERROR` -- anything else is a failure.
@@ -69,6 +70,14 @@ set role authenticated;
 select 'switched on by' as check, enabled, by_name from public.set_auto_review(true);
 reset role;
 
+-- A Review 2 a person has STARTED: Risk to Patient YES, the rest blank. The
+-- rule must leave it alone rather than overwrite the YES with NO.
+insert into public.field_calls (ucn, call_number, call_type, product_name, serial, reg_date, complaint_date,
+                                warranty_start, party_name, complaint_reported, standard_complaint, allocated_to)
+values ('AS-PART', 'C-PRT', 'FIELD', 'VEGA', 'S6', date '2026-09-01', date '2026-09-01', date '2019-01-01', 'H', 'x', 'y', 'E');
+insert into public.call_reviews (ucn, call_number, risk_to_patient, warranty_failure, frequent_failure)
+values ('AS-PART', 'C-PRT', 'YES', '', '');
+
 \echo ''
 \echo '--- 3. its answers carry the switcher''s name, not the opener''s ---'
 -- The register runs the sweep when somebody opens it: here the opener has.
@@ -83,6 +92,12 @@ begin
     raise exception 'auto answers should carry Bagyaraj and the marker: %', got;
   end if;
   raise notice 'ok: %', got;
+  select risk_to_patient || '/' || warranty_failure || '/' || frequent_failure || '/' || review2_auto into got
+    from public.call_reviews where ucn = 'AS-PART';
+  if got is distinct from 'YES///false' then
+    raise exception 'a part-answered Review 2 was overwritten: %', got;
+  end if;
+  raise notice 'ok: the part-answered Review 2 was left as the person left it';
 end $$;
 
 -- The calls for the later steps, created AFTER the sweep so it cannot answer them.

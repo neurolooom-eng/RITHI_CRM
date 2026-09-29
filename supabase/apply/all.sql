@@ -17242,6 +17242,10 @@ comment on index public.ffr_no_machine_uniq is
 --     not answered automatically. `review.auto` is given to each of them below
 --     where the User Master names exactly one such person.
 --
+--     AND IT NO LONGER TOUCHES A REVIEW 2 SOMEBODY HAS STARTED: a person's
+--     partial answer (Risk to Patient YES, the rest blank) used to be
+--     overwritten with NO / NO / NO, because "not complete" was all it asked.
+--
 --  2. "CAPA fields" are left BLANK when an FFR is raised — automatically from a
 --     review (raise_ffr) and, in the client, from the Raise FFR form. They were
 --     filled 'No closed in FFR' / 'NA' / 'Not required', which read as a
@@ -17529,6 +17533,13 @@ begin
       left join public.call_reviews r on r.ucn = c.ucn
      where coalesce((c.reg_at at time zone 'Asia/Kolkata')::date, c.reg_date) < v_today
        and not coalesce(r.review2_done, false)
+       -- NOT A REVIEW 2 SOMEBODY HAS STARTED (0269). "Not done" also covers a
+       -- Review 2 a person has PART-answered — Risk to Patient YES, the rest
+       -- still blank — and the rule used to overwrite all three with NO. It
+       -- answers only a Review 2 with nothing in it.
+       and btrim(coalesce(r.risk_to_patient, '')) = ''
+       and btrim(coalesce(r.warranty_failure, '')) = ''
+       and btrim(coalesce(r.frequent_failure, '')) = ''
   ),
   held as (
     select count(*) filter (where age_at_failure is not null and age_at_failure < 366) as first_year,
@@ -17549,6 +17560,9 @@ begin
            review2_by_uid   = excluded.review2_by_uid,
            review2_auto     = true
      where not coalesce(cr.review2_done, false)
+       and btrim(coalesce(cr.risk_to_patient, '')) = ''
+       and btrim(coalesce(cr.warranty_failure, '')) = ''
+       and btrim(coalesce(cr.frequent_failure, '')) = ''
     returning 1
   )
   select (select count(*) from done), h.first_year, h.unknown_age

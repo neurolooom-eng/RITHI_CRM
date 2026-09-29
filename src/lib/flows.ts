@@ -279,7 +279,7 @@ export const FLOWS: Flow[] = [
   {
     id: 'hand-stock',
     title: 'Hand stock — what moves an engineer’s balance',
-    purpose: 'An engineer’s stock is never typed: it is the sum of what was issued, received, consumed, returned and transferred. Every arrow into the balance is a record somebody can inspect.',
+    purpose: 'An engineer’s stock is never typed: it is the sum of what was issued, consumed, returned, transferred and adjusted. Every arrow into the balance is a record somebody can inspect.',
     steps: [
       { id: 'open', label: 'Opening stock (migrated)', route: '/handstock', area: 'stock',
         detail: 'The balance carried in from before the system, declared as such and held by a named engineer.',
@@ -302,6 +302,9 @@ export const FLOWS: Flow[] = [
       { id: 'mrn', label: 'Returned — MRN', route: '/mrn', area: 'stock',
         detail: 'A good or defective part returned to stores; a return beyond the balance is refused.',
         records: ['material_returns'], reqs: ['URS-009'] },
+      { id: 'adj', label: 'Adjusted \u00b1, with a reason', route: '/handstock', area: 'stock',
+        detail: 'The office adds or removes stock with a mandatory reason. An adjustment is never edited or deleted; a wrong one is corrected by another the other way.',
+        records: ['handstock_adjustments'], reqs: ['FRS-094', 'URS-009'] },
       { id: 'rep', label: 'Hand Stock Report', route: '/handstock-report', area: 'report',
         detail: 'The movements behind every balance, loaded whole before it can be exported.',
         records: ['handstock_balance'], reqs: ['URS-077', 'FRS-091'] },
@@ -313,6 +316,7 @@ export const FLOWS: Flow[] = [
       { from: 'xfer', to: 'bal', label: '±', optional: true },
       { from: 'bal', to: 'cons', label: '−' },
       { from: 'bal', to: 'mrn', label: '−', optional: true },
+      { from: 'adj', to: 'bal', label: '\u00b1', optional: true },
       { from: 'bal', to: 'rep' },
     ],
   },
