@@ -106,10 +106,10 @@ alone — none of them touches anything recorded here, and none of them fixes it
 | 17 | *cross-cutting* | Three screens tell everybody "everything is done" from a list that is filtered, scoped and capped — **FIXED in batch 2 (v0.9.374)** | Medium |
 | 18 | Field Call Register | A search reports its capped 1,000 as the match count; ↻ Refresh claims "Loaded all" over 800 — **FIXED in batch 3 (v0.9.375)** | Medium |
 | 19 | Customer Feedback | The Uploaded / Entered-here chips count only the loaded page, with no `+` — **FIXED in batch 2 (v0.9.374)** | Medium |
-| 20 | Spare Requests | "Not Approved" reads as **approved** — a refused line reaches the dispatch queue (**measured**) — **FIXED in batch 7 (v0.10.2, 0256) (#453)** | High |
+| 20 | Spare Requests | "Not Approved" reads as **approved** — a refused line reaches the dispatch queue (**measured**) — **FIXED on the branch in batch 7 (v0.10.2, 0256), not yet merged** | High |
 | 21 | Hand Stock · Pending Dispatch | More chips counting one page as if it were the register — **PART-FIXED: every chip and count named, except Pending Dispatch's per-engineer totals (batch 2, v0.9.374)** — **rest FIXED in batch 3 (v0.9.375)** | Medium |
 | 22 | Spare Requests · Spare Consumption · Customer Feedback | The 30-minute auto-sync throws away every page but the first — **FIXED in batch 3 (v0.9.375), on Hand Stock too** | Medium |
-| 23 | User Master | Correcting somebody's name silently empties their team (**measured**) — **FIXED in batch 7 (v0.10.2): the team (0257) and the work filed under the old name (0259–0262) (#453)** | High |
+| 23 | User Master | Correcting somebody's name silently empties their team (**measured**) — **FIXED on the branch in batch 7 (v0.10.2): the team (0257) and the work filed under the old name (0259–0262), not yet merged** | High |
 | 24 | Roles & Permissions | Unticking every box and saving **grants** the role its code defaults (**measured**) — **FIXED on `main` by `1bf248e`** | ~~High~~ |
 | 25 | Stock Out | An exact count over a read that is paged and capped, under a comment saying it is not paged — **FIXED in batch 2 (v0.9.374)** | Medium |
 | 26 | Call Reporting | A visit dated on the form is stored at UTC midnight and reads back at 05:30 (**measured**) | Medium |
@@ -117,7 +117,7 @@ alone — none of them touches anything recorded here, and none of them fixes it
 | 28 | Material Returns | Two lines of one MRN can get the same screen row id, so the table draws one and drops the other (**measured**) — **FIXED in batch 1 (v0.9.373, this branch)** | Medium |
 | 29 | Warranty & Contract Registers | Renew opened before the machines load starts with none ticked, and never updates — **FIXED in batch 1 (v0.9.373, this branch)** | Low |
 | 30 | Request Registration | "Correct this request" says *corrected* when the database changed nothing (**measured**) — **FIXED in batch 1 (v0.9.373, this branch)** | High |
-| 31 | Warranty Register | "+ Installation call" creates the call, silently fails to link it to the machine, and offers a second one (**measured**) — **PART-FIXED: the failure is now reported; hiding the button is still a decision (batch 1, v0.9.373)** — **rest FIXED in batch 7 (v0.10.2, 0258: Hotline may write the link) (#453)** | High |
+| 31 | Warranty Register | "+ Installation call" creates the call, silently fails to link it to the machine, and offers a second one (**measured**) — **PART-FIXED: the failure is now reported; hiding the button is still a decision (batch 1, v0.9.373)** — **rest FIXED on the branch in batch 7 (v0.10.2, 0258: Hotline may write the link), not yet merged** | High |
 | 32 | My Workload | "Installations waiting on Commercial": the card's number and the list it opens disagree, and the read is not paged — **PART-FIXED: the cards add up; the unpaged read is still open (batch 1, v0.9.373)** | Medium |
 | 33 | Hand Stock Report | The .xls download writes `[object Object]` in every date column (**measured**) — **FIXED in batch 1 (v0.9.373, this branch)** | High |
 | 34 | Product Database | Four roles see machines under contract as **OGP**, with no contract number (**measured**) | High |

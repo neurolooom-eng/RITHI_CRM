@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-30. **Batch 7 (v0.10.2): 20, 23 and 31 fixed as you decided, merged in #453 on your word ("Lets merge"); migrations 0256–0262 are applied by that merge's "Apply database migrations" run.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
+_Last updated: 2026-09-30. **Batch 7 (v0.10.2, on the branch, NOT merged — you asked me to wait): 20, 23 and 31 fixed as you decided.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
 
 ---
 
@@ -14,7 +14,8 @@ _Last updated: 2026-09-30. **Batch 7 (v0.10.2): 20, 23 and 31 fixed as you decid
 
 | | Count | Findings |
 | --- | --- | --- |
-| ✅ **Fixed and live** | **43** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 38, 40, 41, 43, 45, 46, 47, 48, 49, 50, 51, 52 — 20, 23 and 31 in batch 7 (v0.10.2, #453) |
+| ✅ **Fixed and live** | **40** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 32, 33, 38, 40, 41, 43, 45, 46, 47, 48, 49, 50, 51, 52 |
+| 🔀 **Fixed on the branch, not on `main`** | **3** | 20, 23, 31 — batch 7, v0.10.2. Nothing is live until you ask for the merge; the three migrations then apply themselves. |
 | ⏳ **Open** | **24** | 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67 |
 | | **67** | |
 
@@ -169,7 +170,7 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-09-30 — 23, second half: a rename carries the person's records (v0.10.2, merged in #453)
+### 2026-09-30 — 23, second half: a rename carries the person's records (v0.10.2, on the branch)
 - **0259** (`user_directory`): when a User Master name changes, 16 columns follow it, each matched as its own read policy matches (lower, trimmed):
   - calls: `allocated_to` on field, installation and PM calls;
   - `call_requests` and `pending_registrations`;
@@ -203,7 +204,7 @@ checked.
 - **Measured:** renaming an engineer with 3,000 calls, 2,000 customers and 1,000 opening lines, among 23,000 / 20,000 / 20,000, took 0.52 s.
 - **Not verified:** live data. A legacy row that a table's own insert guard would now refuse (for example an opening balance or issue line with a blank source) would make the rename refuse loudly, not skip silently.
 
-### 2026-09-30 — Batch 7 (v0.10.2): 20, 23, 31 — merged in #453
+### 2026-09-30 — Batch 7 (v0.10.2): 20, 23, 31 — on the branch, NOT merged
 - **Your decisions**, asked and answered the same day:
   - **20:** hold any other word for the approver.
   - **23:** carry the rename; leave work already filed under the old name, and warn on screen.
