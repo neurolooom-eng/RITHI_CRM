@@ -87,9 +87,12 @@ lines(n, status_row, kind, part, answer) as (
   union all
   select 15710 + (row_number() over (order by r.role))::int, 157, 'PERMISSION',
          'role ' || r.role || ' lacks mod:/product-failure',
-         case when r.permissions ? 'mod:/dccr-insights'
-              then 'it still holds the OLD key mod:/dccr-insights -- the rename (0205) has not run: rbac.sql'
-              when not exists (select 1 from roles x where x.permissions ? 'mod:/product-failure')
+         -- NOT evidence either way: 0205 ADDS mod:/product-failure and never
+         -- removes mod:/dccr-insights, so a role keeps the old key whether or
+         -- not 0205 ran. Only "does ANY role hold the new key" says it ran.
+         -- An earlier version read the old key as "0205 has not run: rbac.sql"
+         -- -- wrong, and re-running rbac.sql re-ticks keys somebody removed.
+         case when not exists (select 1 from roles x where x.permissions ? 'mod:/product-failure')
               then 'NO role holds it -- 0204/0205 have probably never run: rbac.sql'
               else 'other roles hold it -- created after 0205 ran, or unticked by somebody. Tick it on Roles & Permissions if it should have it' end
     from roles r where not (r.permissions ? 'mod:/product-failure')

@@ -95,6 +95,28 @@ records all 275 files as applied; `baseline_through` cannot skip a gap in the
 middle. If a row is found to be a faulty check (184's leak clause is the
 likely one), correct the row rather than the data.
 
+**Done, same evening.** The probe named two gaps, 0239 and 0242. The user ran
+those two migration FILES by hand rather than their bundles, because
+`call_requests.sql` and `rbac.sql` merge permission keys back into roles. That
+was tested on a database built without them. The re-run read OK on every
+MIGRATION line. Baseline run 36615779119 recorded **276** files, and dry-run
+36616788299 read *"Nothing pending"*.
+
+⚠️ **276, not 275**: another session merged 0253 (device cache complaints)
+at 18:56 and the baseline at 18:57 ran on that head. So 0253 is RECORDED AS
+APPLIED WITHOUT HAVING RUN. It is idempotent (`add column if not exists`,
+drop-and-create one function). **USER ACTION: run
+`supabase/migrations/0253_device_cache_complaints.sql` by hand once**;
+`_status.sql` row 196 then reads yes. The 0249 edit in the same merge only adds
+a `drop function if exists` for replays, and live already has the function.
+
+Also found: the probe's row-157 wording was WRONG. 0205 ADDS
+`mod:/product-failure` and never removes `mod:/dccr-insights`, so holding the
+old key proves nothing; corrected. Rows 149 and 157 fail only because
+engineer, rgm and rm (and tally_coordinator for 157) lack the keys, which fits
+the user's rule that those roles stay as set. Rows 149, 157 and 184 await the
+user's answers before being rewritten.
+
 ## 2026-09-29 — "Today" is the local day; dates on screen per R2/R3 (v0.9.394)
 
 Held on the branch while another branch fixed something critical, then
