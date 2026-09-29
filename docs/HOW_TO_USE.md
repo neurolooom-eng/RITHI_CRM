@@ -622,12 +622,25 @@ typed into a form that reads it.
   > **Adding a part needs four things:** Part code, Description, **Spare /
   > Consumable** and **Product** — one or more products, or tick **Common to
   > all products**. Purchase cost is optional.
+  > **The whole catalogue loads by itself** every time the screen opens and
+  > every 30 minutes — no Load more. **Search everything** matches every word
+  > you type anywhere in a part (code, description, product, Spare /
+  > Consumable, cost, any Item Master field), in any order.
   > **Filter and bulk edit, as on Standard Complaint:** the Product filter
-  > (a product, Common, or ⚠ Unrecognised) searches the whole catalogue; tick
-  > parts and **Set / Add / Remove products** for all of them at once.
+  > (a product, Common, or ⚠ Unrecognised); tick parts and **Set / Add /
+  > Remove products** for all of them at once, or pick **Spare / Consumable…**
+  > and **Set for** to change that field on all of them.
   > **Main product → Accessories & allied products** (the panel above the
-  > table): one list per product of what is sold with it. Not used yet — the
-  > spare request will use it to offer the parts of both.
+  > table): one list per main product of the accessories sold with it. Both
+  > lists come from the **Product Master**: a line whose **Category is
+  > ACCESSORY** is an accessory, anything else is a main product.
+  > **What it does on a call:** the **Spare Request** and the visit report's
+  > **spare consumption** offer the parts of the call's product, the parts of
+  > its accessories, and the common parts — one list, nothing extra recorded.
+  > **Show all parts** on either form opens everything, so a part whose
+  > mapping is missing can still be requested. A HandStock request (no
+  > machine) always lists every part. On the visit report, a part in hand
+  > stock that the Part Master does not list is always shown.
   > **Editing** an existing part does not demand them, so an older part with a
   > blank can still be corrected one field at a time.
 - **Party Master** `/parties` — your customers, **who looks after each one**, and

@@ -8,6 +8,7 @@ import { num, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
 import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { driveFolderForCall } from '../lib/drivefolders';
 import { useMaster } from '../lib/masters';
+import { useSpareParts } from '../lib/useSpareParts';
 import { logAudit } from '../lib/audit';
 import { consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
@@ -194,6 +195,11 @@ export function CallReportDrawer({
   const [spares, setSpares] = useState<{ part: string; qty: string; grir: string }[]>([]);
   const [spareDraft, setSpareDraft] = useState({ part: '', qty: '1', grir: '' });
   const [feedback, setFeedback] = useState<Record<string, string>>({});
+  // THE CALL'S PRODUCT + ITS ACCESSORIES + THE COMMON PARTS, out of what the
+  // engineer holds (partfit.ts, the user, 2026-09-30); "Show all parts" lists
+  // the whole hand stock. A part the Part Master does not list is kept.
+  const spareParts = useSpareParts(open);
+  const [showAllStock, setShowAllStock] = useState(false);
 
   // Reports are a HISTORY (one row per visit). Each Visit Entry starts a fresh
   // visit; prior visits are context (and the last manual report).
@@ -206,7 +212,7 @@ export function CallReportDrawer({
     // reset to a blank new visit
     setStatus(''); setPendingReason(''); setUpdateWork('Yes'); setManualLink(''); setUploading(false); setVisitSaved(false); setSparesSaved(false);
     setWork({}); setSignoff({});
-    setVisitDate(todayISO()); setSpares([]); setSpareDraft({ part: '', qty: '1', grir: '' }); setFeedback({});
+    setVisitDate(todayISO()); setShowAllStock(false); setSpares([]); setSpareDraft({ part: '', qty: '1', grir: '' }); setFeedback({});
     setEngineer(selfName || String(call?.allocatedTo ?? ''));
     reportsByCall(callNumber || ucn).then((rows) => {
       if (cancelled) return;
@@ -267,6 +273,12 @@ export function CallReportDrawer({
       .finally(() => { if (alive) setStockBusy(false); });
     return () => { alive = false; };
   }, [open, wantsConsumption, engineer]);
+
+  const callProduct = String(call?.productName ?? call?.['product_name'] ?? '').trim();
+  const fitsCall = spareParts.fits(callProduct);
+  const stockNarrowed = !!callProduct && !showAllStock;
+  const stockShown = stockNarrowed ? stock.filter((r) => fitsCall(r.part, r.part_code)) : stock;
+  const stockAccessories = callProduct ? spareParts.accessories(callProduct) : [];
 
   // What is left of a spare once the lines already added to this visit are
   // taken off it — adding the same part twice must not exceed the stock.
@@ -686,6 +698,19 @@ export function CallReportDrawer({
           {status && workOpen && wantsConsumption && (
             <section className="rep-sec">
               <div className="rep-sec-title">Spare consumption <span className="muted">→ spare_consumption</span></div>
+              {callProduct && stock.length > 0 && (
+                <div className="muted" style={{ fontSize: 12.5, margin: '0 0 6px', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span>
+                    {showAllStock
+                      ? 'Showing everything in hand stock.'
+                      : <>Hand stock for <b>{callProduct}</b>{stockAccessories.length ? <> and its accessories ({stockAccessories.join(', ')})</> : ''}, plus the common parts — {stockShown.length} of {stock.length}.</>}
+                  </span>
+                  <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                    <input type="checkbox" checked={showAllStock} onChange={(e) => setShowAllStock(e.target.checked)} />
+                    Show all parts
+                  </label>
+                </div>
+              )}
               {spares.length > 0 && (
                 <ul className="rep-spare-list">
                   {spares.map((s, i) => (
@@ -721,10 +746,11 @@ export function CallReportDrawer({
                 <SelectPicker
                   className="spare-part" value={spareDraft.part}
                   onChange={(v) => setSpareDraft((d) => ({ ...d, part: v, qty: '1' }))}
-                  disabled={stockBusy || stock.length === 0}
-                  placeholder={stockBusy ? 'Loading hand stock…' : stock.length ? 'Pick a spare in hand…' : 'Nothing in hand stock'}
+                  disabled={stockBusy || stockShown.length === 0}
+                  placeholder={stockBusy ? 'Loading hand stock…' : stockShown.length ? 'Pick a spare in hand…'
+                    : stock.length ? `Nothing in hand for ${callProduct} — tick Show all parts` : 'Nothing in hand stock'}
                   emptyHint="Only what this engineer holds can be consumed."
-                  options={stock.map((r) => ({
+                  options={stockShown.map((r) => ({
                     value: r.part, label: stockOptionLabel(r), disabled: remainingOf(r.part) <= 0,
                   }))} />
                 <input

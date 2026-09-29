@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-30 (MODULE REVIEW BATCH 7 — findings 20, 23, 31, v0.10.1,
+_Last updated: 2026-09-30 (MODULE REVIEW BATCH 7 — findings 20, 23, 31, v0.10.2,
 ON THE BRANCH `claude/usage-k7slq0` AND NOT MERGED (the user: "Dont Merge to Main
 till i Explicitly ask"). Migrations 0256 (approval words), 0257 (a rename carries
 the team), 0258 (link_install_call) apply themselves on merge; _status.sql rows
@@ -228,8 +228,22 @@ Also a provision to map the Complaint to all Products."*
   `product_accessories_test`.
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
-  ⏳ **Phase 2 NOT BUILT**: the spare request offering parts of the call's
-  product + its accessories + the common ones.
+  ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.1 — Phase 2: spares on a call, and Part Master loads everything.**
+  The user: *"If a Call is logged against VEGA ... I can request for Main
+  Product Spares / Accessory Spares"*; asked, they chose ONE list (main +
+  accessory + common, no field recording which), **Show all parts** as the
+  escape, and BOTH the Spare Request and the visit report's consumption.
+  `partfit.ts` (pure; `check:paging` proves it) + `useSpareParts`; two new
+  dropdown lists `spareProducts` / `productAccessories`, stored on the device
+  and pre-fetched at start-up when missing. Hand stock: a part the Part Master
+  does not list is KEPT. Accessory panel names come from the **Product
+  Master** — Category `ACCESSORY` = accessory, anything else = main product
+  (the user's rule). ⚠ Parts are mapped to Product DATABASE names and the
+  call carries a Product Database name, while the accessory list carries
+  Product MASTER names — they match only where the two spell a product the
+  same way. Part Master: whole catalogue on open and every sync, global
+  search (every word, any field), bulk Spare / Consumable. No SQL.
 - ✅ **0.9.391 — the mapping by upload.** The user: *"If I re-upload masters
   with Product Details, will it update?"* It would have, badly: a file with no
   Products column replaced `extra` wholesale and reset every mapping to All,

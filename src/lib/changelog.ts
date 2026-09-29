@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.1',
+    version: '0.10.2',
     date: '2026-09-30',
     title: 'Spare approvals read only "Approved" as a yes; a corrected manager name keeps the team; Hotline can finish an installation call',
     changes: [
@@ -23,6 +23,20 @@ export const CHANGELOG: ChangeEntry[] = [
       'Nobody is moved when another User Master row has the same old name (the screen says so), or when only the capital letters change.',
       'WARRANTY REGISTER: HOTLINE CAN NOW FINISH "+ INSTALLATION CALL". The call was created but could not be written back to the machine, so the button came back and offered a second call. Whoever may create installation calls can now write the call number onto that machine, and nothing else on the register. It will not replace a call number already there, or attach a call raised for a different machine. The button is shown only to roles that can create installation calls.',
       'The database changes are applied automatically when this version is released.',
+    ],
+  },
+  {
+    version: '0.10.1',
+    date: '2026-09-30',
+    title: 'Spares on a call: the main product\'s parts, its accessories\' parts and the common parts — and Part Master loads everything',
+    changes: [
+      'SPARE REQUEST AND VISIT REPORT: on a call for a product (VEGA, say), the part list now offers VEGA\'s parts, the parts of the accessories saved for VEGA, and the common parts (parts with no product) — one list, nothing extra to fill in. On the visit report the same rule narrows the engineer\'s hand stock.',
+      'SHOW ALL PARTS: a switch on both forms opens the whole list, so a part whose product mapping is missing can still be picked. A HandStock request has no machine and always lists every part.',
+      'ACCESSORIES COME FROM THE PRODUCT MASTER: in Part Master → "Main product → Accessories & allied products", a line whose Category is ACCESSORY is offered as an accessory, anything else as a main product.',
+      'WORKS WITH NO SIGNAL: the parts and the accessory lists are kept on each phone and laptop like the Standard Complaints.',
+      'PART MASTER LOADS THE WHOLE CATALOGUE BY ITSELF — no Load more — and every filter works over all of it.',
+      'PART MASTER: SEARCH EVERYTHING. One box that matches every word you type anywhere in a part — code, description, product, Spare / Consumable, cost or any Item Master field — in any order.',
+      'PART MASTER: BULK EDIT SPARE / CONSUMABLE. Tick parts, choose Spare / Consumable… and press Set for.',
     ],
   },
   {
