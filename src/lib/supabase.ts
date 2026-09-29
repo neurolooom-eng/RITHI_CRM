@@ -71,6 +71,8 @@ export function supabaseConfigured(): boolean {
 // is the only way it can be TESTED: this file reads `import.meta.env` at load
 // and cannot be imported by a node script at all.
 import { allRows, distinctValues, PG_PAGE } from './paging';
+import { localMachines, refreshMachineRegister, clearMachineRegister } from './machinestore';
+import * as mc from './machinecache';
 import type { LoadedReport, ConvertWrite } from './reportMapping';
 export { allRows, PG_PAGE };
 
@@ -900,6 +902,10 @@ export async function sbPartyServiceEngineer(party: string): Promise<string> {
 const PARTY_SCAN_CAP = 1000;
 export async function sbSearchProductParties(query: string, limit = 50): Promise<string[]> {
   const c = getSupabase(); if (!c) return [];
+  // THE COPY ON THIS DEVICE FIRST (machinestore.ts) -- the user's rule for a
+  // weak signal. It sees every machine, so it is never shorter than the server.
+  const local = await localMachines();
+  if (local) return mc.searchProductParties(local, query, limit);
   const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
   let q = c.from('products').select('party_name').limit(PARTY_SCAN_CAP);
   // Ordering an unfiltered read walks the btree in order and stops at the cap;
@@ -1212,6 +1218,17 @@ async function partyRows<T>(read: (exact: boolean) => Promise<T[]>): Promise<T[]
 }
 
 export async function sbListPartyProducts(party: string): Promise<string[]> {
+  const local = await localMachines();
+  if (local) {
+    const hit = mc.partyProducts(local, party);
+    if (hit.length) return hit;
+    // NOTHING ON THE DEVICE may only mean a machine added in the last six hours
+    // -- so ask the server, and if there is no signal, the device's answer stands.
+    try { return await serverPartyProducts(party); } catch { return hit; }
+  }
+  return serverPartyProducts(party);
+}
+async function serverPartyProducts(party: string): Promise<string[]> {
   // PAGED: `allRows` throws on the first failing page, so there is no error to
   // unpack here.
   const data = await partyRows<{ item_name: string | null; party_name: string | null }>((exact) =>
@@ -1415,6 +1432,8 @@ export async function sbListEngineerChanges(uid: string): Promise<EngineerChange
 // screen without a list. (A merged migration is not an applied one.)
 export interface ProductName { name: string; machines: number }
 export async function sbListProductNames(): Promise<ProductName[]> {
+  const local = await localMachines();
+  if (local && local.length) return mc.productNames(local);
   const c = must();
   const { data, error } = await c.from('product_register_names').select('item_name,machines').order('item_name');
   if (!error) {
@@ -1435,6 +1454,15 @@ export async function sbListProductNames(): Promise<ProductName[]> {
 
 // The serials of one product — an equality filter, so 0052's btree serves it.
 export async function sbListProductSerials(product: string): Promise<string[]> {
+  const local = await localMachines();
+  if (local) {
+    const hit = mc.productSerials(local, product);
+    if (hit.length) return hit;
+    try { return await serverProductSerials(product); } catch { return hit; }
+  }
+  return serverProductSerials(product);
+}
+async function serverProductSerials(product: string): Promise<string[]> {
   // PAGED. This is the one that was reported: ORION-G has 2,547 machines and
   // the picker offered 1,000 of them, so a real serial read as "Nothing
   // matches". Ordered by `id` so the pages cannot overlap.
@@ -1445,6 +1473,15 @@ export async function sbListProductSerials(product: string): Promise<string[]> {
 }
 
 export async function sbListPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
+  const local = await localMachines();
+  if (local) {
+    const hit = mc.partyItems(local, party, product);
+    if (hit.length) return hit;
+    try { return await serverPartyItems(party, product); } catch { return hit; }
+  }
+  return serverPartyItems(party, product);
+}
+async function serverPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
   // PAGED: a hospital group can hold more than a thousand machines, and the
   // screen that lists "everything they have" is the last place to stop at one.
   const data = await partyRows<Record<string, unknown>>((exact) =>
@@ -1498,6 +1535,18 @@ const dbMachineKey = (product: unknown, serial: unknown): string =>
 export async function sbProductBySerial(serial: string, product = ''): Promise<Record<string, unknown> | null> {
   const key = String(serial ?? '').trim().toLowerCase();
   if (!key) return null;
+  // `undefined` from the device means NOT THERE; `null` means there but
+  // ambiguous, which is an answer -- the server would say the same.
+  const local = await localMachines();
+  if (local) {
+    const hit = mc.bySerial(local, serial, product);
+    if (hit !== undefined) return hit;
+    try { return await serverProductBySerial(serial, product); } catch { return null; }
+  }
+  return serverProductBySerial(serial, product);
+}
+async function serverProductBySerial(serial: string, product = ''): Promise<Record<string, unknown> | null> {
+  const key = String(serial ?? '').trim().toLowerCase();
 
   if (String(product ?? '').trim()) {
     const { data, error } = await must().from('product_database').select('*')
@@ -1526,6 +1575,12 @@ export async function sbProductBySerial(serial: string, product = ''): Promise<R
 // goes to the table, which is untouched.
 // ---------------------------------------------------------------------------
 export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string; status?: string; exact?: boolean }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
+  // THE REGISTER SCREEN SEARCHES THE DEVICE TOO, in the same order (newest
+  // first, id as the tiebreak) and with the same filters. Its Refresh button
+  // re-downloads the copy, so a reload that has just been uploaded is one tap
+  // away rather than six hours.
+  const local = await localMachines();
+  if (local) return mc.searchProducts(local, filters, limit, offset);
   // NEWEST ENTRIES FIRST, AND THIS IS A CORRECTNESS FIX BEFORE IT IS A
   // PREFERENCE (the user, 2026-09-25: "Always show sorted date - Newest
   // entries first"). This read PAGED 200 AT A TIME WITH NO ORDER AT ALL, which
@@ -1679,6 +1734,16 @@ const itemCols = (it: CallRequestItem) => ({
 // one. City rides in `products.extra` under the spreadsheet's own heading.
 export interface MachineHit { serial: string; product: string; party: string; city: string; state: string; address: string }
 export async function sbSearchMachines(product: string, query: string, limit = 50, party = ''): Promise<MachineHit[]> {
+  const c = getSupabase(); if (!c) return [];
+  const local = await localMachines();
+  if (local) {
+    const hit = mc.searchMachines(local, product, query, limit, party);
+    if (hit.length || !query.trim()) return hit;
+    try { return await serverSearchMachines(product, query, limit, party); } catch { return hit; }
+  }
+  return serverSearchMachines(product, query, limit, party);
+}
+async function serverSearchMachines(product: string, query: string, limit = 50, party = ''): Promise<MachineHit[]> {
   const c = getSupabase(); if (!c) return [];
   const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
   const cols = 'serial_number,item_name,party_name,extra';
@@ -4002,6 +4067,8 @@ export async function sbSignIn(email: string, password: string): Promise<{ ok: b
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 export async function sbSignOut(): Promise<void> {
+  // The machine register on this device is the signed-in person's copy.
+  await clearMachineRegister();
   const c = getSupabase(); if (c) await c.auth.signOut();
 }
 // The signed-in user's own profile row (or null if not signed in / no row yet).
@@ -4481,11 +4548,16 @@ export async function uploadRows(
           : /schema cache|does not exist/i.test(m)
             ? ` — the ${table} table (or a column of it) is not on this project. Run supabase/apply/_status.sql to see what is missing.`
             : '';
+      if (written && table === 'products') void refreshMachineRegister({ force: true });
       return { ok: false, written, error: `${m} (row ~${i + 1})${hint}` };
     }
     written += slice.length;
     onProgress?.(written, rows.length);
   }
+  // A PRODUCT DATABASE UPLOAD RE-DOWNLOADS THIS DEVICE'S COPY, so the person
+  // who loaded the file searches what they just loaded rather than a copy up
+  // to six hours old. Other devices pick it up within their six hours.
+  if (written && table === 'products') void refreshMachineRegister({ force: true });
   return { ok: true, written };
 }
 

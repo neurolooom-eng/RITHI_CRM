@@ -10,6 +10,8 @@ import { useModuleCounts, countLabel } from '../../lib/counts';
 import { NotificationBell } from './NotificationBell';
 import './layout.css';
 import { RITHI_LOGO } from '../../lib/brand';
+import { watchMachineRegister, requestMachineRefresh } from '../../lib/machinestore';
+import { supabaseConfigured } from '../../lib/supabase';
 
 interface NavItem {
   to: string;
@@ -385,6 +387,13 @@ export function Layout({ children }: { children: ReactNode }) {
   };
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // THE MACHINE REGISTER ON THIS DEVICE (machinestore.ts): downloaded once the
+  // person is signed in, refreshed every six hours and whenever the signal or
+  // the app comes back. A no-op while the copy is fresh.
+  useEffect(() => {
+    if (user && supabaseConfigured()) watchMachineRegister();
+  }, [user]);
+
   // Persist the desktop collapse so it sticks across sessions.
   useEffect(() => {
     try { localStorage.setItem('rithi.sidebarCollapsed', collapsed ? '1' : '0'); } catch { /* ignore */ }
@@ -454,6 +463,7 @@ export function Layout({ children }: { children: ReactNode }) {
       Object.keys(localStorage).forEach((k) => {
         if (k.startsWith('rithi.cache.') || k.startsWith('rithi.sync.')) localStorage.removeItem(k);
       });
+      requestMachineRefresh();
       if ('caches' in window) { const keys = await caches.keys(); await Promise.all(keys.map((k) => caches.delete(k))); }
       if ('serviceWorker' in navigator) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map((r) => r.unregister())); }
     } catch { /* best-effort */ }

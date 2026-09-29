@@ -17,6 +17,7 @@
 
 import { allRows, readUpTo, distinctValues, PG_PAGE } from '../src/lib/paging';
 import { isFresh, afterRefresh, HOUR } from '../src/lib/mastercache';
+import * as mc from '../src/lib/machinecache';
 let fail = 0;
 const eq = (n: string, a: unknown, b: unknown) => {
   const ok = JSON.stringify(a) === JSON.stringify(b);
@@ -207,6 +208,109 @@ console.log('-- a stored list survives a failed refresh; products re-read every 
   eq('another list is re-read every time, as before', isFresh('party', now - 1 * HOUR, now), false);
   eq('no stored copy is never fresh', isFresh('product', null, now), false);
   eq('a copy dated in the future (a wrong phone clock) is not trusted', isFresh('product', now + HOUR, now), false);
+}
+
+// ---------------------------------------------------------------------------
+// THE MACHINE REGISTER ON THE DEVICE (2026-09-29): "Whole machine register on
+// every phone / laptop as a cached data ... Search every thing relevant to
+// Product Database from cached data." Each search must answer what its server
+// twin answers, and the download must survive a signal that keeps dropping.
+// ---------------------------------------------------------------------------
+console.log('-- the machine register on the device --');
+{
+  const sheet = (item: string, serial: string, party: string, status = 'WGP', city = '') =>
+    ({ 'Party Name': party, 'City': city, 'State': '', 'Address': '', 'Item Name': item, 'Item Serial Number': serial, 'Item Status': status });
+  let n = 0;
+  const m = (item: string, serial: string, party: string, created = '2026-09-01', status = 'WGP', city = '') =>
+    mc.fromSheet(++n, created, sheet(item, serial, party, status, city));
+  const reg = [
+    m('ORION-G', '219', 'CITY HOSPITAL', '2026-09-01', 'WGP', 'Pune'),
+    m('VEGA', '219', 'CITY HOSPITAL', '2026-09-02', 'AMC'),
+    m('VEGA', '105', 'Apollo Clinic ', '2026-09-03', 'OGP'),
+    m('EXTEND-XT ', 'X1', 'APOLLO CLINIC', '2026-09-03'),
+    m('ORION-G', 'INXT 0105', 'RURAL PHC', ''),
+    m('ORION-G', 'X105161', 'RURAL PHC', '2026-08-01'),
+  ];
+
+  eq('product names: every name, counted, as stored (the stray space kept)',
+    mc.productNames(reg), [{ name: 'EXTEND-XT ', machines: 1 }, { name: 'ORION-G', machines: 3 }, { name: 'VEGA', machines: 2 }]);
+  eq('a product offered with its stray space finds its machine (the Extend XT fault)',
+    mc.productSerials(reg, 'EXTEND-XT '), ['X1']);
+  eq('...and a trimmed one does not -- the same equality the server does',
+    mc.productSerials(reg, 'EXTEND-XT'), []);
+  eq('serials sort as numbers', mc.productSerials(reg, 'ORION-G'), ['219', 'INXT 0105', 'X105161']);
+
+  eq('A SERIAL ALONE THAT TWO MACHINES WEAR IS AMBIGUOUS -> null, never a guess',
+    mc.bySerial(reg, '219'), null);
+  eq('...with the product it is one machine',
+    (mc.bySerial(reg, ' 219 ', 'vega') as Record<string, unknown>)['Item Status'], 'AMC');
+  eq('a serial not on the device is undefined, so the server is asked',
+    mc.bySerial(reg, '999'), undefined);
+
+  eq('a party\'s products match however it is cased or spaced',
+    mc.partyProducts(reg, 'apollo clinic'), ['VEGA', 'EXTEND-XT ']);
+  eq('a party\'s machines, narrowed to one product',
+    mc.partyItems(reg, 'City Hospital', 'VEGA').map((r) => r['Item Serial Number']), ['219']);
+
+  eq('the serial picker: typed "105" puts the machine ENDING in 105 before the mid-string one',
+    mc.searchMachines(reg, 'ORION-G', '105').map((h) => h.serial), ['INXT 0105', 'X105161']);
+  eq('...and it carries the site from the machine',
+    mc.searchMachines(reg, 'ORION-G', '219')[0].city, 'Pune');
+  eq('narrowed to one customer, matched exactly as the server does',
+    mc.searchMachines(reg, 'VEGA', '', 50, 'CITY HOSPITAL').map((h) => h.serial), ['219']);
+
+  eq('party search: distinct, trimmed, case-folded',
+    mc.searchProductParties(reg, 'apollo'), ['Apollo Clinic']);
+
+  eq('the register screen: NEWEST FIRST, blank dates last, id breaks ties',
+    mc.searchProducts(reg, {}).map((r) => r['Item Serial Number']), ['X1', '105', '219', '219', 'X105161', 'INXT 0105']);
+  eq('...one instant written two ways is one instant, so id decides',
+    mc.searchProducts([mc.fromSheet(1, '2026-09-03T10:00:00.1+00:00', { 'Item Serial Number': 'A' }),
+      mc.fromSheet(2, '2026-09-03T10:00:00.10+00:00', { 'Item Serial Number': 'B' })], {}).map((r) => r['Item Serial Number']), ['B', 'A']);
+  eq('...a status filter is the worked-out status',
+    mc.searchProducts(reg, { status: 'amc' }).map((r) => r['Item Name']), ['VEGA']);
+  eq('...and paging continues where the last page stopped',
+    mc.searchProducts(reg, {}, 2, 2).map((r) => r['Item Serial Number']), ['219', '219']);
+
+  eq('packed and unpacked, a machine is the same machine',
+    JSON.stringify(mc.unpack(mc.pack(reg))), JSON.stringify(reg));
+}
+
+console.log('-- the download on a signal that keeps dropping --');
+{
+  const total = 2547;
+  const all = Array.from({ length: total }, (_, i) => mc.fromSheet(i + 1, '', { 'Item Name': 'ORION-G', 'Item Serial Number': String(i + 1) }));
+  // A server that honours the cap and whose connection drops on chosen calls.
+  const flaky = (dropOn: Set<number>) => {
+    let calls = 0; const asked: number[] = [];
+    const fn = async (after: number, size: number) => {
+      calls++; asked.push(after);
+      if (dropOn.has(calls)) throw new Error('Failed to fetch');
+      return all.filter((x) => x.id > after).slice(0, Math.min(size, PG_PAGE));
+    };
+    return { fn, asked, calls: () => calls };
+  };
+  const noWait = async () => {};
+
+  const ok = await mc.downloadAfter(flaky(new Set()).fn, { rows: [], lastId: 0 }, { wait: noWait });
+  eq('a clean walk is complete with every machine', [ok.complete, ok.rows.length], [true, total]);
+
+  const f = flaky(new Set([2, 3]));
+  const r = await mc.downloadAfter(f.fn, { rows: [], lastId: 0 }, { wait: noWait });
+  eq('two dropped requests are retried and the walk still completes', [r.complete, r.rows.length], [true, total]);
+  eq('...each retry asks for the SAME page, never from the start', f.asked, [0, 1000, 1000, 1000, 2000]);
+
+  const dead = flaky(new Set([2, 3, 4, 5, 6, 7, 8, 9]));
+  const stop = await mc.downloadAfter(dead.fn, { rows: [], lastId: 0 }, { wait: noWait, waits: [1, 1] });
+  eq('a signal that stays down ends the walk INCOMPLETE -- it is not the register',
+    [stop.complete, stop.rows.length, stop.lastId], [false, 1000, 1000]);
+  const resumed = await mc.downloadAfter(flaky(new Set()).fn, stop, { wait: noWait });
+  eq('...and the next attempt carries on from machine 1000 to the end',
+    [resumed.complete, resumed.rows.length, new Set(resumed.rows.map((x) => x.id)).size], [true, total, total]);
+
+  const liar = async () => [all[0]];
+  const bad = await mc.downloadAfter(liar, { rows: [], lastId: 5 }, { wait: noWait });
+  eq('a server that ignores the filter cannot loop the walk for ever', bad.complete, false);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
