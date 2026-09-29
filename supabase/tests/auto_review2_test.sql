@@ -16,7 +16,7 @@
 --   * it is idempotent — a second run marks nothing;
 --   * the answer carries the name of the person who switched auto review on,
 --     and `review2_auto` says it was automatic, which is what Review 3 reads
---     (0267: it runs only while a named person has switched it on).
+--     (0269: it runs only while a named person has switched it on).
 --
 -- The clock is injected through auto_answer_review2_asof(), which no signed-in
 -- caller may execute — test 10 asserts exactly that, because a seam that lets
@@ -40,7 +40,7 @@ create or replace procedure public.be(p text) language plpgsql as $$
 begin update public.harness set uid = (select id from auth.users where email = p), email = p; end $$;
 grant select on public.harness to authenticated;
 
--- AUTO REVIEW IS SWITCHED ON, as a person holding review.auto would (0267).
+-- AUTO REVIEW IS SWITCHED ON, as a person holding review.auto would (0269).
 -- Written directly: this suite is about WHEN the rule answers, and the switch
 -- itself is proved by dccr_auto_review_switch_test.
 insert into public.auto_review_changes (turned_on, changed_by, changed_by_name)
@@ -154,11 +154,11 @@ begin;
   select ran is not null as answered from public.auto_answer_review2();
 commit;
 
-\echo '--- 13. THE UNDO: the review2_auto marker (0267) finds every automatic answer ---'
+\echo '--- 13. THE UNDO: the review2_auto marker (0269) finds every automatic answer ---'
 \echo 'expect: it reverses every automatic answer and NOTHING a person gave'
 -- The answers now carry the switcher's NAME, so the name cannot find them;
 -- the marker can. 0124's own undo (by 'Auto (9:15 am)') still finds the
--- answers given before 0267, which 0267 also marked.
+-- answers given before 0269, which 0269 also marked.
 update public.call_reviews
    set risk_to_patient = '', warranty_failure = '', frequent_failure = '',
        review2_by = '', review2_at = null, review2_auto = false

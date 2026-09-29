@@ -1173,7 +1173,7 @@ export const UPLOADS: UploadDef[] = [
     note: 'Review Status, Any Potential Effect, Action Taken and the “Review N Completed” flags are DERIVED — the register computes them from the answers below, so the file\u2019s own copies are ignored rather than loaded. Everything else the file carries (call details, visit remarks, spares consumed, the failure-age columns) belongs to the call and its visits, not to the review, and is ignored here too. OLD REVIEWS LOAD AS THEY WERE: every row is marked imported, so it keeps the file\u2019s reviewer names and dates (a date the file does not carry stays blank rather than becoming today), you are not recorded as the reviewer, and loading it raises NO Field Failure Report — load old FFRs through the Field Failure Register upload. Re-loading a corrected file updates the same calls.',
     cols: [
       { to: 'ucn', from: ['uc number', 'ucn', 'uc no'], required: true },
-      // IMPORTED, ALWAYS (0267, the user: old reviews load "no new FFRs"). Not
+      // IMPORTED, ALWAYS (0269, the user: old reviews load "no new FFRs"). Not
       // a heading any file carries: the database keeps its reviewers and dates
       // and raises no report for such a row, and only an administrator's write
       // can set it.

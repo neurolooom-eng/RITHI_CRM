@@ -230,7 +230,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'calls.report', label: 'Report / update calls' },
   { group: 'Calls', key: 'calls.cancel', label: 'Cancel a call (and restore it)' },
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
-  // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0267). Its answers carry the name of
+  // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269). Its answers carry the name of
   // whoever switched it on, so it is a person's right, not a role's: the
   // migration gives it to Bagyaraj and Vignesh by name; anybody else is given
   // it on User Master -> Access.

@@ -261,7 +261,7 @@ export function ffrFromReview(r: ReviewSource): Record<string, unknown> {
     call_type: s(r.call_type),
     // CAPA IS DECIDED LATER, BY WHOEVER HANDLES IT (the user, 2026-09-30).
     // These were the sheet's LookupValues defaults, which filled a decision in
-    // before anybody had made it. 0267 does the same for a report the database
+    // before anybody had made it. 0269 does the same for a report the database
     // raises from a review.
     capa_responsibility: '',
     capa_no: '',

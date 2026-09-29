@@ -4,18 +4,18 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-09-29T21:06:55.837Z
-- **Took** 113s
-- **Commit** `3fe35e2` on `claude/usage-k7slq0`
-- **Version** 0.10.4
+- **Run at** 2026-09-29T21:45:12.889Z
+- **Took** 106s
+- **Commit** `563482c` on `claude/usage-k7slq0`
+- **Version** 0.10.6
 
 ## Result
 
 | | Passed | Total |
 | --- | --- | --- |
-| Database suites | 114 | 114 |
-| Automated checks | 22 | 22 |
-| Labelled `expect ERROR` outcomes matched | 215 | 215 |
+| Database suites | 116 | 116 |
+| Automated checks | 20 | 22 |
+| Labelled `expect ERROR` outcomes matched | 222 | 222 |
 
 **How a suite is judged.** Each suite runs on its OWN copy of a database
 built from every migration, because run against one shared database they
@@ -29,13 +29,13 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `289 migrations applied to a fresh database` | ✅ pass |  |
+| `292 migrations applied to a fresh database` | ✅ pass |  |
 
 ## Automated checks
 
 | | Result | |
 | --- | --- | --- |
-| `check:bundles` | ✅ pass | no NEW object is split across modules (430 checked, 37 known and listed) |
+| `check:bundles` | ✅ pass | no NEW object is split across modules (437 checked, 37 known and listed) |
 | `check:columns` | ✅ pass | every column of all 34 registers exists |
 | `check:cover-party` | ✅ pass | all passed |
 | `check:dberror` | ✅ pass | all passed |
@@ -43,24 +43,24 @@ stopped working produces a suite that runs clean.
 | `check:kyc` | ✅ pass | all passed |
 | `check:machine` | ✅ pass | all passed |
 | `check:mapping` | ✅ pass | all passed |
-| `check:nar003` | ✅ pass | all passed |
+| `check:nar003` | ❌ **FAIL** | > esbuild scripts/check-report-mapping.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-report-mapping.mjs --log-level=error && node node_modules/.cache/check-report-mapping.mjs · > esbuild scripts/check-ui.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/check-ui.mjs --log-level=error && node node_modules/.cache/check-u |
 | `check:orders` | ✅ pass |   ✓ 142 order columns across 61 relations |
 | `check:paging` | ✅ pass | all passed |
 | `check:picklist` | ✅ pass | all passed |
 | `check:picklist:open` | ✅ pass | all passed |
 | `check:replay` | ✅ pass | every bundle (29) replays with no change to the schema |
 | `check:reports` | ✅ pass | all passed |
-| `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 239 functions |
+| `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 243 functions |
 | `check:scheduled-export` | ✅ pass | all passed |
-| `check:status` | ✅ pass | every one of the 216 _status.sql rows reads yes on a fully-applied database (1 skipped) |
-| `check:ui` | ✅ pass | all passed |
+| `check:status` | ✅ pass | every one of the 219 _status.sql rows reads yes on a fully-applied database (1 skipped) |
+| `check:ui` | ❌ **FAIL** | > esbuild scripts/check-ui.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/check-ui.mjs --log-level=error && node node_modules/.cache/check-ui.mjs ·   ✓ ...and every one of them is checked for an error ·   ✓ a caller who does not qualify gets null, not an error ·   ✓ a missing function reads as "fall back", not an error |
 | `check:uploads` | ✅ pass | all passed |
 | `check:upserts` | ✅ pass | every upsert target is inferable, and its table accepts the update |
 | `check:views` | ✅ pass | every view over an RLS-protected table applies RLS to the reader |
 
 ## Database suites
 
-### ✅ 114 suite(s) clean
+### ✅ 116 suite(s) clean
 
-`additional_entry_machine_key` · `admin_reset_password` · `analysis_roles` · `app_user_names` · `audit_mode` · `auto_review2` · `bulk_review2` · `call_allot_permission` · `call_cancel_batch` · `call_cancel` · `call_cancelled_state` · `call_creator` · `call_edit_sections` · `call_registrant` · `call_reopen` · `call_request_edit` · `call_requests` · `calls_view_honest_update` · `clear_notifications` · `close_call` · `complaint_suggestions` · `complaint_text` · `consumption_needs_visit` · `consumption_report` · `consumption_visit_dates` · `cover_code` · `cover_expiry` · `daily_call_review` · `data_export` · `device_cache_status` · `directory_rename_carries_records` · `directory_rename_carries_team` · `dispatched_by_stamped` · `documents` · `engineer_address` · `export_schedule` · `feedback_dates` · `feedback_key_repair` · `feedback_key` · `feedback_upsert_policy` · `feedback_without_report` · `ffr_call_context` · `ffr_import` · `ffr_multi_machine` · `ffr_reviewer_history` · `ffr_reviewer_nsm` · `ffr_view_right` · `frequent_failure_rule2` · `frequent_failure` · `handstock_needs_nsm` · `handstock_opening` · `handstock` · `how_rithi_functions_key` · `indoor_service` · `kpi_field_inst` · `link_install_call` · `lockdown` · `master_list_permissions` · `material_returns` · `objective_ffr_count` · `objective_periods` · `objective_recalc` · `ownership_transfer_same_party` · `party_kyc` · `party_service_engineer` · `people_training` · `product_accessories` · `product_database_2_materialised` · `product_database_v2` · `product_serial_key` · `quality_objectives` · `reconciliation_needs_no_visit` · `reliability_wrr` · `rename_part` · `retention` · `review_actual_product` · `role_table_views` · `sales_contracts` · `saved_charts` · `solved_without_report` · `spare_approval_forms` · `spare_approval_whole_word` · `spare_bulk_approval` · `spare_bulk_decisions` · `spare_dispatch` · `spare_import_exemption` · `spare_insights_ist_window` · `spare_insights` · `spare_issue_history` · `spare_line_approvals` · `spare_line_stub_rls` · `spare_line_uid` · `spare_or_no_key` · `spare_or_number` · `spare_request_reassign` · `spare_rm_scope` · `spare_stock_scope` · `spare_workflow` · `stock_transfer` · `stores_spare_view_all` · `sys_columns` · `technical_support` · `tracker` · `ucn_daily_reset` · `unused_spare_report` · `user_directory_role` · `user_master_sync` · `user_signatures` · `view_all_except_three` · `visible_engineers_blank` · `visible_engineers` · `visit_date` · `zoho_migration_role` · `zoho_readonly`
+`additional_entry_machine_key` · `admin_reset_password` · `analysis_roles` · `app_user_names` · `audit_mode` · `auto_review2` · `bulk_review2` · `call_allot_permission` · `call_cancel_batch` · `call_cancel` · `call_cancelled_state` · `call_creator` · `call_edit_sections` · `call_registrant` · `call_reopen` · `call_request_edit` · `call_requests` · `calls_view_honest_update` · `clear_notifications` · `close_call` · `complaint_suggestions` · `complaint_text` · `consumption_needs_visit` · `consumption_report` · `consumption_visit_dates` · `cover_code` · `cover_expiry` · `daily_call_review` · `data_export` · `dccr_auto_review_switch` · `device_cache_status` · `directory_rename_carries_records` · `directory_rename_carries_team` · `dispatched_by_stamped` · `documents` · `engineer_address` · `export_schedule` · `feedback_dates` · `feedback_key_repair` · `feedback_key` · `feedback_upsert_policy` · `feedback_without_report` · `ffr_call_context` · `ffr_import` · `ffr_multi_machine` · `ffr_reviewer_history` · `ffr_reviewer_nsm` · `ffr_view_right` · `frequent_failure_rule2` · `frequent_failure` · `handstock_adjustments` · `handstock_needs_nsm` · `handstock_opening` · `handstock` · `how_rithi_functions_key` · `indoor_service` · `kpi_field_inst` · `link_install_call` · `lockdown` · `master_list_permissions` · `material_returns` · `objective_ffr_count` · `objective_periods` · `objective_recalc` · `ownership_transfer_same_party` · `party_kyc` · `party_service_engineer` · `people_training` · `product_accessories` · `product_database_2_materialised` · `product_database_v2` · `product_serial_key` · `quality_objectives` · `reconciliation_needs_no_visit` · `reliability_wrr` · `rename_part` · `retention` · `review_actual_product` · `role_table_views` · `sales_contracts` · `saved_charts` · `solved_without_report` · `spare_approval_forms` · `spare_approval_whole_word` · `spare_bulk_approval` · `spare_bulk_decisions` · `spare_dispatch` · `spare_import_exemption` · `spare_insights_ist_window` · `spare_insights` · `spare_issue_history` · `spare_line_approvals` · `spare_line_stub_rls` · `spare_line_uid` · `spare_or_no_key` · `spare_or_number` · `spare_request_reassign` · `spare_rm_scope` · `spare_stock_scope` · `spare_workflow` · `stock_transfer` · `stores_spare_view_all` · `sys_columns` · `technical_support` · `tracker` · `ucn_daily_reset` · `unused_spare_report` · `user_directory_role` · `user_master_sync` · `user_signatures` · `view_all_except_three` · `visible_engineers_blank` · `visible_engineers` · `visit_date` · `zoho_migration_role` · `zoho_readonly`
 

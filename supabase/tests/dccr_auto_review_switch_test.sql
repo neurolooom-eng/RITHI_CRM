@@ -1,6 +1,6 @@
 -- ===========================================================================
 -- AUTO REVIEW IS A NAMED PERSON'S SWITCH; OLD REVIEWS LOAD WITHOUT RAISING
--- REPORTS; AN FFR'S CAPA STARTS BLANK (0267, the user, 2026-09-30).
+-- REPORTS; AN FFR'S CAPA STARTS BLANK (0269, the user, 2026-09-30).
 --
 -- WHAT THIS PROVES, as signed-in users (never the superuser, who ignores both
 -- row-level security and EXECUTE grants):

@@ -64,5 +64,5 @@ begin
     returning l.request_uid
   )
   select count(*) into n from moved;
-  raise notice '0266: % open line(s) restaged', n;
+  raise notice '0268: % open line(s) restaged', n;
 end $$;

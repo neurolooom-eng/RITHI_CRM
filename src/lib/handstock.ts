@@ -48,7 +48,9 @@ export interface HandstockBalance {
   on_hand_live: number;
 }
 
-export type MovementKind = 'Stock out' | 'Consumption' | 'Transfer in' | 'Transfer out' | 'Return';
+// 'Adjustment' (0266): the office's + / - with a reason, replacing WinMax's
+// eBizWiz Admin account.
+export type MovementKind = 'Stock out' | 'Consumption' | 'Transfer in' | 'Transfer out' | 'Return' | 'Adjustment';
 
 export interface HandstockMovement {
   direction: 'IN' | 'OUT';
@@ -94,7 +96,7 @@ export const balanceTone = (onHand: number): StockTone =>
   onHand < 0 ? 'danger' : onHand > 0 ? 'success' : 'neutral';
 
 export const movementTone = (m: MovementKind): 'success' | 'neutral' | 'info' | 'warning' =>
-  m === 'Stock out' ? 'success' : m === 'Consumption' ? 'neutral' : m === 'Return' ? 'warning' : 'info';
+  m === 'Stock out' ? 'success' : m === 'Consumption' ? 'neutral' : m === 'Return' || m === 'Adjustment' ? 'warning' : 'info';
 
 export interface HandstockSummary {
   engineers: number;   // people holding at least one spare

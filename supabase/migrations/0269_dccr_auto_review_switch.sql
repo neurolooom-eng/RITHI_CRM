@@ -39,9 +39,9 @@
 alter table public.call_reviews add column if not exists review2_auto boolean not null default false;
 alter table public.call_reviews add column if not exists imported     boolean not null default false;
 comment on column public.call_reviews.review2_auto is
-  'Review 2 was answered by the auto review, in the name of the person who switched it on (0267). Set only by the database.';
+  'Review 2 was answered by the auto review, in the name of the person who switched it on (0269). Set only by the database.';
 comment on column public.call_reviews.imported is
-  'Loaded from an old register by an administrator (0267): keeps its own reviewers and dates and raises no FFR.';
+  'Loaded from an old register by an administrator (0269): keeps its own reviewers and dates and raises no FFR.';
 
 -- The answers the rule gave before this, under the old marker, are the same
 -- kind of answer: say so on the row. Their review2_by is left as it was
@@ -94,7 +94,7 @@ do $$ begin
   end if;
 end $$;
 comment on table public.auto_review_changes is
-  'Every time auto review (Review 2) was switched on or off, by whom and when (0267). Written only by set_auto_review().';
+  'Every time auto review (Review 2) was switched on or off, by whom and when (0269). Written only by set_auto_review().';
 
 -- The switch as it stands: the latest change, or OFF if there has been none.
 create or replace function public.auto_review_state()
@@ -156,9 +156,9 @@ begin
       update public.profiles
          set extra_permissions = coalesce(extra_permissions, '[]'::jsonb) || '["review.auto"]'::jsonb
        where id = v_id and not (coalesce(extra_permissions, '[]'::jsonb) ? 'review.auto');
-      raise notice '0267: review.auto given to the one sign-in named like %', who;
+      raise notice '0269: review.auto given to the one sign-in named like %', who;
     else
-      raise notice '0267: % sign-in(s) named like % -- review.auto NOT given; grant it on User Master -> Access', n, who;
+      raise notice '0269: % sign-in(s) named like % -- review.auto NOT given; grant it on User Master -> Access', n, who;
     end if;
   end loop;
 end $$;
@@ -182,7 +182,7 @@ declare
 begin
   if v_ucn = '' then return null; end if;
   if exists (select 1 from public.field_failure_reports f where f.ucn = v_ucn) then return null; end if;
-  -- AN IMPORTED REVIEW RAISES NOTHING (0267, the user: old reviews load
+  -- AN IMPORTED REVIEW RAISES NOTHING (0269, the user: old reviews load
   -- "no new FFRs"). Its FFR, where it had one, comes in through the Field
   -- Failure Register upload; a report raised now from a years-old review would
   -- be a second, newly-numbered report of the same failure.
@@ -246,7 +246,7 @@ begin
     coalesce(v_call.open_state, v_call.last_status, ''),
     v_call.last_visit_at,
     coalesce(v_call.call_type, ''),
-    -- CAPA IS DECIDED LATER, BY WHOEVER HANDLES IT (0267, the user). It was
+    -- CAPA IS DECIDED LATER, BY WHOEVER HANDLES IT (0269, the user). It was
     -- filled 'No closed in FFR' / 'NA' / 'Not required' at generation, which
     -- read as a decision nobody had made.
     '', '', '', 'Open',
@@ -280,7 +280,7 @@ declare
   v_by    uuid;
   v_name  text;
 begin
-  -- ONLY WHILE SOMEBODY HAS SWITCHED IT ON, AND IN THEIR NAME (0267). The
+  -- ONLY WHILE SOMEBODY HAS SWITCHED IT ON, AND IN THEIR NAME (0269). The
   -- answers carry the name of the person who switched auto review on, and the
   -- `review2_auto` marker says the rule gave them, so Review 3 can still tell.
   select s.enabled, s.by_uid, s.by_name into v_on, v_by, v_name from public.auto_review_state() s;
@@ -360,7 +360,7 @@ declare
 begin
   -- AN IMPORTED REVIEW KEEPS THE DATES ITS FILE CARRIES, and a date the file
   -- does not carry stays UNKNOWN rather than becoming the day it was loaded
-  -- (0267): a review of 2024 dated today is a false record, not a missing one.
+  -- (0269): a review of 2024 dated today is a false record, not a missing one.
   if done2 and new.review2_at is null and not coalesce(new.imported, false) then new.review2_at := current_date; end if;
   if not done2 and not was2 then new.review2_at := null; end if;
   if done3 and new.review3_at is null and not coalesce(new.imported, false) then new.review3_at := current_date; end if;
@@ -408,7 +408,7 @@ begin
   -- No signed-in user: an import, a definer function or a scheduled job. There
   -- is no person to record, and inventing one is worse than leaving it empty.
   if v_uid is null then return new; end if;
-  -- NOT FOR AN IMPORTED REVIEW, AND NOT FOR THE AUTO REVIEW (0267). An old
+  -- NOT FOR AN IMPORTED REVIEW, AND NOT FOR THE AUTO REVIEW (0269). An old
   -- review loaded from a file names its own reviewers; the person loading it
   -- did not review it. An auto-review answer already names the person who
   -- switched auto review on; whoever happened to open the register when the

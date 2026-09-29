@@ -484,6 +484,7 @@ export const URS: Req[] = [
 // ---- System / Functional Requirements -------------------------------------
 export interface FReq extends Req { urs: string[] }
 export const FRS: FReq[] = [
+  { id: 'FRS-094', urs: ['URS-009'], risk: 'High', title: 'Hand stock adjustment: signed, reasoned, bounded, permanent', text: '0266: `handstock_adjustments` holds engineer, part, a SIGNED quantity, a mandatory reason and an optional reference (the MTN number); it is the tenth arm of `handstock_movements` (Adjustment, IN when positive, OUT when negative), so the balance and every guard reading the movements include it. The database refuses an engineer who is not an ACTIVE User Master name, a part not on the Part Master, and a minus that would take the engineer below zero, and stamps who recorded it. Insert needs `consumption.reconcile`; there is no update or delete policy, so a wrong adjustment is reversed by another. 0267 adds the table to the User Master rename list (0259). Replaces WinMax\'s eBizWiz Admin account, whose opening rows 0266 removes. Proved by `handstock_adjustments_test`.' },
   { id: 'FRS-093', urs: ['URS-079'], risk: 'High', title: 'Profile, R&R periods and training, bounded by one visibility rule', text: '0264: `user_profile` (employee code, joining date), `user_rr` (a trigger closes the previous open period the day before the new From), `training_sessions` + `training_attendance` (bulk, Pass/Fail, score, attachments) and `training_assignments` (one per person per document). `training_status` derives Completed = attended without a Fail OR acknowledged with no Fail recorded. Every per-person row is read through `may_see_person()`: the person, their reporting tree, users.manage, training.manage. The trainee acknowledges only their own assignment through `acknowledge_training()`. Nothing is deletable. Proved by `people_training_test`.' },
   { id: 'FRS-092', urs: ['URS-078'], risk: 'Medium', title: 'Each device reports its own copy; the report lists everybody',
     text: 'FRS-092.1 Each device shall record what it holds of the offline registers in `device_cache_status`, one row per person per device, upserted on (user_id, device_id). FRS-092.2 The person on that row shall be stamped by the database from the session, any value sent by the device being discarded. FRS-092.3 A device shall write only its own row, and a person shall read only their own rows unless they hold `mod:/device-cache`. FRS-092.4 `device_cache_report()` shall refuse a caller without `mod:/device-cache`, shall not be callable without signing in, and shall return every profile including those with no device reported. FRS-092.5 A device shall report after each download completes or fails and when its user signs out, and shall not re-send an unchanged report within six hours. RATIONALE: .2 because a report somebody else could file is a report nobody can rely on; .4 because the engineer most worth finding is the one with no copy anywhere, and a list of reports cannot show an absence. Proved by `supabase/tests/device_cache_status_test.sql`.' },
@@ -1058,6 +1059,17 @@ export type TestPhase = 'IQ' | 'OQ' | 'PQ';
  *  that has to be read on a screen. */
 export interface TestCase { id: string; phase: TestPhase; reqs: string[]; risk: Risk; objective: string; steps: string[]; expected: string; auto?: string }
 export const TESTS: TestCase[] = [
+  { id: 'OQ-82', phase: 'OQ', reqs: ['URS-009', 'FRS-094'], risk: 'High',
+    auto: 'supabase/tests/handstock_adjustments_test.sql',
+    objective: 'A hand stock adjustment moves the balance, is bounded, is permanent, and follows a rename.',
+    steps: [
+      'As a reconciler, add 5 to an engineer holding 4, then remove 3.',
+      'Try to remove more than is held; adjust a deactivated person; use a part not on the Part Master; leave the reason blank.',
+      'As the engineer, try to record an adjustment.',
+      'As the reconciler, try to update and delete the adjustments; send a false recorder name.',
+      'Rename the engineer on User Master; read their adjustments and balance. As the public key, read the table.',
+    ],
+    expected: 'The balance reads 9 then 6 and the trail shows both adjustments; every refusal fires; update and delete change 0 rows; the recorder is the signed-in person; the rename carries all three adjustments and the balance of 7; the public key is refused.' },
   { id: 'OQ-81', phase: 'OQ', reqs: ['URS-079', 'FRS-093'], risk: 'High',
     auto: 'supabase/tests/people_training_test.sql',
     objective: 'Profiles, R&R periods and training are recorded, bounded to the right people, and complete only by the agreed rule.',

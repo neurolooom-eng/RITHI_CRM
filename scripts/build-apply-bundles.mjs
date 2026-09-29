@@ -137,6 +137,9 @@ const MODULES = {
             // guards below ask about -- 0260, 0261, 0262, each in its owner's
             // module.
             '0259_directory_rename_carries_the_records.sql',
+            // 0259's function again, with the hand stock adjustments (0266)
+            // on its list of tables filed by engineer name.
+            '0267_rename_carries_adjustments.sql',
       // LAST: 0004 above creates `ud_admin_write` and 0008 (rbac) drops it. A
       // replay of this bundle alone put it back, and policies are OR'd.
       '0122_user_directory_replay_tail.sql'],
@@ -434,7 +437,7 @@ const MODULES = {
             // loaded without raising reports, CAPA blank at generation (the
             // user, 2026-09-30). LAST: it redefines raise_ffr (0173), the
             // auto answer (0124) and both review stamps (0044, 0173).
-            '0267_dccr_auto_review_switch.sql'],
+            '0269_dccr_auto_review_switch.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -768,7 +771,10 @@ const MODULES = {
             // AFTER 0196 and 0100, which own the previous bodies of the two
             // guards it redefines: the engineer on a spare follows a User Master
             // rename (0259).
-            '0261_rename_passes_the_spare_guards.sql'],
+            '0261_rename_passes_the_spare_guards.sql',
+            // Hand stock ADJUSTMENTS (+/- with a reason), the tenth arm of
+            // handstock_movements, and eBizWiz Admin's opening rows removed.
+            '0266_handstock_adjustments.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -902,7 +908,7 @@ const MODULES = {
       '0256_spare_approval_whole_word.sql',
       // "Cleared for Stores Processing" is a yes too (the user, after 0256
       // went live). AFTER 0256, which owns the previous body.
-      '0266_cleared_for_stores_is_approved.sql',
+      '0268_cleared_for_stores_is_approved.sql',
       // WHO DISPATCHED IS STAMPED, NOT SENT. A trigger on spare_dispatches, so
       // the (much-revised) dispatch function is not touched at all.
       '0211_dispatched_by_is_stamped.sql',
