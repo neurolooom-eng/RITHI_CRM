@@ -667,6 +667,10 @@ typed into a form that reads it.
   > complaint applies to — as many as it needs — or leave it empty for **all
   > products**. Every complaint that existed before this reads as all products,
   > so nothing stopped being offered. Press ✎ on a row to change it.
+  > **By upload** (Bulk Uploads → Master Value Lists → Standard Complaint): add a
+  > **Products** column — several products separated by commas, or blank /
+  > `All` for all products. A file **without** a Products column updates the
+  > complaints and leaves every product mapping exactly as it is.
 - **Service Manuals** `/service-manuals` — indexed by product, so a call shows the
   right ones.
 - **QMS Documents** `/qms` — with number and revision.

@@ -19,6 +19,7 @@ import { shapeCoverRows, type CoverTable } from './coverImport';
 import { coverCode } from './fieldcall';
 import { toIsoDate, toIsoTimestamp, parseAnyDate, isMonthFirst, type DateOpts } from './dates';
 import { loose, findHeaderFor } from './headers';
+import { applyProductsFromFile } from './complaints';
 
 export type ColType = 'text' | 'date' | 'ts' | 'num' | 'int' | 'bool' | 'json';
 
@@ -114,6 +115,11 @@ export interface UploadDef {
    *  transfer from an engineer to themselves is refused by the database, and one
    *  such row failed the entire batch. Held back and named here instead. */
   reject?: (row: Record<string, unknown>) => string;
+  /** A last change to each shaped row, knowing the file's headings -- for a
+   *  register whose rule depends on whether a heading is PRESENT, which a
+   *  per-cell mapping cannot see (a blank cell and an absent column arrive
+   *  identically). The Standard Complaint's Products column is the case. */
+  finish?: (row: Record<string, unknown>, headers: string[]) => void;
   /** What has to be loaded first, because rows here point at it. */
   requires?: string;
   /** A step that runs BEFORE the rows are written, when they point at rows the
@@ -343,6 +349,7 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
         if (v !== undefined && v !== null && v !== '') out[c.to] = v;
       }
     });
+    def.finish?.(out, headers);
 
     const missing = def.cols.filter((c) => c.required && (out[c.to] === undefined || out[c.to] === '' || out[c.to] === null));
     if (missing.length) {
@@ -1454,7 +1461,12 @@ export function masterUpload(list: { key: string; label: string; value_label?: s
       },
     },
     extraInto: 'extra',
-    note: `Loads into the ${list.label} list. The list name is stamped for you, so the file only needs its values.`,
+    // STANDARD COMPLAINT: a Products column IS the product mapping, and a file
+    // without one leaves every mapping as it is (src/lib/complaints.ts).
+    ...(list.key === 'complaint' ? { finish: applyProductsFromFile } : {}),
+    note: list.key === 'complaint'
+      ? `Loads into the ${list.label} list. The list name is stamped for you. Add a Products column to set which products each complaint applies to — several separated by commas, or blank / "All" for all products. A file WITHOUT a Products column leaves every complaint's products exactly as they are (and keeps no other extra columns).`
+      : `Loads into the ${list.label} list. The list name is stamped for you, so the file only needs its values.`,
     cols: [
       { to: 'value', from: names, required: true },
       { to: 'added_by', from: ['added by'] },
