@@ -143,7 +143,7 @@ per day.
 **CW-011 — A change of owner is a dated record, and it is read.**
 *§7.5.9.* Who owns a machine shall be derived from the ownership transfer
 register where one exists, not left at whoever first bought it.
-**Status: Partial.** `ownership_transfers` records it (0072), Machine History shows it and Product Database 2.0 reads it (CW-012). The stored owner on `public.products` is moved by the latest transfer, but by SERIAL alone, so every model sharing the serial moves with it, and the form identifies the machine by serial alone (FRS-187; OPEN until D-060 is fixed).
+**Status: Partial.** `ownership_transfers` records it (0072), Machine History shows it and Product Database 2.0 reads it (CW-012). The stored owner on `public.products` is moved by the latest transfer, but by SERIAL alone, so every model sharing the serial moves with it, and the form identifies the machine by serial alone (FRS-188; OPEN until D-060 is fixed).
 
 **CW-012 — The most recently dated evidence decides the party.**
 *§7.5.9.* Where the registers disagree about who owns a machine, the latest
@@ -166,7 +166,7 @@ transfer and the installation call shall all be consulted.
 **CW-015 — A machine recovered by hand is a machine.**
 *§7.5.8.* Additional Entries exist because the two registers missed machines;
 those machines shall appear in the record.
-**Status: Met (2.0) for entries loaded through Bulk Uploads, which upsert on `machine_key`.** The Additional Entry Details form on the Ownership Transfer screen upserts on `serial_number`, a target 0185 removed, and asks for no model, so a hand-entered recovery cannot be saved (FRS-187.6; OPEN until D-054 is fixed).
+**Status: Met (2.0) for entries loaded through Bulk Uploads, which upsert on `machine_key`.** The Additional Entry Details form on the Ownership Transfer screen upserts on `serial_number`, a target 0185 removed, and asks for no model, so a hand-entered recovery cannot be saved (FRS-188.6; OPEN until D-054 is fixed).
 
 **CW-016 — What a machine is covered by today is derived, not stored.**
 *§7.5.4.* The status shall be computed from the periods, not held as a value
@@ -191,11 +191,11 @@ or it cannot be checked.
 **CW-019 — The derived record does not overwrite the registers.**
 *§4.2.5.* The assembled view shall be a reading of the records, not a rewrite of
 them.
-**Status: Met (2.0).** `product_database_v2` reads `product_database_v2_mv`, a materialised view rebuilt by `refresh_product_database_2_if_stale()` every five minutes (0223) or on demand by masters.edit / cover.edit / admin; the rebuild writes only the materialised view, never a register, and `public.products` and `machine_cover` are untouched. The screen states when it was last assembled (FRS-182).
+**Status: Met (2.0).** `product_database_v2` reads `product_database_v2_mv`, a materialised view rebuilt by `refresh_product_database_2_if_stale()` every five minutes (0223) or on demand by masters.edit / cover.edit / admin; the rebuild writes only the materialised view, never a register, and `public.products` and `machine_cover` are untouched. The screen states when it was last assembled (FRS-183).
 
 **CW-020 — The record is readable only by those entitled to the underlying rows.**
 *§4.2.5.* The assembled record shall not widen access to what it assembles.
-**Status: NOT MET AS WRITTEN —** decision pending. Since 0221 the assembled record is readable by every signed-in user granted `mod:/product-database-2`, wider than the warranty and contract registers it assembles; 0221 records this as a decision for the system owner. Either confirm it (and restate this requirement as "readable by the audience of the screen") or restore the gate (one predicate and one grant). FRS-182.5, R-85.
+**Status: NOT MET AS WRITTEN —** decision pending. Since 0221 the assembled record is readable by every signed-in user granted `mod:/product-database-2`, wider than the warranty and contract registers it assembles; 0221 records this as a decision for the system owner. Either confirm it (and restate this requirement as "readable by the audience of the screen") or restore the gate (one predicate and one grant). FRS-183.5, R-85.
 
 ---
 

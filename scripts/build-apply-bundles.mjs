@@ -908,7 +908,7 @@ const MODULES = {
       '0256_spare_approval_whole_word.sql',
       // "Cleared for Stores Processing" is a yes too (the user, after 0256
       // went live). AFTER 0256, which owns the previous body.
-      '0268_cleared_for_stores_is_approved.sql',
+      '0270_cleared_for_stores_is_approved.sql',
       // WHO DISPATCHED IS STAMPED, NOT SENT. A trigger on spare_dispatches, so
       // the (much-revised) dispatch function is not touched at all.
       '0211_dispatched_by_is_stamped.sql',
@@ -920,6 +920,9 @@ const MODULES = {
       // append `complaint`, and a bundle replayed alone has to see 0116's
       // definition first or the column disappears again.
       '0154_rm_queue_request_fields.sql',
+      // A request's Complaint and Item Status follow its call -- automatically,
+      // and by the register's button / bulk action (0268).
+      '0268_spare_request_follows_call.sql',
       // LAST, and it must stay last: it re-asserts `dispatch_spare_lines()` and
       // `sd_read`, which handstock owns, so a replay of Spare_1.sql alone stops
       // reverting them. Guarded, so a fresh apply skips it.

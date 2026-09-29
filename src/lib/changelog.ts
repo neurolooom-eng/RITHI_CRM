@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.6',
+    version: '0.10.7',
     date: '2026-09-30',
     title: 'Auto review is a named person\'s switch; old reviews load without raising reports; CAPA starts blank; data flow diagrams; "Cleared for Stores Processing" counts as approved',
     changes: [
@@ -27,6 +27,17 @@ export const CHANGELOG: ChangeEntry[] = [
       'SOFTWARE VALIDATION — EVERY SCREEN READ, ACTION BY ACTION: 1,072 things a person can do (or a screen does by itself) were listed, and every one that no requirement stated now has one, with a test. The package grows to 166 user requirements, 215 system requirements and 216 tests, with the risk assessment and FMEA extended to match. Where the system does not yet do what the requirement says, that is written down as an open defect (53 of them), and its test says it is expected to fail until the defect is fixed — nothing is claimed that is not true.',
       'Twenty-seven existing requirements that no longer described the system truthfully were corrected.',
       'SOFTWARE VALIDATION: the Traceability Matrix and Traceability tabs no longer open together, and the summary counts the requirements without a system requirement or test instead of claiming all are covered.',
+    ],
+  },
+  {
+    version: '0.10.6',
+    date: '2026-09-30',
+    title: 'Spare requests follow their call\'s Complaint and Item Status; Technical / Service Notes',
+    changes: [
+      'SPARE REQUESTS: the Complaint and Item Status now come from the call and stay with it. Change either on the call and every spare request on that call changes too, at any stage.',
+      'UPDATE FROM CALL: open a request and press ↻ Update from call, or tick several in the Spare Request register and press it once, to bring older requests in line with their calls.',
+      'The approval route of spares already past RM approval is not changed; only what the request shows is.',
+      'NEW SHELF — TECHNICAL / SERVICE NOTES (Knowledge Base, under Service Manuals): technical bulletins and service notes by product, kept like the manuals. Anyone who can open Service Manuals can open it; adding needs the same permission.',
     ],
   },
   {

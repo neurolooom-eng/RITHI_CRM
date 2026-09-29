@@ -13,7 +13,7 @@ import {
   addSpareRequest, listSpareRequestLines, updateSpareRequestLine, updateSpareRequestLinesAtStage,
   searchCalls, supabaseConfigured, receiveSpareShipments,
   sbReassignSpareRequest, sbListEngineerChanges, type EngineerChange,
-  decideSpareLines, type SpareDecision,
+  decideSpareLines, type SpareDecision, refreshSpareRequestsFromCall,
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import {
@@ -560,6 +560,19 @@ export function SpareRequests() {
   const [why, setWhy] = useState('');
   const mayBulkApprove = can('spare.approve_rm') || can('spare.approve_commercial') || can('spare.approve_nsm');
   const mayDrop = can('spare.drop');
+  // COMPLAINT AND ITEM STATUS FROM THE CALL (the user, 2026-09-30: "inherit as
+  // is from the Call register"). They also follow the call by themselves; this
+  // is for a request that drifted before 0268, or one somebody wants checked.
+  const refreshFromCall = async (uids: string[], clear?: () => void) => {
+    const r = await refreshSpareRequestsFromCall(uids);
+    if (!r.ok) { setMsg({ tone: 'error', text: `Could not update from the call: ${r.error}` }); return; }
+    clear?.();
+    const n = new Set(uids.filter(Boolean)).size;
+    setMsg({ tone: 'ok', text: r.changed
+      ? `${r.changed} request${r.changed === 1 ? '' : 's'} updated from the call${n > r.changed ? ` (${n - r.changed} already matched, or are not yours to update)` : ''}.`
+      : `Nothing to change — ${n === 1 ? 'it already matches its call' : 'they already match their calls'}${n ? ', or they are not yours to update' : ''}.` });
+    await load();
+  };
 
   const VERB: Record<SpareDecision, string> = { approve: 'Approve', reject: 'Reject', drop: 'Drop' };
   const DONE: Record<SpareDecision, string> = { approve: 'approved', reject: 'rejected', drop: 'dropped' };
@@ -1000,7 +1013,7 @@ export function SpareRequests() {
         // Tick boxes appear only for somebody who can actually approve
         // something — an engineer gets a column of boxes leading to a button
         // that would refuse them, which is worse than not offering it.
-        selectable={mayBulkApprove}
+        selectable={mayBulkApprove || mayDrop}
         selected={picked}
         onSelectedChange={setPicked}
         bulkBar={(mayBulkApprove || mayDrop) ? (ids, clear) => (
@@ -1026,6 +1039,13 @@ export function SpareRequests() {
                 ⊘ Drop {ids.length}
               </button>
             )}
+            {/* COMPLAINT AND ITEM STATUS AS THE CALL HAS THEM NOW (0268). Per
+                REQUEST: a request's lines share one call. */}
+            <button className="btn btn-sm" disabled={deciding}
+              title="Copy the Complaint and Item Status from each request's call, as they are now"
+              onClick={() => void refreshFromCall(rows.filter((r) => ids.includes(String(r.id))).map((r) => String(r.uid ?? '')), clear)}>
+              ↻ Update from call
+            </button>
             <button className="btn btn-sm btn-ghost" onClick={clear} disabled={deciding}>Clear</button>
           </div>
         ) : undefined}
@@ -1102,7 +1122,8 @@ export function SpareRequests() {
         title={`Spare ${String(detailRow?.line_uid ?? '') || String(detailRow?.or_no ?? '')}`}
         width={720}
       >
-        {detailRow && <RequestDetail row={detailRow} lines={detailLines} action={wfButtons(detailRow, '')} onChanged={() => void load()} />}
+        {detailRow && <RequestDetail row={detailRow} lines={detailLines} action={wfButtons(detailRow, '')} onChanged={() => void load()}
+          onRefreshFromCall={() => void refreshFromCall([String(detailRow.uid ?? '')])} />}
       </Drawer>
 
       <DecisionModal pending={pending} onClose={() => setPending(null)} onConfirm={(input) => { if (pending) void runPending(pending, input); }} />
@@ -1242,7 +1263,7 @@ function EngineerOnOrder({ row, lines, onDone }: { row: Row; lines: Row[]; onDon
   );
 }
 
-function RequestDetail({ row, lines, action, onChanged }: { row: Row; lines: Row[]; action: ReactNode; onChanged?: () => void }) {
+function RequestDetail({ row, lines, action, onChanged, onRefreshFromCall }: { row: Row; lines: Row[]; action: ReactNode; onChanged?: () => void; onRefreshFromCall?: () => void }) {
   const stage = deriveStage(row);
   const field = (label: string, value: unknown) => (
     <div className="rep-field"><span className="field-label">{label}</span><span>{String(value ?? '') || '—'}</span></div>
@@ -1294,7 +1315,13 @@ function RequestDetail({ row, lines, action, onChanged }: { row: Row; lines: Row
       </section>
 
       <section className="rep-sec">
-        <div className="rep-sec-title">Against call</div>
+        <div className="rep-sec-title">
+          Against call
+          {!!String(row.ucn ?? '') && onRefreshFromCall && (
+            <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={onRefreshFromCall}
+              title="Copy the Complaint and Item Status from the call, as they are now">↻ Update from call</button>
+          )}
+        </div>
         <div className="rep-grid">
           {field('UC Number', row.ucn)}
           {field('Call Number', row.call_number)}

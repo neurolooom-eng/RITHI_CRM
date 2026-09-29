@@ -5,7 +5,7 @@ section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
 _Last updated: 2026-09-30 (SOFTWARE VALIDATION REV 3.0 — every page read (docs/CAPABILITY_INVENTORY.md, 1,072 actions), 87 URS / 121 FRS / 126 tests / 61 risks / 61 DFMEA / 58 defects added, 27 corrections; 53 DEFECTS OPEN, each with a test that fails until it is fixed; data flow diagrams; 0269 auto review switch (Bagyaraj, Vignesh), imported reviews raise no FFR, CAPA blank. ⚠️ CHANGE THE PASSWORD of service.almsind@gmail.com — its plaintext was in a comment in src/lib/auth.tsx (removed, still in git history). On the branch, NOT merged. Before that: FINDING 20 FOLLOW-UP — "Cleared for Stores Processing"
-counts as approved, 0268, v0.10.6, on the branch, NOT merged; _status.sql row
+counts as approved, 0270, v0.10.7, on the branch, NOT merged; _status.sql row
 199. Before that: MODULE REVIEW BATCH 7 — findings 20, 23, 31, v0.10.2,
 MERGED in #453 on the user's word ("Lets merge"). Migrations 0256 (approval words), 0257 (a rename carries
 the team), 0258 (link_install_call), 0259-0262 (a rename carries the person's
@@ -230,6 +230,14 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.6 — Spare requests follow their call; Technical / Service Notes.**
+  The user: Complaint / Item Status "should inherit as is from the Call
+  register" -- asked, any stage, and button + bulk + automatic. **0268**
+  (trigger on the three call tables + `refresh_spare_requests_from_call`,
+  Spare_1.sql); `_status.sql` row 209; `spare_request_follows_call_test`;
+  FRS-095 / OQ-83. Notes: documents kind `service_note`, route
+  `/service-manuals/notes`, opened by `mod:/service-manuals` through
+  parentAction -- no role touched, no migration.
 - ✅ **0.10.5 — Hand stock adjustments.** The user: eBizWiz Admin (1,163
   opening rows / 233,000 parts on the live project, found with the new
   read-only `probe` mode) was WinMax's account for adding quantity through an

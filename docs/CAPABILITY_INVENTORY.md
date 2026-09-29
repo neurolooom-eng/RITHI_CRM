@@ -2335,790 +2335,790 @@ Every GAP and partial above, and the requirement that now states it, as filed wi
 
 ### Overview & Quality
 
-- Dashboard — Field/Installation call counts (PM excluded, role-scoped) -> URS-093, FRS-115.1, FRS-115.12
-- Dashboard — Pending Registrations card and its unreadable state -> FRS-115.2
-- Dashboard — Calls This Month dating -> FRS-115.3
-- Dashboard — SLA due-soon threshold -> FRS-115.4
-- Dashboard — SLA needs-attention table -> FRS-115.5 (with FRS-019)
-- Dashboard — open a call from a tile -> FRS-115.11
-- Dashboard — SLA rules fallback -> FRS-115.6, D-024
-- Dashboard — Public Health Threat / Serious Incident counts -> FRS-115.7
-- Dashboard — Parties Served / Engineers Active -> FRS-115.8
-- Dashboard — charts -> FRS-115.9
-- Dashboard — Recent Calls list -> FRS-115.10
-- Dashboard — scope chip -> FRS-115.12
-- Dashboard — load/empty/not-connected messages -> FRS-115.12
-- My Workload — per-section permission gating -> FRS-116.1
-- My Workload — independent section loading -> FRS-116.2
-- My Workload — wait for reporting scope -> FRS-116.3
-- My Workload — Spare Requests section -> FRS-116.4
-- My Workload — RM Approval section -> FRS-116.5
-- My Workload — Pending Dispatch section -> FRS-116.6
-- My Workload — Hand Stock section -> FRS-116.7
-- My Workload — Material Returns section -> FRS-116.8
-- My Workload — Stock Transfer section -> FRS-116.8
-- My Workload — Daily Review section (APE card unfiltered) -> FRS-116.9, D-022
-- My Workload — "+" lower bound -> FRS-116.10
-- My Workload — figure vs queue cards -> FRS-116.11
-- My Workload — register links, Refresh, synced time -> FRS-116.12
-- My Workload — empty/counting messages -> FRS-116.12
-- Product & Party Search — product-list fallback -> FRS-117.1
-- Product & Party Search — serial-only contains search -> FRS-117.2
-- Product & Party Search — 200-result cap -> FRS-117.3
-- Product & Party Search — auto-open on a single match -> FRS-117.4
-- Product & Party Search — party dropdown source -> FRS-117.5, AMEND FRS-037
-- Product & Party Search — "+ Field call" from a machine -> FRS-117.6
-- Product & Party Search — "Download again" -> FRS-117.7
-- Product & Party Search — table sort/resize/columns -> FRS-117.8
-- Product & Party Search — validation and empty messages -> FRS-117.9
-- Machine History — free-text serial -> FRS-118.1
-- Machine History — arrival by link -> FRS-118.2
-- Machine History — "where it is now" panel -> FRS-118.4
-- Machine History — party-mismatch warning -> FRS-118.5
-- Machine History — "not on Product Database" note -> FRS-118.5
-- Machine History — timeline and register labels -> FRS-118.6
-- Machine History — voided/cancelled/migrated markings -> FRS-118.7
-- Machine History — filter chips -> FRS-118.6
-- Machine History — lookup audit -> FRS-118.11
-- Machine History — silent per-register failure and row caps -> URS-096, FRS-118.8, FRS-118.9, D-019
-- Machine History — UCN colouring -> FRS-118.12
-- Machine History — messages -> FRS-118.12
-- Daily Complaint Review Register — tab structure and counts -> FRS-106.1
-- Daily Complaint Review Register — register filters and default year -> FRS-106.2, FRS-106.3
-- Daily Complaint Review Register — arriving filter from Workload -> FRS-106.4
-- Daily Complaint Review Register — paging, load-in-full worklists, "+" -> FRS-106.5, FRS-106.6, FRS-106.7
-- Daily Complaint Review Register — exact counts, failed count shows no figure -> FRS-106.8
-- Daily Complaint Review Register — stale-database banner -> FRS-106.10
-- Daily Complaint Review Register — automatic Review 2 = NO each morning -> URS-080, FRS-095, FRS-096, AMEND URS-058/FRS-069, D-028
-- Daily Complaint Review Register — three-pane desk with remembered widths -> FRS-107.1
-- Daily Complaint Review Register — desk grouping and first-year marking -> FRS-107.2
-- Daily Complaint Review Register — bulk Review 2 = NO -> URS-083, FRS-100
-- Daily Complaint Review Register — auto save -> URS-083, FRS-101
-- Daily Complaint Review Register — DCCR export format -> FRS-107.5, FRS-107.6
-- Daily Complaint Review Register — open a review in a drawer -> FRS-107.3
-- Daily Complaint Review Register — call card -> FRS-102.1
-- Daily Complaint Review Register — report context (hour meter, software, visits) -> FRS-102.4
-- Daily Complaint Review Register — in-app service report preview -> FRS-102.5
-- Daily Complaint Review Register — spares table -> FRS-102.6
-- Daily Complaint Review Register — machine history pop-up -> FRS-102.7
-- Daily Complaint Review Register — manual "Raise FFR" from the review -> URS-081, FRS-098
-- Daily Complaint Review Register — Review 1 display -> FRS-102.2
-- Daily Complaint Review Register — Review 2 answers and "All NO" -> FRS-102.9
-- Daily Complaint Review Register — age-at-failure first-year warning -> FRS-102.3
-- Daily Complaint Review Register — frequent-failure rule 2 -> FRS-103
-- Daily Complaint Review Register — live Any Potential Effect preview -> FRS-102.8
-- Daily Complaint Review Register — automatic FFR on Any Potential Effect = YES -> URS-081, FRS-097, D-029
-- Daily Complaint Review Register — Review 3 lists narrowed by product -> FRS-104.1, FRS-104.2, FRS-104.3
-- Daily Complaint Review Register — "Change product?" -> URS-085, FRS-104.4, FRS-104.5, FRS-104.6
-- Daily Complaint Review Register — Service Dept Observation / Action Taken -> FRS-104.7, FRS-104.8
-- Daily Complaint Review Register — administrator override of review dates -> URS-086, FRS-105, D-020
-- Daily Complaint Review Register — read-only without review.edit -> FRS-107.4
-- Daily Complaint Review Register — audit entries -> FRS-107.7
-- Daily Complaint Review Register — UCN colouring -> FRS-106.11, FRS-102.1
-- (decision 3) Bulk Uploads — DCCR Register historical load -> URS-082, FRS-099, D-029
-- Product Failure Analysis — 8,000-row load cap and "+" -> FRS-112.1
-- Product Failure Analysis — year window and migrated warning -> FRS-112.2
-- Product Failure Analysis — KPI cards -> FRS-112.3
-- Product Failure Analysis — built-in analyses and counting under the corrected product -> FRS-112.4, FRS-104.5
-- Product Failure Analysis — chart plus side table and labels -> FRS-112.5
-- Product Failure Analysis — cross-filter -> FRS-112.6
-- Product Failure Analysis — .xlsx downloads not gated by export.data -> URS-149, FRS-111, D-018
-- Product Failure Analysis — trend chart and download -> FRS-112.7, FRS-111.3
-- Product Failure Analysis — saved/shared charts -> FRS-112.8
-- Product Failure Analysis — messages -> FRS-112.12
-- Spare Insights — date window and "This year" -> FRS-113.1, D-023
-- Spare Insights — auto-recalculate -> FRS-113.2
-- Spare Insights — DB computation under consumption RLS -> FRS-113.3
-- Spare Insights — KPI cards (never-zero unclassified %) -> FRS-113.6
-- Spare Insights — unclassified banner -> FRS-113.7
-- Spare Insights — consumable vs spare split -> FRS-113.8
-- Spare Insights — top parts -> FRS-113.8
-- Spare Insights — by product with top-25 note -> FRS-113.8
-- Spare Insights — by month -> FRS-113.9
-- Spare Insights — voided excluded, dated by booking (IST) -> FRS-113.4, FRS-113.5
-- Spare Insights — messages -> FRS-113.10
-- Call Review — search -> FRS-119.1
-- Call Review — tabs -> FRS-119.2
-- Call Review — empty-list wording by scope -> FRS-119.3
-- Call Review — Load more -> FRS-119.4
-- Call Review — desk layout -> FRS-119.5
-- Call Review — call details pane -> FRS-119.5
-- Call Review — re-marking and remarks -> FRS-119.6
-- Call Review — Reco/Re-open authority mismatch -> FRS-119.7, FRS-119.8, D-025
-- Call Review — re-open reason enforced by the database -> FRS-119.9, D-025
-- Call Review — context pane display and report links -> FRS-119.10
-- Call Review — audit -> FRS-119.11
-- Call Review — read-only message -> FRS-119.11
-- KPI & Failure Analysis — missing-view message -> FRS-114.6
-- KPI & Failure Analysis — other cards -> FRS-114.1
-- KPI & Failure Analysis — cover vocabulary bucketing -> FRS-114.2
-- KPI & Failure Analysis — product/region chips -> FRS-114.3
-- KPI & Failure Analysis — rate-row click filter -> FRS-114.4
-- KPI & Failure Analysis — drill-through to calls by complaint -> FRS-114.5
-- KPI & Failure Analysis — scope chip/refresh -> FRS-114.7
-- Objective — objectives table and good/bad colouring -> URS-098, FRS-120.1
-- Objective — monthly/quarterly explanation -> FRS-120.1
-- Objective — typing a monthly figure -> FRS-120.2, FRS-120.6
-- Objective — Re-calculate -> FRS-120.3, FRS-120.6
-- Objective — per-month cut-off dates -> FRS-120.4, FRS-120.6
-- Objective — administrator cut-off lock -> FRS-120.4
-- Objective — add an objective -> FRS-120.5
-- Objective — edit definition / formula / parameters -> FRS-120.5
-- Objective — delete an objective and its figures -> FRS-120.7, D-021
-- Objective — evidence download (and export restriction) -> FRS-120.8, FRS-111.3
-- Objective — evidence messages -> FRS-120.8
-- Objective — computed-column explanation and the stale "every figure is typed" line -> FRS-120.9, D-021
-- Objective — scope chip/messages -> FRS-120.10
-- Field Failure Register — read scope (ffr.view whole register) -> FRS-109.6
-- Field Failure Register — access-vs-empty banner -> FRS-109.7
-- Field Failure Register — year and product filters -> FRS-109.9
-- Field Failure Register — tabs and desk/table views -> FRS-109.4, FRS-109.10
-- Field Failure Register — manual Raise FFR -> FRS-098
-- Field Failure Register — pre-fill from review -> FRS-098.3, FRS-098.4
-- Field Failure Register — FFR numbering -> FRS-108.2, FRS-108.3
-- Field Failure Register — form fields and vocabularies -> FRS-108.1
-- Field Failure Register — required fields -> FRS-108.4, D-027
-- Field Failure Register — Raised By stamping on a manual raise -> FRS-108.5
-- Field Failure Register — editing and weekly review -> FRS-109.1, FRS-109.2, D-027
-- Field Failure Register — live call columns and "withdrawn" badge -> FRS-109.5
-- Field Failure Register — desk (Due a review, the call as it stands now) -> FRS-109.4
-- Field Failure Register — call context via ffr_call_context -> FRS-110.1, FRS-110.2, FRS-110.3
-- Field Failure Register — no deletion of reports -> FRS-109.8
-- Field Failure Register — Insights cards other than migrated -> URS-089, FRS-112.9
-- Field Failure Register — Insights cross-filter -> FRS-112.10
-- Field Failure Register — Insights charts -> FRS-112.11
-- Field Failure Register — trend download not export-gated -> FRS-111.3, D-018
-- Field Failure Register — Pareto drill and download not export-gated (and missing raw column) -> FRS-112.11, FRS-111.3, FRS-111.7, D-018
-- Field Failure Register — (decision 2) CAPA fields blank on an automatic report -> FRS-097.6, D-029
-- Field Failure Report print page — no module key on /ffr/:ffrNo -> FRS-110.4, D-026
-- Field Failure Report print page — print audit and navigation -> FRS-110.5
+- Dashboard — Field/Installation call counts (PM excluded, role-scoped) -> URS-093, FRS-116.1, FRS-116.12
+- Dashboard — Pending Registrations card and its unreadable state -> FRS-116.2
+- Dashboard — Calls This Month dating -> FRS-116.3
+- Dashboard — SLA due-soon threshold -> FRS-116.4
+- Dashboard — SLA needs-attention table -> FRS-116.5 (with FRS-019)
+- Dashboard — open a call from a tile -> FRS-116.11
+- Dashboard — SLA rules fallback -> FRS-116.6, D-024
+- Dashboard — Public Health Threat / Serious Incident counts -> FRS-116.7
+- Dashboard — Parties Served / Engineers Active -> FRS-116.8
+- Dashboard — charts -> FRS-116.9
+- Dashboard — Recent Calls list -> FRS-116.10
+- Dashboard — scope chip -> FRS-116.12
+- Dashboard — load/empty/not-connected messages -> FRS-116.12
+- My Workload — per-section permission gating -> FRS-117.1
+- My Workload — independent section loading -> FRS-117.2
+- My Workload — wait for reporting scope -> FRS-117.3
+- My Workload — Spare Requests section -> FRS-117.4
+- My Workload — RM Approval section -> FRS-117.5
+- My Workload — Pending Dispatch section -> FRS-117.6
+- My Workload — Hand Stock section -> FRS-117.7
+- My Workload — Material Returns section -> FRS-117.8
+- My Workload — Stock Transfer section -> FRS-117.8
+- My Workload — Daily Review section (APE card unfiltered) -> FRS-117.9, D-022
+- My Workload — "+" lower bound -> FRS-117.10
+- My Workload — figure vs queue cards -> FRS-117.11
+- My Workload — register links, Refresh, synced time -> FRS-117.12
+- My Workload — empty/counting messages -> FRS-117.12
+- Product & Party Search — product-list fallback -> FRS-118.1
+- Product & Party Search — serial-only contains search -> FRS-118.2
+- Product & Party Search — 200-result cap -> FRS-118.3
+- Product & Party Search — auto-open on a single match -> FRS-118.4
+- Product & Party Search — party dropdown source -> FRS-118.5, AMEND FRS-037
+- Product & Party Search — "+ Field call" from a machine -> FRS-118.6
+- Product & Party Search — "Download again" -> FRS-118.7
+- Product & Party Search — table sort/resize/columns -> FRS-118.8
+- Product & Party Search — validation and empty messages -> FRS-118.9
+- Machine History — free-text serial -> FRS-119.1
+- Machine History — arrival by link -> FRS-119.2
+- Machine History — "where it is now" panel -> FRS-119.4
+- Machine History — party-mismatch warning -> FRS-119.5
+- Machine History — "not on Product Database" note -> FRS-119.5
+- Machine History — timeline and register labels -> FRS-119.6
+- Machine History — voided/cancelled/migrated markings -> FRS-119.7
+- Machine History — filter chips -> FRS-119.6
+- Machine History — lookup audit -> FRS-119.11
+- Machine History — silent per-register failure and row caps -> URS-096, FRS-119.8, FRS-119.9, D-019
+- Machine History — UCN colouring -> FRS-119.12
+- Machine History — messages -> FRS-119.12
+- Daily Complaint Review Register — tab structure and counts -> FRS-107.1
+- Daily Complaint Review Register — register filters and default year -> FRS-107.2, FRS-107.3
+- Daily Complaint Review Register — arriving filter from Workload -> FRS-107.4
+- Daily Complaint Review Register — paging, load-in-full worklists, "+" -> FRS-107.5, FRS-107.6, FRS-107.7
+- Daily Complaint Review Register — exact counts, failed count shows no figure -> FRS-107.8
+- Daily Complaint Review Register — stale-database banner -> FRS-107.10
+- Daily Complaint Review Register — automatic Review 2 = NO each morning -> URS-080, FRS-096, FRS-097, AMEND URS-058/FRS-069, D-028
+- Daily Complaint Review Register — three-pane desk with remembered widths -> FRS-108.1
+- Daily Complaint Review Register — desk grouping and first-year marking -> FRS-108.2
+- Daily Complaint Review Register — bulk Review 2 = NO -> URS-083, FRS-101
+- Daily Complaint Review Register — auto save -> URS-083, FRS-102
+- Daily Complaint Review Register — DCCR export format -> FRS-108.5, FRS-108.6
+- Daily Complaint Review Register — open a review in a drawer -> FRS-108.3
+- Daily Complaint Review Register — call card -> FRS-103.1
+- Daily Complaint Review Register — report context (hour meter, software, visits) -> FRS-103.4
+- Daily Complaint Review Register — in-app service report preview -> FRS-103.5
+- Daily Complaint Review Register — spares table -> FRS-103.6
+- Daily Complaint Review Register — machine history pop-up -> FRS-103.7
+- Daily Complaint Review Register — manual "Raise FFR" from the review -> URS-081, FRS-099
+- Daily Complaint Review Register — Review 1 display -> FRS-103.2
+- Daily Complaint Review Register — Review 2 answers and "All NO" -> FRS-103.9
+- Daily Complaint Review Register — age-at-failure first-year warning -> FRS-103.3
+- Daily Complaint Review Register — frequent-failure rule 2 -> FRS-104
+- Daily Complaint Review Register — live Any Potential Effect preview -> FRS-103.8
+- Daily Complaint Review Register — automatic FFR on Any Potential Effect = YES -> URS-081, FRS-098, D-029
+- Daily Complaint Review Register — Review 3 lists narrowed by product -> FRS-105.1, FRS-105.2, FRS-105.3
+- Daily Complaint Review Register — "Change product?" -> URS-085, FRS-105.4, FRS-105.5, FRS-105.6
+- Daily Complaint Review Register — Service Dept Observation / Action Taken -> FRS-105.7, FRS-105.8
+- Daily Complaint Review Register — administrator override of review dates -> URS-086, FRS-106, D-020
+- Daily Complaint Review Register — read-only without review.edit -> FRS-108.4
+- Daily Complaint Review Register — audit entries -> FRS-108.7
+- Daily Complaint Review Register — UCN colouring -> FRS-107.11, FRS-103.1
+- (decision 3) Bulk Uploads — DCCR Register historical load -> URS-082, FRS-100, D-029
+- Product Failure Analysis — 8,000-row load cap and "+" -> FRS-113.1
+- Product Failure Analysis — year window and migrated warning -> FRS-113.2
+- Product Failure Analysis — KPI cards -> FRS-113.3
+- Product Failure Analysis — built-in analyses and counting under the corrected product -> FRS-113.4, FRS-105.5
+- Product Failure Analysis — chart plus side table and labels -> FRS-113.5
+- Product Failure Analysis — cross-filter -> FRS-113.6
+- Product Failure Analysis — .xlsx downloads not gated by export.data -> URS-149, FRS-112, D-018
+- Product Failure Analysis — trend chart and download -> FRS-113.7, FRS-112.3
+- Product Failure Analysis — saved/shared charts -> FRS-113.8
+- Product Failure Analysis — messages -> FRS-113.12
+- Spare Insights — date window and "This year" -> FRS-114.1, D-023
+- Spare Insights — auto-recalculate -> FRS-114.2
+- Spare Insights — DB computation under consumption RLS -> FRS-114.3
+- Spare Insights — KPI cards (never-zero unclassified %) -> FRS-114.6
+- Spare Insights — unclassified banner -> FRS-114.7
+- Spare Insights — consumable vs spare split -> FRS-114.8
+- Spare Insights — top parts -> FRS-114.8
+- Spare Insights — by product with top-25 note -> FRS-114.8
+- Spare Insights — by month -> FRS-114.9
+- Spare Insights — voided excluded, dated by booking (IST) -> FRS-114.4, FRS-114.5
+- Spare Insights — messages -> FRS-114.10
+- Call Review — search -> FRS-120.1
+- Call Review — tabs -> FRS-120.2
+- Call Review — empty-list wording by scope -> FRS-120.3
+- Call Review — Load more -> FRS-120.4
+- Call Review — desk layout -> FRS-120.5
+- Call Review — call details pane -> FRS-120.5
+- Call Review — re-marking and remarks -> FRS-120.6
+- Call Review — Reco/Re-open authority mismatch -> FRS-120.7, FRS-120.8, D-025
+- Call Review — re-open reason enforced by the database -> FRS-120.9, D-025
+- Call Review — context pane display and report links -> FRS-120.10
+- Call Review — audit -> FRS-120.11
+- Call Review — read-only message -> FRS-120.11
+- KPI & Failure Analysis — missing-view message -> FRS-115.6
+- KPI & Failure Analysis — other cards -> FRS-115.1
+- KPI & Failure Analysis — cover vocabulary bucketing -> FRS-115.2
+- KPI & Failure Analysis — product/region chips -> FRS-115.3
+- KPI & Failure Analysis — rate-row click filter -> FRS-115.4
+- KPI & Failure Analysis — drill-through to calls by complaint -> FRS-115.5
+- KPI & Failure Analysis — scope chip/refresh -> FRS-115.7
+- Objective — objectives table and good/bad colouring -> URS-098, FRS-121.1
+- Objective — monthly/quarterly explanation -> FRS-121.1
+- Objective — typing a monthly figure -> FRS-121.2, FRS-121.6
+- Objective — Re-calculate -> FRS-121.3, FRS-121.6
+- Objective — per-month cut-off dates -> FRS-121.4, FRS-121.6
+- Objective — administrator cut-off lock -> FRS-121.4
+- Objective — add an objective -> FRS-121.5
+- Objective — edit definition / formula / parameters -> FRS-121.5
+- Objective — delete an objective and its figures -> FRS-121.7, D-021
+- Objective — evidence download (and export restriction) -> FRS-121.8, FRS-112.3
+- Objective — evidence messages -> FRS-121.8
+- Objective — computed-column explanation and the stale "every figure is typed" line -> FRS-121.9, D-021
+- Objective — scope chip/messages -> FRS-121.10
+- Field Failure Register — read scope (ffr.view whole register) -> FRS-110.6
+- Field Failure Register — access-vs-empty banner -> FRS-110.7
+- Field Failure Register — year and product filters -> FRS-110.9
+- Field Failure Register — tabs and desk/table views -> FRS-110.4, FRS-110.10
+- Field Failure Register — manual Raise FFR -> FRS-099
+- Field Failure Register — pre-fill from review -> FRS-099.3, FRS-099.4
+- Field Failure Register — FFR numbering -> FRS-109.2, FRS-109.3
+- Field Failure Register — form fields and vocabularies -> FRS-109.1
+- Field Failure Register — required fields -> FRS-109.4, D-027
+- Field Failure Register — Raised By stamping on a manual raise -> FRS-109.5
+- Field Failure Register — editing and weekly review -> FRS-110.1, FRS-110.2, D-027
+- Field Failure Register — live call columns and "withdrawn" badge -> FRS-110.5
+- Field Failure Register — desk (Due a review, the call as it stands now) -> FRS-110.4
+- Field Failure Register — call context via ffr_call_context -> FRS-111.1, FRS-111.2, FRS-111.3
+- Field Failure Register — no deletion of reports -> FRS-110.8
+- Field Failure Register — Insights cards other than migrated -> URS-089, FRS-113.9
+- Field Failure Register — Insights cross-filter -> FRS-113.10
+- Field Failure Register — Insights charts -> FRS-113.11
+- Field Failure Register — trend download not export-gated -> FRS-112.3, D-018
+- Field Failure Register — Pareto drill and download not export-gated (and missing raw column) -> FRS-113.11, FRS-112.3, FRS-112.7, D-018
+- Field Failure Register — (decision 2) CAPA fields blank on an automatic report -> FRS-098.6, D-029
+- Field Failure Report print page — no module key on /ffr/:ffrNo -> FRS-111.4, D-026
+- Field Failure Report print page — print audit and navigation -> FRS-111.5
 - NOT GIVEN A REQUIREMENT: dashboard.view and consumption.view sit in PERM_TREE (rbac.ts:462, :488) and no screen tests them. Whether to remove them from the matrix or make the screens test them is a permission-matrix decision, not a requirement of these screens.
 ### Service Calls & Feedback
 
-- Request Registration #1 list newest first, page size -> FRS-121.1
-- Request Registration #2 "+" on the count -> FRS-121.2
-- Request Registration #3 search -> FRS-121.4
-- Request Registration #4 status chips and their counts -> FRS-121.3 (D-040)
-- Request Registration #8 UCN coloured by state -> FRS-121.5
-- Request Registration #9 export and partial warning -> FRS-121.7, FRS-137
-- Request Registration #10 read a request -> FRS-121.6
-- Request Registration #11 correction via free-text boxes, email correctable -> FRS-123.1-.4, .7 (D-030)
-- Request Registration #12 zero-row correction reported -> FRS-123.6
-- Request Registration #16 call type from master -> FRS-122.2, FRS-123.3
-- Request Registration #20 up to five calls -> FRS-122.1
-- Request Registration #30 fixed INSTALLATION CALL complaint -> FRS-122.6
-- Request Registration #32 installation uploads, size, wait -> FRS-122.7
-- Request Registration #33 Call Attended?, Attended Date, planned date -> FRS-122.3-.5 (D-030)
-- Request Registration #34 refusal reasons incl. Call Attended -> FRS-122.3-.4, .7
-- Request Registration #36 half-saved fallback -> FRS-122.8 (D-030)
-- Request Registration #37 clear -> FRS-122.9
-- Request Registration #38 audit of submit -> FRS-122.10
-- Request Registration #39 refresh and sync time -> FRS-121.8
-- Pending Registrations #2 search -> FRS-125.7
-- Pending Registrations #3 Open Calls column, silent failure -> FRS-125.1-.2 (D-040)
-- Pending Registrations #5 map to unknown UCN -> FRS-124.1 (D-031)
-- Pending Registrations #6 zero-row map/cancel -> FRS-124.2 (D-031)
-- Pending Registrations #7 three panes, widths remembered -> FRS-125.3
-- Pending Registrations #10 whole machine history, map to closed call -> FRS-125.4
-- Pending Registrations #11 edit from history pane -> FRS-125.6, FRS-131 (D-034)
-- Pending Registrations #14 no-right banner -> FRS-124.5
-- Pending Registrations #16 prefill, engineer, Person Calling -> FRS-126.1
-- Pending Registrations #17 dates from the request -> FRS-126.2
-- Pending Registrations #18 request's engineer wins -> FRS-126.4
-- Pending Registrations #20 UCN back-fill swallowed -> FRS-124.3 (D-031)
-- Pending Registrations #21 refresh, reload after action -> FRS-125.7
-- Field Call Register #1 800 + Load more + "+" -> FRS-130.1
-- Field Call Register #3 unallotted call visible -> FRS-130.2
-- Field Call Register #4 Open only -> FRS-130.3
-- Field Call Register #5 Re-opened chip -> FRS-130.4
-- Field Call Register #6 engineer chips -> FRS-130.5
-- Field Call Register #8 Filters panel, columns, layout -> FRS-130.9
-- Field Call Register #9 header scope/source/sync -> FRS-130.8
-- Field Call Register #10 colour, re-open count -> FRS-130.7
-- Field Call Register #11 Aging -> FRS-130.6
-- Field Call Register #13 export scope and warnings -> FRS-130.10, FRS-137
-- Field Call Register #15 Product Database cascade -> FRS-129.1
-- Field Call Register #16 cover locked -> FRS-129.2
-- Field Call Register #17 engineer prefill -> FRS-129.3
-- Field Call Register #18 party search, non-owners not pickable -> FRS-129.4
-- Field Call Register #19 required fields -> FRS-129.8
-- Field Call Register #21 complaint text helper -> FRS-129.7
-- Field Call Register #22 vigilance default NO -> FRS-128 (D-033)
-- Field Call Register #23 Call Allocated To at registration -> FRS-129.6
-- Field Call Register #27 failed/offline registration kept locally -> FRS-127.2-.3 (D-032)
-- Field Call Register #28 sync pending local calls -> FRS-127.4
-- Field Call Register #29 discard local calls -> FRS-127.4
-- Field Call Register #30 sheet-path cache and resync -> FRS-130.14
-- Field Call Register #31 arrival prefilled/searched/edit -> FRS-130.11 (D-040), FRS-126
-- Field Call Register #32 UCN write-back fire-and-forget -> FRS-124.3 (D-031)
-- Field Call Register #33 view form, dates -> FRS-138.6 (visit), URS-076; the call view by FRS-133.1 and FRS-130.7
-- Field Call Register #34 Edit needs calls.edit; section locks -> FRS-131.1-.2 (D-034)
-- Field Call Register #35 Solved read-only for admins too -> FRS-131.3; AMEND FRS-007
-- Field Call Register #38 Reco hand-off -> FRS-133.5
-- Field Call Register #39 re-open asks no reason -> FRS-132.4 (D-035); AMEND FRS-064
-- Field Call Register #41 cancel: states, reason, retention -> FRS-132.1-.2 (D-036)
-- Field Call Register #42 restore keeps reason -> FRS-132.3
-- Field Call Register #43 one action order -> FRS-130.12
-- Field Call Register #45 allot-right note -> FRS-130.13
-- Field Call Register #46 signed Service Report on a closed call -> FRS-133.3
-- Field Call Register #47 associated records, failed load text -> FRS-133.1-.2 (D-040)
-- Field Call Register #48 shortfall flag on the call -> FRS-133.4
-- Field Call Register #50 audit of call actions -> FRS-127.5, FRS-132.7
-- Installation Calls #3 new customer typed, owners first -> FRS-129.5
-- Installation Calls #4 party-only serviceman prefill -> FRS-129.3
-- Preventive (PM) #2 single PM gated by calls.create -> FRS-129.9
-- Pending Calls #1 the list, states, paging -> FRS-134.1
-- Pending Calls #2 tile counts -> FRS-134.2 (D-040)
-- Pending Calls #3 type chips by family -> FRS-134.3
-- Pending Calls #4 status picker -> FRS-134.4
-- Pending Calls #5 engineer chips -> FRS-134.4
-- Pending Calls #6 search -> FRS-134.4
-- Pending Calls #8 group by Type -> FRS-134.5
-- Pending Calls #10 allot-right note -> FRS-134.6
-- Pending Calls #11 row opens call in its register -> FRS-134.7, FRS-130.11 (D-040)
-- Pending Calls #12 empty-text rules -> FRS-134.8
-- Pending Calls #13 missing-view message -> FRS-134.9
-- Pending Calls #14 export -> FRS-134.10, FRS-137
-- Pending Calls #15 refresh -> FRS-134.10
+- Request Registration #1 list newest first, page size -> FRS-122.1
+- Request Registration #2 "+" on the count -> FRS-122.2
+- Request Registration #3 search -> FRS-122.4
+- Request Registration #4 status chips and their counts -> FRS-122.3 (D-040)
+- Request Registration #8 UCN coloured by state -> FRS-122.5
+- Request Registration #9 export and partial warning -> FRS-122.7, FRS-138
+- Request Registration #10 read a request -> FRS-122.6
+- Request Registration #11 correction via free-text boxes, email correctable -> FRS-124.1-.4, .7 (D-030)
+- Request Registration #12 zero-row correction reported -> FRS-124.6
+- Request Registration #16 call type from master -> FRS-123.2, FRS-124.3
+- Request Registration #20 up to five calls -> FRS-123.1
+- Request Registration #30 fixed INSTALLATION CALL complaint -> FRS-123.6
+- Request Registration #32 installation uploads, size, wait -> FRS-123.7
+- Request Registration #33 Call Attended?, Attended Date, planned date -> FRS-123.3-.5 (D-030)
+- Request Registration #34 refusal reasons incl. Call Attended -> FRS-123.3-.4, .7
+- Request Registration #36 half-saved fallback -> FRS-123.8 (D-030)
+- Request Registration #37 clear -> FRS-123.9
+- Request Registration #38 audit of submit -> FRS-123.10
+- Request Registration #39 refresh and sync time -> FRS-122.8
+- Pending Registrations #2 search -> FRS-126.7
+- Pending Registrations #3 Open Calls column, silent failure -> FRS-126.1-.2 (D-040)
+- Pending Registrations #5 map to unknown UCN -> FRS-125.1 (D-031)
+- Pending Registrations #6 zero-row map/cancel -> FRS-125.2 (D-031)
+- Pending Registrations #7 three panes, widths remembered -> FRS-126.3
+- Pending Registrations #10 whole machine history, map to closed call -> FRS-126.4
+- Pending Registrations #11 edit from history pane -> FRS-126.6, FRS-132 (D-034)
+- Pending Registrations #14 no-right banner -> FRS-125.5
+- Pending Registrations #16 prefill, engineer, Person Calling -> FRS-127.1
+- Pending Registrations #17 dates from the request -> FRS-127.2
+- Pending Registrations #18 request's engineer wins -> FRS-127.4
+- Pending Registrations #20 UCN back-fill swallowed -> FRS-125.3 (D-031)
+- Pending Registrations #21 refresh, reload after action -> FRS-126.7
+- Field Call Register #1 800 + Load more + "+" -> FRS-131.1
+- Field Call Register #3 unallotted call visible -> FRS-131.2
+- Field Call Register #4 Open only -> FRS-131.3
+- Field Call Register #5 Re-opened chip -> FRS-131.4
+- Field Call Register #6 engineer chips -> FRS-131.5
+- Field Call Register #8 Filters panel, columns, layout -> FRS-131.9
+- Field Call Register #9 header scope/source/sync -> FRS-131.8
+- Field Call Register #10 colour, re-open count -> FRS-131.7
+- Field Call Register #11 Aging -> FRS-131.6
+- Field Call Register #13 export scope and warnings -> FRS-131.10, FRS-138
+- Field Call Register #15 Product Database cascade -> FRS-130.1
+- Field Call Register #16 cover locked -> FRS-130.2
+- Field Call Register #17 engineer prefill -> FRS-130.3
+- Field Call Register #18 party search, non-owners not pickable -> FRS-130.4
+- Field Call Register #19 required fields -> FRS-130.8
+- Field Call Register #21 complaint text helper -> FRS-130.7
+- Field Call Register #22 vigilance default NO -> FRS-129 (D-033)
+- Field Call Register #23 Call Allocated To at registration -> FRS-130.6
+- Field Call Register #27 failed/offline registration kept locally -> FRS-128.2-.3 (D-032)
+- Field Call Register #28 sync pending local calls -> FRS-128.4
+- Field Call Register #29 discard local calls -> FRS-128.4
+- Field Call Register #30 sheet-path cache and resync -> FRS-131.14
+- Field Call Register #31 arrival prefilled/searched/edit -> FRS-131.11 (D-040), FRS-127
+- Field Call Register #32 UCN write-back fire-and-forget -> FRS-125.3 (D-031)
+- Field Call Register #33 view form, dates -> FRS-139.6 (visit), URS-076; the call view by FRS-134.1 and FRS-131.7
+- Field Call Register #34 Edit needs calls.edit; section locks -> FRS-132.1-.2 (D-034)
+- Field Call Register #35 Solved read-only for admins too -> FRS-132.3; AMEND FRS-007
+- Field Call Register #38 Reco hand-off -> FRS-134.5
+- Field Call Register #39 re-open asks no reason -> FRS-133.4 (D-035); AMEND FRS-064
+- Field Call Register #41 cancel: states, reason, retention -> FRS-133.1-.2 (D-036)
+- Field Call Register #42 restore keeps reason -> FRS-133.3
+- Field Call Register #43 one action order -> FRS-131.12
+- Field Call Register #45 allot-right note -> FRS-131.13
+- Field Call Register #46 signed Service Report on a closed call -> FRS-134.3
+- Field Call Register #47 associated records, failed load text -> FRS-134.1-.2 (D-040)
+- Field Call Register #48 shortfall flag on the call -> FRS-134.4
+- Field Call Register #50 audit of call actions -> FRS-128.5, FRS-133.7
+- Installation Calls #3 new customer typed, owners first -> FRS-130.5
+- Installation Calls #4 party-only serviceman prefill -> FRS-130.3
+- Preventive (PM) #2 single PM gated by calls.create -> FRS-130.9
+- Pending Calls #1 the list, states, paging -> FRS-135.1
+- Pending Calls #2 tile counts -> FRS-135.2 (D-040)
+- Pending Calls #3 type chips by family -> FRS-135.3
+- Pending Calls #4 status picker -> FRS-135.4
+- Pending Calls #5 engineer chips -> FRS-135.4
+- Pending Calls #6 search -> FRS-135.4
+- Pending Calls #8 group by Type -> FRS-135.5
+- Pending Calls #10 allot-right note -> FRS-135.6
+- Pending Calls #11 row opens call in its register -> FRS-135.7, FRS-131.11 (D-040)
+- Pending Calls #12 empty-text rules -> FRS-135.8
+- Pending Calls #13 missing-view message -> FRS-135.9
+- Pending Calls #14 export -> FRS-135.10, FRS-138
+- Pending Calls #15 refresh -> FRS-135.10
 - Pending Calls (note) no SLA flag although URS-014 names it -> AMEND URS-014 (comment); not a new requirement
-- Visit Reports #1 paging -> FRS-138.1
-- Visit Reports #2 cache and sync -> FRS-138.2
-- Visit Reports #4 column picker -> FRS-138.4
-- Visit Reports #5 report cell -> FRS-138.5
-- Visit Reports #6 open a visit -> FRS-138.6
-- Visit Reports #7 Excel ungated, every column, About sheet -> FRS-137.1, .3, .4 (D-018)
-- Visit Reports #9 refresh -> FRS-138.7
-- Visit Entry #2 previous visits -> FRS-135.11
-- Visit Entry #3 Visit Entry Date stamped -> FRS-135.2
-- Visit Entry #4 date bounds -> FRS-135.1 (OQ-125, visit_date_test)
-- Visit Entry #5 manager picks team engineer -> FRS-135.3
-- Visit Entry #7 Pending Reason -> FRS-135.5
-- Visit Entry #8 Update Visit Work Details? -> FRS-135.6
-- Visit Entry #9 accessory serial -> FRS-135.7
-- Visit Entry #10 Warranty Start Date default -> FRS-135.8
-- Visit Entry #11 manual report upload -> FRS-135.9
-- Visit Entry #12 manual report mandatory on completed -> FRS-135.9
-- Visit Entry #14 picker narrowed to product -> FRS-136.4
-- Visit Entry #15 GRIR per line -> FRS-136.5; AMEND SR-015
-- Visit Entry #17 customer sign-off -> FRS-135.10
-- Visit Entry #18 feedback mandatory on solved -> FRS-135.10
-- Visit Entry #19 save order, retry remainder -> FRS-136.1-.2
-- Visit Entry #20 status stamp best-effort -> FRS-136.3
-- Visit Entry #21 second feedback on a re-opened call -> FRS-132.6 (D-035)
-- Visit Entry #22 audit of visit events -> FRS-136.6
-- Visit Entry #23 missing hand-stock view message -> FRS-135.12
-- Bulk Report Mapping #1 gate -> FRS-144.1
-- Bulk Report Mapping #7 (note) write without step 2 -> FRS-144.4
-- Bulk Report Mapping #10 show only problems -> FRS-144.2
-- Bulk Report Mapping #12 unknown columns kept -> FRS-144.3
-- PM Bulk Upload #2 template -> FRS-141.2
-- PM Bulk Upload #4 no serial -> FRS-141.4 (D-038)
-- PM Bulk Upload #5 complaint, call number, engineer unchecked -> FRS-141.5 (D-038)
-- PM Bulk Upload #6 item status normalised -> FRS-141.6
-- PM Bulk Upload #8 first time and gap -> FRS-141.8
-- PM Bulk Upload #9 unknown columns kept -> FRS-141.9
-- PM Bulk Upload #12 re-import duplicates -> FRS-141.11 (D-038)
-- PM Bulk Upload #13 clear -> FRS-141.13
-- Solved Without a Report #1 the list and its gaps -> FRS-139.1 (OQ-130)
-- Solved Without a Report #2 gap chips -> FRS-139.2
-- Solved Without a Report #3 search -> FRS-139.3
-- Solved Without a Report #4 empty message scope -> FRS-139.4 (D-040)
-- Solved Without a Report #5 load failure message -> FRS-139.5
-- Solved Without a Report #6 Excel ungated -> FRS-139.6, FRS-137.1 (D-018)
-- Solved Without a Report #7 export audit-logged -> FRS-137.5
-- Solved Without a Report #8 refresh -> FRS-139.7
-- Customer Feedback #3 Date vs Loaded on -> FRS-140.2 (OQ-132)
-- Customer Feedback #4 Uploaded vs Entered here -> FRS-140.3
-- Customer Feedback #5 client engineer-name filter -> FRS-140.4 (D-037); AMEND FRS-017
-- Customer Feedback #6 search -> FRS-140.5
-- Customer Feedback #7 UCN colour -> FRS-140.5
-- Customer Feedback #8 cache and sync -> FRS-140.6
-- Customer Feedback #9 export -> FRS-140.7, FRS-137
-- Customer Feedback #10 refresh -> FRS-140.6
-- Feedback Without a Report #2 finding chips -> FRS-139.2
-- Feedback Without a Report #3 search -> FRS-139.3
-- Feedback Without a Report #4 empty message scope -> FRS-139.4 (D-040)
-- Feedback Without a Report #5 load failure message -> FRS-139.5
-- Feedback Without a Report #6 Excel ungated, audit -> FRS-139.6, FRS-137.1, .5 (D-018)
-- Feedback Without a Report #7 refresh -> FRS-139.7
-- Indoor #1 500 cap with exact count -> FRS-142.1 (D-040)
-- Indoor #2 filter chips -> FRS-142.2
-- Indoor #3 overdue demo banner -> FRS-142.3 (OQ-136)
-- Indoor #4 receive files blank job -> FRS-142.4
-- Indoor #6 save on blur -> FRS-142.5
-- Indoor #7 free status setting -> FRS-143.2
-- Indoor #9 cleaned_by from browser -> FRS-142.6 (D-039)
-- Indoor #11 reported-to-customer not on screen -> FRS-142.9 (D-039)
-- Indoor #12 rework fields -> FRS-143.4
-- Indoor #14 harvested parts uneditable and deletable -> FRS-142.7-.8 (D-039)
-- Indoor #15 pre-delivery inspection -> FRS-143.5
-- Indoor #16 demo loan fields -> FRS-143.6
-- Indoor #17 Other description -> FRS-143.7 (OQ-136)
-- Indoor #18 (note) accessory removal deletes -> FRS-142.8 (D-039)
-- Indoor #19 checks deletable -> FRS-143.8, FRS-142.8 (D-039)
-- Indoor #20 QC Fail -> Under repair -> FRS-143.3
-- Indoor #22 dispatch warning -> FRS-143.9
-- Indoor #23 only receive audit-logged -> FRS-142.10-.11 (D-039)
-- Indoor #24 not-connected message -> FRS-142.12
+- Visit Reports #1 paging -> FRS-139.1
+- Visit Reports #2 cache and sync -> FRS-139.2
+- Visit Reports #4 column picker -> FRS-139.4
+- Visit Reports #5 report cell -> FRS-139.5
+- Visit Reports #6 open a visit -> FRS-139.6
+- Visit Reports #7 Excel ungated, every column, About sheet -> FRS-138.1, .3, .4 (D-018)
+- Visit Reports #9 refresh -> FRS-139.7
+- Visit Entry #2 previous visits -> FRS-136.11
+- Visit Entry #3 Visit Entry Date stamped -> FRS-136.2
+- Visit Entry #4 date bounds -> FRS-136.1 (OQ-126, visit_date_test)
+- Visit Entry #5 manager picks team engineer -> FRS-136.3
+- Visit Entry #7 Pending Reason -> FRS-136.5
+- Visit Entry #8 Update Visit Work Details? -> FRS-136.6
+- Visit Entry #9 accessory serial -> FRS-136.7
+- Visit Entry #10 Warranty Start Date default -> FRS-136.8
+- Visit Entry #11 manual report upload -> FRS-136.9
+- Visit Entry #12 manual report mandatory on completed -> FRS-136.9
+- Visit Entry #14 picker narrowed to product -> FRS-137.4
+- Visit Entry #15 GRIR per line -> FRS-137.5; AMEND SR-015
+- Visit Entry #17 customer sign-off -> FRS-136.10
+- Visit Entry #18 feedback mandatory on solved -> FRS-136.10
+- Visit Entry #19 save order, retry remainder -> FRS-137.1-.2
+- Visit Entry #20 status stamp best-effort -> FRS-137.3
+- Visit Entry #21 second feedback on a re-opened call -> FRS-133.6 (D-035)
+- Visit Entry #22 audit of visit events -> FRS-137.6
+- Visit Entry #23 missing hand-stock view message -> FRS-136.12
+- Bulk Report Mapping #1 gate -> FRS-145.1
+- Bulk Report Mapping #7 (note) write without step 2 -> FRS-145.4
+- Bulk Report Mapping #10 show only problems -> FRS-145.2
+- Bulk Report Mapping #12 unknown columns kept -> FRS-145.3
+- PM Bulk Upload #2 template -> FRS-142.2
+- PM Bulk Upload #4 no serial -> FRS-142.4 (D-038)
+- PM Bulk Upload #5 complaint, call number, engineer unchecked -> FRS-142.5 (D-038)
+- PM Bulk Upload #6 item status normalised -> FRS-142.6
+- PM Bulk Upload #8 first time and gap -> FRS-142.8
+- PM Bulk Upload #9 unknown columns kept -> FRS-142.9
+- PM Bulk Upload #12 re-import duplicates -> FRS-142.11 (D-038)
+- PM Bulk Upload #13 clear -> FRS-142.13
+- Solved Without a Report #1 the list and its gaps -> FRS-140.1 (OQ-131)
+- Solved Without a Report #2 gap chips -> FRS-140.2
+- Solved Without a Report #3 search -> FRS-140.3
+- Solved Without a Report #4 empty message scope -> FRS-140.4 (D-040)
+- Solved Without a Report #5 load failure message -> FRS-140.5
+- Solved Without a Report #6 Excel ungated -> FRS-140.6, FRS-138.1 (D-018)
+- Solved Without a Report #7 export audit-logged -> FRS-138.5
+- Solved Without a Report #8 refresh -> FRS-140.7
+- Customer Feedback #3 Date vs Loaded on -> FRS-141.2 (OQ-133)
+- Customer Feedback #4 Uploaded vs Entered here -> FRS-141.3
+- Customer Feedback #5 client engineer-name filter -> FRS-141.4 (D-037); AMEND FRS-017
+- Customer Feedback #6 search -> FRS-141.5
+- Customer Feedback #7 UCN colour -> FRS-141.5
+- Customer Feedback #8 cache and sync -> FRS-141.6
+- Customer Feedback #9 export -> FRS-141.7, FRS-138
+- Customer Feedback #10 refresh -> FRS-141.6
+- Feedback Without a Report #2 finding chips -> FRS-140.2
+- Feedback Without a Report #3 search -> FRS-140.3
+- Feedback Without a Report #4 empty message scope -> FRS-140.4 (D-040)
+- Feedback Without a Report #5 load failure message -> FRS-140.5
+- Feedback Without a Report #6 Excel ungated, audit -> FRS-140.6, FRS-138.1, .5 (D-018)
+- Feedback Without a Report #7 refresh -> FRS-140.7
+- Indoor #1 500 cap with exact count -> FRS-143.1 (D-040)
+- Indoor #2 filter chips -> FRS-143.2
+- Indoor #3 overdue demo banner -> FRS-143.3 (OQ-137)
+- Indoor #4 receive files blank job -> FRS-143.4
+- Indoor #6 save on blur -> FRS-143.5
+- Indoor #7 free status setting -> FRS-144.2
+- Indoor #9 cleaned_by from browser -> FRS-143.6 (D-039)
+- Indoor #11 reported-to-customer not on screen -> FRS-143.9 (D-039)
+- Indoor #12 rework fields -> FRS-144.4
+- Indoor #14 harvested parts uneditable and deletable -> FRS-143.7-.8 (D-039)
+- Indoor #15 pre-delivery inspection -> FRS-144.5
+- Indoor #16 demo loan fields -> FRS-144.6
+- Indoor #17 Other description -> FRS-144.7 (OQ-137)
+- Indoor #18 (note) accessory removal deletes -> FRS-143.8 (D-039)
+- Indoor #19 checks deletable -> FRS-144.8, FRS-143.8 (D-039)
+- Indoor #20 QC Fail -> Under repair -> FRS-144.3
+- Indoor #22 dispatch warning -> FRS-144.9
+- Indoor #23 only receive audit-logged -> FRS-143.10-.11 (D-039)
+- Indoor #24 not-connected message -> FRS-143.12
 ### Spares & Hand Stock
 
-- Spare Requests — open the screen → FRS-164.1
-- Spare Requests — request UID made in the browser → FRS-145.14
-- Spare Requests — Call Based / HandStock type → URS-118, FRS-145.2
-- Spare Requests — OR No and date assigned by the database → FRS-145.13
-- Spare Requests — call search and identity copied → FRS-145.4, FRS-145.5
-- Spare Requests — call fixed when raised from a call → FRS-145.6
-- Spare Requests — part list narrowed to the product, Show all parts → FRS-145.8
-- Spare Requests — part from Part Master only, disabled with reason → FRS-145.7
-- Spare Requests — quantity whole, at least 1 → FRS-145.9
-- Spare Requests — at most 20 rows → FRS-145.10
-- Spare Requests — HandStock reason required → FRS-145.3
-- Spare Requests — remarks → FRS-145.11
-- Spare Requests — submit rules and messages → FRS-145.12
-- Spare Requests — header then lines, compensating delete → URS-131, FRS-163.1 (D-044)
-- Spare Requests — success banner and audit entry → FRS-145.16
-- Spare Requests — not-connected banner, Submit disabled → FRS-145.15
-- Spare Requests — paging 1,000 with "+" → FRS-155.1
-- Spare Requests — 30-minute cache and background sync → FRS-155.5
-- Spare Requests — Google Sheet fallback → FRS-155.6
-- Spare Requests — View-as filtering → FRS-155.7
-- Spare Requests — stage derivation, whole-word, terminal states → URS-119, FRS-146.1–.4
-- Spare Requests — stage chips with counts → FRS-156.1
-- Spare Requests — Needs my action (receipt own only) → FRS-156.2, FRS-151.6
-- Spare Requests — engineer facet chips → FRS-156.3
-- Spare Requests — search → FRS-156.4
-- Spare Requests — UCN coloured by call status → FRS-156.5
-- Spare Requests — Sent and Approvals columns → FRS-156.10, FRS-149.9
-- Spare Requests — table view controls → FRS-156.16
-- Spare Requests — auto-approval rules, HandStock needs NSM, modal says so → FRS-146.5–.8
-- Spare Requests — reason required to reject → URS-120, FRS-147.1–.3 (D-043)
-- Spare Requests — "all N" per order, never at RM → FRS-148.6
-- Spare Requests — Commercial approval form → URS-122, FRS-149.1–.5, .7–.9
-- Spare Requests — NSM approval form → FRS-149.6–.8
-- Spare Requests — drop with required reason, permission-based → FRS-147.4–.7; AMEND FRS-012
-- Spare Requests — Dispatch… link → FRS-156.11
-- Spare Requests — mark received, raiser only → FRS-151 (AMEND URS-022)
-- Spare Requests — terminal-state labels → FRS-156.12
-- Spare Requests — tick boxes and bulk bar → FRS-148.1
-- Spare Requests — bulk confirmation, reason, skip count → URS-121, FRS-148.2–.5
-- Spare Requests — audit entry on each decision → FRS-148.10
-- Spare Requests — detail drawer and order tally → FRS-156.6
-- Spare Requests — "Entered in the system" only when it differs → FRS-156.7
-- Spare Requests — detail shows reject reason, call, order lines → FRS-156.8
-- Spare Requests — approval trail display → URS-126, FRS-156.9
-- Spare Requests — engineer change without a required reason → FRS-147.8; AMEND URS-035 (D-043)
-- Spare Requests — arriving filter from My Workload → FRS-156.13
-- Spare Requests — partial-export disclaimer → FRS-155.9
-- Spare Requests — status banners → FRS-155.3, FRS-155.5
-- Spare Requests — approver names from the client → URS-123, FRS-150.2 (D-041)
-- RM Approval — open the screen → FRS-164.1
-- RM Approval — whole queue, 2,000 cap with "+" → FRS-148.7
-- RM Approval — rows not the reader's shown "Not yours" → FRS-148.8
-- RM Approval — those rows cannot be ticked → FRS-148.8
-- RM Approval — Select all of mine → FRS-148.9
-- RM Approval — bulk approve/reject, required reason, skip count → FRS-148.2–.5, FRS-147.1
-- RM Approval — audit per batch → FRS-148.10
-- RM Approval — column set → FRS-156.15
-- RM Approval — waiting-days badge → FRS-156.15
-- RM Approval — search → FRS-156.15
-- RM Approval — table view controls → FRS-156.16
-- RM Approval — honest empty state by scope → FRS-155.4
-- RM Approval — migration hint on load failure → FRS-155.3
-- RM Approval — partial-export disclaimer → FRS-155.9
-- RM Approval — no cache, manual refresh → FRS-155.5
-- Pending Dispatch — open the screen → FRS-164.1
-- Pending Dispatch — the Stores queue → URS-124, FRS-152.1
-- Pending Dispatch — cap banner naming where the read stopped → FRS-152.2
-- Pending Dispatch — cards per engineer, oldest first, age colours → FRS-152.3
-- Pending Dispatch — expand/collapse → FRS-152.13
-- Pending Dispatch — search and ?engineer= → FRS-152.4
-- Pending Dispatch — tick lines or a whole engineer → FRS-152.5
-- Pending Dispatch — one stock out per engineer → FRS-152.6
-- Pending Dispatch — partial quantity → FRS-152.7 (FRS-026)
-- Pending Dispatch — action bar totals → FRS-152.5, FRS-152.8
-- Pending Dispatch — DC date editable, courier, remarks → FRS-152.8, FRS-152.11, FRS-162.1
-- Pending Dispatch — booking out all or nothing → FRS-152.9
-- Pending Dispatch — dispatcher stamped from session → FRS-150.1
-- Pending Dispatch — parts count at dispatch → FRS-152.11
-- Pending Dispatch — success message, audit, jump to DC → FRS-152.12
-- Pending Dispatch — drop via prompt accepts a blank reason → FRS-147.5–.6 (D-043)
-- Pending Dispatch — honest empty message → FRS-155.4
-- Pending Dispatch — migration hint → FRS-155.3
-- Pending Dispatch — cache and background sync → FRS-155.5
-- Pending Dispatch — partial-export disclaimer → FRS-155.9
-- Pending Dispatch — tabs Queue / Stock outs → FRS-152.14
+- Spare Requests — open the screen → FRS-165.1
+- Spare Requests — request UID made in the browser → FRS-146.14
+- Spare Requests — Call Based / HandStock type → URS-118, FRS-146.2
+- Spare Requests — OR No and date assigned by the database → FRS-146.13
+- Spare Requests — call search and identity copied → FRS-146.4, FRS-146.5
+- Spare Requests — call fixed when raised from a call → FRS-146.6
+- Spare Requests — part list narrowed to the product, Show all parts → FRS-146.8
+- Spare Requests — part from Part Master only, disabled with reason → FRS-146.7
+- Spare Requests — quantity whole, at least 1 → FRS-146.9
+- Spare Requests — at most 20 rows → FRS-146.10
+- Spare Requests — HandStock reason required → FRS-146.3
+- Spare Requests — remarks → FRS-146.11
+- Spare Requests — submit rules and messages → FRS-146.12
+- Spare Requests — header then lines, compensating delete → URS-131, FRS-164.1 (D-044)
+- Spare Requests — success banner and audit entry → FRS-146.16
+- Spare Requests — not-connected banner, Submit disabled → FRS-146.15
+- Spare Requests — paging 1,000 with "+" → FRS-156.1
+- Spare Requests — 30-minute cache and background sync → FRS-156.5
+- Spare Requests — Google Sheet fallback → FRS-156.6
+- Spare Requests — View-as filtering → FRS-156.7
+- Spare Requests — stage derivation, whole-word, terminal states → URS-119, FRS-147.1–.4
+- Spare Requests — stage chips with counts → FRS-157.1
+- Spare Requests — Needs my action (receipt own only) → FRS-157.2, FRS-152.6
+- Spare Requests — engineer facet chips → FRS-157.3
+- Spare Requests — search → FRS-157.4
+- Spare Requests — UCN coloured by call status → FRS-157.5
+- Spare Requests — Sent and Approvals columns → FRS-157.10, FRS-150.9
+- Spare Requests — table view controls → FRS-157.16
+- Spare Requests — auto-approval rules, HandStock needs NSM, modal says so → FRS-147.5–.8
+- Spare Requests — reason required to reject → URS-120, FRS-148.1–.3 (D-043)
+- Spare Requests — "all N" per order, never at RM → FRS-149.6
+- Spare Requests — Commercial approval form → URS-122, FRS-150.1–.5, .7–.9
+- Spare Requests — NSM approval form → FRS-150.6–.8
+- Spare Requests — drop with required reason, permission-based → FRS-148.4–.7; AMEND FRS-012
+- Spare Requests — Dispatch… link → FRS-157.11
+- Spare Requests — mark received, raiser only → FRS-152 (AMEND URS-022)
+- Spare Requests — terminal-state labels → FRS-157.12
+- Spare Requests — tick boxes and bulk bar → FRS-149.1
+- Spare Requests — bulk confirmation, reason, skip count → URS-121, FRS-149.2–.5
+- Spare Requests — audit entry on each decision → FRS-149.10
+- Spare Requests — detail drawer and order tally → FRS-157.6
+- Spare Requests — "Entered in the system" only when it differs → FRS-157.7
+- Spare Requests — detail shows reject reason, call, order lines → FRS-157.8
+- Spare Requests — approval trail display → URS-126, FRS-157.9
+- Spare Requests — engineer change without a required reason → FRS-148.8; AMEND URS-035 (D-043)
+- Spare Requests — arriving filter from My Workload → FRS-157.13
+- Spare Requests — partial-export disclaimer → FRS-156.9
+- Spare Requests — status banners → FRS-156.3, FRS-156.5
+- Spare Requests — approver names from the client → URS-123, FRS-151.2 (D-041)
+- RM Approval — open the screen → FRS-165.1
+- RM Approval — whole queue, 2,000 cap with "+" → FRS-149.7
+- RM Approval — rows not the reader's shown "Not yours" → FRS-149.8
+- RM Approval — those rows cannot be ticked → FRS-149.8
+- RM Approval — Select all of mine → FRS-149.9
+- RM Approval — bulk approve/reject, required reason, skip count → FRS-149.2–.5, FRS-148.1
+- RM Approval — audit per batch → FRS-149.10
+- RM Approval — column set → FRS-157.15
+- RM Approval — waiting-days badge → FRS-157.15
+- RM Approval — search → FRS-157.15
+- RM Approval — table view controls → FRS-157.16
+- RM Approval — honest empty state by scope → FRS-156.4
+- RM Approval — migration hint on load failure → FRS-156.3
+- RM Approval — partial-export disclaimer → FRS-156.9
+- RM Approval — no cache, manual refresh → FRS-156.5
+- Pending Dispatch — open the screen → FRS-165.1
+- Pending Dispatch — the Stores queue → URS-124, FRS-153.1
+- Pending Dispatch — cap banner naming where the read stopped → FRS-153.2
+- Pending Dispatch — cards per engineer, oldest first, age colours → FRS-153.3
+- Pending Dispatch — expand/collapse → FRS-153.13
+- Pending Dispatch — search and ?engineer= → FRS-153.4
+- Pending Dispatch — tick lines or a whole engineer → FRS-153.5
+- Pending Dispatch — one stock out per engineer → FRS-153.6
+- Pending Dispatch — partial quantity → FRS-153.7 (FRS-026)
+- Pending Dispatch — action bar totals → FRS-153.5, FRS-153.8
+- Pending Dispatch — DC date editable, courier, remarks → FRS-153.8, FRS-153.11, FRS-163.1
+- Pending Dispatch — booking out all or nothing → FRS-153.9
+- Pending Dispatch — dispatcher stamped from session → FRS-151.1
+- Pending Dispatch — parts count at dispatch → FRS-153.11
+- Pending Dispatch — success message, audit, jump to DC → FRS-153.12
+- Pending Dispatch — drop via prompt accepts a blank reason → FRS-148.5–.6 (D-043)
+- Pending Dispatch — honest empty message → FRS-156.4
+- Pending Dispatch — migration hint → FRS-156.3
+- Pending Dispatch — cache and background sync → FRS-156.5
+- Pending Dispatch — partial-export disclaimer → FRS-156.9
+- Pending Dispatch — tabs Queue / Stock outs → FRS-153.14
 - Pending Dispatch — URS-021 / URS-022 filed against the wrong screens → AMEND URS-021, AMEND URS-022, AMEND URS-008
-- Stock Out — open the screen → FRS-164.1, FRS-164.2
-- Stock Out — column set → FRS-156.14
-- Stock Out — days-to-dispatch colours → FRS-156.14
-- Stock Out — search → FRS-156.14
-- Stock Out — reprint DC and Declaration → FRS-156.14
-- Stock Out — partial-export disclaimer → FRS-155.9
-- Stock Out — failed load shown as "No stock outs yet" → FRS-155.3 (D-046)
-- Stock Out — migration banner → FRS-155.3
-- Stock Out — table view controls → FRS-156.16
-- Delivery Challan — no module permission on the route → FRS-153.1, FRS-164.5
-- Delivery Challan — only the latest 500 findable → FRS-153.2 (D-045)
-- Delivery Challan — prints quantity sent on this stock out → FRS-153.3
-- Delivery Challan — letterhead → FRS-153.4
-- Delivery Challan — header fields → FRS-153.5
-- Delivery Challan — grid, totals, continuation → FRS-153.6
-- Delivery Challan — A4 sheets of 20 with letterhead and signature → FRS-153.7
-- Delivery Challan — remarks and statutory identifiers → FRS-153.8
-- Delivery Challan — Print / Declaration / Back → FRS-153.10
-- Delivery Challan — error page → FRS-153.11
-- Declaration — no module permission → FRS-154.1, FRS-164.5
-- Declaration — 500-most-recent lookup → FRS-154.1 (D-045)
-- Declaration — lines merged per part → FRS-154.2
-- Declaration — fill-in fields and pre-fill → FRS-154.3, FRS-154.4
-- Declaration — printing not blocked while mandatory fields empty → FRS-154.5 (decision recorded as open in its RATIONALE)
-- Declaration — Save to the User Master → FRS-154.6, FRS-154.7
-- Declaration — printed content → FRS-154.8
-- Declaration — 18-row sheets → FRS-154.9
-- Declaration — recipient and sender blocks → FRS-154.10
-- Declaration — toolbar → FRS-154.11
-- Declaration — error page → FRS-154.11
-- Spare Consumption — paging without "+" → FRS-155.1 (D-047)
-- Spare Consumption — cache and background sync → FRS-155.5
-- Spare Consumption — sheet fallback → FRS-155.6
-- Spare Consumption — extra client-side role filter → FRS-155.8 (D-047)
-- Spare Consumption — dynamic columns and date format → FRS-157.9, FRS-157.10
-- Spare Consumption — Reconciliation badge → FRS-157.5
-- Spare Consumption — "Voided" and "was N" → FRS-157.6
-- Spare Consumption — search → FRS-157.10
-- Spare Consumption — engineer changeable on a reconciliation → FRS-157.2
-- Spare Consumption — GRIR / traceability vs SR-015 → FRS-157.3; AMEND SR-015
-- Spare Consumption — recorded_by from the client → FRS-150.5 (D-042)
-- Spare Consumption — reconciliation exempt from needs-a-visit → FRS-157.4
-- Spare Consumption — permission-refusal message → FRS-157.8
-- Spare Consumption — errors inside the drawer → FRS-157.8
-- Spare Consumption — adjust ceiling and refusals → FRS-157.7
-- Spare Consumption — partial-export disclaimer → FRS-155.9
-- Spare Consumption — table view controls → FRS-156.16
-- Spare Consumption — status banners → FRS-155.3, FRS-155.5
+- Stock Out — open the screen → FRS-165.1, FRS-165.2
+- Stock Out — column set → FRS-157.14
+- Stock Out — days-to-dispatch colours → FRS-157.14
+- Stock Out — search → FRS-157.14
+- Stock Out — reprint DC and Declaration → FRS-157.14
+- Stock Out — partial-export disclaimer → FRS-156.9
+- Stock Out — failed load shown as "No stock outs yet" → FRS-156.3 (D-046)
+- Stock Out — migration banner → FRS-156.3
+- Stock Out — table view controls → FRS-157.16
+- Delivery Challan — no module permission on the route → FRS-154.1, FRS-165.5
+- Delivery Challan — only the latest 500 findable → FRS-154.2 (D-045)
+- Delivery Challan — prints quantity sent on this stock out → FRS-154.3
+- Delivery Challan — letterhead → FRS-154.4
+- Delivery Challan — header fields → FRS-154.5
+- Delivery Challan — grid, totals, continuation → FRS-154.6
+- Delivery Challan — A4 sheets of 20 with letterhead and signature → FRS-154.7
+- Delivery Challan — remarks and statutory identifiers → FRS-154.8
+- Delivery Challan — Print / Declaration / Back → FRS-154.10
+- Delivery Challan — error page → FRS-154.11
+- Declaration — no module permission → FRS-155.1, FRS-165.5
+- Declaration — 500-most-recent lookup → FRS-155.1 (D-045)
+- Declaration — lines merged per part → FRS-155.2
+- Declaration — fill-in fields and pre-fill → FRS-155.3, FRS-155.4
+- Declaration — printing not blocked while mandatory fields empty → FRS-155.5 (decision recorded as open in its RATIONALE)
+- Declaration — Save to the User Master → FRS-155.6, FRS-155.7
+- Declaration — printed content → FRS-155.8
+- Declaration — 18-row sheets → FRS-155.9
+- Declaration — recipient and sender blocks → FRS-155.10
+- Declaration — toolbar → FRS-155.11
+- Declaration — error page → FRS-155.11
+- Spare Consumption — paging without "+" → FRS-156.1 (D-047)
+- Spare Consumption — cache and background sync → FRS-156.5
+- Spare Consumption — sheet fallback → FRS-156.6
+- Spare Consumption — extra client-side role filter → FRS-156.8 (D-047)
+- Spare Consumption — dynamic columns and date format → FRS-158.9, FRS-158.10
+- Spare Consumption — Reconciliation badge → FRS-158.5
+- Spare Consumption — "Voided" and "was N" → FRS-158.6
+- Spare Consumption — search → FRS-158.10
+- Spare Consumption — engineer changeable on a reconciliation → FRS-158.2
+- Spare Consumption — GRIR / traceability vs SR-015 → FRS-158.3; AMEND SR-015
+- Spare Consumption — recorded_by from the client → FRS-151.5 (D-042)
+- Spare Consumption — reconciliation exempt from needs-a-visit → FRS-158.4
+- Spare Consumption — permission-refusal message → FRS-158.8
+- Spare Consumption — errors inside the drawer → FRS-158.8
+- Spare Consumption — adjust ceiling and refusals → FRS-158.7
+- Spare Consumption — partial-export disclaimer → FRS-156.9
+- Spare Consumption — table view controls → FRS-157.16
+- Spare Consumption — status banners → FRS-156.3, FRS-156.5
 - Hand Stock — no requirement declared → URS-127 (modules), AMEND URS-009
-- Hand Stock — View-as filtering → FRS-155.7
-- Hand Stock — history switch remembered → FRS-158.10
-- Hand Stock — Short chip vs URS-024 → FRS-158.3, FRS-158.4; AMEND URS-024
-- Hand Stock — engineer dropdown → FRS-158.5
-- Hand Stock — server-side search → FRS-158.6
-- Hand Stock — paging and "+" → FRS-155.1
-- Hand Stock — cache and background sync → FRS-155.5
-- Hand Stock — drill-down arithmetic omits Opening; trail capped at 500 → FRS-158.2, FRS-158.7 (D-048, D-047); AMEND FRS-013
-- Hand Stock — Transfer shortcuts → FRS-158.9
-- Hand Stock — Movements ledger tab → FRS-158.8
-- Hand Stock — partial and search-scoped export → FRS-155.9
-- Hand Stock — migration hint → FRS-155.3
-- Hand Stock — empty states → FRS-155.3, FRS-158.6
-- Hand Stock — arriving filter → FRS-158.11
-- Hand Stock — table view controls → FRS-156.16
-- Hand Stock Report — default access → FRS-159.1, FRS-164.3
-- Hand Stock Report — searched subset, CSV carries no scope → FRS-159.2 (D-047)
-- Hand Stock Report — negative On Hand highlighted → FRS-158.4
-- Hand Stock Report — Refresh run token → FRS-159.3
-- Hand Stock Report — empty message by scope → FRS-159.4
-- Hand Stock Report — load-failure explanation → FRS-159.5
-- Hand Stock Report — table view controls → FRS-156.16
+- Hand Stock — View-as filtering → FRS-156.7
+- Hand Stock — history switch remembered → FRS-159.10
+- Hand Stock — Short chip vs URS-024 → FRS-159.3, FRS-159.4; AMEND URS-024
+- Hand Stock — engineer dropdown → FRS-159.5
+- Hand Stock — server-side search → FRS-159.6
+- Hand Stock — paging and "+" → FRS-156.1
+- Hand Stock — cache and background sync → FRS-156.5
+- Hand Stock — drill-down arithmetic omits Opening; trail capped at 500 → FRS-159.2, FRS-159.7 (D-048, D-047); AMEND FRS-013
+- Hand Stock — Transfer shortcuts → FRS-159.9
+- Hand Stock — Movements ledger tab → FRS-159.8
+- Hand Stock — partial and search-scoped export → FRS-156.9
+- Hand Stock — migration hint → FRS-156.3
+- Hand Stock — empty states → FRS-156.3, FRS-159.6
+- Hand Stock — arriving filter → FRS-159.11
+- Hand Stock — table view controls → FRS-157.16
+- Hand Stock Report — default access → FRS-160.1, FRS-165.3
+- Hand Stock Report — searched subset, CSV carries no scope → FRS-160.2 (D-047)
+- Hand Stock Report — negative On Hand highlighted → FRS-159.4
+- Hand Stock Report — Refresh run token → FRS-160.3
+- Hand Stock Report — empty message by scope → FRS-160.4
+- Hand Stock Report — load-failure explanation → FRS-160.5
+- Hand Stock Report — table view controls → FRS-157.16
 - Material Returns — no requirement declared → URS-128 (modules), AMEND URS-009
-- Material Returns — register display and paging, no count → FRS-160.14, FRS-155.1
-- Material Returns — cache and background sync → FRS-155.5
-- Material Returns — View-as filtering → FRS-155.7
-- Material Returns — search and engineer filter → FRS-160.14
-- Material Returns — MRN detail view → FRS-160.13
-- Material Returns — returning on behalf of another engineer → FRS-160.2, FRS-160.3
-- Material Returns — MRN number and editable date → FRS-160.4, FRS-160.5, FRS-162
-- Material Returns — defective quantity raises no nonconformity record → FRS-160.7 records it; the nonconformity record itself remains SR-017 (Absent) — NOT covered by a new requirement
-- Material Returns — "not holding any stock" message → FRS-160.9
-- Material Returns — remarks → FRS-160.10
-- Material Returns — two-step save with compensating delete → FRS-163.2 (D-044)
-- Material Returns — no audit entry → FRS-160.12 (D-051)
-- Material Returns — migration hint → FRS-155.3
-- Material Returns — partial-export disclaimer → FRS-155.9
-- Material Returns — table view controls → FRS-156.16
+- Material Returns — register display and paging, no count → FRS-161.14, FRS-156.1
+- Material Returns — cache and background sync → FRS-156.5
+- Material Returns — View-as filtering → FRS-156.7
+- Material Returns — search and engineer filter → FRS-161.14
+- Material Returns — MRN detail view → FRS-161.13
+- Material Returns — returning on behalf of another engineer → FRS-161.2, FRS-161.3
+- Material Returns — MRN number and editable date → FRS-161.4, FRS-161.5, FRS-163
+- Material Returns — defective quantity raises no nonconformity record → FRS-161.7 records it; the nonconformity record itself remains SR-017 (Absent) — NOT covered by a new requirement
+- Material Returns — "not holding any stock" message → FRS-161.9
+- Material Returns — remarks → FRS-161.10
+- Material Returns — two-step save with compensating delete → FRS-164.2 (D-044)
+- Material Returns — no audit entry → FRS-161.12 (D-051)
+- Material Returns — migration hint → FRS-156.3
+- Material Returns — partial-export disclaimer → FRS-156.9
+- Material Returns — table view controls → FRS-157.16
 - Stock Transfer — no requirement declared → URS-129 (modules), AMEND URS-009
-- Stock Transfer — latest 1,000 only, no Load more, no "+" → FRS-161.10, FRS-155.1 (D-047)
-- Stock Transfer — View-as filtering → FRS-155.7
-- Stock Transfer — search → FRS-161.10
-- Stock Transfer — cache and background sync → FRS-155.5
-- Stock Transfer — From free text, To not a directory user → FRS-161.2–.4 (D-049)
-- Stock Transfer — editable transfer date → FRS-161.7, FRS-162 (D-050)
-- Stock Transfer — From ≠ To → FRS-161.5
-- Stock Transfer — "not holding" text contradicts FRS-013 → FRS-161.8 (D-052)
-- Stock Transfer — remarks → FRS-161.7
-- Stock Transfer — two-step save with compensating delete → FRS-163.3 (D-044)
-- Stock Transfer — no audit entry → FRS-161.9 (D-051)
-- Stock Transfer — partial-export disclaimer → FRS-155.9
-- Stock Transfer — table view controls → FRS-156.16
+- Stock Transfer — latest 1,000 only, no Load more, no "+" → FRS-162.10, FRS-156.1 (D-047)
+- Stock Transfer — View-as filtering → FRS-156.7
+- Stock Transfer — search → FRS-162.10
+- Stock Transfer — cache and background sync → FRS-156.5
+- Stock Transfer — From free text, To not a directory user → FRS-162.2–.4 (D-049)
+- Stock Transfer — editable transfer date → FRS-162.7, FRS-163 (D-050)
+- Stock Transfer — From ≠ To → FRS-162.5
+- Stock Transfer — "not holding" text contradicts FRS-013 → FRS-162.8 (D-052)
+- Stock Transfer — remarks → FRS-162.7
+- Stock Transfer — two-step save with compensating delete → FRS-164.3 (D-044)
+- Stock Transfer — no audit entry → FRS-162.9 (D-051)
+- Stock Transfer — partial-export disclaimer → FRS-156.9
+- Stock Transfer — table view controls → FRS-157.16
 ### Masters, Cover & Knowledge
 
-- Party Master #1  list fields ............................. FRS-172.1, FRS-175.6
-- Party Master #2  device cache, "Showing cached data" ..... FRS-175.2
-- Party Master #3  30-minute sync only unfiltered .......... FRS-175.3
-- Party Master #4  Refresh ................................. FRS-175.4
-- Party Master #5  server-side filter after 300 ms ......... FRS-175.5
-- Party Master #6  Load more, "+" .......................... FRS-175.1
-- Party Master #7  Columns picker .......................... FRS-175.6
-- Party Master #8  Export partial warning, dates ........... FRS-175.7-.9
-- Party Master #10 editable field set, blank billing ....... FRS-172.1, FRS-172.5
-- Party Master #11 party name not editable ................. URS-136, FRS-172.2-.3 (D-058)
-- Party Master #12 save sends editable only, re-read ....... FRS-172.4
-- Party Master #13 device customer register refreshed ...... FRS-172.6
-- Party Master #14 GSTIN/PAN, three statuses ............... FRS-173.1-.3
-- Party Master #15 Verified stamp and clearing ............. FRS-173.4-.5, FRS-172.7 (D-058)
+- Party Master #1  list fields ............................. FRS-173.1, FRS-176.6
+- Party Master #2  device cache, "Showing cached data" ..... FRS-176.2
+- Party Master #3  30-minute sync only unfiltered .......... FRS-176.3
+- Party Master #4  Refresh ................................. FRS-176.4
+- Party Master #5  server-side filter after 300 ms ......... FRS-176.5
+- Party Master #6  Load more, "+" .......................... FRS-176.1
+- Party Master #7  Columns picker .......................... FRS-176.6
+- Party Master #8  Export partial warning, dates ........... FRS-176.7-.9
+- Party Master #10 editable field set, blank billing ....... FRS-173.1, FRS-173.5
+- Party Master #11 party name not editable ................. URS-136, FRS-173.2-.3 (D-058)
+- Party Master #12 save sends editable only, re-read ....... FRS-173.4
+- Party Master #13 device customer register refreshed ...... FRS-173.6
+- Party Master #14 GSTIN/PAN, three statuses ............... FRS-174.1-.3
+- Party Master #15 Verified stamp and clearing ............. FRS-174.4-.5, FRS-173.7 (D-058)
 - Party Master #17 "who" is client text on KYC record ...... FRS-086.1 (existing) — not re-specified; noted only
-- Party Master #18 same file twice keeps one ............... FRS-173.6
-- Party Master #21 Change engineer (bulk Serviceman) ....... URS-136, FRS-174
-- Party Master #22 messages ................................ FRS-175.10, FRS-175.15
-- Product Database #1  register content .................... FRS-181.1-.2, FRS-175
+- Party Master #18 same file twice keeps one ............... FRS-174.6
+- Party Master #21 Change engineer (bulk Serviceman) ....... URS-136, FRS-175
+- Party Master #22 messages ................................ FRS-176.10, FRS-176.15
+- Product Database #1  register content .................... FRS-182.1-.2, FRS-176
 - Product Database #3  duplicates note ..................... URS-078 (existing; admin note is part of the copy's statement)
-- Product Database #4  filters, search, Enter, Clear ....... FRS-181.2, FRS-175.5
-- Product Database #5  status filter derived ............... FRS-181.2
-- Product Database #6  timeout guidance .................... FRS-181.3, FRS-175.10
-- Product Database #7  Load more "+" ....................... FRS-175.1
-- Product Database #8  browse cache, 30-min sync ........... FRS-175.2-.3
-- Product Database #9  Refresh forces device copy .......... FRS-175.4, URS-078
-- Product Database #10 Columns picker ...................... FRS-175.6
-- Product Database #11 + Field / + Install pre-filled ...... URS-140, FRS-181.4-.5 (D-063)
-- Product Database #12 Export .............................. FRS-175.7-.9
-- Product Database #13 read-only ........................... FRS-181.1
-- Product Database 2.0 #3  dates dd-MMM-yyyy ............... FRS-175.12
-- Product Database 2.0 #4  Live as of / updating in 5 min .. URS-141, FRS-182.1-.2
-- Product Database 2.0 #5  Rebuild authority ............... FRS-182.3-.4
-- Product Database 2.0 #6  search on device ................ FRS-182.6
-- Product Database 2.0 #7  status chips exact .............. FRS-182.6, FRS-175.14
-- Product Database 2.0 #8  Export .......................... FRS-175.7-.9
-- Product Database 2.0 #10 drawer links .................... FRS-182.8, FRS-175.11
-- Product Database 2.0 #11 empty-list diagnosis ............ URS-141, FRS-182.7
-- Product Database 2.0 #12 load failure three answers ...... FRS-182.9
-- Product Database 2.0 #13 readership widened by 0221 ...... URS-141, FRS-182.5, R-85; AMEND CW-020
-- Product Master #1  catalogue content ..................... FRS-181.6
-- Product Master #2  search ................................ FRS-181.6
-- Product Master #3  All/Active/Inactive chips ............. FRS-181.6, FRS-175.14
-- Product Master #4  Inactive line banner / sale rule ...... URS-140, FRS-181.7-.8
-- Product Master #5  Export ................................ FRS-175.7-.9
-- Product Master #6  empty-state text ...................... FRS-181.7
-- Product Master #7  load error ............................ FRS-175.10
-- Product Master #8  no add/edit/retire .................... FRS-181.6
-- User Master #1  directory list ........................... FRS-170, FRS-175
-- User Master #2  sheet fallback ........................... FRS-170.8, FRS-175.15
-- User Master #3  search ................................... FRS-175 (search), FRS-170
-- User Master #4  "X (now Y)" .............................. FRS-169.6
-- User Master #5  Apply this list's role (bulk) ............ URS-134, FRS-169.6
-- User Master #6  whole-table edit ......................... FRS-170.6
-- User Master #7  name required ............................ FRS-170.1
-- User Master #8  rename warning and cascades .............. URS-132, FRS-165, FRS-166
-- User Master #9  role applied to sign-in on save .......... FRS-169.5
-- User Master #10 Department (not saved) ................... FRS-170.2-.3 (D-053)
-- User Master #11 new login, default password .............. URS-133, FRS-167 (D-057); AMEND FRS-001, FRS-002
-- User Master #12 Clone (+ data.view_all) .................. URS-134, FRS-169.3
-- User Master #13 Access drawer, individual permissions .... URS-134, FRS-169.1-.2
-- User Master #14 Data drawer .............................. URS-135, FRS-170.7
-- User Master #15 Reset password ........................... URS-133, FRS-168
-- User Master #17 Delete row (cascade / refused) ........... URS-135, FRS-171 (D-059); AMEND FRS-093
-- User Master #21 R&R period edited in place ............... URS-146, FRS-189.5 (D-062)
-- User Master #24 free-typed manager names ................. URS-135, FRS-170.4 (D-053)
-- User Master #25 validity vs login active ................. FRS-170.5 (D-053); AMEND FRS-002
-- User Master #27 client audit entries ..................... FRS-167.6, FRS-168.5, FRS-169.4, FRS-171.4 (with FRS-021's stated limits)
-- User Master #28 Export ................................... FRS-175.7-.9
-- Part Master #1  whole catalogue, stored copy ............. FRS-175.1-.2
-- Part Master #2  30-minute reload ......................... FRS-175.3
-- Part Master #3  global search incl. extra ................ FRS-178.8
-- Part Master #4  filters .................................. FRS-178.8, FRS-178.2
-- Part Master #5  Common / unrecognised flag ............... FRS-178.1-.2
-- Part Master #6  Columns picker ........................... FRS-175.6
-- Part Master #7  Export ................................... FRS-175.7-.9
-- Part Master #8  add-part validation ...................... URS-138, FRS-176.1-.8
-- Part Master #9  edit category, products, cost ............ FRS-176.9
-- Part Master #10 rename carrying nine tables .............. URS-138, FRS-177
-- Part Master #12 bulk set products ........................ FRS-178.3
-- Part Master #13 bulk Spare / Consumable .................. FRS-178.3
-- Part Master #14 spare picker cache cleared ............... FRS-178.4
-- Part Master #15 sheet fallback ........................... FRS-175.15
-- Part Master #16 main product → accessories ............... URS-138, FRS-178.5-.7
-- All Masters #1  summary table ............................ FRS-179.10
-- All Masters #2  KPI cards ................................ FRS-179.10
-- All Masters #3  registry fallback message ................ FRS-179.9
-- All Masters #4  Refresh all, cache, sync ................. FRS-179.8, FRS-175.2-.3
-- All Masters #5  open a register / list ................... FRS-179.10
-- All Masters #6  Export ................................... FRS-175.7-.9
-- All Masters #7  /masters/<key> unknown key ............... FRS-179.10
-- All Masters #11 delete with no in-use check .............. URS-139, FRS-179.5-.6 (D-056); AMEND FRS-015, OQ-26
-- All Masters #12 Standard Complaint → products ............ URS-139, FRS-180.1-.4
-- All Masters #13 complaint filters ........................ FRS-180.5
-- All Masters #14 complaint bulk mapping ................... FRS-180.2
-- All Masters #15 list search, Refresh clears cache ........ FRS-179.8, FRS-175
-- All Masters #16 Export with Key and Products, 5,000 cap .. FRS-180.6, FRS-175.7-.9
-- All Masters #17 permission-needed / Used by notes ........ FRS-179.7, FRS-179.4
-- All Masters (summary) added_by is client text ............ FRS-179.3 (sys_created_by, 0244)
-- Warranty/Contract #2  state and 30-day threshold ......... FRS-183.1
-- Warranty/Contract #4  tiles, "—" not 0 ................... FRS-183.2, FRS-175.10
-- Warranty/Contract #5  server search after 300 ms ......... FRS-175.5
-- Warranty/Contract #6  2,000 then doubling, "+" ........... FRS-175.1
-- Warranty/Contract #7  per-tab cache, 30-min sync ......... FRS-175.2-.3
-- Warranty/Contract #8  arrival from 2.0 ................... FRS-175.11
-- Warranty/Contract #10 next number, entry date ............ FRS-183.3-.4
-- Warranty/Contract #14 party picker free text ............. URS-142, FRS-183.5
-- Warranty/Contract #15 party auto-fill on choose .......... FRS-183.6
-- Warranty/Contract #18 delete entry ....................... URS-143, FRS-186 (D-055)
-- Warranty/Contract #20 remove machine ..................... URS-143, FRS-186 (D-055)
-- Warranty/Contract #21 active product lines on sale ....... URS-140, FRS-181.8
-- Warranty/Contract #22 rate → tax → total ................. FRS-183.7
-- Warranty/Contract #25 per-machine + Installation call .... FRS-185
-- Warranty/Contract #28 renewal re-pricing ................. FRS-184; AMEND FRS-056, OQ-42
-- Warranty/Contract #13 renewal native date inputs ......... FRS-184.9 (D-064)
-- Warranty/Contract #29 stale replies dropped .............. FRS-175.13
-- Warranty/Contract #30 + Field call without calls.create .. FRS-183.9 (D-063)
-- Warranty/Contract #31 Export ............................. FRS-175.7-.9
-- Warranty/Contract #32 error text never blank ............. FRS-175.10
-- Warranty/Contract #33 CMC / AMC pick list ................ FRS-183.8
-- Ownership Transfer #2  tabs .............................. FRS-175 (register reading)
-- Ownership Transfer #3  search ............................ FRS-175
-- Ownership Transfer #4  arrival from 2.0 .................. FRS-175.11
-- Ownership Transfer #5  transfers table ................... FRS-187, CW-011
-- Ownership Transfer #6  serial-only, item by serial, free-text party ... URS-144, FRS-187.1-.5 (D-060); AMEND CW-011
-- Ownership Transfer #7  products owner moved .............. FRS-187.4 (D-060)
-- Ownership Transfer #8  additional entry upsert ........... URS-144, FRS-187.6 (D-054); AMEND CW-015
-- Ownership Transfer #9  missing-table message ............. FRS-175.10
-- Ownership Transfer #10 no edit or delete ................. URS-143, FRS-186
-- Field Solutions #2  search ............................... FRS-190.9
-- Field Solutions #5  anyone signed in may add ............. FRS-190.1
-- Field Solutions #6  edit and delete by author/admin ...... URS-147, FRS-190.2
-- Field Solutions #7  form: title, products from active .... FRS-190.3
-- Field Solutions #9  How-To routing ....................... FRS-190.4
-- Field Solutions #10 messages ............................. FRS-175.10
-- How to Use #2  Open buttons by permission ................ FRS-190.5
-- How to Use #3  admin screenshots ......................... FRS-190.6
-- How to Use #4  How-To articles listed .................... FRS-190.4
-- How to Use #5  renders without the database .............. FRS-190.5
+- Product Database #4  filters, search, Enter, Clear ....... FRS-182.2, FRS-176.5
+- Product Database #5  status filter derived ............... FRS-182.2
+- Product Database #6  timeout guidance .................... FRS-182.3, FRS-176.10
+- Product Database #7  Load more "+" ....................... FRS-176.1
+- Product Database #8  browse cache, 30-min sync ........... FRS-176.2-.3
+- Product Database #9  Refresh forces device copy .......... FRS-176.4, URS-078
+- Product Database #10 Columns picker ...................... FRS-176.6
+- Product Database #11 + Field / + Install pre-filled ...... URS-140, FRS-182.4-.5 (D-063)
+- Product Database #12 Export .............................. FRS-176.7-.9
+- Product Database #13 read-only ........................... FRS-182.1
+- Product Database 2.0 #3  dates dd-MMM-yyyy ............... FRS-176.12
+- Product Database 2.0 #4  Live as of / updating in 5 min .. URS-141, FRS-183.1-.2
+- Product Database 2.0 #5  Rebuild authority ............... FRS-183.3-.4
+- Product Database 2.0 #6  search on device ................ FRS-183.6
+- Product Database 2.0 #7  status chips exact .............. FRS-183.6, FRS-176.14
+- Product Database 2.0 #8  Export .......................... FRS-176.7-.9
+- Product Database 2.0 #10 drawer links .................... FRS-183.8, FRS-176.11
+- Product Database 2.0 #11 empty-list diagnosis ............ URS-141, FRS-183.7
+- Product Database 2.0 #12 load failure three answers ...... FRS-183.9
+- Product Database 2.0 #13 readership widened by 0221 ...... URS-141, FRS-183.5, R-85; AMEND CW-020
+- Product Master #1  catalogue content ..................... FRS-182.6
+- Product Master #2  search ................................ FRS-182.6
+- Product Master #3  All/Active/Inactive chips ............. FRS-182.6, FRS-176.14
+- Product Master #4  Inactive line banner / sale rule ...... URS-140, FRS-182.7-.8
+- Product Master #5  Export ................................ FRS-176.7-.9
+- Product Master #6  empty-state text ...................... FRS-182.7
+- Product Master #7  load error ............................ FRS-176.10
+- Product Master #8  no add/edit/retire .................... FRS-182.6
+- User Master #1  directory list ........................... FRS-171, FRS-176
+- User Master #2  sheet fallback ........................... FRS-171.8, FRS-176.15
+- User Master #3  search ................................... FRS-176 (search), FRS-171
+- User Master #4  "X (now Y)" .............................. FRS-170.6
+- User Master #5  Apply this list's role (bulk) ............ URS-134, FRS-170.6
+- User Master #6  whole-table edit ......................... FRS-171.6
+- User Master #7  name required ............................ FRS-171.1
+- User Master #8  rename warning and cascades .............. URS-132, FRS-166, FRS-167
+- User Master #9  role applied to sign-in on save .......... FRS-170.5
+- User Master #10 Department (not saved) ................... FRS-171.2-.3 (D-053)
+- User Master #11 new login, default password .............. URS-133, FRS-168 (D-057); AMEND FRS-001, FRS-002
+- User Master #12 Clone (+ data.view_all) .................. URS-134, FRS-170.3
+- User Master #13 Access drawer, individual permissions .... URS-134, FRS-170.1-.2
+- User Master #14 Data drawer .............................. URS-135, FRS-171.7
+- User Master #15 Reset password ........................... URS-133, FRS-169
+- User Master #17 Delete row (cascade / refused) ........... URS-135, FRS-172 (D-059); AMEND FRS-093
+- User Master #21 R&R period edited in place ............... URS-146, FRS-190.5 (D-062)
+- User Master #24 free-typed manager names ................. URS-135, FRS-171.4 (D-053)
+- User Master #25 validity vs login active ................. FRS-171.5 (D-053); AMEND FRS-002
+- User Master #27 client audit entries ..................... FRS-168.6, FRS-169.5, FRS-170.4, FRS-172.4 (with FRS-021's stated limits)
+- User Master #28 Export ................................... FRS-176.7-.9
+- Part Master #1  whole catalogue, stored copy ............. FRS-176.1-.2
+- Part Master #2  30-minute reload ......................... FRS-176.3
+- Part Master #3  global search incl. extra ................ FRS-179.8
+- Part Master #4  filters .................................. FRS-179.8, FRS-179.2
+- Part Master #5  Common / unrecognised flag ............... FRS-179.1-.2
+- Part Master #6  Columns picker ........................... FRS-176.6
+- Part Master #7  Export ................................... FRS-176.7-.9
+- Part Master #8  add-part validation ...................... URS-138, FRS-177.1-.8
+- Part Master #9  edit category, products, cost ............ FRS-177.9
+- Part Master #10 rename carrying nine tables .............. URS-138, FRS-178
+- Part Master #12 bulk set products ........................ FRS-179.3
+- Part Master #13 bulk Spare / Consumable .................. FRS-179.3
+- Part Master #14 spare picker cache cleared ............... FRS-179.4
+- Part Master #15 sheet fallback ........................... FRS-176.15
+- Part Master #16 main product → accessories ............... URS-138, FRS-179.5-.7
+- All Masters #1  summary table ............................ FRS-180.10
+- All Masters #2  KPI cards ................................ FRS-180.10
+- All Masters #3  registry fallback message ................ FRS-180.9
+- All Masters #4  Refresh all, cache, sync ................. FRS-180.8, FRS-176.2-.3
+- All Masters #5  open a register / list ................... FRS-180.10
+- All Masters #6  Export ................................... FRS-176.7-.9
+- All Masters #7  /masters/<key> unknown key ............... FRS-180.10
+- All Masters #11 delete with no in-use check .............. URS-139, FRS-180.5-.6 (D-056); AMEND FRS-015, OQ-26
+- All Masters #12 Standard Complaint → products ............ URS-139, FRS-181.1-.4
+- All Masters #13 complaint filters ........................ FRS-181.5
+- All Masters #14 complaint bulk mapping ................... FRS-181.2
+- All Masters #15 list search, Refresh clears cache ........ FRS-180.8, FRS-176
+- All Masters #16 Export with Key and Products, 5,000 cap .. FRS-181.6, FRS-176.7-.9
+- All Masters #17 permission-needed / Used by notes ........ FRS-180.7, FRS-180.4
+- All Masters (summary) added_by is client text ............ FRS-180.3 (sys_created_by, 0244)
+- Warranty/Contract #2  state and 30-day threshold ......... FRS-184.1
+- Warranty/Contract #4  tiles, "—" not 0 ................... FRS-184.2, FRS-176.10
+- Warranty/Contract #5  server search after 300 ms ......... FRS-176.5
+- Warranty/Contract #6  2,000 then doubling, "+" ........... FRS-176.1
+- Warranty/Contract #7  per-tab cache, 30-min sync ......... FRS-176.2-.3
+- Warranty/Contract #8  arrival from 2.0 ................... FRS-176.11
+- Warranty/Contract #10 next number, entry date ............ FRS-184.3-.4
+- Warranty/Contract #14 party picker free text ............. URS-142, FRS-184.5
+- Warranty/Contract #15 party auto-fill on choose .......... FRS-184.6
+- Warranty/Contract #18 delete entry ....................... URS-143, FRS-187 (D-055)
+- Warranty/Contract #20 remove machine ..................... URS-143, FRS-187 (D-055)
+- Warranty/Contract #21 active product lines on sale ....... URS-140, FRS-182.8
+- Warranty/Contract #22 rate → tax → total ................. FRS-184.7
+- Warranty/Contract #25 per-machine + Installation call .... FRS-186
+- Warranty/Contract #28 renewal re-pricing ................. FRS-185; AMEND FRS-056, OQ-42
+- Warranty/Contract #13 renewal native date inputs ......... FRS-185.9 (D-064)
+- Warranty/Contract #29 stale replies dropped .............. FRS-176.13
+- Warranty/Contract #30 + Field call without calls.create .. FRS-184.9 (D-063)
+- Warranty/Contract #31 Export ............................. FRS-176.7-.9
+- Warranty/Contract #32 error text never blank ............. FRS-176.10
+- Warranty/Contract #33 CMC / AMC pick list ................ FRS-184.8
+- Ownership Transfer #2  tabs .............................. FRS-176 (register reading)
+- Ownership Transfer #3  search ............................ FRS-176
+- Ownership Transfer #4  arrival from 2.0 .................. FRS-176.11
+- Ownership Transfer #5  transfers table ................... FRS-188, CW-011
+- Ownership Transfer #6  serial-only, item by serial, free-text party ... URS-144, FRS-188.1-.5 (D-060); AMEND CW-011
+- Ownership Transfer #7  products owner moved .............. FRS-188.4 (D-060)
+- Ownership Transfer #8  additional entry upsert ........... URS-144, FRS-188.6 (D-054); AMEND CW-015
+- Ownership Transfer #9  missing-table message ............. FRS-176.10
+- Ownership Transfer #10 no edit or delete ................. URS-143, FRS-187
+- Field Solutions #2  search ............................... FRS-191.9
+- Field Solutions #5  anyone signed in may add ............. FRS-191.1
+- Field Solutions #6  edit and delete by author/admin ...... URS-147, FRS-191.2
+- Field Solutions #7  form: title, products from active .... FRS-191.3
+- Field Solutions #9  How-To routing ....................... FRS-191.4
+- Field Solutions #10 messages ............................. FRS-176.10
+- How to Use #2  Open buttons by permission ................ FRS-191.5
+- How to Use #3  admin screenshots ......................... FRS-191.6
+- How to Use #4  How-To articles listed .................... FRS-191.4
+- How to Use #5  renders without the database .............. FRS-191.5
 - How to Use #1 note: task 32 still says "Admin → User Access" — stale help text, not a requirement; NOT COVERED (for BACKLOG)
-- How RITHI Functions #1 chooser remembered ................ FRS-190.8
-- How RITHI Functions #2 framed, theme, height ............. FRS-190.8
-- How RITHI Functions #3 open on its own / public files .... URS-147, FRS-190.7
-- How RITHI Functions #4 missing-file banner ............... FRS-190.8
-- Service Manuals / QMS #2  search ......................... FRS-175
-- Service Manuals / QMS #3  Updated raw timestamp .......... FRS-188.9 (D-064)
-- Service Manuals / QMS #5  file-name suggestion ........... FRS-188.7
-- Service Manuals / QMS #6  revision / effective date required .... FRS-188.1 (D-061)
-- Service Manuals / QMS #7  manual product free text ....... FRS-188.8
-- Service Manuals / QMS #8  edit in place .................. URS-145, FRS-188.4-.5 (D-061); AMEND FRS-036
-- Service Manuals / QMS #10 linked (mutable) QMS document .. FRS-188.3
-- Service Manuals / QMS #13 load messages .................. FRS-175.10
-- Training #2  Overdue / Cancelled ......................... FRS-189.1-.2; AMEND FRS-093
-- Training #3  chips and search ............................ FRS-189.7, FRS-175.14
-- Training #5  cancel with reason .......................... URS-146, FRS-189.1
+- How RITHI Functions #1 chooser remembered ................ FRS-191.8
+- How RITHI Functions #2 framed, theme, height ............. FRS-191.8
+- How RITHI Functions #3 open on its own / public files .... URS-147, FRS-191.7
+- How RITHI Functions #4 missing-file banner ............... FRS-191.8
+- Service Manuals / QMS #2  search ......................... FRS-176
+- Service Manuals / QMS #3  Updated raw timestamp .......... FRS-189.9 (D-064)
+- Service Manuals / QMS #5  file-name suggestion ........... FRS-189.7
+- Service Manuals / QMS #6  revision / effective date required .... FRS-189.1 (D-061)
+- Service Manuals / QMS #7  manual product free text ....... FRS-189.8
+- Service Manuals / QMS #8  edit in place .................. URS-145, FRS-189.4-.5 (D-061); AMEND FRS-036
+- Service Manuals / QMS #10 linked (mutable) QMS document .. FRS-189.3
+- Service Manuals / QMS #13 load messages .................. FRS-176.10
+- Training #2  Overdue / Cancelled ......................... FRS-190.1-.2; AMEND FRS-093
+- Training #3  chips and search ............................ FRS-190.7, FRS-176.14
+- Training #5  cancel with reason .......................... URS-146, FRS-190.1
 - Training #7  trainer free text ........................... FRS-093 (existing) — accepted as typed; not re-specified
-- Training #10 session re-save overwrites .................. URS-146, FRS-189.4 (D-062)
-- Training #11 open existing session ....................... FRS-189.4
-- Training #12 sessions readable by everyone ............... FRS-189.6
-- Training #13 Export ...................................... FRS-175.7-.9
-- Training #14 empty and failure text ...................... FRS-189.7
+- Training #10 session re-save overwrites .................. URS-146, FRS-190.4 (D-062)
+- Training #11 open existing session ....................... FRS-190.4
+- Training #12 sessions readable by everyone ............... FRS-190.6
+- Training #13 Export ...................................... FRS-176.7-.9
+- Training #14 empty and failure text ...................... FRS-190.7
 ### Reports, Administration & app-wide
 
 - Reports hub
-- #1 per-report access keys -> FRS-191.1
-- #2 unpermitted/bare link to first permitted report -> FRS-191.2
-- #3 "no report open to your role" notice -> FRS-191.3
-- #4 one tab mounted at a time -> FRS-191.4
-- #5 Consumption database-side filters -> FRS-191.5, FRS-193.1
-- #6 exact matching-row count, count failure stated -> FRS-191.6
-- #7 clear filter / filter in words -> FRS-191.7
-- #8 locked mandatory, optional picker, default-ticked -> FRS-191.8, FRS-191.9
-- #9 column-choice shortcuts -> FRS-191.10
-- #10 view's column order, blanks for missing -> FRS-191.11
-- #11 Excel download, paged, Filter/scope sheet, export authority -> FRS-191.12, FRS-191.13, FRS-192.1, FRS-192.2 (D-065)
-- #13 buttons disabled offline/busy/not permitted/zero -> FRS-191.16
-- #14 export date typing -> FRS-191.14, FRS-191.15
-- #15 numbers stay numbers, digit identifiers text -> FRS-191.14
-- #16 each download audit-logged -> FRS-192.4, FRS-192.5
-- #17 empty / failed build messages -> FRS-191.17
-- #18 not-connected banner, denied note -> FRS-191.18
-- #19 report switch resets filter -> FRS-191.19
-- #20 Consumption file notes on visit dates -> FRS-193.2
-- #21 Call Report row definition, latest entry, spares excl. void, exact status -> FRS-193.3, FRS-193.4
-- #23 Feedback own-date filter and source filter -> FRS-193.6
-- #24 Feedback "blank is not asked" note -> FRS-193.7
-- #25 KPI Field_INST columns, inclusions, formulas, who may export -> FRS-194.1-.7, FRS-194.12, FRS-192.2
-- #26 KPI registered date range, whole register -> FRS-194.8
-- #27 KPI count on button, failure banner -> FRS-194.9
-- #28 KPI Excel/CSV and audit -> FRS-194.10, FRS-192.1, FRS-192.4
-- #29 KPI column list -> FRS-194.11
-- #31 Unused spares filters incl. engineer picker, Clear -> FRS-193.8
-- #32 Unused spares first-25 preview -> FRS-193.9
-- #33 Unused spares Excel About sheet, CSV, audit -> FRS-193.10, FRS-192.1, FRS-192.4
+- #1 per-report access keys -> FRS-192.1
+- #2 unpermitted/bare link to first permitted report -> FRS-192.2
+- #3 "no report open to your role" notice -> FRS-192.3
+- #4 one tab mounted at a time -> FRS-192.4
+- #5 Consumption database-side filters -> FRS-192.5, FRS-194.1
+- #6 exact matching-row count, count failure stated -> FRS-192.6
+- #7 clear filter / filter in words -> FRS-192.7
+- #8 locked mandatory, optional picker, default-ticked -> FRS-192.8, FRS-192.9
+- #9 column-choice shortcuts -> FRS-192.10
+- #10 view's column order, blanks for missing -> FRS-192.11
+- #11 Excel download, paged, Filter/scope sheet, export authority -> FRS-192.12, FRS-192.13, FRS-193.1, FRS-193.2 (D-065)
+- #13 buttons disabled offline/busy/not permitted/zero -> FRS-192.16
+- #14 export date typing -> FRS-192.14, FRS-192.15
+- #15 numbers stay numbers, digit identifiers text -> FRS-192.14
+- #16 each download audit-logged -> FRS-193.4, FRS-193.5
+- #17 empty / failed build messages -> FRS-192.17
+- #18 not-connected banner, denied note -> FRS-192.18
+- #19 report switch resets filter -> FRS-192.19
+- #20 Consumption file notes on visit dates -> FRS-194.2
+- #21 Call Report row definition, latest entry, spares excl. void, exact status -> FRS-194.3, FRS-194.4
+- #23 Feedback own-date filter and source filter -> FRS-194.6
+- #24 Feedback "blank is not asked" note -> FRS-194.7
+- #25 KPI Field_INST columns, inclusions, formulas, who may export -> FRS-195.1-.7, FRS-195.12, FRS-193.2
+- #26 KPI registered date range, whole register -> FRS-195.8
+- #27 KPI count on button, failure banner -> FRS-195.9
+- #28 KPI Excel/CSV and audit -> FRS-195.10, FRS-193.1, FRS-193.4
+- #29 KPI column list -> FRS-195.11
+- #31 Unused spares filters incl. engineer picker, Clear -> FRS-194.8
+- #32 Unused spares first-25 preview -> FRS-194.9
+- #33 Unused spares Excel About sheet, CSV, audit -> FRS-194.10, FRS-193.1, FRS-193.4
 - Bulk Uploads
-- #1 admin-only gate -> FRS-195.1
-- #2 not-connected message -> FRS-195.2
-- #3 "before you start" guidance -> FRS-195.3
-- #4 grouped registers with row counts -> FRS-195.4
-- #5 header row below letterhead -> FRS-195.5
-- #6 preview before write -> FRS-195.6
-- #7 "nothing loadable" -> FRS-195.7
-- #8 required columns hold a row back -> FRS-196.1
-- #9 per-register reject rules -> FRS-196.2
-- #10 alias priority, losers to extra -> FRS-196.3
-- #11 stamped values override the file -> FRS-196.4
-- #12 day-first, month-first only when proven -> FRS-196.5
-- #13 unreadable typed cells kept -> FRS-196.6
-- #14 unknown headers kept / ignored dropped -> FRS-196.7
-- #15 in-file duplicate keys -> FRS-196.8
-- #16 controlled vocabularies during shaping -> FRS-196.9
-- #17 preparation step before confirmation -> FRS-195.8 (D-075)
-- #18 confirmation with re-run warning -> FRS-195.9
-- #21 MRN Register / Stock Transfer Lines no natural key -> FRS-198.5, FRS-198.6 (D-071)
-- #22 failure reporting with rows written -> FRS-195.12
-- #23 offline copy refreshed after product/party load -> FRS-195.13
-- #24 no audit-log entry for uploads -> FRS-195.14 (D-067)
-- #25 call registers load -> FRS-197.1
-- #26 visit reports load, status effect -> FRS-197.2, FRS-197.3
-- #28 Spare Request headers on OR number -> FRS-197.4
-- #29 Spare Request Lines stubs, re-pointing, approvals -> FRS-197.5, FRS-197.6 (D-075)
-- #30 Stock Out Register load -> FRS-197.7
-- #31 Consumption files visits from the file -> FRS-197.8, FRS-197.9 (D-075)
-- #32 MRN import exempt from stock guard -> FRS-198.1, FRS-198.4
-- #33 Stock Transfer import exempt -> FRS-198.2, FRS-198.4
-- #34 Stock Transfer Lines held back when parent missing -> FRS-198.3
-- #36 historical consumption / stock-out keys and source year -> FRS-197.10
-- #37 QMS Master List load -> FRS-199.7
-- #38 Customer Feedback marked imported (partial URS-037) -> FRS-197.11
-- #40 DCCR Register reviewer names from a file -> URS-082, FRS-099 (D-029); AMEND URS-058
-- #41 Party Master load and Party key -> FRS-199.1
-- #42 Product Database blank cell clears the column -> FRS-196.10, FRS-199.2; AMEND URS-040 (D-072)
-- #43 Product Master load -> FRS-199.3
-- #44 Part Master load -> FRS-199.4
-- #47 cover exports shaped, stub entries -> FRS-199.8
-- #48 master value list uploaders -> FRS-199.5
-- #49 Standard Complaint by key, never renamed, Products mapping -> FRS-199.6
-- #50 dismiss message -> FRS-195.15
+- #1 admin-only gate -> FRS-196.1
+- #2 not-connected message -> FRS-196.2
+- #3 "before you start" guidance -> FRS-196.3
+- #4 grouped registers with row counts -> FRS-196.4
+- #5 header row below letterhead -> FRS-196.5
+- #6 preview before write -> FRS-196.6
+- #7 "nothing loadable" -> FRS-196.7
+- #8 required columns hold a row back -> FRS-197.1
+- #9 per-register reject rules -> FRS-197.2
+- #10 alias priority, losers to extra -> FRS-197.3
+- #11 stamped values override the file -> FRS-197.4
+- #12 day-first, month-first only when proven -> FRS-197.5
+- #13 unreadable typed cells kept -> FRS-197.6
+- #14 unknown headers kept / ignored dropped -> FRS-197.7
+- #15 in-file duplicate keys -> FRS-197.8
+- #16 controlled vocabularies during shaping -> FRS-197.9
+- #17 preparation step before confirmation -> FRS-196.8 (D-075)
+- #18 confirmation with re-run warning -> FRS-196.9
+- #21 MRN Register / Stock Transfer Lines no natural key -> FRS-199.5, FRS-199.6 (D-071)
+- #22 failure reporting with rows written -> FRS-196.12
+- #23 offline copy refreshed after product/party load -> FRS-196.13
+- #24 no audit-log entry for uploads -> FRS-196.14 (D-067)
+- #25 call registers load -> FRS-198.1
+- #26 visit reports load, status effect -> FRS-198.2, FRS-198.3
+- #28 Spare Request headers on OR number -> FRS-198.4
+- #29 Spare Request Lines stubs, re-pointing, approvals -> FRS-198.5, FRS-198.6 (D-075)
+- #30 Stock Out Register load -> FRS-198.7
+- #31 Consumption files visits from the file -> FRS-198.8, FRS-198.9 (D-075)
+- #32 MRN import exempt from stock guard -> FRS-199.1, FRS-199.4
+- #33 Stock Transfer import exempt -> FRS-199.2, FRS-199.4
+- #34 Stock Transfer Lines held back when parent missing -> FRS-199.3
+- #36 historical consumption / stock-out keys and source year -> FRS-198.10
+- #37 QMS Master List load -> FRS-200.7
+- #38 Customer Feedback marked imported (partial URS-037) -> FRS-198.11
+- #40 DCCR Register reviewer names from a file -> URS-082, FRS-100 (D-029); AMEND URS-058
+- #41 Party Master load and Party key -> FRS-200.1
+- #42 Product Database blank cell clears the column -> FRS-197.10, FRS-200.2; AMEND URS-040 (D-072)
+- #43 Product Master load -> FRS-200.3
+- #44 Part Master load -> FRS-200.4
+- #47 cover exports shaped, stub entries -> FRS-200.8
+- #48 master value list uploaders -> FRS-200.5
+- #49 Standard Complaint by key, never renamed, Products mapping -> FRS-200.6
+- #50 dismiss message -> FRS-196.15
 - Legacy Data Import panel
-- #1 admin-only panel -> FRS-200.1
-- #2 banner to Bulk Uploads -> FRS-200.1
-- #3 table counts and refresh -> FRS-200.2
-- #4 auto-detected target, no preview, no confirmation -> FRS-200.3, FRS-200.4 (D-071)
-- #5 user_directory and MRN plain inserts -> FRS-200.5, FRS-200.6 (D-071)
-- #6 automatic Normalise cover after cover import -> FRS-200.7 (D-071)
-- #7 Normalise cover button -> FRS-200.7
-- #8 no audit entry -> FRS-200.8 (D-067)
+- #1 admin-only panel -> FRS-201.1
+- #2 banner to Bulk Uploads -> FRS-201.1
+- #3 table counts and refresh -> FRS-201.2
+- #4 auto-detected target, no preview, no confirmation -> FRS-201.3, FRS-201.4 (D-071)
+- #5 user_directory and MRN plain inserts -> FRS-201.5, FRS-201.6 (D-071)
+- #6 automatic Normalise cover after cover import -> FRS-201.7 (D-071)
+- #7 Normalise cover button -> FRS-201.7
+- #8 no audit entry -> FRS-201.8 (D-067)
 - Data Export
-- #1 screen gate -> FRS-201.1
-- #2 table list with approximate counts -> FRS-201.2
-- #3 search / select all / clear / total -> FRS-201.3
-- #4 ZIP of whole tables as the user, cap, gate, audit -> FRS-201.4-.8 (D-065)
-- #5 CSV date formatting -> FRS-201.6
-- #6 failed export downloads nothing -> FRS-201.9
-- #10 edit a schedule -> FRS-201.10
-- #11 pause / resume -> FRS-201.11
-- #12 delete a schedule -> FRS-201.12
-- #13 schedule list with next / last run -> FRS-201.13
-- #15 separate failure banners -> FRS-201.14
-- #16 mail-not-deployed notice -> FRS-201.14
+- #1 screen gate -> FRS-202.1
+- #2 table list with approximate counts -> FRS-202.2
+- #3 search / select all / clear / total -> FRS-202.3
+- #4 ZIP of whole tables as the user, cap, gate, audit -> FRS-202.4-.8 (D-065)
+- #5 CSV date formatting -> FRS-202.6
+- #6 failed export downloads nothing -> FRS-202.9
+- #10 edit a schedule -> FRS-202.10
+- #11 pause / resume -> FRS-202.11
+- #12 delete a schedule -> FRS-202.12
+- #13 schedule list with next / last run -> FRS-202.13
+- #15 separate failure banners -> FRS-202.14
+- #16 mail-not-deployed notice -> FRS-202.14
 - Device Cache Status
-- #2 app version, complaints, storage-refused columns -> FRS-214.1
-- #3 state bands -> FRS-214.2
-- #4 state chips -> FRS-214.3
-- #5 search -> FRS-214.4
-- #6 summary line -> FRS-214.5
-- #7 refresh -> FRS-214.6
-- #8 load failure names device_cache.sql -> FRS-214.6
+- #2 app version, complaints, storage-refused columns -> FRS-215.1
+- #3 state bands -> FRS-215.2
+- #4 state chips -> FRS-215.3
+- #5 search -> FRS-215.4
+- #6 summary line -> FRS-215.5
+- #7 refresh -> FRS-215.6
+- #8 load failure names device_cache.sql -> FRS-215.6
 - Tracker
 - #5 delete for everybody -> AMEND NAR-002
 - #6 Done / Dropped hidden -> AMEND NAR-002
@@ -3126,86 +3126,86 @@ Every GAP and partial above, and the requirement that now states it, as filed wi
 - #8 last changed by / raised by -> AMEND NAR-002
 - #9 count / refresh / banners / errors -> AMEND NAR-002 (edit-in-place behaviour); no further statement needed (Low)
 - Users
-- #1 /users redirects to /user-master -> FRS-212.3
+- #1 /users redirects to /user-master -> FRS-213.3
 - Roles & Permissions
-- #1 read-only via admin.view / edit via rbac.manage -> FRS-202.1
-- #3 matrix follows stored permissions -> FRS-202.2
-- #4 grouped tree, expand / collapse -> FRS-202.3
-- #5 per-role View and action ticks -> FRS-202.4
-- #6 whole-page tick -> FRS-202.4
-- #7 admin column always full -> FRS-202.5
-- #9 save only touched roles, admin re-asserted, "Nothing was changed" -> FRS-202.6
-- #11 save logged without before / after -> FRS-202.8 (D-067)
-- #14 export matrix with provenance and unsaved flag -> FRS-202.9, FRS-192.3
-- #15 messages -> FRS-202.10
+- #1 read-only via admin.view / edit via rbac.manage -> FRS-203.1
+- #3 matrix follows stored permissions -> FRS-203.2
+- #4 grouped tree, expand / collapse -> FRS-203.3
+- #5 per-role View and action ticks -> FRS-203.4
+- #6 whole-page tick -> FRS-203.4
+- #7 admin column always full -> FRS-203.5
+- #9 save only touched roles, admin re-asserted, "Nothing was changed" -> FRS-203.6
+- #11 save logged without before / after -> FRS-203.8 (D-067)
+- #14 export matrix with provenance and unsaved flag -> FRS-203.9, FRS-193.3
+- #15 messages -> FRS-203.10
 - Audit Log
-- #1 reading requires audit.view -> FRS-203.1 (D-066)
-- #3 filters in the database -> FRS-203.3
-- #4 load more -> FRS-203.4
-- #5 rows cached in browser, not cleared at sign-out -> FRS-203.6, FRS-210.2 (D-070)
-- #6 30-min background sync -> FRS-203.5
-- #7 manual refresh -> FRS-203.5
-- #8 CSV export with partial warning -> FRS-203.7, FRS-192.6
-- #9 layout remembered -> FRS-203.8
-- #10 record_audit not viewable here -> FRS-203.9
+- #1 reading requires audit.view -> FRS-204.1 (D-066)
+- #3 filters in the database -> FRS-204.3
+- #4 load more -> FRS-204.4
+- #5 rows cached in browser, not cleared at sign-out -> FRS-204.6, FRS-211.2 (D-070)
+- #6 30-min background sync -> FRS-204.5
+- #7 manual refresh -> FRS-204.5
+- #8 CSV export with partial warning -> FRS-204.7, FRS-193.6
+- #9 layout remembered -> FRS-204.8
+- #10 record_audit not viewable here -> FRS-204.9
 - Admin Config
-- #1 page composition -> FRS-205.1
-- #3 SLA defaults when table missing -> FRS-205.2
-- #4 SLA changes not audit-logged -> FRS-205.6 (D-067)
-- #6 Hotline desk guidance / failure messages -> FRS-205.3
-- #8 Frequent Failure rule 2 -> URS-158, FRS-204
-- (#5 Hotline desk and #9 FF save with no audit, noted in the inventory) -> FRS-205.3, FRS-205.4, FRS-205.6
+- #1 page composition -> FRS-206.1
+- #3 SLA defaults when table missing -> FRS-206.2
+- #4 SLA changes not audit-logged -> FRS-206.6 (D-067)
+- #6 Hotline desk guidance / failure messages -> FRS-206.3
+- #8 Frequent Failure rule 2 -> URS-158, FRS-205
+- (#5 Hotline desk and #9 FF save with no audit, noted in the inventory) -> FRS-206.3, FRS-206.4, FRS-206.6
 - Software Validation
-- #1 package tabs, duplicate 'trace' key -> FRS-207.1 (D-073)
-- #2 requirements-by-module and gap tables -> FRS-207.2
-- #3 traceability matrix -> FRS-207.3
-- #4 print tab / full package -> FRS-207.5
-- #5 record test results -> FRS-206.1
-- #6 one result per test, overwritten, first date kept -> FRS-206.2, FRS-206.4 (D-068)
-- #7 tester free text -> FRS-206.3 (D-068)
-- #8 silent failure, mismatched UI / DB rights -> FRS-206.1, FRS-206.5 (D-068)
-- #9 execution summary, read-only notice -> FRS-206.6, FRS-206.7
-- #10 blank signature / CAPA tables -> FRS-206.8
-- (new) Data Flows tab -> URS-162, FRS-208
+- #1 package tabs, duplicate 'trace' key -> FRS-208.1 (D-073)
+- #2 requirements-by-module and gap tables -> FRS-208.2
+- #3 traceability matrix -> FRS-208.3
+- #4 print tab / full package -> FRS-208.5
+- #5 record test results -> FRS-207.1
+- #6 one result per test, overwritten, first date kept -> FRS-207.2, FRS-207.4 (D-068)
+- #7 tester free text -> FRS-207.3 (D-068)
+- #8 silent failure, mismatched UI / DB rights -> FRS-207.1, FRS-207.5 (D-068)
+- #9 execution summary, read-only notice -> FRS-207.6, FRS-207.7
+- #10 blank signature / CAPA tables -> FRS-207.8
+- (new) Data Flows tab -> URS-162, FRS-209
 - Settings
-- #2 database connection editable per browser -> FRS-213.2, FRS-213.3, FRS-213.4; AMEND MODULES_WITHOUT_REQUIREMENT (D-072)
-- #3 CallReg / Drive bridge URL -> FRS-213.4, FRS-213.5
-- #4 design defaults text -> FRS-213.6
-- #5 local template placeholders -> FRS-213.7
-- #6 reset demo data -> FRS-213.7
+- #2 database connection editable per browser -> FRS-214.2, FRS-214.3, FRS-214.4; AMEND MODULES_WITHOUT_REQUIREMENT (D-072)
+- #3 CallReg / Drive bridge URL -> FRS-214.4, FRS-214.5
+- #4 design defaults text -> FRS-214.6
+- #5 local template placeholders -> FRS-214.7
+- #6 reset demo data -> FRS-214.7
 - My Profile
-- #1 account table -> FRS-215.1
-- #2 unresolved-profile banner -> FRS-215.2, FRS-209.5
-- #6 change an R&R period afterwards -> FRS-215.3
-- #10 "What I can do" panel -> FRS-215.4
-- #12 change password rules -> FRS-209.7
-- #13 theme -> FRS-212.14
+- #1 account table -> FRS-216.1
+- #2 unresolved-profile banner -> FRS-216.2, FRS-210.5
+- #6 change an R&R period afterwards -> FRS-216.3
+- #10 "What I can do" panel -> FRS-216.4
+- #12 change password rules -> FRS-210.7
+- #13 theme -> FRS-213.14
 - App-wide: sign-in, auth, route guard
-- #2 login / login_failed audit events -> FRS-209.11
-- #4 profile read failure signs out -> FRS-209.3
-- #5 profile auto-created from User Master -> FRS-209.4
-- #6 unresolved identity runs as Engineer -> FRS-209.5 (D-074)
-- #7 no self-service reset, footer contradiction -> FRS-209.9 (D-074)
-- #8 reset / invite link flow and password rules -> FRS-209.8
-- #9 local demo / CallReg fallback sign-in -> FRS-209.2 (D-074)
-- #10 hard-coded super-admin list -> FRS-209.6
-- #12 permission changes applied on tab focus -> FRS-209.10
-- #14 printable routes without chrome -> FRS-212.4
-- #15 per-screen error boundary -> FRS-212.5
-- #16 no login flash during restore -> FRS-212.6
-- #17 demo data cleared -> FRS-212.15
-- #18 sign-out wipes offline copy but not screen caches -> FRS-210.1, FRS-210.2 (D-070)
-- #20 partial-download warning -> FRS-192.6
+- #2 login / login_failed audit events -> FRS-210.11
+- #4 profile read failure signs out -> FRS-210.3
+- #5 profile auto-created from User Master -> FRS-210.4
+- #6 unresolved identity runs as Engineer -> FRS-210.5 (D-074)
+- #7 no self-service reset, footer contradiction -> FRS-210.9 (D-074)
+- #8 reset / invite link flow and password rules -> FRS-210.8
+- #9 local demo / CallReg fallback sign-in -> FRS-210.2 (D-074)
+- #10 hard-coded super-admin list -> FRS-210.6
+- #12 permission changes applied on tab focus -> FRS-210.10
+- #14 printable routes without chrome -> FRS-213.4
+- #15 per-screen error boundary -> FRS-213.5
+- #16 no login flash during restore -> FRS-213.6
+- #17 demo data cleared -> FRS-213.15
+- #18 sign-out wipes offline copy but not screen caches -> FRS-211.1, FRS-211.2 (D-070)
+- #20 partial-download warning -> FRS-193.6
 - App-wide: menu, header, update banner, View as, offline cache
-- #1 menu visibility rules -> FRS-212.1
-- #2 collapse / expand menu, mobile drawer -> FRS-212.7
-- #3 flashing Knowledge Base heading -> FRS-212.7
-- #4 menu counts from device storage, not per user -> FRS-210.3, FRS-212.11 (D-070)
-- #5 module search -> FRS-212.8
-- #6 breadcrumb -> FRS-212.9
-- #7 manager Team / My toggle -> FRS-212.10
-- #8 View as preview -> FRS-211 (D-069)
-- #10 theme picker -> FRS-212.14
-- #11 user chip / menu -> FRS-212.9
-- #12 update banner -> FRS-212.12
-- #13 Clear Cache and Update -> FRS-212.13
+- #1 menu visibility rules -> FRS-213.1
+- #2 collapse / expand menu, mobile drawer -> FRS-213.7
+- #3 flashing Knowledge Base heading -> FRS-213.7
+- #4 menu counts from device storage, not per user -> FRS-211.3, FRS-213.11 (D-070)
+- #5 module search -> FRS-213.8
+- #6 breadcrumb -> FRS-213.9
+- #7 manager Team / My toggle -> FRS-213.10
+- #8 View as preview -> FRS-212 (D-069)
+- #10 theme picker -> FRS-213.14
+- #11 user chip / menu -> FRS-213.9
+- #12 update banner -> FRS-213.12
+- #13 Clear Cache and Update -> FRS-213.13

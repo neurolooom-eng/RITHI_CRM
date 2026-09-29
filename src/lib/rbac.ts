@@ -90,6 +90,10 @@ export const MODULES: ModuleDef[] = [
   // nobody, because every role already has a stored row.
   { path: '/knowledge-base/how-it-works', label: 'How RITHI Functions', admin: true },
   { path: '/service-manuals', label: 'Service Manuals' },
+  // A SUB-PAGE of Service Manuals: parentAction() lets `mod:/service-manuals`
+  // open it, so every role that reads the manuals reads the notes with no
+  // role changed (the user's standing rule).
+  { path: '/service-manuals/notes', label: 'Technical / Service Notes' },
   { path: '/qms', label: 'QMS Documents' },
   // TRAINING (0264): assignments, sessions, everyone's records. `admin: true`
   // keeps it out of the everyday roles' code defaults; 0264 grants it to VP
@@ -520,6 +524,7 @@ export const PERM_TREE: PermHeader[] = [
     // else.
     { path: '/knowledge-base/how-it-works', label: 'How RITHI Functions', actions: [] },
     { path: '/service-manuals', label: 'Service Manuals', actions: ['docs.manage'] },
+    { path: '/service-manuals/notes', label: 'Technical / Service Notes', actions: ['docs.manage'] },
   ] },
   { title: 'Service Calls', pages: [
     { path: '/request-registration', label: 'Request Registration', actions: ['request.create'] },
@@ -624,6 +629,8 @@ export const parentAction = (key: string): string | undefined => {
   if (key.startsWith('mod:/masters/')) return 'mod:/masters';
   // A single report is covered by Reports as a whole, the same way.
   if (key.startsWith('mod:/exports/')) return 'mod:/exports';
+  // Technical / Service Notes sit under Service Manuals, and open with it.
+  if (key.startsWith('mod:/service-manuals/')) return 'mod:/service-manuals';
   if (/^master\..+\.(edit|delete)$/.test(key)) return 'masters.edit';
   // A section of a call is covered by the whole-call right, the same way.
   // Whoever may edit everything may edit any part of it, so a role that had

@@ -1042,7 +1042,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `field_calls_type_ck` — `CHECK ((call_table_for(call_type) = 'field'::text))`
 
-**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `field_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `field_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_requests_follow_call` → `spare_requests_follow_call()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1640,7 +1640,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `installation_calls_type_ck` — `CHECK ((call_table_for(call_type) = 'installation'::text))`
 
-**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `installation_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `installation_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_requests_follow_call` → `spare_requests_follow_call()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2251,7 +2251,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `pm_calls_type_ck` — `CHECK ((call_table_for(call_type) = 'pm'::text))`
 
-**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `pm_calls_cover_code` → `cover_code_stamp()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `pm_calls_cover_code` → `cover_code_stamp()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_requests_follow_call` → `spare_requests_follow_call()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 

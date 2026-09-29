@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-30. **Software Validation Rev 3.0 (v0.10.6, on the branch): every page read, 1,072 actions, every gap given a requirement, test and — where the code falls short — an open defect; data flow diagrams; the auto review switch.** Before that: **20, follow-up (v0.10.6, on the branch, not merged): "Cleared for Stores Processing" counts as approved.** Before that: **Batch 7 (v0.10.2): 20, 23 and 31 fixed as you decided, merged in #453 on your word ("Lets merge"); migrations 0256–0262 are applied by that merge's "Apply database migrations" run.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
+_Last updated: 2026-09-30. **Software Validation Rev 3.0 (v0.10.7, on the branch): every page read, 1,072 actions, every gap given a requirement, test and — where the code falls short — an open defect; data flow diagrams; the auto review switch.** Before that: **20, follow-up (v0.10.7, on the branch, not merged): "Cleared for Stores Processing" counts as approved.** Before that: **Batch 7 (v0.10.2): 20, 23 and 31 fixed as you decided, merged in #453 on your word ("Lets merge"); migrations 0256–0262 are applied by that merge's "Apply database migrations" run.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
 
 ---
 
@@ -169,7 +169,7 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-09-30 — Software Validation Rev 3.0: every page read, every action given a requirement (v0.10.6, on the branch, not merged)
+### 2026-09-30 — Software Validation Rev 3.0: every page read, every action given a requirement (v0.10.7, on the branch, not merged)
 - **Your ask:** read every page, list every action, update the requirements, then everything downstream (risk, DFMEA, tests), and add data flow charts.
 - **Inventory** — [`docs/CAPABILITY_INVENTORY.md`](CAPABILITY_INVENTORY.md): 1,072 actions across every screen, each with the line it was read from and what guards it. Before this, 474 had no requirement stating them and 309 were only partly stated. The document ends with where each gap is now stated.
 - **Package** (`src/lib/validation.ts`), now 166 URS, 215 FRS, 216 tests, 104 risks, 93 DFMEA rows and 75 defects:
@@ -197,9 +197,9 @@ checked.
 - **Proved:** validate with every suite and check; `check:ui`, `check:uploads`, `check:generated`, build. The document generators were re-run: REQUIREMENTS.md, REQUIREMENT_COVERAGE.md, DATABASE_SCHEMA.md.
 - **Not verified:** the inventory was built by reading code, not by running it on live; the open defects are unconfirmed on live data.
 
-### 2026-09-30 — 20, follow-up (v0.10.6, on the branch, not merged): "Cleared for Stores Processing" is a yes
+### 2026-09-30 — 20, follow-up (v0.10.7, on the branch, not merged): "Cleared for Stores Processing" is a yes
 - **Your word**, after 0256 went live: *"'Cleared for Stores Processing' - These values should be considered as Approved."*
-- **0268** adds the phrase to the yes words in `spare_line_stage`.
+- **0270** adds the phrase to the yes words in `spare_line_stage`.
   - Whole phrase, any case, any spacing between the words. "Not cleared for stores processing" still waits.
   - Nothing stored is rewritten.
   - Open lines are restaged, so lines 0256 held for this phrase move FORWARD: to the next approver still needed, or to Stores.
@@ -208,8 +208,8 @@ checked.
   - the upload keeps the phrase as written;
   - `_approval_words.sql` no longer lists it as unusual;
   - `_status.sql` row 199 also tests the phrase and the longer sentence.
-- **Proved:** `spare_approval_whole_word_test` now includes the phrase, three spellings of it, and three near misses. A line 0256 held at RM Approval moves to Stores with its words kept. The suite fails on a database without 0268.
-- **Renumbered 0263 → 0266 → 0268** after merging main, which took 0263 (`0263_user_department.sql`) and then 0266 (`0266_handstock_adjustments.sql`) in the meantime. validate: 114/114 suites, 22/22 checks.
+- **Proved:** `spare_approval_whole_word_test` now includes the phrase, three spellings of it, and three near misses. A line 0256 held at RM Approval moves to Stores with its words kept. The suite fails on a database without 0270.
+- **Renumbered 0263 → 0266 → 0268 → 0270** after merging main, which took 0263, 0266 and 0268 in the meantime. validate: 114/114 suites, 22/22 checks.
 
 ### 2026-09-30 — 23, second half: a rename carries the person's records (v0.10.2, merged in #453)
 - **0259** (`user_directory`): when a User Master name changes, 16 columns follow it, each matched as its own read policy matches (lower, trimmed):
