@@ -182,7 +182,7 @@ export function searchProducts(ms: CachedMachine[], f: ProductFilters, limit = 1
 // VEGA from the product list.
 // ===========================================================================
 export interface DownloadState<T extends { id: number } = CachedMachine> { rows: T[]; lastId: number }
-export interface DownloadResult<T extends { id: number } = CachedMachine> extends DownloadState<T> { complete: boolean; error?: string }
+export interface DownloadResult<T extends { id: number } = CachedMachine> extends DownloadState<T> { complete: boolean; error?: string; duplicates?: number }
 
 export const DOWNLOAD_PAGE = 1000;
 export async function downloadAfter<T extends { id: number }>(
@@ -200,6 +200,7 @@ export async function downloadAfter<T extends { id: number }>(
   const max = opts.max ?? 200000;
   const rows = [...from.rows];
   let lastId = from.lastId;
+  let duplicates = 0;
   while (rows.length < max) {
     let page: T[] | null = null;
     let error = '';
@@ -207,21 +208,29 @@ export async function downloadAfter<T extends { id: number }>(
       try { page = await fetchAfter(lastId, DOWNLOAD_PAGE); }
       catch (e) {
         error = e instanceof Error ? e.message : String(e);
-        if (attempt >= waits.length) return { rows, lastId, complete: false, error };
+        if (attempt >= waits.length) return { rows, lastId, complete: false, duplicates, error };
         opts.onRetry?.(error, attempt + 1);
         await wait(waits[attempt]);
       }
     }
     // Ids must RISE, or the walk could loop for ever on a server that ignored
     // the filter. Refuse rather than trust it.
+    //
+    // THE SAME ID TWICE IS NOT "OUT OF ORDER" and must not stop the walk
+    // (2026-09-29: a device stopped at "machine ids out of order after 4375").
+    // It means the Product Database itself shows that machine on two rows --
+    // a join finding two matches -- which is a fault of the view, reported by
+    // _why_is_a_machine_listed_twice.sql. The device keeps the machine ONCE
+    // (the first row) and COUNTS the rest, so the fault stays visible.
     for (const m of page) {
-      if (!(m.id > lastId)) return { rows, lastId, complete: false, error: `machine ids out of order after ${lastId}` };
+      if (m.id === lastId && rows.length) { duplicates++; continue; }
+      if (!(m.id > lastId)) return { rows, lastId, complete: false, duplicates, error: `machine ids out of order after ${lastId}` };
       rows.push(m); lastId = m.id;
     }
     opts.onProgress?.(rows.length);
-    if (page.length < DOWNLOAD_PAGE) return { rows, lastId, complete: true };
+    if (page.length < DOWNLOAD_PAGE) return { rows, lastId, complete: true, duplicates };
   }
-  return { rows, lastId, complete: false, error: `stopped at ${max} machines` };
+  return { rows, lastId, complete: false, duplicates, error: `stopped at ${max} machines` };
 }
 
 // ---- stored compactly --------------------------------------------------------

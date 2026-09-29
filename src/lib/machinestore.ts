@@ -52,6 +52,7 @@ export interface MachineRegisterStatus {
   downloading: boolean;
   progress: number;        // rows received so far in the current walk
   error: string;           // the last failed walk, in the server's words
+  duplicates: number;      // rows the server sent twice for one id -- kept once
 }
 
 // ---- IndexedDB, guarded ------------------------------------------------------
@@ -111,7 +112,7 @@ function register<T extends { id: number }>(o: {
   let loaded: Promise<void> | null = null;
   let partial: { user: string; started: number; state: DownloadState<Record<string, unknown> & { id: number }> } | null = null;
   let running: Promise<void> | null = null;
-  let status: MachineRegisterStatus = { machines: 0, at: null, downloading: false, progress: 0, error: '' };
+  let status: MachineRegisterStatus = { machines: 0, at: null, downloading: false, progress: 0, error: '', duplicates: 0 };
   const listeners = new Set<(s: MachineRegisterStatus) => void>();
   const publish = (p: Partial<MachineRegisterStatus>) => {
     status = { ...status, ...p };
@@ -171,7 +172,7 @@ function register<T extends { id: number }>(o: {
         const at = Date.now();
         memory = { user, at, items: r.rows.map(o.toItem) };
         await idb('readwrite', (st) => st.put({ v: VERSION, user, at, packed: packRows(r.rows) } satisfies Stored, o.key));
-        publish({ downloading: false, machines: r.rows.length, at, progress: r.rows.length, error: '' });
+        publish({ downloading: false, machines: r.rows.length, at, progress: r.rows.length, error: '', duplicates: r.duplicates ?? 0 });
       } catch (e) {
         publish({ downloading: false, error: e instanceof Error ? e.message : String(e) });
       } finally {

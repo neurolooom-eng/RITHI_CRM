@@ -19,7 +19,10 @@ function describe(what: string, s: MachineRegisterStatus): string {
       + (s.error ? ` Last request failed: ${s.error}.` : '');
   if (s.machines)
     return `${s.machines.toLocaleString()} ${what} on this device, downloaded ${timeAgo(at)} (${formatDayTime(at)}).`
-      + (s.error ? ` The last refresh could not finish (${s.error}); it carries on when the signal returns.` : '');
+      + (s.error ? ` The last refresh could not finish (${s.error}); it carries on when the signal returns.` : '')
+      // A MACHINE THE SERVER LISTED TWICE is kept once here, and said so: the
+      // Product Database screen shows it twice, which is a fault worth fixing.
+      + (s.duplicates ? ` ${s.duplicates.toLocaleString()} ${what} came from the server twice and are kept once — an administrator can find them with _why_is_a_machine_listed_twice.sql.` : '');
   if (s.error) return `${what[0].toUpperCase()}${what.slice(1)} not on this device yet — the download stopped (${s.error}). Searching the server meanwhile.`;
   return `${what[0].toUpperCase()}${what.slice(1)} not on this device yet — searching the server.`;
 }

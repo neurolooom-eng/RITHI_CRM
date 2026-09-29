@@ -111,6 +111,13 @@ Search every thing relevant to Product Database from cached data."*
   `::regclass` casts and that one became `to_regclass()` / `to_regprocedure()`.
   Rows naming a TABLE directly (`from public.quality_objectives`) still error if
   the whole table is absent — not fixed.
+- ✅ **Confirmed on the live project after 0250**: the test engineer's device
+  downloaded all **19,266 machines** and 5,876 customers.
+- ✅ **0.9.387** — one walk stopped at "machine ids out of order after 4375"
+  and the next downloaded everything, so the cause is NOT established. The
+  same id twice is now kept once and counted instead of stopping the walk; a
+  DECREASING id still stops it. `_why_is_a_machine_listed_twice.sql` says
+  whether the view doubles any machine on live data (not yet run).
 - ⏳ **Device cache status report** — database half built and tested (0249),
   taken back off the branch so it did not ship half-done; screen still to build.
 - ⏳ **Not measured**: the download size on the live register. Nothing here
