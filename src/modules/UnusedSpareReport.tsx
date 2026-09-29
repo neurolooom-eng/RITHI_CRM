@@ -9,6 +9,7 @@ import { logAudit } from '../lib/audit';
 import { UNUSED_SPARE_COLUMNS, EMPTY_UNUSED_FILTER, describeUnusedFilter, type UnusedSpareFilter } from '../lib/reports';
 import './dccr.css';
 import { COMPLETE } from '../lib/exportscope';
+import { todayLocal } from '../lib/dates';
 
 // ===========================================================================
 // NOT USED AS PER THE REQUEST — parts that reached the engineer and were never
@@ -77,7 +78,7 @@ export function UnusedSpareReport() {
     try {
       const all = await listUnusedSpares(filter, (n) => setMsg(`Reading… ${n.toLocaleString()} rows`));
       if (!all.length) { setMsg('Nothing is flagged for that filter — nothing to download.'); return; }
-      const stamp = new Date().toISOString().slice(0, 10);
+      const stamp = todayLocal();
       const name = `not-consumed-against-call-${stamp}`;
       const cols = UNUSED_SPARE_COLUMNS.map((c) => ({ key: c, header: c }));
       if (kind === 'csv') {

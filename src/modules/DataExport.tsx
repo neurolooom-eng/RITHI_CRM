@@ -9,7 +9,7 @@ import {
 } from '../lib/supabase';
 import { toCsv } from '../lib/csv';
 import { loadFailure } from '../lib/dberror';
-import { formatDayTime } from '../lib/dates';
+import { formatDayTime, todayLocal } from '../lib/dates';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { zipStore, enc, download } from '../lib/zip';
 import { xlsxText } from '../lib/xlsx';
@@ -151,7 +151,7 @@ export default function DataExport() {
         counts.push(`${name} ${rows.length}`);
       }
       setBusy('Building the file…');
-      const day = new Date().toISOString().slice(0, 10);
+      const day = todayLocal();
       download(`rithi-export-${day}.zip`, zipStore(parts), 'application/zip');
       setBusy('');
       setMsg({ tone: 'ok', text: `${parts.length} table(s) exported — ${counts.join(' · ')}.` });

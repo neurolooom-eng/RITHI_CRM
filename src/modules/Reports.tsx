@@ -12,6 +12,7 @@ import { manualReportLink } from '../lib/reports';
 import { DocPreview } from '../components/doc/DocPreview';
 import { partial } from '../lib/exportscope';
 import { isSysColumn } from '../lib/syscols';
+import { todayLocal } from '../lib/dates';
 
 // ===========================================================================
 // VISIT REPORTS / SERVICE REPORTS — the visit history, one row per visit.
@@ -123,7 +124,7 @@ export function Reports() {
     const src = rows as unknown as Record<string, unknown>[];
     if (!src.length) return;
     const cols = exportColumns(src);
-    const stamp = new Date().toISOString().slice(0, 10);
+    const stamp = todayLocal();
     const scope = hasFilter
       ? [filter.ucn && `UCN ${filter.ucn}`, filter.callNumber && `call ${filter.callNumber}`,
          filter.engineer && `engineer ${filter.engineer}`, filter.status && `status ${filter.status}`]

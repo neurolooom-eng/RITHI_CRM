@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../lib/auth';
 import { logAudit } from '../lib/audit';
 import './indoor.css';
+import { formatDayTime } from '../lib/dates';
 
 // ===========================================================================
 // INDOOR SERVICE REGISTER — the workshop, procedure §4.5. Phase 1.
@@ -233,7 +234,7 @@ export function IndoorService() {
                 <td><span className={`ind-chip ${STATUS_TONE[j.status] ?? ''}`}>{j.status}</span>
                   {j.demo_overdue === true ? <span className="ind-late">overdue</span> : null}</td>
                 <td className="mono">{j.tag_no}</td>
-                <td>{(j.received_at ?? '').slice(0, 10)}</td>
+                <td>{formatDayTime(j.received_at)}</td>
               </tr>
             ))}
             {shown.length === 0 ? (
@@ -347,7 +348,7 @@ function IndoorJobDrawer({
             onBlur={(e) => set({ condition_on_arrival: e.target.value })} />
         </Field>
         <p className="ind-note">
-          Received by <b>{job.received_by_name || '—'}</b> on {(job.received_at ?? '').slice(0, 10)}.
+          Received by <b>{job.received_by_name || '—'}</b> on {formatDayTime(job.received_at)}.
         </p>
       </SectionCard>
 
@@ -361,7 +362,7 @@ function IndoorJobDrawer({
               onBlur={(e) => set({ cleaning_wi_rev: e.target.value })} /></Field>
         </div>
         {job.cleaned_at
-          ? <p className="ind-note">Cleaned by <b>{job.cleaned_by_name || '—'}</b> on {(job.cleaned_at ?? '').slice(0, 10)}.</p>
+          ? <p className="ind-note">Cleaned by <b>{job.cleaned_by_name || '—'}</b> on {formatDayTime(job.cleaned_at)}.</p>
           : mayWork
             ? <button className="btn" onClick={async () => {
                 const r = await markIndoorCleaned(job.id, job.cleaning_wi || 'WI/SER/01', job.cleaning_wi_rev, uid);
@@ -450,7 +451,7 @@ function IndoorJobDrawer({
             </label>
           ) : null}
           {job.condemned_at ? (
-            <p className="ind-note">Condemned by <b>{job.condemned_by_name || '—'}</b> on {(job.condemned_at ?? '').slice(0, 10)}.</p>
+            <p className="ind-note">Condemned by <b>{job.condemned_by_name || '—'}</b> on {formatDayTime(job.condemned_at)}.</p>
           ) : null}
 
           <h4 className="ind-sub">Parts harvested</h4>
@@ -646,7 +647,7 @@ function IndoorJobDrawer({
           </p>
         ) : null}
         {job.qc_at ? (
-          <p className="ind-note">Checked by <b>{job.qc_by_name || '—'}</b> on {(job.qc_at ?? '').slice(0, 10)}.</p>
+          <p className="ind-note">Checked by <b>{job.qc_by_name || '—'}</b> on {formatDayTime(job.qc_at)}.</p>
         ) : null}
         {selfChecked ? (
           <p className="ind-warn">
@@ -669,7 +670,7 @@ function IndoorJobDrawer({
           </p>
         ) : null}
         {job.dispatched_at ? (
-          <p className="ind-note">Dispatched by <b>{job.dispatched_by_name || '—'}</b> on {(job.dispatched_at ?? '').slice(0, 10)}.</p>
+          <p className="ind-note">Dispatched by <b>{job.dispatched_by_name || '—'}</b> on {formatDayTime(job.dispatched_at)}.</p>
         ) : null}
         {!mayDispatch ? <p className="ind-note">Dispatching needs the <b>dispatch</b> right.</p> : null}
       </SectionCard>

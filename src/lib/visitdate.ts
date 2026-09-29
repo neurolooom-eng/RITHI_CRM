@@ -21,8 +21,10 @@ import { formatDay } from './dates';
 // Pure and dateless-by-design: every value is a `yyyy-mm-dd` string and TODAY
 // is passed IN. `new Date()` inside the rule would make it untestable and would
 // read the browser's clock at a moment nobody chose — and `toISOString()` is
-// UTC, which is a different day from about half past five in the evening here.
-// The caller supplies the local date; `todayISO()` in lib/format already does.
+// UTC, which in India is YESTERDAY from midnight until 05:29. The caller
+// supplies the local date: `todayISO()` in lib/format, which is `todayLocal()`
+// (it was UTC itself until v0.9.382, so a visit filed after midnight defaulted
+// to the day before and today was refused as "in the future").
 // ---------------------------------------------------------------------------
 
 // '' when the date is allowed. Otherwise the reason, in the words the person

@@ -66,6 +66,33 @@ up)_
 
 ---
 
+## 2026-09-29 — "Today" is the local day; dates on screen per R2/R3 (v0.9.394)
+
+Held on the branch while another branch fixed something critical, then
+merged at the user's word. Front end only, no SQL.
+- `todayLocal()` replaces every UTC "today" (`toISOString().slice(0, 10)`),
+  which named yesterday from 00:00 to 05:29 IST.
+- Six screens now show dates as `dd-MMM-yyyy [HH:mm:ss]`.
+- ✅ Delivery Challan / Declaration KEEP `dd-mm-yyyy` (the user, 2026-09-29).
+- ✅ `sales_contracts.sql` timed out on live ("Failed to fetch"): 0238/0240
+  rewrote every machine through an unindexed lookup — 361 s measured. 0252's
+  indexes (0250 until main took that number) now run first in the bundle: 7 s on the same data.
+
+## 2026-09-26 — Module review, batch 5: dates in downloads, honest call edits (v0.9.394)
+
+- ✅ **7 / R2 / R3 (downloads)**: `buildXlsx` shapes every body cell; `csvExport`
+  formats date values. Front end, live on merge.
+- ✅ **32 (rest)** and **40** — front end and hand-run files, live on merge.
+  **40b** (12 more multi-grid probes) is open and listed in `check:ui`.
+- ⏳ **SQL to run**, each proved NO-before / yes-after on `_status.sql`:
+  - `objective.sql` — **0251**, objective evidence tiebreakers (row 193, finding 15);
+  - `sales_contracts.sql` — **0252**, ownership trigger indexes (row 194,
+    finding 38; 500 transfers 15.6 s → 0.57 s measured);
+  - `sys_columns.sql` — **0245** regenerated with the honest calls update
+    (row 195, finding 48). 0114 carries the same generator, so
+    `call_requests.sql` restores it too.
+- ⏳ `_pm_call_numbers.sql` still cut off; needs the rest of the user's list.
+
 ## 2026-09-29 — Standard Complaint mapped to products (v0.9.390) — CLIENT ONLY, no SQL
 
 The user: *"In Standard Complaint Master, I want a Product Field — should be a

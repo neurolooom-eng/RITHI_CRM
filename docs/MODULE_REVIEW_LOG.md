@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-26. Batch 4 (front end) in v0.9.380: 4, 8, 10, 11, 12, 14, 43 fixed, more of 15 and 32; 26 needs a decision. 49–52 fixed in v0.9.379 (SQL to run). Table review done — findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs). R1 built in v0.9.378 and finding 47 fixed in v0.9.377 — the SQL for both (0243; sys_columns.sql) still to be applied. R2–R3 pending._
+_Last updated: 2026-09-26. Batch 5 in v0.9.394 (merged 2026-09-29): 7, 32, 40 fixed; 15, 38, 48 fixed with SQL to run (`objective.sql`, `sales_contracts.sql`, `sys_columns.sql`). Batch 4 (front end) in v0.9.380: 4, 8, 10, 11, 12, 14, 43 fixed, more of 15 and 32; 26 needs a decision. 49–52 fixed in v0.9.379 (SQL to run). Table review done — findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs). R1 built in v0.9.378 and finding 47 fixed in v0.9.377 — the SQL for both (0243; sys_columns.sql) still to be applied. R2–R3 pending._
 
 ---
 
@@ -14,10 +14,10 @@ _Last updated: 2026-09-26. Batch 4 (front end) in v0.9.380: 4, 8, 10, 11, 12, 14
 
 | | Count | Findings |
 | --- | --- | --- |
-| ✅ **Fixed and live** | **28** | 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 14, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 33, 41, 43, 45, 46 |
-| ✅ **Fixed, SQL still to run** | **5** | 47 (v0.9.377, needs 0243); 49, 50, 51, 52 (v0.9.379, need `lockdown.sql` + `sales_contracts.sql`) |
-| ◐ **Partly fixed** | **3** | 15, 31, 32 |
-| ⏳ **Open** | **20** | 7, 13, 20, 23, 26, 27, 34, 35, 36, 37, 38, 39, 40, 42, 44, 48, 53, 54, 55, 56 |
+| ✅ **Fixed and live** | **31** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 32, 33, 40, 41, 43, 45, 46 |
+| ✅ **Fixed, SQL still to run** | **8** | 47 (v0.9.377, needs 0243); 49, 50, 51, 52 (v0.9.379, need `lockdown.sql` + `sales_contracts.sql`); 15 (`objective.sql`), 38 (`sales_contracts.sql`), 48 (`sys_columns.sql`) — v0.9.394 |
+| ◐ **Partly fixed** | **1** | 31 |
+| ⏳ **Open** | **16** | 13, 20, 23, 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56 |
 | | **56** | |
 
 **Batches 1–3 were front end only.** Finding 47 is the first fix with SQL:
@@ -54,19 +54,13 @@ below). They apply to every table and every date, not to one finding.
 
 | # | What |
 | --- | --- |
+| **40b** | Found while fixing 40: **12 more hand-run files** return more than one grid (`_which_products_are_missing` — added on 2026-09-29 by another session, its grids numbered 0–3 to run one at a time; `_admin_grant_check`, `_dedupe_part_product_keys`, `_load_check`, `_move_blank_status_visits`, `_party_name_normalise`, `_party_search_diagnose`, `_reassign_spare_engineer`, `_registered_by_check`, `_reset_for_production`, `_stray_cover_rows`, `_yearly_consumption_check`; `_why_is_it_empty_2` was only its `set_config` lines, which the check now ignores). `check:ui` now refuses a NEW one and lists these by name. Also `_pm_call_numbers.sql` is still cut off mid-list and marked DO NOT RUN — it needs the rest of YOUR list to finish. |
 | **56** | Filter/sort columns with no index on big registers (feedback paging, call_requests paging, spare line stage, …) — candidates only; confirm with the probe's Full scans rows before adding any. |
-| **48** | An edit through the `calls` view answers **"UPDATE 1" when row-level security let nothing through** — the view's INSTEAD OF trigger returns the row whatever the table update did. **Measured** 2026-09-26 (a role without `calls.edit`: `UPDATE 1`, the call unchanged). The same false-"saved" class as 30/31, one layer down. Which screens write through `calls` and trust that answer is **not yet checked**. |
-| **38** | Two expression indexes so the ownership triggers stop scanning. A 500-row transfer upload measured 12.5 s against a 20 s limit. |
 | **13** | Spare Insights' date window is a UTC day, not an IST one (SQL function). |
-| **40** | Four hand-run probes return 2–3 result grids; the SQL editor shows only the last. |
 
 ### C. Front end, no decision needed
 
-| # | What |
-| --- | --- |
-| **7** | Four workbooks and the register CSVs export raw database dates (overlaps R2/R3). |
-| **15** (rest) | The Objective evidence RPC is ordered by `reg_date` alone INSIDE the function; a tiebreaker needs the function redefined (SQL). Every client-side read is now tie-broken. |
-| **32** (rest) | An empty-string request status is counted on the card but not listed, and the register loads the newest 2,000 requests, so an older pending installation is counted but not listed. |
+Nothing left in this group after batch 5.
 
 ### R. Your standing requirements (added 2026-09-26)
 
@@ -103,8 +97,8 @@ dates are shown and exported, not how they are stored.**
 | # | Requirement | Already true | Still to do |
 | --- | --- | --- | --- |
 | **R1** | Key, timestamp, `sys_created_by`, `sys_updated_by` on every table | ✅ **Built, v0.9.378** (0244/0245): `sys_id`, `sys_created_by`, `sys_created_on`, `sys_updated_by`, `sys_updated_on` on 68 tables, written only by the database; existing rows filled from same-meaning fields. | **Your step: run `sys_columns.sql` once.** Not done: showing them on screens with names (R2/R3); natural keys per table (a separate question). |
-| **R2** | Date fields as `dd-mmm-yyyy`, readable by Excel | `formatDay()` in `src/lib/dates.ts` is that format, and the Excel downloads built by `ReportBuilder` already write real Excel dates. | Finding **7**: four workbooks and the register CSVs export raw database dates. Screens have **not** been audited for dates shown any other way, so that audit is the first step. |
-| **R3** | Date-time fields as `dd-mmm-yyyy hh:mm:ss`, readable by Excel | `formatDayTime()` is that format, and `ReportBuilder` applies it on the way out. It was already your rule (2026-09-24). | The same audit as R2, for date-times. |
+| **R2** | Date fields as `dd-mmm-yyyy`, readable by Excel | `formatDay()` in `src/lib/dates.ts` is that format. **Downloads done in v0.9.394 (finding 7):** every .xlsx writes a date as a real Excel date formatted `dd-mmm-yyyy`, whatever screen built it; every register CSV writes `dd-MMM-yyyy`. | **Screens audited 2026-09-29** (below): six fixed. **Your decision (2026-09-29): the Delivery Challan and Declaration KEEP `dd-mm-yyyy`**, the way the paper form is filled in by hand. |
+| **R3** | Date-time fields as `dd-mmm-yyyy hh:mm:ss`, readable by Excel | `formatDayTime()` is that format. **Downloads done in v0.9.394**, the same way as R2, in your own time rather than the database's UTC. | Screens audited with R2; timestamps now show `dd-MMM-yyyy HH:mm:ss`. |
 
 **Your answers (2026-09-26)**, which is what was built: Q1 → a new `sys_id` on every table; Q2 → separate `sys_created_on` / `sys_updated_on`, overlapping no existing field; Q3 → the login id; Q4 → fill existing rows from existing fields; Q5 → every table except the counters. The questions as they were asked:
 
@@ -163,6 +157,70 @@ dates are shown and exported, not how they are stored.**
 
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
+
+### 2026-09-29 — `sales_contracts.sql` timed out on the live project ("Failed to fetch (api.supabase.com)")
+- **Cause, measured** on a database with 20,000 sale lines and 4,000 transfers:
+  the bundle took **361 s**. Two sections were almost all of it — **0238**
+  (304 s) and **0240** (52 s) — because they rewrite every machine through the
+  per-row ownership lookup that had no index (finding 38). The SQL editor's
+  request gives up long before that; the database was not refusing anything.
+- **Fix, on the branch:** 0252's indexes (numbered 0250 until main took that number) now run BEFORE 0237/0238/0240 in the
+  bundle. Same data, indexes absent (as on live): the whole bundle takes
+  **7 s**. With the indexes, 0238 is 4 s and 0240 0.4 s.
+- **Without waiting for the branch:** create the two indexes on their own first
+  (a few seconds), then `main`'s `sales_contracts.sql` finishes quickly too.
+
+### 2026-09-29 — R2/R3 screen audit (branch only, NOT merged — the user asked to hold `main`)
+- **Found and fixed: "today" was the UTC day.** `todayISO()` was
+  `toISOString().slice(0, 10)`, which from midnight to 05:29 IST names
+  YESTERDAY (measured). `visitdate.ts` said it was local — it was not — so a
+  visit filed after midnight defaulted to the day before and the real date was
+  refused as "in the future"; DC, MRN, stock-transfer, sale and Spare Insights
+  defaults were a day early too. `todayLocal()` in `dates.ts` now; every use in
+  `src` goes through it. No database guard compares a client date with the
+  server's `current_date` (checked: the four functions that raise near it do
+  not), so the change cannot trip one.
+- **Display fixed:** Indoor Service (six stage stamps shown as raw UTC
+  `yyyy-mm-dd`), Call Review (`en-GB` 18/09/2026), Software Validation and the
+  Hand Stock sync note (browser locale), PM Bulk Upload (no year), and the
+  Roles & Permissions download's "Taken on".
+- **Already right:** every table column without a formatter goes through the
+  table's own ISO → `dd-MMM-yyyy` rule, and every other screen uses the shared
+  formatters.
+- **Delivery Challan / Declaration keep `dd-mm-yyyy`** — your decision, 2026-09-29.
+- **Checks:** a `check:ui` behaviour test pins the clock at 00:30 IST and
+  expects the 29th; nothing in `src` may take a day from `toISOString()` or
+  print one with `toLocaleDateString`. validate 106/106 suites, 22/22 checks.
+
+### 2026-09-26 — Batch 5 (v0.9.394)
+- **7 / R2 / R3 for downloads:** `buildXlsx` shapes every body cell itself, so
+  the four workbooks that skipped `xlsxCell` now write real dates; every
+  register CSV formats a date value as `dd-MMM-yyyy [HH:mm:ss]`. Proved by
+  building a workbook from a raw PostgREST row and reading the bytes: dates are
+  styled serials, `0012345` and `MP-010` stay text.
+- **15 (rest), SQL 0251:** `objective_evidence()` breaks every tie it pages by.
+  The body is the database's own, with four ORDER BYs changed and nothing else
+  (diffed). Status row 193.
+- **32 (rest):** a filtered request count shows `+` over a partial load; a
+  blank status is Pending.
+- **38, SQL 0252:** two indexes matching the ownership triggers' lookups.
+  **Measured** at 20,000 sale lines and 4,000 transfers: a 500-row transfer
+  batch 15.6 s → 0.57 s. Status row 194.
+- **40:** the four named probes are one grid each (tested with data on a
+  database); `check:ui` counts grids in every hand-run file. Two bugs fixed on
+  the way: the report-count reconciliation counted an orphan's repeat visits
+  twice and printed "DOES NOT RECONCILE" on data that reconciled (a reviewer's
+  unconfirmed report, now measured and fixed); and the Item Status probe
+  matched machines on the serial alone.
+- **48:** the `calls` view's update trigger returns NULL when nothing was
+  written (0114 and its 0245 mirror, identically), and `updateCall` /
+  `reallocateCalls` count the rows the database says it changed.
+  `calls_view_honest_update_test` fails on the old trigger ("reported 3 rows
+  where nothing was written") and passes on the new. Status row 195.
+- **Also fixed:** a `check:ui` date helper used the UTC day, so two cover-expiry
+  assertions failed whenever the checks ran on Indian time. The app was right.
+- **Your step:** run `objective.sql`, `sales_contracts.sql` and
+  `sys_columns.sql` (or migrations 0251, 0252 and the sys_columns bundle).
 
 ### 2026-09-26 — Batch 4, front end (v0.9.380)
 - **Fixed:** 4 (Dashboard dates day-first through `parseAnyDate`), 8 (six

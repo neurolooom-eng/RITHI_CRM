@@ -138,6 +138,18 @@ export function parseAnyDate(v: unknown): Date | null {
 // converted through the browser's own calendar; everything else — a plain
 // `yyyy-mm-dd`, a day-first export — is left to `toIsoDate`, which must not be
 // shifted by a timezone it never had.
+/** TODAY ON THE READER'S CALENDAR, as `yyyy-mm-dd`.
+ *
+ *  `new Date().toISOString().slice(0, 10)` is TODAY IN UTC, which in India is
+ *  YESTERDAY from midnight until 05:29 (measured: 00:30 IST on the 29th reads
+ *  2026-09-28). Every "today" the app puts in a form, a filter, a file name or
+ *  a stamp comes from here, so a visit filed at 01:00 is not dated the day
+ *  before, and "not in the future" does not refuse the real date. */
+export function todayLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 export function localIsoDate(v: unknown): string | null {
   const s = String(v ?? '').trim();
   if (/[T ]\d{1,2}:\d{2}/.test(s) && /(Z|[+-]\d{2}:?\d{2})$/.test(s)) {

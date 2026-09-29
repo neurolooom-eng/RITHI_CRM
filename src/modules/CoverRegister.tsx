@@ -17,7 +17,7 @@ import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
 import { listProductLines, sellableNames, sellableCodes, retiredNames, type ProductLine } from '../lib/productLines';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtDate, statusBadge, timeAgo } from '../lib/format';
-import { localIsoDate } from '../lib/dates';
+import { localIsoDate, todayLocal } from '../lib/dates';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
@@ -604,7 +604,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     // was installed on another day (the user, 2026-09-22). The ENTRY date is
     // not set here at all: the database stamps it (0230), which is what
     // "automatic" has to mean if it is to be trusted.
-    setDraft(kind === 'sale' ? { warranty_start: new Date().toISOString().slice(0, 10) } : {});
+    setDraft(kind === 'sale' ? { warranty_start: todayLocal() } : {});
     try {
       const n = await nextCoverNumber(kind);
       setDraft((d) => (str(d[cfg.key]) ? d : { ...d, [cfg.key]: n }));

@@ -5,6 +5,7 @@ import { supabaseConfigured, pmLatestRegAt, uploadRows } from '../lib/supabase';
 import { parseCSV } from '../lib/csv';
 import { shapePmRows, pmStartDefaults, pmTemplateCsv, PM_TEMPLATE_HEADERS } from '../lib/pmImport';
 import './fieldcalls.css';
+import { formatDayTime } from '../lib/dates';
 
 // ===========================================================================
 // PM BULK UPLOAD — Admin / Super-Admin only. The monthly Preventive-Maintenance
@@ -14,14 +15,9 @@ import './fieldcalls.css';
 // ===========================================================================
 
 const s = (v: unknown) => String(v ?? '');
-// A reg_at ISO timestamp -> a short local 'DD Mon, HH:mm:ss' for the preview.
-const fmtAt = (iso: unknown) => {
-  const t = s(iso);
-  if (!t) return '';
-  const d = new Date(t);
-  return Number.isNaN(d.getTime()) ? t
-    : d.toLocaleString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-};
+// A reg_at timestamp in the project's one format, dd-MMM-yyyy HH:mm:ss in the
+// reader's own time (R3). It printed the browser's locale without the YEAR.
+const fmtAt = (iso: unknown) => formatDayTime(s(iso));
 
 export function PmBulkUpload() {
   const { isAdmin } = useAuth();

@@ -17,6 +17,7 @@ import {
   traceabilityMatrix, traceabilitySummary, modulesWithNoRequirement,
 } from '../lib/requirements';
 import './softwarevalidation.css';
+import { formatDayTime } from '../lib/dates';
 
 // ===========================================================================
 // SOFTWARE VALIDATION — Admin-only. Renders the CSV/CSA + ISO/TR 80002-2
@@ -630,14 +631,14 @@ export function SoftwareValidation() {
                           options={['Pass', 'Fail', 'N/A']} />
                         <input className="input" placeholder="Actual result / observation" defaultValue={r?.actual ?? ''} onBlur={(e) => { if (e.target.value !== (r?.actual ?? '')) void record(t.id, { actual: e.target.value }); }} />
                         <input className="input sv-exec-tester" placeholder="Tester" defaultValue={r?.tester ?? ''} onBlur={(e) => { if (e.target.value !== (r?.tester ?? '')) void record(t.id, { tester: e.target.value }); }} />
-                        {r?.executed_at && <span className="sv-ref">{new Date(r.executed_at).toLocaleDateString()}</span>}
+                        {r?.executed_at && <span className="sv-ref">{formatDayTime(r.executed_at)}</span>}
                       </div>
                     ) : (
                       <div className="sv-result">
                         <span>Actual: {r?.actual || <span className="sv-blank-inline" />}</span>
                         <span>Result: {r?.result || <span className="sv-blank-inline sm" />}</span>
                         <span>Tester: {r?.tester || <span className="sv-blank-inline" />}</span>
-                        <span>{r?.executed_at ? new Date(r.executed_at).toLocaleDateString() : ''}</span>
+                        <span>{r?.executed_at ? formatDayTime(r.executed_at) : ''}</span>
                       </div>
                     )}
                   </div>

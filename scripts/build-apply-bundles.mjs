@@ -453,7 +453,10 @@ const MODULES = {
              // the module's final word on all three -- five earlier files in
              // here define objective_value alone, and the bundles replay one at
              // a time.
-             '0142_objective_ffr_count.sql'],
+             '0142_objective_ffr_count.sql',
+             // After 0142, which it copies: objective_evidence with a tiebreaker
+             // on four ORDER BYs and nothing else (finding 15).
+             '0251_objective_evidence_tiebreak.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -753,6 +756,14 @@ const MODULES = {
             // 0036 above creates, as InitPlans. Filed anywhere earlier and
             // 0036's per-row versions would go straight back on a replay.
             '0236_cover_policies_are_initplans.sql',
+            // BEFORE 0237/0238/0240, NOT after them: those three rewrite every
+            // sale line and transfer through a per-row lookup these indexes
+            // serve. Filed after them, a first run on the live project did the
+            // rewrite WITHOUT the indexes -- measured at 20,000 sale lines and
+            // 4,000 transfers: 0238 took 304 s and 0240 52 s (4 s and 0.4 s
+            // with the indexes), and the SQL editor gave up with "Failed to
+            // fetch (api.supabase.com)" (2026-09-29). Finding 38.
+            '0252_ownership_trigger_indexes.sql',
             // AFTER 0234: it calls is_call_number(), which that file creates.
             '0237_sale_fills_product_database.sql',
             // AFTER 0237: it replaces that file's upsert so the party comes

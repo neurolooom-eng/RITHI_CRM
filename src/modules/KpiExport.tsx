@@ -7,6 +7,7 @@ import { xlsxDownload, xlsxCell } from '../lib/xlsx';
 import { logAudit } from '../lib/audit';
 import './dccr.css';
 import { COMPLETE } from '../lib/exportscope';
+import { todayLocal } from '../lib/dates';
 
 // ===========================================================================
 // THE KPI WORKBOOK'S Field_INST TAB, computed from the register.
@@ -56,7 +57,7 @@ export function KpiExport() {
         if (page.length < PAGE) break;
         setMsg(`Read ${all.length.toLocaleString()}…`);
       }
-      const span = from || to ? `${from || 'start'}_${to || 'today'}` : new Date().toISOString().slice(0, 10);
+      const span = from || to ? `${from || 'start'}_${to || 'today'}` : todayLocal();
       const cols = kpiExportColumns();
       if (kind === 'csv') {
         csvExport(`kpi-field-inst-${span}.csv`, cols, all.map(toKpiExportRow),

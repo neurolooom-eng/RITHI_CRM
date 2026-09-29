@@ -3,7 +3,7 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, Toolbar, SearchBox, FacetChips, SectionCard, Drawer } from '../components/ui/ui';
 import { csvExport } from '../lib/format';
-import { formatDay, formatDayTime } from '../lib/dates';
+import { formatDay, formatDayTime, todayLocal } from '../lib/dates';
 import { listProductDatabaseV2, diagnoseProductDatabaseV2, refreshProductDatabaseV2,
          supabaseConfigured, type RegisterGap } from '../lib/supabase';
 import { loadFailure, emptyRegisterVerdict } from '../lib/dberror';
@@ -183,7 +183,7 @@ export function ProductDatabase2() {
         onRowClick={(r) => setOpen(r)}
         toolbar={(
           <button className="btn btn-ghost btn-sm" onClick={() => csvExport(
-            `product-database-2-${new Date().toISOString().slice(0, 10)}.csv`,
+            `product-database-2-${todayLocal()}.csv`,
             ALL_COLUMNS.map((k) => ({ key: k, header: k })), visible,
             // listProductDatabaseV2() pages the whole view -- there is no Load more.
             COMPLETE)}>

@@ -10,6 +10,7 @@ import { logAudit } from '../lib/audit';
 import { xlsxDownload } from '../lib/xlsx';
 import './fieldcalls.css';
 import { COMPLETE } from '../lib/exportscope';
+import { localIsoDate, formatDayTime } from '../lib/dates';
 
 // ===========================================================================
 // ROLES & PERMISSIONS — the matrix, grouped the way the app is: header ->
@@ -182,7 +183,7 @@ export function RolePermissions() {
   // gets sent.
   const exportMatrix = () => {
     const when = new Date();
-    const stamp = when.toISOString().slice(0, 10);
+    const stamp = localIsoDate(when.toISOString()) ?? '';
 
     // WHERE EACH ROLE'S ROW COMES FROM. Computed rather than assumed: it is the
     // one thing about this matrix that is not visible on the screen it is taken
@@ -248,7 +249,7 @@ export function RolePermissions() {
         columns: ['About this export', 'Detail'],
         rows: [
           { 'About this export': 'Taken from', Detail: 'Roles & Permissions, RITHI CRM' },
-          { 'About this export': 'Taken on', Detail: when.toLocaleString() },
+          { 'About this export': 'Taken on', Detail: formatDayTime(when.toISOString()) },
           { 'About this export': 'Taken by', Detail: user?.fullName || user?.email || 'not recorded' },
           { 'About this export': 'State',
             Detail: edited

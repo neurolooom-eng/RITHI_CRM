@@ -42,6 +42,7 @@ import './productfailure.css';
 // would silently empty.
 import { PERIODS, periodKey, type Period } from './FieldFailureInsights';
 import { partial } from '../lib/exportscope';
+import { todayLocal } from '../lib/dates';
 
 type Row = Record<string, unknown>;
 const s = (r: Row, k: string) => String(r[k] ?? '').trim();
@@ -207,7 +208,7 @@ function ParetoBlock({
   });
 
   const download = () => {
-    const when = new Date().toISOString().slice(0, 10);
+    const when = todayLocal();
     const scope = Object.entries(picked).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'the whole register';
     const name = title.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
     xlsxDownload(`product-failure-${name}-${when}.xlsx`, [
@@ -536,7 +537,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
   const trendTotal = trend.reduce((t, x) => t + x.value, 0);
 
   const downloadTrend = () => {
-    const when = new Date().toISOString().slice(0, 10);
+    const when = todayLocal();
     const per = PERIODS.find((x) => x.key === period)!.label;
     let run = 0;
     xlsxDownload(`product-failure-trend-${period}-${when}.xlsx`, [

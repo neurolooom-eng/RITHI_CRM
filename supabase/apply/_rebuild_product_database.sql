@@ -5,10 +5,15 @@
 --   through bulk import" -- asked for after being told what it costs, and
 --   confirmed. This file does exactly that and nothing else.
 --
--- READ-ONLY UNTIL YOU CHANGE ONE WORD. Line 60 reads `v_apply boolean := false`.
--- Run it as it stands and nothing is deleted: you get the counts below, and the
--- list of machines the reload file MUST contain. Change it to true and run
--- again to empty the table.
+-- READ-ONLY UNTIL YOU CHANGE ONE WORD. The line under `SWITCH` reads
+-- `v_apply boolean := false`. Run it as it stands and nothing is deleted: you
+-- get the counts below, and the list of machines the reload file MUST contain.
+-- Change it to true and run again to empty the table.
+--
+-- ONE GRID (finding 40). The SQL editor shows only the LAST result, and this
+-- file used to end in a second query -- so the counts rows 1-5 promise were
+-- never on screen. The list is now rows 101 onwards of the same grid, and row
+-- 6 says how many pairs there are in all, since the list stops at 1,000.
 --
 -- IT TAKES A BACKUP FIRST, AUTOMATICALLY. `products_backup_<yyyymmdd_hhmi>`,
 -- a plain copy of every row, made in the same transaction as the delete. That
@@ -22,8 +27,8 @@
 -- key. Calls, spare requests, contracts and feedback all find a machine by its
 -- SERIAL as text, so the delete raises no error and blocks nothing -- it
 -- silently orphans every serial lookup until the reload lands. The second
--- query below lists the model+serial pairs those registers actually use, which
--- is the set your file has to bring back. Diff it against the file BEFORE you
+-- list (rows 101 onwards) names the model+serial pairs those registers actually
+-- use, which is the set your file has to bring back. Diff it against the file BEFORE you
 -- apply, not after.
 --
 -- THE RELOAD: Bulk Uploads -> Masters -> Product Database. The table is keyed
@@ -71,52 +76,67 @@ begin
 end $rebuild$;
 
 -- ---- what is there, and what the reload has to bring back ------------------
-select 1 as row, 'machines in the Product Database now' as measure,
-       (select count(*)::text from public.products) as value,
-       'All of these go. They are copied to products_backup_<stamp> in the same transaction.' as note
-union all
-select 2, 'distinct machines referenced by CALLS',
-       (select count(*)::text from (
-          select distinct lower(btrim(product_name)), lower(btrim(serial))
-            from public.calls where coalesce(btrim(serial), '') <> '') s),
-       'Every one of these must be in the reload file, or those calls lose the machine behind them -- cover, party and history all resolve by serial.'
-union all
-select 3, 'distinct machines referenced by SPARE REQUESTS',
-       (select count(*)::text from (
-          select distinct lower(btrim(product_name)), lower(btrim(serial))
-            from public.spare_requests where coalesce(btrim(serial), '') <> '') s),
-       'Same again. A spare request whose machine is gone cannot re-derive its cover.'
-union all
-select 4, 'machines referenced by a call but NOT in the register today',
-       (select count(*)::text from (
-          select distinct lower(btrim(c.product_name)) as p, lower(btrim(c.serial)) as s
-            from public.calls c
-           where coalesce(btrim(c.serial), '') <> ''
-             and not exists (select 1 from public.products x
-                              where lower(btrim(x.serial_number)) = lower(btrim(c.serial))
-                                and lower(btrim(x.item_name)) = lower(btrim(c.product_name)))) q),
-       'These are ALREADY orphaned today -- the delete does not cause them. Useful as the baseline to compare against after the reload.'
-union all
-select 5, 'rows with a blank Item Name or Serial (no machine_key)',
-       (select count(*)::text from public.products
-         where coalesce(btrim(item_name), '') = '' or coalesce(btrim(serial_number), '') = ''),
-       'The upload keys on machine_key, generated from ITEM NAME + SERIAL NUMBER. A row missing either cannot load at all, so rows like these will not come back unless the file fills both.';
-
--- ---- the exact list the reload file must contain ---------------------------
--- Model AND serial, because a machine is both. Compare this against your file
--- before applying; anything here that the file does not carry is a call or a
--- spare that will not find its machine afterwards.
-select coalesce(nullif(btrim(m.product_name), ''), '(blank model)') as item_name,
-       m.serial,
-       count(*) filter (where m.src = 'call')  as calls,
-       count(*) filter (where m.src = 'spare') as spare_requests
-  from (
-    select product_name, btrim(serial) as serial, 'call'::text as src
-      from public.calls where coalesce(btrim(serial), '') <> ''
-    union all
-    select product_name, btrim(serial), 'spare'
-      from public.spare_requests where coalesce(btrim(serial), '') <> ''
-  ) m
- group by 1, 2
- order by (count(*) filter (where m.src = 'call')) desc, m.serial
- limit 1000;
+-- Model AND serial, because a machine is both. Compare the list against your
+-- file before applying; anything in it that the file does not carry is a call
+-- or a spare that will not find its machine afterwards.
+with m as (
+  select coalesce(nullif(btrim(product_name), ''), '(blank model)') as item_name,
+         btrim(serial) as serial, 'call'::text as src
+    from public.calls where coalesce(btrim(serial), '') <> ''
+  union all
+  select coalesce(nullif(btrim(product_name), ''), '(blank model)'), btrim(serial), 'spare'
+    from public.spare_requests where coalesce(btrim(serial), '') <> ''
+), pairs as (
+  select item_name, serial,
+         count(*) filter (where src = 'call')  as calls,
+         count(*) filter (where src = 'spare') as spare_requests
+    from m group by 1, 2
+)
+select * from (
+  select 1 as row, 'machines in the Product Database now' as measure,
+         (select count(*)::text from public.products) as value,
+         'All of these go. They are copied to products_backup_<stamp> in the same transaction.' as note
+  union all
+  select 2, 'distinct machines referenced by CALLS',
+         (select count(*)::text from (
+            select distinct lower(btrim(product_name)), lower(btrim(serial))
+              from public.calls where coalesce(btrim(serial), '') <> '') s),
+         'Every one of these must be in the reload file, or those calls lose the machine behind them -- cover, party and history all resolve by serial.'
+  union all
+  select 3, 'distinct machines referenced by SPARE REQUESTS',
+         (select count(*)::text from (
+            select distinct lower(btrim(product_name)), lower(btrim(serial))
+              from public.spare_requests where coalesce(btrim(serial), '') <> '') s),
+         'Same again. A spare request whose machine is gone cannot re-derive its cover.'
+  union all
+  select 4, 'machines referenced by a call but NOT in the register today',
+         (select count(*)::text from (
+            select distinct lower(btrim(c.product_name)) as p, lower(btrim(c.serial)) as s
+              from public.calls c
+             where coalesce(btrim(c.serial), '') <> ''
+               and not exists (select 1 from public.products x
+                                where lower(btrim(x.serial_number)) = lower(btrim(c.serial))
+                                  and lower(btrim(x.item_name)) = lower(btrim(c.product_name)))) q),
+         'These are ALREADY orphaned today -- the delete does not cause them. Useful as the baseline to compare against after the reload.'
+  union all
+  select 5, 'rows with a blank Item Name or Serial (no machine_key)',
+         (select count(*)::text from public.products
+           where coalesce(btrim(item_name), '') = '' or coalesce(btrim(serial_number), '') = ''),
+         'The upload keys on machine_key, generated from ITEM NAME + SERIAL NUMBER. A row missing either cannot load at all, so rows like these will not come back unless the file fills both.'
+  union all
+  select 6, 'model + serial pairs the reload must bring back',
+         (select count(*)::text from pairs),
+         case when (select count(*) from pairs) > 1000
+              then 'Rows 101 onwards list the FIRST 1,000 of them, most-called first -- NOT the whole list. Run the list again after reloading those, or export the pairs from the calls and spare registers.'
+              else 'Rows 101 onwards list every one of them, most-called first.' end
+  union all
+  select * from (
+    select (100 + row_number() over (order by calls desc, serial, item_name))::int,
+           item_name || ' / ' || serial,
+           calls::text || ' call(s), ' || spare_requests::text || ' spare request(s)',
+           ''
+      from pairs
+     order by calls desc, serial, item_name
+     limit 1000
+  ) l
+) g order by row;
