@@ -228,6 +228,16 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.5 — Hand stock adjustments.** The user: eBizWiz Admin (1,163
+  opening rows / 233,000 parts on the live project, found with the new
+  read-only `probe` mode) was WinMax's account for adding quantity through an
+  MTN. Asked, they chose a proper Stock Adjustment, by `consumption.reconcile`,
+  effective on save. **0266** (`handstock_adjustments`, tenth arm of
+  `handstock_movements`, eBizWiz rows removed; HandStock_X.sql), **0267**
+  (0259's rename list + the new table; user_directory.sql); `_status.sql` row
+  208; suite `handstock_adjustments_test`; FRS-094 / OQ-82.
+- ✅ **0.10.4 — User Master Department saves; bulk Department.** `persist()`
+  left `department` out of the write.
 - ✅ **0.10.3 — People and training.** The user: R&R attachments with an
   effective period, a profile view, a Training module triggered by a new QMS
   document with bulk training and past training per topic, bulk upload of the

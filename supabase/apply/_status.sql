@@ -1474,7 +1474,18 @@ with checks(sort_order, bundle, provides, present) as (
                      where jsonb_array_length(coalesce(ar.permissions, '[]'::jsonb)) > 0
                        and ( regexp_replace(lower(coalesce(ar.role,  '')), '[^a-z0-9]', '', 'g') in ('vptechnical', 'rndengg', 'rndengineer')
                           or regexp_replace(lower(coalesce(ar.label, '')), '[^a-z0-9]', '', 'g') in ('vptechnical', 'rndengg', 'rndengineer') )
-                       and not (ar.permissions ?& array['mod:/training', 'training.manage'])))
+                       and not (ar.permissions ?& array['mod:/training', 'training.manage']))),
+    (208, 'Hand stock can be adjusted, with a reason, and a rename carries it', 'handstock_adjustments and the tenth arm of handstock_movements (0266), and the User Master rename list including it (0267). The user, 2026-09-30: WinMax''s "eBizWiz Admin" account was how quantity was added to reconcile an engineer; this replaces it -- + or - with a mandatory reason and a reference such as the MTN number, recorded by whoever holds consumption.reconcile, never edited or deleted. Checks: the table with row-level security ON and only a read and an insert policy, the Adjustment arm in the movements view with security_invoker kept, the rename function naming the table, and the public key refused. NO means the Adjust stock button on Hand Stock reads "not on the project yet", or an adjustment is invisible to the balance. Restore: HandStock_X.sql (repository root), then user_directory.sql',
+        (to_regclass('public.handstock_adjustments') is not null
+         and (select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.handstock_adjustments'))
+         and (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = 'handstock_adjustments') = 2
+         and not exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'handstock_adjustments'
+                          and p.cmd in ('UPDATE', 'DELETE', 'ALL'))
+         and coalesce(pg_get_viewdef(to_regclass('public.handstock_movements')) ilike '%handstock_adjustments%', false)
+         and coalesce((select c.reloptions::text ilike '%security_invoker=on%' from pg_class c where c.oid = to_regclass('public.handstock_movements')), false)
+         and coalesce((select p.prosrc ilike '%handstock_adjustments%' from pg_proc p
+                        where p.oid = to_regprocedure('public.user_directory_carry_rename_records()')), false)
+         and not has_table_privilege('anon', 'public.handstock_adjustments', 'SELECT')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

@@ -3898,6 +3898,19 @@ export async function listHandstockBalance(
 }
 // One engineer's stock, for the pickers that may only offer what is in hand
 // (the report form's consumption list, the transfer form).
+/** A HAND STOCK ADJUSTMENT (0266): + adds to the engineer's stock, - removes;
+ *  a reason is required and the reference (the MTN number) is optional. The
+ *  database checks the engineer is an active User Master person, the part is
+ *  on the Part Master, and a minus does not go below zero -- and stamps who
+ *  recorded it. Needs the reconciliation permission. Never edited: a wrong
+ *  one is put right by another the other way. */
+export async function addHandstockAdjustment(a: { engineer: string; part: string; qty: number; reason: string; reference: string }): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('handstock_adjustments').insert({
+    engineer: a.engineer.trim(), part: a.part.trim(), qty: a.qty, reason: a.reason.trim(), reference: a.reference.trim(),
+  });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 export async function handstockForEngineer(engineer: string, limit = 1000): Promise<Record<string, unknown>[]> {
   const key = engineer.trim().toLowerCase();
   if (!key) return [];
