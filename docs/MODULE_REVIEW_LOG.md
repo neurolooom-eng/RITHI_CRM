@@ -14,8 +14,7 @@ _Last updated: 2026-09-30. Batch 6 in v0.9.398: 13 fixed (0254, the first migrat
 
 | | Count | Findings |
 | --- | --- | --- |
-| ✅ **Fixed and live** | **39** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 32, 33, 38, 40, 41, 43, 45, 46, 47, 48, 49, 50, 51, 52 |
-| ✅ **Fixed, applying itself on merge** | **1** | 13 (0254, v0.9.398): confirm the "Apply database migrations" run after the merge |
+| ✅ **Fixed and live** | **40** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 32, 33, 38, 40, 41, 43, 45, 46, 47, 48, 49, 50, 51, 52 |
 | ◐ **Partly fixed** | **1** | 31 |
 | ⏳ **Open** | **15** | 20, 23, 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56 |
 | | **56** | |
@@ -168,8 +167,11 @@ checked.
   03:00 on 1 Feb, India time, and asks in UTC, Asia/Kolkata and
   America/Los_Angeles: January 3, February 4, every time. Without 0254 it reads
   January as 6 in UTC. `_status.sql` row 197.
-  **The first migration merged since the baseline**, so it is also the first
-  real test of the automatic apply.
+  **The first migration merged since the baseline, and it applied itself**:
+  the PR's dry-run against live named 0254 as the only file pending, and run
+  36618945635 on the merge logged it "applied". Deploy 709 was cancelled
+  because #450 landed a minute later; deploy 710, which contains this batch,
+  succeeded.
 - **D — the background sync no longer races Load more.** Fifteen screens ran a
   bare 30-minute timer that called the loader whatever else was happening; a
   tick landing during Load more ran two reads at once, and whichever finished

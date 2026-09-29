@@ -107,8 +107,9 @@ on testing the old shape. **When a migration replaces a definition, move the
   *"Nothing pending"*. So **a migration merged to `main` from here is applied
   by the workflow, not by hand** — check the "Apply database migrations" run
   after a merge that touches `supabase/migrations/`, and read its log before
-  telling the user anything is live. NOT YET SEEN: a real `apply` of a new
-  file. Until one has run green, say so rather than calling it proven.
+  telling the user anything is live. PROVEN 2026-09-30: 0254, merged in #449,
+  was applied by run 36618945635 ("0254_spare_insights_ist_window.sql …
+  applied"), after the PR's dry-run named it as the only file pending.
   **A BASELINE RECORDS WHATEVER IS ON `main` WHEN IT RUNS, not what was
   checked.** Another session merged 0253 one minute before it, so 0253 was
   marked applied unrun; it is idempotent and the user was asked to run it by
