@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.387',
+    date: '2026-09-29',
+    title: 'A machine sent twice no longer stops the download',
+    changes: [
+      'ONE DOWNLOAD STOPPED AT MACHINE 4,375 with "machine ids out of order", and the next attempt downloaded all 19,266 — so the cause was not established. The message means the server sent that machine\'s number twice. Should that happen again the download now keeps the machine once, carries on to the end, and the line under the title says how many came twice, instead of stopping.',
+      'For administrators: supabase/apply/_why_is_a_machine_listed_twice.sql lists the doubled machines and which part of the Product Database is doubling them.',
+    ],
+  },
+  {
     version: '0.9.386',
     date: '2026-09-29',
     title: 'The machine register downloads in seconds for everybody (needs one SQL file)',

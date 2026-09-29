@@ -329,6 +329,16 @@ console.log('-- the download on a signal that keeps dropping --');
   eq('...and the next attempt carries on from machine 1000 to the end',
     [resumed.complete, resumed.rows.length, new Set(resumed.rows.map((x) => x.id)).size], [true, total, total]);
 
+  // THE SAME MACHINE TWICE (2026-09-29: "machine ids out of order after 4375").
+  const twice = [...all.slice(0, 1500), all[1499], ...all.slice(1500)];
+  const dupServer = async (after: number, size: number) => twice.filter((x) => x.id > after).slice(0, size);
+  const d = await mc.downloadAfter(dupServer, { rows: [], lastId: 0 }, { wait: noWait });
+  eq('a machine the server lists twice does not stop the walk, is kept once, and is COUNTED',
+    [d.complete, d.rows.length, d.duplicates], [true, total, 1]);
+  const backwards = async (after: number) => (after === 0 ? [all[4], all[2]] : []);
+  eq('...but an id going BACKWARDS still stops it',
+    (await mc.downloadAfter(backwards, { rows: [], lastId: 0 }, { wait: noWait })).complete, false);
+
   const liar = async () => [all[0]];
   const bad = await mc.downloadAfter(liar, { rows: [], lastId: 5 }, { wait: noWait });
   eq('a server that ignores the filter cannot loop the walk for ever', bad.complete, false);
