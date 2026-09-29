@@ -926,6 +926,20 @@ const MODULES = {
     needs: ['isAdmin'],
     files: ['0227_data_export.sql', '0228_export_schedules.sql'],
   },
+  device_cache: {
+    title: 'Device Cache Status',
+    blurb: ['Administration -> Device Cache Status: which phones and laptops hold',
+            'the offline machine register and Party Master, how many rows, and',
+            'when each was downloaded -- as every device reports it.',
+            '',
+            'One table the devices write (their own row only, the person stamped',
+            'from the session), one report function the screen reads (every',
+            'profile, including anybody who has never reported), and the screen',
+            'key for admin and Technical Support. A module of its own so it is a',
+            'small file to run, not a replay of rbac.'],
+    needs: ['profiles', 'rbac'],
+    files: ['0249_device_cache_status.sql'],
+  },
   sys_columns: {
     title: 'System columns on every table',
     blurb: ['sys_id, sys_created_by, sys_created_on, sys_updated_by and',
@@ -1094,7 +1108,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'sys_columns', 'lockdown'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'device_cache', 'sys_columns', 'lockdown'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',
