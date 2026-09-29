@@ -128,6 +128,20 @@ Search every thing relevant to Product Database from cached data."*
   each download and on sign-out, unchanged reports throttled to one per 6 h.
   URS-078 / FRS-092 / OQ-80.
   ⏳ **User to run** `supabase/apply/device_cache.sql`.
+- ✅ **0.9.389 — updating the app and refreshing the data are separate.** The
+  user: *"Since I am constantly working on Dev, invariably I ask the user to
+  Clear Cache and Update. Will that not defeat the purpose?"* Clear Cache and
+  Update no longer forces the registers to re-download; the banner's new
+  **Update now** reloads and clears the screens' remembered lists
+  (`rithi.cache.*`, `rithi.sync.*`) but not the offline registers. A release
+  that changes what a register HOLDS bumps `VERSION` in `machinestore.ts`.
+  ⏳ **MONITOR** (the user: *"I have a gut feeling that we might have some
+  issues in other modules if we don't clear cache"*). What Update now does NOT
+  clear, beyond the registers: the dropdown lists (`rithi.master.*`, which
+  Clear Cache never cleared either), the Cache Storage and any service worker
+  (the app registers none). If a screen shows stale or oddly-shaped data after a
+  release and Clear Cache fixes it, that key belongs in Update now's list.
+  Device Cache Status's App version column shows who has updated.
 - ⏳ **Not measured**: the download size on the live register. Nothing here
   holds the data. The status line reports the machine count; the size is the
   next thing to ask for if phones struggle.

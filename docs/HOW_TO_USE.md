@@ -52,6 +52,9 @@ different totals. An empty register usually means access, not emptiness.
   > the signal returns; the line under the title says how many machines it holds
   > and when it was downloaded. A machine added in the last few hours: press
   > **Download again** there (or ↻ Refresh on the Product Database screen).
+  > **🧹 Clear Cache and Update does not re-download it**, and neither does
+  > **⟳ Update now** on the new-version banner — updating the app and refreshing
+  > the data are separate on purpose, so a new release costs nobody a download.
 - **Spare Insights** `/spare-insights` — consumption over a window, five ways.
   Both ends of the window count; voided lines do not; an uncategorised part shows
   as Unclassified rather than guessed at.
