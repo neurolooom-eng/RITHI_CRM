@@ -429,7 +429,12 @@ const MODULES = {
       '0203_review_view_actual_product.sql',
             // After 0179: it re-keys the same table, and the import needs the
             // pair as its conflict target.
-            '0181_ffr_one_row_per_machine.sql'],
+            '0181_ffr_one_row_per_machine.sql',
+            // Auto review switched on and off by a named person, old reviews
+            // loaded without raising reports, CAPA blank at generation (the
+            // user, 2026-09-30). LAST: it redefines raise_ffr (0173), the
+            // auto answer (0124) and both review stamps (0044, 0173).
+            '0267_dccr_auto_review_switch.sql'],
   },
   notifications: {
     title: 'Notifications',

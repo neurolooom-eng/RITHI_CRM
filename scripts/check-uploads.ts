@@ -935,5 +935,18 @@ console.log('\n-- who a new call is allotted to: the machine wins, the party ans
   }
 }
 
+// OLD REVIEWS LOAD AS IMPORTED (0267, the user: "no new FFRs"). The database
+// keeps an imported row's reviewer and dates and raises no report for it; this
+// is the half that proves the upload actually says so on every row.
+{
+  const def = UPLOADS.find((d) => d.key === 'call_reviews')!;
+  const res = shapeUpload(def, [{ 'UC Number': 'U1', 'Risk to Patient': 'NO', 'Warranty Failure': 'NO',
+    'Frequent Failure': 'NO', 'Review 2 By': 'Old Person', 'Date of Review 2': '05-03-2024' }]);
+  const row = (res.rows ?? [])[0] ?? {};
+  eq('a DCCR upload row is marked imported', row.imported, true);
+  eq('...keeps the file\u2019s reviewer', row.review2_by, 'Old Person');
+  eq('...and reads the date day-first', row.review2_at, '2024-03-05');
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

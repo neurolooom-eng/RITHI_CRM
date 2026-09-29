@@ -2991,6 +2991,26 @@ export async function autoAnswerReview2():
   };
 }
 
+// AUTO REVIEW IS A NAMED PERSON'S SWITCH (0267, the user, 2026-09-30:
+// "Create a Provision for Bagyaraj and Vignesh to Enable Auto Review or Disable
+// Auto Review. And Record that Person's name in Auto Reviewal."). While it is
+// on, the answers above carry the name of the person who switched it on.
+export interface AutoReviewState { enabled: boolean; byName: string; at: string | null }
+const autoState = (data: unknown): AutoReviewState => {
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+  return { enabled: Boolean(row?.enabled), byName: String(row?.by_name ?? ''), at: (row?.at as string) ?? null };
+};
+export async function getAutoReview(): Promise<AutoReviewState> {
+  const { data, error } = await must().rpc('auto_review_state');
+  if (error) throw new Error(errMsg(error));
+  return autoState(data);
+}
+export async function setAutoReview(on: boolean): Promise<AutoReviewState> {
+  const { data, error } = await must().rpc('set_auto_review', { p_on: on });
+  if (error) throw new Error(errMsg(error));
+  return autoState(data);
+}
+
 // The state of many calls at once, for colouring their UCNs wherever they are
 // shown. `call_state` is the view that already answers "what is this call
 // doing?" — Cancelled before Reopened before its visit-derived state (0108).

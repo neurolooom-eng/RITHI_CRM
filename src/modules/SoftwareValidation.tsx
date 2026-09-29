@@ -17,6 +17,7 @@ import {
   traceabilityMatrix, traceabilitySummary, modulesWithNoRequirement,
 } from '../lib/requirements';
 import './softwarevalidation.css';
+import { FlowGallery } from '../components/flow/FlowDiagram';
 import { formatDayTime } from '../lib/dates';
 
 // ===========================================================================
@@ -29,7 +30,7 @@ import { formatDayTime } from '../lib/dates';
 const riskBadge = (r: Risk) => <span className={`sv-risk sv-risk-${r.toLowerCase()}`}>{r}</span>;
 
 type TabKey = 'overview' | 'approach' | 'checklist' | 'bymodule' | 'trace' | 'urs' | 'srs' | 'nonaudit' | 'arch' | 'design' | 'config' | 'risk' | 'fmea'
-  | 'security' | 'alcoa' | 'datamig' | 'backup' | 'supplier' | 'procedures' | 'tests' | 'defects' | 'trace' | 'capa' | 'vsr';
+  | 'security' | 'alcoa' | 'datamig' | 'backup' | 'supplier' | 'procedures' | 'tests' | 'defects' | 'tracesum' | 'capa' | 'vsr' | 'flows';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'approach', label: 'Validation Plan' },
@@ -44,6 +45,9 @@ const TABS: { key: TabKey; label: string }[] = [
   // The tab above reads DOWN one requirement; this reads ACROSS the chain, and
   // an auditor asks for it by that name.
   { key: 'trace', label: 'Traceability Matrix' },
+  // HOW A RECORD MOVES FROM SCREEN TO SCREEN (the user, 2026-09-30), drawn from
+  // src/lib/flows.ts, every step tied to the requirements that state it.
+  { key: 'flows', label: 'Data Flows' },
   { key: 'urs', label: 'User Requirements' },
   { key: 'srs', label: 'System Requirements' },
   { key: 'nonaudit', label: 'Non-Auditable Requirements' },
@@ -60,7 +64,9 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'supplier', label: 'Supplier Assessment' },
   { key: 'procedures', label: 'Procedures & Governance' },
   { key: 'tests', label: 'Test Protocol' },
-  { key: 'trace', label: 'Traceability' },
+  // Its own key. It shared 'trace' with the matrix above, so pressing either
+  // tab lit both and showed both sections one under the other.
+  { key: 'tracesum', label: 'Traceability Summary' },
   { key: 'capa', label: 'CAPA / Deviations' },
   { key: 'vsr', label: 'Summary Report' },
 ];
@@ -649,10 +655,21 @@ export function SoftwareValidation() {
         </>
       )}
 
-      {/* TRACEABILITY */}
-      {show('trace') && (
-        <Section title="Requirements Traceability Matrix">
-          <p className="sv-note">Every user requirement traces forward to system requirements and test cases; every requirement is covered.</p>
+      {/* TRACEABILITY SUMMARY */}
+      {show('tracesum') && (
+        <Section title="Requirements Traceability Summary">
+          {/* COUNTED, NOT ASSERTED. It said "every requirement is covered"
+              whatever the table below it showed. */}
+          <p className="sv-note">
+            Each user requirement, the system requirements that implement it and the tests that show it.{' '}
+            {(() => {
+              const noFrs = trace.filter((t) => !t.frs.length).length;
+              const noTest = trace.filter((t) => !t.tests.length).length;
+              return noFrs || noTest
+                ? `${noFrs} have no system requirement and ${noTest} have no test — marked below.`
+                : `All ${trace.length} have both.`;
+            })()}
+          </p>
           <div className="sv-scroll">
             <table className="sv-table"><thead><tr><th style={{ width: 84 }}>URS</th><th>User requirement</th><th style={{ width: 160 }}>System (FRS)</th><th style={{ width: 200 }}>Test cases</th></tr></thead>
               <tbody>{trace.map(({ u, frs, tests }) => (
@@ -665,6 +682,18 @@ export function SoftwareValidation() {
             </table>
           </div>
           {orphanFrs.length > 0 && <p className="sv-note">System requirements without a direct test (verified via higher-level PQ / review): {orphanFrs.map((f) => f.id).join(', ')}.</p>}
+        </Section>
+      )}
+
+      {/* DATA FLOWS */}
+      {show('flows') && (
+        <Section title="Data Flows">
+          <p className="sv-note">
+            How a record moves from one screen to the next. Each flow is defined in the validation package
+            (<code>src/lib/flows.ts</code>) and drawn from it; every step names the screen it happens on and the
+            requirements and tests that state it, and <code>check:ui</code> fails if any of those does not exist.
+          </p>
+          <FlowGallery printAll={all} />
         </Section>
       )}
 

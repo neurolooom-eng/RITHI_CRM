@@ -259,10 +259,13 @@ export function ffrFromReview(r: ReviewSource): Record<string, unknown> {
     current_call_status: s(r.open_state) || s(r.last_status),
     call_solved_at: s(r.last_visit_at) || null,
     call_type: s(r.call_type),
-    // The sheet's defaults, from its LookupValues tab.
-    capa_responsibility: 'No closed in FFR',
-    capa_no: 'NA',
-    capa_status: 'Not required',
+    // CAPA IS DECIDED LATER, BY WHOEVER HANDLES IT (the user, 2026-09-30).
+    // These were the sheet's LookupValues defaults, which filled a decision in
+    // before anybody had made it. 0267 does the same for a report the database
+    // raises from a review.
+    capa_responsibility: '',
+    capa_no: '',
+    capa_status: '',
     ffr_status: 'Open',
   };
 }

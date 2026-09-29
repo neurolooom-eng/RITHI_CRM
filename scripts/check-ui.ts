@@ -4359,10 +4359,11 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // Filled in all 35 rows of the sheet, and the register keeps it as the
   // warranty start.
   eq('the installation date is filled from the machine', fromCall.installation_date, '2025-07-08');
-  // The sheet's own defaults, from its LookupValues tab.
-  eq('the CAPA columns take the sheet\u2019s defaults',
+  // CAPA IS DECIDED LATER (the user, 2026-09-30): blank at generation, where it
+  // used to take the sheet's LookupValues defaults — a decision nobody had made.
+  eq('the CAPA columns start blank, to be filled by whoever handles the CAPA',
     [fromCall.capa_responsibility, fromCall.capa_no, fromCall.capa_status],
-    ['No closed in FFR', 'NA', 'Not required']);
+    ['', '', '']);
   eq('and the source is the only one the 2026 tab uses', fromCall.source, 'PC');
   // A status the register already uses and the picker will not offer is a value
   // somebody has to work around.
@@ -9557,6 +9558,20 @@ console.log('\n-- 31: whoever may press "+ Installation call" can map it back --
   eq('...and no longer updates the line directly', /from\('sale_items'\)\s*\.update\(\{ inst_call/.test(cv), false);
   eq('the per-machine button is offered to install.create or cover.edit',
     /const canRaiseInstall = can\('install\.create'\) \|\| canEdit;/.test(cr) && /\{canRaiseInstall && <button[^>]*disabled=\{raisingId !== null\}/.test(cr), true);
+}
+
+console.log('\n-- the Daily Complaint Review: auto review is a named person’s switch; old reviews load as imported --');
+{
+  const r = (f: string) => readFileSync(f, 'utf8');
+  const dccr = r('src/modules/DailyCallReview.tsx');
+  eq('the register shows whether auto review is on, and in whose name',
+    /Auto review: <b>\{auto\.enabled \? 'On' : 'Off'\}<\/b>/.test(dccr), true);
+  eq('...and only review.auto may switch it', /auto && can\('review\.auto'\) && \(/.test(dccr), true);
+  eq('review.auto is on Roles & Permissions, on the Daily Review row',
+    /key: 'review\.auto'/.test(r('src/lib/rbac.ts')) && /'\/daily-review'[^\n]*actions: \['review\.edit', 'review\.auto'\]/.test(r('src/lib/rbac.ts')), true);
+  const up = r('src/lib/uploads.ts');
+  const dccrUpload = up.slice(up.indexOf("key: 'call_reviews'"), up.indexOf("key: 'parties'"));
+  eq('the DCCR Register upload marks every row imported', /\{ to: 'imported', from: \[\], derive: \(\) => true, always: true \}/.test(dccrUpload), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

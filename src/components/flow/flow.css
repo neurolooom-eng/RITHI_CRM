@@ -1,0 +1,46 @@
+/* Data flow diagrams (FlowDiagram.tsx). The box takes the theme's surface and
+   text; the stripe is the flow's AREA, a solid colour per area so a reader can
+   see where a record crosses from calls into spares or quality at a glance. */
+.fl-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-alt); padding: 6px; }
+.fl-svg { display: block; }
+.fl-box { fill: var(--surface); stroke: var(--border); stroke-width: 1; }
+.fl-node { cursor: pointer; outline: none; }
+.fl-node:hover .fl-box, .fl-node:focus-visible .fl-box { stroke: var(--text); stroke-width: 1.5; }
+/* "Highlight" is contrast, not a tint (the project's rule): the chosen box
+   inverts against the page. */
+.fl-node.fl-on .fl-box { fill: var(--text); stroke: var(--text); }
+.fl-node.fl-on .fl-label, .fl-node.fl-on .fl-sub { fill: var(--surface); }
+.fl-label { font-size: 12.5px; font-weight: 600; fill: var(--text); }
+.fl-sub { font-size: 10.5px; fill: var(--text-muted); }
+.fl-edge { fill: none; stroke: var(--text-muted); stroke-width: 1.4; }
+.fl-edge-opt { stroke-dasharray: 5 4; }
+.fl-edge-loop { stroke-dasharray: 2 3; }
+.fl-arrowhead { fill: var(--text-muted); }
+.fl-edge-label { font-size: 10.5px; fill: var(--text); paint-order: stroke; stroke: var(--surface-alt); stroke-width: 4px; }
+
+.fl-call .fl-stripe, .fl-key.fl-call { fill: #2563eb; background: #2563eb; }
+.fl-spare .fl-stripe, .fl-key.fl-spare { fill: #d97706; background: #d97706; }
+.fl-stock .fl-stripe, .fl-key.fl-stock { fill: #7c3aed; background: #7c3aed; }
+.fl-quality .fl-stripe, .fl-key.fl-quality { fill: #dc2626; background: #dc2626; }
+.fl-cover .fl-stripe, .fl-key.fl-cover { fill: #059669; background: #059669; }
+.fl-master .fl-stripe, .fl-key.fl-master { fill: #64748b; background: #64748b; }
+.fl-report .fl-stripe, .fl-key.fl-report { fill: #0891b2; background: #0891b2; }
+.fl-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; vertical-align: -1px; }
+
+.fl-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.fl-section { margin-bottom: 22px; }
+.fl-detail { margin-top: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.fl-detail-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
+.fl-detail p { margin: 4px 0; }
+.fl-reqs { margin: 6px 0 0; padding-left: 18px; }
+.fl-reqs li { margin: 2px 0; }
+.fl-muted { color: var(--text-muted); }
+.fl-hint { margin-top: 8px; font-size: 13px; }
+.fl-legend { font-size: 12px; margin-top: 4px; }
+.fl-table { margin-top: 10px; }
+
+@media print {
+  .fl-scroll { overflow: visible; border: 0; background: none; }
+  .fl-svg { max-width: 100%; height: auto; }
+  .fl-chips { display: none; }
+}

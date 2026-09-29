@@ -1476,7 +1476,21 @@ with checks(sort_order, bundle, provides, present) as (
                      where jsonb_array_length(coalesce(ar.permissions, '[]'::jsonb)) > 0
                        and ( regexp_replace(lower(coalesce(ar.role,  '')), '[^a-z0-9]', '', 'g') in ('vptechnical', 'rndengg', 'rndengineer')
                           or regexp_replace(lower(coalesce(ar.label, '')), '[^a-z0-9]', '', 'g') in ('vptechnical', 'rndengg', 'rndengineer') )
-                       and not (ar.permissions ?& array['mod:/training', 'training.manage'])))
+                       and not (ar.permissions ?& array['mod:/training', 'training.manage']))),
+    (208, 'Auto review is a named person''s switch; old reviews load without raising reports; CAPA starts blank', 'set_auto_review() / auto_review_state() and auto_review_changes, the review2_auto and imported markers on call_reviews guarded by a_call_review_markers, and raise_ffr() (0267, the user 2026-09-30). Review 2''s automatic NO runs only while a person holding review.auto has switched it on, and its answers carry THAT PERSON''S name and the review2_auto marker; the API can set neither marker, except that an administrator''s upload may mark a review imported. An imported review keeps its file''s reviewers and dates and raises no FFR. An FFR raised from a review leaves CAPA responsibility, CAPA No and CAPA status blank, and so do the column defaults. The row checks each part by name. NO means Review 2 is still answered as ''Auto (9:15 am)'' whether or not anybody switched it on, old reviews raise reports as they load, or CAPA is pre-filled. Restore: daily_review.sql',
+        (to_regprocedure('public.set_auto_review(boolean)') is not null
+         and to_regprocedure('public.auto_review_state()') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.set_auto_review(boolean)'), 'EXECUTE')
+         and exists (select 1 from pg_trigger t where t.tgrelid = to_regclass('public.call_reviews')
+                      and t.tgname = 'a_call_review_markers' and not t.tgisinternal)
+         and exists (select 1 from information_schema.columns where table_schema = 'public'
+                      and table_name = 'call_reviews' and column_name = 'imported')
+         and coalesce((select p.prosrc ~ 'p_review\.imported' and position($q$'', '', '', 'Open',$q$ in p.prosrc) > 0
+                         from pg_proc p where p.oid = to_regprocedure('public.raise_ffr(public.call_reviews)')), false)
+         and coalesce((select p.prosrc ~ 'auto_review_state' from pg_proc p
+                        where p.oid = to_regprocedure('public.auto_answer_review2_asof(timestamptz)')), false)
+         and coalesce((select column_default from information_schema.columns where table_schema = 'public'
+                        and table_name = 'field_failure_reports' and column_name = 'capa_status'), '') = '''''::text'))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

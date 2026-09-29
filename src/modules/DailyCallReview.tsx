@@ -11,11 +11,13 @@ import { csvExport, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
 import {
   callReview, countCallReviews, listCallReviews, listMasterValuesForProduct,
   frequentFailure, reportsByCall, spareConsumptionByCall, bulkSetReview2, autoAnswerReview2,
+  getAutoReview, setAutoReview, type AutoReviewState,
   getDccrAutoSaveDefault, setDccrAutoSaveDefault, type FrequentFailure,
   reviewPickLists, saveCallReview, supabaseConfigured, type ReviewFilter,
   ffrsForCall,
 } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
+import { formatDayTime } from '../lib/dates';
 import {
   CALL_STATE_TONES, curatedProduct, DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUSES, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
   bulkReview2Block, firstYearFailure, readMyAutoSave, writeMyAutoSave, effectiveAutoSave, AUTOSAVE_DELAY_MS,
@@ -452,6 +454,30 @@ export function DailyCallReview() {
   // next is exactly how an automatic answer stops being trusted; the ones it
   // deliberately LEFT are the number that matters, because those are the ones
   // still waiting for a person.
+  // THE SWITCH ITSELF, and who set it. Shown to everybody — a reader of the
+  // register needs to know whether a NO in somebody's name was theirs to give
+  // or the auto review's — and changeable only with review.auto.
+  const [auto, setAuto] = useState<AutoReviewState | null>(null);
+  const [autoBusy, setAutoBusy] = useState(false);
+  useEffect(() => {
+    if (!live) return;
+    void getAutoReview().then(setAuto).catch(() => setAuto(null));
+  }, [live]);
+  const flipAuto = async () => {
+    if (!auto) return;
+    const on = !auto.enabled;
+    if (!confirm(on
+      ? 'Switch auto review ON?\n\nEvery morning, Review 2 will be answered No for calls logged before that day that failed outside their first year — and each of those answers will be recorded IN YOUR NAME. Calls inside the first year, or with no age on record, are always left for a person.'
+      : 'Switch auto review OFF?\n\nReview 2 will then be answered only by a person.')) return;
+    setAutoBusy(true);
+    try {
+      setAuto(await setAutoReview(on));
+      setMsg({ tone: 'ok', text: on ? 'Auto review is on, in your name.' : 'Auto review is off.' });
+    } catch (e) {
+      setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) });
+    } finally { setAutoBusy(false); }
+  };
+
   const autoRan = useRef(false);
   useEffect(() => {
     if (!live || autoRan.current) return;
@@ -637,6 +663,17 @@ export function DailyCallReview() {
         ) : undefined}
         actions={
           <>
+            {auto && (
+              <span className="conn-dot conn-off" title={auto.at ? `Changed ${formatDayTime(auto.at)}` : undefined}>
+                Auto review: <b>{auto.enabled ? 'On' : 'Off'}</b>
+                {auto.byName ? ` — ${auto.enabled ? 'answers in the name of' : 'switched off by'} ${auto.byName}` : ''}
+              </span>
+            )}
+            {auto && can('review.auto') && (
+              <button className="btn btn-sm" disabled={autoBusy} onClick={() => void flipAuto()}>
+                {auto.enabled ? 'Switch auto review off' : 'Switch auto review on'}
+              </button>
+            )}
             {/* AUTO SAVE IS A MODULE SETTING, so it lives here — beside the
                 register's own controls — and not on each review, where a tick
                 box repeated per record invited the reading that it applied to
