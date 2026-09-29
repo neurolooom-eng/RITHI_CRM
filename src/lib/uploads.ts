@@ -1022,6 +1022,35 @@ export const UPLOADS: UploadDef[] = [
     ] },
 
   // ---- quality
+  // ---------------------------------------------------------------------------
+  // THE QMS MASTER LIST (0265). The user, 2026-09-30: "bulk upload on QMS
+  // Documents. 99% it will be a One Time Activity, the QMS Department has a
+  // Specific format to maintain the MasterList" -- the list with each
+  // document's Drive URL (the files are already on Drive).
+  //
+  // KEYED ON DOCUMENT NUMBER + REVISION (documents.doc_key), so re-loading a
+  // corrected list CORRECTS those rows; a new revision is a new row, as on the
+  // QMS Documents screen. The department's own headings that have no column
+  // here are kept in `extra` under their own spelling, never dropped.
+  // A document loaded this way assigns NO training -- a one-time load of the
+  // whole shelf is not a new issue; assign training on the Training screen.
+  // ---------------------------------------------------------------------------
+  { key: 'qms_master_list', label: 'QMS Documents (Master List)', group: 'Quality', table: 'documents',
+    extraInto: 'extra', conflict: 'doc_key', conflictFrom: ['doc_no', 'revision'], stamp: { kind: 'qms' },
+    note: 'One row per QMS document: its Document No, Title, Revision, Effective Date and the Drive URL of the file. Matched on Document No + Revision, so a corrected list updates those rows instead of adding them again, and a new revision is a new entry. Every other column of your Master List is kept with the document under its own heading. Loading does not assign training — do that on the Training screen.',
+    cols: [
+      { to: 'doc_no', from: ['document no', 'document no.', 'doc no', 'doc no.', 'document number', 'doc number', 'sop no', 'document id', 'doc id'], required: true },
+      { to: 'title', from: ['title', 'document title', 'document name', 'doc title', 'name', 'description'], required: true },
+      TEXT('revision', 'rev', 'rev no', 'rev. no.', 'revision no', 'revision no.', 'version', 'issue no'),
+      DATE('effective_date', 'effective date', 'eff date', 'effective from', 'date of issue', 'issue date'),
+      { to: 'url', from: ['drive url', 'url', 'link', 'drive link', 'file link', 'document link'], required: true },
+      TEXT('file_name', 'file name', 'filename'),
+      TEXT('notes', 'remarks', 'comments'),
+      // NOT 'status': a Master List's Status reads Released / Obsolete /
+      // Superseded, and a word the bool reader cannot read stays TRUE -- an
+      // obsolete SOP would come in active. Status is kept in `extra` as written.
+      { to: 'active', from: ['active', 'active?'], type: 'bool' },
+    ] },
   { key: 'feedback', label: 'Customer Feedback', group: 'Quality', table: 'feedback',
     requires: 'Field Calls', extraInto: 'answers', conflict: 'ucn_key', conflictFrom: ['ucn'],
     // `imported_from` marks every row as migrated (0190), so the register can

@@ -102,6 +102,7 @@ export const NAV: NavGroup[] = [
     title: 'Documents',
     items: [
       { to: '/qms', label: 'QMS Documents', icon: '📗' },
+      { to: '/training', label: 'Training', icon: '🎓' },
     ],
   },
   {

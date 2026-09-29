@@ -20,6 +20,7 @@ import { isFresh, afterRefresh, HOUR } from '../src/lib/mastercache';
 import * as mc from '../src/lib/machinecache';
 import * as cp from '../src/lib/complaints';
 import * as pf from '../src/lib/partfit';
+import * as au from '../src/lib/audience';
 let fail = 0;
 const eq = (n: string, a: unknown, b: unknown) => {
   const ok = JSON.stringify(a) === JSON.stringify(b);
@@ -354,6 +355,21 @@ console.log('-- the spare pickers on a call: main product + accessories + common
   eq('hand stock: an accessory part is shown', fit('P2|CPX filter', 'P2'), true);
   eq('hand stock: a part the Part Master does not list is kept', fit('X9|Unknown', 'X9'), true);
   eq('hand stock: matched by code when the text differs', fit('P4 | old text', 'p4'), false);
+}
+
+console.log('-- who is trained on a new QMS document (the audience picker) --');
+{
+  const dir = [
+    { id: 1, name: 'Asha', role: 'engineer', designation: 'Service Engineer', department: 'Service', region: 'South', validity: true },
+    { id: 2, name: 'Bala', role: 'rm', designation: 'Regional Manager', department: 'Service', region: 'North', validity: true },
+    { id: 3, name: 'Chitra', role: 'engineer', designation: 'Service Engineer', department: 'Sales', region: 'South', validity: true },
+    { id: 4, name: 'Dev', role: 'engineer', designation: 'Service Engineer', department: 'Service', region: 'South', validity: false },
+  ];
+  eq('nothing chosen: nobody', au.audienceIds(dir, au.EMPTY_AUDIENCE), []);
+  eq('a department: its ACTIVE people only', au.audienceIds(dir, { ...au.EMPTY_AUDIENCE, departments: ['service'] }), [1, 2]);
+  eq('two choices are a UNION, not an intersection', au.audienceIds(dir, { ...au.EMPTY_AUDIENCE, departments: ['Sales'], people: ['Bala'] }), [2, 3]);
+  eq('a region, ignoring case and spaces', au.audienceIds(dir, { ...au.EMPTY_AUDIENCE, regions: [' south '] }), [1, 3]);
+  eq('an inactive person is never assigned, even by name', au.audienceIds(dir, { ...au.EMPTY_AUDIENCE, people: ['Dev'] }), []);
 }
 
 console.log('-- the Standard Complaint master: bulk products and filters --');

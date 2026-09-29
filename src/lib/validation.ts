@@ -473,11 +473,18 @@ export const URS: Req[] = [
     modules: ['/product-database-2'] },
   { id: 'URS-070', title: 'A warranty starts when the machine was installed', text: 'The warranty period of a machine shall start from the date recorded on its installation \u2014 the Warranty Start Date captured when the installation call is reported, or failing that the date that call was solved \u2014 and shall fall back to the selling register only where no installation was recorded. The end of the period shall be derived from that start and the recorded period, by the same arithmetic the rest of the application uses.', risk: 'High',
     modules: ['/product-database-2', '/installations'] },
+  // ISO 13485 §6.2 (SR-018 / SR-019): competence and training RECORDED. The
+  // user, 2026-09-30: Roles & Responsibilities with effective periods, a
+  // Training module triggered by a new QMS document, bulk training, and every
+  // person's past training.
+  { id: 'URS-079', title: 'Roles, responsibilities and training are recorded per person', text: 'Each person shall have a record of the Roles & Responsibilities document in force for them, with the period it applies to; a new one shall end the previous one without deleting it. When a controlled QMS document is issued, the people who must be trained on it shall be chosen and the training assigned to each. Training shall be recorded as sessions with the attendees, the trainer, the method, any assessment result and the attendance evidence, or as the person\'s own acknowledgement of having read the document; a failed assessment shall keep the training open. A person\'s profile shall list every past training they received, and shall be visible to the person, their managers and those responsible for users and training only.', risk: 'High',
+    modules: ['/training', '/user-master', '/qms'] },
 ];
 
 // ---- System / Functional Requirements -------------------------------------
 export interface FReq extends Req { urs: string[] }
 export const FRS: FReq[] = [
+  { id: 'FRS-093', urs: ['URS-079'], risk: 'High', title: 'Profile, R&R periods and training, bounded by one visibility rule', text: '0264: `user_profile` (employee code, joining date), `user_rr` (a trigger closes the previous open period the day before the new From), `training_sessions` + `training_attendance` (bulk, Pass/Fail, score, attachments) and `training_assignments` (one per person per document). `training_status` derives Completed = attended without a Fail OR acknowledged with no Fail recorded. Every per-person row is read through `may_see_person()`: the person, their reporting tree, users.manage, training.manage. The trainee acknowledges only their own assignment through `acknowledge_training()`. Nothing is deletable. Proved by `people_training_test`.' },
   { id: 'FRS-092', urs: ['URS-078'], risk: 'Medium', title: 'Each device reports its own copy; the report lists everybody',
     text: 'FRS-092.1 Each device shall record what it holds of the offline registers in `device_cache_status`, one row per person per device, upserted on (user_id, device_id). FRS-092.2 The person on that row shall be stamped by the database from the session, any value sent by the device being discarded. FRS-092.3 A device shall write only its own row, and a person shall read only their own rows unless they hold `mod:/device-cache`. FRS-092.4 `device_cache_report()` shall refuse a caller without `mod:/device-cache`, shall not be callable without signing in, and shall return every profile including those with no device reported. FRS-092.5 A device shall report after each download completes or fails and when its user signs out, and shall not re-send an unchanged report within six hours. RATIONALE: .2 because a report somebody else could file is a report nobody can rely on; .4 because the engineer most worth finding is the one with no copy anywhere, and a list of reports cannot show an absence. Proved by `supabase/tests/device_cache_status_test.sql`.' },
   { id: 'FRS-091', urs: ['URS-077'], title: 'The Hand Stock Report loads whole before it can be exported', risk: 'Medium',
@@ -1051,6 +1058,19 @@ export type TestPhase = 'IQ' | 'OQ' | 'PQ';
  *  that has to be read on a screen. */
 export interface TestCase { id: string; phase: TestPhase; reqs: string[]; risk: Risk; objective: string; steps: string[]; expected: string; auto?: string }
 export const TESTS: TestCase[] = [
+  { id: 'OQ-81', phase: 'OQ', reqs: ['URS-079', 'FRS-093'], risk: 'High',
+    auto: 'supabase/tests/people_training_test.sql',
+    objective: 'Profiles, R&R periods and training are recorded, bounded to the right people, and complete only by the agreed rule.',
+    steps: [
+      'As an administrator, record an engineer\'s employee code; read it as the engineer, their manager and an unrelated colleague.',
+      'Add two R&R documents for the engineer, the second starting later; try one ending before it starts; try adding one as the colleague.',
+      'Assign a QMS document to the engineer and the colleague; assign it again.',
+      'As the engineer, acknowledge it; try to acknowledge the colleague\'s.',
+      'Record a session with a Fail, then another with a Pass; read the engineer\'s status and past training.',
+      'Try to record a session as the colleague, and to acknowledge as the not-signed-in role.',
+      'Load a QMS Master List row twice with the same number and revision.',
+    ],
+    expected: 'The engineer and manager see the profile, the colleague sees nothing and cannot write; the first R&R ends the day before the second; an inverted period, a second assignment, another person\'s acknowledgement, a colleague\'s session and the public key are refused; the Fail reopens and the Pass completes; past training lists both sessions and the acknowledgement; the second Master List load corrects the one row.' },
   { id: 'OQ-80', phase: 'OQ', reqs: ['URS-078', 'FRS-092'], risk: 'Medium',
     auto: 'supabase/tests/device_cache_status_test.sql',
     objective: 'A device reports only its own copy, the report is limited to those holding its key, and it lists everybody including whoever has never reported.',

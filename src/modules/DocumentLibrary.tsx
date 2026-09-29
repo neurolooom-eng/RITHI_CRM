@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AudiencePicker } from '../components/people/AudiencePicker';
+import { audienceIds, audienceIsEmpty, EMPTY_AUDIENCE, type Audience } from '../lib/audience';
+import { assignTraining } from '../lib/training';
 import { metaFromFileName } from '../lib/docname';
 import { PageHeader, Drawer, Toolbar } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -9,6 +12,7 @@ import { MAX_UPLOAD_BYTES, uploadToDrive, sheetsConfigured } from '../lib/sheets
 import {
   listDocuments, addDocument, updateDocument, setDocumentActive,
   supabaseConfigured, type DocRow, type DocKind,
+  listDirectory, type DirectoryRow,
 } from '../lib/supabase';
 
 // ===========================================================================
@@ -76,6 +80,18 @@ function Library({ cfg }: { cfg: Cfg }) {
   const [editing, setEditing] = useState<DocRow | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // WHO MUST BE TRAINED ON A NEW QMS DOCUMENT -- chosen here, at upload (the
+  // user, 2026-09-30: "Trigger Training if a New QMS document is Uploaded").
+  const departments = useMaster('department', [], live && !!cfg.controlled).values;
+  const [dirRows, setDirRows] = useState<DirectoryRow[]>([]);
+  const [trainees, setTrainees] = useState<Audience>(EMPTY_AUDIENCE);
+  const [trainDue, setTrainDue] = useState('');
+  useEffect(() => {
+    if (!draft || editing || !cfg.controlled || !live || dirRows.length) return;
+    void listDirectory().then(setDirRows).catch(() => setDirRows([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, editing]);
 
   const load = async () => {
     if (!live) { setMsg({ tone: 'info', text: 'Connect the database in Settings to load documents.' }); return; }
@@ -149,10 +165,21 @@ function Library({ cfg }: { cfg: Cfg }) {
       uploaded_by_name: user?.fullName || user?.email || '',
     };
     const res = editing ? await updateDocument(editing.id, payload) : await addDocument(payload);
+    if (!res.ok) { setBusy(false); setMsg({ tone: 'error', text: res.error ?? 'Could not save the document.' }); return; }
+    // THE TRAINING, assigned to whoever was chosen above. The document is saved
+    // either way; a failure here says so and can be redone on the Training screen.
+    let trained = '';
+    const newId = !editing && 'id' in res && typeof res.id === 'number' ? res.id : undefined;
+    if (cfg.controlled && newId && !audienceIsEmpty(trainees)) {
+      const ids = audienceIds(dirRows, trainees);
+      const topic = `${payload.doc_no}${payload.revision ? ` Rev ${payload.revision}` : ''} — ${payload.title}`;
+      const t = await assignTraining(ids, { document_id: newId, topic, due_date: trainDue || null, assigned_by_name: payload.uploaded_by_name });
+      trained = t.ok ? ` Training assigned to ${t.created} ${t.created === 1 ? 'person' : 'people'}.`
+        : ` The training could NOT be assigned (${t.error}) — assign it on the Training screen.`;
+    }
     setBusy(false);
-    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not save the document.' }); return; }
-    setDraft(null); setEditing(null);
-    setMsg({ tone: 'ok', text: `“${payload.title}” ${editing ? 'updated' : 'added'}.` });
+    setDraft(null); setEditing(null); setTrainees(EMPTY_AUDIENCE); setTrainDue('');
+    setMsg({ tone: trained.includes('NOT') ? 'error' : 'ok', text: `“${payload.title}” ${editing ? 'updated' : 'added'}.${trained}` });
     await load();
   };
 
@@ -370,6 +397,23 @@ function Library({ cfg }: { cfg: Cfg }) {
                 </>
               )}
             </div>
+
+            {cfg.controlled && !editing && (
+              <div className="field">
+                <span className="field-label">Who must be trained on it? (optional)</span>
+                <AudiencePicker dir={dirRows} departments={departments} value={trainees} onChange={setTrainees} />
+                {!audienceIsEmpty(trainees) && (
+                  <label className="row" style={{ gap: 6, alignItems: 'center', marginTop: 6 }}>
+                    <span className="muted">Due by</span>
+                    <input className="input" type="date" value={trainDue} onChange={(e) => setTrainDue(e.target.value)} />
+                  </label>
+                )}
+                <span className="muted" style={{ fontSize: 12 }}>
+                  Each person gets it on their training list (My Profile) and on the Training screen, and completes it by
+                  attending a session or confirming they have read and understood it.
+                </span>
+              </div>
+            )}
 
             <div className="rep-actions">
               <button className="btn" onClick={() => { setDraft(null); setEditing(null); }}>Cancel</button>

@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.3',
+    date: '2026-09-30',
+    title: 'People and training: profiles, Roles & Responsibilities, a Training module, Department, and the QMS Master List upload',
+    changes: [
+      'USER MASTER — DEPARTMENT: a new field, chosen from Masters → Department (add your departments there first).',
+      'PROFILE: open a person on User Master for Employee Code, Joining Date, Department, Designation, both managers, Mail ID, their Roles & Responsibilities and their training. Employee Code and Joining Date are seen only by the person, their managers, User Master administrators and whoever manages training.',
+      'ROLES & RESPONSIBILITIES: upload the document with its Effective From (and To). Adding a new one ends the current one the day before — nothing is deleted, and either period can be changed.',
+      'MY PROFILE now shows your own details, R&R and training — and, for a manager, each person in your team. Confirm a document with ✓ Read & understood.',
+      'TRAINING (new screen under Documents): assign training on a QMS document or topic to roles, designations, departments, regions or named people; record sessions for many people at once with the attendance sheet, Pass / Fail and score; see where everyone stands and each person\'s past training by topic. Complete = attended, or read & understood — a Fail keeps it open until a pass.',
+      'QMS DOCUMENTS: adding a document asks who must be trained on it, and assigns it to them.',
+      'BULK UPLOADS → QMS DOCUMENTS (MASTER LIST): the whole list at once with each file\'s Drive URL. Re-loading a corrected list updates those rows; your list\'s other columns are kept.',
+      'The Training screen is open to admin, VP Technical and R&D Engineer; no other role was changed. The database part is applied automatically with this version.',
+    ],
+  },
+  {
     version: '0.10.2',
     date: '2026-09-30',
     title: 'Spare approvals read only "Approved" as a yes; correcting a name keeps the team and the person\'s work; Hotline can finish an installation call',
