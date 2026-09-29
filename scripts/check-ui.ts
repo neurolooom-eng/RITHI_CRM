@@ -9189,6 +9189,8 @@ console.log('-- the machine register is searched on the device --');
   // A RELEASE MUST NOT COST A DOWNLOAD (2026-09-29): Clear Cache and Update
   // neither wipes nor re-downloads the offline registers, and the new-version
   // banner offers a plain reload.
+  eq('Clear Cache and Update clears the dropdown lists -- it never did, and the help said it did',
+    /const forceRefresh = async[\s\S]{0,700}clearMasterCache\(\)/.test(lay), true);
   eq('Clear Cache and Update leaves the offline registers alone',
     !/requestMachineRefresh|clearMachineRegister|refreshMachineRegister/.test(lay), true);
   eq('the new-version banner offers Update now, which leaves the offline registers alone',

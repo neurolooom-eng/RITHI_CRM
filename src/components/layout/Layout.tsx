@@ -11,6 +11,7 @@ import { NotificationBell } from './NotificationBell';
 import './layout.css';
 import { RITHI_LOGO } from '../../lib/brand';
 import { watchMachineRegister } from '../../lib/machinestore';
+import { clearMasterCache } from '../../lib/masters';
 import { supabaseConfigured } from '../../lib/supabase';
 
 interface NavItem {
@@ -466,6 +467,12 @@ export function Layout({ children }: { children: ReactNode }) {
       Object.keys(localStorage).forEach((k) => {
         if (k.startsWith('rithi.cache.') || k.startsWith('rithi.sync.')) localStorage.removeItem(k);
       });
+      // THE DROPDOWN LISTS TOO (products, customers, complaints...). This button
+      // is the repair tool, and it never cleared them -- so a stored product list
+      // cut short on a phone survived every press of it, while the help said
+      // otherwise. The offline machine register and Party Master are NOT these:
+      // they are kept (machinestore.ts) and refresh on their own.
+      clearMasterCache();
       if ('caches' in window) { const keys = await caches.keys(); await Promise.all(keys.map((k) => caches.delete(k))); }
       if ('serviceWorker' in navigator) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map((r) => r.unregister())); }
     } catch { /* best-effort */ }
