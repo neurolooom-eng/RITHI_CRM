@@ -94,6 +94,14 @@ restored) or **closed without a visit**; neither deletes anything.
   heading row even under a letterhead, reads tab-separated files, and lists what
   it kept and what it held back. Unrecognised columns are **kept on the row**
   where the register allows it.
+- **Device Cache Status** `/device-cache` — which phones and laptops hold the
+  machine register and Party Master for offline search: one row per person per
+  device, how many machines and customers it holds, when each was downloaded and
+  the last failure. Everybody is listed, including whoever has **never
+  reported** — the engineer worth chasing before they travel. A device reports
+  after each download and on sign-out, so one switched off shows its **last
+  report**; read *Last reported*. Administrators and Technical Support to begin
+  with; grant `Device Cache Status` on Roles & Permissions for anyone else.
 - **Data Export** `/data-export` — tick the tables you want and download them as
   one ZIP with a CSV per table. **The export runs as you** — it holds exactly the
   rows you are entitled to see, which is what makes it safe to have on a menu.

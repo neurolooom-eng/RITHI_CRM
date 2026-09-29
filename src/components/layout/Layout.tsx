@@ -272,6 +272,9 @@ export const NAV: NavGroup[] = [
       // somebody look for a table in the wrong one.
       { to: '/report-mapping', label: 'Bulk Report Mapping', icon: '🧩', adminOnly: true },
       { to: '/data-export', label: 'Data Export', icon: '⬇️', adminOnly: true },
+      // WHICH DEVICES HOLD THE OFFLINE REGISTERS (0249) -- the user, 2026-09-29:
+      // "Build the cache status report for my desk."
+      { to: '/device-cache', label: 'Device Cache Status', icon: '📶', adminOnly: true },
       { to: '/pm-bulk-upload', label: 'PM Bulk Upload', icon: '⬆️', adminOnly: true },
       { to: '/admin-config', label: 'Admin Config', icon: '🛠️', adminOnly: true },
       { to: '/software-validation', label: 'Software Validation', icon: '🧪', adminOnly: true },

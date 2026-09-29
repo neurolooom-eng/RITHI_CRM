@@ -5766,3 +5766,42 @@ export async function listFeedbackReport(
     if (rows.length < page) return out;
   }
 }
+
+// ---------------------------------------------------------------------------
+// WHAT EACH DEVICE HOLDS OFFLINE (0249) -- the administrator's view of the
+// machine register and Party Master kept on every phone and laptop.
+//
+// A device reports its OWN row: the person is stamped by the database from the
+// session, so nothing here can report for somebody else. ONE ROW PER PERSON PER
+// DEVICE, upserted on (user_id, device_id) -- a re-report UPDATES it, which is
+// why 0249 carries an UPDATE policy as well as an INSERT one.
+// ---------------------------------------------------------------------------
+export interface DeviceCacheReport {
+  device_id: string; device_label: string; user_agent: string; app_version: string; storage_ok: boolean;
+  machines: number; machines_at: string | null; machines_error: string;
+  customers: number; customers_at: string | null; customers_error: string;
+}
+/** Never throws: a report that cannot be sent is simply sent next time. */
+export async function sbReportDeviceCache(r: DeviceCacheReport): Promise<boolean> {
+  const c = getSupabase(); if (!c) return false;
+  try {
+    const { error } = await c.from('device_cache_status').upsert(r, { onConflict: 'user_id,device_id' });
+    return !error;
+  } catch { return false; }
+}
+
+export interface DeviceCacheRow {
+  user_id: string; full_name: string; email: string; role: string; active: boolean;
+  device_id: string | null; device_label: string | null; user_agent: string | null; app_version: string | null;
+  storage_ok: boolean | null;
+  machines: number | null; machines_at: string | null; machines_error: string | null;
+  customers: number | null; customers_at: string | null; customers_error: string | null;
+  first_reported_at: string | null; reported_at: string | null;
+}
+/** Every person, and every device each has reported from -- a person with no
+ *  device reported comes back ONCE with the device fields null. */
+export async function sbDeviceCacheReport(): Promise<DeviceCacheRow[]> {
+  const { data, error } = await must().rpc('device_cache_report');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as DeviceCacheRow[];
+}
