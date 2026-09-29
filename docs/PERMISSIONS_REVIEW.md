@@ -30,6 +30,22 @@ compared with the actions shown for that page in `PERM_TREE`
 hand against the code and a database built from every migration. They are
 marked ✔ below. Treat the others as a careful reading, not a test.
 
+**Filed in the findings list** ([`MODULE_REVIEW_LOG.md`](MODULE_REVIEW_LOG.md)) as:
+
+| Finding | Gap below |
+|---|---|
+| 57 | Gap 1 #1 — Pending Registrations Edit → Save call |
+| 58 | Gap 1 #4 — SLA Targets, and the false "saved" |
+| 59 | Gap 6 H1 — Indoor Dispatched without the dispatch right |
+| 60 | Gap 6 H2 — "Manage users" can grant "Manage roles & permissions" |
+| 61 | Gap 6 H3 — anyone can add a Field Solutions article |
+| 42, 62 | Gap 2 — downloads that skip `export.data` (42 is Excel; 62 is the rest) |
+| 63 | Gap 3 — a row does not show the keys its buttons test |
+| 64 | Gap 1 #2, #3, #6 and Gap 3's last rows — screen and database test different keys |
+| 65 | Gap 4 — admin only, not grantable |
+| 66 | Gap 5 — ticks that do nothing |
+| 67 | "One key doing many jobs" |
+
 ## How the matrix works — three facts that explain most of it
 
 1. **A key is global, and a row only DISPLAYS it.** `calls.report` is shown

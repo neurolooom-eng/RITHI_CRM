@@ -133,6 +133,17 @@ alone — none of them touches anything recorded here, and none of them fixes it
 | 44 | Calls | Batch cancel exists only in SQL, where it records nobody as the canceller | Low |
 | 45 | *cross-cutting* | The half-loaded-download warning gives advice that cannot be followed, or is missing where it is needed — **PART-FIXED: RM Approval and the advice; capped searches still export without a warning (batch 1, v0.9.373)** — **rest FIXED in batch 3 (v0.9.375)** | Low |
 | 46 | Hand Stock Report | A manager's file says "your own stock only" and holds the team's — **FIXED in batch 1 (v0.9.373, this branch)** | Low |
+| 57 | Pending Registrations | ✎ Edit → Save call rewrites a live call with no permission check and no section locks (see PERMISSIONS_REVIEW.md) | High |
+| 58 | Admin Config | SLA Targets has no check on screen, and a save the database refused reads "saved" | Medium |
+| 59 | Indoor Service | Dispatched / Closed can be set through Status without `indoor.dispatch` (database guard) | Medium |
+| 60 | User Master | "Manage users" can grant another person "Manage roles & permissions", "Manage users" or "View all data" | High |
+| 61 | Field Solutions | Any signed-in user can add an article | Low |
+| 62 | *cross-cutting* | Word, ZIP, the report ⭳ Download link and the print pages skip `export.data` too (widens 42) | Medium |
+| 63 | Roles & Permissions | A page's row does not show the keys its buttons test (Installation, PM, Contract, Objective, Reports, …) | Medium |
+| 64 | *cross-cutting* | The screen tests a different key from the database, so a button is offered then refused, or offered to the wrong role | Medium |
+| 65 | *cross-cutting* | Admin-only checks no other role can ever be granted (Bulk Uploads, Data Export, Audit Mode, reset password, …) | Medium |
+| 66 | Roles & Permissions | Ticks that do nothing (`dashboard.view`, `reports.view` on Visit Reports, `config.manage` on Admin Config, User Access, …) | Low |
+| 67 | Roles & Permissions | One key does many jobs (`users.manage`, `masters.edit`, `cover.edit`, `calls.report`) | Low |
 
 ---
 

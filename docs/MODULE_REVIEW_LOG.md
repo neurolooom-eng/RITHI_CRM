@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-30. Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was brought up to date and BASELINED, so the eight "SQL still to run" fixes are live and a merged migration now applies itself. Batch 5 in v0.9.394; batch 4 in v0.9.380; table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
+_Last updated: 2026-09-30. **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
 
 ---
 
@@ -16,8 +16,8 @@ _Last updated: 2026-09-30. Batch 6 in v0.9.398: 13 fixed (0254, the first migrat
 | --- | --- | --- |
 | ✅ **Fixed and live** | **40** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 32, 33, 38, 40, 41, 43, 45, 46, 47, 48, 49, 50, 51, 52 |
 | ◐ **Partly fixed** | **1** | 31 |
-| ⏳ **Open** | **15** | 20, 23, 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56 |
-| | **56** | |
+| ⏳ **Open** | **26** | 20, 23, 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67 |
+| | **67** | |
 
 **SQL is no longer a hand step for new fixes.** On 2026-09-29 the live
 project was brought up to date and baselined (see the log). From here a fix
@@ -50,6 +50,14 @@ below). They apply to every table and every date, not to one finding.
 | **44** | Calls | Batch cancel: build the button, or keep it SQL-only and record who cancelled. |
 | **26** | Call Reporting | **Moved here from C (2026-09-26): it is not a one-line fix.** The form stores a visit date as UTC midnight (reads back 05:30); the upload stores it as IST midnight, which is 18:30 UTC the day before. **Five live database objects** cast `visit_at` to a date — `objective_value`, `objective_evidence`, `reliability_wrr`, `machine_install_start` and the `kpi_field_inst` export (counted on a database built from every migration) — and on a database in UTC (the test database is; `show timezone` on the live project was NOT checked) that makes an UPLOADED visit's day one day EARLY in those calculations — so "fixing" the form to match the upload would move form-entered visits a day early too. Options: set the database time zone to `Asia/Kolkata` (also settles 13), **or** keep UTC and store every date-only visit at UTC midnight on BOTH paths. Run `show timezone;` in the SQL editor first. |
 
+| **60** | User Master → Access | **A holder of "Manage users" can grant any other person "Manage roles & permissions", "Manage users" or "View all data"**, and that person can grant them back. Neither can change their own permissions or make anyone Admin (`profiles_role_guard`). Verified on the database. Decide: should granting those admin-level keys through a person's extra permissions need Admin (recommended)? |
+| **61** | Field Solutions | **Any signed-in user can add an article** (`kb_insert`: `auth.uid() is not null`). Decide whether anyone may, or only a role with a key. |
+| **62** | downloads | **Finding 42 is wider than Excel.** Word (the FFR R-SER-03), the Data Export ZIP, the ⭳ Download on a signed service report, and the print pages (`/dc`, `/declaration`, `/ffr`) never check `export.data` either; only CSV does. Decide together with 42: one "Export / download" for everything, or a download tick per page? |
+| **63** | Roles & Permissions | **A page's row does not show the keys its buttons test.** Installation Calls and PM Calls are governed by the Field Call keys and show none (PM shows nothing at all); Contract Register by `cover.edit` (including delete-an-entry) and shows nothing; Objective by `config.manage`; Pending Calls, Product Database 2.0, Product Failure Analysis, the six Reports rows, Pending Dispatch's Drop, MRN-for-someone-else, Bulk Report Mapping, Settings — all by keys filed on other rows. Decide: show shared keys on every row that uses them, or give Installation and PM keys of their own (needs a migration copying today's grants)? |
+| **65** | several | **Admin only, so no other role can ever be given it**: Bulk Uploads (32 registers), PM Bulk Upload, Data Import, Data Export (export and schedules), Audit Mode, Frequent Failure rule, Call Registration desk, User Master reset password, Spare Requests change engineer, Daily Complaint Review date correction, Objective cut-off lock. Decide which should become grantable keys. |
+| **66** | Roles & Permissions | **Ticks that do nothing**: `dashboard.view` (tested nowhere); `reports.view` on Visit Reports (the screen and its table test `calls.view`); `config.manage` on Admin Config (no control there tests it); `masters.edit` on Product Master (read-only screen); `masters.view` on six rows (only the database's read rules use it); the User Access row (`/users` redirects to User Master). Decide: remove, or make each mean something. |
+| **67** | several | **One key does many jobs**: `users.manage` (create logins, reset passwords, disable, delete, assign roles, grant any key, clone — and every Settings control); `masters.edit` (KYC verification, part rename that moves every record naming the part, bulk Serviceman swap); `cover.edit` (includes deleting a whole entry with its machines); `calls.report` (saving a visit also books spare consumption and feedback); Tracker's page key (includes delete). Decide which to split. |
+
 ### B. SQL or performance, no decision needed
 
 | # | What |
@@ -57,9 +65,17 @@ below). They apply to every table and every date, not to one finding.
 | **40b** | Found while fixing 40: **12 more hand-run files** return more than one grid (`_which_products_are_missing` — added on 2026-09-29 by another session, its grids numbered 0–3 to run one at a time; `_admin_grant_check`, `_dedupe_part_product_keys`, `_load_check`, `_move_blank_status_visits`, `_party_name_normalise`, `_party_search_diagnose`, `_reassign_spare_engineer`, `_registered_by_check`, `_reset_for_production`, `_stray_cover_rows`, `_yearly_consumption_check`; `_why_is_it_empty_2` was only its `set_config` lines, which the check now ignores). `check:ui` now refuses a NEW one and lists these by name. Also `_pm_call_numbers.sql` is still cut off mid-list and marked DO NOT RUN — it needs the rest of YOUR list to finish. |
 | **56** | Filter/sort columns with no index on big registers (feedback paging, call_requests paging, spare line stage, …) — candidates only; confirm with the probe's Full scans rows before adding any. |
 
+| **59** | **Indoor Service: a unit can be set to Dispatched or Closed without the dispatch right.** The Status picker needs only `indoor.work`; the guard (0158) checks `indoor.dispatch` when the dispatch date, reference or dispatcher changes, not the status. A passed quality check is still required. Verified on the database. |
+
 ### C. Front end, no decision needed
 
-Nothing left in this group after batch 5.
+| # | What |
+| --- | --- |
+| **57** | **Pending Registrations → ✎ Edit → Save call rewrites any field of a live call with no permission check**, and without the per-section locks the call registers apply (`PendingRegistrations.tsx:671`, `:405`). Only the database's `calls_update` stands behind it. Verified. |
+| **58** | **Admin Config → SLA Targets: no check on screen, and a refused save reads "saved".** The database requires Admin or `config.manage`; `saveSlaRule` looks only for an error, and a refused update is not one. Technical Support opens this page by default and holds neither. Verified. |
+| **64** | **The screen tests a different key from the database**, so a button is offered and then refused, or offered to the wrong role: Warranty → "+ Installation call" (no check; database wants `install.create` + `cover.edit`); Warranty/Contract → "+ Field call" and Product Database → "+ Install" (no check / wrong key); Pending Registrations → "Create new call" (tests `pending.register`, database wants `calls.create`/`install.create`); Call Review → Reco and Re-open (test `callreview.mark`, database wants `consumption.reconcile` / `pending.register` or `calls.create`); Software Validation (also accepts `users.manage`, database does not); Reset password and Change engineer (offered on `users.manage`, database wants Admin); Data Export (page key on screen, Admin in the database); Call Registration desk and Frequent Failure rule (Admin on screen, database also accepts `config.manage`); Request Registration → Correct this request (no check on screen). |
+
+Evidence for 57–67, screen by screen: [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md).
 
 ### R. Your standing requirements (added 2026-09-26)
 
@@ -156,6 +172,19 @@ dates are shown and exported, not how they are stored.**
 
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
+
+### 2026-09-30 — Actions vs Roles & Permissions: findings 57–67
+
+The user: *"The Actions listed in every view should be part of the Roles and
+Permissions. I don't think that is present."* Then: *"Add all these to the
+Review List -- Bug List"*. All 60 screens were read in five groups, and every
+action was compared with the page's row in `PERM_TREE`. The claims that
+matter most were re-checked by hand against the code and a database built
+from every migration. Every key the code checks exists on the matrix, and
+almost every write is refused by the database without the right key. The
+gaps are what a row shows and controls. Filed as 57–67, all open; full
+evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md). Nothing changed in the app or the database. **Not merged:
+the user asked that nothing reach `main` until they say so.**
 
 ### 2026-09-30 — Batch 6 (v0.9.398): 13, and the sync race
 
