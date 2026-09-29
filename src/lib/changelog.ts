@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.381',
+    version: '0.9.382',
     date: '2026-09-26',
     title: 'Dates in every download are real dates, and a refused call edit says so',
     changes: [
@@ -23,6 +23,17 @@ export const CHANGELOG: ChangeEntry[] = [
       'OBJECTIVE: the evidence file behind a figure can no longer repeat or skip a row between its pages. Needs objective.sql run once.',
       'FASTER UPLOADS: an Ownership Transfer upload of 500 rows took about 15 seconds against a 20-second limit on a register of 20,000 sales, and now takes under one second. Needs sales_contracts.sql run once.',
       'FOUR DIAGNOSTIC SQL FILES NOW SHOW THEIR WHOLE ANSWER in the Supabase SQL editor, which only displays the last result: the report-count reconciliation, Item Status staleness, open PM calls and the Product Database rebuild.',
+    ],
+  },
+  {
+    version: '0.9.381',
+    date: '2026-09-29',
+    title: 'Product lists no longer stop part-way and pretend to be complete',
+    changes: [
+      'THE PRODUCT DROPDOWNS COULD SHOW A SHORT LIST AS IF IT WERE THE WHOLE ONE. Product & Party Search offered 26 products and a Call Registration Request offered 6, while the Product Database holds 44 — VEGA among them, with 268 machines. The data was fine throughout; the fault was in how the list was read.',
+      'When the quick way of fetching the product names failed, the app fell back to reading the whole register in pages, sorted by name. If any one of those pages failed — a slow moment, a dropped mobile connection — it quietly stopped and offered whatever it had reached so far. That is why the list always ended part-way through the alphabet, and why VEGA, near the end, was always the one missing. Typing it then said “Nothing matches”, which looked exactly like missing data.',
+      'Now a page that fails is tried again, and if it still fails the list is NOT shown half-finished: the screen says the product list could not be loaded and asks you to press ↻ Refresh. A short list that looks complete is worse than an honest “could not load”, because people act on it.',
+      'This fixes what you see. Why the quick fetch fails for some logins is a separate question, and the check for it is in the SQL file sent with this release.',
     ],
   },
   {

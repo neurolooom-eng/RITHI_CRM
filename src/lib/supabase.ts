@@ -70,7 +70,7 @@ export function supabaseConfigured(): boolean {
 // The pager lives in ./paging — it is pure logic with no Supabase in it, which
 // is the only way it can be TESTED: this file reads `import.meta.env` at load
 // and cannot be imported by a node script at all.
-import { allRows, PG_PAGE } from './paging';
+import { allRows, distinctValues, PG_PAGE } from './paging';
 import type { LoadedReport, ConvertWrite } from './reportMapping';
 export { allRows, PG_PAGE };
 
@@ -814,22 +814,17 @@ export async function saveObjectiveCell(
 // the distinct, sorted values. Used for the party / product / spare pick-lists,
 // which have thousands of rows.
 async function distinctColumn(table: string, column: string, opts?: { eq?: [string, unknown]; max?: number }): Promise<string[]> {
+  // THE WALK IS `distinctValues()` IN paging.ts, so a failed page is retried and
+  // then REFUSED rather than ending the loop quietly. The hand-written version
+  // that was here did `if (error) break` and returned the alphabetical prefix
+  // it had reached -- 26 of 44 products on one screen, 6 on another, VEGA never
+  // among them -- as though it were the whole list. check:paging reproduces it.
   const c = must();
-  const set = new Set<string>();
-  const PAGE = 1000; const max = opts?.max ?? 40000;
-  for (let from = 0; from < max; from += PAGE) {
-    // Ordered by the column itself (finding 8): only the VALUES are kept, and a
-    // sorted column puts the same value at each position whatever order its ties
-    // come in, so no value can fall between two pages.
-    let q = c.from(table).select(column).order(column, { ascending: true, nullsFirst: false }).range(from, from + PAGE - 1);
+  return distinctValues((from, to) => {
+    let q = c.from(table).select(column).order(column, { ascending: true, nullsFirst: false }).range(from, to);
     if (opts?.eq) q = q.eq(opts.eq[0], opts.eq[1] as never);
-    const { data, error } = await q;
-    if (error) break;
-    const rows = data ?? [];
-    rows.forEach((r) => { const v = String((r as unknown as Record<string, unknown>)[column] ?? '').trim(); if (v) set.add(v); });
-    if (rows.length < PAGE) break;
-  }
-  return [...set].sort();
+    return q as unknown as PromiseLike<{ data: Record<string, unknown>[] | null; error: { message?: string; code?: string } | null }>;
+  }, column, { max: opts?.max });
 }
 export async function sbListParties(): Promise<string[]> {
   return distinctColumn('parties', 'party_name');

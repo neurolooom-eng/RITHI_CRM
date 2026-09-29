@@ -66,7 +66,7 @@ up)_
 
 ---
 
-## 2026-09-26 — Module review, batch 5: dates in downloads, honest call edits (v0.9.381)
+## 2026-09-26 — Module review, batch 5: dates in downloads, honest call edits (v0.9.382)
 
 - ✅ **7 / R2 / R3 (downloads)**: `buildXlsx` shapes every body cell; `csvExport`
   formats date values. Front end, live on merge.

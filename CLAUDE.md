@@ -946,7 +946,7 @@ on testing the old shape. **When a migration replaces a definition, move the
   pointed at (finding 40). Fold the detail into the same statement as numbered
   rows (101 onwards), the `_status.sql` way. `check:ui` counts the row-returning
   top-level statements in every `supabase/apply/_*.sql` and refuses more than
-  one; the twelve older files that break it are listed there by name.
+  one; the thirteen older files that break it are listed there by name.
 - **EVERY TABLE HAS FIVE SYSTEM COLUMNS, AND THE DATABASE WRITES THEM** (0244,
   the user, 2026-09-26: *"sys_created_by, sys_created_on shouldn't overlap with
   any of the other fields"*). `sys_id` (unique), `sys_created_by`,

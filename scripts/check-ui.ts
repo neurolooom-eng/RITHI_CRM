@@ -9279,6 +9279,9 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
     '_move_blank_status_visits.sql', '_party_name_normalise.sql', '_party_search_diagnose.sql',
     '_reassign_spare_engineer.sql', '_registered_by_check.sql', '_reset_for_production.sql',
     '_stray_cover_rows.sql', '_why_is_it_empty_2.sql', '_yearly_consumption_check.sql',
+    // Landed on main from another session the same day this check did; its
+    // header numbers its grids 0-3 for running one at a time.
+    '_which_products_are_missing.sql',
   ];
   const dir = 'supabase/apply/';
   const over = readdirSync(dir)

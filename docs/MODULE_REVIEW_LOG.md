@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-26. Batch 5 in v0.9.381: 7, 32, 40 fixed; 15, 38, 48 fixed with SQL to run (`objective.sql`, `sales_contracts.sql`, `sys_columns.sql`). Batch 4 (front end) in v0.9.380: 4, 8, 10, 11, 12, 14, 43 fixed, more of 15 and 32; 26 needs a decision. 49–52 fixed in v0.9.379 (SQL to run). Table review done — findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs). R1 built in v0.9.378 and finding 47 fixed in v0.9.377 — the SQL for both (0243; sys_columns.sql) still to be applied. R2–R3 pending._
+_Last updated: 2026-09-26. Batch 5 in v0.9.382: 7, 32, 40 fixed; 15, 38, 48 fixed with SQL to run (`objective.sql`, `sales_contracts.sql`, `sys_columns.sql`). Batch 4 (front end) in v0.9.380: 4, 8, 10, 11, 12, 14, 43 fixed, more of 15 and 32; 26 needs a decision. 49–52 fixed in v0.9.379 (SQL to run). Table review done — findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs). R1 built in v0.9.378 and finding 47 fixed in v0.9.377 — the SQL for both (0243; sys_columns.sql) still to be applied. R2–R3 pending._
 
 ---
 
@@ -15,7 +15,7 @@ _Last updated: 2026-09-26. Batch 5 in v0.9.381: 7, 32, 40 fixed; 15, 38, 48 fixe
 | | Count | Findings |
 | --- | --- | --- |
 | ✅ **Fixed and live** | **31** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 32, 33, 40, 41, 43, 45, 46 |
-| ✅ **Fixed, SQL still to run** | **8** | 47 (v0.9.377, needs 0243); 49, 50, 51, 52 (v0.9.379, need `lockdown.sql` + `sales_contracts.sql`); 15 (`objective.sql`), 38 (`sales_contracts.sql`), 48 (`sys_columns.sql`) — v0.9.381 |
+| ✅ **Fixed, SQL still to run** | **8** | 47 (v0.9.377, needs 0243); 49, 50, 51, 52 (v0.9.379, need `lockdown.sql` + `sales_contracts.sql`); 15 (`objective.sql`), 38 (`sales_contracts.sql`), 48 (`sys_columns.sql`) — v0.9.382 |
 | ◐ **Partly fixed** | **1** | 31 |
 | ⏳ **Open** | **16** | 13, 20, 23, 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56 |
 | | **56** | |
@@ -54,7 +54,7 @@ below). They apply to every table and every date, not to one finding.
 
 | # | What |
 | --- | --- |
-| **40b** | Found while fixing 40: **12 more hand-run files** return more than one grid (`_admin_grant_check`, `_dedupe_part_product_keys`, `_load_check`, `_move_blank_status_visits`, `_party_name_normalise`, `_party_search_diagnose`, `_reassign_spare_engineer`, `_registered_by_check`, `_reset_for_production`, `_stray_cover_rows`, `_why_is_it_empty_2`, `_yearly_consumption_check`). `check:ui` now refuses a NEW one and lists these by name. Also `_pm_call_numbers.sql` is still cut off mid-list and marked DO NOT RUN — it needs the rest of YOUR list to finish. |
+| **40b** | Found while fixing 40: **13 more hand-run files** return more than one grid (`_which_products_are_missing` — added on 2026-09-29 by another session, its grids numbered 0–3 to run one at a time; `_admin_grant_check`, `_dedupe_part_product_keys`, `_load_check`, `_move_blank_status_visits`, `_party_name_normalise`, `_party_search_diagnose`, `_reassign_spare_engineer`, `_registered_by_check`, `_reset_for_production`, `_stray_cover_rows`, `_why_is_it_empty_2`, `_yearly_consumption_check`). `check:ui` now refuses a NEW one and lists these by name. Also `_pm_call_numbers.sql` is still cut off mid-list and marked DO NOT RUN — it needs the rest of YOUR list to finish. |
 | **56** | Filter/sort columns with no index on big registers (feedback paging, call_requests paging, spare line stage, …) — candidates only; confirm with the probe's Full scans rows before adding any. |
 | **13** | Spare Insights' date window is a UTC day, not an IST one (SQL function). |
 
@@ -97,8 +97,8 @@ dates are shown and exported, not how they are stored.**
 | # | Requirement | Already true | Still to do |
 | --- | --- | --- | --- |
 | **R1** | Key, timestamp, `sys_created_by`, `sys_updated_by` on every table | ✅ **Built, v0.9.378** (0244/0245): `sys_id`, `sys_created_by`, `sys_created_on`, `sys_updated_by`, `sys_updated_on` on 68 tables, written only by the database; existing rows filled from same-meaning fields. | **Your step: run `sys_columns.sql` once.** Not done: showing them on screens with names (R2/R3); natural keys per table (a separate question). |
-| **R2** | Date fields as `dd-mmm-yyyy`, readable by Excel | `formatDay()` in `src/lib/dates.ts` is that format. **Downloads done in v0.9.381 (finding 7):** every .xlsx writes a date as a real Excel date formatted `dd-mmm-yyyy`, whatever screen built it; every register CSV writes `dd-MMM-yyyy`. | **Screens** have not been audited for dates shown any other way — that audit is what is left. |
-| **R3** | Date-time fields as `dd-mmm-yyyy hh:mm:ss`, readable by Excel | `formatDayTime()` is that format. **Downloads done in v0.9.381**, the same way as R2, in your own time rather than the database's UTC. | The same screen audit as R2, for date-times. |
+| **R2** | Date fields as `dd-mmm-yyyy`, readable by Excel | `formatDay()` in `src/lib/dates.ts` is that format. **Downloads done in v0.9.382 (finding 7):** every .xlsx writes a date as a real Excel date formatted `dd-mmm-yyyy`, whatever screen built it; every register CSV writes `dd-MMM-yyyy`. | **Screens** have not been audited for dates shown any other way — that audit is what is left. |
+| **R3** | Date-time fields as `dd-mmm-yyyy hh:mm:ss`, readable by Excel | `formatDayTime()` is that format. **Downloads done in v0.9.382**, the same way as R2, in your own time rather than the database's UTC. | The same screen audit as R2, for date-times. |
 
 **Your answers (2026-09-26)**, which is what was built: Q1 → a new `sys_id` on every table; Q2 → separate `sys_created_on` / `sys_updated_on`, overlapping no existing field; Q3 → the login id; Q4 → fill existing rows from existing fields; Q5 → every table except the counters. The questions as they were asked:
 
@@ -158,7 +158,7 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-09-26 — Batch 5 (v0.9.381)
+### 2026-09-26 — Batch 5 (v0.9.382)
 - **7 / R2 / R3 for downloads:** `buildXlsx` shapes every body cell itself, so
   the four workbooks that skipped `xlsxCell` now write real dates; every
   register CSV formats a date value as `dd-MMM-yyyy [HH:mm:ss]`. Proved by
