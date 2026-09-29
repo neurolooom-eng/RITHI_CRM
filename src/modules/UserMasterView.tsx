@@ -194,6 +194,32 @@ export function UserMasterView() {
     return `Renaming “${was}” to “${now}”. ${carry} Everything filed under “${was}” moves to “${now}” too — calls allotted to it, call requests, spare requests, consumption, hand stock and stock transfers, and the Service Engineer on the Party Master and Product Database. Who approved, dispatched or recorded something is not changed.`;
   };
 
+  // ---- BULK DEPARTMENT (the user, 2026-09-30: "Bulk update the Department --
+  // Select all and Apply"). Tick rows (the header box ticks every row the search
+  // is showing), choose a department, Apply. ONLY the department is written --
+  // nothing else on the row, and no role goes near a sign-in.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [bulkDept, setBulkDept] = useState('');
+  const applyDept = async (ids: string[], clear: () => void) => {
+    const targets = dir.filter((d) => ids.includes(String(d.id)));
+    if (!targets.length || !bulkDept) return;
+    if (!confirm(`Set the Department of ${targets.length} ${targets.length === 1 ? 'person' : 'people'} to "${bulkDept}"?`)) return;
+    setBusy(true);
+    let done = 0; const failed: string[] = [];
+    for (let i = 0; i < targets.length; i += 10) {
+      await Promise.all(targets.slice(i, i + 10).map(async (t) => {
+        const r = await saveDirectoryRow(t.id, { department: bulkDept });
+        if (r.ok) done += 1; else failed.push(t.name || String(t.id));
+      }));
+    }
+    logAudit({ action: 'user.directory.bulk_department', target: bulkDept, status: failed.length ? 'error' : 'ok', meta: { done, failed: failed.length } });
+    setBusy(false); clear(); setBulkDept('');
+    setMsg(failed.length
+      ? { tone: 'error', text: `${done} updated; ${failed.length} could not be saved: ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''}` }
+      : { tone: 'ok', text: `Department set to ${bulkDept} for ${done} ${done === 1 ? 'person' : 'people'}.` });
+    await load();
+  };
+
   // Write one row, and put its role on the person's sign-in if they have one.
   // Returns what happened so a bulk save can report per row.
   const persist = async (row: DirectoryRow): Promise<{ ok: boolean; error?: string; note?: string }> => {
@@ -205,6 +231,10 @@ export function UserMasterView() {
       reporting_manager: row.reporting_manager.trim(), regional_manager: row.regional_manager.trim(),
       region: row.region.trim(), role: row.role, validity: row.validity,
       address: row.address.trim(), city: row.city.trim(), state: row.state.trim(), phone: row.phone.trim(),
+      // THE FIELD THAT WAS MISSING (reported 2026-09-30: "Unable to update
+      // Department Details in User Master"). Picked on screen and dropped here,
+      // so every save quietly kept the old value.
+      department: (row.department ?? '').trim(),
     });
     logAudit({ action: isNew ? 'user.directory.add' : 'user.directory.edit', target: name, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error });
     if (!res.ok) return { ok: false, error: res.error ?? 'Could not save that user.' };
@@ -562,6 +592,21 @@ export function UserMasterView() {
           storageKey="userMaster"
           rowsBeforeScroll={16}
           dense
+          selectable={editable && !editing}
+          selected={picked}
+          onSelectedChange={setPicked}
+          bulkBar={editable && !editing ? (ids, clear) => (
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <b>{ids.length} selected</b>
+              <div style={{ minWidth: 200 }}>
+                <SelectPicker value={bulkDept} onChange={setBulkDept}
+                  placeholder={departments.length ? 'Department…' : 'Add departments under Masters → Department'}
+                  options={departments} />
+              </div>
+              <button className="btn btn-primary btn-sm" disabled={busy || !bulkDept}
+                onClick={() => void applyDept(ids, clear)}>Apply to {ids.length}</button>
+            </div>
+          ) : undefined}
           onRowClick={editing ? undefined : (r) => setViewRow(r)}
           emptyText={busy ? 'Loading…' : 'No users — adjust your search.'}
           toolbar={

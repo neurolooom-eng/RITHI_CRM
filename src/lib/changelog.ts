@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.4',
+    date: '2026-09-30',
+    title: 'User Master: Department now saves, and can be set for many people at once',
+    changes: [
+      'FIXED: choosing a Department on User Master (in the row editor or the ⋯ form) and saving did not keep it — every other field was saved, the Department was left out. It is saved now.',
+      'BULK DEPARTMENT: tick people on User Master (the box in the header ticks everyone the search is showing), choose the Department and press Apply. Only the Department changes; nothing else on those rows is touched.',
+    ],
+  },
+  {
     version: '0.10.3',
     date: '2026-09-30',
     title: 'People and training: profiles, Roles & Responsibilities, a Training module, Department, and the QMS Master List upload',
