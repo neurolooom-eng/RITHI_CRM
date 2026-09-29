@@ -165,6 +165,31 @@ export function UserMasterView() {
 
   useEffect(() => { void load(''); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
+  // A RENAME, SAID BEFORE IT IS SAVED (finding 23). The reporting tree and
+  // every register match people by NAME, so the save moves (0257) everybody
+  // naming the old name as Reporting or Regional Manager and (0259) the work
+  // filed under it — calls, requests, spares, consumption, hand stock and the
+  // customer's Service Engineer — to the new one, the user's decision of
+  // 2026-09-30. Nothing moves when another row still carries the old name or
+  // only its case changed. Said before Save because it rewrites records in
+  // bulk. Compared as the database compares: lower case.
+  const renameNote = (after: DirectoryRow): string => {
+    if (!after.id) return '';
+    const was = dir.find((x) => x.id === after.id)?.name ?? '';
+    const now = after.name.trim();
+    if (!was.trim() || !now || was.toLowerCase() === now.toLowerCase()) return '';
+    const same = (v: string) => String(v ?? '').toLowerCase() === was.toLowerCase();
+    const team = dir.filter((x) => x.id !== after.id && (same(x.reporting_manager) || same(x.regional_manager))).length;
+    const twin = dir.some((x) => x.id !== after.id && same(x.name));
+    if (twin) {
+      return `Renaming “${was}” to “${now}”. Another User Master row is also called “${was}”, so NOTHING is moved to the new name — not their team, not the calls or stock filed under “${was}”. Correct those by hand.`;
+    }
+    const carry = team
+      ? `${team} ${team === 1 ? 'person names' : 'people name'} “${was}” as Reporting or Regional Manager; they move to “${now}”.`
+      : `Nobody names “${was}” as their manager.`;
+    return `Renaming “${was}” to “${now}”. ${carry} Everything filed under “${was}” moves to “${now}” too — calls allotted to it, call requests, spare requests, consumption, hand stock and stock transfers, and the Service Engineer on the Party Master and Product Database. Who approved, dispatched or recorded something is not changed.`;
+  };
+
   // Write one row, and put its role on the person's sign-in if they have one.
   // Returns what happened so a bulk save can report per row.
   const persist = async (row: DirectoryRow): Promise<{ ok: boolean; error?: string; note?: string }> => {
@@ -198,6 +223,8 @@ export function UserMasterView() {
   // too (with cloned permissions when opened via Clone); then the directory row
   // is written. An edit just writes the directory row.
   const save = async (row: DirectoryRow) => {
+    const rename = renameNote(row);
+    if (rename && !confirm(`${rename}\n\nSave the new name?`)) return;
     setBusy(true);
     const isNew = row.id === 0;
     let loginNote = '';
@@ -267,6 +294,8 @@ export function UserMasterView() {
     if (!changedRows.length) { setDrafts({}); setEditing(false); return; }
     const nameless = changedRows.find((r) => !drafts[r.id].name.trim());
     if (nameless) { setMsg({ tone: 'error', text: `${nameless.name || 'A user'} needs a name — it is what calls are allotted to.` }); return; }
+    const renames = changedRows.map((r) => renameNote(drafts[r.id])).filter(Boolean);
+    if (renames.length && !confirm(`${renames.join('\n\n')}\n\nSave ${renames.length === 1 ? 'the new name' : 'the new names'}?`)) return;
 
     setBusy(true);
     setMsg({ tone: 'info', text: `Saving ${changedRows.length} change${changedRows.length === 1 ? '' : 's'}…` });
@@ -602,6 +631,7 @@ export function UserMasterView() {
             names={dirNames}
             regions={dirRegions}
             roleOptions={roleOptions}
+            renameNote={renameNote(edit)}
             onChange={setEdit}
             onCancel={() => { setEdit(null); setCloneSrc(null); setMkLogin(false); }}
             onSave={() => void save(edit)}
@@ -842,8 +872,11 @@ function DataViewDrawer({ user, onClose }: { user: User; onClose: () => void }) 
   );
 }
 
-function UserForm({ row, busy, signedInRole, names, regions, roleOptions, onChange, onCancel, onSave }: {
+function UserForm({ row, busy, signedInRole, names, regions, roleOptions, renameNote, onChange, onCancel, onSave }: {
   row: DirectoryRow; busy: boolean; signedInRole?: string;
+  // What changing this person's name will and will not move (finding 23);
+  // empty unless the name has changed.
+  renameNote?: string;
   // WHAT THE DIRECTORY ALREADY SAYS. Offered, not imposed (the user's ask,
   // 2026-09-06): a manager who is not in the directory yet has to be typeable,
   // or the first person entered could have no manager and a new region could
@@ -890,6 +923,7 @@ function UserForm({ row, busy, signedInRole, names, regions, roleOptions, onChan
           <span className="field-label">User Name *</span>
           <input className="input" placeholder="As it appears on a call's Allocated To"
             value={row.name} onChange={(e) => set('name', e.target.value)} />
+          {renameNote && <span className="rep-hint" role="alert"><b>⚠ {renameNote}</b></span>}
         </label>
         {field('Designation', 'designation', 'e.g. Service Engineer')}
         {field('Air Liquide ID (email)', 'email', 'name@airliquide.com', 'email')}

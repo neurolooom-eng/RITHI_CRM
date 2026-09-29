@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-30. Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was brought up to date and BASELINED, so the eight "SQL still to run" fixes are live and a merged migration now applies itself. Batch 5 in v0.9.394; batch 4 in v0.9.380; table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
+_Last updated: 2026-09-30. **Batch 7 (v0.10.2): 20, 23 and 31 fixed as you decided, merged in #453 on your word ("Lets merge"); migrations 0256–0262 are applied by that merge's "Apply database migrations" run.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
 
 ---
 
@@ -14,10 +14,9 @@ _Last updated: 2026-09-30. Batch 6 in v0.9.398: 13 fixed (0254, the first migrat
 
 | | Count | Findings |
 | --- | --- | --- |
-| ✅ **Fixed and live** | **40** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 32, 33, 38, 40, 41, 43, 45, 46, 47, 48, 49, 50, 51, 52 |
-| ◐ **Partly fixed** | **1** | 31 |
-| ⏳ **Open** | **15** | 20, 23, 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56 |
-| | **56** | |
+| ✅ **Fixed and live** | **43** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 38, 40, 41, 43, 45, 46, 47, 48, 49, 50, 51, 52 — 20, 23 and 31 in batch 7 (v0.10.2, #453) |
+| ⏳ **Open** | **24** | 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67 |
+| | **67** | |
 
 **SQL is no longer a hand step for new fixes.** On 2026-09-29 the live
 project was brought up to date and baselined (see the log). From here a fix
@@ -42,13 +41,18 @@ below). They apply to every table and every date, not to one finding.
 | **39** | Hand-run SQL | ⚠ **Do not run `_item_status_as_at_the_complaint_date.sql` with `v_apply := true`.** Decide first: does **warranty or contract** win when a machine is under both? The file says contract; the Product Database says warranty. It must also map contract words through `contract_cover_code()`. |
 | **35 / 36 / 37** | Product Database | The ownership triggers (handoff C8). Should transfers be ordered by their **date** or by when they were **entered**? And how should an imported transfer compare with a sale's timestamp? The fixes for 36 (edit an old sale) and 37 (corrected serial, deleted transfer) follow from that. |
 | **34** | Product Database | Four roles see contract machines as OGP. Options: widen the contract read policy, **or** a function that returns only the derived cover (recommended), **or** show "—". |
-| **20** | Spare Requests | "Not Approved" reads as approved. Decide what happens to rows already stored with that value (Step 0 query 1 shows whether any exist). |
-| **23** | User Master | A renamed person empties their team. Options: cascade the rename, key the tree on id, or refuse the rename. |
-| **31** (rest) | Warranty Register | Hide the per-machine "+ Installation call" from roles without `cover.edit`, **or** let those roles write `inst_call`. The failure is already reported honestly. |
 | **42** | downloads | Excel skips the export permission. Should the permission be granted to roles by migration first? Step 0 query 15 shows who lacks it. |
 | **27** | Data Export | Where each table's order key comes from (a migration returning it), and whether to refuse views that have no key. |
 | **44** | Calls | Batch cancel: build the button, or keep it SQL-only and record who cancelled. |
 | **26** | Call Reporting | **Moved here from C (2026-09-26): it is not a one-line fix.** The form stores a visit date as UTC midnight (reads back 05:30); the upload stores it as IST midnight, which is 18:30 UTC the day before. **Five live database objects** cast `visit_at` to a date — `objective_value`, `objective_evidence`, `reliability_wrr`, `machine_install_start` and the `kpi_field_inst` export (counted on a database built from every migration) — and on a database in UTC (the test database is; `show timezone` on the live project was NOT checked) that makes an UPLOADED visit's day one day EARLY in those calculations — so "fixing" the form to match the upload would move form-entered visits a day early too. Options: set the database time zone to `Asia/Kolkata` (also settles 13), **or** keep UTC and store every date-only visit at UTC midnight on BOTH paths. Run `show timezone;` in the SQL editor first. |
+
+| **60** | User Master → Access | **A holder of "Manage users" can grant any other person "Manage roles & permissions", "Manage users" or "View all data"**, and that person can grant them back. Neither can change their own permissions or make anyone Admin (`profiles_role_guard`). Verified on the database. Decide: should granting those admin-level keys through a person's extra permissions need Admin (recommended)? |
+| **61** | Field Solutions | **Any signed-in user can add an article** (`kb_insert`: `auth.uid() is not null`). Decide whether anyone may, or only a role with a key. |
+| **62** | downloads | **Finding 42 is wider than Excel.** Word (the FFR R-SER-03), the Data Export ZIP, the ⭳ Download on a signed service report, and the print pages (`/dc`, `/declaration`, `/ffr`) never check `export.data` either; only CSV does. Decide together with 42: one "Export / download" for everything, or a download tick per page? |
+| **63** | Roles & Permissions | **A page's row does not show the keys its buttons test.** Installation Calls and PM Calls are governed by the Field Call keys and show none (PM shows nothing at all); Contract Register by `cover.edit` (including delete-an-entry) and shows nothing; Objective by `config.manage`; Pending Calls, Product Database 2.0, Product Failure Analysis, the six Reports rows, Pending Dispatch's Drop, MRN-for-someone-else, Bulk Report Mapping, Settings — all by keys filed on other rows. Decide: show shared keys on every row that uses them, or give Installation and PM keys of their own (needs a migration copying today's grants)? |
+| **65** | several | **Admin only, so no other role can ever be given it**: Bulk Uploads (32 registers), PM Bulk Upload, Data Import, Data Export (export and schedules), Audit Mode, Frequent Failure rule, Call Registration desk, User Master reset password, Spare Requests change engineer, Daily Complaint Review date correction, Objective cut-off lock. Decide which should become grantable keys. |
+| **66** | Roles & Permissions | **Ticks that do nothing**: `dashboard.view` (tested nowhere); `reports.view` on Visit Reports (the screen and its table test `calls.view`); `config.manage` on Admin Config (no control there tests it); `masters.edit` on Product Master (read-only screen); `masters.view` on six rows (only the database's read rules use it); the User Access row (`/users` redirects to User Master). Decide: remove, or make each mean something. |
+| **67** | several | **One key does many jobs**: `users.manage` (create logins, reset passwords, disable, delete, assign roles, grant any key, clone — and every Settings control); `masters.edit` (KYC verification, part rename that moves every record naming the part, bulk Serviceman swap); `cover.edit` (includes deleting a whole entry with its machines); `calls.report` (saving a visit also books spare consumption and feedback); Tracker's page key (includes delete). Decide which to split. |
 
 ### B. SQL or performance, no decision needed
 
@@ -57,9 +61,17 @@ below). They apply to every table and every date, not to one finding.
 | **40b** | Found while fixing 40: **12 more hand-run files** return more than one grid (`_which_products_are_missing` — added on 2026-09-29 by another session, its grids numbered 0–3 to run one at a time; `_admin_grant_check`, `_dedupe_part_product_keys`, `_load_check`, `_move_blank_status_visits`, `_party_name_normalise`, `_party_search_diagnose`, `_reassign_spare_engineer`, `_registered_by_check`, `_reset_for_production`, `_stray_cover_rows`, `_yearly_consumption_check`; `_why_is_it_empty_2` was only its `set_config` lines, which the check now ignores). `check:ui` now refuses a NEW one and lists these by name. Also `_pm_call_numbers.sql` is still cut off mid-list and marked DO NOT RUN — it needs the rest of YOUR list to finish. |
 | **56** | Filter/sort columns with no index on big registers (feedback paging, call_requests paging, spare line stage, …) — candidates only; confirm with the probe's Full scans rows before adding any. |
 
+| **59** | **Indoor Service: a unit can be set to Dispatched or Closed without the dispatch right.** The Status picker needs only `indoor.work`; the guard (0158) checks `indoor.dispatch` when the dispatch date, reference or dispatcher changes, not the status. A passed quality check is still required. Verified on the database. |
+
 ### C. Front end, no decision needed
 
-Nothing left in this group after batch 5.
+| # | What |
+| --- | --- |
+| **57** | **Pending Registrations → ✎ Edit → Save call rewrites any field of a live call with no permission check**, and without the per-section locks the call registers apply (`PendingRegistrations.tsx:671`, `:405`). Only the database's `calls_update` stands behind it. Verified. |
+| **58** | **Admin Config → SLA Targets: no check on screen, and a refused save reads "saved".** The database requires Admin or `config.manage`; `saveSlaRule` looks only for an error, and a refused update is not one. Technical Support opens this page by default and holds neither. Verified. |
+| **64** | **The screen tests a different key from the database**, so a button is offered and then refused, or offered to the wrong role: Warranty → "+ Installation call" (no check; database wants `install.create` + `cover.edit`); Warranty/Contract → "+ Field call" and Product Database → "+ Install" (no check / wrong key); Pending Registrations → "Create new call" (tests `pending.register`, database wants `calls.create`/`install.create`); Call Review → Reco and Re-open (test `callreview.mark`, database wants `consumption.reconcile` / `pending.register` or `calls.create`); Software Validation (also accepts `users.manage`, database does not); Reset password and Change engineer (offered on `users.manage`, database wants Admin); Data Export (page key on screen, Admin in the database); Call Registration desk and Frequent Failure rule (Admin on screen, database also accepts `config.manage`); Request Registration → Correct this request (no check on screen). |
+
+Evidence for 57–67, screen by screen: [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md).
 
 ### R. Your standing requirements (added 2026-09-26)
 
@@ -156,6 +168,80 @@ dates are shown and exported, not how they are stored.**
 
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
+
+### 2026-09-30 — 23, second half: a rename carries the person's records (v0.10.2, merged in #453)
+- **0259** (`user_directory`): when a User Master name changes, 16 columns follow it, each matched as its own read policy matches (lower, trimmed):
+  - calls: `allocated_to` on field, installation and PM calls;
+  - `call_requests` and `pending_registrations`;
+  - `spare_requests` and `spare_dispatches`;
+  - consumption and consumption history;
+  - opening stock, issue history, MRNs, and both sides of a stock transfer;
+  - the Service Engineer on `parties` and `products`. These are included because a new call's Allocated To is filled from the customer's Service Engineer, so a stale name there hides every new call.
+- **Not changed, on purpose:** signatures (`rm_by`, `dispatched_by`, `received_by`, `recorded_by`), a visit report's and a feedback's engineer, the sale's engineer, and `spare_request_engineer_log`.
+- **Same limits as 0257:** nothing moves for a blank old name, a change of case or spacing only, or an old name another row still holds.
+- **Four guards refused or reacted to exactly this change:**
+  - consumption engineer;
+  - the engineer of a dispatched request;
+  - an answered call request (frozen);
+  - "Call allotted to you".
+- **How they let it through:** each now admits only THIS rename, recognised by a per-transaction ticket in the `rename_part()` pattern. The ticket table has RLS on, no policy and no grants, so it cannot be forged; a `set_config` flag could be.
+  - **0260** is in `call_requests`, **0261** in `handstock` and **0262** in `notifications`, each after the migration that owns the previous body, which was taken from the database.
+  - The three bundles declare `engineerRename`, so run alone they say to run `user_directory` first.
+- **Proved** by `directory_rename_carries_records_test`, as a signed-in administrator:
+  - all 16 columns move, including a row spelled " eng old ";
+  - no allotment notice is sent;
+  - the manager still sees all three calls;
+  - hand stock is one balance of the same size under the new name;
+  - another engineer's rows and `recorded_by` are untouched;
+  - outside a rename the three guards still refuse;
+  - no ticket is left, and none can be written by a signed-in user;
+  - a duplicate old name moves nothing.
+- **It fails without its migrations.** With 0259 alone and no guard changes, the SAVE ITSELF is refused ("This request is already Registered — Engineer cannot be changed"), so the four must ship together, and they do.
+- `_status.sql` rows 202–203 read NO, NO without them; yes, NO with 0259 alone; yes, yes with all four.
+- **Also:** the ticket table gets the five system columns through `sys_columns_attach()`, because it is created after 0244. The first validation run caught it (row 187, `sys_columns_test`).
+- **validate:** 113/113 suites, 22/22 checks.
+- **Measured:** renaming an engineer with 3,000 calls, 2,000 customers and 1,000 opening lines, among 23,000 / 20,000 / 20,000, took 0.52 s.
+- **Not verified:** live data. A legacy row that a table's own insert guard would now refuse (for example an opening balance or issue line with a blank source) would make the rename refuse loudly, not skip silently.
+
+### 2026-09-30 — Batch 7 (v0.10.2): 20, 23, 31 — merged in #453
+- **Your decisions**, asked and answered the same day:
+  - **20:** hold any other word for the approver.
+  - **23:** carry the rename; leave work already filed under the old name, and warn on screen.
+  - **31:** let Hotline write the link, and only the link.
+- **20 — 0256.** `spare_line_stage` passes a stage only on the words Approved or Auto-Approved (any case, spaces, optional hyphen). Nothing stored is rewritten; open lines whose cached stage changes are restaged, so a line with "Not Approved" goes BACK from Stores to RM Approval.
+  - The client rule (`spareflow.ts`) is the same pattern, and `check:ui` now compares the two character for character. The handoff said it already did; it did not.
+  - The Spare Request Lines upload tidies the four standard words and keeps any other word as written.
+  - New read-only `supabase/apply/_approval_words.sql`, one grid: the unusual words on live and the lines that move.
+- **23 — 0257.** A trigger on `user_directory`: when a name changes, rows naming the old name as Reporting or Regional Manager follow it.
+  - It matches as the tree does (lower case, not trimmed), so it can never widen a team.
+  - Nothing moves when another row keeps the old name, the old name was blank, or only the case changed.
+  - Only an Admin can change a name at all (`user_directory_address_guard`), which I found while testing: the handoff assumed "Manage users".
+  - User Master shows what will and will not move under the name, and asks before saving, from the drawer and from the table.
+- **Found while doing 23:** call visibility also matches the ALLOTTEE's NAME (`can_see_call`, `calls_scoped_read`). So under "leave it", a renamed engineer and their manager would stop seeing calls allotted to the old name. Put back to you; **your answer (same day): "Rename existing records"** — the entry above.
+- **31 — 0258.** `link_install_call(item, ucn)` writes INST Call and nothing else, for `install.create` or `cover.edit`.
+  - It refuses a call number already there, and a UCN that is not an installation call for that product and serial.
+  - Not callable by the not-signed-in role.
+  - The Warranty register writes back through it, and the per-machine button is shown to roles that can raise the call. That also closes finding 64's "+ Installation call" row.
+- **Proved** as signed-in users, not the superuser, with three new suites. Each fails on a database built without its migration and passes with it:
+  - `spare_approval_whole_word`: 12 phrasings wait, 7 pass; Stores is offered only the cleared lines; a line cached as Stores moves back with its word kept.
+  - `directory_rename_carries_team`: team 3 → 3 across the rename; exactly the right rows move; the three limits hold.
+  - `link_install_call`: Hotline's direct write still matches 0 rows; the function maps, is idempotent, and refuses the three wrong cases.
+  - `_status.sql` rows 199–201 read NO without the migrations and yes with them.
+  - 16 new `check:ui` assertions, and two old ones re-pointed from the direct UPDATE to the function.
+- **Not verified:** anything on the live project. `_approval_words.sql` is how to see which spares will move before the merge.
+
+### 2026-09-30 — Actions vs Roles & Permissions: findings 57–67
+
+The user: *"The Actions listed in every view should be part of the Roles and
+Permissions. I don't think that is present."* Then: *"Add all these to the
+Review List -- Bug List"*. All 60 screens were read in five groups, and every
+action was compared with the page's row in `PERM_TREE`. The claims that
+matter most were re-checked by hand against the code and a database built
+from every migration. Every key the code checks exists on the matrix, and
+almost every write is refused by the database without the right key. The
+gaps are what a row shows and controls. Filed as 57–67, all open; full
+evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md). Nothing changed in the app or the database. **Not merged:
+the user asked that nothing reach `main` until they say so.**
 
 ### 2026-09-30 — Batch 6 (v0.9.398): 13, and the sync race
 

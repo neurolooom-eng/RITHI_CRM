@@ -5719,8 +5719,10 @@ console.log('\n-- the Warranty Sale asks for what it cannot work out, and no mor
   // STOPS rather than continuing: they are not one transaction, so carrying on
   // would leave a machine with a call nothing points at, hidden among the
   // successes.
+  // Since 0258 (finding 31) through link_install_call, which writes INST Call
+  // and nothing else, for install.create or cover.edit.
   eq('the call is mapped back onto the machine',
-    /\.from\('sale_items'\)\s*\.update\(\{ inst_call: ucn \}(, \{ count: 'exact' \})?\)/.test(cover), true);
+    /rpc\('link_install_call', \{ p_item_id: Number\(it\.id\), p_ucn: ucn \}\)/.test(cover), true);
   // AND A WRITE ROW-LEVEL SECURITY SKIPPED IS A FAILURE, NOT A SUCCESS. The
   // call needs `install.create` and this line `cover.edit`; Hotline holds the
   // first without the second, so the UPDATE matched no rows, PostgREST called
@@ -5736,9 +5738,11 @@ console.log('\n-- the Warranty Sale asks for what it cannot work out, and no mor
     eq('a request correction that changed no row is refused, not reported as saved',
       /\.update\(row, \{ count: 'exact' \}\)/.test(fn) && /if \(count === 0\)/.test(fn), true);
   }
-  eq('...and a write-back that changed no row is treated as a failure',
-    /update\(\{ inst_call: ucn \}, \{ count: 'exact' \}\)/.test(cover)
-    && /if \(error \|\| count === 0\)/.test(cover), true);
+  // The function REFUSES (an error) where the old UPDATE matched zero rows,
+  // so the error is the whole test now -- link_install_call_test proves the
+  // refusals on a database.
+  eq('...and a write-back the database refused is treated as a failure',
+    /rpc\('link_install_call'[^;]*;\s*if \(error\) \{\s*return \{ created, error:/.test(cover), true);
   eq('...and a failure between the two writes stops and names the machine',
     /was created but could not be written back to the machine/.test(cover), true);
   // Nothing is written until the operator has seen what it will say.
@@ -9503,6 +9507,52 @@ console.log('\n-- the background sync waits for a read in flight (D, the sync/Lo
   eq('every screen using the background sync gives it the busy flag', mods
     .filter(([, t]) => /startBackgroundSync\(/.test(t) && !/startBackgroundSync\(.*\(\) => busyRef\.current\)/.test(t))
     .map(([f]) => f), []);
+}
+
+// FINDINGS 20, 23, 31 (batch 7, the user's decisions of 2026-09-30).
+console.log('\n-- 20: an approval is the WORD approved, not any text containing it --');
+{
+  const { deriveStage, approvalWord, APPROVED_RE } = await import('../src/lib/spareflow');
+  const r = (f: string) => readFileSync(f, 'utf8');
+  const line = (rm: string) => ({ rm_approval: rm, commercial_approval: 'Auto-Approved', nsm_approval: 'Auto-Approved', stores_status: 'Pending' });
+  eq('"Not Approved" waits at RM Approval', deriveStage(line('Not Approved') as never), 'RM Approval');
+  eq('"Approval Pending" waits at RM Approval', deriveStage(line('Approval Pending') as never), 'RM Approval');
+  eq('"Disapproved" waits at RM Approval', deriveStage(line('Disapproved') as never), 'RM Approval');
+  eq('"Auto Approved" still reaches Stores', deriveStage(line('Auto Approved') as never), 'Stores');
+  eq('" APPROVED " still reaches Stores', deriveStage(line(' APPROVED ') as never), 'Stores');
+  eq('the upload tidies the two yes words', [approvalWord('auto approved'), approvalWord('APPROVED')], ['Auto-Approved', 'Approved']);
+  eq('...and keeps any other word as written', approvalWord('Approval Awaited'), 'Approval Awaited');
+  // THE TWO COPIES MOVE TOGETHER: the client pattern is the SQL one, character
+  // for character, in the newest migration defining spare_line_stage.
+  const defs = readdirSync('supabase/migrations').filter((f) => f.endsWith('.sql')).sort()
+    .filter((f) => /create or replace function public\.spare_line_stage/.test(r(`supabase/migrations/${f}`)));
+  const sql = r(`supabase/migrations/${defs[defs.length - 1]}`);
+  eq(`spare_line_stage (${defs[defs.length - 1]}) uses the client's pattern`,
+    sql.includes(`!~* '${APPROVED_RE.source}'`), true);
+  eq('...and no longer the substring test', /!~\* 'approv\|auto'/.test(sql.split('create or replace function public.spare_line_stage')[1] ?? ''), false);
+  const up = r('src/lib/uploads.ts');
+  eq('the Spare Request Lines upload cleans all three approval columns',
+    ['rm_approval', 'commercial_approval', 'nsm_approval'].every((c) => up.includes(`APPROVAL('${c}'`)), true);
+}
+console.log('\n-- 23: a rename is said before it is saved --');
+{
+  const um = readFileSync('src/modules/UserMasterView.tsx', 'utf8');
+  eq('the drawer save asks first', /const save = async \(row: DirectoryRow\) => \{\s*const rename = renameNote\(row\);\s*if \(rename && !confirm\(/.test(um), true);
+  eq('the table save asks first', /const renames = changedRows\.map\(\(r\) => renameNote\(drafts\[r\.id\]\)\)/.test(um), true);
+  eq('the drawer shows it under the name', /renameNote && <span className="rep-hint" role="alert">/.test(um), true);
+  // "Rename existing records" (the user, 2026-09-30): the note says the work
+  // MOVES now, and no longer that it stays behind.
+  eq('...and says the work filed under the old name moves with it',
+    /Everything filed under “\$\{was\}” moves to “\$\{now\}” too/.test(um) && !/keeps that name/.test(um), true);
+}
+console.log('\n-- 31: whoever may press "+ Installation call" can map it back --');
+{
+  const cv = readFileSync('src/lib/cover.ts', 'utf8');
+  const cr = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+  eq('the write-back goes through link_install_call', /rpc\('link_install_call', \{ p_item_id: Number\(it\.id\), p_ucn: ucn \}\)/.test(cv), true);
+  eq('...and no longer updates the line directly', /from\('sale_items'\)\s*\.update\(\{ inst_call/.test(cv), false);
+  eq('the per-machine button is offered to install.create or cover.edit',
+    /const canRaiseInstall = can\('install\.create'\) \|\| canEdit;/.test(cr) && /\{canRaiseInstall && <button[^>]*disabled=\{raisingId !== null\}/.test(cr), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

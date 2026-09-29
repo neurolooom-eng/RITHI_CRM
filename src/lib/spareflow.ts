@@ -59,7 +59,29 @@ export const needsNsm = (itemStatus: unknown, reqType: unknown): boolean =>
  *  right about: whether the two middle stages will be skipped ENTIRELY, which
  *  is only true for a Call-Based line that is neither AMC nor OGP. */
 export const needsReview = (itemStatus: unknown): boolean => needsCommercial(itemStatus);
-const isApproved = (v: unknown) => /approv|auto/i.test(s(v)); // "Approved" or "Auto-Approved"
+// WHOLE WORD, NOT SUBSTRING (finding 20, 0256). The old test asked whether the
+// value CONTAINED "approv", and every way of saying no or not-yet contains the
+// word approval: "Not Approved", "Approval Pending", "Disapproved" all read as
+// approved and the line reached Stores. Only the two words that mean yes pass;
+// anything else waits at that stage for the approver. The SQL copy is
+// `spare_line_stage` (0256) and `check:ui` holds the two patterns together.
+export const APPROVED_RE = /^\s*(auto[\s-]*)?approved\s*$/i;
+const isApproved = (v: unknown) => APPROVED_RE.test(s(v)); // "Approved" or "Auto-Approved"
+
+/** The two approval words, however a spreadsheet spelled them; anything else
+ *  is returned exactly as written. For the Spare Request Lines upload: a
+ *  recognised word is tidied, an unrecognised one is KEPT — it holds the line
+ *  at that approver, which is the user's decision (2026-09-30) — never guessed
+ *  into Approved or Rejected. */
+export function approvalWord(v: string): string {
+  const t = v.trim();
+  if (!APPROVED_RE.test(t)) {
+    if (/^rejected$/i.test(t)) return 'Rejected';
+    if (/^pending$/i.test(t)) return 'Pending';
+    return v;
+  }
+  return /^auto/i.test(t) ? 'Auto-Approved' : 'Approved';
+}
 
 export function deriveStage(r: SpareReq): Stage {
   if ([r.rm_approval, r.commercial_approval, r.nsm_approval].some((v) => /reject/i.test(s(v)))) return 'Rejected';
