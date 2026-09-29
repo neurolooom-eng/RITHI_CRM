@@ -94,24 +94,21 @@ async function currentUser(): Promise<string> {
   } catch { return ''; }
 }
 
-// "CLEAR CACHE AND UPDATE" RE-DOWNLOADS RATHER THAN WIPES. The button is
-// pressed to get rid of stale data, and a wiped register in a place with no
-// signal is an engineer with nothing to search -- the very thing this exists to
-// prevent. So the press is remembered across the reload it causes, and the old
-// copy is served until a COMPLETE new one replaces it. One flag per register.
-const FORCE_FLAG = 'rithi.machines.force';
-export function requestMachineRefresh(): void {
-  try {
-    localStorage.setItem(FORCE_FLAG, '1');
-    localStorage.setItem(`${FORCE_FLAG}.parties`, '1');
-  } catch { /* ignore */ }
-}
+// "CLEAR CACHE AND UPDATE" DOES NOT TOUCH THESE COPIES (the user, 2026-09-29:
+// "Since I am constantly working on Dev, invariably I ask the user to Clear
+// Cache and Update. Will that not defeat the purpose?"). It used to force a
+// full re-download of both registers on every press -- 19,266 machines and
+// 5,876 customers, on every device, every release, for data a release does not
+// change. Updating the APP and refreshing the DATA are now separate: a release
+// never costs a download; the data refreshes on its six-hour schedule, after an
+// upload or an edit, and on "Download again". A release that changes what the
+// copy HOLDS bumps VERSION above, and every device re-downloads once by itself.
 
 // ---- one register ---------------------------------------------------------------
 // The machine register and the Party Master are the same problem with a
 // different table, so they are the same code with a different table.
 function register<T extends { id: number }>(o: {
-  key: string; table: string; flag: string; toItem: (row: Record<string, unknown>) => T;
+  key: string; table: string; toItem: (row: Record<string, unknown>) => T;
 }) {
   let memory: { user: string; at: number; items: T[] } | null = null;
   let loaded: Promise<void> | null = null;
@@ -123,7 +120,6 @@ function register<T extends { id: number }>(o: {
     status = { ...status, ...p };
     listeners.forEach((l) => { try { l(status); } catch { /* a screen's problem, not ours */ } });
   };
-  const forced = () => { try { return localStorage.getItem(o.flag) === '1'; } catch { return false; } };
 
   async function loadFromDevice(): Promise<void> {
     const user = await currentUser();
@@ -155,7 +151,7 @@ function register<T extends { id: number }>(o: {
         const user = await currentUser();
         if (!user) return;
         const fresh = memory && memory.user === user && Date.now() - memory.at < MACHINE_REFRESH_MS;
-        if (fresh && !opts.force && !forced()) return;
+        if (fresh && !opts.force) return;
         if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
 
         const resume = partial && partial.user === user && Date.now() - partial.started < PARTIAL_MAX_AGE_MS
@@ -172,7 +168,6 @@ function register<T extends { id: number }>(o: {
           return;
         }
         partial = null;
-        try { localStorage.removeItem(o.flag); } catch { /* ignore */ }
         // THE SIGNED-IN PERSON MAY HAVE CHANGED during a long walk.
         if ((await currentUser()) !== user) return;
         const at = Date.now();
@@ -260,11 +255,11 @@ export async function reportDeviceCache(opts: { force?: boolean } = {}): Promise
 }
 
 const machines = register<CachedMachine>({
-  key: 'current', table: 'product_database', flag: FORCE_FLAG,
+  key: 'current', table: 'product_database',
   toItem: (row) => toCached(row, productRowToSheet(row)),
 });
 const parties = register<CachedParty>({
-  key: 'parties', table: 'parties', flag: `${FORCE_FLAG}.parties`,
+  key: 'parties', table: 'parties',
   toItem: (row) => ({ ...row, id: Number(row.id) }),
 });
 

@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.389',
+    date: '2026-09-29',
+    title: 'Updating the app no longer re-downloads the machine and customer lists',
+    changes: [
+      'WHEN A NEW VERSION IS OUT, THE YELLOW BANNER NOW HAS "⟳ UPDATE NOW". It reloads into the new version and clears what screens have remembered, but keeps the machine and customer lists stored for offline search. A new release therefore costs nobody a 20,000-machine download.',
+      '🧹 CLEAR CACHE AND UPDATE NO LONGER RE-DOWNLOADS THOSE LISTS EITHER. It is still there for when the app looks stuck. To fetch the machine and customer lists afresh, press Download again under the title of Product & Party Search, Product Database or Request Call Registration.',
+      'The lists still refresh on their own every six hours, after a Product Database or Party Master upload, and after a customer is edited. If a release ever changes what the lists hold, every device re-downloads them once, automatically.',
+      'Administrators: Device Cache Status shows which app version each device is on, so you can see who has updated.',
+    ],
+  },
+  {
     version: '0.9.388',
     date: '2026-09-29',
     title: 'Device Cache Status: see which phones and laptops can search offline (needs one SQL file)',

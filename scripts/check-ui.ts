@@ -9186,7 +9186,15 @@ console.log('-- the machine register is searched on the device --');
   eq('signing out wipes the copy', /export async function sbSignOut[\s\S]{0,200}await clearMachineRegister\(\)/.test(sbx), true);
   const lay = rd('src/components/layout/Layout.tsx');
   eq('the shell starts the download once somebody is signed in', /if \(user && supabaseConfigured\(\)\) watchMachineRegister\(\)/.test(lay), true);
-  eq('Clear Cache and Update RE-DOWNLOADS rather than wiping it', /requestMachineRefresh\(\)/.test(lay) && !/clearMachineRegister/.test(lay), true);
+  // A RELEASE MUST NOT COST A DOWNLOAD (2026-09-29): Clear Cache and Update
+  // neither wipes nor re-downloads the offline registers, and the new-version
+  // banner offers a plain reload.
+  eq('Clear Cache and Update leaves the offline registers alone',
+    !/requestMachineRefresh|clearMachineRegister|refreshMachineRegister/.test(lay), true);
+  eq('the new-version banner offers Update now, which leaves the offline registers alone',
+    /onClick=\{updateNow\}/.test(lay) && /const updateNow = \(\) => \{(?:(?!MachineRegister|indexedDB|rithi\.master)[\s\S])*?\n  \};/.test(lay), true);
+  eq('...and still clears the screens\' remembered lists, as Clear Cache does',
+    /const updateNow = \(\) => \{[\s\S]{0,300}rithi\.cache\.[\s\S]{0,60}rithi\.sync\./.test(lay), true);
   const store = rd('src/lib/machinestore.ts');
   eq('only a COMPLETE download replaces the copy', /if \(!r\.complete\) \{[\s\S]{0,200}return;\s*\}[\s\S]*st\.put\(/.test(store), true);
   eq('...and it is refreshed every six hours', /MACHINE_REFRESH_MS = 6 \* 60 \* 60 \* 1000/.test(store), true);
