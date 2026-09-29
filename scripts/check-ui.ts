@@ -2284,7 +2284,7 @@ console.log('\n-- the Standard Complaint is searched, not scrolled --');
 
   // The row's own value survives a master that no longer lists it.
   eq('a complaint off the master is still offered',
-    /withCurrent\(complaintMaster\.values, it\.standardComplaint\)/.test(rq), true);
+    /withCurrent\(complaintMaster\.forProduct\(it\.product\), it\.standardComplaint\)/.test(rq), true);
 
   // SERIAL TOO (2026-09-09), and since 2026-09-11 the serial is the MACHINE
   // PICKER: it searches across every customer and fetches the customer with the
@@ -9412,6 +9412,24 @@ console.log('-- the Standard Complaint master maps products --');
   eq('only the complaint list gets the Products field', /const byProduct = list\.key === 'complaint';/.test(mlt), true);
   eq('...chosen with the multi-select, empty meaning all products', /<MultiPick[^>]*allLabel="All products"/.test(mlt), true);
   eq('...and saving it keeps the rest of the entry', /const extra = \{ \.\.\.\(item\.extra \?\? \{\}\), products \}/.test(mlt), true);
+}
+
+// EVERY COMPLAINT PICKER FOLLOWS THE CALL'S PRODUCT (2026-09-29): "filter
+// complaints by the call's product + Complaints that are applicable for all
+// Products". A picker still reading the plain list would offer everything.
+console.log('-- every Standard Complaint picker follows the product --');
+{
+  const r = (f: string) => readFileSync(f, 'utf8');
+  const cf = r('src/modules/callFields.tsx');
+  eq('the shared call form filters by the form\'s product',
+    /complaintMaster\.forProduct\(String\(values\.productName \?\? ''\)\)\.map/.test(cf), true);
+  eq('...and its suggestion chips offer only what the list offers', /allowed=\{complaintMaster\.forProduct\(/.test(cf), true);
+  eq('the Call Request filters per call row', /complaintMaster\.forProduct\(it\.product\)/.test(r('src/modules/RequestCallRegistration.tsx')), true);
+  eq('visit reporting filters by the call\'s product', /complaintList\.forProduct\(String\(call\?\.productName/.test(r('src/modules/CallReporting.tsx')), true);
+  for (const f of ['src/modules/callFields.tsx', 'src/modules/RequestCallRegistration.tsx', 'src/modules/CallReporting.tsx'])
+    eq(`${f} no longer reads the unfiltered complaint list`, /useMaster\('complaint'\)/.test(r(f)), false);
+  eq('the machine-listed-twice note is for administrators only',
+    /admin && s\.duplicates/.test(r('src/components/machine/MachineRegisterNote.tsx')), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

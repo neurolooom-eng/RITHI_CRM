@@ -35,7 +35,9 @@ export interface FieldDef {
   required?: boolean;
   placeholder?: string;
   help?: string;
-  options?: FieldOption[] | (() => FieldOption[]);
+  /** A function is given the form's CURRENT values, so a list can follow
+   *  another field -- the Standard Complaint follows the Product. */
+  options?: FieldOption[] | ((values: Record<string, unknown>) => FieldOption[]);
   span?: 1 | 2; // grid columns
   section?: string;
   defaultValue?: unknown;
@@ -94,8 +96,8 @@ interface FormProps {
   emphasisSections?: string[];
 }
 
-const resolveOptions = (f: FieldDef): FieldOption[] =>
-  typeof f.options === 'function' ? f.options() : (f.options ?? []);
+const resolveOptions = (f: FieldDef, values: Record<string, unknown> = {}): FieldOption[] =>
+  typeof f.options === 'function' ? f.options(values) : (f.options ?? []);
 
 function defaultFor(f: FieldDef): unknown {
   if (f.defaultValue !== undefined) return f.defaultValue;
@@ -276,6 +278,7 @@ export function SchemaForm({
                     onChange={(v) => setValue(f.name, v)}
                     error={!!err}
                     readOnly={ro}
+                    values={values}
                   />
                   {f.help && !err && <div className="field-help">{f.help}</div>}
                   {err && <div className="field-err">{err}</div>}
@@ -315,12 +318,14 @@ function FieldControl({
   onChange,
   error,
   readOnly,
+  values,
 }: {
   field: FieldDef;
   value: unknown;
   onChange: (v: unknown) => void;
   error: boolean;
   readOnly?: boolean;
+  values?: Record<string, unknown>;
 }) {
   const cls = `input ${error ? 'input-error' : ''}`;
   const common = { disabled: readOnly };
@@ -349,7 +354,7 @@ function FieldControl({
       // still two things you click. And free text is OFF unless the field asks
       // for it: an option list comes from a master, and a typed value is a
       // master entry that does not exist.
-      const opts = resolveOptions(field);
+      const opts = resolveOptions(field, values);
       const cur = String(value ?? '');
       // A prefilled value (e.g. mapped from Product Database) stays selectable
       // even when it is not one of the configured options, or opening a record

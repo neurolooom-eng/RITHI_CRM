@@ -1,3 +1,4 @@
+import { useComplaints } from '../lib/useComplaints';
 import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
@@ -392,7 +393,8 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
   const [engineer, setEngineer] = useState('');
   useEffect(() => { if (!engineer && user?.fullName) setEngineer(user.fullName); }, [user?.fullName, engineer]);
   const callTypeMaster = useMaster('calltype', ['FIELD', 'INSTALLATION CALL']);
-  const complaintMaster = useMaster('complaint');
+  // Per call row: that row's product's complaints plus the all-products ones.
+  const complaintMaster = useComplaints();
   const productMaster = useMaster('product');
 
   const [f, setF] = useState<Form>(blank);
@@ -981,10 +983,10 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                     : (
                       <PickList
                         value={it.standardComplaint}
-                        options={withCurrent(complaintMaster.values, it.standardComplaint)}
+                        options={withCurrent(complaintMaster.forProduct(it.product), it.standardComplaint)}
                         onPick={(v) => setItem(i, 'standardComplaint', v)}
-                        disabled={!complaintMaster.values.length && !it.standardComplaint}
-                        placeholder={complaintMaster.values.length ? '— pick the standard complaint —'
+                        disabled={!complaintMaster.all.length && !it.standardComplaint}
+                        placeholder={complaintMaster.all.length ? '— pick the standard complaint —'
                           : complaintMaster.ready ? '— the Standard Complaint master is empty —'
                           : '— loading the complaints… —'}
                         emptyHint="If it is not here, it needs adding under Masters."

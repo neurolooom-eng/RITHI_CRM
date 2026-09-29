@@ -134,9 +134,17 @@ Also a provision to map the Complaint to all Products."*
   `check:paging` + `check:ui` pin it. No migration: `extra` is jsonb, and the
   masters unique key reads `extra->>'product'` (singular), so a mapping never
   splits one complaint into several rows.
-- ⏳ **ASKED, NOT BUILT: should the Standard Complaint picker on the call
-  forms offer only the complaints mapped to the call's product?** The mapping
-  does nothing on the forms until that is decided.
+- ✅ **0.9.395 — the pickers follow the product.** The user: *"Yes, filter
+  complaints by the call's product + Complaints that are applicable for all
+  Products"*, then *"Since this is also related to Call Request, make this
+  offline."* `useComplaints()` (one hook) over a `complaintProducts` dropdown
+  list (one encoded string per complaint, through the ordinary masters cache,
+  trusted six hours like `product`). Wired into callFields (Field / Installation
+  / PM / Pending Registrations and their edit drawers -- `FieldDef.options` may
+  now be a function of the form's values), the Call Request (per row), and
+  Call Reporting; `ComplaintSuggest` takes `allowed`. A current value off the
+  list is still shown. The "listed twice" note is admin-only.
+  ⏳ Submitting a request still needs a signal -- there is no offline outbox.
 - ✅ **0.9.391 — the mapping by upload.** The user: *"If I re-upload masters
   with Product Details, will it update?"* It would have, badly: a file with no
   Products column replaced `extra` wholesale and reset every mapping to All,

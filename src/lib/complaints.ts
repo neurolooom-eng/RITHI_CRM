@@ -163,3 +163,35 @@ export function planComplaintKeys(
   ].filter(Boolean);
   return { rows: [...out.values()], note: bits.join('; ') + '.' };
 }
+
+// ---- the dropdown on a call: this product's complaints + the all-products ones
+// The user, 2026-09-29: "filter complaints by the call's product + Complaints
+// that are applicable for all Products".
+//
+// Carried through the dropdown cache (masters.ts) as ONE STRING PER COMPLAINT,
+// "<name><TAB><product><US><product>...", because that cache stores a list of
+// strings -- and reusing it keeps the list on the device for offline use
+// exactly like every other dropdown. No tab or unit separator can occur in a
+// complaint or product name typed into this application.
+const SEP = '\t', PSEP = '\u001f';
+export function encodeComplaintEntry(value: string, extra: unknown): string {
+  return `${value}${SEP}${complaintProducts(extra).join(PSEP)}`;
+}
+export function decodeComplaintEntry(s: string): { value: string; products: string[] } {
+  const i = s.indexOf(SEP);
+  if (i < 0) return { value: s, products: [] };
+  const p = s.slice(i + 1);
+  return { value: s.slice(0, i), products: p ? p.split(PSEP) : [] };
+}
+/** The complaints to offer on a call for this product, in the list's order.
+ *  No product chosen yet -> every complaint (nothing is known to narrow by). */
+export function complaintOptionsFor(encoded: string[], product: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const e of encoded) {
+    const { value, products } = decodeComplaintEntry(e);
+    if (!value || seen.has(value)) continue;
+    if (complaintAppliesTo({ products }, product)) { seen.add(value); out.push(value); }
+  }
+  return out;
+}

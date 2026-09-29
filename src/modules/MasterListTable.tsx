@@ -63,7 +63,12 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list.key]);
 
-  const reload = async () => { clearMasterCache(list.key); await load(); };
+  const reload = async () => {
+    clearMasterCache(list.key);
+    // The call forms read the complaints WITH their products under their own name.
+    if (list.key === 'complaint') clearMasterCache('complaintProducts');
+    await load();
+  };
 
   const add = async () => {
     const value = (draft.value ?? '').trim();
@@ -107,6 +112,7 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
     if (r.ok) {
       setEditing(null);
       clearMasterCache(list.key);
+      clearMasterCache('complaintProducts');
       await load();
       setMsg({ tone: 'ok', text: `“${item.value}” now applies to ${products.length ? products.join(', ') : 'all products'}.` });
     } else { setMsg({ tone: 'error', text: r.error ?? 'Could not save the products.' }); setBusy(false); }
