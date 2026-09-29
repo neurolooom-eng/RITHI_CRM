@@ -49,7 +49,14 @@ const inflight = new Map<string, Promise<string[]>>();
 const STORE_PREFIX = 'rithi.master.';
 // Bump to abandon every stored list at once — a change in what a list MEANS
 // (its source, its filtering) must not be served from a copy of the old one.
-const STORE_VERSION = 'v2-productParty';
+//
+// v3 (2026-09-29): every device drops its stored lists once. An OLDER BUILD
+// could store a product list cut short by one failed request -- the bug fixed
+// in 0.9.381 -- and newer builds trusted any stored product list for six hours,
+// so a phone that had run the old build kept offering 13 products of 44
+// (reported for RAJU VISHWAKARMA). Bumping this is the one lever that reaches a
+// list already sitting on somebody's phone.
+const STORE_VERSION = 'v3-after-prefix-fix';
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface Stored { v: string; at: number; values: string }

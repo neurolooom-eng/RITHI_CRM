@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.393',
+    date: '2026-09-29',
+    title: 'A short product list stuck on a phone is cleared, and Clear Cache now really clears the dropdowns',
+    changes: [
+      'WHY ONE ENGINEER SAW 13 PRODUCTS INSTEAD OF 44: an older version of the app could store a product list that stopped part-way when one request failed, and newer versions trusted a stored product list for six hours. Every device now throws away its stored dropdown lists once, automatically, when it picks up this version.',
+      'CORRECTION: 🧹 CLEAR CACHE AND UPDATE NEVER CLEARED THE DROPDOWN LISTS (products, customers, complaints and the rest), although version 0.9.382\'s notes said it would fetch a fresh product list. It does now. It still keeps the machine and customer lists stored for offline search, which refresh on their own.',
+      'If a phone does not appear on Device Cache Status, it is running a version older than 0.9.388 — tap Update now on the yellow banner, or Clear Cache and Update.',
+    ],
+  },
+  {
     version: '0.9.392',
     date: '2026-09-29',
     title: 'Standard Complaint upload matches by Key and never renames a complaint',

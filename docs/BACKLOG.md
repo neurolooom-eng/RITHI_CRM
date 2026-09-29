@@ -99,7 +99,16 @@ Also a provision to map the Complaint to all Products."*
   name back on every matched row (by Key, else by name ignoring case), so the
   upsert only ever updates `extra.products`; unknown Keys are held back.
   `check:uploads` +11 (mutation-tested).
-- ⏳ **Reported: "Unable to upload with Product List"** on v0.9.391 (651 rows
+- ✅ **0.9.393 — RAJU's phone offered 13 products of 44** (alphabetical, cut
+  short: the pre-0.9.381 prefix bug), while Device Cache Status showed his only
+  REPORTING device as "Linux · Chrome", v0.9.392, 19,266 machines. So the phone
+  is most likely on an OLD build (<0.9.388 does not report) or holds a list an
+  old build stored -- and 0.9.382 trusted a stored product list for six hours.
+  STORE_VERSION bumped to drop every stored dropdown list once; and
+  forceRefresh now calls clearMasterCache() -- **Clear Cache and Update never
+  cleared `rithi.master.*`**, while 0.9.382's changelog and the in-app help
+  said it fetched a fresh product list. That claim was false for a week.
+- ⏳ **Reported: "Unable to upload with Product List" on v0.9.391 (651 rows
   shaped correctly, the write failed). NOT reproduced: the same upsert as an
   administrator on a database built from every migration succeeds. Waiting for
   the message shown after Upload.
