@@ -601,10 +601,13 @@ typed into a form that reads it.
   that use it but is not offered in pickers.
   > **Editing a part.** **Spare / Consumable** is a list of the four the Item
   > Master uses; a value your file brought that is not one of them still shows
-  > and still saves. **Product** is a multiple choice of **short forms** from
-  > Product Master (ORG, MT75, CPX) — a shared spare fits more than one machine,
-  > and retired lines are offered because a part still fits a machine no longer
-  > sold. Empty means none recorded, not all. Cost is an ordinary field.
+  > and still saves. **Product** is a multiple choice of the **Product Database
+  > names** (ORION-G, VEGA, EXTEND-XT…) — the names a call and a spare request
+  > carry — because a shared spare fits more than one machine. **Empty means
+  > common to all products.** A value the Product Database does not have (for
+  > example an old short form like MTEO from the Item Master file) is kept and
+  > shown in **red with ⚠** so you can replace it; the **⚠ Unrecognised
+  > product** filter lists them all. Cost is an ordinary field.
   > The **code and description together are the part's identity** — every
   > consumption line, hand-stock row, issue, dispatch, transfer and return names
   > the part by `CODE|Description` — so changing either is a **rename**, and the
@@ -612,7 +615,14 @@ typed into a form that reads it.
   > will move before you commit to it, and stock balances come out unchanged.
   > A rename will not merge two parts: if the new name is taken, it is refused.
   > **Adding a part needs four things:** Part code, Description, **Spare /
-  > Consumable** and **Product** (one or more). Purchase cost is optional.
+  > Consumable** and **Product** — one or more products, or tick **Common to
+  > all products**. Purchase cost is optional.
+  > **Filter and bulk edit, as on Standard Complaint:** the Product filter
+  > (a product, Common, or ⚠ Unrecognised) searches the whole catalogue; tick
+  > parts and **Set / Add / Remove products** for all of them at once.
+  > **Main product → Accessories & allied products** (the panel above the
+  > table): one list per product of what is sold with it. Not used yet — the
+  > spare request will use it to offer the parts of both.
   > **Editing** an existing part does not demand them, so an older part with a
   > blank can still be corrected one field at a time.
 - **Party Master** `/parties` — your customers, **who looks after each one**, and

@@ -3240,7 +3240,7 @@ export async function partCodeExists(code: string): Promise<boolean> {
 // here as well as on the form, so no other caller can add a part without them.
 export async function addPart(
   code: string, description: string,
-  more: { category: string; product: string; purchase_cost?: number | null } = { category: '', product: '' },
+  more: { category: string; product: string; purchase_cost?: number | null; common?: boolean } = { category: '', product: '' },
 ): Promise<{ ok: boolean; error?: string }> {
   const c = normalisePartCode(code);
   if (!c) return { ok: false, error: 'Give the part code.' };
@@ -3248,11 +3248,13 @@ export async function addPart(
   if (!PART_CODE_RE.test(c)) return { ok: false, error: 'Use letters, digits and - _ . / only, starting with a letter or digit.' };
   if (!description.trim()) return { ok: false, error: 'Give the description.' };
   if (!more.category.trim()) return { ok: false, error: 'Choose Spare / Consumable.' };
-  if (!more.product.trim()) return { ok: false, error: 'Choose the product(s) this part is for.' };
+  // Products, or COMMON TO ALL PRODUCTS (stored empty) -- a deliberate choice
+  // either way (2026-09-30: "Empty rows will be treated as common for all").
+  if (!more.common && !more.product.trim()) return { ok: false, error: 'Choose the product(s) this part is for, or tick Common to all products.' };
   if (await partCodeExists(c)) return { ok: false, error: `Part ${c} already exists.` };
   const { error } = await must().from('parts').insert({
     code: c, description: description.trim(), item_detail: composeItemDetail(c, description), active: true,
-    category: more.category.trim(), product: more.product.trim(),
+    category: more.category.trim(), product: more.common ? '' : more.product.trim(),
     ...(more.purchase_cost != null ? { purchase_cost: more.purchase_cost } : {}),
   });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
@@ -3306,7 +3308,7 @@ export async function setPartActive(id: number, active: boolean): Promise<{ ok: 
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
-export interface PartFilter { q?: string; code?: string; description?: string; active?: string }
+export interface PartFilter { q?: string; code?: string; description?: string; active?: string; product?: string }
 export async function queryParts(filter: PartFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
   let q = must().from('parts').select('*').order('code').range(offset, offset + limit - 1);
   if (filter.code) q = q.ilike('code', `%${_san(filter.code)}%`);
@@ -3320,6 +3322,28 @@ export async function queryParts(filter: PartFilter, offset = 0, limit = 1000): 
   const { data, error } = await q;
   if (error) throw new Error(errMsg(error));
   return data ?? [];
+}
+
+/** EVERY part matching the text filters, for a PRODUCT filter (2026-09-30).
+ *  The product is one text column ("VEGA, ORION-G"), so the exact match --
+ *  whole names, "common" = blank, "unrecognised" = a name the Product Database
+ *  lacks -- is made on the client by matchesProductFilter(). Paged to the end:
+ *  a filter over the first thousand parts would answer about a thousand, not
+ *  the catalogue. A named product narrows the read on the server first. */
+export async function queryAllParts(filter: PartFilter, productHint = ''): Promise<Record<string, unknown>[]> {
+  return allRows<Record<string, unknown>>((a, b) => {
+    let q = must().from('parts').select('*').order('code').order('id').range(a, b);
+    if (filter.code) q = q.ilike('code', `%${_san(filter.code)}%`);
+    if (filter.description) q = q.ilike('description', `%${_san(filter.description)}%`);
+    if (filter.active === 'yes') q = q.eq('active', true);
+    if (filter.active === 'no') q = q.eq('active', false);
+    if (filter.q) {
+      const s = _san(filter.q);
+      q = q.or(`code.ilike.%${s}%,description.ilike.%${s}%,item_detail.ilike.%${s}%`);
+    }
+    if (productHint) q = q.ilike('product', `%${_san(productHint)}%`);
+    return q;
+  }, 50000);
 }
 
 // ---- spare requests --------------------------------------------------------
@@ -5868,4 +5892,33 @@ export async function sbDeviceCacheReport(): Promise<DeviceCacheRow[]> {
   const { data, error } = await must().rpc('device_cache_report');
   if (error) throw new Error(errMsg(error));
   return (data ?? []) as DeviceCacheRow[];
+}
+
+// ---------------------------------------------------------------------------
+// MAIN PRODUCT -> ITS ACCESSORIES / ALLIED PRODUCTS (0255), one list per
+// product line, keyed on the Product Database name. The placeholder the spare
+// request's Phase 2 reads; edited on the Part Master screen.
+// ---------------------------------------------------------------------------
+export interface ProductAccessoryRow { id: number; main_product: string; accessories: string[]; note: string; updated_at: string | null }
+export async function listProductAccessories(): Promise<ProductAccessoryRow[]> {
+  const rows = await allRows<Record<string, unknown>>((a, b) => must().from('product_accessories')
+    .select('id,main_product,accessories,note,updated_at').order('main_product').order('id').range(a, b), 5000);
+  return rows.map((r) => ({
+    id: Number(r.id), main_product: String(r.main_product ?? ''),
+    accessories: Array.isArray(r.accessories) ? (r.accessories as unknown[]).map(String) : [],
+    note: String(r.note ?? ''), updated_at: (r.updated_at as string) ?? null,
+  }));
+}
+/** One list per main product: saving again REPLACES that product's list. */
+export async function saveProductAccessories(main: string, accessories: string[], note = ''): Promise<{ ok: boolean; error?: string }> {
+  const m = main.trim();
+  if (!m) return { ok: false, error: 'Choose the main product.' };
+  const list = [...new Set(accessories.map((a) => a.trim()).filter((a) => a && a.toLowerCase() !== m.toLowerCase()))];
+  const { error } = await must().from('product_accessories')
+    .upsert({ main_product: m, accessories: list, note: note.trim() }, { onConflict: 'main_product_key' });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+export async function deleteProductAccessories(id: number): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('product_accessories').delete().eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }

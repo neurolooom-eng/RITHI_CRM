@@ -6560,15 +6560,15 @@ console.log('\n-- Part Master: the category is chosen, the product is many --');
   eq('...and a value the file brought is kept rather than dropped',
     /edit\.category && !PART_CATEGORIES\.includes\(edit\.category\)/.test(pm), true);
 
-  // MANY, because a shared spare fits more than one machine.
-  eq('Product is a multi-select', /<MultiPick\s+values=\{edit\.product\.split\(','\)/.test(pm), true);
-  eq('...from the catalogue\u2019s SHORT FORMS',
-    /shortForms\(v\)/.test(pm) && /options=\{families\}/.test(pm), true);
-  // EMPTY MEANS NONE HERE, NOT ALL. MultiPick's own default is a FILTER's:
-  // empty means every row. On a form that reading is wrong, so the label has to
-  // say so rather than let the control imply it.
-  eq('...and empty reads as none recorded, not as every product',
-    /allLabel="\u2014 none recorded \u2014"/.test(pm), true);
+  // MANY, because a shared spare fits more than one machine -- and since
+  // 2026-09-30 by PRODUCT DATABASE NAME with EMPTY = COMMON TO ALL PRODUCTS (the
+  // user: "Same logic as of Standard Complaint ... Empty rows will be treated
+  // as Common for all Products"), replacing the short forms and "none recorded".
+  eq('Product is a multi-select', /<MultiPick\s+values=\{complaintProducts\(\{ products: edit\.product \}\)\}/.test(pm), true);
+  eq('...of the Product Database\u2019s names, the ones a call and a spare request carry',
+    /useMaster\('product', \[\], live\)/.test(pm) && /\.\.\.productNames/.test(pm), true);
+  eq('...and empty reads as COMMON TO ALL PRODUCTS',
+    /allLabel="\u2014 common to all products \u2014"/.test(pm), true);
 
   const pl = code(readFileSync('src/lib/productLines.ts', 'utf8'));
   eq('the short form is actually selected from the catalogue',
@@ -9442,9 +9442,13 @@ console.log('-- a new part must say Spare/Consumable and Product --');
 {
   const pm = readFileSync('src/modules/PartMaster.tsx', 'utf8');
   const sbx = readFileSync('src/lib/supabase.ts', 'utf8');
-  eq('the Add form refuses a part with no category or product',
-    /if \(!form\.category\.trim\(\)\) return[\s\S]{0,120}if \(!form\.product\.trim\(\)\) return/.test(pm), true);
-  eq('...and addPart() refuses it too', /if \(!more\.category\.trim\(\)\) return[\s\S]{0,160}if \(!more\.product\.trim\(\)\) return/.test(sbx), true);
+  eq('the Add form refuses a part with no category, or no products and not Common',
+    /if \(!form\.category\.trim\(\)\) return[\s\S]{0,300}if \(!form\.common && !form\.product\.trim\(\)\) return/.test(pm), true);
+  eq('...and addPart() refuses it too', /if \(!more\.category\.trim\(\)\) return[\s\S]{0,300}if \(!more\.common && !more\.product\.trim\(\)\) return/.test(sbx), true);
+  eq('the Part Master filters by product (common / unrecognised) over the WHOLE catalogue',
+    /queryAllParts\(filter/.test(pm) && /UNRECOGNISED_FILTER/.test(pm), true);
+  eq('...and bulk-edits products of ticked parts', /selectable=\{mayEdit\}/.test(pm) && /applyBulkProducts\(/.test(pm), true);
+  eq('...and carries the main product -> accessories placeholder', /<ProductAccessories /.test(pm), true);
   eq('...while an edit does not demand them', /const saveEdit[\s\S]{0,600}Choose Spare/.test(pm), false);
 }
 console.log('\n-- the background sync waits for a read in flight (D, the sync/Load more race) --');

@@ -2,12 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PickList } from '../components/ui/PickList';
 import { MultiPick } from '../components/ui/MultiPick';
-import { listProductLines, shortForms } from '../lib/productLines';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, Drawer } from '../components/ui/ui';
 import { csvExport, timeAgo } from '../lib/format';
 import {
-  queryParts, supabaseConfigured, addPart, setPartActive,
+  queryParts, queryAllParts, supabaseConfigured, addPart, setPartActive,
   updatePart, renamePart, partRenameImpact, type PartRenameImpact,
   normalisePartCode, composeItemDetail, PART_CODE_RE, type PartFilter,
 } from '../lib/supabase';
@@ -16,6 +15,12 @@ import { listMaster, dataConfigured } from '../lib/sheets';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { partial } from '../lib/exportscope';
 import { isSysColumn } from '../lib/syscols';
+import { useMaster } from '../lib/masters';
+import {
+  complaintProducts, unrecognisedProducts, matchesProductFilter, applyBulkProducts,
+  ALL_PRODUCTS_FILTER, UNRECOGNISED_FILTER, type BulkProductsMode,
+} from '../lib/complaints';
+import { ProductAccessories } from './ProductAccessories';
 
 // ===========================================================================
 // PART MASTER — live from the ITEM Master rows (Supabase `parts`), the same
@@ -66,7 +71,12 @@ const fromValues = (values: string[]): Row[] =>
 export function PartMaster() {
   const cached = loadCache<Row>(CACHE_KEY);
   const live = supabaseConfigured();
-  const [filter, setFilter] = useState<PartFilter>({ q: '', code: '', description: '', active: '' });
+  const [filter, setFilter] = useState<PartFilter>({ q: '', code: '', description: '', active: '', product: '' });
+  // THE PRODUCT DATABASE'S NAMES (the user, 2026-09-30: map parts "Same logic
+  // as of Standard Complaint" -- the names a machine, a call and a spare request
+  // carry). EMPTY = COMMON TO ALL PRODUCTS. A value on a part that is not one of
+  // these is kept and FLAGGED, never rewritten ("Keep and flag them").
+  const productNames = useMaster('product', [], live).values;
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
@@ -79,7 +89,7 @@ export function PartMaster() {
     dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load Part Master.' },
   );
   const set = (k: keyof PartFilter, v: string) => setFilter((c) => ({ ...c, [k]: v }));
-  const hasFilter = !!(filter.q || filter.code || filter.description || filter.active);
+  const hasFilter = !!(filter.q || filter.code || filter.description || filter.active || filter.product);
 
   // Force-sync the browse set (no filters) and cache it.
   const refresh = async () => {
@@ -128,6 +138,16 @@ export function PartMaster() {
     const t = window.setTimeout(async () => {
       setBusy(true);
       try {
+        // A PRODUCT FILTER READS THE WHOLE CATALOGUE and matches whole names
+        // here -- the column is one text, so the server can only narrow it.
+        if (filter.product) {
+          const named = filter.product !== ALL_PRODUCTS_FILTER && filter.product !== UNRECOGNISED_FILTER;
+          const all = await queryAllParts(filter, named ? filter.product : '');
+          const data = all.filter((p) => matchesProductFilter({ products: String(p.product ?? '') }, filter.product ?? '', productNames));
+          setRows(toRows(data, 0)); setOffset(data.length); setMore(false);
+          setMsg({ tone: 'ok', text: `${data.length} parts matched (live, the whole catalogue).` });
+          return;
+        }
         const data = await queryParts(filter, 0, PAGE);
         setRows(toRows(data, 0)); setOffset(data.length); setMore(data.length === PAGE);
         setMsg({ tone: 'ok', text: `${data.length}${data.length === PAGE ? '+' : ''} parts matched (live).` });
@@ -137,7 +157,7 @@ export function PartMaster() {
     }, 300);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter.q, filter.code, filter.description, filter.active]);
+  }, [filter.q, filter.code, filter.description, filter.active, filter.product]);
 
   const loadMore = async () => {
     setBusy(true);
@@ -175,7 +195,7 @@ export function PartMaster() {
   // the part out of the pickers.
   const { can } = useAuth();
   const mayEdit = can('masters.edit') && live;
-  const [form, setForm] = useState<{ code: string; description: string; category: string; product: string; cost: string } | null>(null);
+  const [form, setForm] = useState<{ code: string; description: string; category: string; product: string; cost: string; common: boolean } | null>(null);
   const [saving, setSaving] = useState(false);
 
   const formProblem = (): string => {
@@ -188,7 +208,9 @@ export function PartMaster() {
     // MANDATORY WHEN CREATING (the user, 2026-09-30); editing an older part
     // with these blank is still allowed.
     if (!form.category.trim()) return 'Choose Spare / Consumable.';
-    if (!form.product.trim()) return 'Choose the product(s) this part is for.';
+    // PRODUCTS, OR "COMMON TO ALL PRODUCTS" -- stored empty, and chosen on
+    // purpose rather than left blank by accident.
+    if (!form.common && !form.product.trim()) return 'Choose the product(s) this part is for, or tick Common to all products.';
     if (form.cost.trim() && !Number.isFinite(Number(form.cost))) return 'Purchase cost must be a number.';
     return '';
   };
@@ -199,7 +221,7 @@ export function PartMaster() {
     if (problem) { setMsg({ tone: 'error', text: problem }); return; }
     setSaving(true);
     const res = await addPart(form.code, form.description, {
-      category: form.category, product: form.product,
+      category: form.category, product: form.common ? '' : form.product, common: form.common,
       purchase_cost: form.cost.trim() === '' ? null : Number(form.cost),
     });
     setSaving(false);
@@ -231,7 +253,6 @@ export function PartMaster() {
   // is a convenience, the current value is always kept (`withCurrent`), and a
   // value the file brought that is not one of these still shows and still saves.
   const PART_CATEGORIES = ['Spare', 'Consumable', 'Product', 'Labour'];
-  const [families, setFamilies] = useState<string[]>([]);
   const [edit, setEdit] = useState<EditForm | null>(null);
   const [impact, setImpact] = useState<PartRenameImpact[] | null>(null);
   const [impactFor, setImpactFor] = useState('');
@@ -252,13 +273,6 @@ export function PartMaster() {
   // WHAT WOULD MOVE, fetched when the drawer opens and not on every keystroke:
   // it is a property of the part being renamed FROM, which does not change
   // while the form is open.
-  // THE PRODUCT FAMILIES, once. Read when the drawer first opens rather than on
-  // mount: most visits to this screen never edit a part, and the catalogue is a
-  // separate table.
-  useEffect(() => {
-    if ((!edit && !form) || !live || families.length) return;
-    void listProductLines().then((v) => setFamilies(shortForms(v))).catch(() => setFamilies([]));
-  }, [edit, form, live, families.length]);
 
   useEffect(() => {
     if (!edit || !live || impactFor === edit.wasDetail) return;
@@ -313,6 +327,36 @@ export function PartMaster() {
     } finally { setSaving(false); }
   };
 
+  // ---- bulk: products of many parts at once (the Standard Complaint's rules,
+  // applyBulkProducts in complaints.ts) ------------------------------------
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [bulkProducts, setBulkProducts] = useState<string[]>([]);
+  const [bulkMode, setBulkMode] = useState<BulkProductsMode>('replace');
+  const applyBulk = async (ids: string[], clear: () => void) => {
+    const targets = rows.filter((r) => ids.includes(r.id));
+    if (!targets.length) return;
+    const what = bulkMode === 'replace'
+      ? (bulkProducts.length ? `fit ONLY ${bulkProducts.join(', ')}` : 'be COMMON to all products')
+      : bulkMode === 'add' ? `also fit ${bulkProducts.join(', ')}` : `no longer fit ${bulkProducts.join(', ')}`;
+    if (!confirm(`${targets.length} part${targets.length === 1 ? '' : 's'} will ${what}. Continue?`)) return;
+    setBusy(true);
+    let done = 0; const failed: string[] = [];
+    try {
+      for (let i = 0; i < targets.length; i += 10) {
+        await Promise.all(targets.slice(i, i + 10).map(async (t) => {
+          const next = applyBulkProducts(complaintProducts({ products: String(t.product ?? '') }), bulkProducts, bulkMode);
+          const r = await updatePart(Number(t.id), { product: next.join(', ') });
+          if (r.ok) done += 1; else failed.push(String(t.code ?? t.id));
+        }));
+      }
+    } finally { setBusy(false); }
+    clear();
+    setMsg(failed.length
+      ? { tone: 'error', text: `${done} updated; ${failed.length} could not be saved: ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''}` }
+      : { tone: 'ok', text: `${done} part${done === 1 ? '' : 's'} updated.` });
+    await refresh();
+  };
+
   const toggleActive = async (r: Row) => {
     const id = Number(r.id);
     const now = r.active !== false;
@@ -333,7 +377,7 @@ export function PartMaster() {
         title="Part Master"
         subtitle="Spare parts catalogue (ITEM Master) — cached locally, synced from the database."
         icon="🔩" count={visible.length}
-        actions={mayEdit && <button className="btn btn-primary" onClick={() => setForm({ code: '', description: '', category: '', product: '', cost: '' })}>＋ Add part</button>}
+        actions={mayEdit && <button className="btn btn-primary" onClick={() => setForm({ code: '', description: '', category: '', product: '', cost: '', common: false })}>＋ Add part</button>}
       />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
@@ -341,8 +385,9 @@ export function PartMaster() {
           <button className="btn btn-ghost btn-sm" onClick={() => setMsg(null)}>✕</button>
         </div>
       )}
+      {live && <ProductAccessories productNames={productNames} mayEdit={mayEdit} />}
       <DataTable<Row>
-        columns={mayEdit ? [...COLUMNS, {
+        columns={((mayEdit ? [...COLUMNS, {
           key: '_act', header: '', width: 190, sortable: false, wrap: false, align: 'center',
           render: (r: Row) => (
             <div className="row" onClick={(e) => e.stopPropagation()}>
@@ -354,7 +399,41 @@ export function PartMaster() {
               </button>
             </div>
           ),
-        }] : COLUMNS}
+        } as Column<Row>] : COLUMNS) as Column<Row>[]).map((c): Column<Row> => (c.key !== 'product' ? c : {
+          ...c, width: 200,
+          // BLANK = COMMON TO ALL PRODUCTS, said in words; a name the Product
+          // Database does not have is flagged so it can be fixed.
+          render: (r: Row) => {
+            const mapped = complaintProducts({ products: String(r.product ?? '') });
+            if (!mapped.length) return <span className="muted">Common (all products)</span>;
+            const bad = new Set(productNames.length ? unrecognisedProducts({ products: mapped }, productNames) : []);
+            return <span>{mapped.map((p, i) => (
+              <span key={p} title={bad.has(p) ? 'Not a Product Database name — replace it' : undefined}
+                style={bad.has(p) ? { color: 'var(--danger, #c00)' } : undefined}>
+                {i ? ', ' : ''}{p}{bad.has(p) ? ' ⚠' : ''}
+              </span>))}</span>;
+          },
+        }))}
+        selectable={mayEdit}
+        selected={picked}
+        onSelectedChange={setPicked}
+        bulkBar={mayEdit ? (ids, clear) => (
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <b>{ids.length} selected</b>
+            <div style={{ minWidth: 150 }}>
+              <SelectPicker value={bulkMode} onChange={(v) => setBulkMode((v || 'replace') as BulkProductsMode)}
+                options={[{ value: 'replace', label: 'Set products to' }, { value: 'add', label: 'Add products' },
+                  { value: 'remove', label: 'Remove products' }]} />
+            </div>
+            <div style={{ minWidth: 220 }}>
+              <MultiPick values={bulkProducts} options={productNames} noun="products"
+                allLabel={bulkMode === 'replace' ? 'Common (all products)' : '— choose products —'} onChange={setBulkProducts} />
+            </div>
+            <button className="btn btn-primary btn-sm"
+              disabled={busy || (bulkMode !== 'replace' && !bulkProducts.length)}
+              onClick={() => void applyBulk(ids, clear)}>Apply to {ids.length}</button>
+          </div>
+        ) : undefined}
         allFields={allFields}
         rows={visible}
         getRowId={(r) => r.id}
@@ -371,6 +450,13 @@ export function PartMaster() {
               <input className="input" placeholder="Search code / description" value={filter.q} onChange={(e) => set('q', e.target.value)} />
               <input className="input" placeholder="Part code" value={filter.code} onChange={(e) => set('code', e.target.value)} />
               <input className="input" placeholder="Description" value={filter.description} onChange={(e) => set('description', e.target.value)} />
+              {live && (
+                <SelectPicker value={filter.product ?? ''} onChange={(v) => set('product', v)}
+                  placeholder="Any product"
+                  options={[{ value: ALL_PRODUCTS_FILTER, label: 'Common (all products)' },
+                    { value: UNRECOGNISED_FILTER, label: '⚠ Unrecognised product' },
+                    ...productNames]} />
+              )}
               {live && (
                 <SelectPicker value={filter.active ?? ''} onChange={(v) => set('active', v)}
                   placeholder="Active & inactive"
@@ -419,16 +505,24 @@ export function PartMaster() {
             </div>
             <div className="field">
               <label className="field-label">Product <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
-              <MultiPick
-                values={form.product.split(',').map((x) => x.trim()).filter(Boolean)}
-                options={families}
-                onChange={(v) => setForm((f) => f && ({ ...f, product: v.join(', ') }))}
-                allLabel="— choose at least one —"
-                noun="products"
-              />
+              <label className="row" style={{ gap: 6, fontSize: 13, margin: '2px 0 6px' }}>
+                <input type="checkbox" checked={form.common}
+                  onChange={(e) => setForm((f) => f && ({ ...f, common: e.target.checked, product: e.target.checked ? '' : f.product }))} />
+                Common to all products
+              </label>
+              {!form.common && (
+                <MultiPick
+                  values={complaintProducts({ products: form.product })}
+                  options={productNames}
+                  onChange={(v) => setForm((f) => f && ({ ...f, product: v.join(', ') }))}
+                  allLabel="— choose at least one —"
+                  noun="products"
+                />
+              )}
               <span className="muted" style={{ fontSize: 12 }}>
-                Which machines this part is for, by their short form. Choose as many as apply.
-                {families.length ? '' : ' (Loading the product list…)'}
+                The machines this part fits, as the Product Database names them. Choose as many as apply,
+                or tick Common to all products.
+                {productNames.length ? '' : ' (Loading the product list…)'}
               </span>
             </div>
             <div className="field">
@@ -540,15 +634,19 @@ export function PartMaster() {
                   reading would be wrong, so the label says what empty means
                   rather than leaving the control's own default to imply it. */}
               <MultiPick
-                values={edit.product.split(',').map((x) => x.trim()).filter(Boolean)}
-                options={families}
+                values={complaintProducts({ products: edit.product })}
+                // A value already on the part that the Product Database does
+                // not have is still offered, so it can be seen and removed.
+                options={[...new Set([...productNames, ...complaintProducts({ products: edit.product })])]}
                 onChange={(v) => setEdit((f) => f && ({ ...f, product: v.join(', ') }))}
-                allLabel="— none recorded —"
+                allLabel="— common to all products —"
                 noun="products"
               />
               <span className="muted" style={{ fontSize: 12 }}>
-                Which machines this part is for, by their short form. Choose as many as apply.
-                {families.length ? '' : ' (Loading the product list…)'}
+                The machines this part fits, as the Product Database names them. None chosen = common to all products.
+                {unrecognisedProducts({ products: edit.product }, productNames).length && productNames.length
+                  ? ` ⚠ Not a Product Database name: ${unrecognisedProducts({ products: edit.product }, productNames).join(', ')} — replace it.` : ''}
+                {productNames.length ? '' : ' (Loading the product list…)'}
               </span>
             </div>
             <div className="field">
