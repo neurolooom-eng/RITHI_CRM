@@ -34,6 +34,11 @@ export const HOUR = 60 * 60 * 1000;
  *  than this. A list not named here is re-read on every load, as before. */
 export const REFRESH_EVERY: Record<string, number> = {
   product: 6 * HOUR,
+  // The Standard Complaints WITH their products, which the Call Request and
+  // every call form filter by (the user, 2026-09-29: "Since this is also
+  // related to Call Request, make this offline"). Edited rarely, and an edit on
+  // the Standard Complaint screen clears this device's copy at once.
+  complaintProducts: 6 * HOUR,
 };
 
 /** True when the stored copy is young enough to use without asking the server. */

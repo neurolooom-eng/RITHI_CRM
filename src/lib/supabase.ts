@@ -73,7 +73,7 @@ export function supabaseConfigured(): boolean {
 import { allRows, distinctValues, PG_PAGE } from './paging';
 import { localMachines, localParties, refreshMachineRegister, refreshPartyRegister, clearMachineRegister } from './machinestore';
 import * as mc from './machinecache';
-import { planComplaintKeys, type ExistingComplaint } from './complaints';
+import { planComplaintKeys, encodeComplaintEntry, type ExistingComplaint } from './complaints';
 import type { LoadedReport, ConvertWrite } from './reportMapping';
 export { allRows, PG_PAGE };
 
@@ -3090,6 +3090,14 @@ export async function listMaster(name: string, limit = 3000): Promise<string[]> 
     return distinctColumn('products', 'item_name');
   }
   if (name === 'spare') return distinctColumn('parts', 'item_detail', { eq: ['active', true] });
+  // THE COMPLAINTS WITH THEIR PRODUCTS, for the call forms' product filter
+  // (complaints.ts). Same rows, same "live values only" rule, one string each.
+  if (name === 'complaintProducts') {
+    const rows = await allRows<Record<string, unknown>>((a, b) => c.from('masters')
+      .select('id,value,extra').in('name', ['complaint', 'standardComplaint']).neq('active', false)
+      .order('value').order('id').range(a, b), 20000);
+    return rows.map((r) => encodeComplaintEntry(String(r.value ?? ''), r.extra)).filter((s) => !s.startsWith('\t'));
+  }
   const names = name === 'complaint' || name === 'standardComplaint' ? ['complaint', 'standardComplaint'] : [name];
   // Pickers only ever offer LIVE values; a deactivated one stays on the records
   // that already carry it but is not offered again.

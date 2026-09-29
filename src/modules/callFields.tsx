@@ -1,3 +1,4 @@
+import { useComplaints } from '../lib/useComplaints';
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
@@ -40,7 +41,9 @@ export function useCallFieldMasters(opts: { newPartyAllowed?: boolean } = {}): {
   // there is nothing in the product register to find them by. Everywhere else
   // the machines are looked up BY this name, so a party that owns none is not
   // an answer.
-  const complaintMaster = useMaster('complaint');
+  // THE COMPLAINTS FOR THE CALL'S PRODUCT, plus the all-products ones
+  // (useComplaints) -- the dropdown and the suggestion chips both follow it.
+  const complaintMaster = useComplaints();
 
   // "Call Allocated To" comes from the User Master, not the demo users: the
   // directory names (user_directory) plus the real login profiles, deduped.
@@ -102,6 +105,7 @@ export function useCallFieldMasters(opts: { newPartyAllowed?: boolean } = {}): {
       current={String(values.standardComplaint ?? '')}
       onPick={(v) => set('standardComplaint', v)}
       onOffer={(l) => { offered.current = l; }}
+      allowed={complaintMaster.forProduct(String(values.productName ?? ''))}
     />
   );
 
@@ -125,13 +129,14 @@ export function useCallFieldMasters(opts: { newPartyAllowed?: boolean } = {}): {
     ...f,
     type: 'select' as const,
     allowFreeText: false,
-    options: complaintMaster.values.map((v) => ({ value: v, label: v })),
+    options: (values: Record<string, unknown>) =>
+      complaintMaster.forProduct(String(values.productName ?? '')).map((v) => ({ value: v, label: v })),
     below: complaintSuggestions,
     // The go-live reset TRUNCATES `masters`, so every value list comes back
     // empty until it is re-loaded — that is what this note is usually telling
     // you. The suggestions below still work either way: they come from past
     // CALLS, not from the master, so they are valid values even when it is bare.
-    help: complaintMaster.values.length ? undefined
+    help: complaintMaster.all.length ? undefined
       : complaintMaster.ready
         ? 'The Standard Complaint master has no values — add them under Masters, or Admin → Bulk Uploads → Master Value Lists. The suggestions below still work: they come from past calls.'
         : 'Loading the Standard Complaint master…',

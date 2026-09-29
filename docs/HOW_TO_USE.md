@@ -676,6 +676,11 @@ typed into a form that reads it.
   > column says. A row without a Key updates the complaint of that name
   > (upper/lower case ignored), or is **added** if the list has no such name. A
   > Key that matches nothing is held back and named.
+  > **On every call form the Standard Complaint list follows the product**: the
+  > complaints mapped to that product plus those mapped to all products. Until a
+  > product is chosen, every complaint is offered. A call that already carries a
+  > complaint keeps it even if it is not on the product's list. The list is kept
+  > on the device, so a Call Request fills it with no signal.
 - **Service Manuals** `/service-manuals` — indexed by product, so a call shows the
   right ones.
 - **QMS Documents** `/qms` — with number and revision.
