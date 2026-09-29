@@ -9447,6 +9447,37 @@ console.log('-- a new part must say Spare/Consumable and Product --');
   eq('...and addPart() refuses it too', /if \(!more\.category\.trim\(\)\) return[\s\S]{0,160}if \(!more\.product\.trim\(\)\) return/.test(sbx), true);
   eq('...while an edit does not demand them', /const saveEdit[\s\S]{0,600}Choose Spare/.test(pm), false);
 }
+console.log('\n-- the background sync waits for a read in flight (D, the sync/Load more race) --');
+{
+  const { startBackgroundSync } = await import('../src/lib/cache');
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  // Busy when the tick falls due: it must not run until the read finishes.
+  let busy = true; let ticks = 0;
+  const stop = startBackgroundSync(() => { ticks += 1; }, () => busy, 20, 10);
+  await sleep(45);
+  eq('a tick that falls due mid-read does not run', ticks, 0);
+  busy = false;
+  await sleep(25);
+  eq('...and runs once the read has finished, not half an hour later', ticks >= 1, true);
+  stop();
+  const after = ticks;
+  await sleep(50);
+  eq('stopping it cancels the timer and any pending retry', ticks, after);
+  // Idle throughout: it ticks on its interval as before.
+  let idle = 0;
+  const stop2 = startBackgroundSync(() => { idle += 1; }, () => false, 15, 5);
+  await sleep(50);
+  stop2();
+  eq('an idle screen still syncs on its interval', idle >= 2, true);
+
+  const mods = readdirSync('src/modules').filter((f) => f.endsWith('.tsx'))
+    .map((f) => [f, readFileSync(`src/modules/${f}`, 'utf8')] as const);
+  eq('no screen runs a bare timer on the sync interval', mods
+    .filter(([, t]) => /setInterval\(.*(SYNC_TTL_MS|30 \* 60 \* 1000)/.test(t)).map(([f]) => f), []);
+  eq('every screen using the background sync gives it the busy flag', mods
+    .filter(([, t]) => /startBackgroundSync\(/.test(t) && !/startBackgroundSync\(.*\(\) => busyRef\.current\)/.test(t))
+    .map(([f]) => f), []);
+}
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

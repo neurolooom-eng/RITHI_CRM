@@ -1,5 +1,5 @@
 import { isMissingTable } from '../lib/dberror';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
@@ -9,7 +9,7 @@ import {
   type MrnLineInput,
 } from '../lib/supabase';
 import { listUsers } from '../lib/sheets';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { useAccessScope, previewScoped } from '../lib/access';
 import { engineerKey, num, partDescription, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
@@ -76,6 +76,9 @@ export function MaterialReturns() {
   const [search, setSearch] = useState('');
   const [engineerFilter, setEngineerFilter] = useState('');
   const [busy, setBusy] = useState(false);
+  // Read by the background sync, which waits while a read is in flight.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
@@ -109,8 +112,8 @@ export function MaterialReturns() {
   useEffect(() => {
     if (onDb && rows.length && !isStale(lastSync)) setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
     else void load();
-    const id = onDb ? window.setInterval(() => void load(), SYNC_TTL_MS) : undefined;
-    return () => { if (id) window.clearInterval(id); };
+    const stop = onDb ? startBackgroundSync(() => void load(), () => busyRef.current) : undefined;
+    return () => stop?.();
     // eslint-disable-next-line
   }, []);
 

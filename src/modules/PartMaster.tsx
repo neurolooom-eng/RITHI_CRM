@@ -13,7 +13,7 @@ import {
 } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { listMaster, dataConfigured } from '../lib/sheets';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { partial } from '../lib/exportscope';
 import { isSysColumn } from '../lib/syscols';
 
@@ -72,6 +72,9 @@ export function PartMaster() {
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [busy, setBusy] = useState(false);
+  // Read by the background sync, which waits while a read is in flight.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load Part Master.' },
   );
@@ -110,8 +113,7 @@ export function PartMaster() {
   // or off; no timer at all while one is set.
   useEffect(() => {
     if (!dataConfigured() || hasFilter) return;
-    const id = window.setInterval(() => { void refresh(); }, SYNC_TTL_MS);
-    return () => window.clearInterval(id);
+    return startBackgroundSync(() => { void refresh(); }, () => busyRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasFilter]);
 

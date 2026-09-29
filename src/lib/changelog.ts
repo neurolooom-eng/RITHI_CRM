@@ -12,13 +12,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.398',
+    version: '0.9.399',
     date: '2026-09-30',
     title: 'Part Master: a new part must say Spare / Consumable and which Product it is for',
     changes: [
       'ADDING A PART NOW ASKS FOR FOUR THINGS: Part code, Description, Spare / Consumable, and Product (choose one or more). The Add part button stays disabled, and says what is missing, until all four are filled. Purchase cost can be entered there too, and is optional.',
       'EDITING IS UNCHANGED: ✎ Edit on any part still changes its code, description, Spare / Consumable, Product and Purchase cost, and an older part with some of these blank can still be saved — so fixing one field never forces you to fill all the others.',
       'Parts loaded through Bulk Uploads (the Item Master file) are not held to this rule, because most of that file has no Spare / Consumable filled in.',
+    ],
+  },
+  {
+    version: '0.9.398',
+    date: '2026-09-30',
+    title: 'Spare Insights counts India\'s days, and the half-hourly refresh no longer fights Load more',
+    changes: [
+      'SPARE INSIGHTS: the date window and the month chart now follow India time. A spare booked between midnight and 5:30 am was counted in the previous day, and on the 1st of a month in the previous month. That no longer happens, whatever the database\'s own clock is set to. Applies itself once merged; nothing to run.',
+      'EVERY REGISTER THAT REFRESHES ITSELF EVERY 30 MINUTES (Spare Requests, Spare Consumption, Hand Stock, Customer Feedback, Material Returns, the Call Registers, Party, Part and Product Masters, the Warranty and Contract Registers, Reports, Audit Log and the rest): if the refresh fell due while you were pressing Load more, the two could overwrite each other and a page could go missing or come back twice, with nothing on screen to say so. The refresh now waits until Load more has finished.',
     ],
   },
   {

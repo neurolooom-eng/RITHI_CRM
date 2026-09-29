@@ -11,7 +11,7 @@ import {
   listEngineerStock, adjustConsumptionQty, type StockRow,
 } from '../lib/supabase';
 import { Drawer } from '../components/ui/ui';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
 import './fieldcalls.css';
@@ -52,6 +52,9 @@ export function SpareConsumption() {
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
+  // Read by the background sync, which waits while a read is in flight.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
   // HOW FAR THE READER HAS GOT, as a ref because the 30-minute sync is
@@ -254,8 +257,8 @@ export function SpareConsumption() {
   useEffect(() => {
     if (onDb && rows.length && !isStale(lastSync)) setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
     else void load();
-    const id = onDb ? window.setInterval(() => void load(), SYNC_TTL_MS) : undefined;
-    return () => { if (id) window.clearInterval(id); };
+    const stop = onDb ? startBackgroundSync(() => void load(), () => busyRef.current) : undefined;
+    return () => stop?.();
     // eslint-disable-next-line
   }, []);
 

@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-26. Batch 5 in v0.9.394 (merged 2026-09-29): 7, 32, 40 fixed; 15, 38, 48 fixed with SQL to run (`objective.sql`, `sales_contracts.sql`, `sys_columns.sql`). Batch 4 (front end) in v0.9.380: 4, 8, 10, 11, 12, 14, 43 fixed, more of 15 and 32; 26 needs a decision. 49–52 fixed in v0.9.379 (SQL to run). Table review done — findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs). R1 built in v0.9.378 and finding 47 fixed in v0.9.377 — the SQL for both (0243; sys_columns.sql) still to be applied. R2–R3 pending._
+_Last updated: 2026-09-30. Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was brought up to date and BASELINED, so the eight "SQL still to run" fixes are live and a merged migration now applies itself. Batch 5 in v0.9.394; batch 4 in v0.9.380; table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
 
 ---
 
@@ -14,16 +14,17 @@ _Last updated: 2026-09-26. Batch 5 in v0.9.394 (merged 2026-09-29): 7, 32, 40 fi
 
 | | Count | Findings |
 | --- | --- | --- |
-| ✅ **Fixed and live** | **31** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 32, 33, 40, 41, 43, 45, 46 |
-| ✅ **Fixed, SQL still to run** | **8** | 47 (v0.9.377, needs 0243); 49, 50, 51, 52 (v0.9.379, need `lockdown.sql` + `sales_contracts.sql`); 15 (`objective.sql`), 38 (`sales_contracts.sql`), 48 (`sys_columns.sql`) — v0.9.394 |
+| ✅ **Fixed and live** | **39** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 32, 33, 38, 40, 41, 43, 45, 46, 47, 48, 49, 50, 51, 52 |
+| ✅ **Fixed, applying itself on merge** | **1** | 13 (0254, v0.9.398): confirm the "Apply database migrations" run after the merge |
 | ◐ **Partly fixed** | **1** | 31 |
-| ⏳ **Open** | **16** | 13, 20, 23, 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56 |
+| ⏳ **Open** | **15** | 20, 23, 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56 |
 | | **56** | |
 
-**Batches 1–3 were front end only.** Finding 47 is the first fix with SQL:
-**apply [`0243_reconciliation_needs_no_visit.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/migrations/0243_reconciliation_needs_no_visit.sql)
-once in the Supabase SQL editor.** Until then the reconciliation form still
-refuses on a call with no visit, but now shows why.
+**SQL is no longer a hand step for new fixes.** On 2026-09-29 the live
+project was brought up to date and baselined (see the log). From here a fix
+with a migration applies itself when it is merged; the "Apply database
+migrations" run for that merge is the record, and it is read before anything
+is called live.
 
 **Also pending: three standing requirements you set on 2026-09-26** (R1–R3,
 below). They apply to every table and every date, not to one finding.
@@ -56,7 +57,6 @@ below). They apply to every table and every date, not to one finding.
 | --- | --- |
 | **40b** | Found while fixing 40: **12 more hand-run files** return more than one grid (`_which_products_are_missing` — added on 2026-09-29 by another session, its grids numbered 0–3 to run one at a time; `_admin_grant_check`, `_dedupe_part_product_keys`, `_load_check`, `_move_blank_status_visits`, `_party_name_normalise`, `_party_search_diagnose`, `_reassign_spare_engineer`, `_registered_by_check`, `_reset_for_production`, `_stray_cover_rows`, `_yearly_consumption_check`; `_why_is_it_empty_2` was only its `set_config` lines, which the check now ignores). `check:ui` now refuses a NEW one and lists these by name. Also `_pm_call_numbers.sql` is still cut off mid-list and marked DO NOT RUN — it needs the rest of YOUR list to finish. |
 | **56** | Filter/sort columns with no index on big registers (feedback paging, call_requests paging, spare line stage, …) — candidates only; confirm with the probe's Full scans rows before adding any. |
-| **13** | Spare Insights' date window is a UTC day, not an IST one (SQL function). |
 
 ### C. Front end, no decision needed
 
@@ -139,8 +139,8 @@ dates are shown and exported, not how they are stored.**
 - **Step 0 — fifteen read-only queries against the live project** (in the
   handoff). Only you can run these. Queries 1, 7, 10 and 13 tell us whether 20,
   31, 35 and 39 have **already** affected live data.
-- **Older than the fixes, and rare:** the 30-minute sync can overlap a Load
-  more already in flight and lose or misplace a page.
+- ~~The 30-minute sync can overlap a Load more already in flight~~ — fixed in
+  batch 6 (v0.9.398).
 - **Ten screens were only pattern-scanned, not read line by line:** Service
   Manuals, QMS Documents, PM Bulk Upload, Solved Without a Report, Tracker,
   User Access, Admin Config, Software Validation, Settings, Version History.
@@ -157,6 +157,30 @@ dates are shown and exported, not how they are stored.**
 
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
+
+### 2026-09-30 — Batch 6 (v0.9.398): 13, and the sync race
+
+- **13 — Spare Insights counts India's days (0254).** The window's bounds and
+  the month grouping name `Asia/Kolkata`, so the answer no longer depends on
+  the database's zone — which is why this needed no answer to `show timezone`.
+  The body is `pg_get_functiondef`'s with three expressions changed (diffed).
+  `spare_insights_ist_window_test` books at 00:10 on 1 Jan, 23:50 on 31 Jan and
+  03:00 on 1 Feb, India time, and asks in UTC, Asia/Kolkata and
+  America/Los_Angeles: January 3, February 4, every time. Without 0254 it reads
+  January as 6 in UTC. `_status.sql` row 197.
+  **The first migration merged since the baseline**, so it is also the first
+  real test of the automatic apply.
+- **D — the background sync no longer races Load more.** Fifteen screens ran a
+  bare 30-minute timer that called the loader whatever else was happening; a
+  tick landing during Load more ran two reads at once, and whichever finished
+  second replaced the other's rows. `startBackgroundSync()` in `cache.ts` now
+  waits while the screen is busy and retries every five seconds, so the
+  refresh is late rather than lost or racing. `check:ui` runs it against
+  real timers (a tick due mid-read does not run, and does run once the read
+  ends; stopping cancels the retry) and refuses a bare timer on the sync
+  interval in any screen — it named all fifteen with the change removed.
+- **The log itself:** the eight "SQL still to run" findings are live (the
+  bundles were run and `_status.sql` read yes on 2026-09-29).
 
 ### 2026-09-29 — `sales_contracts.sql` timed out on the live project ("Failed to fetch (api.supabase.com)")
 - **Cause, measured** on a database with 20,000 sale lines and 4,000 transfers:

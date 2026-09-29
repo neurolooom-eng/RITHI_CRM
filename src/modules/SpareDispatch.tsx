@@ -8,7 +8,7 @@ import {
   listPendingDispatch, dispatchSpareLines, dropSpareLines, supabaseConfigured,
   listStockOutLines,
 } from '../lib/supabase';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
 import { seesEveryRecord } from '../lib/rbac';
@@ -81,6 +81,9 @@ export function SpareDispatch() {
   const [params] = useSearchParams();
   const [search, setSearch] = useState(params.get('engineer') ?? '');
   const [busy, setBusy] = useState(false);
+  // Read by the background sync, which waits while a read is in flight.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const [confirming, setConfirming] = useState(false);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
@@ -119,8 +122,8 @@ export function SpareDispatch() {
   useEffect(() => {
     if (onDb && lines.length && !isStale(lastSync)) setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
     else void load();
-    const id = onDb ? window.setInterval(() => void load(), SYNC_TTL_MS) : undefined;
-    return () => { if (id) window.clearInterval(id); };
+    const stop = onDb ? startBackgroundSync(() => void load(), () => busyRef.current) : undefined;
+    return () => stop?.();
     // eslint-disable-next-line
   }, []);
 
