@@ -688,15 +688,16 @@ typed into a form that reads it.
   > administrator, and the save is refused rather than half-applied. And a role
   > that is not on **Roles & Permissions** grants nothing: if you mean a new
   > role, add it there first.
-  > **CORRECTING SOMEBODY'S NAME.** Managers are matched by NAME, so everybody
-  > who names this person as Reporting or Regional Manager follows the new name
-  > in the same save — the screen says how many before you save. Two cases move
-  > nobody: another row with the same old name (correct those managers by
-  > hand), and a change of capital letters only. **What does not move** is work
-  > already filed under the old name — calls allotted to it, spare requests,
-  > consumption and hand stock. Those calls stop showing to the person and
-  > their manager under the new name, and the hand stock stays under the old
-  > one.
+  > **CORRECTING SOMEBODY'S NAME.** People are matched by NAME, so the save
+  > moves everything to the new name: everybody who names this person as
+  > Reporting or Regional Manager, and everything filed under the old name —
+  > calls allotted to it, call requests, spare requests, consumption, hand stock
+  > and stock transfers, and the Service Engineer on the Party Master and
+  > Product Database. The screen says how many team members move before you
+  > save. **What is not changed**: who approved, dispatched or recorded
+  > something keeps the name it was signed with. Two cases move nothing:
+  > another row with the same old name (correct those by hand), and a change of
+  > capital letters only. Only an administrator can change a name.
   > **One person, one row.** Where two rows share an email the role still
   > applies, but the name stops following, because there is no way to tell which
   > of the two is theirs.

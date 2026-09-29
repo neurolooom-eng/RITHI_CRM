@@ -170,6 +170,40 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-09-30 — 23, second half: a rename carries the person's records (v0.10.2, on the branch)
+- **0259** (`user_directory`): when a User Master name changes, 16 columns follow it, each matched as its own read policy matches (lower, trimmed):
+  - calls: `allocated_to` on field, installation and PM calls;
+  - `call_requests` and `pending_registrations`;
+  - `spare_requests` and `spare_dispatches`;
+  - consumption and consumption history;
+  - opening stock, issue history, MRNs, and both sides of a stock transfer;
+  - the Service Engineer on `parties` and `products`. These are included because a new call's Allocated To is filled from the customer's Service Engineer, so a stale name there hides every new call.
+- **Not changed, on purpose:** signatures (`rm_by`, `dispatched_by`, `received_by`, `recorded_by`), a visit report's and a feedback's engineer, the sale's engineer, and `spare_request_engineer_log`.
+- **Same limits as 0257:** nothing moves for a blank old name, a change of case or spacing only, or an old name another row still holds.
+- **Four guards refused or reacted to exactly this change:**
+  - consumption engineer;
+  - the engineer of a dispatched request;
+  - an answered call request (frozen);
+  - "Call allotted to you".
+- **How they let it through:** each now admits only THIS rename, recognised by a per-transaction ticket in the `rename_part()` pattern. The ticket table has RLS on, no policy and no grants, so it cannot be forged; a `set_config` flag could be.
+  - **0260** is in `call_requests`, **0261** in `handstock` and **0262** in `notifications`, each after the migration that owns the previous body, which was taken from the database.
+  - The three bundles declare `engineerRename`, so run alone they say to run `user_directory` first.
+- **Proved** by `directory_rename_carries_records_test`, as a signed-in administrator:
+  - all 16 columns move, including a row spelled " eng old ";
+  - no allotment notice is sent;
+  - the manager still sees all three calls;
+  - hand stock is one balance of the same size under the new name;
+  - another engineer's rows and `recorded_by` are untouched;
+  - outside a rename the three guards still refuse;
+  - no ticket is left, and none can be written by a signed-in user;
+  - a duplicate old name moves nothing.
+- **It fails without its migrations.** With 0259 alone and no guard changes, the SAVE ITSELF is refused ("This request is already Registered — Engineer cannot be changed"), so the four must ship together, and they do.
+- `_status.sql` rows 202–203 read NO, NO without them; yes, NO with 0259 alone; yes, yes with all four.
+- **Also:** the ticket table gets the five system columns through `sys_columns_attach()`, because it is created after 0244. The first validation run caught it (row 187, `sys_columns_test`).
+- **validate:** 113/113 suites, 22/22 checks.
+- **Measured:** renaming an engineer with 3,000 calls, 2,000 customers and 1,000 opening lines, among 23,000 / 20,000 / 20,000, took 0.52 s.
+- **Not verified:** live data. A legacy row that a table's own insert guard would now refuse (for example an opening balance or issue line with a blank source) would make the rename refuse loudly, not skip silently.
+
 ### 2026-09-30 — Batch 7 (v0.10.2): 20, 23, 31 — on the branch, NOT merged
 - **Your decisions**, asked and answered the same day:
   - **20:** hold any other word for the approver.
@@ -184,7 +218,7 @@ checked.
   - Nothing moves when another row keeps the old name, the old name was blank, or only the case changed.
   - Only an Admin can change a name at all (`user_directory_address_guard`), which I found while testing: the handoff assumed "Manage users".
   - User Master shows what will and will not move under the name, and asks before saving, from the drawer and from the table.
-- **Found while doing 23 — a consequence of "leave it":** call visibility also matches the ALLOTTEE's NAME (`can_see_call`, `calls_scoped_read`). So a renamed engineer, and their manager, stop seeing calls allotted to the old name, unless they created them. The on-screen warning says so. My question to you mentioned only hand stock, so this is back with you: re-allot, rename those calls too, or accept it.
+- **Found while doing 23:** call visibility also matches the ALLOTTEE's NAME (`can_see_call`, `calls_scoped_read`). So under "leave it", a renamed engineer and their manager would stop seeing calls allotted to the old name. Put back to you; **your answer (same day): "Rename existing records"** — the entry above.
 - **31 — 0258.** `link_install_call(item, ucn)` writes INST Call and nothing else, for `install.create` or `cover.edit`.
   - It refuses a call number already there, and a UCN that is not an installation call for that product and serial.
   - Not callable by the not-signed-in role.

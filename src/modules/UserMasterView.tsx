@@ -165,13 +165,14 @@ export function UserMasterView() {
 
   useEffect(() => { void load(''); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  // A RENAME, SAID BEFORE IT IS SAVED (finding 23). The reporting tree matches
-  // NAMES, so 0257 moves everybody naming the old name as Reporting or
-  // Regional Manager to the new one in the same save — except when another row
-  // still carries the old name, or only its case changed. What it does NOT
-  // move, by the user's decision (2026-09-30), is work already filed under the
-  // old name, and that is the part somebody needs telling before they press
-  // Save. Compared as the database compares: lower case, not trimmed.
+  // A RENAME, SAID BEFORE IT IS SAVED (finding 23). The reporting tree and
+  // every register match people by NAME, so the save moves (0257) everybody
+  // naming the old name as Reporting or Regional Manager and (0259) the work
+  // filed under it — calls, requests, spares, consumption, hand stock and the
+  // customer's Service Engineer — to the new one, the user's decision of
+  // 2026-09-30. Nothing moves when another row still carries the old name or
+  // only its case changed. Said before Save because it rewrites records in
+  // bulk. Compared as the database compares: lower case.
   const renameNote = (after: DirectoryRow): string => {
     if (!after.id) return '';
     const was = dir.find((x) => x.id === after.id)?.name ?? '';
@@ -180,12 +181,13 @@ export function UserMasterView() {
     const same = (v: string) => String(v ?? '').toLowerCase() === was.toLowerCase();
     const team = dir.filter((x) => x.id !== after.id && (same(x.reporting_manager) || same(x.regional_manager))).length;
     const twin = dir.some((x) => x.id !== after.id && same(x.name));
-    const carry = twin
-      ? `Another User Master row is also called “${was}”, so nobody is moved to the new name — correct their managers by hand.`
-      : team
-        ? `${team} ${team === 1 ? 'person names' : 'people name'} “${was}” as Reporting or Regional Manager; they move to “${now}” when you save.`
-        : `Nobody names “${was}” as their manager.`;
-    return `Renaming “${was}” to “${now}”. ${carry} Work already filed under “${was}” keeps that name — calls allotted to it, spare requests, consumption and hand stock — so those calls stop showing to ${now} and to their manager, and their hand stock stays under “${was}”.`;
+    if (twin) {
+      return `Renaming “${was}” to “${now}”. Another User Master row is also called “${was}”, so NOTHING is moved to the new name — not their team, not the calls or stock filed under “${was}”. Correct those by hand.`;
+    }
+    const carry = team
+      ? `${team} ${team === 1 ? 'person names' : 'people name'} “${was}” as Reporting or Regional Manager; they move to “${now}”.`
+      : `Nobody names “${was}” as their manager.`;
+    return `Renaming “${was}” to “${now}”. ${carry} Everything filed under “${was}” moves to “${now}” too — calls allotted to it, call requests, spare requests, consumption, hand stock and stock transfers, and the Service Engineer on the Party Master and Product Database. Who approved, dispatched or recorded something is not changed.`;
   };
 
   // Write one row, and put its role on the person's sign-in if they have one.

@@ -1433,7 +1433,20 @@ with checks(sort_order, bundle, provides, present) as (
     (201, 'Hotline can map the installation call it raises', 'link_install_call(bigint, text) (0258, finding 31): writes an installation call''s UCN into one warranty machine''s INST Call and nothing else, for install.create or cover.edit. Hotline holds the first and not the second, so the direct write matched zero rows and the button came back offering a second call for the same machine. It refuses to replace a call number and refuses a call that is not this machine''s installation; the not-signed-in role cannot call it. NO means the Warranty register''s "+ Installation call" reports "could not be written back" for Hotline. Restore: sales_contracts.sql',
         (to_regprocedure('public.link_install_call(bigint,text)') is not null
          and not has_function_privilege('anon', to_regprocedure('public.link_install_call(bigint,text)'), 'EXECUTE')
-         and has_function_privilege('authenticated', to_regprocedure('public.link_install_call(bigint,text)'), 'EXECUTE')))
+         and has_function_privilege('authenticated', to_regprocedure('public.link_install_call(bigint,text)'), 'EXECUTE'))),
+    (202, 'A corrected name carries the person''s calls, spares and stock', 'user_directory_carry_rename_records (0259, finding 23, the user''s "Rename existing records"): when a User Master name changes, every record filed under the old name follows it -- calls allotted to it, call requests, spare requests and dispatches, consumption, hand stock, stock transfers, and the Party Master / Product Database Service Engineer -- matched as each register''s read policy matches (lower, trimmed). Before it, the renamed person and their manager stopped seeing those calls and the hand stock split into two balances. It files a ticket the change-of-engineer guards recognise; the row checks the ticket table can be written by nobody else (RLS on, no grant to signed-in users). NO means a rename moves the team but leaves the work behind. Restore: user_directory.sql',
+        (exists (select 1 from pg_trigger t
+                  where t.tgrelid = to_regclass('public.user_directory')
+                    and t.tgname = 'user_directory_carry_rename_records' and not t.tgisinternal)
+         and to_regclass('public.engineer_rename_ticket') is not null
+         and (select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.engineer_rename_ticket'))
+         and not has_table_privilege('authenticated', 'public.engineer_rename_ticket', 'INSERT'))),
+    (203, 'The change-of-engineer guards let a rename through, and nothing else', 'call_request_content_frozen (0260), consumption_adjust_guard and spare_request_engineer_guard (0261) and notify_call_allotted (0262) each ask engineer_rename_in_progress() before refusing a change of engineer, or before sending "Call allotted to you". Without all four a User Master rename is REFUSED outright on anybody with an answered request, a dispatched spare or a consumption line -- or, for the notice, sends one per call. Counted: all four bodies, by name. NO means renaming an engineer fails or floods them with notices. Restore: call_requests.sql, then HandStock_X.sql and notifications.sql',
+        ((select count(*) from pg_proc p
+           where p.pronamespace = 'public'::regnamespace
+             and p.proname in ('call_request_content_frozen', 'consumption_adjust_guard',
+                               'spare_request_engineer_guard', 'notify_call_allotted')
+             and p.prosrc ~ 'engineer_rename_in_progress') = 4))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

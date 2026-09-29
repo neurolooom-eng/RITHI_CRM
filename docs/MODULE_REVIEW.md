@@ -109,7 +109,7 @@ alone — none of them touches anything recorded here, and none of them fixes it
 | 20 | Spare Requests | "Not Approved" reads as **approved** — a refused line reaches the dispatch queue (**measured**) — **FIXED on the branch in batch 7 (v0.10.2, 0256), not yet merged** | High |
 | 21 | Hand Stock · Pending Dispatch | More chips counting one page as if it were the register — **PART-FIXED: every chip and count named, except Pending Dispatch's per-engineer totals (batch 2, v0.9.374)** — **rest FIXED in batch 3 (v0.9.375)** | Medium |
 | 22 | Spare Requests · Spare Consumption · Customer Feedback | The 30-minute auto-sync throws away every page but the first — **FIXED in batch 3 (v0.9.375), on Hand Stock too** | Medium |
-| 23 | User Master | Correcting somebody's name silently empties their team (**measured**) — **FIXED on the branch in batch 7 (v0.10.2, 0257), not yet merged; work filed under the old name keeps it, by decision** | High |
+| 23 | User Master | Correcting somebody's name silently empties their team (**measured**) — **FIXED on the branch in batch 7 (v0.10.2): the team (0257) and the work filed under the old name (0259–0262), not yet merged** | High |
 | 24 | Roles & Permissions | Unticking every box and saving **grants** the role its code defaults (**measured**) — **FIXED on `main` by `1bf248e`** | ~~High~~ |
 | 25 | Stock Out | An exact count over a read that is paged and capped, under a comment saying it is not paged — **FIXED in batch 2 (v0.9.374)** | Medium |
 | 26 | Call Reporting | A visit dated on the form is stored at UTC midnight and reads back at 05:30 (**measured**) | Medium |

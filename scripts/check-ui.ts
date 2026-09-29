@@ -9540,6 +9540,10 @@ console.log('\n-- 23: a rename is said before it is saved --');
   eq('the drawer save asks first', /const save = async \(row: DirectoryRow\) => \{\s*const rename = renameNote\(row\);\s*if \(rename && !confirm\(/.test(um), true);
   eq('the table save asks first', /const renames = changedRows\.map\(\(r\) => renameNote\(drafts\[r\.id\]\)\)/.test(um), true);
   eq('the drawer shows it under the name', /renameNote && <span className="rep-hint" role="alert">/.test(um), true);
+  // "Rename existing records" (the user, 2026-09-30): the note says the work
+  // MOVES now, and no longer that it stays behind.
+  eq('...and says the work filed under the old name moves with it',
+    /Everything filed under “\$\{was\}” moves to “\$\{now\}” too/.test(um) && !/keeps that name/.test(um), true);
 }
 console.log('\n-- 31: whoever may press "+ Installation call" can map it back --');
 {

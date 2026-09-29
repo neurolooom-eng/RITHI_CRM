@@ -12,6 +12,7 @@
 --   0045_notifications.sql
 --   0054_notify_uid_ambiguous.sql
 --   0123_clear_notifications_on_signout.sql
+--   0262_rename_is_not_an_allotment.sql
 --   0122_notifications_replay_tail.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -23,6 +24,9 @@ declare missing text[] := '{}';
 begin
   if to_regclass('public.profiles') is null then
     missing := array_append(missing, 'the profiles table — 0001_init.sql');
+  end if;
+  if to_regprocedure('public.engineer_rename_in_progress(text,text)') is null then
+    missing := array_append(missing, 'engineer_rename_in_progress() — 0259_directory_rename_carries_the_records.sql (apply bundle: user_directory)');
   end if;
   if array_length(missing, 1) is not null then
     raise exception E'Apply these first, then re-run this bundle:\n  - %',
@@ -223,6 +227,44 @@ end $$;
 
 revoke all on function public.clear_my_notifications() from public;
 grant execute on function public.clear_my_notifications() to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0262_rename_is_not_an_allotment.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A RENAME DOES NOT NOTIFY "CALL ALLOTTED TO YOU" (0259, finding 23).
+--
+-- `notify_call_allotted` (0045/0054) writes a notification whenever a call's
+-- allottee changes. 0259 rewrites the allottee on every call filed under a
+-- renamed person's old name, so without this a spelling correction sent them
+-- one "Call allotted to you" per call they already had. Recognised by the
+-- ticket 0259 files for its own transaction. Body taken from the database.
+-- ===========================================================================
+
+create or replace function public.notify_call_allotted()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $$
+declare v_uid uuid;
+begin
+  if coalesce(new.allocated_to, '') = '' then return new; end if;
+  if tg_op = 'UPDATE' and new.allocated_to is not distinct from old.allocated_to then return new; end if;
+  -- A USER MASTER RENAME (0259) is not an allotment: the call was already this
+  -- person's. Without this, correcting a name sent them one notice per call.
+  if tg_op = 'UPDATE' and public.engineer_rename_in_progress(old.allocated_to, new.allocated_to) then return new; end if;
+  v_uid := public.notify_resolve_uid(new.allocated_to_email, new.allocated_to);
+  if v_uid is null then return new; end if;
+  insert into public.notifications (recipient_id, recipient_email, kind, title, body, link)
+  values (v_uid, coalesce(new.allocated_to_email, ''), 'call_allotted',
+          'Call allotted to you',
+          concat_ws(' · ', nullif(coalesce(new.ucn, ''), ''), nullif(coalesce(new.party_name, ''), ''), nullif(coalesce(new.product_name, ''), '')),
+          '/' || case public.call_table_for(new.call_type)
+                   when 'installation' then 'installations' when 'pm' then 'pm-calls' else 'field-calls' end);
+  return new;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0122_notifications_replay_tail.sql

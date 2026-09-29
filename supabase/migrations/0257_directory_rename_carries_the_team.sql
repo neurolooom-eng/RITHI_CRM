@@ -31,10 +31,10 @@
 -- would also rewrite a row naming ' Ravi ', which the tree does NOT count as
 -- Ravi's today, and so WIDEN a team; this migration only keeps one.
 --
--- WHAT IT DOES NOT DO (the user's decision, same day: "Leave it, warn on
--- screen"): records already filed under a person's old name — calls, spare
--- requests, consumption, hand stock — keep that name. User Master says so
--- before the save.
+-- THE RECORDS filed under the old name — calls, requests, spares,
+-- consumption, hand stock — are 0259's, a second trigger: the user first chose
+-- to leave them, then (same day, once told that call visibility is by name
+-- too) "Rename existing records".
 --
 -- SECURITY INVOKER. Only an ADMINISTRATOR can change a name at all —
 -- `user_directory_address_guard` refuses anybody else any column but the
