@@ -47,7 +47,7 @@
 // line where `ps` could see it -- psql takes it through the environment.
 // ===========================================================================
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -198,8 +198,11 @@ if (args.has('--status')) {
     );
     const lines = scrub(out).split('\n');
     const no = lines.filter((l) => / \| NO /.test(l));
-    console.log(no.length ? `${no.length} check(s) read NO:\n${no.join('\n')}\n` : 'Every check reads yes.\n');
-    console.log(lines.join('\n'));
+    // WRITTEN SYNCHRONOUSLY. console.log to a PIPE is asynchronous, and the
+    // process.exit() below ended the first live run with the grid cut off
+    // mid-row -- the NO list above it had flushed, the last rows had not.
+    writeSync(1, (no.length ? `${no.length} check(s) read NO:\n${no.join('\n')}\n\n` : 'Every check reads yes.\n\n')
+      + lines.join('\n') + '\n');
     process.exit(0);
   } catch (e) {
     console.error(scrub(e.stderr || e.message));
