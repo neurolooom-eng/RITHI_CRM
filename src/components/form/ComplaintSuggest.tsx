@@ -28,9 +28,15 @@ interface Props {
   onPick: (value: string) => void;
   // Told what was on offer, so the module can log what was ultimately taken.
   onOffer?: (offered: ComplaintSuggestion[]) => void;
+  /** The complaints the dropdown offers for this product. A suggestion outside
+   *  it is not shown -- a chip must never offer what the list refuses. */
+  allowed?: string[];
 }
 
-export function ComplaintSuggest({ reported, product, current, onPick, onOffer }: Props) {
+export function ComplaintSuggest({ reported, product, current, onPick, onOffer, allowed }: Props) {
+  const allowedRef = useRef<Set<string> | null>(null);
+  allowedRef.current = allowed && allowed.length ? new Set(allowed) : null;
+  const fits = (r: ComplaintSuggestion) => !allowedRef.current || allowedRef.current.has(r.value);
   const [list, setList] = useState<ComplaintSuggestion[]>([]);
   const [busy, setBusy] = useState(false);
   const [aiTried, setAiTried] = useState(false);
@@ -47,7 +53,7 @@ export function ComplaintSuggest({ reported, product, current, onPick, onOffer }
       void (async () => {
         // 1. The register's own evidence — always, and on its own it is enough.
         let rows: ComplaintSuggestion[] = [];
-        try { rows = await sbSuggestComplaints(text, product, 6); } catch { rows = []; }
+        try { rows = (await sbSuggestComplaints(text, product, 6)).filter(fits); } catch { rows = []; }
         if (dead) return;
         setList(rows.slice(0, 3));
         setBusy(false);

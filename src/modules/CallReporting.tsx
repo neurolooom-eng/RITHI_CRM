@@ -1,3 +1,4 @@
+import { useComplaints } from '../lib/useComplaints';
 import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
@@ -118,7 +119,8 @@ export function CallReportDrawer({
   const callType = String(call?.callType ?? call?.['call_type'] ?? '');
   const partyName = String(call?.partyName ?? call?.['party_name'] ?? '');
   const pendingReasons = useMaster('pendingreason');
-  const complaints = useMaster('complaint');
+  // The call's product's complaints plus the all-products ones (useComplaints).
+  const complaintList = useComplaints();
   const ratings = useMaster('feedbackrating', RATINGS_FALLBACK);
 
   const [loading, setLoading] = useState(false);
@@ -535,11 +537,14 @@ export function CallReportDrawer({
           <SelectPicker
             value={val}
             onChange={(v) => setField(f.key, v)}
-            options={val && !complaints.values.includes(val) ? [val, ...complaints.values] : complaints.values}
-            placeholder={complaints.values.length ? '— pick the standard complaint —'
-              : complaints.ready ? '— the Standard Complaint master is empty —'
+            options={(() => {
+              const offered = complaintList.forProduct(String(call?.productName ?? ''));
+              return val && !offered.includes(val) ? [val, ...offered] : offered;
+            })()}
+            placeholder={complaintList.all.length ? '— pick the standard complaint —'
+              : complaintList.ready ? '— the Standard Complaint master is empty —'
               : '— loading the complaints… —'}
-            disabled={!complaints.values.length && !val}
+            disabled={!complaintList.all.length && !val}
             emptyHint="If it is not here, it needs adding under Masters."
           />
         ) : f.kind === 'accessory' ? (

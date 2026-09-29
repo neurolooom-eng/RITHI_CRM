@@ -313,6 +313,23 @@ console.log('-- a Standard Complaint mapped to products --');
     cp.complaintProducts({ product: 'T60' }), []);
 }
 
+console.log('-- the call form offers the product\'s complaints plus the all-products ones --');
+{
+  const enc = [
+    cp.encodeComplaintEntry('NO POWER', {}),
+    cp.encodeComplaintEntry('HIGH PRESSURE', { products: ['VEGA', 'ORION-G'] }),
+    cp.encodeComplaintEntry('BATTERY', { products: ['EXTEND-XT'] }),
+  ];
+  eq('an entry survives the dropdown cache whole', cp.decodeComplaintEntry(enc[1]), { value: 'HIGH PRESSURE', products: ['VEGA', 'ORION-G'] });
+  eq('VEGA is offered its own and the all-products ones', cp.complaintOptionsFor(enc, 'VEGA'), ['NO POWER', 'HIGH PRESSURE']);
+  eq('EXTEND-XT, with a stray space, gets its own too', cp.complaintOptionsFor(enc, 'EXTEND-XT '), ['NO POWER', 'BATTERY']);
+  eq('a product nobody mapped gets only the all-products ones', cp.complaintOptionsFor(enc, 'CESAR'), ['NO POWER']);
+  eq('no product chosen yet: everything', cp.complaintOptionsFor(enc, ''), ['NO POWER', 'HIGH PRESSURE', 'BATTERY']);
+  eq('a plain value (no products part) reads as all products', cp.complaintOptionsFor(['LEGACY'], 'VEGA'), ['LEGACY']);
+  const now = 1_000_000_000_000;
+  eq('the mapped complaint list is served from the device for six hours (offline)', isFresh('complaintProducts', now - 5 * HOUR, now), true);
+}
+
 console.log('-- the device, named for the administrator --');
 {
   const chrome = 'Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';

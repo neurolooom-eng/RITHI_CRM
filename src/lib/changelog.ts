@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.395',
+    date: '2026-09-29',
+    title: 'The Standard Complaint list follows the product — on the Call Request and every call form, offline too',
+    changes: [
+      'PICK THE PRODUCT AND THE STANDARD COMPLAINT LIST SHOWS ONLY WHAT APPLIES: the complaints mapped to that product on the Standard Complaint master, plus the ones mapped to all products. Until a product is chosen, every complaint is offered.',
+      'IT APPLIES EVERYWHERE A STANDARD COMPLAINT IS PICKED: the Call Request (each call row follows its own product), Field / Installation / PM call registration and editing, Pending Registrations, and visit reporting. The suggested complaints under the box follow the same list.',
+      'A call that already carries a complaint keeps it and still shows it, even if that complaint is not mapped to its product.',
+      'OFFLINE: the list is kept on the device and trusted for six hours, so a Call Request fills its complaint list with no signal. A change on the Standard Complaint master shows at once on the device where it was made, and on other devices within six hours (or straight away with Clear Cache and Update).',
+      'The line under the title no longer tells engineers about machines "listed twice" — that note, which names an administrator\'s tool, is shown to administrators only.',
+    ],
+  },
+  {
     version: '0.9.394',
     date: '2026-09-29',
     title: 'Dates in every download are real dates, and a refused call edit says so',
