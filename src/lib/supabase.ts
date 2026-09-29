@@ -73,6 +73,7 @@ export function supabaseConfigured(): boolean {
 import { allRows, distinctValues, PG_PAGE } from './paging';
 import { localMachines, localParties, refreshMachineRegister, refreshPartyRegister, clearMachineRegister } from './machinestore';
 import * as mc from './machinecache';
+import { planComplaintKeys, type ExistingComplaint } from './complaints';
 import type { LoadedReport, ConvertWrite } from './reportMapping';
 export { allRows, PG_PAGE };
 
@@ -4362,10 +4363,29 @@ const IN_CHUNK = 200;   // keeps the request URL well inside every gateway's lim
 
 export async function prepareUpload(
   kind: 'spare-line-parents' | 'stock-transfer-parents' | 'handstock-engineers'
-    | 'consumption-visits',
+    | 'consumption-visits' | 'complaint-keys',
   rows: Record<string, unknown>[],
 ): Promise<{ ok: boolean; note?: string; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+
+  // ---- A STANDARD COMPLAINT IS MATCHED BY ITS KEY, AND NEVER RENAMED -------
+  // (the user, 2026-09-29). The whole list is read -- PAGED, since a complaint
+  // missing from the read would be ADDED again as a new one -- and the rules
+  // live in planComplaintKeys() in complaints.ts, where check:uploads proves
+  // them. Only the read is here.
+  if (kind === 'complaint-keys') {
+    let existing: ExistingComplaint[];
+    try {
+      existing = (await allRows<Record<string, unknown>>((a, b) => c.from('masters')
+        .select('id,name,value,extra').in('name', ['complaint', 'standardComplaint'])
+        .order('id').range(a, b), 20000))
+        .map((r) => ({ id: Number(r.id), name: String(r.name), value: String(r.value ?? ''),
+          extra: (r.extra ?? {}) as Record<string, unknown> }));
+    } catch (e) { return { ok: false, error: `Could not read the Standard Complaint list: ${e instanceof Error ? e.message : String(e)}` }; }
+    const plan = planComplaintKeys(rows, existing);
+    rows.splice(0, rows.length, ...plan.rows);
+    return { ok: true, note: plan.note };
+  }
 
   // ---- A SPARE NEEDS A VISIT, AND THE FILE USUALLY SAYS WHAT IT WAS -------
   //

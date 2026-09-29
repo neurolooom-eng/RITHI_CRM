@@ -8,6 +8,7 @@ import { toDate as coverDate, toTimestamp as coverTs } from '../src/lib/coverImp
 import { toTimestamp as mappingTs, pick } from '../src/lib/reportMapping';
 import { machineKey } from '../src/lib/machine';
 import { parseCSV } from '../src/lib/csv';
+import { planComplaintKeys, KEY_FIELD } from '../src/lib/complaints';
 import { productToCallPrefill, partyToCallPrefill } from '../src/lib/fieldcall';
 
 let fail = 0;
@@ -110,6 +111,39 @@ eq('a list added later needs no code', masterUpload({ key: 'newlist', label: 'Br
   const singular = shapeUpload(sc, [{ 'Complaint Name': 'ALARM A', product: 'VEGA' }]).rows;
   eq('a heading spelled `product` is the mapping, never the DCCR key that would duplicate the complaint',
     [(singular[0].extra as Record<string, unknown>).product, (singular[0].extra as Record<string, unknown>).products], [undefined, ['VEGA']]);
+  // PER KEY, NEVER RENAMED ("Map it per Key -- No need to update the Complaint
+  // Name at any point in time ... if the Complaint Name is absent then add it
+  // as a New Complaint").
+  const existing = [
+    { id: 11, name: 'complaint', value: 'NO POWER', extra: { products: ['VEGA'] } },
+    { id: 12, name: 'standardComplaint', value: 'Alarm - High Pressure', extra: {} },
+    { id: 13, name: 'complaint', value: 'CALIBRATION', extra: { stage: 'X', note: 'keep me' } },
+  ];
+  const keyed = shapeUpload(sc, [
+    { Key: '11', 'Complaint Name': 'NO POWER - EDITED', Products: 'ORION-G' },
+    { Key: '13', 'Complaint Name': 'CALIBRATION', Products: 'All' },
+    { Key: '99', 'Complaint Name': 'GHOST', Products: 'VEGA' },
+    { Key: '', 'Complaint Name': 'alarm - high pressure ', Products: 'VEGA' },
+    { Key: '', 'Complaint Name': 'BRAND NEW', Products: 'VEGA, ORION-G' },
+  ]).rows;
+  eq('the Key is lifted out of the details, never stored as one', (keyed[0].extra as Record<string, unknown>).Key, undefined);
+  eq('...and parked for the planner', keyed[0][KEY_FIELD], 11);
+  const plan = planComplaintKeys(keyed, existing);
+  const by = (v: string) => plan.rows.find((r) => r.value === v);
+  eq('a KEYED row keeps the LIST\'s name -- the file cannot rename a complaint',
+    [by('NO POWER')?.value, !!by('NO POWER - EDITED')], ['NO POWER', false]);
+  eq('...and updates only its products', (by('NO POWER')?.extra as Record<string, unknown>).products, ['ORION-G']);
+  eq('...keeping the rest of the entry (so it stays the SAME entry)',
+    by('CALIBRATION')?.extra, { stage: 'X', note: 'keep me', products: [] });
+  eq('a Key that matches nothing is held back, not added', !!by('GHOST'), false);
+  eq('no Key: matched on the name ignoring case and spaces, stored spelling and list kept',
+    [by('Alarm - High Pressure')?.name, (by('Alarm - High Pressure')?.extra as Record<string, unknown>).products], ['standardComplaint', ['VEGA']]);
+  eq('no Key and a name the list lacks: ADDED as a new complaint', [by('BRAND NEW')?.name, (by('BRAND NEW')?.extra as Record<string, unknown>).products], ['complaint', ['VEGA', 'ORION-G']]);
+  eq('the planner leaves no key behind for the database', plan.rows.some((r) => KEY_FIELD in r), false);
+  eq('it says what it did', /2|3/.test(plan.note) && /Key 99/.test(plan.note) && /NOT changed/.test(plan.note), true);
+  eq('two rows meaning one complaint become one write',
+    planComplaintKeys(shapeUpload(sc, [{ Key: '11', 'Complaint Name': 'x', Products: 'A' }, { 'Complaint Name': 'no power', Products: 'B' }]).rows, existing).rows.length, 1);
+
   eq('another list is untouched: its extra columns still load as before',
     (shapeUpload(ct, [{ 'Call Type': 'FIELD', Products: 'VEGA' }]).rows[0].extra as Record<string, unknown>).Products, 'VEGA');
 }

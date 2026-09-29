@@ -82,8 +82,26 @@ export function parseProductsCell(cell: unknown): string[] {
   return complaintProducts({ products: t.split(/[,;\n]/) });
 }
 
+// THE KEY -- the complaint's own id, which the list's export carries (the user,
+// 2026-09-29: "Map it per Key -- No need to update the Complaint Name at any
+// point in time. It should update only the Product Details; if the Complaint
+// Name is absent then add it as a New Complaint").
+export const KEY_HEADING = /^(complaint\s+)?(key|id)$/i;
+/** Where the shaper parks the key until planComplaintKeys() has used it. It
+ *  is never a column of `masters`, and the planner always removes it. */
+export const KEY_FIELD = '_complaint_key';
+
 /** Applied to each shaped row of a Standard Complaint upload. */
 export function applyProductsFromFile(row: Record<string, unknown>, headers: string[]): void {
+  // The KEY is lifted out first, whatever else the file carries.
+  const ex0 = (row.extra ?? {}) as Record<string, unknown>;
+  for (const k of Object.keys(ex0)) {
+    if (KEY_HEADING.test(k.trim())) {
+      const n = Number(String(ex0[k] ?? '').trim());
+      if (Number.isInteger(n) && n > 0) row[KEY_FIELD] = n;
+      const rest = { ...ex0 }; delete rest[k]; row.extra = rest;
+    }
+  }
   const hasHeading = headers.some((h) => PRODUCTS_HEADING.test(h.trim()));
   if (!hasHeading) { delete row.extra; return; }
   const extra = { ...((row.extra ?? {}) as Record<string, unknown>) };
@@ -92,4 +110,56 @@ export function applyProductsFromFile(row: Record<string, unknown>, headers: str
     if (PRODUCTS_HEADING.test(k.trim())) { cell = extra[k]; delete extra[k]; }
   }
   row.extra = { ...extra, products: parseProductsCell(cell) };
+}
+
+// ---- matching an upload row to the complaint it means ----------------------
+// Pure, so check:uploads can prove it; supabase.ts only reads the list and
+// calls it (the paging.ts reason).
+//
+//   KEY GIVEN   -> that complaint, found by its id. The file's name is IGNORED:
+//                  the stored name is put back on the row, so the upload can
+//                  only ever update the products -- never rename.
+//   KEY UNKNOWN -> held back BY NAME rather than guessed at or added.
+//   NO KEY      -> matched on the name, ignoring case and surrounding spaces,
+//                  and again the STORED spelling is kept; no match -> a NEW
+//                  complaint.
+// Either way an update keeps the rest of the entry's details and replaces
+// only `products`.
+export interface ExistingComplaint { id: number; name: string; value: string; extra: Record<string, unknown> }
+export function planComplaintKeys(
+  rows: Record<string, unknown>[], existing: ExistingComplaint[],
+): { rows: Record<string, unknown>[]; note: string } {
+  const byId = new Map(existing.map((e) => [e.id, e]));
+  const byName = new Map(existing.map((e) => [e.value.trim().toLowerCase(), e]));
+  const unknownKeys: number[] = [];
+  let namesIgnored = 0, added = 0, updated = 0;
+  const out = new Map<string, Record<string, unknown>>();
+  for (const r of rows) {
+    const key = r[KEY_FIELD] as number | undefined;
+    delete r[KEY_FIELD];
+    const ex = key !== undefined ? byId.get(key) : byName.get(String(r.value ?? '').trim().toLowerCase());
+    if (key !== undefined && !ex) { unknownKeys.push(key); continue; }
+    if (ex) {
+      if (String(r.value ?? '').trim() !== ex.value.trim()) namesIgnored += 1;
+      r.name = ex.name;
+      r.value = ex.value;
+      if ('extra' in r) {
+        const keep = { ...(ex.extra ?? {}) }; delete keep.products;
+        r.extra = { ...keep, products: (r.extra as Record<string, unknown>).products ?? [] };
+      }
+      updated += 1;
+    } else {
+      added += 1;
+    }
+    // One write per complaint: two file rows meaning the same one would make
+    // the database refuse the whole batch ("cannot affect row a second time").
+    out.set(`${String(r.name)}|${String(r.value).trim().toLowerCase()}`, r);
+  }
+  const bits = [
+    `${updated} complaint${updated === 1 ? '' : 's'} updated (products only), ${added} added`,
+    namesIgnored ? `${namesIgnored} name${namesIgnored === 1 ? '' : 's'} in the file differ from the list and were NOT changed -- the list's name is kept` : '',
+    unknownKeys.length ? `${unknownKeys.length} row${unknownKeys.length === 1 ? '' : 's'} held back: no complaint has Key ${unknownKeys.slice(0, 8).join(', ')}${unknownKeys.length > 8 ? ' ...' : ''}` : '',
+    rows.length - unknownKeys.length > out.size ? `${rows.length - unknownKeys.length - out.size} repeated row${rows.length - unknownKeys.length - out.size === 1 ? '' : 's'} folded (the last one counts)` : '',
+  ].filter(Boolean);
+  return { rows: [...out.values()], note: bits.join('; ') + '.' };
 }

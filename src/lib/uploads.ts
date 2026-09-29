@@ -133,7 +133,7 @@ export interface UploadDef {
    *  is what "Your role does not have permission for this action." on row 1
    *  was. Prepared here, the upload no longer depends on that at all. */
   prepare?: 'spare-line-parents' | 'stock-transfer-parents' | 'handstock-engineers'
-    | 'consumption-visits';
+    | 'consumption-visits' | 'complaint-keys';
   /** How rows that collide on the DATABASE's key are folded together, where the
    *  key is COMPUTED and the raw columns do not show the collision. Hand stock
    *  is keyed on the part CODE, so two WinMax lines for ACC-081 with different
@@ -1463,9 +1463,9 @@ export function masterUpload(list: { key: string; label: string; value_label?: s
     extraInto: 'extra',
     // STANDARD COMPLAINT: a Products column IS the product mapping, and a file
     // without one leaves every mapping as it is (src/lib/complaints.ts).
-    ...(list.key === 'complaint' ? { finish: applyProductsFromFile } : {}),
+    ...(list.key === 'complaint' ? { finish: applyProductsFromFile, prepare: 'complaint-keys' as const } : {}),
     note: list.key === 'complaint'
-      ? `Loads into the ${list.label} list. The list name is stamped for you. Add a Products column to set which products each complaint applies to — several separated by commas, or blank / "All" for all products. A file WITHOUT a Products column leaves every complaint's products exactly as they are (and keeps no other extra columns).`
+      ? `Loads into the ${list.label} list and NEVER renames a complaint. A row with a Key (from this list's Export CSV) updates that complaint's Products only — the name in the file is ignored. A row without a Key updates the complaint of that name, or is ADDED as a new one if the list has no such name. Products: several separated by commas, or blank / "All" for all products. A file WITHOUT a Products column leaves every complaint's products exactly as they are (and keeps no other extra columns).`
       : `Loads into the ${list.label} list. The list name is stamped for you, so the file only needs its values.`,
     cols: [
       { to: 'value', from: names, required: true },

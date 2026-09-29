@@ -252,10 +252,14 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
             <span className="muted">{visible.length.toLocaleString()} {visible.length === 1 ? 'entry' : 'entries'}</span>
             {items.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport(`${list.key}-master.csv`,
-                [{ key: 'value', header: list.value_label }, ...list.columns.map((c) => ({ key: c.key, header: c.label })),
+                [
+                  // THE KEY, so the file can come back through Bulk Uploads and
+                  // update exactly these complaints (complaints.ts).
+                  ...(byProduct ? [{ key: 'key', header: 'Key' }] : []),
+                  { key: 'value', header: list.value_label }, ...list.columns.map((c) => ({ key: c.key, header: c.label })),
                   ...(byProduct ? [{ key: 'products', header: 'Products' }] : []),
                   { key: 'added_on', header: 'Added On' }, { key: 'added_by', header: 'Added By' }],
-                visible.map((i) => ({ value: i.value, ...i.extra, ...(byProduct ? { products: productsLabel(i.extra) } : {}), added_on: i.added_on ?? '', added_by: i.added_by })), cappedAt(items.length, 5000))}>⭳ Export CSV</button>
+                visible.map((i) => ({ value: i.value, ...i.extra, ...(byProduct ? { key: i.id, products: productsLabel(i.extra) } : {}), added_on: i.added_on ?? '', added_by: i.added_by })), cappedAt(items.length, 5000))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

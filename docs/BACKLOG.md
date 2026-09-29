@@ -91,6 +91,18 @@ Also a provision to map the Complaint to all Products."*
   = all); heading absent → `extra` not sent, so the upsert leaves it alone.
   Other extra columns are not kept on the complaint list. `check:uploads` (5,
   mutation-tested).
+- ✅ **0.9.392 — matched by Key, never renamed.** The user: *"Map it per Key --
+  No need to update the Complaint Name at any point in time. It should update
+  only the Product Details; if the Complaint Name is absent then add it as a
+  New Complaint."* Export carries `Key` (= `masters.id`); `prepare:
+  'complaint-keys'` reads the list and `planComplaintKeys()` puts the STORED
+  name back on every matched row (by Key, else by name ignoring case), so the
+  upsert only ever updates `extra.products`; unknown Keys are held back.
+  `check:uploads` +11 (mutation-tested).
+- ⏳ **Reported: "Unable to upload with Product List"** on v0.9.391 (651 rows
+  shaped correctly, the write failed). NOT reproduced: the same upsert as an
+  administrator on a database built from every migration succeeds. Waiting for
+  the message shown after Upload.
 
 ---
 
