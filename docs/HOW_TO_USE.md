@@ -668,6 +668,20 @@ typed into a form that reads it.
   > regardless.
 - **User Master** `/user-master` — people, roles and the reporting line. A
   manager's team is worked out from here.
+  > **Department** comes from its own list (**Masters → Department** — add the
+  > departments there first), so it is spelled one way everywhere.
+  > **Open a person (the row, or ⋯ → view) for their profile:** Employee Code,
+  > Joining Date, Department, Designation, both managers, Mail ID, their
+  > **Roles & Responsibilities** and their **training**. Employee Code and
+  > Joining Date are private: only the person, their managers, User Master
+  > administrators and whoever holds **Manage training** can see them.
+  > **Roles & Responsibilities:** *＋ Add new R&R*, upload the document (or
+  > paste its Drive link) and give **Effective From** (and **To** if it ends).
+  > Saving a new one **ends the current one the day before** the new From —
+  > nothing is deleted, and *✎ Period* changes either date afterwards.
+  > **Everybody sees their own profile, R&R and training under My Profile**,
+  > and a manager sees their team's there too (*My team → 👤 Profile*). A
+  > trainee confirms a document with **✓ Read & understood**.
   > **DESIGNATION AND ROLE ARE DIFFERENT THINGS, and they often differ.** The
   > **Designation** is the job somebody holds in the company; the **Permission**
   > is what this application lets them do. One person can be a *Regional
@@ -717,6 +731,26 @@ typed into a form that reads it.
 - **Service Manuals** `/service-manuals` — indexed by product, so a call shows the
   right ones.
 - **QMS Documents** `/qms` — with number and revision.
+  > **Adding a document asks who must be trained on it** — roles,
+  > designations, departments, regions or named people (anyone matching any of
+  > them, active on the User Master). Each gets it on their training list.
+  > **The whole Master List at once:** Bulk Uploads → **QMS Documents (Master
+  > List)** — Document No, Title, Revision, Effective Date and the **Drive URL**
+  > of each file. Re-loading a corrected list updates those rows (matched on
+  > Document No + Revision); every other column of your list is kept with the
+  > document. A bulk load assigns no training.
+- **Training** `/training` — who must be trained on what, and where each stands.
+  > **Assign training** picks a QMS document (or types a topic), a due date and
+  > the people. **Record session** is bulk training: topic or document, date,
+  > trainer, method, the attendance sheet / certificates, and each attendee's
+  > Attended, **Pass / Fail**, score and remarks.
+  > **Complete** means attended a session on it, or confirmed **read &
+  > understood** — and a **Fail keeps it open** (*Failed - retrain*) until a
+  > later session is attended without one. Past the due date it reads
+  > *Overdue*. Click a name for that person's full past training, grouped by
+  > topic. Nothing here is ever deleted; a wrong assignment is **cancelled with a
+  > reason**. Open to admin, VP Technical and R&D Engineer (grant **Manage
+  > training** to others on Roles & Permissions).
 
 - **Product Failure Analysis** `/product-failure` — **what fails, and why**,
   across the whole register. The register is a worklist; this is the question it

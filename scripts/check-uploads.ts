@@ -581,7 +581,7 @@ console.log('\n-- a column the register was told it does not want --');
 // 32 since the Product Master (the catalogue of product LINES) joined the
 // Product Database (the machines) — the two are different registers and this
 // number is what catches one being added without a test beside it.
-eq('registers defined', UPLOADS.length, 32);
+eq('registers defined', UPLOADS.length, 33);  // + QMS Master List (0258)
 // THE TWO ARE NOT THE SAME REGISTER, and the names invite confusing them. One
 // is keyed on the MACHINE (model + serial), the other on the product CODE.
 {

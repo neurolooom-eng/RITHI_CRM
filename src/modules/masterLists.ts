@@ -21,6 +21,9 @@ export const MASTER_LISTS: MasterListDef[] = [
   // common to every product. Their own tabs live in the Daily Complaint Review Register.
   { key: 'dccrgrouping', label: 'DCCR Complaint Grouping', icon: '🗂️', valueLabel: 'Complaint Grouping', usedBy: 'Daily Complaint Review Register — Review 3' },
   { key: 'rootcause', label: 'Root Cause Key Word', icon: '🔍', valueLabel: 'Root Cause Key Word', usedBy: 'Daily Complaint Review Register — Review 3' },
+  // 0256: the departments people belong to (the user, 2026-09-30: "will have
+  // to extend this app to other Department"). Starts empty.
+  { key: 'department', label: 'Department', icon: '🏢', valueLabel: 'Department', usedBy: 'User Master — Department; Training — who to train' },
 ];
 
 export const masterListPath = (key: string) => `/masters/${key}`;

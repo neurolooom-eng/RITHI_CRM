@@ -286,10 +286,42 @@ Quality-system documents (SOPs, work instructions, forms) shall be held with the
 
 **FRS-036.** QMS documents are held in the same catalogue under kind = qms with document number, revision and effective date, readable by every signed-in user and maintainable only under `qms.manage` — a right distinct from the one governing service manuals, and enforced in the database so a holder of either cannot move a document onto the other shelf. Withdrawal is by RETIRING the row (active = false): it stops being offered while the record of what was in force is retained. Authorship is stamped by the database and is not editable.
 
+### URS-079 — Roles, responsibilities and training are recorded per person
+
+*Risk: High. Filed here because the requirement declares this screen.*
+
+Each person shall have a record of the Roles & Responsibilities document in force for them, with the period it applies to; a new one shall end the previous one without deleting it. When a controlled QMS document is issued, the people who must be trained on it shall be chosen and the training assigned to each. Training shall be recorded as sessions with the attendees, the trainer, the method, any assessment result and the attendance evidence, or as the person's own acknowledgement of having read the document; a failed assessment shall keep the training open. A person's profile shall list every past training they received, and shall be visible to the person, their managers and those responsible for users and training only.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-093** — Profile, R&R periods and training, bounded by one visibility rule | High | OQ-81 |
+
+**FRS-093.** 0257: `user_profile` (employee code, joining date), `user_rr` (a trigger closes the previous open period the day before the new From), `training_sessions` + `training_attendance` (bulk, Pass/Fail, score, attachments) and `training_assignments` (one per person per document). `training_status` derives Completed = attended without a Fail OR acknowledged with no Fail recorded. Every per-person row is read through `may_see_person()`: the person, their reporting tree, users.manage, training.manage. The trainee acknowledges only their own assignment through `acknowledge_training()`. Nothing is deletable. Proved by `people_training_test`.
+
 **Also governing this screen** — maintained in their own documents:
 
 - **CR-029** — Supporting documents attach to the request and follow it to the call · [full text](CALL_REQUEST_REQUIREMENTS.md)
 - **SR-025** — Documents used in servicing are controlled: current revision, and obsolete revisions prevented from unintended use · [full text](ISO13485_SERVICING.md)
+
+## Training `/training`
+
+Opened by `mod:/training`.
+
+### URS-079 — Roles, responsibilities and training are recorded per person
+
+*Risk: High. Filed here because its own words name this screen.*
+
+Each person shall have a record of the Roles & Responsibilities document in force for them, with the period it applies to; a new one shall end the previous one without deleting it. When a controlled QMS document is issued, the people who must be trained on it shall be chosen and the training assigned to each. Training shall be recorded as sessions with the attendees, the trainer, the method, any assessment result and the attendance evidence, or as the person's own acknowledgement of having read the document; a failed assessment shall keep the training open. A person's profile shall list every past training they received, and shall be visible to the person, their managers and those responsible for users and training only.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-093** — Profile, R&R periods and training, bounded by one visibility rule | High | OQ-81 |
+
+**FRS-093.** 0257: `user_profile` (employee code, joining date), `user_rr` (a trigger closes the previous open period the day before the new From), `training_sessions` + `training_attendance` (bulk, Pass/Fail, score, attachments) and `training_assignments` (one per person per document). `training_status` derives Completed = attended without a Fail OR acknowledged with no Fail recorded. Every per-person row is read through `may_see_person()`: the person, their reporting tree, users.manage, training.manage. The trainee acknowledges only their own assignment through `acknowledge_training()`. Nothing is deletable. Proved by `people_training_test`.
+
+**Also governing this screen** — maintained in their own documents:
+
+- **SR-019** — The training a role requires before productive use is defined and recorded · [full text](ISO13485_SERVICING.md)
 
 # Contracts & Warranty
 
@@ -1664,6 +1696,18 @@ Party, product, part and user master data, and configurable value lists, shall b
 
 **FRS-015.** Party/Product/Part/User masters and value lists are editable by authorised roles; edits are gated by masters.edit, or per value list by master.<list>.edit / master.<list>.delete, and audit-logged where applicable. A value already in use is deactivated, not deleted.
 
+### URS-079 — Roles, responsibilities and training are recorded per person
+
+*Risk: High. Filed here because the requirement declares this screen.*
+
+Each person shall have a record of the Roles & Responsibilities document in force for them, with the period it applies to; a new one shall end the previous one without deleting it. When a controlled QMS document is issued, the people who must be trained on it shall be chosen and the training assigned to each. Training shall be recorded as sessions with the attendees, the trainer, the method, any assessment result and the attendance evidence, or as the person's own acknowledgement of having read the document; a failed assessment shall keep the training open. A person's profile shall list every past training they received, and shall be visible to the person, their managers and those responsible for users and training only.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-093** — Profile, R&R periods and training, bounded by one visibility rule | High | OQ-81 |
+
+**FRS-093.** 0257: `user_profile` (employee code, joining date), `user_rr` (a trigger closes the previous open period the day before the new From), `training_sessions` + `training_attendance` (bulk, Pass/Fail, score, attachments) and `training_assignments` (one per person per document). `training_status` derives Completed = attended without a Fail OR acknowledged with no Fail recorded. Every per-person row is read through `may_see_person()`: the person, their reporting tree, users.manage, training.manage. The trainee acknowledges only their own assignment through `acknowledge_training()`. Nothing is deletable. Proved by `people_training_test`.
+
 ## Part Master `/parts`
 
 Opened by `mod:/parts`.
@@ -2099,7 +2143,6 @@ them under a screen would say something the requirement does not.
 - **SR-016** — Parts are preserved, identified and controlled in the field · [full text](ISO13485_SERVICING.md)
 - **SR-017** — A part removed as defective is controlled as nonconforming material · [full text](ISO13485_SERVICING.md)
 - **SR-018** — Servicing personnel are competent for the product they service, and competence is recorded · [full text](ISO13485_SERVICING.md)
-- **SR-019** — The training a role requires before productive use is defined and recorded · [full text](ISO13485_SERVICING.md)
 - **SR-020** — Monitoring and measuring equipment used to verify a serviced device is identified, calibrated to a traceable standard, and its calibration status is known at the time of use · [full text](ISO13485_SERVICING.md)
 - **SR-021** — Where equipment is found out of calibration, the validity of previous results is assessed and action taken · [full text](ISO13485_SERVICING.md)
 - **SR-022** — Infrastructure maintenance that can affect product quality is planned and recorded, with intervals stated · [full text](ISO13485_SERVICING.md)
@@ -2167,7 +2210,7 @@ text alone.
 
 ## Screens no user requirement governs
 
-**2 of 63.** Each is written down with its reason in
+**2 of 64.** Each is written down with its reason in
 `src/lib/validation.ts` (`MODULES_WITHOUT_REQUIREMENT`), so it is a decision
 somebody made rather than a drift nobody saw — and `check:ui` fails when a
 screen joins this list without one. Neither is a defect on its own; both are
@@ -2180,7 +2223,7 @@ questions for a person.
 
 ---
 
-**78** user requirements · **92** system requirements · **31** call-request · **44** servicing · **88** tests · **5** recorded as non-auditable · **132** of 78 user requirements tied to a module.
+**79** user requirements · **93** system requirements · **31** call-request · **44** servicing · **89** tests · **5** recorded as non-auditable · **135** of 79 user requirements tied to a module.
 ---
 
 ## Non-auditable requirements
@@ -2381,8 +2424,9 @@ not.
 | **URS-068** | **One identified record per machine, assembled from every register that names it** — Every machine the organisation has sold, contracted or recovered shall appear exactly once in a register of machines, identified by its MODEL together with its SERIAL — never by the serial alone, which repeats across models. That record shall be assembled from the warranty sale register, the contract register, the additional entries, the ownership transfer register and the installation call, and shall state for each of the party, the warranty and the contract WHICH register decided it, so the record can be checked against its evidence. Where the registers disagree, the most recently dated evidence shall decide. _(Risk: High.)_ | **FRS-080** | `product_database_v2` (0218) lists every machine named by `warranty_sale_details`, `contract_details` or `product_additional_entries`, keyed by `machine_key(product, serial)` — the SQL twin of `machineKey()` in `src/lib/machine.ts`, squashed so ORION-G and ORION G are one model, and MODEL-plus-SERIAL so the eleven machines numbered 219 stay eleven rows. Ownership Transfer and the installation call are joined in. The party is the most recently DATED claim among the ownership transfer, the additional entry, the contract and the sale, ties breaking towards the transfer. `party_from`, `warranty_from`, `contract_from` and `item_status_reason` name the deciding register on every row. It does not replace `public.products` or `machine_cover`, both of which are left exactly as they are. | **OQ-64** | OQ · One row per machine, assembled from five registers, each value naming its source. Expected: Every machine appears exactly once. The two sharing a serial are TWO rows, not one. The party is the one named by the later contract, and party_from says so. machine_cover merges the same-serial pair into one row, which is the difference this register exists to remove. |
 | **URS-069** | **What a machine is covered by today is derived, not typed** — Whether a machine is inside its warranty, under a maintenance contract, or covered by neither shall be DERIVED from the recorded warranty and contract periods rather than stored as an opinion that ages. A machine inside its warranty is under warranty (WGP) even where a contract also covers it; a labour contract is AMC and a comprehensive contract is CMC; a machine covered by neither is OGP. A contract whose type was never recorded shall be reported as such and shall never be assumed to be either kind. _(Risk: High.)_ | **FRS-081** | `product_database_v2.item_status` is WGP where the warranty period covers today; otherwise `contract_cover_code(type)` where the contract period covers today — labour/labor to AMC, comprehensive/CMC to CMC, anything else returned UNCHANGED rather than bucketed; otherwise OGP. A contract covering today whose type is blank reads `CONTRACT (TYPE NOT RECORDED)`. This differs from `machine_cover` in both directions on purpose: that view asks the contract FIRST (so a machine inside warranty reads as its contract type) and defaults a blank type to CMC (so a labour contract silently reads as comprehensive). | **OQ-65** | OQ · Item status is derived warranty-first and never guesses a contract type. Expected: WGP, AMC, CONTRACT (TYPE NOT RECORDED) and OGP respectively, each with a reason naming the deciding register. machine_cover answers the contract type for the first and CMC for the third, which are the two differences. |
 | **URS-070** | **A warranty starts when the machine was installed** — The warranty period of a machine shall start from the date recorded on its installation — the Warranty Start Date captured when the installation call is reported, or failing that the date that call was solved — and shall fall back to the selling register only where no installation was recorded. The end of the period shall be derived from that start and the recorded period, by the same arithmetic the rest of the application uses. _(Risk: High.)_ | **FRS-082** | Warranty start is the `Warranty Start Date?` answer on the installation call’s feedback, read through `imported_ts()` so a cell holding "n/a" yields nothing rather than failing the whole view; failing that the installation call’s solved date; failing that the additional entry; failing that the warranty sale. Where a start and a period are both known the end is `cover_period_end(start, months)`, which reproduces `addPeriod()` in `src/lib/dates.ts` INCLUDING its JavaScript month overflow — 31 January plus one month is 2 March, where Postgres’s own interval arithmetic clamps to 27 February. 26 of 458 start/period combinations differ between the two. | **OQ-66** | OQ · The warranty starts at the installation and ends by the application’s own arithmetic. Expected: The answered date, then the solved date, then the selling register — warranty_from names which. The end equals start plus period minus a day. "n/a" neither reads as a date nor fails the view. 31 January plus one month is 2 March, matching addPeriod(), where a plain Postgres interval gives 27 February. |
+| **URS-079** | **Roles, responsibilities and training are recorded per person** — Each person shall have a record of the Roles & Responsibilities document in force for them, with the period it applies to; a new one shall end the previous one without deleting it. When a controlled QMS document is issued, the people who must be trained on it shall be chosen and the training assigned to each. Training shall be recorded as sessions with the attendees, the trainer, the method, any assessment result and the attendance evidence, or as the person's own acknowledgement of having read the document; a failed assessment shall keep the training open. A person's profile shall list every past training they received, and shall be visible to the person, their managers and those responsible for users and training only. _(Risk: High.)_ | **FRS-093** | 0257: `user_profile` (employee code, joining date), `user_rr` (a trigger closes the previous open period the day before the new From), `training_sessions` + `training_attendance` (bulk, Pass/Fail, score, attachments) and `training_assignments` (one per person per document). `training_status` derives Completed = attended without a Fail OR acknowledged with no Fail recorded. Every per-person row is read through `may_see_person()`: the person, their reporting tree, users.manage, training.manage. The trainee acknowledges only their own assignment through `acknowledge_training()`. Nothing is deletable. Proved by `people_training_test`. | **OQ-81** | OQ · Profiles, R&R periods and training are recorded, bounded to the right people, and complete only by the agreed rule. Expected: The engineer and manager see the profile, the colleague sees nothing and cannot write; the first R&R ends the day before the second; an inverted period, a second assignment, another person's acknowledgement, a colleague's session and the public key are refused; the Fail reopens and the Pass completes; past training lists both sessions and the acknowledgement; the second Master List load corrects the one row. |
 
-**112** links · **78** user requirements · **92** system requirements · **82** tests · **78** requirements traced end to end, **0** in part, **0** not yet.
+**113** links · **79** user requirements · **93** system requirements · **83** tests · **79** requirements traced end to end, **0** in part, **0** not yet.
 
 **Outside this matrix:** OQ-38, OQ-68, OQ-70, OQ-71, OQ-67, OQ-69 — they prove a
 requirement recorded as NON-AUDITABLE, which sits outside the

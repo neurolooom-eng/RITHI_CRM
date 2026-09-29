@@ -2625,6 +2625,8 @@ export interface DirectoryRow {
   reporting_manager: string; regional_manager: string; region: string;
   role: string; validity: boolean;
   address: string; city: string; state: string; phone: string;
+  /** 0256 -- from the Department master list. */
+  department: string;
 }
 
 const dirRow = (r: Record<string, unknown>): DirectoryRow => ({
@@ -2634,7 +2636,7 @@ const dirRow = (r: Record<string, unknown>): DirectoryRow => ({
   reporting_manager: String(r.reporting_manager ?? ''), regional_manager: String(r.regional_manager ?? ''),
   region: String(r.region ?? ''), role: String(r.role ?? ''), validity: r.validity !== false,
   address: String(r.address ?? ''), city: String(r.city ?? ''), state: String(r.state ?? ''),
-  phone: String(r.phone ?? ''),
+  phone: String(r.phone ?? ''), department: String(r.department ?? ''),
 });
 
 export async function listDirectory(cap = 5000): Promise<DirectoryRow[]> {
@@ -5036,10 +5038,12 @@ export async function serviceManualsForProduct(
   return rows.filter((r) => manualMatchesCall(r, { product, complaint, reported }));
 }
 
-export async function addDocument(d: DocInput): Promise<{ ok: boolean; error?: string }> {
+export async function addDocument(d: DocInput): Promise<{ ok: boolean; id?: number; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
-  const { error } = await c.from('documents').insert(d);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // The new id comes back so training on the document can be assigned at once
+  // (0257: the audience is chosen AT UPLOAD).
+  const { data, error } = await c.from('documents').insert(d).select('id').single();
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, id: data ? Number(data.id) : undefined };
 }
 export async function updateDocument(id: number, patch: Partial<DocInput>): Promise<{ ok: boolean; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };

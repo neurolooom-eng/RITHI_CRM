@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**78 tables · 34 views · 2425 columns · 149 policies · 52 foreign keys.**
+**85 tables · 36 views · 2572 columns · 171 policies · 59 foreign keys.**
 
 ## How to read this
 
@@ -45,6 +45,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [complaint_suggestions](#complaint-suggestions)
 - [contract_entries](#contract-entries)
 - [contract_items](#contract-items)
+- [device_cache_status](#device-cache-status)
 - [documents](#documents)
 - [export_runs](#export-runs)
 - [export_schedules](#export-schedules)
@@ -79,6 +80,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [password_resets](#password-resets)
 - [pending_registrations](#pending-registrations)
 - [pm_calls](#pm-calls)
+- [product_accessories](#product-accessories)
 - [product_additional_entries](#product-additional-entries)
 - [product_database_v2_state](#product-database-v2-state)
 - [product_master](#product-master)
@@ -106,8 +108,13 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [stock_transfer_lines](#stock-transfer-lines)
 - [stock_transfers](#stock-transfers)
 - [tracker_items](#tracker-items)
+- [training_assignments](#training-assignments)
+- [training_attendance](#training-attendance)
+- [training_sessions](#training-sessions)
 - [ucn_counters](#ucn-counters)
 - [user_directory](#user-directory)
+- [user_profile](#user-profile)
+- [user_rr](#user-rr)
 - [user_signatures](#user-signatures)
 - [validation_results](#validation-results)
 
@@ -612,6 +619,51 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ---
 
+## device_cache_status
+
+> One row per person per device: what that device holds of the offline machine register and Party Master, as the device last reported it (0249).
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `user_id` | uuid | **no** | `auth.uid()` |  |
+| 3 | `device_id` | text | **no** |  |  |
+| 4 | `device_label` | text | **no** | `''::text` |  |
+| 5 | `user_agent` | text | **no** | `''::text` |  |
+| 6 | `app_version` | text | **no** | `''::text` |  |
+| 7 | `storage_ok` | boolean | **no** | `true` |  |
+| 8 | `machines` | integer | **no** | `0` |  |
+| 9 | `machines_at` | timestamp with time zone | yes |  |  |
+| 10 | `machines_error` | text | **no** | `''::text` |  |
+| 11 | `customers` | integer | **no** | `0` |  |
+| 12 | `customers_at` | timestamp with time zone | yes |  |  |
+| 13 | `customers_error` | text | **no** | `''::text` |  |
+| 14 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 15 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 16 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 17 | `sys_created_by` | uuid | yes |  |  |
+| 18 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 19 | `sys_updated_by` | uuid | yes |  |  |
+| 20 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 21 | `complaints` | integer | **no** | `0` |  |
+| 22 | `complaints_at` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(device_cache_status_sys_id_key)_ · `user_id, device_id` _(device_cache_status_user_device)_
+
+**Triggers:** `device_cache_status_stamp` → `device_cache_status_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `dcs_insert` | — | `(user_id = auth.uid())` |
+| SELECT | `dcs_read` | `((user_id = auth.uid()) OR has_perm('mod:/device-cache'::text))` | — |
+| UPDATE | `dcs_update` | `(user_id = auth.uid())` | `(user_id = auth.uid())` |
+
+---
+
 ## documents
 
 **Primary key:** `id` · **Row-level security:** **on**
@@ -639,12 +691,16 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 19 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 20 | `sys_updated_by` | uuid | yes |  |  |
 | 21 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 22 | `extra` | jsonb | **no** | `'{}'::jsonb` |  |
+| 23 | `doc_key` | text _(generated)_ | yes |  |  |
 
-**Unique:** `sys_id` _(documents_sys_id_key)_
+**Unique:** `doc_key` _(documents_doc_key_uniq)_ · `sys_id` _(documents_sys_id_key)_
 
 **References:**
 
 - `uploaded_by` → **users**(`id`) · on delete no action _(documents_uploaded_by_fkey)_
+
+**Referenced by:** `training_assignments.document_id` · `training_sessions.document_id`
 
 **Triggers:** `documents_biu` → `documents_before_write()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -1356,8 +1412,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
 - `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
+- `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
 
 **Triggers:** `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -1877,7 +1933,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `parties_write` | `has_perm('masters.edit'::text)` | `has_perm('masters.edit'::text)` |
+| ALL | `parties_write` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` |
 | SELECT | `parties_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -1919,7 +1975,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `parts_write` | `has_perm('masters.edit'::text)` | `has_perm('masters.edit'::text)` |
+| ALL | `parts_write` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` |
 | SELECT | `parts_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -2098,6 +2154,40 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | INSERT | `calls_insert` | — | `has_perm('calls.create'::text)` |
 | SELECT | `calls_scoped_read` | `(( SELECT has_perm('calls.view'::text) AS has_perm) AND (( SELECT can_view_all_calls() AS can_view_all_calls) OR (created_by = ( SELECT auth.uid() AS uid)) OR (actual_created_by = …` | — |
 | UPDATE | `calls_update` | `(( SELECT (has_perm('calls.edit'::text) OR has_perm('calls.report'::text) OR has_perm('calls.allot'::text) OR has_perm('calls.edit.complaint'::text) OR has_perm('calls.edit.custome…` | `(( SELECT (has_perm('calls.edit'::text) OR has_perm('calls.report'::text) OR has_perm('calls.allot'::text) OR has_perm('calls.edit.complaint'::text) OR has_perm('calls.edit.custome…` |
+
+---
+
+## product_accessories
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `main_product` | text | **no** |  |  |
+| 3 | `accessories` | ARRAY | **no** | `'{}'::text[]` |  |
+| 4 | `note` | text | **no** | `''::text` |  |
+| 5 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 6 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 7 | `main_product_key` | text _(generated)_ | yes |  |  |
+| 8 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 9 | `sys_created_by` | uuid | yes |  |  |
+| 10 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 11 | `sys_updated_by` | uuid | yes |  |  |
+| 12 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `main_product_key` _(product_accessories_main_key)_ · `sys_id` _(product_accessories_sys_id_key)_
+
+**Triggers:** `product_accessories_touch` → `product_accessories_touch()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| DELETE | `pa_delete` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` | — |
+| INSERT | `pa_insert` | — | `( SELECT has_perm('masters.edit'::text) AS has_perm)` |
+| SELECT | `pa_read` | `true` | — |
+| UPDATE | `pa_update` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` |
 
 ---
 
@@ -2287,7 +2377,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `products_write` | `has_perm('masters.edit'::text)` | `has_perm('masters.edit'::text)` |
+| ALL | `products_write` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` |
 | SELECT | `products_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -3286,6 +3376,138 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ---
 
+## training_assignments
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `dir_id` | bigint | **no** |  | → user_directory(id) |
+| 3 | `document_id` | bigint | yes |  | → documents(id) |
+| 4 | `topic` | text | **no** |  |  |
+| 5 | `topic_key` | text _(generated)_ | yes |  |  |
+| 6 | `due_date` | date | yes |  |  |
+| 7 | `assigned_by` | uuid | yes | `auth.uid()` |  |
+| 8 | `assigned_by_name` | text | **no** | `''::text` |  |
+| 9 | `assigned_at` | timestamp with time zone | **no** | `now()` |  |
+| 10 | `acknowledged_at` | timestamp with time zone | yes |  |  |
+| 11 | `cancelled` | boolean | **no** | `false` |  |
+| 12 | `cancel_reason` | text | **no** | `''::text` |  |
+| 13 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 14 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 15 | `sys_created_by` | uuid | yes |  |  |
+| 16 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 17 | `sys_updated_by` | uuid | yes |  |  |
+| 18 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `dir_id, topic_key` _(training_assignments_person_topic)_ · `sys_id` _(training_assignments_sys_id_key)_
+
+**References:**
+
+- `dir_id` → **user_directory**(`id`) · on delete no action _(training_assignments_dir_id_fkey)_
+- `document_id` → **documents**(`id`) · on delete no action _(training_assignments_document_id_fkey)_
+
+**Triggers:** `training_assignments_touch` → `training_touch()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `tg_insert` | — | `(( SELECT has_perm('training.manage'::text) AS has_perm) OR ( SELECT has_perm('qms.manage'::text) AS has_perm))` |
+| SELECT | `tg_read` | `may_see_person(dir_id)` | — |
+| UPDATE | `tg_update` | `( SELECT has_perm('training.manage'::text) AS has_perm)` | `( SELECT has_perm('training.manage'::text) AS has_perm)` |
+
+---
+
+## training_attendance
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `session_id` | bigint | **no** |  | → training_sessions(id) |
+| 3 | `dir_id` | bigint | **no** |  | → user_directory(id) |
+| 4 | `attended` | boolean | **no** | `true` |  |
+| 5 | `assessment` | text | **no** | `''::text` | (empty) · Pass · Fail |
+| 6 | `score` | numeric | yes |  |  |
+| 7 | `remarks` | text | **no** | `''::text` |  |
+| 8 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 9 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 10 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 11 | `sys_created_by` | uuid | yes |  |  |
+| 12 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 13 | `sys_updated_by` | uuid | yes |  |  |
+| 14 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `session_id, dir_id` _(training_attendance_session_person)_ · `sys_id` _(training_attendance_sys_id_key)_
+
+**References:**
+
+- `dir_id` → **user_directory**(`id`) · on delete no action _(training_attendance_dir_id_fkey)_
+- `session_id` → **training_sessions**(`id`) · on delete no action _(training_attendance_session_id_fkey)_
+
+**Triggers:** `training_attendance_touch` → `training_touch()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `ta_insert` | — | `( SELECT has_perm('training.manage'::text) AS has_perm)` |
+| SELECT | `ta_read` | `may_see_person(dir_id)` | — |
+| UPDATE | `ta_update` | `( SELECT has_perm('training.manage'::text) AS has_perm)` | `( SELECT has_perm('training.manage'::text) AS has_perm)` |
+
+---
+
+## training_sessions
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `topic` | text | **no** |  |  |
+| 3 | `document_id` | bigint | yes |  | → documents(id) |
+| 4 | `session_date` | date | **no** |  |  |
+| 5 | `trainer` | text | **no** | `''::text` |  |
+| 6 | `method` | text | **no** | `''::text` |  |
+| 7 | `duration_hours` | numeric | yes |  |  |
+| 8 | `notes` | text | **no** | `''::text` |  |
+| 9 | `attachments` | jsonb | **no** | `'[]'::jsonb` |  |
+| 10 | `created_by` | uuid | yes | `auth.uid()` |  |
+| 11 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 12 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 13 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 14 | `sys_created_by` | uuid | yes |  |  |
+| 15 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 16 | `sys_updated_by` | uuid | yes |  |  |
+| 17 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(training_sessions_sys_id_key)_
+
+**References:**
+
+- `document_id` → **documents**(`id`) · on delete no action _(training_sessions_document_id_fkey)_
+
+**Referenced by:** `training_attendance.session_id`
+
+**Constraints:**
+
+- `training_sessions_attachments_array` — `CHECK ((jsonb_typeof(attachments) = 'array'::text))`
+
+**Triggers:** `training_sessions_touch` → `training_touch()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `ts_insert` | — | `( SELECT has_perm('training.manage'::text) AS has_perm)` |
+| SELECT | `ts_read` | `true` | — |
+| UPDATE | `ts_update` | `( SELECT has_perm('training.manage'::text) AS has_perm)` | `( SELECT has_perm('training.manage'::text) AS has_perm)` |
+
+---
+
 ## ucn_counters
 
 **Primary key:** `day, type_letter` · **Row-level security:** **on**
@@ -3328,8 +3550,11 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 18 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 19 | `sys_updated_by` | uuid | yes |  |  |
 | 20 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 21 | `department` | text | **no** | `''::text` |  |
 
 **Unique:** `sys_id` _(user_directory_sys_id_key)_
+
+**Referenced by:** `training_assignments.dir_id` · `training_attendance.dir_id` · `user_profile.dir_id` · `user_rr.dir_id`
 
 **Triggers:** `user_directory_address_guard` → `user_directory_address_guard()` · `user_directory_profile_sync` → `sync_profile_from_user_directory()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3340,6 +3565,87 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | ALL | `ud_write` | `has_perm('users.manage'::text)` | `has_perm('users.manage'::text)` |
 | SELECT | `ud_read` | `(auth.role() = 'authenticated'::text)` | — |
 | UPDATE | `ud_address_update` | `(is_admin() OR has_perm('spare.dispatch'::text))` | `(is_admin() OR has_perm('spare.dispatch'::text))` |
+
+---
+
+## user_profile
+
+**Primary key:** `dir_id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `dir_id` | bigint | **no** |  | → user_directory(id) |
+| 2 | `employee_code` | text | **no** | `''::text` |  |
+| 3 | `joining_date` | date | yes |  |  |
+| 4 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 5 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 6 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 7 | `sys_created_by` | uuid | yes |  |  |
+| 8 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 9 | `sys_updated_by` | uuid | yes |  |  |
+| 10 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `lower(btrim(employee_code))) WHERE (btrim(employee_code) <> ''::text` _(partial)_ _(user_profile_employee_code_uniq)_ · `sys_id` _(user_profile_sys_id_key)_
+
+**References:**
+
+- `dir_id` → **user_directory**(`id`) · on delete cascade _(user_profile_dir_id_fkey)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `up_insert` | — | `( SELECT has_perm('users.manage'::text) AS has_perm)` |
+| SELECT | `up_read` | `may_see_person(dir_id)` | — |
+| UPDATE | `up_update` | `( SELECT has_perm('users.manage'::text) AS has_perm)` | `( SELECT has_perm('users.manage'::text) AS has_perm)` |
+
+---
+
+## user_rr
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `dir_id` | bigint | **no** |  | → user_directory(id) |
+| 3 | `title` | text | **no** | `'Roles & Responsibilities'::text` |  |
+| 4 | `url` | text | **no** |  |  |
+| 5 | `file_name` | text | **no** | `''::text` |  |
+| 6 | `effective_from` | date | **no** |  |  |
+| 7 | `effective_to` | date | yes |  |  |
+| 8 | `notes` | text | **no** | `''::text` |  |
+| 9 | `uploaded_by` | uuid | yes | `auth.uid()` |  |
+| 10 | `uploaded_by_name` | text | **no** | `''::text` |  |
+| 11 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 12 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 13 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 14 | `sys_created_by` | uuid | yes |  |  |
+| 15 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 16 | `sys_updated_by` | uuid | yes |  |  |
+| 17 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(user_rr_sys_id_key)_
+
+**References:**
+
+- `dir_id` → **user_directory**(`id`) · on delete cascade _(user_rr_dir_id_fkey)_
+
+**Constraints:**
+
+- `user_rr_period` — `CHECK (((effective_to IS NULL) OR (effective_to >= effective_from)))`
+
+**Triggers:** `user_rr_close_previous` → `user_rr_close_previous()` · `user_rr_touch` → `user_rr_touch()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `rr_insert` | — | `(( SELECT has_perm('users.manage'::text) AS has_perm) OR ( SELECT has_perm('training.manage'::text) AS has_perm))` |
+| SELECT | `rr_read` | `may_see_person(dir_id)` | — |
+| UPDATE | `rr_update` | `(( SELECT has_perm('users.manage'::text) AS has_perm) OR ( SELECT has_perm('training.manage'::text) AS has_perm))` | `(( SELECT has_perm('users.manage'::text) AS has_perm) OR ( SELECT has_perm('training.manage'::text) AS has_perm))` |
 
 ---
 
@@ -3456,6 +3762,8 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `spare_usage` | **on** | 14 |
 | `spare_usage_rollup` | **on** | 8 |
 | `tracker_list` | **on** | 20 |
+| `training_history` | **on** | 15 |
+| `training_status` | **on** | 19 |
 | `unused_spare_report` | **on** | 25 |
 | `warranty_sale_details` | **on** | 46 |
 
