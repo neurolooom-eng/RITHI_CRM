@@ -554,6 +554,19 @@ on testing the old shape. **When a migration replaces a definition, move the
   reads nothing. **Any rebuild that copies or restores rather than re-running
   the migrations silently loses it**, and the timeout returns with nothing to
   say why. `_status.sql` row 47 is the check.
+- **A `FOR ALL` POLICY IS ALSO A READ POLICY, AND A BARE `has_perm()` IN IT IS
+  PAID PER ROW.** Postgres ORs every policy that covers SELECT, so 0008's
+  `products_write … for all using (has_perm('masters.edit'))` was evaluated on
+  every read of the machine register — once per ROW, each reading `app_roles` —
+  and put the first 1,000 machines at 24.7 s for a signed-in user against 0.3 s
+  in the SQL editor (2026-09-29; the offline download sat at "0 so far"). Wrap
+  it: `(select has_perm(...))` is an InitPlan, asked once. **Read the plan's
+  `Filter:` line before guessing**: the READ policy was wrapped first and
+  changed nothing. 0250 is the repair; `_status.sql` row 191.
+- **A LITERAL `'public.x'::regclass` IN `_status.sql` ERRORS BEFORE THE GUARD
+  BESIDE IT RUNS**, so a project missing one object stops the whole report
+  (`function "public.upsert_product_from_sale(bigint)" does not exist`, reported
+  2026-09-29). Use `to_regclass()` / `to_regprocedure()`, which return NULL.
 - **Substring search needs pg_trgm; `=`/`IN` needs a btree.** A trigram index
   does not serve equality, so `products.party_name =` (the request cascade) went
   on timing out until btree indexes were added alongside the trigram ones.

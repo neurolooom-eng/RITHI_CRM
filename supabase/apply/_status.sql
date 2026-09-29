@@ -307,7 +307,7 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regprocedure('public.restore_call(text)')      is not null
      and exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'field_calls' and column_name = 'cancelled_at')
-     and coalesce((select pg_get_viewdef('public.call_state'::regclass, true) like '%Cancelled%'), false))),
+     and coalesce((select pg_get_viewdef(to_regclass('public.call_state'), true) like '%Cancelled%'), false))),
     (63, 'calls: an open call can be CLOSED without a visit', 'close_call() -- for a call that ended for operational reasons, recorded as Solved like any other (0109)',
         to_regprocedure('public.close_call(text)') is not null),
     (64, 'logins: an admin can reset a forgotten password', 'admin_reset_password() + the password_resets log -- what the sign-in page now tells people to ask for (0110)',
@@ -320,7 +320,7 @@ with checks(sort_order, bundle, provides, present) as (
     (66, 'calls: who REGISTERED it is the database''s to say', 'zz_calls_stamp_creator overrides a caller-supplied created_by with auth.uid() -- the Hotline is the only role trained on the vigilance questions, so anyone else must be findable (0113)',
         (to_regprocedure('public.calls_stamp_creator()') is not null
      and exists (select 1 from pg_trigger
-                  where tgrelid = 'public.field_calls'::regclass
+                  where tgrelid = to_regclass('public.field_calls')
                     and tgname = 'zz_calls_stamp_creator'))),
     (67, 'calls: the desk of record and the person at the keyboard', 'actual_created_by holds who typed the call in; created_by holds the Hotline desk it belongs to. The two disagreeing is the vigilance finding (0114 call_requests)',
         (exists (select 1 from information_schema.columns
@@ -333,7 +333,7 @@ with checks(sort_order, bundle, provides, present) as (
     (75, 'visits: a visit date that could not have happened is refused', 'reports_visit_date_guard -- not in the future, not before the call''s complaint date, on visits ENTERED on the form (uid WEB-...). Imported history is exempt by design (0115). Restore: reports.sql',
         (to_regprocedure('public.reports_visit_date_guard()') is not null
      and exists (select 1 from pg_trigger
-                  where tgrelid = 'public.reports'::regclass
+                  where tgrelid = to_regclass('public.reports')
                     and tgname = 'reports_visit_date_guard'))),
     (76, 'spares: approve a batch, and the RM queue', 'approve_spare_lines() + spare_pending_rm -- tick and approve, each line at the stage it is AT so nothing skips a review; the NSM role holds all three approvals (0116). Restore: Spare_1.sql',
         (to_regprocedure('public.approve_spare_lines(bigint[],text)') is not null
@@ -532,7 +532,7 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.objective_cutoff_locked()') is not null
      and to_regprocedure('public.set_objective_cutoff_lock(boolean)') is not null
      and exists (select 1 from pg_trigger
-                  where tgrelid = 'public.quality_objectives'::regclass
+                  where tgrelid = to_regclass('public.quality_objectives')
                     and tgname = 'zz_quality_objectives_cutoff_guard')
      and not exists (select 1 from pg_policies
                       where schemaname = 'public' and tablename = 'objective_cutoffs'
@@ -676,7 +676,7 @@ with checks(sort_order, bundle, provides, present) as (
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),
     (56, 'calls: row-level security actually applies', 'the `calls` view reads as the READER, not its owner (0105) -- without it every user sees every call',
         coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
-                    from pg_class where oid = 'public.calls'::regclass), false)),
+                    from pg_class where oid = to_regclass('public.calls')), false)),
     (57, 'cover views: row-level security actually applies', 'warranty_sale_details / contract_details read as the reader (0106)',
         not exists (
           select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -704,7 +704,7 @@ with checks(sort_order, bundle, provides, present) as (
                     ilike '%pg_sequence_last_value%', false))),
     (51, 'call_requests: the counter is ahead of the register', 'the next REQID is above every REQID on record -- no second R1 (0097)',
         coalesce(
-          (select coalesce(pg_sequence_last_value('public.call_req_seq'::regclass), 0)
+          (select coalesce(pg_sequence_last_value(to_regclass('public.call_req_seq')), 0)
                   >= coalesce(max(case when reqid ~ '^R[0-9]{1,15}$'
                                        then substring(reqid from 2)::bigint end), 0)
              from public.call_requests), true)),
@@ -722,7 +722,7 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regclass('public.spare_request_engineer_log')                        is not null
      and to_regprocedure('public.reassign_spare_request(text,text,text,text)')   is not null
      and exists (select 1 from pg_trigger
-                  where tgrelid = 'public.spare_requests'::regclass
+                  where tgrelid = to_regclass('public.spare_requests')
                     and tgname = 'spare_request_engineer_guard'))),
     (55, 'handstock: opening stock is ENGINEERS only', 'no opening balance is held under a name that is not an active user (_handstock_opening_engineers.sql)',
         (to_regclass('public.handstock_opening') is null
@@ -743,7 +743,7 @@ with checks(sort_order, bundle, provides, present) as (
         -- expression. Ask what it asks.
         (to_regclass('public.feedback') is null
          or exists (select 1 from pg_index i
-                     where i.indrelid = 'public.feedback'::regclass
+                     where i.indrelid = to_regclass('public.feedback')
                        and i.indisunique and i.indpred is null and i.indexprs is null
                        and pg_get_indexdef(i.indexrelid) ilike '%(ucn_key)%'))),
     (138, 'Additional Entry Details: keyed on the machine, not the serial', 'product_additional_entries is keyed on the MODEL AND THE SERIAL, and carries `extra` (0185). Reported from use as "nothing loadable, every row is missing serial number" when loading the AppSheet AdditionalEntryDetails export -- which read as the FILE being wrong. The missing serial was an alias gap (the export says "Product Serial Number"), and fixing it exposed the real fault underneath. MEASURED, not read off the SQL: that file has 2,263 rows and 1,920 distinct serials, and 298 SERIALS BELONG TO MORE THAN ONE PRODUCT -- serial 15 is an ANAVENT and an ORION, serial 239 is four machines -- so 640 rows would have collapsed to 298 and THREE HUNDRED AND FORTY-TWO MACHINES would have vanished on a load reporting success. This project already wrote the rule down in src/lib/machine.ts: a machine is its MODEL plus its SERIAL, never the serial alone, recorded there with the incident where an ORION-G 201 request was offered an open call for VEGA 201. 0077 keyed this table on serial_key alone, contradicting it. A GENERATED STORED column so the index is a plain btree, not an expression one check:upserts refuses. The table also gained `extra`: the export has 24 columns and this table names nine, so the other seventeen -- AE Number, PM VISITS, ACCESSORIES INCLUDED?, Already Sold TO -- were being dropped, alone among the importers here. NO means the serial-only key is still in force and loading that export loses machines quietly. Restore: sales_contracts.sql',
@@ -934,7 +934,7 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.rename_part(bigint,text,text)') is not null
      and to_regprocedure('public.part_rename_impact(text)') is not null
      and to_regclass('public.part_rename_ticket') is not null
-     and (select relrowsecurity from pg_class where oid = 'public.part_rename_ticket'::regclass)
+     and (select relrowsecurity from pg_class where oid = to_regclass('public.part_rename_ticket'))
      and not exists (select 1 from pg_policies where tablename = 'part_rename_ticket'))),
     (151, 'DCCR: the review may correct which product failed', 'call_reviews.actual_product + field_failure_register.live_product_name / live_product_changed (0197). The user: "Accessory Issues are also Logged in the Main Product -- Like CPX Care Failure is logged in Extend-XT or Orion-G ... I can select the Actual Product [Accessory in this case] and the Failure is included in the Accessory and Excluded from the Main Product." THE ASK HAS TWO HALVES and one effective value satisfies both by construction: the report is counted ONCE, under whatever that value is. Two columns, or a flag beside the original, would let a count include it twice or neither -- and a Pareto that double-counts is worse than one merely wrong. THE CALL IS NEVER REWRITTEN: it says a machine was down and an engineer went to it, which stays true; the review records what actually FAILED, and both are readable with the difference exposed rather than hidden. The row tests the VIEW COLUMN rather than the table column, because the column alone changes no count -- it is the view every rate and Pareto reads. NO means Change product? saves and nothing moves. Restore: daily_review.sql',
         (to_regclass('public.field_failure_register') is null
@@ -958,7 +958,7 @@ with checks(sort_order, bundle, provides, present) as (
     (153, 'User Master is the master: a role set there reaches the sign-in', 'sync_profile_from_user_directory() + the user_directory_profile_sync trigger (0199). The user''s rule: "The intent and the fact has to match 100% -- the user master is the only place I can map and configure." TWO VALUES ANSWER TO THE NAME ROLE: user_directory.role is what User Master shows, profiles.role is what the sign-in RUNS ON -- the menu-bar chip, has_perm(), every policy. 0033 copies the first into the second exactly once, inside ensure_my_profile(), which returns early for a row that already exists; after that the only thing that copied it was a BUTTON IN THE BROWSER. So a role changed after somebody first signed in stayed in User Master and the application went on enforcing the old one, with nothing reporting the difference. Reported twice -- "Why is it now Engineer" (2026-09-11, which produced the drift banner: a repair for a problem still being created) and "Why is it showing as engineer and not Zoho Migration" (2026-09-15). THE ROW TESTS THE TRIGGER, NOT THE FUNCTION: a function nothing fires syncs nothing, and that is the failure mode a definition check would miss. It weakens no guard -- profiles_role_guard still refuses a self-change and still refuses to grant admin -- and it never applies a role the matrix does not know, so a typo grants nothing rather than something unintended. NO means User Master and the sign-in can disagree again, silently. Restore: rbac.sql',
         (to_regclass('public.user_directory') is null
          or exists (select 1 from pg_trigger
-                     where tgrelid = 'public.user_directory'::regclass
+                     where tgrelid = to_regclass('public.user_directory')
                        and tgname = 'user_directory_profile_sync'
                        and not tgisinternal)))
 ,
@@ -977,7 +977,7 @@ with checks(sort_order, bundle, provides, present) as (
                                      'billing_phone','billing_email','gstin','pan','kyc_status')) = 10
          and to_regprocedure('public.kyc_gstin(text)') is not null
          and exists (select 1 from pg_trigger
-                      where tgrelid = 'public.parties'::regclass
+                      where tgrelid = to_regclass('public.parties')
                         and tgname = 'parties_kyc_stamp' and not tgisinternal))))
 ,
     (156, 'My Workload can be SEEN', 'mod:/workload merged into every configured role (0202). The user: "Remove such cards in Main Views. Move those to a Separate KPI Cards Page where ever applicable. It should be interactive." A NEW SCREEN IS NOT DONE UNTIL ROLES & PERMISSIONS KNOWS, and this is the part that bites: permsForRole() returns the STORED set whenever it is non-empty, so DEFAULT_PERMS reaches ONLY a role whose app_roles row is EMPTY -- and on a project in use every role has a tuned row. Without the migration the page ships, the menu entry exists, the permission is ticked in code, and the screen is invisible to every role with no error anywhere. That happened four times before 0195; check:ui caught it on this screen''s first build, which is what it is for. THE KEY GRANTS NO REACH: the page holds no authority of its own -- it shows a register''s section only where the reader already holds that register''s key, and a section they cannot open is never even requested, so a queue they may not read is never counted at them. MERGED, never overwritten, and a role with ZERO permissions is left alone so its code fallback stays live. NO means My Workload is invisible to everyone. Restore: rbac.sql',
@@ -1000,12 +1000,12 @@ with checks(sort_order, bundle, provides, present) as (
 ,
     (158, 'A chart somebody builds can be kept, and shared safely', 'saved_charts + its three policies and the stamp trigger (0206). The user: "Add a provision to create a chart by myself and save it", having asked earlier whether it could be saved "for Everyone or for Specific roles" -- so scope is part of the feature. MODELLED ON role_table_views (0120) DELIBERATELY: that table already answers "this configuration belongs to a role, or to everyone" for register layouts, and a second answer to the same question would be a second set of rules to keep in step. THREE SCOPES and the difference is who else is affected -- MINE (owner = the person, role NULL, anybody may make one), A ROLE, and EVERYONE; the last two need config.manage or an administrator, the same authority 0120 requires to set a layout for a role, because it is the same act. SHARING A CHART CAN NEVER SHARE DATA: the row holds a DIMENSION and a chart type, never numbers, and the counting happens in the reader''s own session over rows their own RLS allowed -- so a chart shared with somebody who may see less simply shows less. THE OWNER IS STAMPED, NOT SENT (0113''s rule): a caller-supplied owner is DISCARDED rather than refused, which is the better behaviour -- refusing makes an honest client fail, discarding makes a dishonest one harmless. The row tests the TABLE and the WRITE policies together, because a table anybody could share from would be worse than none. NO means saved charts are gone, or shareable by anyone. Restore: rbac.sql',
         (to_regclass('public.saved_charts') is null
-         or ((select relrowsecurity from pg_class where oid = 'public.saved_charts'::regclass)
+         or ((select relrowsecurity from pg_class where oid = to_regclass('public.saved_charts'))
          and (select count(*) from pg_policies
                where tablename = 'saved_charts'
                  and policyname in ('sc_read','sc_write_mine','sc_write_shared')) = 3
          and exists (select 1 from pg_trigger
-                      where tgrelid = 'public.saved_charts'::regclass
+                      where tgrelid = to_regclass('public.saved_charts')
                         and tgname = 'saved_charts_stamp' and not tgisinternal))))
 ,
     (159, 'The two analysis roles can read the data they analyse', 'data.view_all + the read gates merged into vptechnical and rndengg (0207). Reported from use: "Spare Insights is blank for VPTechnical Role", then "Product Failure Analysis is also Blank for VpTechnical." Both pages were in the menu, both opened, both showed zeros. THE MODULE KEY OPENS A SCREEN; IT DOES NOT SHOW THE ROWS, and that is the whole bug -- the failure mode the standing rule about Roles & Permissions does not cover, because the screen WAS granted correctly and the database still answered with nothing. Product Failure Analysis reads field_call_review, which is built FROM field_calls, so what a reader sees is bounded by the CALL policies (has_perm(''calls.view'') AND visibility); Spare Insights reads spare_consumption, whose cons_read is can_view_all_calls() OR mine OR my team''s, and an analysis role raises no consumption and has no reporting team, so every branch is false. can_view_all_calls() names the OFFICE roles literally and neither of these is one, so the per-role grant built for exactly this case -- data.view_all -- is what they are given, together with the has_perm gates each read path tests FIRST: a role that sees nothing is usually the gate rather than the scope, and here it was both. READ ONLY: not one key granted here writes anything. ONLY THOSE TWO ROLES ARE TOUCHED (the user: "Never Touch those Roles & Permissions. Modify only the VPTechnical and RnDEngg Role") -- rgm, rm and engineer cannot match either pattern the migration uses. NO means the analytics pages are blank for whoever analyses them. Restore: rbac.sql',
@@ -1055,16 +1055,16 @@ with checks(sort_order, bundle, provides, present) as (
          and (select count(*) from pg_trigger
                where not tgisinternal
                  and (tgrelid, tgname) in (
-                   ('public.spare_request_lines'::regclass, 'spare_request_lines_guard'),
-                   ('public.spare_request_lines'::regclass, 'spare_request_lines_dispatch_guard'),
-                   ('public.spare_requests'::regclass,      'spare_requests_stage_guard'))) = 3)))
+                   (to_regclass('public.spare_request_lines'), 'spare_request_lines_guard'),
+                   (to_regclass('public.spare_request_lines'), 'spare_request_lines_dispatch_guard'),
+                   (to_regclass('public.spare_requests'),      'spare_requests_stage_guard'))) = 3)))
 ,
     (163, 'Who dispatched a stock out is stamped, not sent', 'my_display_name() + the spare_dispatches_stamp_actor trigger (0211). Reported from use: "dispatched_by -- Is not actually taking the Name based on the USer. Kasturi is Dispatching whereas it still shows Jagadesh." THE NAME ON A DELIVERY CHALLAN IS DATA, and it came from the CALLER -- dispatch_spare_lines(..., p_actor) writes whatever the app sent into spare_dispatches.dispatched_by, and the line rows copy it from there. So a fault in the app was a fault on a document that leaves the building with the company''s mark on it. And the app was sending the wrong thing: SpareDispatch.tsx read user?.name, and the User type has no `name` -- it has fullName. It type-checked ONLY because BaseRecord carries an index signature, so the value was undefined at runtime every time and fell through to the email, with no error anywhere. THE SAME RULE AS A CALL''S REGISTRANT (0113/0114): a caller-supplied value is DISCARDED, not refused -- refusing makes an honest client fail, discarding makes a buggy one harmless. A TRIGGER RATHER THAN A REWRITE, and that is the design: this migration''s first draft edited dispatch_spare_lines against 0027''s version, which is FOUR revisions out of date -- the live one carries partial dispatch (per-line quantities, the outstanding balance, the refurbished flags, the spare_dispatch_lines rows) and a tidied copy of the old body would have silently deleted all of it. AN ADMINISTRATIVE CONNECTION HAS NO SESSION, so there the supplied value is kept: blanking it would lose the only record of who booked the stock out. NOTHING ALREADY DISPATCHED IS REWRITTEN. NO means a delivery challan can name somebody who did not send it. Restore: Spare_1.sql',
         (to_regclass('public.spare_dispatches') is null
          or (exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                       where n.nspname = 'public' and p.proname = 'my_display_name')
          and exists (select 1 from pg_trigger
-                      where tgrelid = 'public.spare_dispatches'::regclass
+                      where tgrelid = to_regclass('public.spare_dispatches')
                         and tgname = 'spare_dispatches_stamp_actor' and not tgisinternal))))
     -- NOT A ROW HERE: the missing "Monthly" payment schedule. It was a fault in
     -- the FORM (a picker with three of the sheet's four values and no free-text
@@ -1088,7 +1088,7 @@ with checks(sort_order, bundle, provides, present) as (
     (166, 'A spare needs a visit behind it', 'the zz_consumption_needs_visit trigger on spare_consumption (0214). The user, 2026-09-18: "Visit Entry Date is Empty, Visit Date & Time is Empty -- No Consumption should be accepted without these Details." Those two columns are NOT stored on the consumption row: consumption_report reaches them with a LEFT JOIN to the latest visit (Visit Entry Date is reports.updated_at, Visit Date & Time is reports.visit_at), so both are blank for exactly one reason -- the call has no row in reports and the visit was never filed. A consumption line then records a part fitted on a visit that, as far as this system is concerned, did not happen. IT DOES NOT BREAK THE NORMAL PATH, which was the thing to establish before writing any guard: Call Reporting saves the VISIT first and the spares second, so by the time a spare is inserted the report row exists and every ordinary save passes untouched. WHAT IT DOES STOP is the BULK CONSUMPTION UPLOAD for rows whose call has no visit (a RECONCILIATION is exempt since 0243 -- row 186) -- deliberate, and worth saying plainly rather than discovering: those rows are refused rather than landing blank. Genuinely historical consumption has its own table, spare_consumption_history, which this does not touch. It runs LAST among the before-insert guards (the zz_ prefix) so a typo''d UCN still gets consumption_reconcile_guard''s "No call found with UCN -- check the number", which is the better answer when the call does not exist at all. EXISTING ROWS ARE NOT REWRITTEN -- an insert-time rule applied backwards to a quality record would invent a visit that did not happen, which is worse than a blank that is true; _consumption_without_a_visit.sql lists them. NO means a spare can still be booked against a call nobody has visited. Restore: HandStock_X.sql',
         (to_regclass('public.spare_consumption') is null
          or exists (select 1 from pg_trigger
-                     where tgrelid = 'public.spare_consumption'::regclass
+                     where tgrelid = to_regclass('public.spare_consumption')
                        and tgname = 'zz_consumption_needs_visit' and not tgisinternal)))
 ,
     (167, 'The report''s visit dates have three sources, in order', 'consumption_report + imported_ts() (0215). Two asks on 2026-09-18: "Map the first booked date to Visit Entry Date, Visit Date & Time", then "For Imported Data - I need the Visit Entry Date; Visit Date & Time as in from the Import." THE ORDER IS THE RULE: the REAL visit first, then what the FILE said, then the first booking on that call. An imported date is a recorded fact from the system the data came out of; the first booking is only an approximation, so it goes last, and a real visit beats both. WHERE THE IMPORTED VALUES ARE: the Consumption upload maps Visit Date & Time straight onto created_at, so the first-booked fallback was already surfacing that one; everything it does not map falls into `data` keyed by the header as typed, which is where Visit Entry Date lands. imported_ts() reads it with case and punctuation squashed, so VISIT_ENTRY_DATE is the same column -- and returns NOTHING rather than raising on a cell holding "n/a", because a bare cast there would not spoil one cell, it would take the WHOLE REPORT down. The view also gains "Visit UID" at the END (create or replace can only append), which stays blank on rows with no visit: a date can be approximated and an identifier cannot. NO means the two visit columns are blank again on every row whose call was never visited. Restore: performance.sql',
@@ -1097,7 +1097,7 @@ with checks(sort_order, bundle, provides, present) as (
          and exists (select 1 from information_schema.columns
                       where table_schema = 'public' and table_name = 'consumption_report'
                         and column_name = 'Visit UID')
-         and pg_get_viewdef('public.consumption_report'::regclass, true) ~ 'imported_ts')))
+         and pg_get_viewdef(to_regclass('public.consumption_report'), true) ~ 'imported_ts')))
 ,
     (168, 'The spare line guard still carries all six of its rules', 'spare_request_lines_guard() (0016 -> 0036, repaired by 0217). 0210 rewrote this function to add the HandStock NSM rule and rebuilt its body from an OLD revision: three rules went in and three came out. It kept RM, Commercial and NSM approval and silently lost the dispatch permission, the rejection permission, the whole RECEIPT block and the parts rule. MEASURED, not reasoned about -- on a database built from every migration, an engineer marked a line RECEIVED that had never been dispatched (UPDATE 1, no refusal, stage straight to Received), a DIFFERENT engineer acknowledged somebody else''s spare, and any engineer could change the PART or QUANTITY on another engineer''s line, which no test covered at all. WHY NOTHING SAW IT: check:replay compares each bundle against all.sql and both are built from the same migrations, so a function truncated in the migration is truncated identically in both and they agree perfectly. The suite DID fail and the validation record named the WRONG two expectations, because the harness pairs each expect ERROR with the next error IN ORDER -- two guards stopped firing early in the file, so every later pairing shifted and the report blamed the last two labels. THIS ROW COUNTS THE RULES rather than reading the file: six raise-exception clauses, named individually, so a rewrite that drops any one of them answers NO here however plausible the file looks. It is the 0211 lesson a second time -- READ A FUNCTION OUT OF THE DATABASE BEFORE REPLACING IT, not out of the migration that first created it. NO means receipt, dispatch, rejection or the parts rule is unguarded. Restore: Spare_1.sql',
         (to_regprocedure('public.spare_request_lines_guard()') is null
@@ -1198,7 +1198,7 @@ with checks(sort_order, bundle, provides, present) as (
          and not public.is_call_number('')
          and to_regclass('public.inst_call_repair_log') is not null
          and exists (select 1 from pg_trigger
-                      where tgrelid = 'public.sale_items'::regclass
+                      where tgrelid = to_regclass('public.sale_items')
                         and tgname = 'zz_sale_item_inst_call_guard'
                         and not tgisinternal)
          and (to_regclass('public.sale_items') is null
@@ -1218,14 +1218,14 @@ with checks(sort_order, bundle, provides, present) as (
          -- Three things, because a view that exists and answers the OLD way
          -- reads as covered: warranty is tested BEFORE the contract, the
          -- fallback is OGP, and the engineer comes from the Party Master.
-         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+         and (select pg_get_viewdef(to_regclass('public.product_database'), true)) ~
              'warranty_end >= CURRENT_DATE[\s\S]*contract_end >= CURRENT_DATE'
-         and (select pg_get_viewdef('public.product_database'::regclass, true)) like '%''OGP''::text%'
+         and (select pg_get_viewdef(to_regclass('public.product_database'), true)) like '%''OGP''::text%'
          -- The engineer comes from the PARTY MASTER, joined on the same key
          -- party_service_engineer() uses. It was a per-row call to that
          -- function until the timeout (0236) made a join necessary; what has
          -- to stay true is WHERE the value comes from, not how it is fetched.
-         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+         and (select pg_get_viewdef(to_regclass('public.product_database'), true)) ~
              'JOIN parties [a-z]+ ON [a-z]+\.name_key = lower\(btrim'
          -- ...AND ASKED OF THE ROWS, not of the text. Postgres renders
          -- `p.service_engineer as service_engineer` as a bare
@@ -1278,35 +1278,35 @@ with checks(sort_order, bundle, provides, present) as (
     (182, 'A Warranty Sale puts its machines into the Product Database', 'upsert_product_from_sale() + zz_sale_item_to_product on sale_items + zz_sale_entry_to_products on sale_entries (0237). The user, 2026-09-24: "Every time I add a Warranty Sale entry, all the products should get added to the product database ... same product is sold again to a different customer, in that case the old data should be over written." sale_items has fired sync_product_cover() since 0036, but that function does an UPDATE: it refreshes the cover of a machine ALREADY on the register and does nothing at all for one that is not, so a machine sold today appeared only if the AppSheet import happened to carry it -- the register of what EXISTS was being kept by an import rather than by the act of selling. AND IT KEYS ON THE SERIAL ALONE, which this project settled long ago: a machine is its MODEL and its SERIAL, the install base holds eleven machines numbered 219, and a serial-only match writes one sale''s cover onto a different model. This keys on machine_key, the same key products_machine_key_uniq already enforces -- so RE-SOLD TO A DIFFERENT CUSTOMER falls out of the key rather than needing a rule. IT WRITES WHAT THE SALE KNOWS AND ONLY THAT: the contract columns, `extra` and item_status are left alone, because the sale knows nothing about the contract and a blank there would erase real cover, and item_status has been worked out on read since 0235. THE ONE FIELD NEVER TAKEN BACKWARDS is inst_call -- 0234''s rule, since a sale re-saved with a blank would orphan a call that exists. BOTH TRIGGERS ARE COUNTED, because the party, the address and the warranty dates live on the HEADER and every machine inherits them: with only the item trigger, correcting the customer on the entry would reach none of its machines. NO means a machine sold today does not reach the Product Database, or a re-sale leaves the previous owner on it. Restore: sales_contracts.sql',
         (to_regprocedure('public.upsert_product_from_sale(bigint)') is not null
          and exists (select 1 from pg_trigger
-                      where tgrelid = 'public.sale_items'::regclass
+                      where tgrelid = to_regclass('public.sale_items')
                         and tgname = 'zz_sale_item_to_product' and not tgisinternal)
          and exists (select 1 from pg_trigger
-                      where tgrelid = 'public.sale_entries'::regclass
+                      where tgrelid = to_regclass('public.sale_entries')
                         and tgname = 'zz_sale_entry_to_products' and not tgisinternal)
          -- THE KEY IS THE MACHINE, NOT THE SERIAL. A version keyed on the
          -- serial alone would pass every check above and quietly write one
          -- sale''s cover onto a different model sharing that number.
-         and pg_get_functiondef('public.upsert_product_from_sale(bigint)'::regprocedure)
+         and pg_get_functiondef(to_regprocedure('public.upsert_product_from_sale(bigint)'))
              ~ 'on conflict \(machine_key\)'
          -- and the contract is not among the columns it overwrites.
-         and pg_get_functiondef('public.upsert_product_from_sale(bigint)'::regprocedure)
+         and pg_get_functiondef(to_regprocedure('public.upsert_product_from_sale(bigint)'))
              !~ 'contract_(number|start|end|type)\s*=')),
     (183, 'A machine belongs to its latest owner, and so does everything attached', 'machine_current_party() + zz_transfer_to_product, and the contract / installation-call match in product_database (0238, 0239). The user, 2026-09-24: "What should be displayed is entirely based on the Timestamp of when the change was done ... Contract has to match the product, serial no, party .. Same with Installation calls ... and party is decided by sale entry or ownership transfer whichever is latest." THE SECOND SENTENCE IS THE MECHANISM FOR THE FIRST, and reading it that way is what makes this safe: a re-sale does not DELETE the previous owner''s contract and installation call, they stop MATCHING -- so nothing is destroyed, the registers are untouched, and a machine that returns to that customer gets its cover back by itself, which a rule that deleted could never do. TWO HALVES, KEPT APART DELIBERATELY. The PARTY is STORED, because it is decided by two TIMESTAMPED EVENTS and so does not decay -- nothing about it changes because a day passed. The CONTRACT and the CALL are MATCHED ON READ, because they depend on the party and a stored attachment would disagree with it until something rewrote the row; it also keeps every trigger off installation_calls and contract_items, where a per-row rule would make a twelve-thousand-row import pay for this twelve thousand times. SAME DAY, THE TRANSFER WINS: transfer_date is a DATE and a sale entry is a TIMESTAMP, so a transfer recorded on the day of a sale would otherwise lose to it at midnight -- and a machine cannot be transferred before it is sold. A MACHINE WITH NEITHER A SALE NOR A TRANSFER IS LEFT ENTIRELY ALONE, because twenty thousand came from the AppSheet import and deriving their party from registers that do not mention them would blank the only record of who owns them. MEASURED AT THE REGISTER''S REAL SIZE before shipping -- 20,012 machines, 20,001 contract lines, 9,001 installation calls, under RLS: one page 6.6 ms, a filtered search 72.5 ms, the whole register with every computed column 116.6 ms. NO means a re-sold machine still shows the previous owner''s contract or installation call. Restore: sales_contracts.sql, then product_database_2.sql',
         (to_regprocedure('public.machine_current_party(text,text)') is not null
          and exists (select 1 from pg_trigger
-                      where tgrelid = 'public.ownership_transfers'::regclass
+                      where tgrelid = to_regclass('public.ownership_transfers')
                         and tgname = 'zz_transfer_to_product' and not tgisinternal)
          -- THE PARTY IS PART OF THE JOIN KEY. That one clause IS the rule, and
          -- a view that joined on product and serial alone would pass every
          -- other test here while showing the previous owner''s cover.
-         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+         and (select pg_get_viewdef(to_regclass('public.product_database'), true)) ~
              'cp\.party_key = lower\(btrim'
-         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+         and (select pg_get_viewdef(to_regclass('public.product_database'), true)) ~
              'ip\.party_key = lower\(btrim'
          -- ...and the machine''s own columns are no longer what is shown.
-         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+         and (select pg_get_viewdef(to_regclass('public.product_database'), true)) ~
              'AS contract_number_keyed'
-         and (select pg_get_viewdef('public.product_database'::regclass, true)) ~
+         and (select pg_get_viewdef(to_regclass('public.product_database'), true)) ~
              'AS inst_call_keyed'))
     ,
     (184, 'Hand Stock Report: its module key reaches somebody', 'mod:/handstock-report is in app_roles for the admin role (0241). The user, 2026-09-24: "Add a Hand Stock Report - Default access to Admin/Super Admin, Rest of the Access I will select from Roles & Permissions." WITHOUT THE GRANT THE SCREEN IS INVISIBLE TO EVERYBODY AND NOTHING SAYS SO: permsForRole() returns the STORED set whenever it is non-empty, so on a project in use -- where every role has a tuned row -- a key no migration writes reaches nobody, however many roles hold it in DEFAULT_PERMS. The page ships, the menu entry exists, the tick is in the code, and no role can open it. That has happened four times here (Machine History, the Call Report, the Customer Feedback Report, Solved Without a Report). WHO IT GRANTS: admin, and technical_support. Super Admin needs none -- it is not a role but a row in app_super_admins that overrides every check, so a key for it would be written to a role that does not exist. TECHNICAL SUPPORT IS NOT A LIBERTY TAKEN WITH A ROLE THE USER DID NOT NAME: row 114 above asserts the PROPERTY that Technical Support holds every module key the admin holds, which is what that role IS ("Mimic Super Admin - But with Read Only"), and an administrators-only page skipping it breaks the role silently. The first version of 0241 granted admin alone and row 114 went red on the validation run, which is exactly what it is for; 0224 granted the previous administrators-only report the same way. A module key opens a SCREEN and confers no write, so row 117 is untouched. Zoho Migration is left alone: no check requires it, the user named Admin, and the rule here is not to touch a role that was not named. MERGED, never overwritten, and a role with zero permissions is skipped, since an empty array means "not configured" and writing one key into it turns off the fallback giving that role its access. NO means nobody but a Super Admin can open the Hand Stock Report, or the grant was overwritten. Restore: rbac.sql',
@@ -1378,7 +1378,12 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.refresh_product_cover()') is null
          or (select bool_and(p.prosrc ~ 'cover\.edit') from pg_proc p
               where p.oid in (to_regprocedure('public.refresh_product_cover()'),
-                              to_regprocedure('public.cover_unpin_inherited()')))))
+                              to_regprocedure('public.cover_unpin_inherited()'))))),
+    (191, 'The machine register downloads in seconds, not never', 'products_write, parties_write and parts_write ask has_perm(''masters.edit'') ONCE PER QUERY (0250). Those are FOR ALL policies, so they also apply to every READ, and written bare they asked the question once per ROW, each time reading app_roles. Measured on the live project 2026-09-29: the first 1,000 machines took 24,687 ms for a signed-in user against 322 ms in the SQL editor, over the 20-second API limit, so a device''s offline download was cancelled every time and read "0 so far" for good. On a database loaded to the same size the change took that read from ~920 ms to 11-17 ms. Nobody gains or loses a row or a write: same function, same argument. NO means every read of the machine register and the Party Master pays that cost again. Restore: rbac.sql',
+        (select coalesce(bool_and(p.qual ilike '%select has_perm%' and p.with_check ilike '%select has_perm%'), false)
+           from pg_policies p
+          where p.schemaname = 'public'
+            and p.policyname in ('products_write', 'parties_write', 'parts_write')))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

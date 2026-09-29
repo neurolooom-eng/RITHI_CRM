@@ -230,6 +230,11 @@ const MODULES = {
             // grant above that could put a key on it. It takes ONE key off
             // ONE role, so it has to run once they have all had their say.
             '0180_zoho_readonly.sql',
+            // The machine/party/part WRITE policy asked once per query instead
+            // of once per row -- the 24.7-second machine download (2026-09-29).
+            // It ALTERS 0008's policies, so it lives with 0008 and before the
+            // mirror tail, which does not re-assert these three.
+            '0250_master_write_policy_once_per_query.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
