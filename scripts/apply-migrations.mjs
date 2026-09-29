@@ -40,6 +40,8 @@
 //                                                   record up to there only; the
 //                                                   rest stay pending and apply
 //   node scripts/apply-migrations.mjs               apply what is pending
+//   node scripts/apply-migrations.mjs --status      run supabase/apply/_status.sql,
+//                                                   READ-ONLY, and print its grid
 //
 // Reads SUPABASE_DB_URL. It is NEVER printed, logged, or passed on a command
 // line where `ps` could see it -- psql takes it through the environment.
@@ -177,6 +179,33 @@ const scrub = (s) => {
   // Belt and braces: any credential-bearing URI shape that survived the above.
   return out.replace(/(postgres(?:ql)?:\/\/)[^\s"']*/gi, '$1***');
 };
+
+// ---- --status: WHAT IS ON THE LIVE PROJECT, read by the pipeline ------------
+// The user, 2026-09-30: "supabase connection is established - can you run and
+// pull it by yourself?" The connection exists only here, as the Actions secret,
+// so this is the one place _status.sql can be run without somebody pasting it
+// into the SQL editor. READ-ONLY by construction: the session's default
+// transaction is read only, so even a file that tried to write could not.
+// It prints the grid _status.sql returns -- yes/NO per check and what each
+// provides -- and nothing from any register.
+if (args.has('--status')) {
+  try {
+    const out = execFileSync(
+      'psql',
+      [url, '-X', '-v', 'ON_ERROR_STOP=1', '-P', 'pager=off', '-A', '-F', ' | ', '-f', 'supabase/apply/_status.sql'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, PGOPTIONS: '-c default_transaction_read_only=on' } },
+    );
+    const lines = scrub(out).split('\n');
+    const no = lines.filter((l) => / \| NO /.test(l));
+    console.log(no.length ? `${no.length} check(s) read NO:\n${no.join('\n')}\n` : 'Every check reads yes.\n');
+    console.log(lines.join('\n'));
+    process.exit(0);
+  } catch (e) {
+    console.error(scrub(e.stderr || e.message));
+    process.exit(1);
+  }
+}
 
 const files = readdirSync(DIR).filter((f) => f.endsWith('.sql')).sort();
 if (!files.length) { console.error(`No migrations in ${DIR}.`); process.exit(2); }

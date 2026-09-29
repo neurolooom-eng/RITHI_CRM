@@ -53,7 +53,7 @@ on:
         required: true
         default: dry-run
         type: choice
-        options: [dry-run, apply, baseline]
+        options: [dry-run, apply, baseline, status]
       baseline_through:
         description: 'baseline only: last migration ALREADY applied (e.g. 0151_module_keys_catch_up.sql). Blank = all of them.'
         required: false
@@ -117,5 +117,7 @@ jobs:
                 node scripts/apply-migrations.mjs --baseline
               fi ;;
             apply)    node scripts/apply-migrations.mjs ;;
+            # READ-ONLY: runs supabase/apply/_status.sql and prints its grid.
+            status)   node scripts/apply-migrations.mjs --status ;;
             *) echo "Unknown mode"; exit 1 ;;
           esac
