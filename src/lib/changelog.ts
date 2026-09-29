@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.386',
+    date: '2026-09-29',
+    title: 'The machine register downloads in seconds for everybody (needs one SQL file)',
+    changes: [
+      'WHY THE TEST ENGINEER\'S DOWNLOAD SAT AT "0 SO FAR": on the live project the first 1,000 machines took 24.7 seconds for a signed-in user (0.3 seconds in the SQL editor), and the server cancels anything over 20 seconds. So every attempt was cancelled and the phone kept retrying. Administrators were slow too — about seven minutes for 11,000 machines.',
+      'THE CAUSE: the rule "editors may change the Product Database / Party Master / Part Master" also applies to reading, and it asked "is this person an editor?" once for EVERY machine instead of once per request. It now asks once. Measured at the live register\'s size: from about 0.9 seconds to about 0.015 seconds per 1,000 machines. Nobody gains or loses access to anything.',
+      'Takes effect once supabase/migrations/0250_master_write_policy_once_per_query.sql is run on the project (_status.sql row 191 says whether it has been).',
+      '_status.sql no longer stops with "function ... does not exist" on a project that is missing one of the things it checks: that row now reads NO, as it always should have.',
+    ],
+  },
+  {
     version: '0.9.385',
     date: '2026-09-29',
     title: 'A machine download that is waiting now says why',

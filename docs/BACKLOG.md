@@ -95,6 +95,24 @@ Search every thing relevant to Product Database from cached data."*
   `sbKycByParties` read it first. A party edit or a `parties` upload refreshes
   it. The Party Master SCREEN (`queryParties`) still reads the server, since it
   is where parties are edited.
+- ✅ **0.9.385–0.9.386 — why a test engineer's machine download never started.**
+  `_why_wont_the_machines_download.sql` on the live project: the first 1,000
+  machines took **24,687 ms** as a signed-in user and 322 ms in the SQL editor,
+  against a 20 s API limit, so every page was cancelled. Cause: 0008's
+  `products_write` / `parties_write` / `parts_write` are `FOR ALL`, so they
+  apply to READS too, and `has_perm('masters.edit')` was bare — asked once
+  per ROW. **0250** wraps it `(select has_perm(...))`: ~920 ms → 11-17 ms at
+  live size. Wrapping the READ policy was tried first and changed nothing.
+  ⏳ **User to run** `supabase/migrations/0250_master_write_policy_once_per_query.sql`;
+  `_status.sql` row 191.
+- ✅ `_status.sql` stopped dead with `function "public.upsert_product_from_sale(bigint)"
+  does not exist` (row 182): a literal `'…'::regprocedure` is resolved before
+  the `to_regprocedure(...) is not null` guard beside it. All 30 literal
+  `::regclass` casts and that one became `to_regclass()` / `to_regprocedure()`.
+  Rows naming a TABLE directly (`from public.quality_objectives`) still error if
+  the whole table is absent — not fixed.
+- ⏳ **Device cache status report** — database half built and tested (0249),
+  taken back off the branch so it did not ship half-done; screen still to build.
 - ⏳ **Not measured**: the download size on the live register. Nothing here
   holds the data. The status line reports the machine count; the size is the
   next thing to ask for if phones struggle.
