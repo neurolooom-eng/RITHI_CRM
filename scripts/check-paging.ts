@@ -16,6 +16,7 @@
 // ===========================================================================
 
 import { allRows, readUpTo, distinctValues, PG_PAGE } from '../src/lib/paging';
+import { isFresh, afterRefresh, HOUR } from '../src/lib/mastercache';
 let fail = 0;
 const eq = (n: string, a: unknown, b: unknown) => {
   const ok = JSON.stringify(a) === JSON.stringify(b);
@@ -178,6 +179,34 @@ console.log('\n-- readUpTo re-reads as far as the reader had got (finding 22) --
   try { got = await distinctValues(flaky(12, 99), 'item_name', noWait); } catch (e) { threw = (e as Error).message; }
   eq('a page that keeps failing THROWS rather than returning a prefix', got, null);
   eq('  ...and says how far it got', /stopped after 26 values/.test(threw) && /incomplete/.test(threw), true);
+}
+
+
+// ---------------------------------------------------------------------------
+// THE ENGINEER IN A NO-SIGNAL AREA (2026-09-29). What a device does with its
+// stored copy of a dropdown list.
+// ---------------------------------------------------------------------------
+console.log('-- a stored list survives a failed refresh; products re-read every 6 hours --');
+{
+  const good = ['ORION-G', 'VEGA', 'MONNAL T75'];
+  eq('a failed refresh KEEPS the stored list (it used to replace it with nothing)',
+    afterRefresh(good, null), { values: good, failed: false, fromCache: true });
+  eq('an EMPTY refresh keeps it too -- the register was empty mid-reload on 25-Sep',
+    afterRefresh(good, []), { values: good, failed: false, fromCache: true });
+  eq('a good refresh replaces it',
+    afterRefresh(good, ['VEGA']), { values: ['VEGA'], failed: false, fromCache: false });
+  eq('no copy and a failed refresh says FAILED, so the screen can say so',
+    afterRefresh(null, null), { values: [], failed: true, fromCache: false });
+  eq('no copy and an honest empty answer is empty, not failed',
+    afterRefresh(null, []), { values: [], failed: false, fromCache: false });
+
+  const now = 1_000_000_000_000;
+  eq('products stored 1 hour ago are served without a network call', isFresh('product', now - 1 * HOUR, now), true);
+  eq('...5h59m ago still are', isFresh('product', now - 6 * HOUR + 60_000, now), true);
+  eq('...6 hours ago are re-read', isFresh('product', now - 6 * HOUR, now), false);
+  eq('another list is re-read every time, as before', isFresh('party', now - 1 * HOUR, now), false);
+  eq('no stored copy is never fresh', isFresh('product', null, now), false);
+  eq('a copy dated in the future (a wrong phone clock) is not trusted', isFresh('product', now + HOUR, now), false);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

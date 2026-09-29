@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listMaster, dataConfigured } from './sheets';
+import { isFresh, afterRefresh } from './mastercache';
 
 // ===========================================================================
 // Master value lists for form dropdowns (Party, Product, Standard Complaint,
@@ -53,7 +54,7 @@ const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface Stored { v: string; at: number; values: string }
 
-function readStored(name: string): string[] | null {
+function readEntry(name: string): { values: string[]; at: number } | null {
   try {
     const raw = localStorage.getItem(STORE_PREFIX + name);
     if (!raw) return null;
@@ -62,8 +63,11 @@ function readStored(name: string): string[] | null {
     // A copy older than the window is not served even stale: something has
     // probably changed, and a week-old party list is worth one wait.
     if (!s.at || Date.now() - s.at > MAX_AGE_MS) return null;
-    return s.values ? s.values.split('\n') : [];
+    return { values: s.values ? s.values.split('\n') : [], at: s.at };
   } catch { return null; }
+}
+function readStored(name: string): string[] | null {
+  return readEntry(name)?.values ?? null;
 }
 
 function writeStored(name: string, values: string[]) {
@@ -132,13 +136,24 @@ export function useMaster(
     // THE STORED COPY GOES ON SCREEN FIRST, and the fetch still runs. That is
     // the whole point: the form opens with a full list on the first frame, and
     // a name added since appears when the fresh copy lands a moment later.
-    const stored = readStored(name);
-    if (stored) { setValues(stored.length ? stored : fallback); setReady(true); }
+    const entry = readEntry(name);
+    if (entry) {
+      setValues(entry.values.length ? entry.values : fallback); setReady(true);
+      // YOUNG ENOUGH TO TRUST (mastercache.ts): no network call at all. This is
+      // what keeps a phone in a no-signal area working for six hours.
+      if (entry.values.length && isFresh(name, entry.at, Date.now())) {
+        cache.set(name, entry.values);
+        return;
+      }
+    }
 
     void load(name).then((v) => {
       if (cancelled) return;
-      setValues(v.length ? v : fallback);
-      setFailed(masterFailed(name));
+      // A FAILED OR EMPTY REFRESH KEEPS THE GOOD COPY rather than replacing it
+      // with nothing -- which is what used to happen on a weak signal.
+      const r = afterRefresh(entry?.values ?? null, masterFailed(name) ? null : v);
+      setValues(r.values.length ? r.values : fallback);
+      setFailed(r.failed);
       setReady(true);
     });
     return () => { cancelled = true; };

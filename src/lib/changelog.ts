@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.382',
+    date: '2026-09-29',
+    title: 'Dropdowns keep working with a weak signal; the product list lasts six hours on your device',
+    changes: [
+      'A WEAK SIGNAL NO LONGER EMPTIES A DROPDOWN. Every list — products, customers, complaints — is kept on your device. Until now, if the app tried to refresh one and the connection failed, it threw away the good list it already had and showed nothing. Now a failed refresh keeps what you had. For engineers in remote locations this is the difference between a slightly old list and no list at all.',
+      'THE PRODUCT LIST IS REFRESHED EVERY SIX HOURS, NOT ON EVERY SCREEN. Products change when a sale is loaded, not by the minute, so within six hours the list opens straight from your device with no network call — it works with no signal at all. After six hours it quietly refreshes the next time you need it.',
+      'If a product was added in the last six hours and you need it now, press 🧹 Clear Cache and Update — that fetches a fresh copy immediately.',
+      'Not covered yet: the serial number box still searches as you type, so it needs a connection.',
+    ],
+  },
+  {
     version: '0.9.381',
     date: '2026-09-29',
     title: 'Product lists no longer stop part-way and pretend to be complete',

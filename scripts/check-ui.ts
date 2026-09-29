@@ -3069,9 +3069,19 @@ console.log('\n-- every Party->Product->Serial cascade reads the product registe
   // extra steps.
   const mst = readFileSync('src/lib/masters.ts', 'utf8');
   eq('master lists are cached in the browser and revalidated',
-    /const stored = readStored\(name\);/.test(mst)
-    && /if \(stored\) \{ setValues\(/.test(mst)
+    /const entry = readEntry\(name\);/.test(mst)
+    && /if \(entry\) \{\s*setValues\(/.test(mst)
     && /void load\(name\)\.then/.test(mst), true);
+  // AND A FAILED REFRESH KEEPS THE GOOD COPY (2026-09-29). The old hook put the
+  // failed fetch's empty list on screen in place of the stored one -- on a weak
+  // signal a phone flashed a good list for one frame and then offered nothing.
+  // The decision is afterRefresh() in mastercache.ts, tested by check:paging;
+  // this holds the hook to actually calling it rather than `v.length ? v : ...`.
+  eq('...and a failed refresh keeps the stored list rather than replacing it',
+    /afterRefresh\(entry\?\.values \?\? null, masterFailed\(name\) \? null : v\)/.test(mst)
+    && !/setValues\(v\.length \? v : fallback\)/.test(mst), true);
+  eq('...and a young product list is served with no network call',
+    /isFresh\(name, entry\.at, Date\.now\(\)\)[\s\S]{0,120}return;/.test(mst), true);
   // Every localStorage access guarded: a private window throws on the accessor
   // itself, and a form that will not open because a cache is unavailable is
   // worse than one that is slow.
