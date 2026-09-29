@@ -555,7 +555,10 @@ const MODULES = {
       // The Call and Customer Feedback reports, beside the consumption one and
       // for the same reason: they read the `calls` view, `reports` and
       // `feedback`, and this module runs after everything they need exists.
-      '0191_call_and_feedback_reports.sql'],
+      '0191_call_and_feedback_reports.sql',
+      // spare_insights() counts India's days (finding 13). AFTER 0148, which
+      // it replaces.
+      '0254_spare_insights_ist_window.sql'],
   },
   audit: {
     title: 'Audit Log',

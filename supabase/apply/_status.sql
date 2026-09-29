@@ -1410,7 +1410,11 @@ with checks(sort_order, bundle, provides, present) as (
          and exists (select 1 from pg_proc p
                       where p.oid = to_regprocedure('public.device_cache_report()')
                         and pg_get_function_result(p.oid) like '%complaints_at%')
-         and not has_function_privilege('anon', to_regprocedure('public.device_cache_report()'), 'EXECUTE')))
+         and not has_function_privilege('anon', to_regprocedure('public.device_cache_report()'), 'EXECUTE'))),
+    (197, 'Spare Insights counts India''s days', 'spare_insights() bounds its window and groups its months in Asia/Kolkata (0254, finding 13). It cast the dates to timestamptz, which is midnight in the DATABASE''S zone: on a database in UTC, consumption booked before 05:30 India time on the first day fell outside the window, the same hours after the last day fell inside it, and a spare booked before 05:30 on the 1st was charted in the previous month. Tested on the definition, because a value test reads the same either way on a database already in Asia/Kolkata. NO means the window still follows the database''s zone. Restore: performance.sql',
+        coalesce((select (select count(*) from regexp_matches(pg_get_functiondef(p.oid), 'at time zone ''Asia/Kolkata''', 'g')) >= 5
+                         and pg_get_functiondef(p.oid) !~ 'p_from::timestamptz'
+                    from pg_proc p where p.oid = to_regprocedure('public.spare_insights(date,date)')), false))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

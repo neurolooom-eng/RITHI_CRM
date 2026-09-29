@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.398',
+    date: '2026-09-30',
+    title: 'Spare Insights counts India\'s days, and the half-hourly refresh no longer fights Load more',
+    changes: [
+      'SPARE INSIGHTS: the date window and the month chart now follow India time. A spare booked between midnight and 5:30 am was counted in the previous day, and on the 1st of a month in the previous month. That no longer happens, whatever the database\'s own clock is set to. Applies itself once merged; nothing to run.',
+      'EVERY REGISTER THAT REFRESHES ITSELF EVERY 30 MINUTES (Spare Requests, Spare Consumption, Hand Stock, Customer Feedback, Material Returns, the Call Registers, Party, Part and Product Masters, the Warranty and Contract Registers, Reports, Audit Log and the rest): if the refresh fell due while you were pressing Load more, the two could overwrite each other and a page could go missing or come back twice, with nothing on screen to say so. The refresh now waits until Load more has finished.',
+    ],
+  },
+  {
     version: '0.9.397',
     date: '2026-09-30',
     title: 'Standard Complaint master: filter by product and name, and change products for many complaints at once',

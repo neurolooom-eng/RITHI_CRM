@@ -4,7 +4,7 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { listFeedbackRows, supabaseConfigured } from '../lib/supabase';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { useAccessScope } from '../lib/access';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
@@ -71,6 +71,9 @@ export function CustomerFeedback() {
   // nothing until it is used.
   const [origin, setOrigin] = useState<'' | (typeof ORIGINS)[number]>('');
   const [busy, setBusy] = useState(false);
+  // Read by the background sync, which waits while a read is in flight.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
   // HOW FAR THE READER HAS GOT, as a ref because the 30-minute sync is
@@ -99,8 +102,8 @@ export function CustomerFeedback() {
   useEffect(() => {
     if (onDb && rows.length && !isStale(lastSync)) setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
     else void load();
-    const id = onDb ? window.setInterval(() => void load(), SYNC_TTL_MS) : undefined;
-    return () => { if (id) window.clearInterval(id); };
+    const stop = onDb ? startBackgroundSync(() => void load(), () => busyRef.current) : undefined;
+    return () => stop?.();
     // eslint-disable-next-line
   }, []);
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
@@ -8,7 +8,7 @@ import {
   listEngineerStock, addStockTransfer, listStockTransfers,
   supabaseConfigured, type StockRow,
 } from '../lib/supabase';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { useAccessScope, previewScoped } from '../lib/access';
 import './fieldcalls.css';
@@ -233,6 +233,9 @@ export function StockTransfer() {
   const [engineers, setEngineers] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
+  // Read by the background sync, which waits while a read is in flight.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [drawer, setDrawer] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
@@ -258,8 +261,8 @@ export function StockTransfer() {
     listUsers('', 2000)
       .then((rows) => setEngineers([...new Set(rows.map((r) => String(r['User Name'] ?? '').trim()).filter(Boolean))].sort()))
       .catch(() => { /* the field stays free text */ });
-    const id = onDb ? window.setInterval(() => void load(), SYNC_TTL_MS) : undefined;
-    return () => { if (id) window.clearInterval(id); };
+    const stop = onDb ? startBackgroundSync(() => void load(), () => busyRef.current) : undefined;
+    return () => stop?.();
     // eslint-disable-next-line
   }, []);
 

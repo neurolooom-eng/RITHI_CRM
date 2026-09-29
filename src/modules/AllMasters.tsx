@@ -10,7 +10,7 @@ import { countRows, listMasterItems, listMasterLists, supabaseConfigured, type M
 import { clearMasterCache } from '../lib/masters';
 import { fallbackRegistry, masterListPath, usedBy } from './masterLists';
 import { MasterListTable } from './MasterListTable';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { COMPLETE } from '../lib/exportscope';
 
 // ===========================================================================
@@ -65,6 +65,9 @@ export function AllMasters() {
   const [lists, setLists] = useState<MasterList[]>([]);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [busy, setBusy] = useState(false);
+  // Read by the background sync, which waits while a read is in flight.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load the masters.' },
   );
@@ -143,8 +146,7 @@ export function AllMasters() {
     if (!dataConfigured()) return;
     if (!rows.length || isStale(lastSync)) void refresh();
     else { setMsg({ tone: 'info', text: `Showing cached counts — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` }); void refresh(); }
-    const id = window.setInterval(() => void refresh(), SYNC_TTL_MS);
-    return () => window.clearInterval(id);
+    return startBackgroundSync(() => void refresh(), () => busyRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

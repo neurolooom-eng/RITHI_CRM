@@ -4,7 +4,7 @@ import { PageHeader, Toolbar } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { xlsxDownload, xlsxCell, xlsxText } from '../lib/xlsx';
 import { queryReports, supabaseConfigured, type ReportFilter } from '../lib/supabase';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { ReportDetail } from './ReportDetail';
 import { REPORT_FIELD_KEYS } from './CallReporting';
 import { Ucn } from '../lib/callstate';
@@ -110,6 +110,9 @@ export function Reports() {
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [busy, setBusy] = useState(false);
+  // Read by the background sync, which waits while a read is in flight.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load reports.' },
   );
@@ -184,8 +187,7 @@ export function Reports() {
   // or off; no timer at all while one is set.
   useEffect(() => {
     if (!supabaseConfigured() || hasFilter) return;
-    const id = window.setInterval(() => { void refresh(); }, SYNC_TTL_MS);
-    return () => window.clearInterval(id);
+    return startBackgroundSync(() => { void refresh(); }, () => busyRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasFilter]);
 
