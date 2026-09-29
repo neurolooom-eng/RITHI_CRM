@@ -101,12 +101,19 @@ on testing the old shape. **When a migration replaces a definition, move the
   words, not the code's. `main` has often claimed your version already from
   another branch: take the next one **above** it rather than renumbering
   theirs, and keep `package-lock.json`'s two version fields in step.
-- **Migrations auto-apply once `SUPABASE_DB_URL` is set** (2026-09-09) — BUILT
-  BUT NOT YET PROVEN AGAINST THE LIVE PROJECT, and **parked** at the user's
-  request. The first attempt failed on an unencoded `@` in the password, before
-  reaching the database. Until it has run green once, treat the manual step
-  below as the live path and do not tell the user their SQL is automatic.
-  `docs/BACKLOG.md` has the diagnosis.
+- **Migrations auto-apply: the live project is BASELINED (2026-09-29).**
+  `SUPABASE_DB_URL` now reaches it (session pooler URI), the ledger holds all
+  276 files as of `c5ee67e` (through 0253), and a dry-run after it read
+  *"Nothing pending"*. So **a migration merged to `main` from here is applied
+  by the workflow, not by hand** — check the "Apply database migrations" run
+  after a merge that touches `supabase/migrations/`, and read its log before
+  telling the user anything is live. NOT YET SEEN: a real `apply` of a new
+  file. Until one has run green, say so rather than calling it proven.
+  **A BASELINE RECORDS WHATEVER IS ON `main` WHEN IT RUNS, not what was
+  checked.** Another session merged 0253 one minute before it, so 0253 was
+  marked applied unrun; it is idempotent and the user was asked to run it by
+  hand. Never baseline again without first comparing `main`'s head with the
+  tree that was verified.
   `.github/workflows/db-migrate.yml` runs `scripts/apply-migrations.mjs` on a
   push to `main` that touches `supabase/migrations/`, applying only what its
   ledger (`public.schema_migrations`) says has not run — each in ONE
@@ -119,8 +126,9 @@ on testing the old shape. **When a migration replaces a definition, move the
   The bundles remain the REBUILD path, not the update path — running one to
   apply two new statements re-executes the other 150, which is what took the
   locks.
-- **Applying SQL to the live Supabase project stays the user's step** while
-  that secret is unset. Name the
+- **Applying SQL to the live Supabase project was the user's step** until the
+  baseline above, and still is for anything the workflow did not apply (a
+  failed run, a data fix, a probe). Name the
   bundle to run (`_status.sql` first, then what it flags) — never assume a
   migration is live because it is merged.
   **`Spare_1.sql` and `HandStock_X.sql` are at the REPOSITORY ROOT**, not in
