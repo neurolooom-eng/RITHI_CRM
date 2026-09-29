@@ -611,6 +611,10 @@ typed into a form that reads it.
   > rename moves all of those records with it. The screen tells you how many
   > will move before you commit to it, and stock balances come out unchanged.
   > A rename will not merge two parts: if the new name is taken, it is refused.
+  > **Adding a part needs four things:** Part code, Description, **Spare /
+  > Consumable** and **Product** (one or more). Purchase cost is optional.
+  > **Editing** an existing part does not demand them, so an older part with a
+  > blank can still be corrected one field at a time.
 - **Party Master** `/parties` — your customers, **who looks after each one**, and
   their **KYC**.
   > **KYC starts as Pending on every customer** — nobody has been verified yet,

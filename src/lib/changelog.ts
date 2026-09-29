@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.398',
+    date: '2026-09-30',
+    title: 'Part Master: a new part must say Spare / Consumable and which Product it is for',
+    changes: [
+      'ADDING A PART NOW ASKS FOR FOUR THINGS: Part code, Description, Spare / Consumable, and Product (choose one or more). The Add part button stays disabled, and says what is missing, until all four are filled. Purchase cost can be entered there too, and is optional.',
+      'EDITING IS UNCHANGED: ✎ Edit on any part still changes its code, description, Spare / Consumable, Product and Purchase cost, and an older part with some of these blank can still be saved — so fixing one field never forces you to fill all the others.',
+      'Parts loaded through Bulk Uploads (the Item Master file) are not held to this rule, because most of that file has no Spare / Consumable filled in.',
+    ],
+  },
+  {
     version: '0.9.397',
     date: '2026-09-30',
     title: 'Standard Complaint master: filter by product and name, and change products for many complaints at once',

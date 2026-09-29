@@ -3234,17 +3234,26 @@ export async function partCodeExists(code: string): Promise<boolean> {
   return (data ?? []).length > 0;
 }
 
+// A NEW PART MUST SAY WHAT IT IS AND WHAT IT FITS (the user, 2026-09-30:
+// Spare / Consumable and Product mandatory at creation -- "only when creating":
+// an existing part with them blank can still be edited and saved). Checked
+// here as well as on the form, so no other caller can add a part without them.
 export async function addPart(
   code: string, description: string,
+  more: { category: string; product: string; purchase_cost?: number | null } = { category: '', product: '' },
 ): Promise<{ ok: boolean; error?: string }> {
   const c = normalisePartCode(code);
   if (!c) return { ok: false, error: 'Give the part code.' };
   if (c.includes('|')) return { ok: false, error: 'A part code cannot contain "|" — that separates the code from the description.' };
   if (!PART_CODE_RE.test(c)) return { ok: false, error: 'Use letters, digits and - _ . / only, starting with a letter or digit.' };
   if (!description.trim()) return { ok: false, error: 'Give the description.' };
+  if (!more.category.trim()) return { ok: false, error: 'Choose Spare / Consumable.' };
+  if (!more.product.trim()) return { ok: false, error: 'Choose the product(s) this part is for.' };
   if (await partCodeExists(c)) return { ok: false, error: `Part ${c} already exists.` };
   const { error } = await must().from('parts').insert({
     code: c, description: description.trim(), item_detail: composeItemDetail(c, description), active: true,
+    category: more.category.trim(), product: more.product.trim(),
+    ...(more.purchase_cost != null ? { purchase_cost: more.purchase_cost } : {}),
   });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }

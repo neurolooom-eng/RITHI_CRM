@@ -173,7 +173,7 @@ export function PartMaster() {
   // the part out of the pickers.
   const { can } = useAuth();
   const mayEdit = can('masters.edit') && live;
-  const [form, setForm] = useState<{ code: string; description: string } | null>(null);
+  const [form, setForm] = useState<{ code: string; description: string; category: string; product: string; cost: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
   const formProblem = (): string => {
@@ -183,6 +183,11 @@ export function PartMaster() {
     if (c.includes('|')) return 'A part code cannot contain "|" — that separates the code from the description.';
     if (!PART_CODE_RE.test(c)) return 'Use letters, digits and - _ . / only, starting with a letter or digit.';
     if (!form.description.trim()) return 'Give the description.';
+    // MANDATORY WHEN CREATING (the user, 2026-09-30); editing an older part
+    // with these blank is still allowed.
+    if (!form.category.trim()) return 'Choose Spare / Consumable.';
+    if (!form.product.trim()) return 'Choose the product(s) this part is for.';
+    if (form.cost.trim() && !Number.isFinite(Number(form.cost))) return 'Purchase cost must be a number.';
     return '';
   };
 
@@ -191,7 +196,10 @@ export function PartMaster() {
     const problem = formProblem();
     if (problem) { setMsg({ tone: 'error', text: problem }); return; }
     setSaving(true);
-    const res = await addPart(form.code, form.description);
+    const res = await addPart(form.code, form.description, {
+      category: form.category, product: form.product,
+      purchase_cost: form.cost.trim() === '' ? null : Number(form.cost),
+    });
     setSaving(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not add the part.' }); return; }
     setForm(null);
@@ -246,9 +254,9 @@ export function PartMaster() {
   // mount: most visits to this screen never edit a part, and the catalogue is a
   // separate table.
   useEffect(() => {
-    if (!edit || !live || families.length) return;
+    if ((!edit && !form) || !live || families.length) return;
     void listProductLines().then((v) => setFamilies(shortForms(v))).catch(() => setFamilies([]));
-  }, [edit, live, families.length]);
+  }, [edit, form, live, families.length]);
 
   useEffect(() => {
     if (!edit || !live || impactFor === edit.wasDetail) return;
@@ -323,7 +331,7 @@ export function PartMaster() {
         title="Part Master"
         subtitle="Spare parts catalogue (ITEM Master) — cached locally, synced from the database."
         icon="🔩" count={visible.length}
-        actions={mayEdit && <button className="btn btn-primary" onClick={() => setForm({ code: '', description: '' })}>＋ Add part</button>}
+        actions={mayEdit && <button className="btn btn-primary" onClick={() => setForm({ code: '', description: '', category: '', product: '', cost: '' })}>＋ Add part</button>}
       />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
@@ -397,6 +405,35 @@ export function PartMaster() {
               <input className="input" value={form.description}
                 onChange={(e) => setForm((f) => f && ({ ...f, description: e.target.value }))}
                 placeholder="EARTH CABLE-ORG" />
+            </div>
+            <div className="field">
+              <label className="field-label">Spare / Consumable <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
+              <PickList
+                value={form.category}
+                options={PART_CATEGORIES}
+                onPick={(v) => setForm((f) => f && ({ ...f, category: v }))}
+                placeholder="Choose Spare, Consumable, Product or Labour…"
+              />
+            </div>
+            <div className="field">
+              <label className="field-label">Product <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
+              <MultiPick
+                values={form.product.split(',').map((x) => x.trim()).filter(Boolean)}
+                options={families}
+                onChange={(v) => setForm((f) => f && ({ ...f, product: v.join(', ') }))}
+                allLabel="— choose at least one —"
+                noun="products"
+              />
+              <span className="muted" style={{ fontSize: 12 }}>
+                Which machines this part is for, by their short form. Choose as many as apply.
+                {families.length ? '' : ' (Loading the product list…)'}
+              </span>
+            </div>
+            <div className="field">
+              <label className="field-label">Purchase cost</label>
+              <input className="input" value={form.cost} inputMode="decimal"
+                onChange={(e) => setForm((f) => f && ({ ...f, cost: e.target.value }))} />
+              <span className="muted" style={{ fontSize: 12 }}>Optional. Blank means nobody has recorded one.</span>
             </div>
             <div className="field">
               <label className="field-label">Will be listed as</label>
