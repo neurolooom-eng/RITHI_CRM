@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.3',
+    date: '2026-09-30',
+    title: 'Spare approvals: "Cleared for Stores Processing" counts as approved',
+    changes: [
+      'A SPARE WHOSE APPROVAL READS "CLEARED FOR STORES PROCESSING" NOW MOVES ON, the same as "Approved" or "Auto-Approved". Since 0.10.2 these were held at the approver. Spares held for that reason move on by themselves when this version reaches the database, to the next approver who still has to decide, or to Stores.',
+      'Only the phrase itself counts, in any capitals. A longer sentence containing it, such as "Not cleared for stores processing", still waits for the approver.',
+      'The phrase is kept exactly as it was written, on the register and when loaded from a sheet.',
+    ],
+  },
+  {
     version: '0.10.2',
     date: '2026-09-30',
     title: 'Spare approvals read only "Approved" as a yes; correcting a name keeps the team and the person\'s work; Hotline can finish an installation call',

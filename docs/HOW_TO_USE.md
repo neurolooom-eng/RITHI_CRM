@@ -235,9 +235,10 @@ against the call it was fitted to.
    serial and cover, because "is this part plausible for this fault?" is most of
    the decision. Approve, reject or drop many at once; the last two need a reason.
 3. Commercial and NSM approve their own stages where the request needs them.
-   **Only the words Approved or Auto-Approved move a spare on.** A spare loaded
-   from a sheet with anything else in an approval column — "Not Approved",
-   "Approval Pending" — waits at that approver, showing the word as loaded.
+   **Only the words Approved, Auto-Approved or "Cleared for Stores
+   Processing" move a spare on.** A spare loaded from a sheet with anything
+   else in an approval column — "Not Approved", "Approval Pending" — waits at
+   that approver, showing the word as loaded.
 4. **Pending Dispatch** `/spare-dispatch` — Stores issues the part and raises the
    Delivery Challan.
 5. The engineer **acknowledges receipt**.

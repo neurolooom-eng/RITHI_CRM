@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-30 (MODULE REVIEW BATCH 7 — findings 20, 23, 31, v0.10.2,
+_Last updated: 2026-09-30 (FINDING 20 FOLLOW-UP — "Cleared for Stores Processing"
+counts as approved, 0263, v0.10.3, on the branch, NOT merged; _status.sql row
+199. Before that: MODULE REVIEW BATCH 7 — findings 20, 23, 31, v0.10.2,
 MERGED in #453 on the user's word ("Lets merge"). Migrations 0256 (approval words), 0257 (a rename carries
 the team), 0258 (link_install_call), 0259-0262 (a rename carries the person's
 calls, spares, stock and service-engineer entries -- the user's "Rename existing

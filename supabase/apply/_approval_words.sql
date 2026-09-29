@@ -5,13 +5,15 @@
 -- applied. One grid.
 --
 -- 0256 lets a stage pass only on the WORDS Approved or Auto-Approved (any
--- case, surrounding space, optional hyphen). Before it, any value CONTAINING
+-- case, surrounding space, optional hyphen); 0263 adds the phrase "Cleared for
+-- Stores Processing", which the user confirmed is a yes. Before it, any value CONTAINING
 -- "approv" passed — so "Not Approved", "Approval Pending" and the like sent a
 -- line on towards Stores. This file does not depend on 0256: both rules are
 -- written out below, so it answers the same way before and after.
 --
 -- ROWS 1-99   every approval word on the register that is NOT one of
---             Approved / Auto-Approved / Rejected / Pending / blank, per
+--             Approved / Auto-Approved / Cleared for Stores Processing /
+--             Rejected / Pending / blank, per
 --             column, with how many lines carry it. Empty = nothing to move.
 -- ROWS 101-   each OPEN line (not received, dispatched or dropped) that the
 --             new rule puts at a different stage: where the old rule had it,
@@ -47,9 +49,9 @@ staged as (
            when received_at is not null then 'Received'
            when stores ~* 'drop' then 'Dropped'
            when stores ~* 'dispatch' then 'Dispatched'
-           when rm  !~* '^\s*(auto[\s-]*)?approved\s*$' then 'RM Approval'
-           when com !~* '^\s*(auto[\s-]*)?approved\s*$' then 'Commercial'
-           when nsm !~* '^\s*(auto[\s-]*)?approved\s*$' then 'NSM'
+           when rm  !~* '^\s*((auto[\s-]*)?approved|cleared\s+for\s+stores\s+processing)\s*$' then 'RM Approval'
+           when com !~* '^\s*((auto[\s-]*)?approved|cleared\s+for\s+stores\s+processing)\s*$' then 'Commercial'
+           when nsm !~* '^\s*((auto[\s-]*)?approved|cleared\s+for\s+stores\s+processing)\s*$' then 'NSM'
            else 'Stores' end as new_stage
     from l
 ),
@@ -62,7 +64,7 @@ odd as (
   select col, word, count(*) as n
     from words
    where btrim(word) <> ''
-     and word !~* '^\s*(auto[\s-]*)?approved\s*$'
+     and word !~* '^\s*((auto[\s-]*)?approved|cleared\s+for\s+stores\s+processing)\s*$'
      and word !~* '^\s*(rejected|pending)\s*$'
    group by col, word
 ),

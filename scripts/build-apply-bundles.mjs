@@ -875,6 +875,9 @@ const MODULES = {
       // test. AFTER 0210, which owns the previous body of spare_line_stage, so
       // a replay of this bundle alone ends on this one.
       '0256_spare_approval_whole_word.sql',
+      // "Cleared for Stores Processing" is a yes too (the user, after 0256
+      // went live). AFTER 0256, which owns the previous body.
+      '0263_cleared_for_stores_is_approved.sql',
       // WHO DISPATCHED IS STAMPED, NOT SENT. A trigger on spare_dispatches, so
       // the (much-revised) dispatch function is not touched at all.
       '0211_dispatched_by_is_stamped.sql',
