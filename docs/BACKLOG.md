@@ -70,9 +70,9 @@ up)_
 
 - **0254**: `spare_insights()` counts India's days (finding 13); `_status.sql`
   row 197; `spare_insights_ist_window_test`. **The first migration merged
-  since the baseline.** PENDING: read its "Apply database migrations" run
-  after the merge. That run is the first real automatic apply, and nothing is
-  called live until its log says applied.
+  since the baseline.** ✅ It applied itself: run 36618945635 logged
+  "0254_spare_insights_ist_window.sql … applied". That was the first real
+  automatic apply.
 - `startBackgroundSync()` (`cache.ts`): the 30-minute refresh on fifteen screens
   waits for a Load more in flight instead of racing it. `check:ui` covers it.
 - `_status.sql` rows 149, 157, 184 and the Zoho row still await the user's
