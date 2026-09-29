@@ -71,7 +71,7 @@ export function supabaseConfigured(): boolean {
 // is the only way it can be TESTED: this file reads `import.meta.env` at load
 // and cannot be imported by a node script at all.
 import { allRows, distinctValues, PG_PAGE } from './paging';
-import { localMachines, refreshMachineRegister, clearMachineRegister } from './machinestore';
+import { localMachines, localParties, refreshMachineRegister, refreshPartyRegister, clearMachineRegister } from './machinestore';
 import * as mc from './machinecache';
 import type { LoadedReport, ConvertWrite } from './reportMapping';
 export { allRows, PG_PAGE };
@@ -834,6 +834,11 @@ export async function sbPartyServiceEngineer(party: string): Promise<string> {
   const name = (party ?? '').trim();
   if (!name) return '';
   const c = getSupabase(); if (!c) return '';
+  // THE PARTY MASTER ON THIS DEVICE FIRST (machinestore.ts); the server only
+  // for a customer the copy does not have.
+  const local = await localParties();
+  const hit = local ? mc.partyByName(local, name) : undefined;
+  if (hit) return String(hit.service_engineer ?? '').trim();
   const { data, error } = await c.from('parties')
     .select('service_engineer').eq('name_key', name.toLowerCase()).maybeSingle();
   if (error || !data) return '';
@@ -841,7 +846,11 @@ export async function sbPartyServiceEngineer(party: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// THE CUSTOMER LIST IS SEARCHED, NEVER DOWNLOADED.
+// THE CUSTOMER LIST IS SEARCHED, NEVER DOWNLOADED -- ON THE SERVER. Superseded
+// on 2026-09-29 for the reading side: the whole Party Master is now kept on the
+// device (machinestore.ts), downloaded in the BACKGROUND and never before the
+// field works, so the eight-second wait below cannot come back -- until the
+// copy has arrived, the server search here is what answers.
 //
 // It used to be downloaded whole — `product_party_names` paged a thousand rows
 // at a time — and cached in the browser. That was still the wrong shape: three
@@ -931,6 +940,16 @@ export async function sbSearchProductParties(query: string, limit = 50): Promise
 // The maintained Party Master, searched the same way — for an INSTALLATION,
 // where the customer may have no machine yet and so cannot be in the register.
 export async function sbSearchParties(query: string, limit = 50): Promise<string[]> {
+  const c = getSupabase(); if (!c) return [];
+  const local = await localParties();
+  if (local) {
+    const hit = mc.searchPartyMaster(local, query, limit);
+    if (hit.length || !query.trim()) return hit;
+    try { return await serverSearchParties(query, limit); } catch { return hit; }
+  }
+  return serverSearchParties(query, limit);
+}
+async function serverSearchParties(query: string, limit = 50): Promise<string[]> {
   const c = getSupabase(); if (!c) return [];
   let q = c.from('parties').select('party_name').order('party_name').limit(limit);
   const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
@@ -1028,6 +1047,9 @@ export interface PartyPatch {
  *  them could sign somebody else's name to a verification. */
 export async function updateParty(id: number, patch: PartyPatch): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('parties').update(patch).eq('id', id);
+  // An edit here re-downloads this device's Party Master, so the next Call
+  // Request fills what was just saved rather than a copy up to six hours old.
+  if (!error) void refreshPartyRegister({ force: true });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
@@ -1655,6 +1677,20 @@ export interface PartyInfo {
 }
 
 export async function sbPartyInfo(party: string): Promise<PartyInfo | null> {
+  // THE CUSTOMER'S DETAILS FROM THIS DEVICE FIRST -- the step after the machine
+  // names the customer on a Call Request (the user, 2026-09-29: "all these
+  // should function from cached data at first, if it fails then do a server
+  // search"). Not on the device -> the server; no signal either -> nothing
+  // filled, which is what a failed read already did.
+  const local = await localParties();
+  if (local) {
+    const hit = mc.partyByName(local, party);
+    if (hit) return partyInfoFrom(hit);
+    try { return await serverPartyInfo(party); } catch { return null; }
+  }
+  return serverPartyInfo(party);
+}
+async function serverPartyInfo(party: string): Promise<PartyInfo | null> {
   // `name_key` IS `lower(btrim(party_name))` with a UNIQUE btree on it, and
   // `partyKey()` computes exactly that string in JavaScript -- so this is the
   // same case-insensitive, trimmed match the `ilike` was doing, through an
@@ -1663,7 +1699,9 @@ export async function sbPartyInfo(party: string): Promise<PartyInfo | null> {
   const { data } = await must().from('parties')
     .select('state,city,address,extra,pincode,phone,phone_2,pan,gstin,party_type,profile,service_engineer')
     .eq('name_key', partyKey(party)).limit(1).maybeSingle();
-  if (!data) return null;
+  return data ? partyInfoFrom(data) : null;
+}
+function partyInfoFrom(data: Record<string, unknown>): PartyInfo {
   const ex = (data.extra as Record<string, unknown>) ?? {};
   const t = (v: unknown) => String(v ?? '').trim();
   return {
@@ -1937,7 +1975,17 @@ export async function sbKycByParties(
   const out = new Map<string, { status: string; docs: unknown }>();
   const c = getSupabase();
   if (!c) return out;
-  const keys = [...new Set(names.map((n) => partyKey(n)).filter(Boolean))];
+  let keys = [...new Set(names.map((n) => partyKey(n)).filter(Boolean))];
+  // FROM THIS DEVICE FIRST; only the names it does not have go to the server.
+  const local = await localParties();
+  if (local) {
+    const byKey = new Map(local.map((p) => [String(p.name_key ?? partyKey(p.party_name)), p]));
+    keys = keys.filter((k) => {
+      const p = byKey.get(k);
+      if (p) out.set(k, { status: String(p.kyc_status ?? ''), docs: p.kyc_docs });
+      return !p;
+    });
+  }
   for (let i = 0; i < keys.length; i += 200) {
     const { data, error } = await c.from('parties')
       .select('name_key,kyc_status,kyc_docs').in('name_key', keys.slice(i, i + 200));
@@ -4548,7 +4596,7 @@ export async function uploadRows(
           : /schema cache|does not exist/i.test(m)
             ? ` — the ${table} table (or a column of it) is not on this project. Run supabase/apply/_status.sql to see what is missing.`
             : '';
-      if (written && table === 'products') void refreshMachineRegister({ force: true });
+      if (written && (table === 'products' || table === 'parties')) void refreshMachineRegister({ force: true });
       return { ok: false, written, error: `${m} (row ~${i + 1})${hint}` };
     }
     written += slice.length;
@@ -4557,7 +4605,7 @@ export async function uploadRows(
   // A PRODUCT DATABASE UPLOAD RE-DOWNLOADS THIS DEVICE'S COPY, so the person
   // who loaded the file searches what they just loaded rather than a copy up
   // to six hours old. Other devices pick it up within their six hours.
-  if (written && table === 'products') void refreshMachineRegister({ force: true });
+  if (written && (table === 'products' || table === 'parties')) void refreshMachineRegister({ force: true });
   return { ok: true, written };
 }
 

@@ -9175,8 +9175,14 @@ console.log('-- the machine register is searched on the device --');
     const body = new RegExp(`export async function ${fn}\\([\\s\\S]*?\\n\\}`).exec(sbx)?.[0] ?? '';
     eq(`${fn} asks the device copy first`, /await localMachines\(\)/.test(body), true);
   }
-  eq('a Product Database upload re-downloads the copy',
-    /written && table === 'products'\) void refreshMachineRegister\(\{ force: true \}\)/.test(sbx), true);
+  for (const fn of ['sbPartyInfo', 'sbPartyServiceEngineer', 'sbSearchParties', 'sbKycByParties']) {
+    const body = new RegExp(`export async function ${fn}\\([\\s\\S]*?\\n\\}`).exec(sbx)?.[0] ?? '';
+    eq(`${fn} asks the device's Party Master first`, /await localParties\(\)/.test(body), true);
+  }
+  eq('a Party Master edit re-downloads the copy', /update\(patch\)\.eq\('id', id\);\s*[\s\S]{0,200}refreshPartyRegister\(\{ force: true \}\)/.test(sbx), true);
+  eq('EVERY COLUMN is downloaded', /select\('\*'\)\.gt\('id', afterId\)/.test(rd('src/lib/machinestore.ts')), true);
+  eq('a Product Database or Party Master upload re-downloads the copy',
+    /written && \(table === 'products' \|\| table === 'parties'\)\) void refreshMachineRegister\(\{ force: true \}\)/.test(sbx), true);
   eq('signing out wipes the copy', /export async function sbSignOut[\s\S]{0,200}await clearMachineRegister\(\)/.test(sbx), true);
   const lay = rd('src/components/layout/Layout.tsx');
   eq('the shell starts the download once somebody is signed in', /if \(user && supabaseConfigured\(\)\) watchMachineRegister\(\)/.test(lay), true);
@@ -9184,7 +9190,7 @@ console.log('-- the machine register is searched on the device --');
   const store = rd('src/lib/machinestore.ts');
   eq('only a COMPLETE download replaces the copy', /if \(!r\.complete\) \{[\s\S]{0,200}return;\s*\}[\s\S]*st\.put\(/.test(store), true);
   eq('...and it is refreshed every six hours', /MACHINE_REFRESH_MS = 6 \* 60 \* 60 \* 1000/.test(store), true);
-  for (const m of ['src/modules/Lookup.tsx', 'src/modules/ProductMaster.tsx'])
+  for (const m of ['src/modules/Lookup.tsx', 'src/modules/ProductMaster.tsx', 'src/modules/RequestCallRegistration.tsx'])
     eq(`${m} says what the device holds`, /<MachineRegisterNote \/>/.test(rd(m)), true);
 }
 

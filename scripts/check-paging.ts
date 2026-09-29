@@ -272,8 +272,29 @@ console.log('-- the machine register on the device --');
   eq('...and paging continues where the last page stopped',
     mc.searchProducts(reg, {}, 2, 2).map((r) => r['Item Serial Number']), ['219', '219']);
 
-  eq('packed and unpacked, a machine is the same machine',
-    JSON.stringify(mc.unpack(mc.pack(reg))), JSON.stringify(reg));
+  // EVERY COLUMN IS KEPT (the user: "keep all columns in the cache").
+  const raw = [
+    { id: 1, item_name: 'VEGA', serial_number: '105', extra: { 'PO No.': 'X/1' }, active: true, warranty_end: null },
+    { id: 2, item_name: 'ORION-G', serial_number: '219', machine_key: 'orion-g|219' },
+  ];
+  eq('packed and unpacked, every column of every row comes back exactly',
+    JSON.stringify(mc.unpackRows(mc.packRows(raw))), JSON.stringify(raw));
+  eq('...a null stays a null, not a blank', mc.unpackRows(mc.packRows(raw))[0].warranty_end, null);
+  eq('...and a column one row lacks is not invented on it', 'machine_key' in mc.unpackRows(mc.packRows(raw))[0], false);
+  eq('a cached machine carries the whole row, not only the screen headings',
+    mc.toCached(raw[0], {}).row, raw[0]);
+
+  const ps = [
+    { id: 1, party_name: 'City Hospital', name_key: 'city hospital', state: 'MH', city: 'Pune', service_engineer: 'SUDIP' },
+    { id: 2, party_name: 'Apollo Clinic', name_key: 'apollo clinic', state: 'KA' },
+    { id: 3, party_name: 'Rural PHC', name_key: 'rural phc' },
+  ];
+  eq('the customer is found by the unique key however the name is cased or spaced',
+    mc.partyByName(ps, '  CITY hospital ')?.city, 'Pune');
+  eq('...a customer not on the device is undefined, so the server is asked', mc.partyByName(ps, 'Nobody'), undefined);
+  eq('...a blank name finds nobody', mc.partyByName(ps, '  '), undefined);
+  eq('Party Master search: contains, any case, sorted, capped',
+    mc.searchPartyMaster(ps, 'c', 2), ['Apollo Clinic', 'City Hospital']);
 }
 
 console.log('-- the download on a signal that keeps dropping --');
