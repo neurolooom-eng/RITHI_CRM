@@ -1421,6 +1421,32 @@ with checks(sort_order, bundle, provides, present) as (
          and exists (select 1 from pg_indexes i where i.schemaname = 'public' and i.indexname = 'product_accessories_main_key')
          and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'product_accessories'
                       and p.policyname = 'pa_update' and p.qual ilike '%select has_perm%'))),
+    (199, 'A refused spare is not an approved one', 'spare_line_stage() lets a stage pass only on the WORDS Approved or Auto-Approved -- any case, surrounding space, optional hyphen (0256, finding 20). It asked whether the value CONTAINED "approv", so "Not Approved", "Approval Pending", "Disapproved" and seven other phrasings a spreadsheet brings in read as approved and the line reached Stores, one click from dispatch. Any other word now holds the line at that approver, kept as written. Asked of the function, not its text. NO means a refused spare can still be dispatched. Restore: Spare_1.sql',
+        coalesce((select public.spare_line_stage('Not Approved', 'Auto-Approved', 'Auto-Approved', 'Pending', null, '') = 'RM Approval'
+                     and public.spare_line_stage('Approved', 'Approval Pending', 'Approved', 'Pending', null, '') = 'Commercial'
+                     and public.spare_line_stage('Auto Approved', 'APPROVED', 'Auto-Approved', 'Pending', null, '') = 'Stores'
+                   where to_regprocedure('public.spare_line_stage(text,text,text,text,timestamptz,text)') is not null), false)),
+    (200, 'Correcting a manager''s name keeps their team', 'user_directory_carry_rename (0257, finding 23): when a User Master name changes, every row naming the old name as Reporting or Regional Manager follows it in the same save -- matched as the team rule matches, lower case and untrimmed, and not when another row still holds the old name, the old name was blank, or only its case changed. Measured before it: a Reporting Manager saw 3 people before one spelling correction and 1 after. Work filed under the old name (calls, spare requests, consumption, hand stock) keeps it, by decision. NO means a rename still empties a manager''s team. Restore: user_directory.sql',
+        exists (select 1 from pg_trigger t
+                 where t.tgrelid = to_regclass('public.user_directory')
+                   and t.tgname = 'user_directory_carry_rename' and not t.tgisinternal)),
+    (201, 'Hotline can map the installation call it raises', 'link_install_call(bigint, text) (0258, finding 31): writes an installation call''s UCN into one warranty machine''s INST Call and nothing else, for install.create or cover.edit. Hotline holds the first and not the second, so the direct write matched zero rows and the button came back offering a second call for the same machine. It refuses to replace a call number and refuses a call that is not this machine''s installation; the not-signed-in role cannot call it. NO means the Warranty register''s "+ Installation call" reports "could not be written back" for Hotline. Restore: sales_contracts.sql',
+        (to_regprocedure('public.link_install_call(bigint,text)') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.link_install_call(bigint,text)'), 'EXECUTE')
+         and has_function_privilege('authenticated', to_regprocedure('public.link_install_call(bigint,text)'), 'EXECUTE'))),
+    (202, 'A corrected name carries the person''s calls, spares and stock', 'user_directory_carry_rename_records (0259, finding 23, the user''s "Rename existing records"): when a User Master name changes, every record filed under the old name follows it -- calls allotted to it, call requests, spare requests and dispatches, consumption, hand stock, stock transfers, and the Party Master / Product Database Service Engineer -- matched as each register''s read policy matches (lower, trimmed). Before it, the renamed person and their manager stopped seeing those calls and the hand stock split into two balances. It files a ticket the change-of-engineer guards recognise; the row checks the ticket table can be written by nobody else (RLS on, no grant to signed-in users). NO means a rename moves the team but leaves the work behind. Restore: user_directory.sql',
+        (exists (select 1 from pg_trigger t
+                  where t.tgrelid = to_regclass('public.user_directory')
+                    and t.tgname = 'user_directory_carry_rename_records' and not t.tgisinternal)
+         and to_regclass('public.engineer_rename_ticket') is not null
+         and (select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.engineer_rename_ticket'))
+         and not has_table_privilege('authenticated', 'public.engineer_rename_ticket', 'INSERT'))),
+    (203, 'The change-of-engineer guards let a rename through, and nothing else', 'call_request_content_frozen (0260), consumption_adjust_guard and spare_request_engineer_guard (0261) and notify_call_allotted (0262) each ask engineer_rename_in_progress() before refusing a change of engineer, or before sending "Call allotted to you". Without all four a User Master rename is REFUSED outright on anybody with an answered request, a dispatched spare or a consumption line -- or, for the notice, sends one per call. Counted: all four bodies, by name. NO means renaming an engineer fails or floods them with notices. Restore: call_requests.sql, then HandStock_X.sql and notifications.sql',
+        ((select count(*) from pg_proc p
+           where p.pronamespace = 'public'::regnamespace
+             and p.proname in ('call_request_content_frozen', 'consumption_adjust_guard',
+                               'spare_request_engineer_guard', 'notify_call_allotted')
+             and p.prosrc ~ 'engineer_rename_in_progress') = 4)),
     (204, 'Department on the User Master', 'user_directory.department and the Department master list (0263): the department each person belongs to, chosen from one list so every screen and every training audience spells it the same way. The list starts empty -- add the departments under Masters -> Department. NO means the User Master has no Department field. Restore: masters.sql',
         (exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'user_directory' and column_name = 'department')

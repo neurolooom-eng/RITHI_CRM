@@ -18,6 +18,8 @@
 --   0068_app_user_names.sql
 --   0092_visible_engineers_by_name.sql
 --   0212_visible_engineers_no_blank_match.sql
+--   0257_directory_rename_carries_the_team.sql
+--   0259_directory_rename_carries_the_records.sql
 --   0122_user_directory_replay_tail.sql
 --   0005_rbac.sql
 --   0007_user_access.sql
@@ -115,6 +117,7 @@
 --   0226_cancelled_is_not_report_pending.sql
 --   0242_cancel_calls_in_one_go.sql
 --   0232_call_request_edit.sql
+--   0260_rename_passes_the_request_freeze.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
@@ -165,6 +168,7 @@
 --   0036_spare_drop.sql
 --   0210_handstock_needs_nsm.sql
 --   0217_restore_the_line_guard_rules.sql
+--   0256_spare_approval_whole_word.sql
 --   0211_dispatched_by_is_stamped.sql
 --   0084_spare_request_import.sql
 --   0085_spare_request_or_no_key.sql
@@ -203,6 +207,7 @@
 --   0100_spare_request_reassign.sql
 --   0102_handstock_balance_history_split.sql
 --   0196_rename_part.sql
+--   0261_rename_passes_the_spare_guards.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
 --   0072_ownership_transfer.sql
@@ -224,12 +229,14 @@
 --   0238_machine_belongs_to_its_latest_owner.sql
 --   0240_ownership_transfer_timestamp.sql
 --   0247_cover_maintenance_needs_cover_edit.sql
+--   0258_link_install_call.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
 --   0045_notifications.sql
 --   0054_notify_uid_ambiguous.sql
 --   0123_clear_notifications_on_signout.sql
+--   0262_rename_is_not_an_allotment.sql
 --   0122_notifications_replay_tail.sql
 --   0046_validation_results.sql
 --   0130_quality_objectives.sql
@@ -1176,6 +1183,248 @@ as $$
   )
   select name from tree where coalesce(name,'') <> '';
 $$;
+
+-- ------------------------------------------------------------------------
+-- 0257_directory_rename_carries_the_team.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- CORRECTING A MANAGER'S NAME NO LONGER EMPTIES THEIR TEAM (finding 23).
+--
+-- The reporting tree is built from NAMES: `user_directory.reporting_manager`
+-- and `.regional_manager` hold a manager's name, and `visible_engineer_names()`
+-- matches them against `name`, case-insensitively. Nothing carried a change of
+-- that name, so correcting a spelling on User Master left every engineer
+-- pointing at a name nobody holds any more. Measured: the Reporting Manager
+-- saw 3 people before one edit and 1 after — themselves — and lost every
+-- call, spare request, visit and review their team's names scope, with no
+-- error anywhere.
+--
+-- THE USER'S DECISION (2026-09-30): "Carry the rename". When a directory
+-- row's name changes, every row naming the OLD name as its Reporting or
+-- Regional Manager is updated to the NEW name in the same statement.
+--
+-- THREE LIMITS, each on purpose:
+--
+--   1. A BLANK OLD NAME CARRIES NOTHING. Naming somebody who had no name would
+--      otherwise rewrite every row with no manager recorded — the blank-name
+--      trap 0212 closed on the read side.
+--   2. IF ANOTHER ROW STILL CARRIES THE OLD NAME, NOTHING IS CARRIED. Two
+--      directory rows with one name are two people the tree already cannot
+--      tell apart; the rows naming it still resolve to the one who kept it,
+--      and moving them to the renamed person would be a guess.
+--   3. A CHANGE OF CASE ONLY CARRIES NOTHING. The tree compares with lower(),
+--      so "ravi kumar" -> "Ravi Kumar" breaks nothing and rewriting the team
+--      would be writes for no reason.
+--
+-- IT MATCHES EXACTLY AS THE TREE DOES — lower(), no trimming. A btrim() here
+-- would also rewrite a row naming ' Ravi ', which the tree does NOT count as
+-- Ravi's today, and so WIDEN a team; this migration only keeps one.
+--
+-- THE RECORDS filed under the old name — calls, requests, spares,
+-- consumption, hand stock — are 0259's, a second trigger: the user first chose
+-- to leave them, then (same day, once told that call visibility is by name
+-- too) "Rename existing records".
+--
+-- SECURITY INVOKER. Only an ADMINISTRATOR can change a name at all —
+-- `user_directory_address_guard` refuses anybody else any column but the
+-- address — and an administrator may write every row, so the cascade can never
+-- be partly refused. Running as the caller also stamps sys_updated_by with the
+-- person who renamed.
+-- ===========================================================================
+
+create or replace function public.user_directory_carry_rename()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if btrim(coalesce(old.name, '')) = ''
+     or lower(old.name) = lower(coalesce(new.name, '')) then
+    return null;
+  end if;
+  if exists (select 1 from public.user_directory d
+              where d.id <> new.id and lower(d.name) = lower(old.name)) then
+    return null;
+  end if;
+
+  update public.user_directory d
+     set reporting_manager = new.name
+   where d.id <> new.id
+     and lower(d.reporting_manager) = lower(old.name);
+
+  update public.user_directory d
+     set regional_manager = new.name
+   where d.id <> new.id
+     and lower(d.regional_manager) = lower(old.name);
+
+  return null;
+end $$;
+
+comment on function public.user_directory_carry_rename() is
+  'When a User Master name changes, rows naming the old name as Reporting or Regional Manager follow it (finding 23). Not when the old name was blank, is still held by another row, or only its case changed.';
+
+drop trigger if exists user_directory_carry_rename on public.user_directory;
+create trigger user_directory_carry_rename
+  after update of name on public.user_directory
+  for each row execute function public.user_directory_carry_rename();
+
+-- ------------------------------------------------------------------------
+-- 0259_directory_rename_carries_the_records.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A RENAME ALSO CARRIES THE PERSON'S RECORDS (finding 23, second half).
+--
+-- 0257 moves the TEAM: the rows that name a renamed person as their manager.
+-- It left work already filed under the old name where it was, and that is not
+-- only hand stock. Who may SEE a call is decided by the allottee's NAME
+-- (`calls_scoped_read`: lower(trim(allocated_to)) in visible_engineer_names()),
+-- and so is a spare request, a consumption line, a stock transfer and the rest
+-- -- so after a rename the person, and their manager, stopped seeing
+-- everything allotted to the old spelling, and their hand stock split into two
+-- balances.
+--
+-- THE USER'S DECISION (2026-09-30): "Rename existing records".
+--
+-- WHAT MOVES — every column that decides whose a record IS, matched exactly as
+-- its own read policy matches it (lower(btrim()) on both sides):
+--
+--   calls ............ field_calls / installation_calls / pm_calls.allocated_to
+--   requests ......... call_requests.engineer, pending_registrations.engineer
+--   spares ........... spare_requests.engineer, spare_dispatches.engineer
+--   consumption ...... spare_consumption.engineer, spare_consumption_history.engineer
+--   hand stock ....... handstock_opening.engineer, spare_issue_history.engineer,
+--                      material_returns.engineer,
+--                      stock_transfers.from_engineer / .to_engineer
+--   who looks after .. parties.service_engineer, products.service_engineer
+--
+-- The last two are not history but POINTERS: a new call's Allocated To is
+-- filled from the customer's Service Engineer, so a stale name there would
+-- allot every new call to a name nobody can see — the same fault again.
+--
+-- WHAT DOES NOT MOVE, on purpose: who DID something — rm_by, dispatched_by,
+-- received_by, recorded_by, a visit report's engineer, a feedback's engineer,
+-- the sale's engineer, and spare_request_engineer_log (a log of changes of
+-- engineer, which a rename must not rewrite). Those are signatures on a
+-- record, and nothing's visibility or stock is decided by them.
+--
+-- THE SAME THREE LIMITS AS 0257: nothing moves when the old name was blank,
+-- when only its case or surrounding space changed (every reader compares
+-- lower(btrim())), or when another User Master row still carries the old name
+-- — two people with one name, whose records cannot be told apart here.
+--
+-- GUARDS. Four triggers refuse or react to exactly this change: a consumption
+-- line's engineer cannot change, a dispatched request's engineer cannot
+-- change, an answered call request is frozen, and a changed allottee sends
+-- "Call allotted to you". Each is taught to recognise THIS rename (0260,
+-- 0261, 0262) by a TICKET filed here, in the same pattern as rename_part()
+-- (0196): a row keyed on the transaction, in a table with row-level security
+-- on, no policy and no grants, so only this definer function can write one.
+-- A set_config flag would be forgeable by anybody who can update a row.
+-- Every other guard still runs; the renamer is an administrator (only an
+-- administrator can change a name — user_directory_address_guard), which is
+-- what those guards already let through.
+--
+-- EACH TABLE IS GUARDED BY to_regclass() and updated by dynamic SQL, so a
+-- project missing a module still renames what it has. The audit triggers on
+-- the quality tables record every row moved.
+-- ===========================================================================
+
+create table if not exists public.engineer_rename_ticket (
+  txid     bigint primary key,
+  old_key  text not null,
+  new_name text not null,
+  at       timestamptz not null default now()
+);
+alter table public.engineer_rename_ticket enable row level security;
+revoke all on public.engineer_rename_ticket from public;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    execute 'revoke all on public.engineer_rename_ticket from authenticated';
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    execute 'revoke all on public.engineer_rename_ticket from anon';
+  end if;
+end $$;
+-- THE FIVE SYSTEM COLUMNS (0244), like every other table. Where 0244 has
+-- already run -- the live project, a build in migration order -- they are
+-- attached here; on a fresh apply of the bundles, `sys_columns` runs last and
+-- attaches them to every table then.
+do $$ begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.engineer_rename_ticket'::regclass);
+  end if;
+end $$;
+
+comment on table public.engineer_rename_ticket is
+  'The capability that lets a User Master rename move the records filed under the old name past the guards that refuse a change of engineer (0259). RLS on with NO policy and no grants: only the definer-owned rename trigger writes one, keyed on its own transaction.';
+
+-- Is THIS transaction renaming `p_old` to `p_new`? Asked by the guards. It
+-- answers only about the caller's own transaction, so it discloses nothing.
+create or replace function public.engineer_rename_in_progress(p_old text, p_new text)
+returns boolean language plpgsql stable security definer set search_path = public as $$
+begin
+  return exists (
+    select 1 from public.engineer_rename_ticket t
+     where t.txid = txid_current()
+       and t.old_key = lower(btrim(coalesce(p_old, '')))
+       and t.new_name = coalesce(p_new, ''));
+end $$;
+revoke execute on function public.engineer_rename_in_progress(text, text) from public, anon;
+grant  execute on function public.engineer_rename_in_progress(text, text) to authenticated;
+
+create or replace function public.user_directory_carry_rename_records()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  old_key text := lower(btrim(coalesce(old.name, '')));
+  new_nm  text := btrim(coalesce(new.name, ''));
+  target  record;
+begin
+  if old_key = '' or new_nm = '' or old_key = lower(new_nm) then
+    return null;
+  end if;
+  if exists (select 1 from public.user_directory d
+              where d.id <> new.id and lower(btrim(d.name)) = old_key) then
+    return null;
+  end if;
+
+  insert into public.engineer_rename_ticket (txid, old_key, new_name)
+  values (txid_current(), old_key, new_nm)
+  on conflict (txid) do update set old_key = excluded.old_key,
+                                   new_name = excluded.new_name, at = now();
+
+  for target in
+    select * from (values
+      ('field_calls', 'allocated_to'), ('installation_calls', 'allocated_to'), ('pm_calls', 'allocated_to'),
+      ('call_requests', 'engineer'), ('pending_registrations', 'engineer'),
+      ('spare_requests', 'engineer'), ('spare_dispatches', 'engineer'),
+      ('spare_consumption', 'engineer'), ('spare_consumption_history', 'engineer'),
+      ('handstock_opening', 'engineer'), ('spare_issue_history', 'engineer'),
+      ('material_returns', 'engineer'),
+      ('stock_transfers', 'from_engineer'), ('stock_transfers', 'to_engineer'),
+      ('parties', 'service_engineer'), ('products', 'service_engineer')
+    ) v(tbl, col)
+  loop
+    if to_regclass('public.' || target.tbl) is not null
+       and exists (select 1 from information_schema.columns c
+                    where c.table_schema = 'public' and c.table_name = target.tbl
+                      and c.column_name = target.col) then
+      execute format('update public.%I set %I = $1 where lower(btrim(%I)) = $2',
+                     target.tbl, target.col, target.col)
+        using new_nm, old_key;
+    end if;
+  end loop;
+
+  delete from public.engineer_rename_ticket where txid = txid_current();
+  return null;
+end $$;
+revoke execute on function public.user_directory_carry_rename_records() from public, anon, authenticated;
+
+comment on function public.user_directory_carry_rename_records() is
+  'When a User Master name changes, the records filed under the old name -- calls allotted to it, requests, spares, consumption, hand stock, and the Party Master / Product Database service engineer -- follow it (0259, finding 23). Not when the old name was blank, only its case or spacing changed, or another row still holds it.';
+
+drop trigger if exists user_directory_carry_rename_records on public.user_directory;
+create trigger user_directory_carry_rename_records
+  after update of name on public.user_directory
+  for each row execute function public.user_directory_carry_rename_records();
 
 -- ------------------------------------------------------------------------
 -- 0122_user_directory_replay_tail.sql
@@ -11746,6 +11995,63 @@ comment on function public.call_request_content_frozen() is
   'A call request may be corrected while it is Pending. Once it has become a call — Registered, Mapped or Cancelled — the sixteen columns describing WHAT was asked for stop moving, because the call carries them from that moment and the call is what everything downstream reads. The disposition columns (ucn, status, actioned_by/at, cancel_reason, cancelled_at) stay writable in every state, or registering and cancelling would themselves be refused.';
 
 -- ------------------------------------------------------------------------
+-- 0260_rename_passes_the_request_freeze.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- AN ANSWERED CALL REQUEST FOLLOWS A RENAME OF ITS ENGINEER (0259, finding 23).
+--
+-- `call_request_content_frozen` (0232) refuses any change to an answered
+-- request, the engineer included, because the call now carries those details
+-- and the two must not disagree. A User Master rename is the one change that
+-- keeps them agreeing: 0259 renames the call's allottee in the same statement.
+-- So the Engineer line alone admits exactly that rename, recognised by the
+-- ticket 0259 files for its own transaction. Every other field stays frozen,
+-- and so does the engineer for anybody else. Body taken from the database.
+-- ===========================================================================
+
+create or replace function public.call_request_content_frozen()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $$
+declare
+  was text := lower(btrim(coalesce(old.status, '')));
+  changed text[] := '{}';
+begin
+  -- Pending is the editable state. Anything else means the request has been
+  -- answered -- registered as a call, mapped to one, or cancelled.
+  if was in ('', 'pending') then return new; end if;
+
+  if new.party_name              is distinct from old.party_name              then changed := changed || 'Party'::text; end if;
+  if new.state                   is distinct from old.state                   then changed := changed || 'State'::text; end if;
+  if new.city                    is distinct from old.city                    then changed := changed || 'City'::text; end if;
+  if new.address                 is distinct from old.address                 then changed := changed || 'Address'::text; end if;
+  if new.product                 is distinct from old.product                 then changed := changed || 'Product'::text; end if;
+  if new.serial_no               is distinct from old.serial_no               then changed := changed || 'Serial No'::text; end if;
+  if new.standard_complaint      is distinct from old.standard_complaint      then changed := changed || 'Standard Complaint'::text; end if;
+  if new.reported_problem        is distinct from old.reported_problem        then changed := changed || 'Reported Problem'::text; end if;
+  if new.call_type               is distinct from old.call_type               then changed := changed || 'Call Type'::text; end if;
+  -- A USER MASTER RENAME (0259) moves the engineer's NAME and nothing else, so
+  -- the request and the call it became still agree about who it is.
+  if new.engineer                is distinct from old.engineer
+     and not public.engineer_rename_in_progress(old.engineer, new.engineer)
+                                                                               then changed := changed || 'Engineer'::text; end if;
+  if new.email                   is distinct from old.email                   then changed := changed || 'Email'::text; end if;
+  if new.customer_contact_details is distinct from old.customer_contact_details then changed := changed || 'Customer Contact'::text; end if;
+  if new.customer_contact_number is distinct from old.customer_contact_number then changed := changed || 'Customer Number'::text; end if;
+  if new.plan_date               is distinct from old.plan_date               then changed := changed || 'Plan Date'::text; end if;
+  if new.additional_comments     is distinct from old.additional_comments     then changed := changed || 'Additional Comments'::text; end if;
+  if new.call_attended           is distinct from old.call_attended           then changed := changed || 'Call Attended'::text; end if;
+
+  if array_length(changed, 1) is not null then
+    raise exception
+      'This request is already % — % cannot be changed here. The call carries these details now, so correct them on the call itself; changing the request would leave the two disagreeing about one machine.',
+      coalesce(old.status, 'answered'), array_to_string(changed, ', ');
+  end if;
+  return new;
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0164_cr_read_initplan.sql
 -- ------------------------------------------------------------------------
 
@@ -19583,6 +19889,100 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0256_spare_approval_whole_word.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- "NOT APPROVED" IS NOT AN APPROVAL (finding 20).
+--
+-- `spare_line_stage` asked whether an approval column CONTAINED "approv" or
+-- "auto". Every way of saying no or not-yet also contains the word approval,
+-- so ten plausible spreadsheet phrasings resolved to STORES — measured on a
+-- database built from every migration:
+--
+--   Not Approved, NOT APPROVED, Approval Pending, Awaiting Approval,
+--   Pending Approval, For Approval, Approval Awaited, Disapproved -> Stores
+--
+-- and `spare_pending_dispatch`, the only thing `dispatch_spare_lines()` checks
+-- before booking stock out, offered the refused part to Stores. The app never
+-- writes such a word (it writes Approved, Auto-Approved, Rejected, Pending);
+-- the Spare Request Lines bulk upload passes the sheet's cell straight through.
+--
+-- THE USER'S DECISION (2026-09-30): "Hold it for the approver". Only the two
+-- words that mean yes let a line pass; anything else waits at that approver's
+-- stage, showing the word as written, for a person to decide. NOTHING IS
+-- REWRITTEN: the stored value stays exactly what the sheet said, because it is
+-- the approver's record and guessing what "Approval Awaited" meant is not
+-- this migration's call.
+--
+-- WHOLE WORD, NOT SUBSTRING. `Approved` and `Auto-Approved`, any case, with
+-- surrounding space ignored and the hyphen optional ("Auto Approved",
+-- "AutoApproved") — those are the same two words, and holding them back would
+-- move lines that were legitimately cleared. The CLIENT copy is `isApproved`
+-- in `src/lib/spareflow.ts`; `check:ui` holds the two patterns together.
+--
+-- REJECT IS UNCHANGED. `~* 'reject'` catches "Rejected" first and was never
+-- the fault; loosening or tightening it is a different decision.
+--
+-- SAME SIX ARGUMENTS, for the reason 0210 gives: seven migrations call this
+-- function and three views are built on it.
+-- ===========================================================================
+
+create or replace function public.spare_line_stage(
+  rm text, commercial text, nsm text, stores text, received timestamptz, item_status text
+) returns text language sql immutable as $$
+  select case
+    when rm ~* 'reject' or commercial ~* 'reject' or nsm ~* 'reject' then 'Rejected'
+    when received is not null                                        then 'Received'
+    when stores ~* 'drop'                                            then 'Dropped'
+    when stores ~* 'dispatch'                                        then 'Dispatched'
+    when rm         !~* '^\s*(auto[\s-]*)?approved\s*$'              then 'RM Approval'
+    when commercial !~* '^\s*(auto[\s-]*)?approved\s*$'              then 'Commercial'
+    when nsm        !~* '^\s*(auto[\s-]*)?approved\s*$'              then 'NSM'
+    else 'Stores'
+  end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- The stored stage follows. `spare_request_lines.stage` / `.status` are a
+-- cache the register reads; the views call the function live. Only OPEN lines
+-- whose stage CHANGES are touched (a dispatched, received, rejected or dropped
+-- line is settled, and its terminal branch wins either way). No approval
+-- column is written, so none of the approval guards is asked anything.
+--
+-- THIS MOVES LINES BACKWARDS, deliberately: a line whose RM column says
+-- "Not Approved" leaves Stores and returns to RM Approval. That is the fix.
+-- `supabase/apply/_approval_words.sql` lists them before and after.
+-- ---------------------------------------------------------------------------
+do $$
+declare n int;
+begin
+  with moved as (
+    update public.spare_request_lines l
+       set stage  = x.new_stage,
+           status = x.new_stage
+      from (select l2.id,
+                   public.spare_line_stage(
+                     coalesce(l2.rm_approval, 'Pending'),
+                     coalesce(l2.commercial_approval, 'Pending'),
+                     coalesce(l2.nsm_approval, 'Pending'),
+                     coalesce(l2.stores_status, 'Pending'),
+                     l2.received_at, r.item_status) as new_stage
+              from public.spare_request_lines l2
+              join public.spare_requests r on r.uid = l2.request_uid
+             where l2.received_at is null
+               and coalesce(l2.stores_status, '') !~* 'dispatch|drop') x
+     where l.id = x.id
+       and l.stage is distinct from x.new_stage
+    returning l.request_uid
+  )
+  select count(*) into n from moved;
+  -- Each moved line's request is rolled up by `spare_request_lines_rollup`,
+  -- the per-row trigger, so no separate pass is needed.
+  raise notice '0256: % open line(s) restaged', n;
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0211_dispatched_by_is_stamped.sql
 -- ------------------------------------------------------------------------
 
@@ -24883,6 +25283,115 @@ comment on function public.rename_part(bigint, text, text) is
   'Rename a part and carry every record that names it. Nine tables hold the CODE|Description string and there are no foreign keys, so this is all of them or none — hand stock is derived, and a half-done rename changes an engineer''s balance.';
 
 -- ------------------------------------------------------------------------
+-- 0261_rename_passes_the_spare_guards.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A SPARE'S ENGINEER FOLLOWS A USER MASTER RENAME (0259, finding 23).
+--
+-- Two guards refuse a change of engineer, and both are right to: a
+-- consumption line cannot be re-pointed at somebody else
+-- (`consumption_adjust_guard`, 0196), and a request's engineer cannot change
+-- once its parts have gone out (`spare_request_engineer_guard`, 0100). A
+-- rename is neither -- it is the same person under a corrected name, and
+-- leaving these rows behind splits their hand stock into two balances.
+-- Each guard admits exactly that, recognised by the ticket 0259 files for its
+-- own transaction: the name only, the email untouched. Everything else they
+-- refuse, they still refuse. Both bodies taken from the database.
+-- ===========================================================================
+
+create or replace function public.consumption_adjust_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $$
+declare avail numeric; delta numeric;
+begin
+  if coalesce(new.ucn, '')      is distinct from coalesce(old.ucn, '')
+  or (coalesce(new.engineer, '') is distinct from coalesce(old.engineer, '')
+      -- A USER MASTER RENAME (0259): the same person, spelled correctly. It
+      -- changes no quantity, so nothing below has anything to check.
+      and not public.engineer_rename_in_progress(old.engineer, new.engineer))
+  or coalesce(new.source, '')   is distinct from coalesce(old.source, '') then
+    raise exception 'A reconciliation can only change the quantity — not the call, part, engineer or source';
+  end if;
+
+  if coalesce(new.part, '') is distinct from coalesce(old.part, '') then
+    -- ONLY the substitution rename_part() filed a ticket for, in THIS
+    -- transaction, for this exact row's current value. Anything else is a line
+    -- being re-pointed, which is what this guard is for.
+    if not exists (
+      select 1 from public.part_rename_ticket t
+       where t.txid = txid_current()
+         and t.old_key = lower(btrim(coalesce(old.part, '')))
+         and t.new_detail = coalesce(new.part, '')
+    ) then
+      raise exception 'A reconciliation can only change the quantity — not the call, part, engineer or source';
+    end if;
+    -- A rename changes no quantity, so the stock arithmetic below has nothing
+    -- to check and the cap cannot be affected.
+    if new.qty is not distinct from old.qty then return new; end if;
+  end if;
+
+  if new.qty is not distinct from old.qty then
+    return new;                        -- nothing quantitative changed
+  end if;
+  if coalesce(new.qty, 0) < 0 then
+    raise exception 'Quantity cannot be negative';
+  end if;
+
+  -- The one exemption: the same imported line, re-loaded from its source.
+  if coalesce(btrim(new.source_ref), '') <> ''
+     and btrim(new.source_ref) is not distinct from btrim(old.source_ref) then
+    return new;
+  end if;
+
+  if coalesce(new.qty, 0) <= 0 and coalesce(btrim(new.adjustment_reason), '') = '' then
+    raise exception 'Say why the line is being voided — the reason is kept with it';
+  end if;
+  if coalesce(btrim(new.adjustment_reason), '') = '' then
+    raise exception 'Say why the quantity is being adjusted — the reason is kept with the line';
+  end if;
+
+  delta := coalesce(new.qty, 0) - coalesce(old.qty, 0);
+  if delta > 0 then
+    select public.handstock_available(new.engineer, new.part) into avail;
+    if avail is not null and delta > avail then
+      raise exception 'Only % left in %''s hand stock for %', avail, new.engineer, new.part;
+    end if;
+  end if;
+  return new;
+end $$;
+
+create or replace function public.spare_request_engineer_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $$
+begin
+  if lower(btrim(coalesce(new.engineer, ''))) is not distinct from lower(btrim(coalesce(old.engineer, '')))
+     and lower(btrim(coalesce(new.engineer_email, ''))) is not distinct from lower(btrim(coalesce(old.engineer_email, ''))) then
+    return new;                                    -- the engineer is not changing
+  end if;
+  -- A USER MASTER RENAME (0259) is not a change of engineer: the parts went to
+  -- this person and still did. Only the name, and only with its ticket.
+  if lower(btrim(coalesce(new.engineer_email, ''))) is not distinct from lower(btrim(coalesce(old.engineer_email, '')))
+     and public.engineer_rename_in_progress(old.engineer, new.engineer) then
+    return new;
+  end if;
+  if coalesce(current_setting('rithi.reassigning', true), '') = new.uid then
+    return new;                                    -- this is the function's own write
+  end if;
+  if public.spare_request_is_dispatched(new.uid) then
+    raise exception 'OR % has already been dispatched — the engineer cannot be changed once the parts have gone out.',
+      coalesce(nullif(new.or_no, ''), new.uid);
+  end if;
+  return new;
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0036_sales_contracts.sql
 -- ------------------------------------------------------------------------
 
@@ -27381,6 +27890,80 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
+-- 0258_link_install_call.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- WHOEVER RAISES A MACHINE'S INSTALLATION CALL CAN MAP IT BACK (finding 31).
+--
+-- "+ Installation call" on the Warranty register is two writes: insert the
+-- call (`calls_insert`: install.create), then write its UCN into the machine's
+-- INST Call (`sale_items_write`: cover.edit). Hotline holds the first and not
+-- the second, so the call was created and the mapping matched ZERO rows —
+-- no error — and the button came back offering a second call for the same
+-- machine. v0.9.373 made that failure honest; this makes it not happen.
+--
+-- THE USER'S DECISION (2026-09-30): "Let Hotline write the link" — and only
+-- the link. Row-level security cannot grant ONE column, and a second UPDATE
+-- policy on `sale_items` would let an install.create holder rewrite the whole
+-- warranty line. So the write is a FUNCTION that does exactly one thing, and
+-- checks everything that makes that one thing correct:
+--
+--   * the caller is admin, or holds cover.edit or install.create;
+--   * INST Call does not already hold a call number — a machine's mapping is
+--     never replaced here (the "To Check" placeholder is, as 0234 intends);
+--   * the UCN is an INSTALLATION call for THIS machine — same product and
+--     serial, compared as `raiseInstallCalls` builds the call — so it cannot
+--     be used to attach an arbitrary call to an arbitrary machine.
+--
+-- Calling it with the UCN already in place is a no-op, so a retry is safe.
+-- SECURITY DEFINER with the check inside, the pattern for a function the app
+-- calls (0248): execute is withdrawn from the public and the not-signed-in
+-- role and granted to signed-in users only.
+-- ===========================================================================
+
+create or replace function public.link_install_call(p_item_id bigint, p_ucn text)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  it  public.sale_items%rowtype;
+  v_ucn text := btrim(coalesce(p_ucn, ''));
+begin
+  if not (public.is_admin() or public.has_perm('cover.edit') or public.has_perm('install.create')) then
+    raise exception 'RBAC: mapping an installation call needs install.create or cover.edit';
+  end if;
+
+  select * into it from public.sale_items where id = p_item_id for update;
+  if not found then
+    raise exception 'Machine line % is not on the warranty register', p_item_id;
+  end if;
+
+  if btrim(coalesce(it.inst_call, '')) = v_ucn then
+    return;
+  end if;
+  if public.is_call_number(it.inst_call) then
+    raise exception '% · % already has installation call %, which is not replaced here',
+      it.product_name, it.serial_number, btrim(it.inst_call);
+  end if;
+
+  if not exists (
+    select 1 from public.installation_calls c
+     where c.ucn = v_ucn
+       and lower(btrim(coalesce(c.serial, '')))       = lower(btrim(coalesce(it.serial_number, '')))
+       and lower(btrim(coalesce(c.product_name, ''))) = lower(btrim(coalesce(it.product_name, '')))
+  ) then
+    raise exception 'Call % is not an installation call for % · %', v_ucn, it.product_name, it.serial_number;
+  end if;
+
+  update public.sale_items set inst_call = v_ucn where id = p_item_id;
+end $$;
+
+comment on function public.link_install_call(bigint, text) is
+  'Write an installation call''s UCN into one warranty machine''s INST Call, and nothing else. For install.create or cover.edit holders; refuses to replace a call number and refuses a call that is not this machine''s installation (finding 31).';
+
+revoke execute on function public.link_install_call(bigint, text) from public, anon;
+grant  execute on function public.link_install_call(bigint, text) to authenticated;
+
+-- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql
 -- ------------------------------------------------------------------------
 
@@ -27733,6 +28316,44 @@ end $$;
 
 revoke all on function public.clear_my_notifications() from public;
 grant execute on function public.clear_my_notifications() to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0262_rename_is_not_an_allotment.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A RENAME DOES NOT NOTIFY "CALL ALLOTTED TO YOU" (0259, finding 23).
+--
+-- `notify_call_allotted` (0045/0054) writes a notification whenever a call's
+-- allottee changes. 0259 rewrites the allottee on every call filed under a
+-- renamed person's old name, so without this a spelling correction sent them
+-- one "Call allotted to you" per call they already had. Recognised by the
+-- ticket 0259 files for its own transaction. Body taken from the database.
+-- ===========================================================================
+
+create or replace function public.notify_call_allotted()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $$
+declare v_uid uuid;
+begin
+  if coalesce(new.allocated_to, '') = '' then return new; end if;
+  if tg_op = 'UPDATE' and new.allocated_to is not distinct from old.allocated_to then return new; end if;
+  -- A USER MASTER RENAME (0259) is not an allotment: the call was already this
+  -- person's. Without this, correcting a name sent them one notice per call.
+  if tg_op = 'UPDATE' and public.engineer_rename_in_progress(old.allocated_to, new.allocated_to) then return new; end if;
+  v_uid := public.notify_resolve_uid(new.allocated_to_email, new.allocated_to);
+  if v_uid is null then return new; end if;
+  insert into public.notifications (recipient_id, recipient_email, kind, title, body, link)
+  values (v_uid, coalesce(new.allocated_to_email, ''), 'call_allotted',
+          'Call allotted to you',
+          concat_ws(' · ', nullif(coalesce(new.ucn, ''), ''), nullif(coalesce(new.party_name, ''), ''), nullif(coalesce(new.product_name, ''), '')),
+          '/' || case public.call_table_for(new.call_type)
+                   when 'installation' then 'installations' when 'pm' then 'pm-calls' else 'field-calls' end);
+  return new;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0122_notifications_replay_tail.sql

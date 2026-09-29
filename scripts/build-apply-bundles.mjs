@@ -66,6 +66,13 @@ const NEEDS = {
   // this in 0190, so `to_regclass` would say yes and the bundle would still
   // die. The scalar subquery is null when the column is absent, which is what
   // preflight() tests.
+  // A User Master rename (0259) files a ticket the change-of-engineer guards
+  // ask about. Those guards are plpgsql, so a missing helper would not stop a
+  // bundle -- it would turn a rename, or any change of engineer, into
+  // "function does not exist" later. Declared so the bundle says so up front.
+  engineerRename: [`to_regprocedure('public.engineer_rename_in_progress(text,text)')`,
+                   'engineer_rename_in_progress()',
+                   '0259_directory_rename_carries_the_records.sql (apply bundle: user_directory)'],
   feedbackEntryAt: [`(select 1 from information_schema.columns
                         where table_schema = 'public' and table_name = 'feedback'
                           and column_name = 'entry_at')`,
@@ -122,6 +129,14 @@ const MODULES = {
             // no mirror is needed: a replay of this bundle alone still ends on
             // the newest body.
             '0212_visible_engineers_no_blank_match.sql',
+            // A rename carries the people who name the renamed person as
+            // their manager (finding 23). Matches as 0212's tree does.
+            '0257_directory_rename_carries_the_team.sql',
+            // ...and the RECORDS filed under the old name (finding 23, the
+            // user's "Rename existing records"). Defines the ticket the three
+            // guards below ask about -- 0260, 0261, 0262, each in its owner's
+            // module.
+            '0259_directory_rename_carries_the_records.sql',
       // LAST: 0004 above creates `ud_admin_write` and 0008 (rbac) drops it. A
       // replay of this bundle alone put it back, and policies are OR'd.
       '0122_user_directory_replay_tail.sql'],
@@ -252,7 +267,7 @@ const MODULES = {
       'views the Call Status column and the Pending Calls module read, and Call',
       'Number assignment (the request UniqueID, or CLYY##### for a direct call).',
     ],
-    needs: ['profiles', 'visibleEngineers', 'callTables', 'reportTables', 'rbac'],
+    needs: ['profiles', 'visibleEngineers', 'callTables', 'reportTables', 'rbac', 'engineerRename'],
     files: [
       '0008_calls_creator_read.sql',
       '0010_call_request_items.sql',
@@ -301,6 +316,9 @@ const MODULES = {
       // A request may be corrected while it is Pending (0232). BEFORE the
       // cr_read tail, which must stay last in this module.
       '0232_call_request_edit.sql',
+      // AFTER 0232, which owns the previous body: the engineer on an answered
+      // request follows a User Master rename (0259).
+      '0260_rename_passes_the_request_freeze.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -418,9 +436,12 @@ const MODULES = {
     blurb: ['Per-user in-app notifications (notifications): a bell that fires when a call',
             'is allotted to an engineer or a spare they requested is dispatched. Read/',
             'marked by the recipient; rows created by SECURITY DEFINER triggers.'],
-    needs: ['profiles'],
+    needs: ['profiles', 'engineerRename'],
     files: ['0045_notifications.sql', '0054_notify_uid_ambiguous.sql',
       '0123_clear_notifications_on_signout.sql',
+      // A rename is not an allotment (0259). After 0054, which owns the
+      // previous body; before the replay tail, which must stay last.
+      '0262_rename_is_not_an_allotment.sql',
       // LAST: 0064 (handstock) extends `notify_spare_dispatched()` with the
       // REFURBISHED line, and this module running after handstock had been
       // discarding it on every apply. Ends the module with 0064's version.
@@ -709,7 +730,7 @@ const MODULES = {
       'Needs the spare workflow through per-spare approvals and the stock-transfer',
       'tables; _status.sql says which of those are missing.',
     ],
-    needs: ['spareTables', 'rbac', 'isAdmin', 'approvers', 'spareLineStages', 'transferTables'],
+    needs: ['spareTables', 'rbac', 'isAdmin', 'approvers', 'spareLineStages', 'transferTables', 'engineerRename'],
     // MRN lives here rather than in a bundle of its own: it adds a term to the
     // same two views, so a later re-run of this file must carry it or it would
     // redefine them back without returns.
@@ -738,7 +759,11 @@ const MODULES = {
             // consumption_adjust_guard(), which 0062 and 0081 define HERE, and
             // `masters` runs BEFORE `handstock` — so filing it there would let
             // this module quietly put the old guard back on a fresh apply.
-            '0196_rename_part.sql'],
+            '0196_rename_part.sql',
+            // AFTER 0196 and 0100, which own the previous bodies of the two
+            // guards it redefines: the engineer on a spare follows a User Master
+            // rename (0259).
+            '0261_rename_passes_the_spare_guards.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -801,7 +826,11 @@ const MODULES = {
             '0240_ownership_transfer_timestamp.sql',
             // LAST: the two cover admin functions (0036/0037) ask for cover.edit
             // (finding 51), redefined from the database's current bodies.
-            '0247_cover_maintenance_needs_cover_edit.sql'],
+            '0247_cover_maintenance_needs_cover_edit.sql',
+            // Whoever raises a machine's installation call can map it back,
+            // and only that (finding 31). Defines a new function; nothing
+            // else in any module redefines it.
+            '0258_link_install_call.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -862,6 +891,10 @@ const MODULES = {
       // received before it was dispatched, by an engineer who did not raise it.
       // IMMEDIATELY AFTER 0210 and before anything else touches the function.
       '0217_restore_the_line_guard_rules.sql',
+      // "NOT APPROVED" IS NOT AN APPROVAL (finding 20): whole-word approval
+      // test. AFTER 0210, which owns the previous body of spare_line_stage, so
+      // a replay of this bundle alone ends on this one.
+      '0256_spare_approval_whole_word.sql',
       // WHO DISPATCHED IS STAMPED, NOT SENT. A trigger on spare_dispatches, so
       // the (much-revised) dispatch function is not touched at all.
       '0211_dispatched_by_is_stamped.sql',

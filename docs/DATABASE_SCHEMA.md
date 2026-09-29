@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**85 tables · 36 views · 2572 columns · 171 policies · 59 foreign keys.**
+**86 tables · 36 views · 2581 columns · 171 policies · 59 foreign keys.**
 
 ## How to read this
 
@@ -47,6 +47,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [contract_items](#contract-items)
 - [device_cache_status](#device-cache-status)
 - [documents](#documents)
+- [engineer_rename_ticket](#engineer-rename-ticket)
 - [export_runs](#export-runs)
 - [export_schedules](#export-schedules)
 - [feedback](#feedback)
@@ -712,6 +713,34 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | INSERT | `documents_insert` | — | `CASE     WHEN (kind = 'qms'::text) THEN has_perm('qms.manage'::text)     ELSE has_perm('docs.manage'::text) END` |
 | SELECT | `documents_read` | `(auth.role() = 'authenticated'::text)` | — |
 | UPDATE | `documents_update` | `CASE     WHEN (kind = 'qms'::text) THEN has_perm('qms.manage'::text)     ELSE has_perm('docs.manage'::text) END` | `CASE     WHEN (kind = 'qms'::text) THEN has_perm('qms.manage'::text)     ELSE has_perm('docs.manage'::text) END` |
+
+---
+
+## engineer_rename_ticket
+
+> The capability that lets a User Master rename move the records filed under the old name past the guards that refuse a change of engineer (0259). RLS on with NO policy and no grants: only the definer-owned rename trigger writes one, keyed on its own transaction.
+
+**Primary key:** `txid` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `txid` | bigint | **no** |  |  |
+| 2 | `old_key` | text | **no** |  |  |
+| 3 | `new_name` | text | **no** |  |  |
+| 4 | `at` | timestamp with time zone | **no** | `now()` |  |
+| 5 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 6 | `sys_created_by` | uuid | yes |  |  |
+| 7 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 8 | `sys_updated_by` | uuid | yes |  |  |
+| 9 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(engineer_rename_ticket_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
 
 ---
 
@@ -3556,7 +3585,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Referenced by:** `training_assignments.dir_id` · `training_attendance.dir_id` · `user_profile.dir_id` · `user_rr.dir_id`
 
-**Triggers:** `user_directory_address_guard` → `user_directory_address_guard()` · `user_directory_profile_sync` → `sync_profile_from_user_directory()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `user_directory_address_guard` → `user_directory_address_guard()` · `user_directory_carry_rename` → `user_directory_carry_rename()` · `user_directory_carry_rename_records` → `user_directory_carry_rename_records()` · `user_directory_profile_sync` → `sync_profile_from_user_directory()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 

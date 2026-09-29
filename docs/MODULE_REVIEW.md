@@ -106,10 +106,10 @@ alone — none of them touches anything recorded here, and none of them fixes it
 | 17 | *cross-cutting* | Three screens tell everybody "everything is done" from a list that is filtered, scoped and capped — **FIXED in batch 2 (v0.9.374)** | Medium |
 | 18 | Field Call Register | A search reports its capped 1,000 as the match count; ↻ Refresh claims "Loaded all" over 800 — **FIXED in batch 3 (v0.9.375)** | Medium |
 | 19 | Customer Feedback | The Uploaded / Entered-here chips count only the loaded page, with no `+` — **FIXED in batch 2 (v0.9.374)** | Medium |
-| 20 | Spare Requests | "Not Approved" reads as **approved** — a refused line reaches the dispatch queue (**measured**) | High |
+| 20 | Spare Requests | "Not Approved" reads as **approved** — a refused line reaches the dispatch queue (**measured**) — **FIXED in batch 7 (v0.10.2, 0256) (#453)** | High |
 | 21 | Hand Stock · Pending Dispatch | More chips counting one page as if it were the register — **PART-FIXED: every chip and count named, except Pending Dispatch's per-engineer totals (batch 2, v0.9.374)** — **rest FIXED in batch 3 (v0.9.375)** | Medium |
 | 22 | Spare Requests · Spare Consumption · Customer Feedback | The 30-minute auto-sync throws away every page but the first — **FIXED in batch 3 (v0.9.375), on Hand Stock too** | Medium |
-| 23 | User Master | Correcting somebody's name silently empties their team (**measured**) | High |
+| 23 | User Master | Correcting somebody's name silently empties their team (**measured**) — **FIXED in batch 7 (v0.10.2): the team (0257) and the work filed under the old name (0259–0262) (#453)** | High |
 | 24 | Roles & Permissions | Unticking every box and saving **grants** the role its code defaults (**measured**) — **FIXED on `main` by `1bf248e`** | ~~High~~ |
 | 25 | Stock Out | An exact count over a read that is paged and capped, under a comment saying it is not paged — **FIXED in batch 2 (v0.9.374)** | Medium |
 | 26 | Call Reporting | A visit dated on the form is stored at UTC midnight and reads back at 05:30 (**measured**) | Medium |
@@ -117,7 +117,7 @@ alone — none of them touches anything recorded here, and none of them fixes it
 | 28 | Material Returns | Two lines of one MRN can get the same screen row id, so the table draws one and drops the other (**measured**) — **FIXED in batch 1 (v0.9.373, this branch)** | Medium |
 | 29 | Warranty & Contract Registers | Renew opened before the machines load starts with none ticked, and never updates — **FIXED in batch 1 (v0.9.373, this branch)** | Low |
 | 30 | Request Registration | "Correct this request" says *corrected* when the database changed nothing (**measured**) — **FIXED in batch 1 (v0.9.373, this branch)** | High |
-| 31 | Warranty Register | "+ Installation call" creates the call, silently fails to link it to the machine, and offers a second one (**measured**) — **PART-FIXED: the failure is now reported; hiding the button is still a decision (batch 1, v0.9.373)** | High |
+| 31 | Warranty Register | "+ Installation call" creates the call, silently fails to link it to the machine, and offers a second one (**measured**) — **PART-FIXED: the failure is now reported; hiding the button is still a decision (batch 1, v0.9.373)** — **rest FIXED in batch 7 (v0.10.2, 0258: Hotline may write the link) (#453)** | High |
 | 32 | My Workload | "Installations waiting on Commercial": the card's number and the list it opens disagree, and the read is not paged — **PART-FIXED: the cards add up; the unpaged read is still open (batch 1, v0.9.373)** | Medium |
 | 33 | Hand Stock Report | The .xls download writes `[object Object]` in every date column (**measured**) — **FIXED in batch 1 (v0.9.373, this branch)** | High |
 | 34 | Product Database | Four roles see machines under contract as **OGP**, with no contract number (**measured**) | High |
@@ -133,6 +133,17 @@ alone — none of them touches anything recorded here, and none of them fixes it
 | 44 | Calls | Batch cancel exists only in SQL, where it records nobody as the canceller | Low |
 | 45 | *cross-cutting* | The half-loaded-download warning gives advice that cannot be followed, or is missing where it is needed — **PART-FIXED: RM Approval and the advice; capped searches still export without a warning (batch 1, v0.9.373)** — **rest FIXED in batch 3 (v0.9.375)** | Low |
 | 46 | Hand Stock Report | A manager's file says "your own stock only" and holds the team's — **FIXED in batch 1 (v0.9.373, this branch)** | Low |
+| 57 | Pending Registrations | ✎ Edit → Save call rewrites a live call with no permission check and no section locks (see PERMISSIONS_REVIEW.md) | High |
+| 58 | Admin Config | SLA Targets has no check on screen, and a save the database refused reads "saved" | Medium |
+| 59 | Indoor Service | Dispatched / Closed can be set through Status without `indoor.dispatch` (database guard) | Medium |
+| 60 | User Master | "Manage users" can grant another person "Manage roles & permissions", "Manage users" or "View all data" | High |
+| 61 | Field Solutions | Any signed-in user can add an article | Low |
+| 62 | *cross-cutting* | Word, ZIP, the report ⭳ Download link and the print pages skip `export.data` too (widens 42) | Medium |
+| 63 | Roles & Permissions | A page's row does not show the keys its buttons test (Installation, PM, Contract, Objective, Reports, …) | Medium |
+| 64 | *cross-cutting* | The screen tests a different key from the database, so a button is offered then refused, or offered to the wrong role | Medium |
+| 65 | *cross-cutting* | Admin-only checks no other role can ever be granted (Bulk Uploads, Data Export, Audit Mode, reset password, …) | Medium |
+| 66 | Roles & Permissions | Ticks that do nothing (`dashboard.view`, `reports.view` on Visit Reports, `config.manage` on Admin Config, User Access, …) | Low |
+| 67 | Roles & Permissions | One key does many jobs (`users.manage`, `masters.edit`, `cover.edit`, `calls.report`) | Low |
 
 ---
 

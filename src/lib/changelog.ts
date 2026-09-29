@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.2',
+    version: '0.10.3',
     date: '2026-09-30',
     title: 'People and training: profiles, Roles & Responsibilities, a Training module, Department, and the QMS Master List upload',
     changes: [
@@ -24,6 +24,20 @@ export const CHANGELOG: ChangeEntry[] = [
       'QMS DOCUMENTS: adding a document asks who must be trained on it, and assigns it to them.',
       'BULK UPLOADS → QMS DOCUMENTS (MASTER LIST): the whole list at once with each file\'s Drive URL. Re-loading a corrected list updates those rows; your list\'s other columns are kept.',
       'The Training screen is open to admin, VP Technical and R&D Engineer; no other role was changed. The database part is applied automatically with this version.',
+    ],
+  },
+  {
+    version: '0.10.2',
+    date: '2026-09-30',
+    title: 'Spare approvals read only "Approved" as a yes; correcting a name keeps the team and the person\'s work; Hotline can finish an installation call',
+    changes: [
+      'SPARE REQUESTS: ONLY "APPROVED" OR "AUTO-APPROVED" LETS A SPARE MOVE ON. Before, any word containing "approv" counted as a yes, so a spare loaded from a sheet with "Not Approved", "Approval Pending" or "Disapproved" was treated as approved and could reach Stores for dispatch. Now any other word keeps the spare waiting at that approver, showing the word exactly as it was loaded, for them to decide.',
+      'SOME SPARES MAY MOVE BACK when this version reaches the database: a spare whose approval column held such a word leaves Stores (or Commercial / NSM) and returns to the approver who has to decide it. That is the fix, not a fault. supabase/apply/_approval_words.sql lists them.',
+      'THE SPARE REQUEST LINES UPLOAD tidies "approved", "auto approved", "rejected" and "pending" into the standard words, and keeps any other word as written.',
+      'USER MASTER: CORRECTING A PERSON\'S NAME NO LONGER EMPTIES THEIR TEAM OR HIDES THEIR WORK. In the same save, everybody who names them as Reporting or Regional Manager follows the new name, and so does everything filed under the old one: calls allotted to it, call requests, spare requests, consumption, hand stock and stock transfers, and the Service Engineer on the Party Master and Product Database. Their calls stay visible to them and their manager, and their hand stock stays one balance. No "Call allotted to you" notices are sent for it.',
+      'WHAT IS NOT CHANGED: who approved, dispatched or recorded something keeps the name it was signed with. And nothing moves when another User Master row has the same old name, or when only the capital letters change — the screen says so before you save.',
+      'WARRANTY REGISTER: HOTLINE CAN NOW FINISH "+ INSTALLATION CALL". The call was created but could not be written back to the machine, so the button came back and offered a second call. Whoever may create installation calls can now write the call number onto that machine, and nothing else on the register. It will not replace a call number already there, or attach a call raised for a different machine. The button is shown only to roles that can create installation calls.',
+      'The database changes are applied automatically when this version is released.',
     ],
   },
   {
