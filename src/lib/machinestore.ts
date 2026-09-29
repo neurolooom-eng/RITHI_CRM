@@ -28,9 +28,9 @@
 //   * EVERY STORAGE CALL IS GUARDED. A private window or a full disk throws on
 //     IndexedDB itself; then the app simply asks the server, as it always did.
 // ===========================================================================
-import { getSupabase, productRowToSheet } from './supabase';
+import { getSupabase, productRowToSheet, sbReportDeviceCache } from './supabase';
 import {
-  downloadAfter, packRows, unpackRows, toCached,
+  downloadAfter, packRows, unpackRows, toCached, deviceLabel,
   type CachedMachine, type CachedParty, type DownloadState, type PackedRows,
 } from './machinecache';
 
@@ -56,16 +56,21 @@ export interface MachineRegisterStatus {
 }
 
 // ---- IndexedDB, guarded ------------------------------------------------------
+// WHETHER THIS BROWSER WILL KEEP A COPY AT ALL. A private window, or a browser
+// set to block site data, refuses IndexedDB -- the copy then lasts only until
+// the tab closes, which the administrator's report needs to be able to say.
+let storageOk = true;
 function open(): Promise<IDBDatabase | null> {
   return new Promise((resolve) => {
+    const fail = () => { storageOk = false; resolve(null); };
     try {
-      if (typeof indexedDB === 'undefined') return resolve(null);
+      if (typeof indexedDB === 'undefined') return fail();
       const req = indexedDB.open(DB, 1);
       req.onupgradeneeded = () => { req.result.createObjectStore(STORE); };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
+      req.onsuccess = () => { storageOk = true; resolve(req.result); };
+      req.onerror = () => fail();
       req.onblocked = () => resolve(null);
-    } catch { resolve(null); }
+    } catch { fail(); }
   });
 }
 async function idb<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest): Promise<T | null> {
@@ -130,6 +135,7 @@ function register<T extends { id: number }>(o: {
       memory = { user, at: s.at, items };
       publish({ machines: items.length, at: s.at });
     } catch { /* an unreadable copy is no copy */ }
+    scheduleReport();
   }
 
   async function fetchAfter(afterId: number, size: number) {
@@ -177,6 +183,7 @@ function register<T extends { id: number }>(o: {
         publish({ downloading: false, error: e instanceof Error ? e.message : String(e) });
       } finally {
         running = null;
+        scheduleReport();
       }
     })();
     return running;
@@ -195,10 +202,61 @@ function register<T extends { id: number }>(o: {
   }
 
   return {
-    local, refresh,
+    local, refresh, status: () => status,
     on(l: (s: MachineRegisterStatus) => void) { listeners.add(l); l(status); return () => { listeners.delete(l); }; },
     forget() { memory = null; partial = null; loaded = null; publish({ machines: 0, at: null, progress: 0, error: '' }); },
   };
+}
+
+// ---- telling the administrator what this device holds (0249) -----------------
+// The user, 2026-09-29: "Build the cache status report for my desk." A copy on
+// a phone is invisible from anywhere else, so each device reports it: counts,
+// when each was downloaded, the last failure. Nothing it holds -- no machine,
+// customer or search -- is sent.
+//
+// SENT WHEN SOMETHING CHANGES, or every six hours as a sign of life, and
+// debounced so the two registers finishing together are one request. A report
+// that fails is not retried on its own: the next change sends it anyway.
+const DEVICE_KEY = 'rithi.device.id';
+const LAST_REPORT_KEY = 'rithi.device.lastReport';
+export function deviceId(): string {
+  try {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+      id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `d-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+  } catch { return 'no-storage'; }
+}
+let reportTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleReport(): void {
+  if (typeof window === 'undefined') return;
+  if (reportTimer) clearTimeout(reportTimer);
+  reportTimer = setTimeout(() => { reportTimer = null; void reportDeviceCache(); }, 3000);
+}
+export async function reportDeviceCache(opts: { force?: boolean } = {}): Promise<void> {
+  if (!(await currentUser())) return;
+  const m = machines.status(), p = parties.status();
+  const iso = (t: number | null) => (t ? new Date(t).toISOString() : null);
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const payload = {
+    device_id: deviceId(), device_label: deviceLabel(ua), user_agent: ua.slice(0, 400),
+    app_version: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '',
+    storage_ok: storageOk,
+    machines: m.machines, machines_at: iso(m.at), machines_error: m.downloading ? '' : m.error.slice(0, 300),
+    customers: p.machines, customers_at: iso(p.at), customers_error: p.downloading ? '' : p.error.slice(0, 300),
+  };
+  const sig = JSON.stringify(payload);
+  try {
+    const last = JSON.parse(localStorage.getItem(LAST_REPORT_KEY) ?? 'null') as { sig: string; at: number } | null;
+    if (!opts.force && last && last.sig === sig && Date.now() - last.at < MACHINE_REFRESH_MS) return;
+  } catch { /* no memory of the last one -- send */ }
+  if (await sbReportDeviceCache(payload)) {
+    try { localStorage.setItem(LAST_REPORT_KEY, JSON.stringify({ sig, at: Date.now() })); } catch { /* ignore */ }
+  }
 }
 
 const machines = register<CachedMachine>({
@@ -224,6 +282,11 @@ export const refreshPartyRegister = parties.refresh;
 /** Wipe both: sign-out. */
 export async function clearMachineRegister(): Promise<void> {
   machines.forget(); parties.forget();
+  // SAID BEFORE SIGNING OUT, while the session can still write its own row:
+  // this device no longer holds a copy. Bounded, so a dead signal cannot hold
+  // up somebody signing out.
+  if (reportTimer) { clearTimeout(reportTimer); reportTimer = null; }
+  await Promise.race([reportDeviceCache({ force: true }), new Promise((r) => setTimeout(r, 3000))]);
   try {
     if (typeof indexedDB !== 'undefined') await new Promise<void>((resolve) => {
       const req = indexedDB.deleteDatabase(DB);

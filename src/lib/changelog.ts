@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.388',
+    date: '2026-09-29',
+    title: 'Device Cache Status: see which phones and laptops can search offline (needs one SQL file)',
+    changes: [
+      'NEW SCREEN — Administration → Device Cache Status. One row per person per device: how many machines and customers that phone or laptop holds for offline search, when each was downloaded, the app version and the last problem. Everybody is listed, including anyone who has never reported a device, so an engineer with no copy can be found before they travel.',
+      'Chips sort people into Current (under 6 hours), Due a refresh (6–24 hours), Older than a day, No copy on the device and Never reported.',
+      'Each device reports after every download and when its user signs out. It sends only counts and times — no machine, customer or search. A device that is switched off keeps showing its last report; the Last reported column says when that was.',
+      'A private browser window, or a browser that blocks site data, cannot keep the copy; the report says so for that device.',
+      'Administrators and Technical Support can open it to begin with; grant it on Roles & Permissions for anyone else.',
+      'Needs supabase/apply/device_cache.sql run once on the project. Until then the screen says so, and devices simply do not report.',
+    ],
+  },
+  {
     version: '0.9.387',
     date: '2026-09-29',
     title: 'A machine sent twice no longer stops the download',

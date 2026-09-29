@@ -285,3 +285,28 @@ export function searchPartyMaster(ps: CachedParty[], query: string, limit = 50):
     .sort((a, b) => a.localeCompare(b))
     .slice(0, limit);
 }
+
+// ---- which device is this, in words an administrator reads --------------------
+// From the browser's own description of itself. Deliberately coarse -- the
+// system and the browser -- because "Android · Chrome" is what somebody at a
+// desk needs to tell an engineer's phone from their laptop, and a model number
+// is not reliably there to read.
+export function deviceLabel(ua: string): string {
+  const u = ua || '';
+  const os = /Android/i.test(u) ? 'Android'
+    : /iPhone/i.test(u) ? 'iPhone'
+      : /iPad/i.test(u) ? 'iPad'
+        : /CrOS/i.test(u) ? 'Chromebook'
+          : /Windows/i.test(u) ? 'Windows'
+            : /Macintosh|Mac OS X/i.test(u) ? 'Mac'
+              : /Linux/i.test(u) ? 'Linux' : 'Unknown device';
+  // ORDER MATTERS: Edge and Samsung Internet both say "Chrome", and Chrome
+  // says "Safari" -- so the specific names are tested first.
+  const browser = /Edg\//.test(u) ? 'Edge'
+    : /SamsungBrowser/.test(u) ? 'Samsung Internet'
+      : /OPR\//.test(u) ? 'Opera'
+        : /Firefox\/|FxiOS/.test(u) ? 'Firefox'
+          : /Chrome\/|CriOS/.test(u) ? 'Chrome'
+            : /Safari\//.test(u) ? 'Safari' : 'browser';
+  return `${os} · ${browser}`;
+}

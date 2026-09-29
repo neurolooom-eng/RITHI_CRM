@@ -1383,7 +1383,16 @@ with checks(sort_order, bundle, provides, present) as (
         (select coalesce(bool_and(p.qual ilike '%select has_perm%' and p.with_check ilike '%select has_perm%'), false)
            from pg_policies p
           where p.schemaname = 'public'
-            and p.policyname in ('products_write', 'parties_write', 'parts_write')))
+            and p.policyname in ('products_write', 'parties_write', 'parts_write'))),
+    (192, 'Devices report what they hold offline', 'device_cache_status and device_cache_report() are in place (0249): every phone and laptop reports how many machines and customers it holds offline and when each was downloaded, and Administration -> Device Cache Status reads them all, including anybody who has never reported. The row checks the parts that make the report TRUE rather than merely present: row-level security is on, the person is stamped from the session by a trigger (so a device cannot report for somebody else), the (user_id, device_id) unique index the upsert needs exists, and the not-signed-in role cannot run the report. NO means the screen reads "not on this project yet" and devices report into nothing -- nothing else is affected. Restore: device_cache.sql',
+        (to_regclass('public.device_cache_status') is not null
+         and (select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.device_cache_status'))
+         and exists (select 1 from pg_trigger t
+                      where t.tgrelid = to_regclass('public.device_cache_status') and t.tgname = 'device_cache_status_stamp')
+         and exists (select 1 from pg_indexes i
+                      where i.schemaname = 'public' and i.indexname = 'device_cache_status_user_device')
+         and to_regprocedure('public.device_cache_report()') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.device_cache_report()'), 'EXECUTE')))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

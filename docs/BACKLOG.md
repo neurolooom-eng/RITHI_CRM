@@ -118,8 +118,16 @@ Search every thing relevant to Product Database from cached data."*
   same id twice is now kept once and counted instead of stopping the walk; a
   DECREASING id still stops it. `_why_is_a_machine_listed_twice.sql` says
   whether the view doubles any machine on live data (not yet run).
-- ⏳ **Device cache status report** — database half built and tested (0249),
-  taken back off the branch so it did not ship half-done; screen still to build.
+- ✅ **0.9.388 — Device Cache Status** (`/device-cache`, the user: *"Build the
+  cache status report for my desk"*). 0249: `device_cache_status` (one row per
+  person per device, person stamped by trigger, own-row insert/update, read by
+  owner or `mod:/device-cache`), `device_cache_report()` (definer, permission
+  checked inside, anon revoked, every profile incl. never-reported), key merged
+  into admin + technical_support; own bundle `device_cache.sql`; `_status.sql`
+  row 192; suite `device_cache_status_test` (10 checks). Devices report after
+  each download and on sign-out, unchanged reports throttled to one per 6 h.
+  URS-078 / FRS-092 / OQ-80.
+  ⏳ **User to run** `supabase/apply/device_cache.sql`.
 - ⏳ **Not measured**: the download size on the live register. Nothing here
   holds the data. The status line reports the machine count; the size is the
   next thing to ask for if phones struggle.

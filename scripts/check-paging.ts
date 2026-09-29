@@ -297,6 +297,19 @@ console.log('-- the machine register on the device --');
     mc.searchPartyMaster(ps, 'c', 2), ['Apollo Clinic', 'City Hospital']);
 }
 
+console.log('-- the device, named for the administrator --');
+{
+  const chrome = 'Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
+  const edge = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0';
+  const samsung = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/25.0 Chrome/121.0.0.0 Mobile Safari/537.36';
+  const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+  eq('an Android phone on Chrome', mc.deviceLabel(chrome), 'Android · Chrome');
+  eq('Edge says Chrome too, and is still Edge', mc.deviceLabel(edge), 'Windows · Edge');
+  eq('Samsung Internet says Chrome too, and is still Samsung Internet', mc.deviceLabel(samsung), 'Android · Samsung Internet');
+  eq('an iPhone on Safari', mc.deviceLabel(iphone), 'iPhone · Safari');
+  eq('nothing to read is said so', mc.deviceLabel(''), 'Unknown device · browser');
+}
+
 console.log('-- the download on a signal that keeps dropping --');
 {
   const total = 2547;
