@@ -1470,7 +1470,13 @@ with checks(sort_order, bundle, provides, present) as (
          and (select count(*) from pg_class c where c.oid in (to_regclass('public.training_status'), to_regclass('public.training_history'))) = 2
          and exists (select 1 from pg_trigger t where t.tgrelid = to_regclass('public.user_rr') and t.tgname = 'user_rr_close_previous')
          and to_regprocedure('public.acknowledge_training(bigint)') is not null
-         and not has_function_privilege('anon', to_regprocedure('public.acknowledge_training(bigint)'), 'EXECUTE')))
+         and not has_function_privilege('anon', to_regprocedure('public.acknowledge_training(bigint)'), 'EXECUTE'))),
+    (207, 'The Training screen reaches VP Technical and R&D Engineer', 'mod:/training and training.manage merged into the VP Technical and R&D Engineer roles (0264), matched by key OR label with separators squashed, the 0207 rule. A role with ZERO permissions is left alone by design (its row means "not configured") and is not counted here. Yes also when neither role exists on the project. NO means one of them was configured and still lacks the Training screen -- tick it on Roles & Permissions, or re-run the bundle. Restore: training.sql',
+        not exists (select 1 from public.app_roles ar
+                     where jsonb_array_length(coalesce(ar.permissions, '[]'::jsonb)) > 0
+                       and ( regexp_replace(lower(coalesce(ar.role,  '')), '[^a-z0-9]', '', 'g') in ('vptechnical', 'rndengg', 'rndengineer')
+                          or regexp_replace(lower(coalesce(ar.label, '')), '[^a-z0-9]', '', 'g') in ('vptechnical', 'rndengg', 'rndengineer') )
+                       and not (ar.permissions ?& array['mod:/training', 'training.manage'])))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

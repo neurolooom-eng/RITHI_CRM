@@ -53,7 +53,11 @@ on:
         required: true
         default: dry-run
         type: choice
-        options: [dry-run, apply, baseline]
+        options: [dry-run, apply, baseline, status, probe]
+      probe_file:
+        description: 'probe only: a supabase/apply/_*.sql file to run READ-ONLY (e.g. _handstock_opening_engineers.sql)'
+        required: false
+        type: string
       baseline_through:
         description: 'baseline only: last migration ALREADY applied (e.g. 0151_module_keys_catch_up.sql). Blank = all of them.'
         required: false
@@ -103,6 +107,7 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           BASELINE_THROUGH: ${{ github.event.inputs.baseline_through }}
+          PROBE_FILE: ${{ github.event.inputs.probe_file }}
         run: |
           if [ -z "${SUPABASE_DB_URL:-}" ]; then
             echo "::warning::SUPABASE_DB_URL is not set — skipping. Add it under Settings → Secrets and variables → Actions."
@@ -117,5 +122,9 @@ jobs:
                 node scripts/apply-migrations.mjs --baseline
               fi ;;
             apply)    node scripts/apply-migrations.mjs ;;
+            # READ-ONLY: runs supabase/apply/_status.sql and prints its grid.
+            status)   node scripts/apply-migrations.mjs --status ;;
+            # READ-ONLY: one supabase/apply/_*.sql diagnostic, by name.
+            probe)    node scripts/apply-migrations.mjs --probe "$PROBE_FILE" ;;
             *) echo "Unknown mode"; exit 1 ;;
           esac
