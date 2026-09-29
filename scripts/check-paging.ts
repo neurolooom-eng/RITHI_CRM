@@ -330,6 +330,20 @@ console.log('-- the call form offers the product\'s complaints plus the all-prod
   eq('the mapped complaint list is served from the device for six hours (offline)', isFresh('complaintProducts', now - 5 * HOUR, now), true);
 }
 
+console.log('-- the Standard Complaint master: bulk products and filters --');
+{
+  eq('Set products to: exactly the chosen ones', cp.applyBulkProducts(['VEGA'], ['ORION-G', 'EXTEND-XT'], 'replace'), ['ORION-G', 'EXTEND-XT']);
+  eq('Set products to nothing: ALL products', cp.applyBulkProducts(['VEGA'], [], 'replace'), []);
+  eq('Add: joins the list once', cp.applyBulkProducts(['VEGA'], ['vega', 'ORION-G'], 'add'), ['VEGA', 'ORION-G']);
+  eq('Add to an all-products complaint leaves it on ALL products (never narrows it)', cp.applyBulkProducts([], ['VEGA'], 'add'), []);
+  eq('Remove: takes the chosen ones out', cp.applyBulkProducts(['VEGA', 'ORION-G'], ['vega'], 'remove'), ['ORION-G']);
+  eq('Remove from an all-products complaint leaves it on ALL products', cp.applyBulkProducts([], ['VEGA'], 'remove'), []);
+  eq('Product filter: mapped to that product', [cp.matchesProductFilter({ products: ['VEGA'] }, 'vega'), cp.matchesProductFilter({ products: ['ORION-G'] }, 'VEGA')], [true, false]);
+  eq('...an all-products complaint is not listed under each product', cp.matchesProductFilter({}, 'VEGA'), false);
+  eq('..."All products (no mapping)" lists exactly those', [cp.matchesProductFilter({}, cp.ALL_PRODUCTS_FILTER), cp.matchesProductFilter({ products: ['VEGA'] }, cp.ALL_PRODUCTS_FILTER)], [true, false]);
+  eq('...no filter lists everything', cp.matchesProductFilter({ products: ['VEGA'] }, ''), true);
+}
+
 console.log('-- the device, named for the administrator --');
 {
   const chrome = 'Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
