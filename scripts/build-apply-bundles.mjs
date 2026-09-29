@@ -137,6 +137,9 @@ const MODULES = {
             // guards below ask about -- 0260, 0261, 0262, each in its owner's
             // module.
             '0259_directory_rename_carries_the_records.sql',
+            // 0259's function again, with the hand stock adjustments (0266)
+            // on its list of tables filed by engineer name.
+            '0267_rename_carries_adjustments.sql',
       // LAST: 0004 above creates `ud_admin_write` and 0008 (rbac) drops it. A
       // replay of this bundle alone put it back, and policies are OR'd.
       '0122_user_directory_replay_tail.sql'],
@@ -763,7 +766,10 @@ const MODULES = {
             // AFTER 0196 and 0100, which own the previous bodies of the two
             // guards it redefines: the engineer on a spare follows a User Master
             // rename (0259).
-            '0261_rename_passes_the_spare_guards.sql'],
+            '0261_rename_passes_the_spare_guards.sql',
+            // Hand stock ADJUSTMENTS (+/- with a reason), the tenth arm of
+            // handstock_movements, and eBizWiz Admin's opening rows removed.
+            '0266_handstock_adjustments.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {

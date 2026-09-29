@@ -260,6 +260,13 @@ against the call it was fitted to.
   > **Why a booking can be refused.** Consumption is capped at the engineer's
   > balance. If the balance is wrong the Spare Coordinator corrects the stock; the
   > engineer does not book around it.
+  > **± Adjust stock** (whoever holds the reconciliation permission): choose the
+  > engineer and the part, **Add** or **Remove** a quantity, give the **reason**
+  > and the **reference** (the MTN number). It takes effect at once and shows on
+  > their movements as an **Adjustment**. It is never edited or deleted — to
+  > correct one, record another the other way — and a removal cannot take them
+  > below zero. This replaces WinMax's *eBizWiz Admin* account, whose opening
+  > stock has been removed.
 - **Material Returns (MRN)** `/mrn` — parts back to Stores; the return puts the
   stock back on the balance.
 - **Stock Transfer** `/stock-transfer` — hand stock between engineers. A transfer

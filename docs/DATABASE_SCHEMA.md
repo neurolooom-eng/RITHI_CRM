@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**86 tables · 36 views · 2581 columns · 171 policies · 59 foreign keys.**
+**87 tables · 36 views · 2598 columns · 173 policies · 59 foreign keys.**
 
 ## How to read this
 
@@ -55,6 +55,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [ffr_history](#ffr-history)
 - [field_calls](#field-calls)
 - [field_failure_reports](#field-failure-reports)
+- [handstock_adjustments](#handstock-adjustments)
 - [handstock_opening](#handstock-opening)
 - [handstock_period](#handstock-period)
 - [harness](#harness)
@@ -1085,6 +1086,48 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | INSERT | `ffr_write` | — | `( SELECT has_perm('ffr.manage'::text) AS has_perm)` |
 | SELECT | `ffr_read` | `(( SELECT has_perm('ffr.view'::text) AS has_perm) OR ( SELECT can_view_all_calls() AS can_view_all_calls) OR (raised_by = ( SELECT auth.uid() AS uid)) OR (COALESCE(btrim(ucn), ''::…` | — |
 | UPDATE | `ffr_update` | `( SELECT has_perm('ffr.manage'::text) AS has_perm)` | `( SELECT has_perm('ffr.manage'::text) AS has_perm)` |
+
+---
+
+## handstock_adjustments
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `engineer` | text | **no** |  |  |
+| 3 | `engineer_key` | text _(generated)_ | yes |  |  |
+| 4 | `part` | text | **no** |  |  |
+| 5 | `part_code` | text _(generated)_ | yes |  |  |
+| 6 | `qty` | numeric | **no** |  |  |
+| 7 | `reason` | text | **no** |  |  |
+| 8 | `reference` | text | **no** | `''::text` |  |
+| 9 | `adjusted_at` | timestamp with time zone | **no** | `now()` |  |
+| 10 | `recorded_by` | uuid | yes | `auth.uid()` |  |
+| 11 | `recorded_by_name` | text | **no** | `''::text` |  |
+| 12 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 13 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 14 | `sys_created_by` | uuid | yes |  |  |
+| 15 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 16 | `sys_updated_by` | uuid | yes |  |  |
+| 17 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(handstock_adjustments_sys_id_key)_
+
+**Constraints:**
+
+- `handstock_adjustments_reason` — `CHECK ((btrim(reason) <> ''::text))`
+- `handstock_adjustments_qty_nonzero` — `CHECK ((qty <> (0)::numeric))`
+
+**Triggers:** `handstock_adjustments_bi` → `handstock_adjustments_bi()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `hsa_insert` | — | `( SELECT has_perm('consumption.reconcile'::text) AS has_perm)` |
+| SELECT | `hsa_read` | `(( SELECT can_view_all_calls() AS can_view_all_calls) OR ( SELECT has_perm('data.view_all'::text) AS has_perm) OR (lower(btrim(engineer)) IN ( SELECT lower(btrim(v.n)) AS lower    …` | — |
 
 ---
 

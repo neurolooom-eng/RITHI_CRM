@@ -7,8 +7,10 @@ import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { useArrivingFilter } from '../lib/arriveWith';
 import {
-  listHandstockBalance, listHandstockMovements, listAllHandstockMovements, supabaseConfigured,
+  listHandstockBalance, listHandstockMovements, listAllHandstockMovements, supabaseConfigured, addHandstockAdjustment,
 } from '../lib/supabase';
+import { PickList } from '../components/ui/PickList';
+import { useMaster } from '../lib/masters';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { useAccessScope, previewScoped, useTeamEngineers } from '../lib/access';
@@ -176,6 +178,7 @@ export function HandStock() {
   // names in a dropdown, on a register covering eighty, reads as "there are ten".
   const team = useTeamEngineers();
   const [detail, setDetail] = useState<Row | null>(null);
+  const [adjusting, setAdjusting] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     onDb ? null : { tone: 'info', text: 'Connect the database in Settings to load hand stock.' },
   );
@@ -336,8 +339,21 @@ export function HandStock() {
             {hits && <span className="conn-dot conn-on">🔎 searching the whole register — {hits.length}{hits.length >= PAGE_SIZE ? '+' : ''} match{hits.length === 1 ? '' : 'es'}</span>}
           </>
         }
-        actions={can('stock.transfer') && <button className="btn btn-primary" onClick={() => navigate('/stock-transfer')}>⇄ Transfer stock</button>}
+        actions={(can('stock.transfer') || can('consumption.reconcile')) && (
+          <div className="row" style={{ gap: 6 }}>
+            {can('consumption.reconcile') && onDb && (
+              <button className="btn" onClick={() => setAdjusting(true)}
+                title="Add or remove quantity from an engineer's hand stock, with a reason">± Adjust stock</button>
+            )}
+            {can('stock.transfer') && <button className="btn btn-primary" onClick={() => navigate('/stock-transfer')}>⇄ Transfer stock</button>}
+          </div>
+        )}
       />
+
+      {adjusting && (
+        <AdjustDrawer engineers={team.names} onClose={() => setAdjusting(false)}
+          onSaved={(text) => { setAdjusting(false); setMsg({ tone: 'ok', text }); void load(); }} />
+      )}
 
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
@@ -533,7 +549,7 @@ function Movements({
     { key: 'remarks', header: 'Remarks', width: 180 },
   ];
 
-  const KINDS: MovementKind[] = ['Stock out', 'Consumption', 'Transfer in', 'Transfer out', 'Return'];
+  const KINDS: MovementKind[] = ['Stock out', 'Consumption', 'Transfer in', 'Transfer out', 'Return', 'Adjustment'];
 
   return (
     <>
@@ -640,6 +656,7 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
                   : m.movement === 'Consumption' ? `🧾 Consumed ${m.qty}`
                   : m.movement === 'Transfer in' ? `⇄ Received ${m.qty}`
                   : m.movement === 'Return' ? `↩️ Returned ${m.qty}`
+                  : m.movement === 'Adjustment' ? (m.direction === 'IN' ? `± Adjusted +${m.qty}` : `± Adjusted −${m.qty}`)
                   : `⇄ Handed over ${m.qty}`}
               </b>
               <span className={`badge badge-${movementTone(m.movement)}`} style={{ marginLeft: 6 }}>{m.movement}</span>
@@ -658,5 +675,70 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
         {!busy && !err && moves.length === 0 && <div className="muted" style={{ fontSize: 12.5 }}>No movements found for this line.</div>}
       </section>
     </div>
+  );
+}
+
+// ===========================================================================
+// ± ADJUST STOCK (0266). The user, 2026-09-30: WinMax's "eBizWiz Admin" account
+// was how quantity was added to reconcile an engineer; this replaces it. + adds,
+// - removes, a REASON is required and the reference (the MTN number) is kept.
+// Effective on save; never edited -- a wrong one is reversed by another. The
+// database refuses a person who is not active on the User Master, a part not
+// on the Part Master, and a minus that would take them below zero.
+// ===========================================================================
+function AdjustDrawer({ engineers, onClose, onSaved }: {
+  engineers: string[]; onClose: () => void; onSaved: (text: string) => void;
+}) {
+  const parts = useMaster('spare').values;
+  const [engineer, setEngineer] = useState('');
+  const [part, setPart] = useState('');
+  const [dir, setDir] = useState<'add' | 'remove'>('add');
+  const [qty, setQty] = useState('1');
+  const [reason, setReason] = useState('');
+  const [reference, setReference] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const n = Math.floor(Number(qty) || 0);
+  const problem = !engineer ? 'Choose the engineer.' : !part ? 'Choose the part.' : n <= 0 ? 'Give a quantity of 1 or more.'
+    : !reason.trim() ? 'Give the reason — it stays on the record.' : '';
+  const save = async () => {
+    if (problem) { setErr(problem); return; }
+    setBusy(true); setErr('');
+    const signed = dir === 'add' ? n : -n;
+    const r = await addHandstockAdjustment({ engineer, part, qty: signed, reason, reference });
+    setBusy(false);
+    if (!r.ok) { setErr(r.error ?? 'Could not save the adjustment.'); return; }
+    onSaved(`${engineer}: ${part.split('|')[0]} ${signed > 0 ? '+' : '−'}${n} recorded${reference.trim() ? ` (${reference.trim()})` : ''}.`);
+  };
+  return (
+    <Drawer open onClose={onClose} title="Adjust hand stock" width={560}>
+      <div className="rep-form">
+        {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span></div>}
+        <label className="field"><span className="field-label">Engineer *</span>
+          <SelectPicker value={engineer} onChange={setEngineer} placeholder="— active User Master names —" options={engineers} /></label>
+        <label className="field"><span className="field-label">Part *</span>
+          <PickList value={part} options={parts} onPick={setPart} placeholder="Type any part of the code or description…"
+            emptyLabel={parts.length ? '— pick a part —' : '— loading parts… —'} /></label>
+        <div className="row" style={{ gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <label className="field"><span className="field-label">Add or remove</span>
+            <SelectPicker value={dir} onChange={(v) => setDir((v || 'add') as 'add' | 'remove')}
+              options={[{ value: 'add', label: '＋ Add to their stock' }, { value: 'remove', label: '− Remove from their stock' }]} /></label>
+          <label className="field"><span className="field-label">Quantity *</span>
+            <input className="input" type="number" min={1} step={1} style={{ width: 110 }} value={qty} onChange={(e) => setQty(e.target.value)} /></label>
+        </div>
+        <label className="field"><span className="field-label">Reason *</span>
+          <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Physical count found 2 more" /></label>
+        <label className="field"><span className="field-label">Reference</span>
+          <input className="input" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. MTN number" /></label>
+        <p className="muted" style={{ fontSize: 12.5 }}>
+          Takes effect when saved and shows on the engineer&rsquo;s movements as an <b>Adjustment</b>. It cannot be edited
+          or deleted — to correct one, record another the other way. A removal cannot take them below zero.
+        </p>
+        <div className="rep-actions">
+          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save adjustment'}</button>
+        </div>
+      </div>
+    </Drawer>
   );
 }

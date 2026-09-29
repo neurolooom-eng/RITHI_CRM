@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.5',
+    date: '2026-09-30',
+    title: 'Hand Stock: ± Adjust stock, in place of the eBizWiz Admin account',
+    changes: [
+      'NEW ON HAND STOCK — ± ADJUST STOCK: add quantity to an engineer\'s hand stock, or remove it, with a reason (required) and a reference such as the MTN number. It takes effect when saved and shows on their movements as an Adjustment. Open to whoever holds the reconciliation permission.',
+      'AN ADJUSTMENT IS A RECORD: it cannot be edited or deleted. To correct one, record another the other way — both stay on the trail with their reasons. A removal cannot take an engineer below zero, and only active User Master people and Part Master parts can be adjusted.',
+      'THE eBizWiz Admin OPENING STOCK IS REMOVED (1,163 rows, 233,000 parts). It was WinMax\'s account for reconciling quantities, not anybody\'s stock, and Adjust stock now does that job. No engineer\'s balance changes.',
+      'Correcting a person\'s name on User Master carries their adjustments with the rest of their records.',
+    ],
+  },
+  {
     version: '0.10.4',
     date: '2026-09-30',
     title: 'User Master: Department now saves, and can be set for many people at once',
