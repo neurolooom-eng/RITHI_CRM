@@ -178,7 +178,14 @@ Also a provision to map the Complaint to all Products."*
   `complaints_at` (**0253** -- renumbered twice, 0251 and 0252 were taken by
   other sessions). 0249 now drops the report function before recreating it,
   or a replay of the bundle could not put the older shape back.
-  ⏳ **User to run** `supabase/apply/device_cache.sql`; `_status.sql` row 196.
+  ✅ device_cache.sql run by the user (2026-09-30).
+- ✅ **0.9.397** — the user: *"I want Filters - Product, Complaint Name and also
+  bulk updation of Products to Complaints in Standard Complaint"*, *"Bulk Edit
+  in the View. Not through Bulk Uploads"*. MasterListTable (complaint list
+  only): name + product filters (`matchesProductFilter`), ticked rows and a
+  bulk bar (`applyBulkProducts`: replace / add / remove; an all-products
+  complaint is never narrowed by add/remove). Saves ten at a time through
+  `updateMasterItem`, keeping each entry's other details. No SQL.
 - ✅ **0.9.391 — the mapping by upload.** The user: *"If I re-upload masters
   with Product Details, will it update?"* It would have, badly: a file with no
   Products column replaced `extra` wholesale and reset every mapping to All,

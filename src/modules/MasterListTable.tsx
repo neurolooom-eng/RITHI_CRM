@@ -11,7 +11,8 @@ import { usedBy } from './masterLists';
 import { cappedAt } from '../lib/exportscope';
 import { useMaster } from '../lib/masters';
 import { MultiPick } from '../components/ui/MultiPick';
-import { complaintProducts, productsLabel } from '../lib/complaints';
+import { complaintProducts, productsLabel, applyBulkProducts, matchesProductFilter, ALL_PRODUCTS_FILTER, type BulkProductsMode } from '../lib/complaints';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { updateMasterItem } from '../lib/supabase';
 
 // ===========================================================================
@@ -126,13 +127,52 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [productList.values, items]);
 
+  // STANDARD COMPLAINT FILTERS (the user, 2026-09-30: "I want Filters -
+  // Product, Complaint Name"). The Product filter lists what is MAPPED to that
+  // product; "All products (no mapping)" lists the rest -- it is for managing
+  // the mapping, so an all-products complaint is not repeated under each one.
+  const [productFilter, setProductFilter] = useState('');
+  const [nameFilter, setNameFilter] = useState('');
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((i) => i.value.toLowerCase().includes(q)
+    const n = nameFilter.trim().toLowerCase();
+    return items.filter((i) => (!q || i.value.toLowerCase().includes(q)
       || Object.values(i.extra ?? {}).some((v) => String(v).toLowerCase().includes(q))
-      || (byProduct && productsLabel(i.extra).toLowerCase().includes(q)));
-  }, [items, search, byProduct]);
+      || (byProduct && productsLabel(i.extra).toLowerCase().includes(q)))
+      && (!byProduct || !n || i.value.toLowerCase().includes(n))
+      && (!byProduct || matchesProductFilter(i.extra, productFilter)));
+  }, [items, search, byProduct, nameFilter, productFilter]);
+
+  // BULK: tick complaints, choose products, Replace / Add / Remove
+  // (applyBulkProducts in complaints.ts says exactly what each does).
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [bulkProducts, setBulkProducts] = useState<string[]>([]);
+  const [bulkMode, setBulkMode] = useState<BulkProductsMode>('replace');
+  const applyBulk = async (ids: string[], clear: () => void) => {
+    const targets = items.filter((i) => ids.includes(String(i.id)));
+    if (!targets.length) return;
+    const what = bulkMode === 'replace'
+      ? (bulkProducts.length ? `apply ONLY to ${bulkProducts.join(', ')}` : 'apply to ALL products')
+      : bulkMode === 'add' ? `also apply to ${bulkProducts.join(', ')}` : `no longer apply to ${bulkProducts.join(', ')}`;
+    if (!confirm(`${targets.length} complaint${targets.length === 1 ? '' : 's'} will ${what}. Continue?`)) return;
+    setBusy(true);
+    let done = 0; const failed: string[] = [];
+    // Ten at a time: quick on a good signal, and gentle on the database.
+    for (let i = 0; i < targets.length; i += 10) {
+      await Promise.all(targets.slice(i, i + 10).map(async (t) => {
+        const next = applyBulkProducts(complaintProducts(t.extra), bulkProducts, bulkMode);
+        const r = await updateMasterItem(t.id, { extra: { ...(t.extra ?? {}), products: next } as unknown as Record<string, string> });
+        if (r.ok) done += 1; else failed.push(t.value);
+      }));
+    }
+    clearMasterCache(list.key);
+    clearMasterCache('complaintProducts');
+    clear();
+    await load();
+    setMsg(failed.length
+      ? { tone: 'error', text: `${done} updated; ${failed.length} could not be saved: ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''}` }
+      : { tone: 'ok', text: `${done} complaint${done === 1 ? '' : 's'} updated.` });
+  };
 
   const columns: Column<MasterItem & Record<string, unknown>>[] = useMemo(() => {
     const cols: Column<MasterItem & Record<string, unknown>>[] = [
@@ -249,10 +289,39 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
         storageKey={`master-${list.key}`}
         rowsBeforeScroll={14}
         dense
-        emptyText={busy ? 'Loading…' : 'This list is empty.'}
+        emptyText={busy ? 'Loading…' : (items.length ? 'Nothing matches these filters.' : 'This list is empty.')}
+        selectable={byProduct && editable}
+        selected={picked}
+        onSelectedChange={setPicked}
+        bulkBar={byProduct && editable ? (ids, clear) => (
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <b>{ids.length} selected</b>
+            <div style={{ minWidth: 140 }}>
+              <SelectPicker value={bulkMode} onChange={(v) => setBulkMode((v || 'replace') as BulkProductsMode)}
+                options={[{ value: 'replace', label: 'Set products to' }, { value: 'add', label: 'Add products' },
+                  { value: 'remove', label: 'Remove products' }]} />
+            </div>
+            <div style={{ minWidth: 220 }}>
+              <MultiPick values={bulkProducts} options={productOptions} noun="products"
+                allLabel={bulkMode === 'replace' ? 'All products' : '— choose products —'} onChange={setBulkProducts} />
+            </div>
+            <button className="btn btn-primary btn-sm"
+              disabled={busy || (bulkMode !== 'replace' && !bulkProducts.length)}
+              onClick={() => void applyBulk(ids, clear)}>Apply to {ids.length}</button>
+          </div>
+        ) : undefined}
         toolbar={
           <Toolbar>
             <input className="input" placeholder="Search this list" value={search} onChange={(e) => setSearch(e.target.value)} />
+            {byProduct && (
+              <>
+                <input className="input" placeholder="Complaint name" value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} />
+                <div style={{ minWidth: 200 }}>
+                  <SelectPicker value={productFilter} onChange={setProductFilter} placeholder="Any product"
+                    options={['', ALL_PRODUCTS_FILTER, ...productOptions]} />
+                </div>
+              </>
+            )}
             <button className="btn btn-sm" onClick={() => void reload()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <div className="spacer" />
             <span className="muted">{visible.length.toLocaleString()} {visible.length === 1 ? 'entry' : 'entries'}</span>

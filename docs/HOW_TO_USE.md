@@ -667,6 +667,12 @@ typed into a form that reads it.
   > complaint applies to — as many as it needs — or leave it empty for **all
   > products**. Every complaint that existed before this reads as all products,
   > so nothing stopped being offered. Press ✎ on a row to change it.
+  > **Filters:** Complaint name, and Product — which lists the complaints
+  > mapped to that product; "All products (no mapping)" lists the rest.
+  > **Bulk edit on the screen:** tick complaints (the header box ticks every one
+  > the filters show), then **Set products to** / **Add products** / **Remove
+  > products**, choose the products and press Apply. Set to nothing = all
+  > products; adding or removing never narrows an all-products complaint.
   > **By upload** (Bulk Uploads → Master Value Lists → Standard Complaint): add a
   > **Products** column — several products separated by commas, or blank /
   > `All` for all products. A file **without** a Products column updates the

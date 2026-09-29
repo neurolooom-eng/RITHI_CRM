@@ -9412,6 +9412,9 @@ console.log('-- the Standard Complaint master maps products --');
   eq('only the complaint list gets the Products field', /const byProduct = list\.key === 'complaint';/.test(mlt), true);
   eq('...chosen with the multi-select, empty meaning all products', /<MultiPick[^>]*allLabel="All products"/.test(mlt), true);
   eq('...and saving it keeps the rest of the entry', /const extra = \{ \.\.\.\(item\.extra \?\? \{\}\), products \}/.test(mlt), true);
+  eq('...filters by product and by complaint name', /matchesProductFilter\(i\.extra, productFilter\)/.test(mlt) && /placeholder="Complaint name"/.test(mlt), true);
+  eq('...and bulk-updates products over ticked rows, only for those who may edit', /selectable=\{byProduct && editable\}/.test(mlt) && /applyBulkProducts\(/.test(mlt), true);
+  eq('...keeping each entry\'s other details on a bulk save', /extra: \{ \.\.\.\(t\.extra \?\? \{\}\), products: next \}/.test(mlt), true);
 }
 
 // EVERY COMPLAINT PICKER FOLLOWS THE CALL'S PRODUCT (2026-09-29): "filter

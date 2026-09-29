@@ -195,3 +195,38 @@ export function complaintOptionsFor(encoded: string[], product: string): string[
   }
   return out;
 }
+
+// ---- changing the products of many complaints at once ----------------------
+// The user, 2026-09-30: "bulk updation of Products to Complaints". Three ways,
+// because each answers a different job:
+//   replace -> these complaints apply to exactly the chosen products
+//              (none chosen = ALL products);
+//   add     -> also apply to the chosen products;
+//   remove  -> no longer apply to the chosen products.
+// A complaint on ALL products (an empty list) is left on all products by
+// "remove": taking VEGA out of "every product" would mean listing all the
+// others, which is a decision somebody should make with the list in front of
+// them, not a side effect.
+export type BulkProductsMode = 'replace' | 'add' | 'remove';
+export function applyBulkProducts(current: string[], chosen: string[], mode: BulkProductsMode): string[] {
+  const clean = complaintProducts({ products: chosen });
+  if (mode === 'replace') return clean;
+  const cur = complaintProducts({ products: current });
+  if (mode === 'add') return cur.length === 0 ? [] : complaintProducts({ products: [...cur, ...clean] });
+  if (cur.length === 0) return [];
+  const drop = new Set(clean.map((p) => p.toLowerCase()));
+  return cur.filter((p) => !drop.has(p.toLowerCase()));
+}
+
+/** The master screen's Product filter: '' = any; ALL_PRODUCTS_FILTER = the
+ *  complaints mapped to every product; otherwise complaints mapped to that
+ *  product BY NAME (an all-products complaint is not listed under each product
+ *  -- the filter is for managing the mapping, not previewing a call). */
+export const ALL_PRODUCTS_FILTER = '— All products (no mapping) —';
+export function matchesProductFilter(extra: unknown, filter: string): boolean {
+  if (!filter) return true;
+  const mapped = complaintProducts(extra);
+  if (filter === ALL_PRODUCTS_FILTER) return mapped.length === 0;
+  const f = filter.trim().toLowerCase();
+  return mapped.some((p) => p.toLowerCase() === f);
+}

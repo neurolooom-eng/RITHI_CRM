@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.397',
+    date: '2026-09-30',
+    title: 'Standard Complaint master: filter by product and name, and change products for many complaints at once',
+    changes: [
+      'TWO NEW FILTERS on the Standard Complaint list: Complaint name, and Product. The Product filter lists the complaints mapped to that product; choose "All products (no mapping)" to see the ones that apply to every product.',
+      'BULK EDIT ON THE SCREEN — no file needed. Tick the complaints (the box in the header ticks every complaint the filters are showing), then choose Set products to, Add products or Remove products, pick the products and press Apply. A confirmation says exactly what will change before anything is saved.',
+      'Set products to with nothing picked makes the complaints apply to all products. Adding or removing a product never narrows a complaint that applies to all products — that stays a deliberate choice.',
+      'Each complaint keeps everything else about it; only its products change. The call forms pick up the change straight away on this device, and on other devices within six hours.',
+    ],
+  },
+  {
     version: '0.9.396',
     date: '2026-09-30',
     title: 'Standard Complaints shown as stored on the device, and the upload report says Products are read (one SQL file)',
