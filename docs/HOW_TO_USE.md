@@ -675,6 +675,8 @@ typed into a form that reads it.
   manager's team is worked out from here.
   > **Department** comes from its own list (**Masters → Department** — add the
   > departments there first), so it is spelled one way everywhere.
+  > **Many at once:** tick people (the header box ticks everyone the search is
+  > showing), choose the Department in the bar that appears, press **Apply**.
   > **Open a person (the row, or ⋯ → view) for their profile:** Employee Code,
   > Joining Date, Department, Designation, both managers, Mail ID, their
   > **Roles & Responsibilities** and their **training**. Employee Code and
