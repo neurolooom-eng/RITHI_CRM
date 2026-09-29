@@ -1414,8 +1414,14 @@ with checks(sort_order, bundle, provides, present) as (
     (197, 'Spare Insights counts India''s days', 'spare_insights() bounds its window and groups its months in Asia/Kolkata (0254, finding 13). It cast the dates to timestamptz, which is midnight in the DATABASE''S zone: on a database in UTC, consumption booked before 05:30 India time on the first day fell outside the window, the same hours after the last day fell inside it, and a spare booked before 05:30 on the 1st was charted in the previous month. Tested on the definition, because a value test reads the same either way on a database already in Asia/Kolkata. NO means the window still follows the database''s zone. Restore: performance.sql',
         coalesce((select (select count(*) from regexp_matches(pg_get_functiondef(p.oid), 'at time zone ''Asia/Kolkata''', 'g')) >= 5
                          and pg_get_functiondef(p.oid) !~ 'p_from::timestamptz'
-                    from pg_proc p where p.oid = to_regprocedure('public.spare_insights(date,date)')), false))
-    -- worse than no row: this report is read to decide WHAT TO RUN.
+                    from pg_proc p where p.oid = to_regprocedure('public.spare_insights(date,date)')), false)),
+    (198, 'Main product -> accessories / allied products', 'product_accessories (0255): one list per main product, keyed on its Product Database name, of the products sold with it -- the placeholder the spare request''s Phase 2 reads to offer the parts of the main product AND its accessories. Edited on the Part Master screen. The row checks what makes it usable rather than merely present: row-level security on, the one-list-per-product key the save needs, and the write policies asking masters.edit once per query. NO means the Accessories panel on the Part Master reads "not on the project yet" -- nothing else is affected. Restore: masters.sql',
+        (to_regclass('public.product_accessories') is not null
+         and (select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.product_accessories'))
+         and exists (select 1 from pg_indexes i where i.schemaname = 'public' and i.indexname = 'product_accessories_main_key')
+         and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'product_accessories'
+                      and p.policyname = 'pa_update' and p.qual ilike '%select has_perm%')))
+        -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

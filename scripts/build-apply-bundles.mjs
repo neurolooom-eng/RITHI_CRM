@@ -642,7 +642,10 @@ const MODULES = {
       // contact blocks) and somewhere to record KYC.
       '0201_party_columns_and_kyc.sql',
             // The KYC records themselves (0231), attached to the party.
-            '0231_party_kyc_documents.sql'],
+            '0231_party_kyc_documents.sql',
+            // Main product -> its accessories / allied products, on the product
+            // line (0255): the placeholder the spare request's Phase 2 reads.
+            '0255_product_accessories.sql'],
   },
   reports: {
     title: 'Reports',

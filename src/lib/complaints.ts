@@ -223,10 +223,20 @@ export function applyBulkProducts(current: string[], chosen: string[], mode: Bul
  *  product BY NAME (an all-products complaint is not listed under each product
  *  -- the filter is for managing the mapping, not previewing a call). */
 export const ALL_PRODUCTS_FILTER = '— All products (no mapping) —';
-export function matchesProductFilter(extra: unknown, filter: string): boolean {
+/** Mapped to a name the Product Database does not have -- a typo, or a value
+ *  loaded before the mapping used Product Database names (the Part Master's
+ *  Item Master file carried short forms). Listed so it can be FIXED, never
+ *  rewritten on its own (the user, 2026-09-30: "Keep and flag them"). */
+export const UNRECOGNISED_FILTER = '— Unrecognised product —';
+export function unrecognisedProducts(extra: unknown, known: string[]): string[] {
+  const k = new Set(known.map((n) => n.trim().toLowerCase()));
+  return complaintProducts(extra).filter((p) => !k.has(p.toLowerCase()));
+}
+export function matchesProductFilter(extra: unknown, filter: string, known: string[] = []): boolean {
   if (!filter) return true;
   const mapped = complaintProducts(extra);
   if (filter === ALL_PRODUCTS_FILTER) return mapped.length === 0;
+  if (filter === UNRECOGNISED_FILTER) return known.length > 0 && unrecognisedProducts(extra, known).length > 0;
   const f = filter.trim().toLowerCase();
   return mapped.some((p) => p.toLowerCase() === f);
 }

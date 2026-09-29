@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.400',
+    date: '2026-09-30',
+    title: 'Part Master: parts mapped to products like the Standard Complaints, and a place for each product\'s accessories',
+    changes: [
+      'A PART\'S PRODUCT IS NOW CHOSEN FROM THE PRODUCT DATABASE NAMES (ORION-G, VEGA, EXTEND-XT…) — the names a call and a spare request carry — and you can pick several. LEFT EMPTY, A PART IS COMMON TO ALL PRODUCTS, and the table says so.',
+      'OLD VALUES ARE KEPT AND FLAGGED, NOT CHANGED: a product on a part that the Product Database does not have (such as a short form like MTEO from the Item Master file) shows in red with ⚠. Choose "⚠ Unrecognised product" in the new Product filter to list them all and fix them.',
+      'PRODUCT FILTER: a product, "Common (all products)", or "⚠ Unrecognised product". It searches the whole catalogue, not just the first 1,000 parts.',
+      'BULK EDIT ON THE SCREEN, as on Standard Complaint: tick parts, then Set products to / Add products / Remove products and Apply. Set to nothing makes them common to all products.',
+      'ADDING A PART: choose its products, or tick "Common to all products" — one of the two is required.',
+      'NEW: "Main product → Accessories & allied products" (above the table): for each product, the products sold with it. Not used yet — the spare request will use it to offer the parts of the main product and its accessories. Its database table is added automatically with this version.',
+    ],
+  },
+  {
     version: '0.9.399',
     date: '2026-09-30',
     title: 'Part Master: a new part must say Spare / Consumable and which Product it is for',

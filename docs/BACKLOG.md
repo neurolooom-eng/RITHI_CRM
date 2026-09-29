@@ -206,6 +206,23 @@ Also a provision to map the Complaint to all Products."*
   the four fields) was already there and is unchanged. The Item Master bulk
   upload is NOT held to it (86% of that file has no category) -- say so if it
   should be.
+- ✅ **0.9.400 — Part Master products, Phase 1 + the Phase 2 placeholder.** The
+  user: *"clean up Part Master -- Products mapped to the Parts. Same logic as of
+  Standard Complaint. Phase 1 - Map the Products [Multi-select], empty rows
+  treated as common for all products. Phase 2 - list Accessories + Main
+  Product for the Spare Request ... ensure we have a place holder."* Asked:
+  **Product Database names**, accessories **on the product line**, old values
+  **kept and flagged**. `parts.product` stays one text column; the rules are
+  complaints.ts's (`matchesProductFilter` + `UNRECOGNISED_FILTER`,
+  `applyBulkProducts`); `queryAllParts` reads the whole catalogue for a product
+  filter. Add part: products OR "Common to all products". **0255**
+  `product_accessories` (one list per main product, masters.edit, read by all
+  signed in), editor on the Part Master; `_status.sql` row 198; suite
+  `product_accessories_test`.
+  0255 is applied by the migrations workflow on merge (the live project is
+  baselined) -- confirm the "Apply database migrations" run logs it applied.
+  ⏳ **Phase 2 NOT BUILT**: the spare request offering parts of the call's
+  product + its accessories + the common ones.
 - ✅ **0.9.391 — the mapping by upload.** The user: *"If I re-upload masters
   with Product Details, will it update?"* It would have, badly: a file with no
   Products column replaced `extra` wholesale and reset every mapping to All,

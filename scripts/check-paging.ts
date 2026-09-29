@@ -342,6 +342,14 @@ console.log('-- the Standard Complaint master: bulk products and filters --');
   eq('...an all-products complaint is not listed under each product', cp.matchesProductFilter({}, 'VEGA'), false);
   eq('..."All products (no mapping)" lists exactly those', [cp.matchesProductFilter({}, cp.ALL_PRODUCTS_FILTER), cp.matchesProductFilter({ products: ['VEGA'] }, cp.ALL_PRODUCTS_FILTER)], [true, false]);
   eq('...no filter lists everything', cp.matchesProductFilter({ products: ['VEGA'] }, ''), true);
+  // THE PART MASTER stores its products as one text ("MTEO, VEGA"); the same
+  // rules read it, and a value the Product Database does not have is FLAGGED.
+  const known = ['VEGA', 'ORION-G', 'M-TEO'];
+  eq('a part\'s product text reads as its list', cp.complaintProducts({ products: 'MTEO, VEGA' }), ['MTEO', 'VEGA']);
+  eq('an old short form is flagged unrecognised', cp.unrecognisedProducts({ products: 'MTEO, VEGA' }, known), ['MTEO']);
+  eq('...and listed by the Unrecognised filter', cp.matchesProductFilter({ products: 'MTEO' }, cp.UNRECOGNISED_FILTER, known), true);
+  eq('...while a clean mapping is not', cp.matchesProductFilter({ products: 'vega' }, cp.UNRECOGNISED_FILTER, known), false);
+  eq('a common part (blank) is not unrecognised', cp.matchesProductFilter({ products: '' }, cp.UNRECOGNISED_FILTER, known), false);
 }
 
 console.log('-- the device, named for the administrator --');
