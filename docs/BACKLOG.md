@@ -66,7 +66,7 @@ up)_
 
 ---
 
-## 2026-09-29 — The whole machine register on every device (v0.9.381–0.9.383) — CLIENT ONLY, no SQL
+## 2026-09-29 — The whole machine register on every device (v0.9.381–0.9.384) — CLIENT ONLY, no SQL
 
 The user: *"Remote location = Weak network signal and possible frequent
 disconnection. Whole machine register on every phone / laptop as a cached data.
@@ -87,12 +87,19 @@ Search every thing relevant to Product Database from cached data."*
   the copy. Refresh: every six hours, on `online`, on returning to the app, on
   a `products` upload, on ↻ Refresh / Download again / Clear Cache and Update
   (which keeps the old copy until the new one lands). Wiped on sign-out.
+- ✅ **0.9.384** — the user: *"keep all columns in the cache"*, and the Call
+  Request flow (product → serial → customer details) cache-first, server on a
+  miss. The device copy now keeps EVERY column of `product_database` (was the
+  33 screen headings) and a second register, the whole `parties` table.
+  `sbPartyInfo`, `sbPartyServiceEngineer`, `sbSearchParties` and
+  `sbKycByParties` read it first. A party edit or a `parties` upload refreshes
+  it. The Party Master SCREEN (`queryParties`) still reads the server, since it
+  is where parties are edited.
 - ⏳ **Not measured**: the download size on the live register. Nothing here
   holds the data. The status line reports the machine count; the size is the
   next thing to ask for if phones struggle.
 - ⏳ **Still server-only**: Machine History and Product Database 2.0 (they join
-  calls, visits and spares); the Party Master (`sbSearchParties`, installations)
-  and `sbPartyInfo` — the `parties` table is not in the device copy.
+  calls, visits and spares).
 - ⏳ **Still unknown**: why the primary product read failed for some sessions
   in the first place — grid 0 of `_which_products_are_missing.sql` is with the
   user.

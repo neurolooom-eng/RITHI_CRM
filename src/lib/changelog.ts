@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.384',
+    date: '2026-09-29',
+    title: 'Every column of the machine register, and the whole Party Master, kept on your device',
+    changes: [
+      'EVERY COLUMN IS NOW KEPT ON YOUR DEVICE. The machine register copy used to hold the 33 columns the screens show; it now holds every column of the Product Database, exactly as the server has it.',
+      'THE PARTY MASTER IS ON YOUR DEVICE TOO, every column. On a Call Request you pick the product, then the serial, and the customer and their details — state, city, address, service engineer, KYC — now come from your device first. Only a customer your device does not have yet is looked up on the server, and with no signal the form still opens and fills what the device has.',
+      'The installation customer search (customers with no machine yet) also answers from your device.',
+      'Editing a customer on the Party Master, or uploading a Party Master file, refreshes your own copy straight away.',
+      'The line under the title now says how many machines AND how many customers are on your device, and it is on the Request Call Registration screen as well.',
+    ],
+  },
+  {
     version: '0.9.383',
     date: '2026-09-29',
     title: 'The whole machine register is kept on your phone or laptop, and every Product Database search runs on it',

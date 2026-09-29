@@ -24,6 +24,7 @@ import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
 import { partial } from '../lib/exportscope';
 import { isSysColumn } from '../lib/syscols';
+import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
 
 // ===========================================================================
 // REQUEST CALL REGISTRATION — the register of every request raised, whatever
@@ -736,6 +737,8 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
 
   return (
     <div>
+      {/* The product, serial and customer below answer from this device first. */}
+      <MachineRegisterNote />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>

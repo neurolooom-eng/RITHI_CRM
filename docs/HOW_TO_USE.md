@@ -46,7 +46,8 @@ different totals. An empty register usually means access, not emptiness.
 - **Product & Party Search** `/lookup` — find a machine or customer and see
   everything about it. The party list comes from the machines on record, so every
   customer offered has something to find.
-  > **It searches the copy of the machine register kept on your device**, so it
+  > **It searches the copies of the machine register and the Party Master kept
+  > on your device** (every column of both), so it
   > works with a weak or no signal. The copy is refreshed every six hours and when
   > the signal returns; the line under the title says how many machines it holds
   > and when it was downloaded. A machine added in the last few hours: press
@@ -60,6 +61,9 @@ different totals. An empty register usually means access, not emptiness.
 - **Request Registration** `/request-registration` — **the machine names the
   customer**: search the serial first and the customer follows. An installation is
   the exception, since the machine may not exist yet.
+  > Product, serial and the customer's details all come from the copies kept on
+  > your device first, and from the server only for something the device does
+  > not have yet — so the form works on a weak signal.
 - **Pending Registrations** `/pending-registrations` — the Hotline queue.
   Registering one issues the UCN and files the call.
   > The call is filed to the Hotline desk, but the system separately records *who

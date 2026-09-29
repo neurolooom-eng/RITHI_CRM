@@ -41,6 +41,7 @@ export interface CachedMachine {
   serialKey: string;      // lower(btrim(serial))
   machineKey: string;     // lower(btrim(item)) | lower(btrim(serial)) -- as the DB stores it
   sheet: Record<string, unknown>;   // productRowToSheet(row): what every screen receives
+  row: Record<string, unknown>;     // EVERY COLUMN of product_database, as the server sent it
 }
 
 export interface MachineHit { serial: string; product: string; party: string; city: string; state: string; address: string }
@@ -60,6 +61,7 @@ export function toCached(row: Record<string, unknown>, sheet: Record<string, unk
     serialKey: low(row.serial_number),
     machineKey: dbMachineKey(row.item_name, row.serial_number),
     sheet,
+    row,
   };
 }
 
@@ -179,22 +181,22 @@ export function searchProducts(ms: CachedMachine[], f: ProductFilters, limit = 1
 // register served as the whole one is the prefix bug again, the one that hid
 // VEGA from the product list.
 // ===========================================================================
-export interface DownloadState { rows: CachedMachine[]; lastId: number }
-export interface DownloadResult extends DownloadState { complete: boolean; error?: string }
+export interface DownloadState<T extends { id: number } = CachedMachine> { rows: T[]; lastId: number }
+export interface DownloadResult<T extends { id: number } = CachedMachine> extends DownloadState<T> { complete: boolean; error?: string }
 
 export const DOWNLOAD_PAGE = 1000;
-export async function downloadAfter(
-  fetchAfter: (afterId: number, size: number) => Promise<CachedMachine[]>,
-  from: DownloadState,
+export async function downloadAfter<T extends { id: number }>(
+  fetchAfter: (afterId: number, size: number) => Promise<T[]>,
+  from: DownloadState<T>,
   opts: { waits?: number[]; wait?: (ms: number) => Promise<void>; onProgress?: (n: number) => void; max?: number } = {},
-): Promise<DownloadResult> {
+): Promise<DownloadResult<T>> {
   const waits = opts.waits ?? [2000, 5000, 15000, 30000];
   const wait = opts.wait ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const max = opts.max ?? 200000;
   const rows = [...from.rows];
   let lastId = from.lastId;
   while (rows.length < max) {
-    let page: CachedMachine[] | null = null;
+    let page: T[] | null = null;
     let error = '';
     for (let attempt = 0; page === null; attempt++) {
       try { page = await fetchAfter(lastId, DOWNLOAD_PAGE); }
@@ -217,26 +219,54 @@ export async function downloadAfter(
 }
 
 // ---- stored compactly --------------------------------------------------------
-// The sheet's 33 headings are written ONCE, not on every one of twenty thousand
-// machines: [id, createdAt, ...values in heading order].
-export interface PackedRegister { cols: string[]; rows: unknown[][] }
-export function pack(ms: CachedMachine[]): PackedRegister {
-  const cols = ms.length ? Object.keys(ms[0].sheet) : [];
-  return { cols, rows: ms.map((m) => [m.id, m.createdAt, ...cols.map((c) => m.sheet[c] ?? '')]) };
+// EVERY COLUMN IS KEPT (the user, 2026-09-29: "keep all columns in the cache").
+// The column names are written ONCE rather than on each of twenty thousand
+// rows; a column one row lacks is stored as `undefined` and dropped on the way
+// back, so an unpacked row has exactly the keys the server sent.
+export interface PackedRows { cols: string[]; rows: unknown[][] }
+export function packRows(rows: Record<string, unknown>[]): PackedRows {
+  const seen = new Set<string>();
+  for (const r of rows) for (const k of Object.keys(r)) seen.add(k);
+  const cols = [...seen];
+  return { cols, rows: rows.map((r) => cols.map((c) => r[c])) };
 }
-export function unpack(p: PackedRegister): CachedMachine[] {
-  return p.rows.map((r) => {
-    const sheet: Record<string, unknown> = {};
-    p.cols.forEach((c, i) => { sheet[c] = r[i + 2]; });
-    return fromSheet(Number(r[0]), String(r[1] ?? ''), sheet);
+export function unpackRows(p: PackedRows): Record<string, unknown>[] {
+  return p.rows.map((v) => {
+    const r: Record<string, unknown> = {};
+    p.cols.forEach((c, i) => { if (v[i] !== undefined) r[c] = v[i]; });
+    return r;
   });
 }
-/** A cached machine from its sheet: the sheet already carries item, serial,
- *  party and status under the headings productRowToSheet gives them. */
+/** A cached machine from its sheet alone -- for the checks, which have no row. */
 export function fromSheet(id: number, createdAt: string, sheet: Record<string, unknown>): CachedMachine {
   return toCached({
     id, created_at: createdAt,
     item_name: sheet['Item Name'], serial_number: sheet['Item Serial Number'],
     party_name: sheet['Party Name'], item_status: sheet['Item Status'],
   }, sheet);
+}
+
+// ===========================================================================
+// THE PARTY MASTER ON THE DEVICE -- every column of `public.parties`. It is
+// what fills the customer's details on a Call Request once the machine has
+// named the customer, and an installation's customer, who may own no machine
+// yet. Same rules as the server reads it replaces.
+// ===========================================================================
+export type CachedParty = Record<string, unknown> & { id: number };
+const partyNameKey = (v: unknown) => String(v ?? '').trim().toLowerCase();
+
+/** `.eq('name_key', lower(btrim(name)))` -- the unique key, so one or none. */
+export function partyByName(ps: CachedParty[], name: string): CachedParty | undefined {
+  const k = partyNameKey(name);
+  if (!k) return undefined;
+  return ps.find((p) => String(p.name_key ?? partyNameKey(p.party_name)) === k);
+}
+
+/** sbSearchParties: `ilike '%term%'` on the name, ordered by name, capped. */
+export function searchPartyMaster(ps: CachedParty[], query: string, limit = 50): string[] {
+  const t = query.trim().toLowerCase();
+  return ps.map((p) => String(p.party_name ?? ''))
+    .filter((n) => n && (!t || n.toLowerCase().includes(t)))
+    .sort((a, b) => a.localeCompare(b))
+    .slice(0, limit);
 }
