@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-30. **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
+_Last updated: 2026-09-30. **Batch 7 (v0.10.1, on the branch, NOT merged — you asked me to wait): 20, 23 and 31 fixed as you decided.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
 
 ---
 
@@ -15,8 +15,8 @@ _Last updated: 2026-09-30. **Findings 57–67 added: every screen's actions chec
 | | Count | Findings |
 | --- | --- | --- |
 | ✅ **Fixed and live** | **40** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 25, 28, 29, 30, 32, 33, 38, 40, 41, 43, 45, 46, 47, 48, 49, 50, 51, 52 |
-| ◐ **Partly fixed** | **1** | 31 |
-| ⏳ **Open** | **26** | 20, 23, 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67 |
+| 🔀 **Fixed on the branch, not on `main`** | **3** | 20, 23, 31 — batch 7, v0.10.1. Nothing is live until you ask for the merge; the three migrations then apply themselves. |
+| ⏳ **Open** | **24** | 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67 |
 | | **67** | |
 
 **SQL is no longer a hand step for new fixes.** On 2026-09-29 the live
@@ -42,9 +42,6 @@ below). They apply to every table and every date, not to one finding.
 | **39** | Hand-run SQL | ⚠ **Do not run `_item_status_as_at_the_complaint_date.sql` with `v_apply := true`.** Decide first: does **warranty or contract** win when a machine is under both? The file says contract; the Product Database says warranty. It must also map contract words through `contract_cover_code()`. |
 | **35 / 36 / 37** | Product Database | The ownership triggers (handoff C8). Should transfers be ordered by their **date** or by when they were **entered**? And how should an imported transfer compare with a sale's timestamp? The fixes for 36 (edit an old sale) and 37 (corrected serial, deleted transfer) follow from that. |
 | **34** | Product Database | Four roles see contract machines as OGP. Options: widen the contract read policy, **or** a function that returns only the derived cover (recommended), **or** show "—". |
-| **20** | Spare Requests | "Not Approved" reads as approved. Decide what happens to rows already stored with that value (Step 0 query 1 shows whether any exist). |
-| **23** | User Master | A renamed person empties their team. Options: cascade the rename, key the tree on id, or refuse the rename. |
-| **31** (rest) | Warranty Register | Hide the per-machine "+ Installation call" from roles without `cover.edit`, **or** let those roles write `inst_call`. The failure is already reported honestly. |
 | **42** | downloads | Excel skips the export permission. Should the permission be granted to roles by migration first? Step 0 query 15 shows who lacks it. |
 | **27** | Data Export | Where each table's order key comes from (a migration returning it), and whether to refuse views that have no key. |
 | **44** | Calls | Batch cancel: build the button, or keep it SQL-only and record who cancelled. |
@@ -172,6 +169,33 @@ dates are shown and exported, not how they are stored.**
 
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
+
+### 2026-09-30 — Batch 7 (v0.10.1): 20, 23, 31 — on the branch, NOT merged
+- **Your decisions**, asked and answered the same day:
+  - **20:** hold any other word for the approver.
+  - **23:** carry the rename; leave work already filed under the old name, and warn on screen.
+  - **31:** let Hotline write the link, and only the link.
+- **20 — 0256.** `spare_line_stage` passes a stage only on the words Approved or Auto-Approved (any case, spaces, optional hyphen). Nothing stored is rewritten; open lines whose cached stage changes are restaged, so a line with "Not Approved" goes BACK from Stores to RM Approval.
+  - The client rule (`spareflow.ts`) is the same pattern, and `check:ui` now compares the two character for character. The handoff said it already did; it did not.
+  - The Spare Request Lines upload tidies the four standard words and keeps any other word as written.
+  - New read-only `supabase/apply/_approval_words.sql`, one grid: the unusual words on live and the lines that move.
+- **23 — 0257.** A trigger on `user_directory`: when a name changes, rows naming the old name as Reporting or Regional Manager follow it.
+  - It matches as the tree does (lower case, not trimmed), so it can never widen a team.
+  - Nothing moves when another row keeps the old name, the old name was blank, or only the case changed.
+  - Only an Admin can change a name at all (`user_directory_address_guard`), which I found while testing: the handoff assumed "Manage users".
+  - User Master shows what will and will not move under the name, and asks before saving, from the drawer and from the table.
+- **Found while doing 23 — a consequence of "leave it":** call visibility also matches the ALLOTTEE's NAME (`can_see_call`, `calls_scoped_read`). So a renamed engineer, and their manager, stop seeing calls allotted to the old name, unless they created them. The on-screen warning says so. My question to you mentioned only hand stock, so this is back with you: re-allot, rename those calls too, or accept it.
+- **31 — 0258.** `link_install_call(item, ucn)` writes INST Call and nothing else, for `install.create` or `cover.edit`.
+  - It refuses a call number already there, and a UCN that is not an installation call for that product and serial.
+  - Not callable by the not-signed-in role.
+  - The Warranty register writes back through it, and the per-machine button is shown to roles that can raise the call. That also closes finding 64's "+ Installation call" row.
+- **Proved** as signed-in users, not the superuser, with three new suites. Each fails on a database built without its migration and passes with it:
+  - `spare_approval_whole_word`: 12 phrasings wait, 7 pass; Stores is offered only the cleared lines; a line cached as Stores moves back with its word kept.
+  - `directory_rename_carries_team`: team 3 → 3 across the rename; exactly the right rows move; the three limits hold.
+  - `link_install_call`: Hotline's direct write still matches 0 rows; the function maps, is idempotent, and refuses the three wrong cases.
+  - `_status.sql` rows 199–201 read NO without the migrations and yes with them.
+  - 16 new `check:ui` assertions, and two old ones re-pointed from the direct UPDATE to the function.
+- **Not verified:** anything on the live project. `_approval_words.sql` is how to see which spares will move before the merge.
 
 ### 2026-09-30 — Actions vs Roles & Permissions: findings 57–67
 

@@ -17,6 +17,7 @@
 
 import { shapeCoverRows, type CoverTable } from './coverImport';
 import { coverCode } from './fieldcall';
+import { approvalWord } from './spareflow';
 import { toIsoDate, toIsoTimestamp, parseAnyDate, isMonthFirst, type DateOpts } from './dates';
 import { loose, findHeaderFor } from './headers';
 import { applyProductsFromFile, PRODUCTS_HEADING, KEY_HEADING } from './complaints';
@@ -467,6 +468,10 @@ const TEXT = (to: string, ...from: string[]): Col => ({ to, from: [to, ...from] 
 // carries a cover uses this rather than TEXT — one of them not doing so is how
 // "WARRANTY" and "WGP" ended up as two slices of one pie.
 const COVER = (to: string, ...from: string[]): Col => ({ to, from: [to, ...from], clean: coverCode });
+// Approved / Auto-Approved / Rejected / Pending, however the sheet spelled
+// them; any other word is KEPT, which holds the line at that approver
+// (finding 20). Never guessed into a yes or a no.
+const APPROVAL = (to: string, ...from: string[]): Col => ({ to, from: [to, ...from], clean: approvalWord });
 const DATE = (to: string, ...from: string[]): Col => ({ to, from: [to, ...from], type: 'date' });
 const TS = (to: string, ...from: string[]): Col => ({ to, from: [to, ...from], type: 'ts' });
 const NUM = (to: string, ...from: string[]): Col => ({ to, from: [to, ...from], type: 'num' });
@@ -771,15 +776,15 @@ export const UPLOADS: UploadDef[] = [
           : '') },
       { to: 'qty', from: ['requested qty', 'qty', 'quantity'], type: 'num' },
       { to: 'row_no', from: ['row no', 'si number', 'sl no'], type: 'int' },
-      TEXT('rm_approval', 'rmapproval', 'rm approval'), TEXT('rm_by', 'rm by'),
+      APPROVAL('rm_approval', 'rmapproval', 'rm approval'), TEXT('rm_by', 'rm by'),
       TS('rm_at', 'rmapproval date', 'rm approval date', 'rm date'),
       // The sheet's "ADMIN Approval" IS the Commercial stage — that is the
       // column the approval flow reads (spareflow.ts); `admin_approval` is a
       // legacy field nothing acts on.
-      TEXT('commercial_approval', 'admin approval', 'commercial approval'),
+      APPROVAL('commercial_approval', 'admin approval', 'commercial approval'),
       TEXT('commercial_by', 'commercial by'),
       TS('commercial_at', 'admin approval date', 'commercial date'),
-      TEXT('nsm_approval', 'nsm approval'), TEXT('nsm_by', 'nsm by'),
+      APPROVAL('nsm_approval', 'nsm approval'), TEXT('nsm_by', 'nsm by'),
       TS('nsm_at', 'nsm approval date', 'nsm date'),
       TEXT('stores_status', 'stores status'), TEXT('stage'), TEXT('status'),
       TEXT('reject_reason', 'reject reason'), TEXT('rejected_stage', 'rejected stage'),

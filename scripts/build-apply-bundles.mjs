@@ -122,6 +122,9 @@ const MODULES = {
             // no mirror is needed: a replay of this bundle alone still ends on
             // the newest body.
             '0212_visible_engineers_no_blank_match.sql',
+            // A rename carries the people who name the renamed person as
+            // their manager (finding 23). Matches as 0212's tree does.
+            '0257_directory_rename_carries_the_team.sql',
       // LAST: 0004 above creates `ud_admin_write` and 0008 (rbac) drops it. A
       // replay of this bundle alone put it back, and policies are OR'd.
       '0122_user_directory_replay_tail.sql'],
@@ -781,7 +784,11 @@ const MODULES = {
             '0240_ownership_transfer_timestamp.sql',
             // LAST: the two cover admin functions (0036/0037) ask for cover.edit
             // (finding 51), redefined from the database's current bodies.
-            '0247_cover_maintenance_needs_cover_edit.sql'],
+            '0247_cover_maintenance_needs_cover_edit.sql',
+            // Whoever raises a machine's installation call can map it back,
+            // and only that (finding 31). Defines a new function; nothing
+            // else in any module redefines it.
+            '0258_link_install_call.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -842,6 +849,10 @@ const MODULES = {
       // received before it was dispatched, by an engineer who did not raise it.
       // IMMEDIATELY AFTER 0210 and before anything else touches the function.
       '0217_restore_the_line_guard_rules.sql',
+      // "NOT APPROVED" IS NOT AN APPROVAL (finding 20): whole-word approval
+      // test. AFTER 0210, which owns the previous body of spare_line_stage, so
+      // a replay of this bundle alone ends on this one.
+      '0256_spare_approval_whole_word.sql',
       // WHO DISPATCHED IS STAMPED, NOT SENT. A trigger on spare_dispatches, so
       // the (much-revised) dispatch function is not touched at all.
       '0211_dispatched_by_is_stamped.sql',

@@ -235,6 +235,9 @@ against the call it was fitted to.
    serial and cover, because "is this part plausible for this fault?" is most of
    the decision. Approve, reject or drop many at once; the last two need a reason.
 3. Commercial and NSM approve their own stages where the request needs them.
+   **Only the words Approved or Auto-Approved move a spare on.** A spare loaded
+   from a sheet with anything else in an approval column — "Not Approved",
+   "Approval Pending" — waits at that approver, showing the word as loaded.
 4. **Pending Dispatch** `/spare-dispatch` — Stores issues the part and raises the
    Delivery Challan.
 5. The engineer **acknowledges receipt**.
@@ -419,7 +422,9 @@ against the call it was fitted to.
   > the evidence it disables itself by.
   >
   > It is offered on the **Warranty** register only. A machine reaches a
-  > contract already installed.
+  > contract already installed. It is shown to anybody who may create
+  > installation calls — Hotline included — and they can write the new call
+  > back onto the machine even without the right to edit the register.
   >
   > **INST Call holds a call number or nothing.** The AppSheet export used to
   > fill it with the words "To Check" — where nobody had looked yet, not a call
@@ -670,6 +675,15 @@ typed into a form that reads it.
   > administrator, and the save is refused rather than half-applied. And a role
   > that is not on **Roles & Permissions** grants nothing: if you mean a new
   > role, add it there first.
+  > **CORRECTING SOMEBODY'S NAME.** Managers are matched by NAME, so everybody
+  > who names this person as Reporting or Regional Manager follows the new name
+  > in the same save — the screen says how many before you save. Two cases move
+  > nobody: another row with the same old name (correct those managers by
+  > hand), and a change of capital letters only. **What does not move** is work
+  > already filed under the old name — calls allotted to it, spare requests,
+  > consumption and hand stock. Those calls stop showing to the person and
+  > their manager under the new name, and the hand stock stays under the old
+  > one.
   > **One person, one row.** Where two rows share an email the role still
   > applies, but the name stops following, because there is no way to tell which
   > of the two is theirs.

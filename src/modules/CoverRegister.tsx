@@ -553,6 +553,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const { can } = useAuth();
   const navigate = useNavigate();
   const canEdit = can('cover.edit');
+  // THE PER-MACHINE "+ Installation call" follows the permission that RAISES
+  // the call. Mapping it back is `link_install_call` (0258), which accepts
+  // install.create or cover.edit, so whoever may press the button can finish
+  // what it starts (finding 31).
+  const canRaiseInstall = can('install.create') || canEdit;
   const live = supabaseConfigured();
 
   const [tab, setTab] = useState<Tab>('entries');
@@ -1026,11 +1031,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 {str(r.inst_call)}
               </span>
             : <>
-                <button className="btn btn-sm" disabled={raisingId !== null}
+                {canRaiseInstall && <button className="btn btn-sm" disabled={raisingId !== null}
                   onClick={(e) => { e.stopPropagation(); void raiseOneCall(r); }}
                   title="Raise the installation call for this machine and map it back">
                   {raisingId === Number(r.id) ? 'Raising…' : '+ Installation call'}
-                </button>
+                </button>}
                 {/* WHATEVER IS IN THERE IS STILL SHOWN. The field usually holds
                     the AppSheet placeholder "To Check", which is what made the
                     button vanish in the first place -- hiding it now would just

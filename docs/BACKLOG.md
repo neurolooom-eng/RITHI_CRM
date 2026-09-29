@@ -4,7 +4,14 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-26 (TABLE REVIEW LOW-HANGING FIXED — 49-52 and 54's description,
+_Last updated: 2026-09-30 (MODULE REVIEW BATCH 7 — findings 20, 23, 31, v0.10.1,
+ON THE BRANCH `claude/usage-k7slq0` AND NOT MERGED (the user: "Dont Merge to Main
+till i Explicitly ask"). Migrations 0256 (approval words), 0257 (a rename carries
+the team), 0258 (link_install_call) apply themselves on merge; _status.sql rows
+199-201. BEFORE MERGING, run `supabase/apply/_approval_words.sql` (read-only) to
+see which spares move back to their approver. OPEN from it: a renamed engineer's
+calls allotted to the old name stop showing to them and their manager. Before
+that: TABLE REVIEW LOW-HANGING FIXED — 49-52 and 54's description,
 v0.9.379: RUN lockdown.sql, sales_contracts.sql, data_integrity.sql; _status.sql rows
 188-190. Before that: TABLE REVIEW — findings 49–56, two HIGH security:
 anonymous rewrite of the Party Key counter, anonymous FFR creation. RUN

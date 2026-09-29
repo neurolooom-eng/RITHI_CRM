@@ -18,6 +18,7 @@
 --   0068_app_user_names.sql
 --   0092_visible_engineers_by_name.sql
 --   0212_visible_engineers_no_blank_match.sql
+--   0257_directory_rename_carries_the_team.sql
 --   0122_user_directory_replay_tail.sql
 --   0005_rbac.sql
 --   0007_user_access.sql
@@ -162,6 +163,7 @@
 --   0036_spare_drop.sql
 --   0210_handstock_needs_nsm.sql
 --   0217_restore_the_line_guard_rules.sql
+--   0256_spare_approval_whole_word.sql
 --   0211_dispatched_by_is_stamped.sql
 --   0084_spare_request_import.sql
 --   0085_spare_request_or_no_key.sql
@@ -221,6 +223,7 @@
 --   0238_machine_belongs_to_its_latest_owner.sql
 --   0240_ownership_transfer_timestamp.sql
 --   0247_cover_maintenance_needs_cover_edit.sql
+--   0258_link_install_call.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -1173,6 +1176,88 @@ as $$
   )
   select name from tree where coalesce(name,'') <> '';
 $$;
+
+-- ------------------------------------------------------------------------
+-- 0257_directory_rename_carries_the_team.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- CORRECTING A MANAGER'S NAME NO LONGER EMPTIES THEIR TEAM (finding 23).
+--
+-- The reporting tree is built from NAMES: `user_directory.reporting_manager`
+-- and `.regional_manager` hold a manager's name, and `visible_engineer_names()`
+-- matches them against `name`, case-insensitively. Nothing carried a change of
+-- that name, so correcting a spelling on User Master left every engineer
+-- pointing at a name nobody holds any more. Measured: the Reporting Manager
+-- saw 3 people before one edit and 1 after — themselves — and lost every
+-- call, spare request, visit and review their team's names scope, with no
+-- error anywhere.
+--
+-- THE USER'S DECISION (2026-09-30): "Carry the rename". When a directory
+-- row's name changes, every row naming the OLD name as its Reporting or
+-- Regional Manager is updated to the NEW name in the same statement.
+--
+-- THREE LIMITS, each on purpose:
+--
+--   1. A BLANK OLD NAME CARRIES NOTHING. Naming somebody who had no name would
+--      otherwise rewrite every row with no manager recorded — the blank-name
+--      trap 0212 closed on the read side.
+--   2. IF ANOTHER ROW STILL CARRIES THE OLD NAME, NOTHING IS CARRIED. Two
+--      directory rows with one name are two people the tree already cannot
+--      tell apart; the rows naming it still resolve to the one who kept it,
+--      and moving them to the renamed person would be a guess.
+--   3. A CHANGE OF CASE ONLY CARRIES NOTHING. The tree compares with lower(),
+--      so "ravi kumar" -> "Ravi Kumar" breaks nothing and rewriting the team
+--      would be writes for no reason.
+--
+-- IT MATCHES EXACTLY AS THE TREE DOES — lower(), no trimming. A btrim() here
+-- would also rewrite a row naming ' Ravi ', which the tree does NOT count as
+-- Ravi's today, and so WIDEN a team; this migration only keeps one.
+--
+-- WHAT IT DOES NOT DO (the user's decision, same day: "Leave it, warn on
+-- screen"): records already filed under a person's old name — calls, spare
+-- requests, consumption, hand stock — keep that name. User Master says so
+-- before the save.
+--
+-- SECURITY INVOKER. Only an ADMINISTRATOR can change a name at all —
+-- `user_directory_address_guard` refuses anybody else any column but the
+-- address — and an administrator may write every row, so the cascade can never
+-- be partly refused. Running as the caller also stamps sys_updated_by with the
+-- person who renamed.
+-- ===========================================================================
+
+create or replace function public.user_directory_carry_rename()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if btrim(coalesce(old.name, '')) = ''
+     or lower(old.name) = lower(coalesce(new.name, '')) then
+    return null;
+  end if;
+  if exists (select 1 from public.user_directory d
+              where d.id <> new.id and lower(d.name) = lower(old.name)) then
+    return null;
+  end if;
+
+  update public.user_directory d
+     set reporting_manager = new.name
+   where d.id <> new.id
+     and lower(d.reporting_manager) = lower(old.name);
+
+  update public.user_directory d
+     set regional_manager = new.name
+   where d.id <> new.id
+     and lower(d.regional_manager) = lower(old.name);
+
+  return null;
+end $$;
+
+comment on function public.user_directory_carry_rename() is
+  'When a User Master name changes, rows naming the old name as Reporting or Regional Manager follow it (finding 23). Not when the old name was blank, is still held by another row, or only its case changed.';
+
+drop trigger if exists user_directory_carry_rename on public.user_directory;
+create trigger user_directory_carry_rename
+  after update of name on public.user_directory
+  for each row execute function public.user_directory_carry_rename();
 
 -- ------------------------------------------------------------------------
 -- 0122_user_directory_replay_tail.sql
@@ -19106,6 +19191,100 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0256_spare_approval_whole_word.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- "NOT APPROVED" IS NOT AN APPROVAL (finding 20).
+--
+-- `spare_line_stage` asked whether an approval column CONTAINED "approv" or
+-- "auto". Every way of saying no or not-yet also contains the word approval,
+-- so ten plausible spreadsheet phrasings resolved to STORES — measured on a
+-- database built from every migration:
+--
+--   Not Approved, NOT APPROVED, Approval Pending, Awaiting Approval,
+--   Pending Approval, For Approval, Approval Awaited, Disapproved -> Stores
+--
+-- and `spare_pending_dispatch`, the only thing `dispatch_spare_lines()` checks
+-- before booking stock out, offered the refused part to Stores. The app never
+-- writes such a word (it writes Approved, Auto-Approved, Rejected, Pending);
+-- the Spare Request Lines bulk upload passes the sheet's cell straight through.
+--
+-- THE USER'S DECISION (2026-09-30): "Hold it for the approver". Only the two
+-- words that mean yes let a line pass; anything else waits at that approver's
+-- stage, showing the word as written, for a person to decide. NOTHING IS
+-- REWRITTEN: the stored value stays exactly what the sheet said, because it is
+-- the approver's record and guessing what "Approval Awaited" meant is not
+-- this migration's call.
+--
+-- WHOLE WORD, NOT SUBSTRING. `Approved` and `Auto-Approved`, any case, with
+-- surrounding space ignored and the hyphen optional ("Auto Approved",
+-- "AutoApproved") — those are the same two words, and holding them back would
+-- move lines that were legitimately cleared. The CLIENT copy is `isApproved`
+-- in `src/lib/spareflow.ts`; `check:ui` holds the two patterns together.
+--
+-- REJECT IS UNCHANGED. `~* 'reject'` catches "Rejected" first and was never
+-- the fault; loosening or tightening it is a different decision.
+--
+-- SAME SIX ARGUMENTS, for the reason 0210 gives: seven migrations call this
+-- function and three views are built on it.
+-- ===========================================================================
+
+create or replace function public.spare_line_stage(
+  rm text, commercial text, nsm text, stores text, received timestamptz, item_status text
+) returns text language sql immutable as $$
+  select case
+    when rm ~* 'reject' or commercial ~* 'reject' or nsm ~* 'reject' then 'Rejected'
+    when received is not null                                        then 'Received'
+    when stores ~* 'drop'                                            then 'Dropped'
+    when stores ~* 'dispatch'                                        then 'Dispatched'
+    when rm         !~* '^\s*(auto[\s-]*)?approved\s*$'              then 'RM Approval'
+    when commercial !~* '^\s*(auto[\s-]*)?approved\s*$'              then 'Commercial'
+    when nsm        !~* '^\s*(auto[\s-]*)?approved\s*$'              then 'NSM'
+    else 'Stores'
+  end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- The stored stage follows. `spare_request_lines.stage` / `.status` are a
+-- cache the register reads; the views call the function live. Only OPEN lines
+-- whose stage CHANGES are touched (a dispatched, received, rejected or dropped
+-- line is settled, and its terminal branch wins either way). No approval
+-- column is written, so none of the approval guards is asked anything.
+--
+-- THIS MOVES LINES BACKWARDS, deliberately: a line whose RM column says
+-- "Not Approved" leaves Stores and returns to RM Approval. That is the fix.
+-- `supabase/apply/_approval_words.sql` lists them before and after.
+-- ---------------------------------------------------------------------------
+do $$
+declare n int;
+begin
+  with moved as (
+    update public.spare_request_lines l
+       set stage  = x.new_stage,
+           status = x.new_stage
+      from (select l2.id,
+                   public.spare_line_stage(
+                     coalesce(l2.rm_approval, 'Pending'),
+                     coalesce(l2.commercial_approval, 'Pending'),
+                     coalesce(l2.nsm_approval, 'Pending'),
+                     coalesce(l2.stores_status, 'Pending'),
+                     l2.received_at, r.item_status) as new_stage
+              from public.spare_request_lines l2
+              join public.spare_requests r on r.uid = l2.request_uid
+             where l2.received_at is null
+               and coalesce(l2.stores_status, '') !~* 'dispatch|drop') x
+     where l.id = x.id
+       and l.stage is distinct from x.new_stage
+    returning l.request_uid
+  )
+  select count(*) into n from moved;
+  -- Each moved line's request is rolled up by `spare_request_lines_rollup`,
+  -- the per-row trigger, so no separate pass is needed.
+  raise notice '0256: % open line(s) restaged', n;
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0211_dispatched_by_is_stamped.sql
 -- ------------------------------------------------------------------------
 
@@ -26902,6 +27081,80 @@ begin
   get diagnostics n = row_count;
   return n;
 end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0258_link_install_call.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- WHOEVER RAISES A MACHINE'S INSTALLATION CALL CAN MAP IT BACK (finding 31).
+--
+-- "+ Installation call" on the Warranty register is two writes: insert the
+-- call (`calls_insert`: install.create), then write its UCN into the machine's
+-- INST Call (`sale_items_write`: cover.edit). Hotline holds the first and not
+-- the second, so the call was created and the mapping matched ZERO rows —
+-- no error — and the button came back offering a second call for the same
+-- machine. v0.9.373 made that failure honest; this makes it not happen.
+--
+-- THE USER'S DECISION (2026-09-30): "Let Hotline write the link" — and only
+-- the link. Row-level security cannot grant ONE column, and a second UPDATE
+-- policy on `sale_items` would let an install.create holder rewrite the whole
+-- warranty line. So the write is a FUNCTION that does exactly one thing, and
+-- checks everything that makes that one thing correct:
+--
+--   * the caller is admin, or holds cover.edit or install.create;
+--   * INST Call does not already hold a call number — a machine's mapping is
+--     never replaced here (the "To Check" placeholder is, as 0234 intends);
+--   * the UCN is an INSTALLATION call for THIS machine — same product and
+--     serial, compared as `raiseInstallCalls` builds the call — so it cannot
+--     be used to attach an arbitrary call to an arbitrary machine.
+--
+-- Calling it with the UCN already in place is a no-op, so a retry is safe.
+-- SECURITY DEFINER with the check inside, the pattern for a function the app
+-- calls (0248): execute is withdrawn from the public and the not-signed-in
+-- role and granted to signed-in users only.
+-- ===========================================================================
+
+create or replace function public.link_install_call(p_item_id bigint, p_ucn text)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  it  public.sale_items%rowtype;
+  v_ucn text := btrim(coalesce(p_ucn, ''));
+begin
+  if not (public.is_admin() or public.has_perm('cover.edit') or public.has_perm('install.create')) then
+    raise exception 'RBAC: mapping an installation call needs install.create or cover.edit';
+  end if;
+
+  select * into it from public.sale_items where id = p_item_id for update;
+  if not found then
+    raise exception 'Machine line % is not on the warranty register', p_item_id;
+  end if;
+
+  if btrim(coalesce(it.inst_call, '')) = v_ucn then
+    return;
+  end if;
+  if public.is_call_number(it.inst_call) then
+    raise exception '% · % already has installation call %, which is not replaced here',
+      it.product_name, it.serial_number, btrim(it.inst_call);
+  end if;
+
+  if not exists (
+    select 1 from public.installation_calls c
+     where c.ucn = v_ucn
+       and lower(btrim(coalesce(c.serial, '')))       = lower(btrim(coalesce(it.serial_number, '')))
+       and lower(btrim(coalesce(c.product_name, ''))) = lower(btrim(coalesce(it.product_name, '')))
+  ) then
+    raise exception 'Call % is not an installation call for % · %', v_ucn, it.product_name, it.serial_number;
+  end if;
+
+  update public.sale_items set inst_call = v_ucn where id = p_item_id;
+end $$;
+
+comment on function public.link_install_call(bigint, text) is
+  'Write an installation call''s UCN into one warranty machine''s INST Call, and nothing else. For install.create or cover.edit holders; refuses to replace a call number and refuses a call that is not this machine''s installation (finding 31).';
+
+revoke execute on function public.link_install_call(bigint, text) from public, anon;
+grant  execute on function public.link_install_call(bigint, text) to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql
