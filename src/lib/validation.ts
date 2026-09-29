@@ -400,7 +400,7 @@ export const URS: Req[] = [
     // WITHIN the system rather than in a document somebody has to be sent.
     // (The other two Knowledge Base entries are open to everyone and are not
     // modules, so there is nothing to file under them.)
-    modules: ['/service-manuals', '/knowledge-base/how-it-works'] },
+    modules: ['/service-manuals', '/service-manuals/notes', '/knowledge-base/how-it-works'] },
   { id: 'URS-021', title: 'Partial issue of spares', text: 'Stores shall be able to issue fewer units of a spare than were requested when only part of the quantity is available, and the outstanding balance shall remain visible as still due.', risk: 'Medium',
     // Issuing fewer than were asked for is done here, and the balance stays
     // open.
@@ -484,6 +484,7 @@ export const URS: Req[] = [
 // ---- System / Functional Requirements -------------------------------------
 export interface FReq extends Req { urs: string[] }
 export const FRS: FReq[] = [
+  { id: 'FRS-095', urs: ['URS-007'], risk: 'Medium', title: 'A spare request\'s Complaint and Item Status follow its call', text: '0268: an AFTER UPDATE trigger on field_calls, installation_calls and pm_calls copies the call\'s Complaint (Complaint Reported, else the Standard Complaint -- the rule the request form uses when the request is raised) and Item Status onto every spare request with that UCN, at any stage, with the owner\'s rights so it applies whoever edits the call. `refresh_spare_requests_from_call(uids)` does the same on demand, as the caller, so it changes only requests `sr_update` lets the caller write. The approval route stamped at RM approval (0210) is not changed. Proved by `spare_request_follows_call_test`.' },
   { id: 'FRS-094', urs: ['URS-009'], risk: 'High', title: 'Hand stock adjustment: signed, reasoned, bounded, permanent', text: '0266: `handstock_adjustments` holds engineer, part, a SIGNED quantity, a mandatory reason and an optional reference (the MTN number); it is the tenth arm of `handstock_movements` (Adjustment, IN when positive, OUT when negative), so the balance and every guard reading the movements include it. The database refuses an engineer who is not an ACTIVE User Master name, a part not on the Part Master, and a minus that would take the engineer below zero, and stamps who recorded it. Insert needs `consumption.reconcile`; there is no update or delete policy, so a wrong adjustment is reversed by another. 0267 adds the table to the User Master rename list (0259). Replaces WinMax\'s eBizWiz Admin account, whose opening rows 0266 removes. Proved by `handstock_adjustments_test`.' },
   { id: 'FRS-093', urs: ['URS-079'], risk: 'High', title: 'Profile, R&R periods and training, bounded by one visibility rule', text: '0264: `user_profile` (employee code, joining date), `user_rr` (a trigger closes the previous open period the day before the new From), `training_sessions` + `training_attendance` (bulk, Pass/Fail, score, attachments) and `training_assignments` (one per person per document). `training_status` derives Completed = attended without a Fail OR acknowledged with no Fail recorded. Every per-person row is read through `may_see_person()`: the person, their reporting tree, users.manage, training.manage. The trainee acknowledges only their own assignment through `acknowledge_training()`. Nothing is deletable. Proved by `people_training_test`.' },
   { id: 'FRS-092', urs: ['URS-078'], risk: 'Medium', title: 'Each device reports its own copy; the report lists everybody',
@@ -1059,6 +1060,15 @@ export type TestPhase = 'IQ' | 'OQ' | 'PQ';
  *  that has to be read on a screen. */
 export interface TestCase { id: string; phase: TestPhase; reqs: string[]; risk: Risk; objective: string; steps: string[]; expected: string; auto?: string }
 export const TESTS: TestCase[] = [
+  { id: 'OQ-83', phase: 'OQ', reqs: ['URS-007', 'FRS-095'], risk: 'Medium',
+    auto: 'supabase/tests/spare_request_follows_call_test.sql',
+    objective: 'A spare request follows its call\'s Complaint and Item Status, automatically and on demand, within the caller\'s rights.',
+    steps: [
+      'Change the Item Status and Complaint Reported of a call with three spare requests; then blank the Complaint Reported.',
+      'Make one request drift; as an approver, press Update from call on it and a matching one.',
+      'As someone who may not update the request, press Update from call. As the public key, call the function.',
+    ],
+    expected: 'All three requests take the new Item Status (as WGP) and complaint, then the Standard Complaint; the approver changes exactly the drifted request; the other caller changes nothing; the public key is refused.' },
   { id: 'OQ-82', phase: 'OQ', reqs: ['URS-009', 'FRS-094'], risk: 'High',
     auto: 'supabase/tests/handstock_adjustments_test.sql',
     objective: 'A hand stock adjustment moves the balance, is bounded, is permanent, and follows a rename.',

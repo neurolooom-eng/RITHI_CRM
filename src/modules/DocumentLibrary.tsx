@@ -46,6 +46,15 @@ const MANUALS: Cfg = {
   subtitle: 'One shelf per product. What is here is what a call offers the engineer as a supporting document.',
   perm: 'docs.manage', drivePrefix: 'Service Manual', controlled: false,
 };
+// TECHNICAL / SERVICE NOTES (the user, 2026-09-30: "Add a placeholder for
+// storing Technical Notes / Service Notes similar to Service Manual"). The
+// manuals' shelf exactly -- keyed by product, docs.manage to maintain, read by
+// everyone signed in -- under its own kind, so neither list crowds the other.
+const NOTES: Cfg = {
+  kind: 'service_note', title: 'Technical / Service Notes', icon: '📝',
+  subtitle: 'Technical bulletins and service notes, by product — the field fixes and advisories that are not in the manual.',
+  perm: 'docs.manage', drivePrefix: 'Service Note', controlled: false,
+};
 const QMS: Cfg = {
   kind: 'qms', title: 'QMS Documents', icon: '📗',
   subtitle: 'Controlled quality documents — SOPs, work instructions and forms, with their number, revision and effective date.',
@@ -430,3 +439,4 @@ function Library({ cfg }: { cfg: Cfg }) {
 
 export function ServiceManuals() { return <Library cfg={MANUALS} />; }
 export function QmsDocuments() { return <Library cfg={QMS} />; }
+export function ServiceNotes() { return <Library cfg={NOTES} />; }

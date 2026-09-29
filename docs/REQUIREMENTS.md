@@ -545,6 +545,22 @@ The service documentation for a product shall be held centrally and presented to
 
 **FRS-035.** Service manuals are catalogued in `documents` against the product they cover and stored in Google Drive. Opening a call lists its Supporting Documents — the manuals matching the call’s product, plus manuals held with no product (general to every machine) — alongside Knowledge Base articles whose title, product or tags match the call’s product or standard complaint. Every signed-in user may read the library; `docs.manage` maintains it.
 
+## Technical / Service Notes `/service-manuals/notes`
+
+Opened by `mod:/service-manuals/notes`.
+
+### URS-020 — Knowledge base
+
+*Risk: Low. Filed here because the requirement declares this screen.*
+
+The team shall maintain how-to guidance and field-solution knowledge within the system.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-025** — Knowledge base | Low | OQ-13 |
+
+**FRS-025.** A how-to guide plus team field-solution articles (sanitised rich text) are available to all; author or admin edits.
+
 # Service Calls
 
 ## Call Review `/call-review`
@@ -1015,8 +1031,11 @@ An engineer shall request spare parts against a call; the request shall follow a
 
 | Implemented by | Risk | Proved by |
 | --- | --- | --- |
+| **FRS-095** — A spare request's Complaint and Item Status follow its call | Medium | OQ-83 |
 | **FRS-010** — Spare approval chain | High | OQ-07 |
 | **FRS-011** — Manager-scoped approval | High | OQ-07 |
+
+**FRS-095.** 0268: an AFTER UPDATE trigger on field_calls, installation_calls and pm_calls copies the call's Complaint (Complaint Reported, else the Standard Complaint -- the rule the request form uses when the request is raised) and Item Status onto every spare request with that UCN, at any stage, with the owner's rights so it applies whoever edits the call. `refresh_spare_requests_from_call(uids)` does the same on demand, as the caller, so it changes only requests `sr_update` lets the caller write. The approval route stamped at RM approval (0210) is not changed. Proved by `spare_request_follows_call_test`.
 
 **FRS-010.** A spare request creates per-part lines; each advances RM → Commercial → NSM → Stores. A per-stage database guard blocks a stage change unless the actor holds that stage’s permission.
 
@@ -2222,7 +2241,7 @@ text alone.
 
 ## Screens no user requirement governs
 
-**2 of 64.** Each is written down with its reason in
+**2 of 65.** Each is written down with its reason in
 `src/lib/validation.ts` (`MODULES_WITHOUT_REQUIREMENT`), so it is a decision
 somebody made rather than a drift nobody saw — and `check:ui` fails when a
 screen joins this list without one. Neither is a defect on its own; both are
@@ -2235,7 +2254,7 @@ questions for a person.
 
 ---
 
-**79** user requirements · **94** system requirements · **31** call-request · **44** servicing · **90** tests · **5** recorded as non-auditable · **135** of 79 user requirements tied to a module.
+**79** user requirements · **95** system requirements · **31** call-request · **44** servicing · **91** tests · **5** recorded as non-auditable · **136** of 79 user requirements tied to a module.
 ---
 
 ## Non-auditable requirements
@@ -2372,6 +2391,7 @@ not.
 | **URS-006** | **Installation control** — Creation of installation calls shall be restricted to the Commercial function; installation records shall capture the warranty start date. _(Risk: Medium.)_ | **FRS-006** | Field, Installation and PM calls are stored in separate physical tables (field_calls / installation_calls / pm_calls) behind a compatibility view with routing triggers; a CHECK constraint prevents mis-filing. | **OQ-04** | OQ · Call-type routing and mis-file prevention. Expected: Each call lands in its typed table; the mis-typed direct insert is rejected by the CHECK constraint. |
 |  |  | **FRS-008** | Insertion into installation_calls requires the install.create permission (Commercial, Hotline, admin); enforced by RLS. | **OQ-06** | OQ · Installation creation is Commercial-gated. Expected: Engineer is blocked (button hidden and DB rejects); Commercial succeeds into installation_calls. |
 | **URS-007** | **Spare request & approval** — An engineer shall request spare parts against a call; the request shall follow a defined multi-stage approval chain, each stage authorised by the correct role. _(Risk: High.)_ |  | (tested against the user requirement itself) | **PQ-01** | PQ · End-to-end field workflow by real users. Expected: The workflow completes; records are consistent, attributable and retrievable. |
+|  |  | **FRS-095** | 0268: an AFTER UPDATE trigger on field_calls, installation_calls and pm_calls copies the call's Complaint (Complaint Reported, else the Standard Complaint -- the rule the request form uses when the request is raised) and Item Status onto every spare request with that UCN, at any stage, with the owner's rights so it applies whoever edits the call. `refresh_spare_requests_from_call(uids)` does the same on demand, as the caller, so it changes only requests `sr_update` lets the caller write. The approval route stamped at RM approval (0210) is not changed. Proved by `spare_request_follows_call_test`. | **OQ-83** | OQ · A spare request follows its call's Complaint and Item Status, automatically and on demand, within the caller's rights. Expected: All three requests take the new Item Status (as WGP) and complaint, then the Standard Complaint; the approver changes exactly the drifted request; the other caller changes nothing; the public key is refused. |
 |  |  | **FRS-010** | A spare request creates per-part lines; each advances RM → Commercial → NSM → Stores. A per-stage database guard blocks a stage change unless the actor holds that stage’s permission. | **OQ-07** | OQ · Spare approval authority and manager scoping. Expected: Unauthorised stage change is rejected; a manager sees only team spares and cannot approve their own. |
 |  |  | **FRS-011** | A reporting manager sees and approves only their own team’s spare requests; their own request routes to their manager, not to themselves. | **OQ-07** | OQ · Spare approval authority and manager scoping. Expected: Unauthorised stage change is rejected; a manager sees only team spares and cannot approve their own. |
 | **URS-008** | **Spare dispatch & receipt** — Stores shall dispatch approved spares and the requesting engineer shall acknowledge receipt; each step shall be recorded with actor and time. _(Risk: Medium.)_ | **FRS-012** | Stores dispatch generates a DC and stock-out; the engineer acknowledges receipt. Drop is available at any stage to Spare Coordinator / Hotline only. | **OQ-08** | OQ · Dispatch, receipt and stock guard. Expected: Dispatch creates a DC/stock-out; receipt recorded; the over-transfer is blocked. |
@@ -2439,7 +2459,7 @@ not.
 | **URS-070** | **A warranty starts when the machine was installed** — The warranty period of a machine shall start from the date recorded on its installation — the Warranty Start Date captured when the installation call is reported, or failing that the date that call was solved — and shall fall back to the selling register only where no installation was recorded. The end of the period shall be derived from that start and the recorded period, by the same arithmetic the rest of the application uses. _(Risk: High.)_ | **FRS-082** | Warranty start is the `Warranty Start Date?` answer on the installation call’s feedback, read through `imported_ts()` so a cell holding "n/a" yields nothing rather than failing the whole view; failing that the installation call’s solved date; failing that the additional entry; failing that the warranty sale. Where a start and a period are both known the end is `cover_period_end(start, months)`, which reproduces `addPeriod()` in `src/lib/dates.ts` INCLUDING its JavaScript month overflow — 31 January plus one month is 2 March, where Postgres’s own interval arithmetic clamps to 27 February. 26 of 458 start/period combinations differ between the two. | **OQ-66** | OQ · The warranty starts at the installation and ends by the application’s own arithmetic. Expected: The answered date, then the solved date, then the selling register — warranty_from names which. The end equals start plus period minus a day. "n/a" neither reads as a date nor fails the view. 31 January plus one month is 2 March, matching addPeriod(), where a plain Postgres interval gives 27 February. |
 | **URS-079** | **Roles, responsibilities and training are recorded per person** — Each person shall have a record of the Roles & Responsibilities document in force for them, with the period it applies to; a new one shall end the previous one without deleting it. When a controlled QMS document is issued, the people who must be trained on it shall be chosen and the training assigned to each. Training shall be recorded as sessions with the attendees, the trainer, the method, any assessment result and the attendance evidence, or as the person's own acknowledgement of having read the document; a failed assessment shall keep the training open. A person's profile shall list every past training they received, and shall be visible to the person, their managers and those responsible for users and training only. _(Risk: High.)_ | **FRS-093** | 0264: `user_profile` (employee code, joining date), `user_rr` (a trigger closes the previous open period the day before the new From), `training_sessions` + `training_attendance` (bulk, Pass/Fail, score, attachments) and `training_assignments` (one per person per document). `training_status` derives Completed = attended without a Fail OR acknowledged with no Fail recorded. Every per-person row is read through `may_see_person()`: the person, their reporting tree, users.manage, training.manage. The trainee acknowledges only their own assignment through `acknowledge_training()`. Nothing is deletable. Proved by `people_training_test`. | **OQ-81** | OQ · Profiles, R&R periods and training are recorded, bounded to the right people, and complete only by the agreed rule. Expected: The engineer and manager see the profile, the colleague sees nothing and cannot write; the first R&R ends the day before the second; an inverted period, a second assignment, another person's acknowledgement, a colleague's session and the public key are refused; the Fail reopens and the Pass completes; past training lists both sessions and the acknowledgement; the second Master List load corrects the one row. |
 
-**114** links · **79** user requirements · **94** system requirements · **84** tests · **79** requirements traced end to end, **0** in part, **0** not yet.
+**115** links · **79** user requirements · **95** system requirements · **85** tests · **79** requirements traced end to end, **0** in part, **0** not yet.
 
 **Outside this matrix:** OQ-38, OQ-68, OQ-70, OQ-71, OQ-67, OQ-69 — they prove a
 requirement recorded as NON-AUDITABLE, which sits outside the
