@@ -77,10 +77,21 @@ function readStored(name: string): string[] | null {
   return readEntry(name)?.values ?? null;
 }
 
+/** What this device holds of one list -- how many values and when they were
+ *  stored -- for the line under a screen's title and the Device Cache Status
+ *  report. NULL when the device holds no copy. */
+export function storedListInfo(name: string): { count: number; at: number } | null {
+  const e = readEntry(name);
+  return e ? { count: e.values.length, at: e.at } : null;
+}
+/** Fired whenever a list is stored, so what reports on it can follow. */
+export const MASTER_STORED_EVENT = 'rithi:master-stored';
+
 function writeStored(name: string, values: string[]) {
   try {
     localStorage.setItem(STORE_PREFIX + name, JSON.stringify(
       { v: STORE_VERSION, at: Date.now(), values: values.join('\n') } satisfies Stored));
+    try { window.dispatchEvent(new CustomEvent(MASTER_STORED_EVENT, { detail: name })); } catch { /* no window */ }
   } catch {
     // Out of quota, most likely. Drop every stored list rather than leaving a
     // half-written set: the in-memory cache still serves this session.
@@ -168,4 +179,16 @@ export function useMaster(
   }, [name, enabled]);
 
   return { values, ready, failed };
+}
+
+/** Fetch and store a list in the background if this device has no young copy
+ *  -- so a list a screen will need offline is on the device BEFORE that screen
+ *  is opened (the Standard Complaints, 2026-09-30). Never throws. */
+export async function warmMaster(name: string): Promise<void> {
+  try {
+    const e = readEntry(name);
+    if (e && e.values.length && isFresh(name, e.at, Date.now())) return;
+    if (!dataConfigured()) return;
+    await load(name);
+  } catch { /* the screen that needs it will ask again */ }
 }

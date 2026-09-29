@@ -145,6 +145,18 @@ Also a provision to map the Complaint to all Products."*
   Call Reporting; `ComplaintSuggest` takes `allowed`. A current value off the
   list is still shown. The "listed twice" note is admin-only.
   ⏳ Submitting a request still needs a signal -- there is no offline outbox.
+- ✅ **0.9.396** — the user: *"Still the products are kept on the row during
+  upload, fix it. Standard Complaint cache details not displayed in both in
+  view as well as the Device Cache Status."* The mapping WAS read; the report
+  listed Products as an unused extra because only mapped columns counted as
+  recognised. `UploadDef.claims` + `ShapeResult.consumed` fix the report.
+  The note under the title shows the stored complaint list (`storedListInfo`,
+  `MASTER_STORED_EVENT`); devices prefetch it (`warmMaster`) at start, every
+  15 min check and on `online`; the report carries `complaints` /
+  `complaints_at` (**0253** -- renumbered twice, 0251 and 0252 were taken by
+  other sessions). 0249 now drops the report function before recreating it,
+  or a replay of the bundle could not put the older shape back.
+  ⏳ **User to run** `supabase/apply/device_cache.sql`; `_status.sql` row 196.
 - ✅ **0.9.391 — the mapping by upload.** The user: *"If I re-upload masters
   with Product Details, will it update?"* It would have, badly: a file with no
   Products column replaced `extra` wholesale and reset every mapping to All,

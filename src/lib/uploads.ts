@@ -19,7 +19,7 @@ import { shapeCoverRows, type CoverTable } from './coverImport';
 import { coverCode } from './fieldcall';
 import { toIsoDate, toIsoTimestamp, parseAnyDate, isMonthFirst, type DateOpts } from './dates';
 import { loose, findHeaderFor } from './headers';
-import { applyProductsFromFile } from './complaints';
+import { applyProductsFromFile, PRODUCTS_HEADING, KEY_HEADING } from './complaints';
 
 export type ColType = 'text' | 'date' | 'ts' | 'num' | 'int' | 'bool' | 'json';
 
@@ -120,6 +120,11 @@ export interface UploadDef {
    *  per-cell mapping cannot see (a blank cell and an absent column arrive
    *  identically). The Standard Complaint's Products column is the case. */
   finish?: (row: Record<string, unknown>, headers: string[]) => void;
+  /** Headings `finish` READS, with what each becomes -- so the report lists
+   *  them as recognised rather than "kept on the row" (the user, 2026-09-30:
+   *  "Still the products are kept on the row during upload, fix it" -- the
+   *  mapping WAS read; the report said otherwise, which is its own bug). */
+  claims?: { heading: RegExp; as: string }[];
   /** What has to be loaded first, because rows here point at it. */
   requires?: string;
   /** A step that runs BEFORE the rows are written, when they point at rows the
@@ -190,6 +195,9 @@ export interface ShapeResult {
    *  them. Reported apart from `unmatched`, which means “nobody has named this
    *  yet”. */
   ignored: string[];
+  /** Headings a register's own step reads (UploadDef.claims), with what each
+   *  becomes: "Products → the product mapping". */
+  consumed?: string[];
   /** Columns read MONTH-FIRST because their own values proved it. Surfaced so
    *  a date convention is never applied silently. */
   monthFirst: string[];
@@ -380,7 +388,9 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   return {
     rows: deduped,
     skipped,
-    unmatched: headers.filter((h) => !claimed.has(h) && !stamped.has(norm(h)) && !ignored.has(h)),
+    unmatched: headers.filter((h) => !claimed.has(h) && !stamped.has(norm(h)) && !ignored.has(h)
+      && !(def.claims ?? []).some((c) => c.heading.test(h.trim()))),
+    consumed: headers.flatMap((h) => (def.claims ?? []).filter((c) => c.heading.test(h.trim())).map((c) => `${h.trim()} → ${c.as}`)),
     monthFirst: [...monthFirst],
     stamped: headers.filter((h) => !claimed.has(h) && stamped.has(norm(h))),
     ignored: [...ignored],
@@ -1463,7 +1473,13 @@ export function masterUpload(list: { key: string; label: string; value_label?: s
     extraInto: 'extra',
     // STANDARD COMPLAINT: a Products column IS the product mapping, and a file
     // without one leaves every mapping as it is (src/lib/complaints.ts).
-    ...(list.key === 'complaint' ? { finish: applyProductsFromFile, prepare: 'complaint-keys' as const } : {}),
+    ...(list.key === 'complaint' ? {
+      finish: applyProductsFromFile, prepare: 'complaint-keys' as const,
+      claims: [
+        { heading: PRODUCTS_HEADING, as: 'the products this complaint applies to' },
+        { heading: KEY_HEADING, as: 'which complaint to update (never renamed)' },
+      ],
+    } : {}),
     note: list.key === 'complaint'
       ? `Loads into the ${list.label} list and NEVER renames a complaint. A row with a Key (from this list's Export CSV) updates that complaint's Products only — the name in the file is ignored. A row without a Key updates the complaint of that name, or is ADDED as a new one if the list has no such name. Products: several separated by commas, or blank / "All" for all products. A file WITHOUT a Products column leaves every complaint's products exactly as they are (and keeps no other extra columns).`
       : `Loads into the ${list.label} list. The list name is stamped for you, so the file only needs its values.`,

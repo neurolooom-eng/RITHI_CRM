@@ -1403,7 +1403,14 @@ with checks(sort_order, bundle, provides, present) as (
     (195, 'An edit through the calls view reports only what it wrote', 'calls_view_update() returns NULL when the update it routes to field_calls / installation_calls / pm_calls matched no row (0245, the regenerated trigger; 0114 carries the same generator). Row-level security answers an edit the caller may not make with ZERO rows, not an error, and the trigger used to return the row regardless -- so a role that may see a call but not change it was told "UPDATE 1" over a call left as it was, and the screens said Saved (finding 48, measured). NO means a refused call edit or re-allotment can still be reported as saved. Restore: sys_columns.sql',
         (to_regprocedure('public.calls_view_update()') is null
          or (select p.prosrc ~ 'if not found then return null' from pg_proc p
-              where p.oid = to_regprocedure('public.calls_view_update()'))))
+              where p.oid = to_regprocedure('public.calls_view_update()')))),
+    (196, 'Devices report their Standard Complaints too', 'device_cache_status.complaints / complaints_at, and device_cache_report() returning them (0253). Since v0.9.395 every call form filters the Standard Complaint list by the call''s product and each device keeps that list for offline use, so Device Cache Status shows how many complaints each device holds and when they were stored, beside the machines and customers. The report function was rebuilt because its columns grew, with 0249''s permission check inside it and the not-signed-in role still refused. NO means the report has no Complaints columns and devices report without them -- nothing else is affected. Restore: device_cache.sql',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'device_cache_status' and column_name = 'complaints_at')
+         and exists (select 1 from pg_proc p
+                      where p.oid = to_regprocedure('public.device_cache_report()')
+                        and pg_get_function_result(p.oid) like '%complaints_at%')
+         and not has_function_privilege('anon', to_regprocedure('public.device_cache_report()'), 'EXECUTE')))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

@@ -954,7 +954,7 @@ const MODULES = {
             'key for admin and Technical Support. A module of its own so it is a',
             'small file to run, not a replay of rbac.'],
     needs: ['profiles', 'rbac'],
-    files: ['0249_device_cache_status.sql'],
+    files: ['0249_device_cache_status.sql', '0253_device_cache_complaints.sql'],
   },
   sys_columns: {
     title: 'System columns on every table',
