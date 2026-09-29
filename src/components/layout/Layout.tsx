@@ -151,6 +151,7 @@ export const NAV: NavGroup[] = [
       { to: '/knowledge-base/how-it-works', label: 'How RITHI Functions', icon: '🧭' },
       { to: '/knowledge-base', label: 'Field Solutions', icon: '🧠', alwaysOpen: true },
       { to: '/service-manuals', label: 'Service Manuals', icon: '📘' },
+      { to: '/service-manuals/notes', label: 'Technical / Service Notes', icon: '📝' },
     ],
   },
   {

@@ -59,7 +59,7 @@ import { VersionHistory } from './modules/VersionHistory';
 import { HowRithiFunctions } from './modules/HowRithiFunctions';
 import { HowToUse } from './modules/HowToUse';
 import { KnowledgeBase } from './modules/KnowledgeBase';
-import { ServiceManuals, QmsDocuments } from './modules/DocumentLibrary';
+import { ServiceManuals, QmsDocuments, ServiceNotes } from './modules/DocumentLibrary';
 import { Training } from './modules/Training';
 import { ReportMapping } from './modules/ReportMapping';
 import DataExport from './modules/DataExport';
@@ -137,6 +137,7 @@ function Shell() {
         <Route path="/bulk-uploads" element={<BulkUploads />} />
         <Route path="/ownership-transfer" element={<OwnershipTransfer />} />
         <Route path="/service-manuals" element={<ServiceManuals />} />
+        <Route path="/service-manuals/notes" element={<ServiceNotes />} />
         <Route path="/qms" element={<QmsDocuments />} />
         <Route path="/training" element={<Training />} />
         <Route path="/warranties" element={<WarrantyRegister />} />

@@ -231,6 +231,11 @@ against the call it was fitted to.
 
 1. **Spare Requests** `/spare-requests` — the engineer asks for a part against a
    call.
+   > **Complaint and Item Status follow the call.** Change either on the call and
+   > every spare request on it changes too, at any stage. To bring an older
+   > request in line, open it and press **↻ Update from call**, or tick several
+   > in the register and press it once. Lines already past RM approval keep the
+   > approval route they were given; only what the request shows changes.
 2. **RM Approval** `/spare-rm-approval` — the queue shows the complaint, machine,
    serial and cover, because "is this part plausible for this fault?" is most of
    the decision. Approve, reject or drop many at once; the last two need a reason.
@@ -754,6 +759,9 @@ typed into a form that reads it.
   > on the device, so a Call Request fills it with no signal.
 - **Service Manuals** `/service-manuals` — indexed by product, so a call shows the
   right ones.
+- **Technical / Service Notes** `/service-manuals/notes` — technical bulletins and
+  service notes, by product, kept the same way as the manuals. Whoever can open
+  Service Manuals can open these; adding them needs the same permission.
 - **QMS Documents** `/qms` — with number and revision.
   > **Adding a document asks who must be trained on it** — roles,
   > designations, departments, regions or named people (anyone matching any of

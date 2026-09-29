@@ -912,6 +912,9 @@ const MODULES = {
       // append `complaint`, and a bundle replayed alone has to see 0116's
       // definition first or the column disappears again.
       '0154_rm_queue_request_fields.sql',
+      // A request's Complaint and Item Status follow its call -- automatically,
+      // and by the register's button / bulk action (0268).
+      '0268_spare_request_follows_call.sql',
       // LAST, and it must stay last: it re-asserts `dispatch_spare_lines()` and
       // `sd_read`, which handstock owns, so a replay of Spare_1.sql alone stops
       // reverting them. Guarded, so a fresh apply skips it.

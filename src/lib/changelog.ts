@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.6',
+    date: '2026-09-30',
+    title: 'Spare requests follow their call\'s Complaint and Item Status; Technical / Service Notes',
+    changes: [
+      'SPARE REQUESTS: the Complaint and Item Status now come from the call and stay with it. Change either on the call and every spare request on that call changes too, at any stage.',
+      'UPDATE FROM CALL: open a request and press ↻ Update from call, or tick several in the Spare Request register and press it once, to bring older requests in line with their calls.',
+      'The approval route of spares already past RM approval is not changed; only what the request shows is.',
+      'NEW SHELF — TECHNICAL / SERVICE NOTES (Knowledge Base, under Service Manuals): technical bulletins and service notes by product, kept like the manuals. Anyone who can open Service Manuals can open it; adding needs the same permission.',
+    ],
+  },
+  {
     version: '0.10.5',
     date: '2026-09-30',
     title: 'Hand Stock: ± Adjust stock, in place of the eBizWiz Admin account',

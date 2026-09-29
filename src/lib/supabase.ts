@@ -3363,6 +3363,17 @@ export async function queryAllParts(filter: PartFilter, productHint = ''): Promi
 }
 
 // ---- spare requests --------------------------------------------------------
+/** COMPLAINT AND ITEM STATUS, AS THE CALL HAS THEM NOW (0268) -- for the
+ *  register's button and bulk action; the database also does it by itself
+ *  whenever the call changes. Runs as the caller, so it changes only the
+ *  requests the caller may update. Returns how many changed. */
+export async function refreshSpareRequestsFromCall(uids: string[]): Promise<{ ok: boolean; changed?: number; error?: string }> {
+  const list = [...new Set(uids.filter(Boolean))];
+  if (!list.length) return { ok: true, changed: 0 };
+  const { data, error } = await must().rpc('refresh_spare_requests_from_call', { p_uids: list });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, changed: Number(data ?? 0) };
+}
+
 export async function addSpareRequest(
   req: Record<string, unknown>,
   lines: { part: string; qty: number }[],
@@ -5012,7 +5023,9 @@ export async function upsertRecoveredReports(
 // makes it findable — above all, which product a manual covers, so a call can
 // hand the engineer the right one.
 // ---------------------------------------------------------------------------
-export type DocKind = 'service_manual' | 'qms';
+// 'service_note' (2026-09-30): Technical / Service Notes, a shelf like the
+// manuals -- same table, same docs.manage write right, no migration.
+export type DocKind = 'service_manual' | 'qms' | 'service_note';
 export interface DocRow {
   id: number; kind: DocKind; title: string; product: string;
   doc_no: string; revision: string; effective_date: string | null;

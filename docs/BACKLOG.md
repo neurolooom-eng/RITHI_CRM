@@ -228,6 +228,14 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.6 — Spare requests follow their call; Technical / Service Notes.**
+  The user: Complaint / Item Status "should inherit as is from the Call
+  register" -- asked, any stage, and button + bulk + automatic. **0268**
+  (trigger on the three call tables + `refresh_spare_requests_from_call`,
+  Spare_1.sql); `_status.sql` row 209; `spare_request_follows_call_test`;
+  FRS-095 / OQ-83. Notes: documents kind `service_note`, route
+  `/service-manuals/notes`, opened by `mod:/service-manuals` through
+  parentAction -- no role touched, no migration.
 - ✅ **0.10.5 — Hand stock adjustments.** The user: eBizWiz Admin (1,163
   opening rows / 233,000 parts on the live project, found with the new
   read-only `probe` mode) was WinMax's account for adding quantity through an

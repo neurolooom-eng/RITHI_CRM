@@ -1485,7 +1485,13 @@ with checks(sort_order, bundle, provides, present) as (
          and coalesce((select c.reloptions::text ilike '%security_invoker=on%' from pg_class c where c.oid = to_regclass('public.handstock_movements')), false)
          and coalesce((select p.prosrc ilike '%handstock_adjustments%' from pg_proc p
                         where p.oid = to_regprocedure('public.user_directory_carry_rename_records()')), false)
-         and not has_table_privilege('anon', 'public.handstock_adjustments', 'SELECT')))
+         and not has_table_privilege('anon', 'public.handstock_adjustments', 'SELECT'))),
+    (209, 'A spare request''s Complaint and Item Status follow its call', 'spare_requests_follow_call on the three call tables and refresh_spare_requests_from_call() (0268). The user, 2026-09-30: "It should inherit as is from the Call register." Changing the call''s Complaint Reported, Standard Complaint or Item Status updates every spare request on that call, at any stage, with the rule the request form uses (Complaint Reported, else the Standard Complaint); the register''s Update from call button and bulk action do the same on demand, as the caller. Checks the trigger on all three call tables and that the public key cannot call the function. NO means requests keep whatever they were raised with. Restore: Spare_1.sql (repository root)',
+        ((select count(*) from pg_trigger t
+           where t.tgname = 'spare_requests_follow_call' and not t.tgisinternal
+             and t.tgrelid in (to_regclass('public.field_calls'), to_regclass('public.installation_calls'), to_regclass('public.pm_calls'))) = 3
+         and to_regprocedure('public.refresh_spare_requests_from_call(text[])') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.refresh_spare_requests_from_call(text[])'), 'EXECUTE')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
