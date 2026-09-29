@@ -9,7 +9,7 @@ import { useArrivingFilter } from '../lib/arriveWith';
 import {
   listHandstockBalance, listHandstockMovements, listAllHandstockMovements, supabaseConfigured,
 } from '../lib/supabase';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { useAccessScope, previewScoped, useTeamEngineers } from '../lib/access';
 import {
@@ -146,6 +146,9 @@ export function HandStock() {
   // ARRIVING FROM MY WORKLOAD — the Short card opens the short lines.
   useArrivingFilter<Holding>('holding', setHolding);
   const [busy, setBusy] = useState(false);
+  // Read by the background sync, which waits while a read is in flight.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   // The balance is paged, like the call registers. `loaded` is how many rows
   // have been asked for; `more` says the last page came back full, so there is
@@ -243,8 +246,8 @@ export function HandStock() {
   useEffect(() => {
     if (onDb && rows.length && !isStale(lastSync)) setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
     else void load();
-    const id = onDb ? window.setInterval(() => void load(), SYNC_TTL_MS) : undefined;
-    return () => { if (id) window.clearInterval(id); };
+    const stop = onDb ? startBackgroundSync(() => void load(), () => busyRef.current) : undefined;
+    return () => stop?.();
     // eslint-disable-next-line
   }, []);
 

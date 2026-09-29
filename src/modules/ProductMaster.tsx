@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -7,7 +7,7 @@ import { csvExport, timeAgo } from '../lib/format';
 import { searchProducts, dataConfigured, type ProdFilters } from '../lib/sheets';
 import { ITEM_STATUS, productToCallPrefill } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { isTimeout, errText } from '../lib/dberror';
 import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
@@ -83,6 +83,9 @@ export function ProductMaster() {
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [busy, setBusy] = useState(false);
+  // Read by the background sync, which waits while a read is in flight.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to search the Product Database.' },
   );
@@ -153,8 +156,7 @@ export function ProductMaster() {
   const anyFilter = Object.values(f).some((v) => v && String(v).trim());
   useEffect(() => {
     if (anyFilter) return;
-    const id = window.setInterval(() => { void run({}); }, SYNC_TTL_MS);
-    return () => window.clearInterval(id);
+    return startBackgroundSync(() => { void run({}); }, () => busyRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anyFilter]);
 

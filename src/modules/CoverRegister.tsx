@@ -18,7 +18,7 @@ import { listProductLines, sellableNames, sellableCodes, retiredNames, type Prod
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtDate, statusBadge, timeAgo } from '../lib/format';
 import { localIsoDate, todayLocal } from '../lib/dates';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
@@ -581,6 +581,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // say the register is empty. `null` means not counted and renders as a dash.
   const [counts, setCounts] = useState<Record<string, number | null>>({});
   const [busy, setBusy] = useState(false);
+  // Read by the background sync, which waits while a read is in flight.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     live ? null : { tone: 'info', text: 'Connect the database in Settings to open this register.' },
   );
@@ -742,8 +745,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // 30-minute background force-sync of whichever tab is open, unfiltered.
   useEffect(() => {
     if (!live) return;
-    const id = window.setInterval(() => { if (!filtered) void refresh(tab); }, SYNC_TTL_MS);
-    return () => window.clearInterval(id);
+    return startBackgroundSync(() => { if (!filtered) void refresh(tab); }, () => busyRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, filtered]);
 

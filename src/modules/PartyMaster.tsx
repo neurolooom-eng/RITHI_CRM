@@ -9,7 +9,7 @@ import {
   partyServiceEngineerCounts, renamePartyServiceEngineer, sbDirectoryNames,
   type PartyFilter, type PartyPatch,
 } from '../lib/supabase';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { kycDocs, withKycDoc, withoutKycDoc, isKycVerified, type KycDoc } from '../lib/kyc';
@@ -140,6 +140,9 @@ export function PartyMaster() {
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [busy, setBusy] = useState(false);
+  // Read by the background sync, which waits while a read is in flight.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load Party Master.' },
   );
@@ -298,8 +301,7 @@ export function PartyMaster() {
   // or off; no timer at all while one is set.
   useEffect(() => {
     if (!supabaseConfigured() || hasFilter) return;
-    const id = window.setInterval(() => { void refresh(); }, SYNC_TTL_MS);
-    return () => window.clearInterval(id);
+    return startBackgroundSync(() => { void refresh(); }, () => busyRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasFilter]);
 

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode, useRef } from 'react';
+import { startBackgroundSync } from '../lib/cache';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useLocation } from 'react-router-dom';
 import { db, genId, type BaseRecord } from '../lib/db';
@@ -638,6 +639,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   );
   const [spareFor, setSpareFor] = useState<Rec | null>(null); // "Request Spare" → 26_SpareRequest
   const [busy, setBusy] = useState(false);
+  // Read by the background sync, which waits while a read is in flight.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   // On Supabase we show the recent set by default and run SEARCH server-side
   // (so older calls are found without loading everything). The 300-cap + "Load
   // more" only exist for the legacy Google-Sheet path.
@@ -713,8 +717,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     } else {
       setBanner({ tone: 'info', text: `Showing cached data — last synced ${timeAgo(lastSync)}. Tap ↻ Refresh to update.` });
     }
-    const id = window.setInterval(() => { if (dataConfigured()) void refresh(); }, 30 * 60 * 1000);
-    return () => window.clearInterval(id);
+    return startBackgroundSync(() => { if (dataConfigured()) void refresh(); }, () => busyRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
