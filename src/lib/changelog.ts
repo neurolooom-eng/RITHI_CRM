@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.391',
+    date: '2026-09-29',
+    title: 'Standard Complaint upload: a Products column sets the mapping, and a file without one no longer wipes it',
+    changes: [
+      'RE-UPLOADING THE STANDARD COMPLAINT LIST WITH A PRODUCTS COLUMN NOW SETS WHICH PRODUCTS EACH COMPLAINT APPLIES TO. Put several products in one cell separated by commas (or semicolons, or one per line). A blank cell, or "All", means all products.',
+      'A FILE WITHOUT A PRODUCTS COLUMN NO LONGER WIPES THE MAPPING. Before this, re-uploading the list quietly set every complaint in the file back to all products. Now the complaints are updated and the products you mapped stay exactly as they are.',
+      'A column headed "Product" (singular) is read as the mapping too. Before this it would have created a second copy of every complaint in the file.',
+    ],
+  },
+  {
     version: '0.9.390',
     date: '2026-09-29',
     title: 'Standard Complaint master: map a complaint to one product, several, or all',

@@ -88,6 +88,32 @@ eq('generic "Value" header also works', shapeUpload(pr, [{ 'Value': 'AWAITING SP
    { name: 'pendingreason', value: 'AWAITING SPARE', extra: {} });
 eq('a list added later needs no code', masterUpload({ key: 'newlist', label: 'Brand New' }).stamp, { name: 'newlist' });
 
+// STANDARD COMPLAINT: a Products column IS the mapping, and a file without one
+// leaves every mapping alone (2026-09-29: "If I re-upload masters with Product
+// Details, will it update?").
+{
+  const sc = masterUpload({ key: 'complaint', label: 'Standard Complaint', value_label: 'Complaint Name' });
+  const withCol = shapeUpload(sc, [
+    { 'Complaint Name': 'ALARM A', Products: 'VEGA, ORION-G' },
+    { 'Complaint Name': 'ALARM B', Products: 'All' },
+    { 'Complaint Name': 'ALARM C', Products: '' },
+    { 'Complaint Name': 'ALARM D', Products: 'VEGA; vega ; EXTEND-XT' },
+  ]).rows;
+  eq('a Products column becomes the mapping, as a list',
+    withCol.map((r) => (r.extra as Record<string, unknown>).products),
+    [['VEGA', 'ORION-G'], [], [], ['VEGA', 'EXTEND-XT']]);
+  eq('...and is not also kept as text under its heading',
+    Object.keys(withCol[0].extra as object), ['products']);
+  const without = shapeUpload(sc, [{ 'Complaint Name': 'ALARM A' }, { 'Complaint Name': 'ALARM B' }]).rows;
+  eq('a file WITHOUT a Products column sends no details at all, so the mapping on screen survives',
+    without.map((r) => 'extra' in r), [false, false]);
+  const singular = shapeUpload(sc, [{ 'Complaint Name': 'ALARM A', product: 'VEGA' }]).rows;
+  eq('a heading spelled `product` is the mapping, never the DCCR key that would duplicate the complaint',
+    [(singular[0].extra as Record<string, unknown>).product, (singular[0].extra as Record<string, unknown>).products], [undefined, ['VEGA']]);
+  eq('another list is untouched: its extra columns still load as before',
+    (shapeUpload(ct, [{ 'Call Type': 'FIELD', Products: 'VEGA' }]).rows[0].extra as Record<string, unknown>).Products, 'VEGA');
+}
+
 console.log('\n-- required columns hold a fragment back --');
 const cons = shapeUpload(def('spare_consumption'), [
   { 'Part': 'TP-1|X', 'Qty': '2', 'UCN': '26A02F0001', 'Job Note': 'kept' },

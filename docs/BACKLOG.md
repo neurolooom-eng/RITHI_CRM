@@ -81,8 +81,16 @@ Also a provision to map the Complaint to all Products."*
 - ⏳ **ASKED, NOT BUILT: should the Standard Complaint picker on the call
   forms offer only the complaints mapped to the call's product?** The mapping
   does nothing on the forms until that is decided.
-- ⏳ Bulk upload of the mapping (a Products column on the master upload) — not
-  asked for; possible if typing it per row is too slow.
+- ✅ **0.9.391 — the mapping by upload.** The user: *"If I re-upload masters
+  with Product Details, will it update?"* It would have, badly: a file with no
+  Products column replaced `extra` wholesale and reset every mapping to All,
+  a Products column landed as text under its own heading, and a heading
+  spelled `product` set the DCCR key (`product_key`, part of the unique key)
+  and DUPLICATED every complaint. `UploadDef.finish` +
+  `applyProductsFromFile()`: heading present → it is the mapping (blank/"All"
+  = all); heading absent → `extra` not sent, so the upsert leaves it alone.
+  Other extra columns are not kept on the complaint list. `check:uploads` (5,
+  mutation-tested).
 
 ---
 

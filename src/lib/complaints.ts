@@ -54,3 +54,42 @@ export const productsLabel = (extra: unknown): string => {
   const m = complaintProducts(extra);
   return m.length ? m.join(', ') : 'All products';
 };
+
+// ---- the mapping in a bulk upload -------------------------------------------
+// The user, 2026-09-29: "If I re-upload masters with Product Details, will it
+// update?" It did not, in two ways, and both were worse than failing:
+//
+//   * A FILE WITH NO PRODUCTS COLUMN WIPED THE MAPPING. The upload replaces an
+//     entry's details wholesale, so every complaint in the file silently went
+//     back to All products.
+//   * A PRODUCTS COLUMN WAS NOT READ AS THE MAPPING. Unrecognised headings are
+//     kept under their own spelling, so it landed as text under "Products"
+//     where nothing looks -- and a heading spelled exactly `product` landed on
+//     the key the per-product DCCR lists use, which is part of the list's
+//     unique key: the load made a SECOND COPY of every complaint.
+//
+// So: NO HEADING -> the mapping is left exactly as it is (the upload does not
+// send the details at all). A HEADING -> it IS the mapping, and a BLANK or
+// "All" cell means ALL PRODUCTS -- the project's rule that a heading present
+// and empty clears, and a heading absent leaves alone.
+export const PRODUCTS_HEADING = /^(applicable\s+)?products?(\s+name)?s?$/i;
+
+/** "VEGA, ORION-G" / "VEGA; ORION-G" / one per line -> the list; blank or
+ *  "All" / "All products" -> [] (all products). */
+export function parseProductsCell(cell: unknown): string[] {
+  const t = String(cell ?? '').trim();
+  if (!t || /^all(\s+products?)?$/i.test(t)) return [];
+  return complaintProducts({ products: t.split(/[,;\n]/) });
+}
+
+/** Applied to each shaped row of a Standard Complaint upload. */
+export function applyProductsFromFile(row: Record<string, unknown>, headers: string[]): void {
+  const hasHeading = headers.some((h) => PRODUCTS_HEADING.test(h.trim()));
+  if (!hasHeading) { delete row.extra; return; }
+  const extra = { ...((row.extra ?? {}) as Record<string, unknown>) };
+  let cell: unknown = '';
+  for (const k of Object.keys(extra)) {
+    if (PRODUCTS_HEADING.test(k.trim())) { cell = extra[k]; delete extra[k]; }
+  }
+  row.extra = { ...extra, products: parseProductsCell(cell) };
+}
