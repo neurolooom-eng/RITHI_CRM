@@ -6,16 +6,16 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, Drawer } from '../components/ui/ui';
 import { csvExport, timeAgo } from '../lib/format';
 import {
-  queryParts, queryAllParts, supabaseConfigured, addPart, setPartActive,
+  queryAllParts, supabaseConfigured, addPart, setPartActive,
   updatePart, renamePart, partRenameImpact, type PartRenameImpact,
   normalisePartCode, composeItemDetail, PART_CODE_RE, type PartFilter,
 } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { listMaster, dataConfigured } from '../lib/sheets';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
+import { loadCache, saveCache, startBackgroundSync } from '../lib/cache';
 import { partial } from '../lib/exportscope';
 import { isSysColumn } from '../lib/syscols';
-import { useMaster } from '../lib/masters';
+import { useMaster, clearMasterCache } from '../lib/masters';
 import {
   complaintProducts, unrecognisedProducts, matchesProductFilter, applyBulkProducts,
   ALL_PRODUCTS_FILTER, UNRECOGNISED_FILTER, type BulkProductsMode,
@@ -32,7 +32,6 @@ import { ProductAccessories } from './ProductAccessories';
 // ===========================================================================
 
 const CACHE_KEY = 'partMaster';
-const PAGE = 1000;
 type Row = Record<string, unknown> & { id: string };
 
 // THE ITEM MASTER'S OWN FIELDS (0148/0149). They were arriving in `extra` as
@@ -78,8 +77,8 @@ export function PartMaster() {
   // these is kept and FLAGGED, never rewritten ("Keep and flag them").
   const productNames = useMaster('product', [], live).values;
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
-  const [offset, setOffset] = useState(cached?.rows.length ?? 0);
-  const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
+  // The whole catalogue is always loaded, so there is never a page to fetch.
+  const [more, setMore] = useState(false);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [busy, setBusy] = useState(false);
   // Read by the background sync, which waits while a read is in flight.
@@ -96,10 +95,16 @@ export function PartMaster() {
     if (!dataConfigured()) return;
     setBusy(true);
     try {
-      const r = live ? toRows(await queryParts({}, 0, PAGE), 0) : fromValues(await listMaster('spare'));
-      setRows(r); setOffset(r.length); setMore(live && r.length === PAGE);
+      // THE WHOLE CATALOGUE, EVERY TIME (the user, 2026-09-30: "Reload
+      // automatically full list in Part Master"), paged to the end by
+      // allRows, so every filter and the global search below run over all of
+      // it on the device with no Load more and no server round trip.
+      const r = live ? toRows(await queryAllParts({}), 0) : fromValues(await listMaster('spare'));
+      setRows(r); setMore(false);
       setLastSync(saveCache(CACHE_KEY, r));
-      setMsg({ tone: r.length ? 'ok' : 'info', text: r.length ? `Synced ${r.length}${r.length === PAGE ? '+' : ''} parts.` : 'The parts catalogue is empty — import the ITEM Master first.' });
+      // A part just added or re-mapped reaches this device's spare pickers.
+      if (live) clearMasterCache('spareProducts');
+      setMsg({ tone: r.length ? 'ok' : 'info', text: r.length ? `Loaded all ${r.length.toLocaleString()} parts.` : 'The parts catalogue is empty — import the ITEM Master first.' });
     } catch (e) {
       setMsg({ tone: 'error', text: `Sync failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
@@ -110,8 +115,10 @@ export function PartMaster() {
   useEffect(() => {
     if (mounted.current) return; mounted.current = true;
     if (!dataConfigured()) return;
-    if (!rows.length || isStale(lastSync)) void refresh();
-    else setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
+    // The stored copy goes on screen first (it may hold only the first
+    // 1,500), and the full list is always reloaded behind it.
+    if (rows.length) setMsg({ tone: 'info', text: `Showing the stored copy (synced ${timeAgo(lastSync)}) while the full list reloads…` });
+    void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -121,67 +128,49 @@ export function PartMaster() {
   // the list, it was silently replaced by the unfiltered first page while the
   // filter boxes still showed the filter. Rebuilt whenever the filter turns on
   // or off; no timer at all while one is set.
+  // FILTERS ARE APPLIED ON THE DEVICE to the whole list now, so a reload no
+  // longer throws a filter away and the sync runs whatever is being filtered.
   useEffect(() => {
-    if (!dataConfigured() || hasFilter) return;
+    if (!dataConfigured()) return;
     return startBackgroundSync(() => { void refresh(); }, () => busyRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFilter]);
+  }, []);
 
-  // Filters: query the server live (debounced). Clearing them restores the cache.
-  useEffect(() => {
-    if (!mounted.current || !live) return;
-    if (!hasFilter) {
-      const c = loadCache<Row>(CACHE_KEY);
-      if (c) { setRows(c.rows); setOffset(c.rows.length); setMore(c.rows.length >= PAGE); setLastSync(c.at); }
-      return;
-    }
-    const t = window.setTimeout(async () => {
-      setBusy(true);
-      try {
-        // A PRODUCT FILTER READS THE WHOLE CATALOGUE and matches whole names
-        // here -- the column is one text, so the server can only narrow it.
-        if (filter.product) {
-          const named = filter.product !== ALL_PRODUCTS_FILTER && filter.product !== UNRECOGNISED_FILTER;
-          const all = await queryAllParts(filter, named ? filter.product : '');
-          const data = all.filter((p) => matchesProductFilter({ products: String(p.product ?? '') }, filter.product ?? '', productNames));
-          setRows(toRows(data, 0)); setOffset(data.length); setMore(false);
-          setMsg({ tone: 'ok', text: `${data.length} parts matched (live, the whole catalogue).` });
-          return;
-        }
-        const data = await queryParts(filter, 0, PAGE);
-        setRows(toRows(data, 0)); setOffset(data.length); setMore(data.length === PAGE);
-        setMsg({ tone: 'ok', text: `${data.length}${data.length === PAGE ? '+' : ''} parts matched (live).` });
-      } catch (e) {
-        setMsg({ tone: 'error', text: `Search failed: ${e instanceof Error ? e.message : String(e)}` });
-      } finally { setBusy(false); }
-    }, 300);
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter.q, filter.code, filter.description, filter.active, filter.product]);
-
-  const loadMore = async () => {
-    setBusy(true);
-    try {
-      const data = await queryParts(hasFilter ? filter : {}, offset, PAGE);
-      const merged = [...rows, ...toRows(data, rows.length)];
-      setRows(merged); setOffset(offset + data.length); setMore(data.length === PAGE);
-      if (!hasFilter) setLastSync(saveCache(CACHE_KEY, merged));
-    } catch (e) {
-      setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` });
-    } finally { setBusy(false); }
+  // EVERY FILTER RUNS ON THE DEVICE, over the whole catalogue.
+  //   * GLOBAL SEARCH (the user, 2026-09-30: "Add Global Search"): every word
+  //     typed must appear somewhere in the part -- code, description, item
+  //     detail, Spare / Consumable, product, cost, or any Item Master field
+  //     kept in `extra` -- in any order ("vega filter" finds "FILTER ... VEGA").
+  //   * Part code / Description: that field only.
+  //   * Product: whole names; "Common" = none; "Unrecognised" = a name the
+  //     Product Database lacks (matchesProductFilter, complaints.ts).
+  const loadMore = async () => { await refresh(); };
+  const haystack = (r: Row): string => {
+    const out: string[] = [];
+    const walk = (v: unknown) => {
+      if (v == null) return;
+      if (typeof v === 'object') { Object.values(v as Record<string, unknown>).forEach(walk); return; }
+      out.push(String(v));
+    };
+    for (const [k, v] of Object.entries(r)) if (k !== 'id' && !isSysColumn(k)) walk(v);
+    return out.join(' ').toLowerCase();
   };
-
-  // Local filtering for the sheet fallback (no server-side search there).
   const visible = useMemo(() => {
-    if (live || !hasFilter) return rows;
-    const q = (filter.q ?? '').toLowerCase();
-    const code = (filter.code ?? '').toLowerCase();
-    const desc = (filter.description ?? '').toLowerCase();
-    return rows.filter((r) =>
-      (!q || String(r.item_detail ?? '').toLowerCase().includes(q)) &&
-      (!code || String(r.code ?? '').toLowerCase().includes(code)) &&
-      (!desc || String(r.description ?? '').toLowerCase().includes(desc)));
-  }, [rows, live, hasFilter, filter.q, filter.code, filter.description]);
+    if (!hasFilter) return rows;
+    const words = (filter.q ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+    const code = (filter.code ?? '').trim().toLowerCase();
+    const desc = (filter.description ?? '').trim().toLowerCase();
+    return rows.filter((r) => {
+      if (code && !String(r.code ?? '').toLowerCase().includes(code)) return false;
+      if (desc && !String(r.description ?? '').toLowerCase().includes(desc)) return false;
+      if (filter.active === 'yes' && r.active === false) return false;
+      if (filter.active === 'no' && r.active !== false) return false;
+      if (filter.product && !matchesProductFilter({ products: String(r.product ?? '') }, filter.product, productNames)) return false;
+      if (words.length) { const h = haystack(r); if (!words.every((w) => h.includes(w))) return false; }
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, hasFilter, filter.q, filter.code, filter.description, filter.active, filter.product, productNames]);
 
   const allFields = useMemo(() => {
     const ks = new Set<string>();
@@ -357,6 +346,30 @@ export function PartMaster() {
     await refresh();
   };
 
+  // ---- bulk: Spare / Consumable of many parts at once (the user, 2026-09-30:
+  // "Bulk Edit Spare/Consumable Field as well") ------------------------------
+  const [bulkCategory, setBulkCategory] = useState('');
+  const applyBulkCategory = async (ids: string[], clear: () => void) => {
+    const targets = rows.filter((r) => ids.includes(r.id));
+    if (!targets.length || !bulkCategory) return;
+    if (!confirm(`${targets.length} part${targets.length === 1 ? '' : 's'} will be set to "${bulkCategory}". Continue?`)) return;
+    setBusy(true);
+    let done = 0; const failed: string[] = [];
+    try {
+      for (let i = 0; i < targets.length; i += 10) {
+        await Promise.all(targets.slice(i, i + 10).map(async (t) => {
+          const r = await updatePart(Number(t.id), { category: bulkCategory });
+          if (r.ok) done += 1; else failed.push(String(t.code ?? t.id));
+        }));
+      }
+    } finally { setBusy(false); }
+    clear();
+    setMsg(failed.length
+      ? { tone: 'error', text: `${done} updated; ${failed.length} could not be saved: ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''}` }
+      : { tone: 'ok', text: `${done} part${done === 1 ? '' : 's'} set to ${bulkCategory}.` });
+    await refresh();
+  };
+
   const toggleActive = async (r: Row) => {
     const id = Number(r.id);
     const now = r.active !== false;
@@ -385,7 +398,7 @@ export function PartMaster() {
           <button className="btn btn-ghost btn-sm" onClick={() => setMsg(null)}>✕</button>
         </div>
       )}
-      {live && <ProductAccessories productNames={productNames} mayEdit={mayEdit} />}
+      {live && <ProductAccessories mayEdit={mayEdit} />}
       <DataTable<Row>
         columns={((mayEdit ? [...COLUMNS, {
           key: '_act', header: '', width: 190, sortable: false, wrap: false, align: 'center',
@@ -432,6 +445,13 @@ export function PartMaster() {
             <button className="btn btn-primary btn-sm"
               disabled={busy || (bulkMode !== 'replace' && !bulkProducts.length)}
               onClick={() => void applyBulk(ids, clear)}>Apply to {ids.length}</button>
+            <span className="muted">|</span>
+            <div style={{ minWidth: 170 }}>
+              <SelectPicker value={bulkCategory} onChange={setBulkCategory} placeholder="Spare / Consumable…"
+                options={PART_CATEGORIES} />
+            </div>
+            <button className="btn btn-primary btn-sm" disabled={busy || !bulkCategory}
+              onClick={() => void applyBulkCategory(ids, clear)}>Set for {ids.length}</button>
           </div>
         ) : undefined}
         allFields={allFields}
@@ -447,7 +467,8 @@ export function PartMaster() {
         toolbar={
           <Toolbar>
             <div className="call-search">
-              <input className="input" placeholder="Search code / description" value={filter.q} onChange={(e) => set('q', e.target.value)} />
+              <input className="input" placeholder="🔍 Search everything (code, description, product, category…)" value={filter.q}
+                style={{ minWidth: 260 }} onChange={(e) => set('q', e.target.value)} />
               <input className="input" placeholder="Part code" value={filter.code} onChange={(e) => set('code', e.target.value)} />
               <input className="input" placeholder="Description" value={filter.description} onChange={(e) => set('description', e.target.value)} />
               {live && (

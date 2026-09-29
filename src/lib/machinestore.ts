@@ -29,7 +29,7 @@
 //     IndexedDB itself; then the app simply asks the server, as it always did.
 // ===========================================================================
 import { getSupabase, productRowToSheet, sbReportDeviceCache } from './supabase';
-import { storedListInfo, warmMaster, MASTER_STORED_EVENT } from './masters';
+import { storedListInfo, warmMaster, warmMasterIfMissing, MASTER_STORED_EVENT } from './masters';
 import {
   downloadAfter, packRows, unpackRows, toCached, deviceLabel,
   type CachedMachine, type CachedParty, type DownloadState, type PackedRows,
@@ -311,4 +311,9 @@ export function watchMachineRegister(): void {
   // THE STANDARD COMPLAINTS TOO, so a Call Request can be filled with no
   // signal even if no call form was opened while there was one.
   void warmMaster('complaintProducts');
+  // THE PARTS WITH THEIR PRODUCTS, AND EACH PRODUCT'S ACCESSORIES (partfit.ts),
+  // so the spare pickers on a call can narrow to the call's product with no
+  // signal. Only when the device has no copy: the forms re-read them on open.
+  void warmMasterIfMissing('spareProducts');
+  void warmMasterIfMissing('productAccessories');
 }

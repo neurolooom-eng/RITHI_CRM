@@ -83,3 +83,17 @@ export const retiredNames = (lines: ProductLine[]): string[] => {
 export function shortForms(lines: ProductLine[]): string[] {
   return [...new Set(lines.map((l) => l.shortForm).filter(Boolean))].sort();
 }
+
+/** MAIN PRODUCTS AND ACCESSORIES, FROM THE PRODUCT MASTER'S CATEGORY (the
+ *  user, 2026-09-30: "Product Master has ACCESSORY in Category Column. Use
+ *  that; anything other than ACCESSORY should be considered as Main Product").
+ *  One entry per NAME (CPX CARE has nine codes); active and retired alike -- a
+ *  retired line still has machines in the field and parts that fit them. A
+ *  name is an accessory when its category reads ACCESSORY (ignoring case and
+ *  spaces) on any of its codes. */
+export const isAccessoryCategory = (category: string) => category.trim().toUpperCase() === 'ACCESSORY';
+export function mainAndAccessoryNames(lines: ProductLine[]): { main: string[]; accessories: string[] } {
+  const acc = new Set(lines.filter((l) => l.name && isAccessoryCategory(l.category)).map((l) => l.name));
+  const all = [...new Set(lines.map((l) => l.name).filter(Boolean))].sort();
+  return { main: all.filter((n) => !acc.has(n)), accessories: all.filter((n) => acc.has(n)) };
+}

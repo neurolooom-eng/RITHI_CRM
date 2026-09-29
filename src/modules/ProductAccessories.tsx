@@ -3,20 +3,28 @@ import { SelectPicker } from '../components/ui/SelectPicker';
 import { MultiPick } from '../components/ui/MultiPick';
 import { listProductAccessories, saveProductAccessories, deleteProductAccessories, type ProductAccessoryRow } from '../lib/supabase';
 import { loadFailure } from '../lib/dberror';
+import { listProductLines, mainAndAccessoryNames } from '../lib/productLines';
+import { clearMasterCache } from '../lib/masters';
 
 // ===========================================================================
 // MAIN PRODUCT -> ACCESSORIES / ALLIED PRODUCTS (0255).
 //
 //   The user, 2026-09-30: "should also be able to map the Main Product and
 //   Accessories / Allied products that might have been sold together -- ensure
-//   we have a place holder for that". One list per product LINE (their choice),
-//   by Product Database name, so Phase 2 can offer a spare request the parts of
-//   the main product AND of what is sold with it.
+//   we have a place holder for that". One list per product LINE (their choice).
 //
-// On the Part Master screen, collapsed, because it is about which parts belong
-// together -- and nothing reads it yet; it is filled now so Phase 2 has data.
+// THE NAMES COME FROM THE PRODUCT MASTER (the user, 2026-09-30: "it has to
+// come from Product Master ... ACCESSORY in Category Column. Use that; anything
+// other than ACCESSORY should be considered as Main Product"). The main
+// product picker lists the non-ACCESSORY lines, the accessories picker the
+// ACCESSORY ones.
+//
+// READ BY BOTH SPARE PICKERS ON A CALL (partfit.ts): the Spare Request and the
+// visit report's consumption offer the call's product, its accessories, and
+// the common parts.
 // ===========================================================================
-export function ProductAccessories({ productNames, mayEdit }: { productNames: string[]; mayEdit: boolean }) {
+export function ProductAccessories({ mayEdit }: { mayEdit: boolean }) {
+  const [names, setNames] = useState<{ main: string[]; accessories: string[] } | null>(null);
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<ProductAccessoryRow[] | null>(null);
   const [err, setErr] = useState('');
@@ -33,7 +41,12 @@ export function ProductAccessories({ productNames, mayEdit }: { productNames: st
       setErr(loadFailure(e, { tables: ['product_accessories'], hint: 'Not on the project yet — run supabase/apply/masters.sql.' }));
     }
   };
-  useEffect(() => { if (open && rows === null) void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [open]);
+  useEffect(() => {
+    if (!open || rows !== null) return;
+    void load();
+    void listProductLines().then((l) => setNames(mainAndAccessoryNames(l)));
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [open]);
 
   // Choosing a main product that already has a list opens that list to edit.
   const pickMain = (m: string) => {
@@ -47,12 +60,15 @@ export function ProductAccessories({ productNames, mayEdit }: { productNames: st
     setBusy(false);
     if (!r.ok) { setErr(r.error ?? 'Could not save.'); return; }
     setMain(''); setAcc([]); setNote('');
+    // The spare pickers on this device read the new list at once.
+    clearMasterCache('productAccessories');
     await load();
   };
   const remove = async (r: ProductAccessoryRow) => {
     if (!confirm(`Remove the accessories list for ${r.main_product}?`)) return;
     const res = await deleteProductAccessories(r.id);
     if (!res.ok) { setErr(res.error ?? 'Could not remove.'); return; }
+    clearMasterCache('productAccessories');
     await load();
   };
 
@@ -64,17 +80,20 @@ export function ProductAccessories({ productNames, mayEdit }: { productNames: st
       {open && (
         <div style={{ marginTop: 8 }}>
           <p className="muted" style={{ margin: '0 0 8px', fontSize: 13 }}>
-            What is sold together with each product. The spare request will use this to offer the parts of the
-            main product and of its accessories (Phase 2 — not used yet).
+            What is sold together with each product, from the Product Master (Category ACCESSORY = accessory,
+            anything else = main product). On a call for the main product, the Spare Request and the visit
+            report&rsquo;s spare consumption offer its parts, its accessories&rsquo; parts and the common parts.
           </p>
           {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span></div>}
           {mayEdit && (
             <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
               <div style={{ minWidth: 200 }}>
-                <SelectPicker value={main} onChange={pickMain} placeholder="Main product" options={productNames} />
+                <SelectPicker value={main} onChange={pickMain}
+                  placeholder={names ? 'Main product (Product Master)' : 'Loading the Product Master…'}
+                  options={names?.main ?? []} />
               </div>
               <div style={{ minWidth: 260 }}>
-                <MultiPick values={acc} options={productNames.filter((p) => p !== main)} noun="products"
+                <MultiPick values={acc} options={(names?.accessories ?? []).filter((p) => p !== main)} noun="accessories"
                   allLabel="— no accessories —" onChange={setAcc} />
               </div>
               <input className="input" style={{ minWidth: 180 }} placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />

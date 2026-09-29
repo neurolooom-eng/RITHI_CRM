@@ -74,6 +74,7 @@ import { allRows, distinctValues, PG_PAGE } from './paging';
 import { localMachines, localParties, refreshMachineRegister, refreshPartyRegister, clearMachineRegister } from './machinestore';
 import * as mc from './machinecache';
 import { planComplaintKeys, encodeComplaintEntry, type ExistingComplaint } from './complaints';
+import { encodePartEntry, encodeAccessoryEntry } from './partfit';
 import type { LoadedReport, ConvertWrite } from './reportMapping';
 export { allRows, PG_PAGE };
 
@@ -3090,6 +3091,19 @@ export async function listMaster(name: string, limit = 3000): Promise<string[]> 
     return distinctColumn('products', 'item_name');
   }
   if (name === 'spare') return distinctColumn('parts', 'item_detail', { eq: ['active', true] });
+  // THE PARTS WITH THEIR PRODUCTS, and each product's accessories, for the
+  // spare pickers on a call (partfit.ts): the call's product + its accessories
+  // + the common parts. Active parts only, the 'spare' list's rule.
+  if (name === 'spareProducts') {
+    const rows = await allRows<Record<string, unknown>>((a, b) => c.from('parts')
+      .select('id,item_detail,product').eq('active', true)
+      .order('item_detail').order('id').range(a, b), 50000);
+    return rows.filter((r) => String(r.item_detail ?? '').trim())
+      .map((r) => encodePartEntry(String(r.item_detail), r.product));
+  }
+  if (name === 'productAccessories') {
+    return (await listProductAccessories()).map((r) => encodeAccessoryEntry(r.main_product, r.accessories));
+  }
   // THE COMPLAINTS WITH THEIR PRODUCTS, for the call forms' product filter
   // (complaints.ts). Same rows, same "live values only" rule, one string each.
   if (name === 'complaintProducts') {
