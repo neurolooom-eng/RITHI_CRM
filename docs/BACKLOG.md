@@ -217,7 +217,7 @@ Also a provision to map the Complaint to all Products."*
   `applyBulkProducts`); `queryAllParts` reads the whole catalogue for a product
   filter. Add part: products OR "Common to all products". **0255**
   `product_accessories` (one list per main product, masters.edit, read by all
-  signed in), editor on the Part Master; `_status.sql` row 197; suite
+  signed in), editor on the Part Master; `_status.sql` row 198; suite
   `product_accessories_test`.
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
