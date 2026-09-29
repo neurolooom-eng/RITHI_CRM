@@ -12,8 +12,8 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.382',
-    date: '2026-09-26',
+    version: '0.9.394',
+    date: '2026-09-29',
     title: 'Dates in every download are real dates, and a refused call edit says so',
     changes: [
       'EVERY EXCEL DOWNLOAD NOW CARRIES REAL DATES. The Not Used report, Product Failure Analysis, Field Failure Insights and the Objective evidence file wrote their dates as text, which Excel cannot sort in order, filter by month or subtract. They now arrive as dates shown dd-mmm-yyyy (and hh:mm:ss where a time was recorded), like the reports already did. Serial numbers and part codes stay exactly as they are.',
@@ -25,6 +25,137 @@ export const CHANGELOG: ChangeEntry[] = [
       'AFTER MIDNIGHT, TODAY IS TODAY. Until 05:30 in the morning the app took “today” from the UTC clock, which is still yesterday then. A visit filed at 1 a.m. was dated the day before, the real date was refused as “in the future”, and the DC, MRN, stock-transfer and sale dates defaulted a day early. Every “today” now comes from your own calendar.',
       'DATES ON SCREEN READ dd-mmm-yyyy (and hh:mm:ss where a time was recorded) in the places that did not: Indoor Service’s received / cleaned / checked / dispatched stamps, Call Review, Software Validation, PM Bulk Upload’s preview, Hand Stock’s last-sync note, and the Roles & Permissions download.',
       'FOUR DIAGNOSTIC SQL FILES NOW SHOW THEIR WHOLE ANSWER in the Supabase SQL editor, which only displays the last result: the report-count reconciliation, Item Status staleness, open PM calls and the Product Database rebuild.',
+    ],
+  },
+  {
+    version: '0.9.393',
+    date: '2026-09-29',
+    title: 'A short product list stuck on a phone is cleared, and Clear Cache now really clears the dropdowns',
+    changes: [
+      'WHY ONE ENGINEER SAW 13 PRODUCTS INSTEAD OF 44: an older version of the app could store a product list that stopped part-way when one request failed, and newer versions trusted a stored product list for six hours. Every device now throws away its stored dropdown lists once, automatically, when it picks up this version.',
+      'CORRECTION: 🧹 CLEAR CACHE AND UPDATE NEVER CLEARED THE DROPDOWN LISTS (products, customers, complaints and the rest), although version 0.9.382\'s notes said it would fetch a fresh product list. It does now. It still keeps the machine and customer lists stored for offline search, which refresh on their own.',
+      'If a phone does not appear on Device Cache Status, it is running a version older than 0.9.388 — tap Update now on the yellow banner, or Clear Cache and Update.',
+    ],
+  },
+  {
+    version: '0.9.392',
+    date: '2026-09-29',
+    title: 'Standard Complaint upload matches by Key and never renames a complaint',
+    changes: [
+      'EXPORT CSV ON THE STANDARD COMPLAINT LIST NOW HAS A KEY COLUMN — each complaint\'s own number. Keep it in the file when you upload it back.',
+      'A ROW WITH A KEY UPDATES THAT COMPLAINT\'S PRODUCTS AND NOTHING ELSE. If the name in the file has been changed, it is ignored and the list keeps its name — the upload can never rename a complaint.',
+      'A ROW WITHOUT A KEY updates the complaint with that name (upper/lower case and extra spaces ignored), or is ADDED as a new complaint if the list has no such name.',
+      'A Key that matches no complaint is held back and named in the message, rather than added. The message before you confirm says how many complaints will be updated, how many added, and how many names in the file differ from the list.',
+    ],
+  },
+  {
+    version: '0.9.391',
+    date: '2026-09-29',
+    title: 'Standard Complaint upload: a Products column sets the mapping, and a file without one no longer wipes it',
+    changes: [
+      'RE-UPLOADING THE STANDARD COMPLAINT LIST WITH A PRODUCTS COLUMN NOW SETS WHICH PRODUCTS EACH COMPLAINT APPLIES TO. Put several products in one cell separated by commas (or semicolons, or one per line). A blank cell, or "All", means all products.',
+      'A FILE WITHOUT A PRODUCTS COLUMN NO LONGER WIPES THE MAPPING. Before this, re-uploading the list quietly set every complaint in the file back to all products. Now the complaints are updated and the products you mapped stay exactly as they are.',
+      'A column headed "Product" (singular) is read as the mapping too. Before this it would have created a second copy of every complaint in the file.',
+    ],
+  },
+  {
+    version: '0.9.390',
+    date: '2026-09-29',
+    title: 'Standard Complaint master: map a complaint to one product, several, or all',
+    changes: [
+      'THE STANDARD COMPLAINT LIST HAS A PRODUCTS COLUMN. Pick as many products as a complaint applies to, or leave it empty for ALL PRODUCTS. Press ✎ on a row to change it; the Add row has the same picker.',
+      'EVERY COMPLAINT ALREADY ON THE LIST READS AS ALL PRODUCTS, so nothing has stopped being offered anywhere.',
+      'The product names offered are the ones in the Product Database, spelled as they are there. The CSV export of the list carries the Products column.',
+    ],
+  },
+  {
+    version: '0.9.389',
+    date: '2026-09-29',
+    title: 'Updating the app no longer re-downloads the machine and customer lists',
+    changes: [
+      'WHEN A NEW VERSION IS OUT, THE YELLOW BANNER NOW HAS "⟳ UPDATE NOW". It reloads into the new version and clears what screens have remembered, but keeps the machine and customer lists stored for offline search. A new release therefore costs nobody a 20,000-machine download.',
+      '🧹 CLEAR CACHE AND UPDATE NO LONGER RE-DOWNLOADS THOSE LISTS EITHER. It is still there for when the app looks stuck. To fetch the machine and customer lists afresh, press Download again under the title of Product & Party Search, Product Database or Request Call Registration.',
+      'The lists still refresh on their own every six hours, after a Product Database or Party Master upload, and after a customer is edited. If a release ever changes what the lists hold, every device re-downloads them once, automatically.',
+      'Administrators: Device Cache Status shows which app version each device is on, so you can see who has updated.',
+    ],
+  },
+  {
+    version: '0.9.388',
+    date: '2026-09-29',
+    title: 'Device Cache Status: see which phones and laptops can search offline (needs one SQL file)',
+    changes: [
+      'NEW SCREEN — Administration → Device Cache Status. One row per person per device: how many machines and customers that phone or laptop holds for offline search, when each was downloaded, the app version and the last problem. Everybody is listed, including anyone who has never reported a device, so an engineer with no copy can be found before they travel.',
+      'Chips sort people into Current (under 6 hours), Due a refresh (6–24 hours), Older than a day, No copy on the device and Never reported.',
+      'Each device reports after every download and when its user signs out. It sends only counts and times — no machine, customer or search. A device that is switched off keeps showing its last report; the Last reported column says when that was.',
+      'A private browser window, or a browser that blocks site data, cannot keep the copy; the report says so for that device.',
+      'Administrators and Technical Support can open it to begin with; grant it on Roles & Permissions for anyone else.',
+      'Needs supabase/apply/device_cache.sql run once on the project. Until then the screen says so, and devices simply do not report.',
+    ],
+  },
+  {
+    version: '0.9.387',
+    date: '2026-09-29',
+    title: 'A machine sent twice no longer stops the download',
+    changes: [
+      'ONE DOWNLOAD STOPPED AT MACHINE 4,375 with "machine ids out of order", and the next attempt downloaded all 19,266 — so the cause was not established. The message means the server sent that machine\'s number twice. Should that happen again the download now keeps the machine once, carries on to the end, and the line under the title says how many came twice, instead of stopping.',
+      'For administrators: supabase/apply/_why_is_a_machine_listed_twice.sql lists the doubled machines and which part of the Product Database is doubling them.',
+    ],
+  },
+  {
+    version: '0.9.386',
+    date: '2026-09-29',
+    title: 'The machine register downloads in seconds for everybody (needs one SQL file)',
+    changes: [
+      'WHY THE TEST ENGINEER\'S DOWNLOAD SAT AT "0 SO FAR": on the live project the first 1,000 machines took 24.7 seconds for a signed-in user (0.3 seconds in the SQL editor), and the server cancels anything over 20 seconds. So every attempt was cancelled and the phone kept retrying. Administrators were slow too — about seven minutes for 11,000 machines.',
+      'THE CAUSE: the rule "editors may change the Product Database / Party Master / Part Master" also applies to reading, and it asked "is this person an editor?" once for EVERY machine instead of once per request. It now asks once. Measured at the live register\'s size: from about 0.9 seconds to about 0.015 seconds per 1,000 machines. Nobody gains or loses access to anything.',
+      'Takes effect once supabase/migrations/0250_master_write_policy_once_per_query.sql is run on the project (_status.sql row 191 says whether it has been).',
+      '_status.sql no longer stops with "function ... does not exist" on a project that is missing one of the things it checks: that row now reads NO, as it always should have.',
+    ],
+  },
+  {
+    version: '0.9.385',
+    date: '2026-09-29',
+    title: 'A machine download that is waiting now says why',
+    changes: [
+      'WHEN THE MACHINE REGISTER CANNOT DOWNLOAD, THE LINE SAYS WHY. It used to read "Downloading machines… 0 so far" for up to a minute while it quietly retried; it now shows the server\'s own reason after the first failed request, and which attempt it is on.',
+      'For administrators: supabase/apply/_why_wont_the_machines_download.sql times the exact read a device makes, as any person you name, beside the same read as the administrator — to find out why one login downloads and another does not.',
+    ],
+  },
+  {
+    version: '0.9.384',
+    date: '2026-09-29',
+    title: 'Every column of the machine register, and the whole Party Master, kept on your device',
+    changes: [
+      'EVERY COLUMN IS NOW KEPT ON YOUR DEVICE. The machine register copy used to hold the 33 columns the screens show; it now holds every column of the Product Database, exactly as the server has it.',
+      'THE PARTY MASTER IS ON YOUR DEVICE TOO, every column. On a Call Request you pick the product, then the serial, and the customer and their details — state, city, address, service engineer, KYC — now come from your device first. Only a customer your device does not have yet is looked up on the server, and with no signal the form still opens and fills what the device has.',
+      'The installation customer search (customers with no machine yet) also answers from your device.',
+      'Editing a customer on the Party Master, or uploading a Party Master file, refreshes your own copy straight away.',
+      'The line under the title now says how many machines AND how many customers are on your device, and it is on the Request Call Registration screen as well.',
+    ],
+  },
+  {
+    version: '0.9.383',
+    date: '2026-09-29',
+    title: 'The whole machine register is kept on your phone or laptop, and every Product Database search runs on it',
+    changes: [
+      'THE WHOLE PRODUCT DATABASE NOW LIVES ON YOUR DEVICE. After you sign in, the app downloads every machine — model, serial, customer, site, warranty, contract and item status — and keeps it on this phone or laptop. It is refreshed every six hours, and again as soon as the signal comes back or you return to the app.',
+      'EVERY PRODUCT DATABASE SEARCH ANSWERS FROM THAT COPY: the product list, the serial number box (it now works as you type with no signal), a customer\'s machines, the machine picked on a call or a request, Product & Party Search, and the Product Database screen itself. Nothing waits on the network, so a weak or dropping signal no longer produces a load error.',
+      'A DOWNLOAD THAT IS CUT OFF IS NOT WASTED. It is fetched a thousand machines at a time and picks up from where it stopped, rather than starting again. Until a download has finished completely, you keep searching the previous copy — a half-downloaded register is never used.',
+      'Both Product Database screens now say, in one line, how many machines are on your device and when they were downloaded, with a Download again button.',
+      'If something is not on your device yet (a machine added in the last few hours), the app still asks the server when there is a signal. Uploading a Product Database file refreshes your own copy straight away; ↻ Refresh on the Product Database screen and 🧹 Clear Cache and Update do the same. Clear Cache and Update keeps your current copy until the new one has fully arrived.',
+      'Signing out removes the copy from the device.',
+      'Not on the device: Machine History and Product Database 2.0 — they combine machines with calls, visits and spares, which are not kept on the device, so they still need a connection.',
+    ],
+  },
+  {
+    version: '0.9.382',
+    date: '2026-09-29',
+    title: 'Dropdowns keep working with a weak signal; the product list lasts six hours on your device',
+    changes: [
+      'A WEAK SIGNAL NO LONGER EMPTIES A DROPDOWN. Every list — products, customers, complaints — is kept on your device. Until now, if the app tried to refresh one and the connection failed, it threw away the good list it already had and showed nothing. Now a failed refresh keeps what you had. For engineers in remote locations this is the difference between a slightly old list and no list at all.',
+      'THE PRODUCT LIST IS REFRESHED EVERY SIX HOURS, NOT ON EVERY SCREEN. Products change when a sale is loaded, not by the minute, so within six hours the list opens straight from your device with no network call — it works with no signal at all. After six hours it quietly refreshes the next time you need it.',
+      'If a product was added in the last six hours and you need it now, press 🧹 Clear Cache and Update — that fetches a fresh copy immediately.',
+      'Not covered yet: the serial number box still searches as you type, so it needs a connection.',
     ],
   },
   {

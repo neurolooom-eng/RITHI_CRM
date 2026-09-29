@@ -253,6 +253,9 @@ export interface Req {
   modules?: string[];
 }
 export const URS: Req[] = [
+  { id: 'URS-078', title: 'The register of machines is searchable with no signal, and the office can see who has it', risk: 'Medium',
+    text: 'The system shall keep a copy of the register of machines and of the customer register on each device a person signs in on, so that selecting a product, a serial and the customer it belongs to works on a weak or absent network connection. The copy shall be replaced only by a complete newer copy, never by a partial one, and shall state its age to the person using it. The system shall let an administrator see, for every person, which devices hold a copy, how many machines and customers each holds, when each copy was taken and the last failure to refresh it — including every person who has never reported a copy — so that an engineer about to travel without a usable copy can be found before the visit rather than during it.',
+    modules: ['/device-cache', '/request-registration', '/lookup'] },
   { id: 'URS-077', title: 'A stock report is complete, or it is not a report', risk: 'Medium',
     text: 'The system shall provide a Hand Stock Report of the stock held by each engineer, showing the movements the balance is composed of and not the balance alone. The system shall load every line of that report before permitting it to be exported. A stock figure is RECONCILED AGAINST, so a file cut short is not a shorter answer but a wrong one \u2014 parts read as absent and balances as short, with nothing in the file saying that rows were still arriving when it was written. The balance shall be derived from the recorded movements rather than stored, so the report and the register it is taken from cannot disagree.',
     modules: ['/handstock-report'],
@@ -475,6 +478,8 @@ export const URS: Req[] = [
 // ---- System / Functional Requirements -------------------------------------
 export interface FReq extends Req { urs: string[] }
 export const FRS: FReq[] = [
+  { id: 'FRS-092', urs: ['URS-078'], risk: 'Medium', title: 'Each device reports its own copy; the report lists everybody',
+    text: 'FRS-092.1 Each device shall record what it holds of the offline registers in `device_cache_status`, one row per person per device, upserted on (user_id, device_id). FRS-092.2 The person on that row shall be stamped by the database from the session, any value sent by the device being discarded. FRS-092.3 A device shall write only its own row, and a person shall read only their own rows unless they hold `mod:/device-cache`. FRS-092.4 `device_cache_report()` shall refuse a caller without `mod:/device-cache`, shall not be callable without signing in, and shall return every profile including those with no device reported. FRS-092.5 A device shall report after each download completes or fails and when its user signs out, and shall not re-send an unchanged report within six hours. RATIONALE: .2 because a report somebody else could file is a report nobody can rely on; .4 because the engineer most worth finding is the one with no copy anywhere, and a list of reports cannot show an absence. Proved by `supabase/tests/device_cache_status_test.sql`.' },
   { id: 'FRS-091', urs: ['URS-077'], title: 'The Hand Stock Report loads whole before it can be exported', risk: 'Medium',
     text: 'The Hand Stock Report reads `handstock_balance` \u2014 the same derived view the Hand Stock register reads, so the two cannot disagree \u2014 in pages of 1,000, which is the most a single API response can carry however large a range is asked for. It continues until a page returns FEWER rows than it asked for, that being the only end-of-data signal available: a full page says nothing about whether another exists. Each page is shown as it lands, and the row count carries a \u201C+\u201D until the last one is in. Every download control is disabled while rows are still arriving, and the writer refuses as well as the button. The file is named HandStock_dd-MMM-yyyy_HHmmss with the extension of the format chosen \u2014 the month NAMED, as every date in this system is, and the clock stripped of the colons a file name may not carry. The .csv carries dates as text, being all a CSV can carry; the .xlsx carries a number as a number and a date as a serial plus a format; the .xls is SpreadsheetML 2003, chosen over an HTML table so that it too keeps the types. Every workbook carries a second sheet stating its scope, its row count and the time it was taken, a file whose filter is not written down being one somebody later mistakes for the whole register. The export is recorded in the audit trail.',
     refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a77.5.8'] },
@@ -1046,6 +1051,17 @@ export type TestPhase = 'IQ' | 'OQ' | 'PQ';
  *  that has to be read on a screen. */
 export interface TestCase { id: string; phase: TestPhase; reqs: string[]; risk: Risk; objective: string; steps: string[]; expected: string; auto?: string }
 export const TESTS: TestCase[] = [
+  { id: 'OQ-80', phase: 'OQ', reqs: ['URS-078', 'FRS-092'], risk: 'Medium',
+    auto: 'supabase/tests/device_cache_status_test.sql',
+    objective: 'A device reports only its own copy, the report is limited to those holding its key, and it lists everybody including whoever has never reported.',
+    steps: [
+      'As an engineer, report a device while sending another person as its owner.',
+      'Report the same device again with a different machine count.',
+      'As the engineer, read the table, try to change another person\'s row, and run the report.',
+      'As an administrator, run the report.',
+      'As the not-signed-in role, run the report and read the table.',
+    ],
+    expected: 'The row belongs to the engineer, not the person sent; the second report updates the one row; the engineer sees only their own row, changes nothing of anyone else\'s and is refused the report; the administrator sees every person, one who never reported appearing with no device; the not-signed-in role is refused both.' },
   { id: 'OQ-79', phase: 'OQ', reqs: ['URS-077', 'FRS-091'], risk: 'Medium',
     auto: 'npm run check:ui',
     objective: 'A hand-stock export cannot be taken while rows are still arriving, and the file names and cell types are the ones specified.',

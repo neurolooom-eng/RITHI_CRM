@@ -34,7 +34,7 @@
 --   0233_installation_call_wording.sql
 --   0234_inst_call_is_a_call.sql
 --   0236_cover_policies_are_initplans.sql
---   0250_ownership_trigger_indexes.sql
+--   0252_ownership_trigger_indexes.sql
 --   0237_sale_fills_product_database.sql
 --   0238_machine_belongs_to_its_latest_owner.sql
 --   0240_ownership_transfer_timestamp.sql
@@ -1949,7 +1949,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0250_ownership_trigger_indexes.sql
+-- 0252_ownership_trigger_indexes.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -1971,7 +1971,7 @@ end $$;
 --   NEW NAMES, so `if not exists` guards nothing it should not: there is no
 --   older index of these names with another definition to be silently kept.
 --   Guarded by to_regclass so the file runs on a project without either table.
---   _status.sql row 192.
+--   _status.sql row 194.
 -- ===========================================================================
 
 do $$

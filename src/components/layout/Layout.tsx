@@ -10,6 +10,9 @@ import { useModuleCounts, countLabel } from '../../lib/counts';
 import { NotificationBell } from './NotificationBell';
 import './layout.css';
 import { RITHI_LOGO } from '../../lib/brand';
+import { watchMachineRegister } from '../../lib/machinestore';
+import { clearMasterCache } from '../../lib/masters';
+import { supabaseConfigured } from '../../lib/supabase';
 
 interface NavItem {
   to: string;
@@ -270,6 +273,9 @@ export const NAV: NavGroup[] = [
       // somebody look for a table in the wrong one.
       { to: '/report-mapping', label: 'Bulk Report Mapping', icon: '🧩', adminOnly: true },
       { to: '/data-export', label: 'Data Export', icon: '⬇️', adminOnly: true },
+      // WHICH DEVICES HOLD THE OFFLINE REGISTERS (0249) -- the user, 2026-09-29:
+      // "Build the cache status report for my desk."
+      { to: '/device-cache', label: 'Device Cache Status', icon: '📶', adminOnly: true },
       { to: '/pm-bulk-upload', label: 'PM Bulk Upload', icon: '⬆️', adminOnly: true },
       { to: '/admin-config', label: 'Admin Config', icon: '🛠️', adminOnly: true },
       { to: '/software-validation', label: 'Software Validation', icon: '🧪', adminOnly: true },
@@ -385,6 +391,13 @@ export function Layout({ children }: { children: ReactNode }) {
   };
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // THE MACHINE REGISTER ON THIS DEVICE (machinestore.ts): downloaded once the
+  // person is signed in, refreshed every six hours and whenever the signal or
+  // the app comes back. A no-op while the copy is fresh.
+  useEffect(() => {
+    if (user && supabaseConfigured()) watchMachineRegister();
+  }, [user]);
+
   // Persist the desktop collapse so it sticks across sessions.
   useEffect(() => {
     try { localStorage.setItem('rithi.sidebarCollapsed', collapsed ? '1' : '0'); } catch { /* ignore */ }
@@ -454,8 +467,36 @@ export function Layout({ children }: { children: ReactNode }) {
       Object.keys(localStorage).forEach((k) => {
         if (k.startsWith('rithi.cache.') || k.startsWith('rithi.sync.')) localStorage.removeItem(k);
       });
+      // THE DROPDOWN LISTS TOO (products, customers, complaints...). This button
+      // is the repair tool, and it never cleared them -- so a stored product list
+      // cut short on a phone survived every press of it, while the help said
+      // otherwise. The offline machine register and Party Master are NOT these:
+      // they are kept (machinestore.ts) and refresh on their own.
+      clearMasterCache();
       if ('caches' in window) { const keys = await caches.keys(); await Promise.all(keys.map((k) => caches.delete(k))); }
       if ('serviceWorker' in navigator) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map((r) => r.unregister())); }
+    } catch { /* best-effort */ }
+    const url = new URL(window.location.href);
+    url.searchParams.set('_r', String(Date.now()));
+    window.location.replace(url.toString());
+  };
+
+  // UPDATE NOW -- a new release is picked up by a reload that KEEPS the offline
+  // machine register and Party Master (the user, 2026-09-29). Every release gets
+  // new file names and there is no offline app-shell, so re-downloading twenty
+  // thousand machines was never what updating needed.
+  //
+  // THE SCREENS' OWN REMEMBERED LISTS ARE STILL CLEARED, exactly as Clear Cache
+  // does -- the user's caution: "I have a gut feeling that we might have some
+  // issues in other modules if we don't clear cache." Those are small (the last
+  // page a screen showed), a release CAN change their shape, and each screen
+  // re-fetches them in seconds. Only the two big registers are spared.
+  // "Clear Cache and Update" stays for when something is actually stuck.
+  const updateNow = () => {
+    try {
+      Object.keys(localStorage).forEach((k) => {
+        if (k.startsWith('rithi.cache.') || k.startsWith('rithi.sync.')) localStorage.removeItem(k);
+      });
     } catch { /* best-effort */ }
     const url = new URL(window.location.href);
     url.searchParams.set('_r', String(Date.now()));
@@ -493,8 +534,8 @@ export function Layout({ children }: { children: ReactNode }) {
               ? `A newer version (v${newBuild}) is out — this tab is still on v${__APP_VERSION__}.`
               : `An update is out — this tab is running an earlier build of v${__APP_VERSION__}.`}
           </span>
-          <button className="btn btn-sm" disabled={refreshing} onClick={() => void forceRefresh()}>
-            {refreshing ? 'Updating…' : '🧹 Clear Cache and Update'}
+          <button className="btn btn-sm btn-primary" onClick={updateNow} title="Reload into the new version. Keeps the machine and customer lists stored on this device for offline search.">
+            ⟳ Update now
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => setNewBuild(null)} title="Hide until the next check">✕</button>
         </div>

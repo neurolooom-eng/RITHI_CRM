@@ -110,6 +110,12 @@ export const MODULES: ModuleDef[] = [
   { path: '/pm-bulk-upload', label: 'PM Bulk Upload', admin: true },
   { path: '/bulk-uploads', label: 'Bulk Uploads', admin: true },
   { path: '/data-export', label: 'Data Export', admin: true },
+  // DEVICE CACHE STATUS -- administrators to begin with. `admin: true` keeps the
+  // key out of NON_ADMIN_MODULES and 0249 merges it into `app_roles` for admin
+  // and technical_support (row 114's property); the same key gates the ROWS
+  // (dcs_read, device_cache_report()), so ticking it for another role on Roles
+  // & Permissions opens both the screen and its data.
+  { path: '/device-cache', label: 'Device Cache Status', admin: true },
   { path: '/spare-requests', label: 'Spare Requests' },
   { path: '/spare-rm-approval', label: 'RM Approval' },
   { path: '/spare-dispatch', label: 'Pending Dispatch' },
@@ -570,6 +576,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/bulk-uploads', label: 'Bulk Uploads', actions: [] },
     { path: '/report-mapping', label: 'Bulk Report Mapping', actions: [] },
     { path: '/data-export', label: 'Data Export', actions: [] },
+    { path: '/device-cache', label: 'Device Cache Status', actions: [] },
     { path: '/pm-bulk-upload', label: 'PM Bulk Upload', actions: [] },
     { path: '/admin-config', label: 'Admin Config', actions: ['config.manage'] },
     { path: '/software-validation', label: 'Software Validation', actions: ['config.manage'] },

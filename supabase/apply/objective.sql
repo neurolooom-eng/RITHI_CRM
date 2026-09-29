@@ -28,7 +28,7 @@
 --   0140_evidence_product_details.sql
 --   0141_reliability_template.sql
 --   0142_objective_ffr_count.sql
---   0249_objective_evidence_tiebreak.sql
+--   0251_objective_evidence_tiebreak.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -4112,7 +4112,7 @@ comment on column public.quality_objectives.calc_key is
   'Which calculation produces this objective''s monthly figures, or '''' when the figure is typed. failure_rate_12m = failures on a product in the trailing 12 months over the installed base; open_rate_monthly = calls of a family registered in the period that were not solved by the cut-off; attended_within_days = calls attended inside a day limit; ffr_count_monthly = how many Field Failure Reports were registered in the period, counted by FFR number.';
 
 -- ------------------------------------------------------------------------
--- 0249_objective_evidence_tiebreak.sql
+-- 0251_objective_evidence_tiebreak.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -4133,7 +4133,7 @@ comment on column public.quality_objectives.calc_key is
 --   word -- NOT re-typed from an older file, which is how two guards here lost
 --   rules before. The FFR branch already ends in f.id and is untouched.
 --
---   `create or replace` keeps the grants 0142 set. _status.sql row 191.
+--   `create or replace` keeps the grants 0142 set. _status.sql row 193.
 -- ===========================================================================
 
 CREATE OR REPLACE FUNCTION public.objective_evidence(p_id bigint, p_month integer)

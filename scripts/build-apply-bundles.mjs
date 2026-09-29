@@ -230,6 +230,11 @@ const MODULES = {
             // grant above that could put a key on it. It takes ONE key off
             // ONE role, so it has to run once they have all had their say.
             '0180_zoho_readonly.sql',
+            // The machine/party/part WRITE policy asked once per query instead
+            // of once per row -- the 24.7-second machine download (2026-09-29).
+            // It ALTERS 0008's policies, so it lives with 0008 and before the
+            // mirror tail, which does not re-assert these three.
+            '0250_master_write_policy_once_per_query.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -451,7 +456,7 @@ const MODULES = {
              '0142_objective_ffr_count.sql',
              // After 0142, which it copies: objective_evidence with a tiebreaker
              // on four ORDER BYs and nothing else (finding 15).
-             '0249_objective_evidence_tiebreak.sql'],
+             '0251_objective_evidence_tiebreak.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -758,7 +763,7 @@ const MODULES = {
             // 4,000 transfers: 0238 took 304 s and 0240 52 s (4 s and 0.4 s
             // with the indexes), and the SQL editor gave up with "Failed to
             // fetch (api.supabase.com)" (2026-09-29). Finding 38.
-            '0250_ownership_trigger_indexes.sql',
+            '0252_ownership_trigger_indexes.sql',
             // AFTER 0234: it calls is_call_number(), which that file creates.
             '0237_sale_fills_product_database.sql',
             // AFTER 0237: it replaces that file's upsert so the party comes
@@ -937,6 +942,20 @@ const MODULES = {
     needs: ['isAdmin'],
     files: ['0227_data_export.sql', '0228_export_schedules.sql'],
   },
+  device_cache: {
+    title: 'Device Cache Status',
+    blurb: ['Administration -> Device Cache Status: which phones and laptops hold',
+            'the offline machine register and Party Master, how many rows, and',
+            'when each was downloaded -- as every device reports it.',
+            '',
+            'One table the devices write (their own row only, the person stamped',
+            'from the session), one report function the screen reads (every',
+            'profile, including anybody who has never reported), and the screen',
+            'key for admin and Technical Support. A module of its own so it is a',
+            'small file to run, not a replay of rbac.'],
+    needs: ['profiles', 'rbac'],
+    files: ['0249_device_cache_status.sql'],
+  },
   sys_columns: {
     title: 'System columns on every table',
     blurb: ['sys_id, sys_created_by, sys_created_on, sys_updated_by and',
@@ -1105,7 +1124,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'sys_columns', 'lockdown'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'device_cache', 'sys_columns', 'lockdown'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

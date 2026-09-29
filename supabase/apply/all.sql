@@ -55,6 +55,7 @@
 --   0171_stock_out_module.sql
 --   0172_user_signatures.sql
 --   0180_zoho_readonly.sql
+--   0250_master_write_policy_once_per_query.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
@@ -214,7 +215,7 @@
 --   0233_installation_call_wording.sql
 --   0234_inst_call_is_a_call.sql
 --   0236_cover_policies_are_initplans.sql
---   0250_ownership_trigger_indexes.sql
+--   0252_ownership_trigger_indexes.sql
 --   0237_sale_fills_product_database.sql
 --   0238_machine_belongs_to_its_latest_owner.sql
 --   0240_ownership_transfer_timestamp.sql
@@ -239,7 +240,7 @@
 --   0140_evidence_product_details.sql
 --   0141_reliability_template.sql
 --   0142_objective_ffr_count.sql
---   0249_objective_evidence_tiebreak.sql
+--   0251_objective_evidence_tiebreak.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0103_record_audit_not_bulk.sql
@@ -280,6 +281,7 @@
 --   0229_feedback_without_report.sql
 --   0227_data_export.sql
 --   0228_export_schedules.sql
+--   0249_device_cache_status.sql
 --   0244_sys_columns.sql
 --   0245_sys_columns_view_tail.sql
 --   0248_lock_down_internal_functions.sql
@@ -4264,6 +4266,76 @@ begin
 
   raise notice 'Zoho Migration: review.edit revoked. It can no longer write a Daily Call Review, so it can no longer raise a Field Failure Report.';
 end $zr$;
+
+-- ------------------------------------------------------------------------
+-- 0250_master_write_policy_once_per_query.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE MACHINE REGISTER AND THE PARTY MASTER: A PERMISSION ASKED ONCE PER
+-- QUERY, NOT ONCE PER ROW.
+--
+-- Reported 2026-09-29: a device downloading the machine register for a test
+-- engineer sat at "0 so far" for good, and even the administrator's download
+-- took about seven minutes for 11,000 machines. `_why_wont_the_machines_download.sql`
+-- on the live project measured the first 1,000 machines at 322 ms as the SQL
+-- editor and 24,687 ms as a signed-in user -- over the API's 20-second limit,
+-- so the request was cancelled every time and the device retried for ever.
+--
+-- THE CAUSE IS THE *WRITE* POLICY, NOT THE READ ONE. 0008 gives products,
+-- parties and parts two policies:
+--
+--     <t>_read   FOR SELECT  using (auth.role() = 'authenticated')
+--     <t>_write  FOR ALL     using (public.has_perm('masters.edit'))
+--
+-- `FOR ALL` INCLUDES SELECT, and Postgres ORs every SELECT policy together --
+-- so every read of these tables also asks has_perm('masters.edit'), and asks
+-- it FIRST. Written bare, that is a PER-ROW call, each one reading app_roles:
+-- 20,002 machines and 5,876 customers, on every page of every download. The
+-- plan shows it on the scan of each table:
+--
+--     Filter: (has_perm('masters.edit') OR ($0 = 'authenticated'))
+--
+-- WRAPPED IN A SCALAR SUBQUERY -- (select has_perm(...)) -- it becomes an
+-- InitPlan: worked out ONCE for the query and the answer reused, which is what
+-- `_fix_product_database_timeout.sql` did for the cover tables. Measured on a
+-- database loaded to the live sizes (20,002 machines, 5,876 parties, 17,689
+-- contract lines), as a signed-in user, first 1,000 machines of the view the
+-- device reads:
+--
+--     as written (bare)       ~920 ms
+--     wrapped                 11-17 ms
+--
+-- and the Party Master page 45 ms -> 1 ms. Wrapping the READ policy instead
+-- was tried first and changed nothing (~920 ms either way), which is how the
+-- write policy was found; the read policy is left exactly as it is.
+--
+-- NOBODY GAINS OR LOSES A ROW OR A WRITE. Same function, same argument, same
+-- USING and WITH CHECK -- has_perm('masters.edit') does not depend on the row,
+-- so asking it once gives the answer asking it 20,000 times gave.
+--
+-- `masters_write` is NOT here: 0067 dropped it and replaced it with per-list
+-- insert/update/delete policies.
+--
+-- GUARDED on each table and policy, so it is harmless on a project behind on
+-- other modules; ALTER POLICY rather than drop-and-create, so there is never a
+-- moment with no write policy at all.
+-- ===========================================================================
+
+do $$
+declare t text;
+begin
+  foreach t in array array['products', 'parties', 'parts'] loop
+    if to_regclass('public.' || t) is not null
+       and exists (select 1 from pg_policies
+                    where schemaname = 'public' and tablename = t and policyname = t || '_write') then
+      execute format(
+        'alter policy %I on public.%I using ((select public.has_perm(''masters.edit''))) '
+        || 'with check ((select public.has_perm(''masters.edit'')))',
+        t || '_write', t);
+    end if;
+  end loop;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0121_rbac_policy_tail.sql
@@ -26132,7 +26204,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0250_ownership_trigger_indexes.sql
+-- 0252_ownership_trigger_indexes.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -26154,7 +26226,7 @@ end $$;
 --   NEW NAMES, so `if not exists` guards nothing it should not: there is no
 --   older index of these names with another definition to be silently kept.
 --   Guarded by to_regclass so the file runs on a project without either table.
---   _status.sql row 192.
+--   _status.sql row 194.
 -- ===========================================================================
 
 do $$
@@ -31263,7 +31335,7 @@ comment on column public.quality_objectives.calc_key is
   'Which calculation produces this objective''s monthly figures, or '''' when the figure is typed. failure_rate_12m = failures on a product in the trailing 12 months over the installed base; open_rate_monthly = calls of a family registered in the period that were not solved by the cut-off; attended_within_days = calls attended inside a day limit; ffr_count_monthly = how many Field Failure Reports were registered in the period, counted by FFR number.';
 
 -- ------------------------------------------------------------------------
--- 0249_objective_evidence_tiebreak.sql
+-- 0251_objective_evidence_tiebreak.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -31284,7 +31356,7 @@ comment on column public.quality_objectives.calc_key is
 --   word -- NOT re-typed from an older file, which is how two guards here lost
 --   rules before. The FFR branch already ends in f.id and is untouched.
 --
---   `create or replace` keeps the grants 0142 set. _status.sql row 191.
+--   `create or replace` keeps the grants 0142 set. _status.sql row 193.
 -- ===========================================================================
 
 CREATE OR REPLACE FUNCTION public.objective_evidence(p_id bigint, p_month integer)
@@ -36713,6 +36785,184 @@ create trigger zz_export_schedule_guard
 -- ---- the screen's key ------------------------------------------------------
 -- No new module: the schedule lives on the Data Export screen, because it is
 -- the same act with a clock on it. `mod:/data-export` (0227) already governs it.
+
+-- ------------------------------------------------------------------------
+-- 0249_device_cache_status.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- WHICH PHONES AND LAPTOPS HOLD THE OFFLINE REGISTERS -- read from one desk.
+--
+--   The user, 2026-09-29: "Build the cache status report for my desk."
+--
+-- Since v0.9.383 every device keeps the machine register and (v0.9.384) the
+-- Party Master in its own browser storage, so it can search with no signal.
+-- That copy lives ON THE DEVICE and nothing in the database knew about it, so
+-- the only way to tell whether an engineer in the field had one was to look at
+-- their screen. Each device now REPORTS what it holds -- how many machines and
+-- customers, when each was downloaded, and the last refresh that failed -- and
+-- the administrator reads every device on one screen.
+--
+-- WHAT A ROW IS: one person on one device (a random id the browser keeps), so
+-- an engineer with a phone and a laptop is two rows, which is the truth -- each
+-- device has its own copy or none.
+--
+-- WHO WRITES IT: the device, for ITS OWN signed-in person only. `user_id` is
+-- STAMPED from the session and a caller-supplied value is DISCARDED (the
+-- 0113/0114 rule: refusing makes an honest client fail, discarding makes a
+-- buggy one harmless). The policies then only ever match the caller's own row.
+--
+-- WHO READS IT: the person themselves, and whoever holds the screen's module
+-- key `mod:/device-cache` -- administrators by `has_perm` (which is true for an
+-- admin and a super admin), Technical Support by the grant below, and any
+-- other role an administrator ticks on Roles & Permissions. The screen and the
+-- rows are gated by the SAME key, so the two cannot disagree.
+--
+-- WHAT IT HOLDS IS NOT SENSITIVE: counts, times, an error message and the
+-- browser's own description of itself. No machine, customer or search is
+-- reported.
+-- ===========================================================================
+
+create table if not exists public.device_cache_status (
+  id              bigint generated always as identity primary key,
+  user_id         uuid not null default auth.uid(),
+  device_id       text not null,
+  device_label    text not null default '',
+  user_agent      text not null default '',
+  app_version     text not null default '',
+  storage_ok      boolean not null default true,
+  machines        integer not null default 0,
+  machines_at     timestamptz,
+  machines_error  text not null default '',
+  customers       integer not null default 0,
+  customers_at    timestamptz,
+  customers_error text not null default '',
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+-- THE UPSERT TARGET: a plain unique index on two columns, no predicate and no
+-- expression, which is the only shape PostgREST can infer (check:upserts).
+create unique index if not exists device_cache_status_user_device
+  on public.device_cache_status (user_id, device_id);
+
+comment on table public.device_cache_status is
+  'One row per person per device: what that device holds of the offline machine register and Party Master, as the device last reported it (0249).';
+
+-- ---- stamped, never taken from the caller ---------------------------------
+create or replace function public.device_cache_status_stamp()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  new.user_id := auth.uid();
+  new.updated_at := now();
+  if tg_op = 'UPDATE' then new.created_at := old.created_at; end if;
+  return new;
+end $$;
+
+drop trigger if exists device_cache_status_stamp on public.device_cache_status;
+create trigger device_cache_status_stamp
+  before insert or update on public.device_cache_status
+  for each row execute function public.device_cache_status_stamp();
+
+-- ---- row-level security ----------------------------------------------------
+alter table public.device_cache_status enable row level security;
+
+drop policy if exists dcs_read on public.device_cache_status;
+create policy dcs_read on public.device_cache_status for select to authenticated
+  using (user_id = auth.uid() or public.has_perm('mod:/device-cache'));
+
+drop policy if exists dcs_insert on public.device_cache_status;
+create policy dcs_insert on public.device_cache_status for insert to authenticated
+  with check (user_id = auth.uid());
+
+-- AN UPSERT THAT FINDS ITS ROW IS AN UPDATE, and needs this policy -- the
+-- `feedback` lesson. Own row only, same audience as the insert.
+drop policy if exists dcs_update on public.device_cache_status;
+create policy dcs_update on public.device_cache_status for update to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- No delete policy: nothing in the app removes a row, and a device that is
+-- signed out reports an EMPTY copy rather than vanishing from the report.
+
+grant select, insert, update on public.device_cache_status to authenticated;
+revoke all on public.device_cache_status from anon;
+
+-- ---- the report ------------------------------------------------------------
+-- EVERYBODY, INCLUDING WHO HAS NEVER REPORTED. A person with no row is the
+-- answer the administrator most needs ("this engineer has no copy anywhere")
+-- and a read of the table alone cannot show an absence. `profiles` is readable
+-- only by its owner and user managers, so this is a DEFINER function with the
+-- permission test INSIDE it -- the rule for a definer function the app calls --
+-- and EXECUTE is withdrawn from the not-signed-in role.
+create or replace function public.device_cache_report()
+returns table (
+  user_id uuid, full_name text, email text, role text, active boolean,
+  device_id text, device_label text, user_agent text, app_version text, storage_ok boolean,
+  machines integer, machines_at timestamptz, machines_error text,
+  customers integer, customers_at timestamptz, customers_error text,
+  first_reported_at timestamptz, reported_at timestamptz
+)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.has_perm('mod:/device-cache') then
+    raise exception 'RBAC: the Device Cache Status report needs the mod:/device-cache permission.'
+      using errcode = '42501';
+  end if;
+  return query
+    select coalesce(p.id, d.user_id), coalesce(p.full_name, ''), coalesce(p.email, ''),
+           coalesce(p.role, ''), coalesce(p.active, true),
+           d.device_id, d.device_label, d.user_agent, d.app_version, d.storage_ok,
+           d.machines, d.machines_at, d.machines_error,
+           d.customers, d.customers_at, d.customers_error,
+           d.created_at, d.updated_at
+      from public.profiles p
+      full join public.device_cache_status d on d.user_id = p.id
+     order by coalesce(p.full_name, ''), d.updated_at desc nulls last;
+end $$;
+
+revoke execute on function public.device_cache_report() from public, anon;
+grant execute on function public.device_cache_report() to authenticated;
+
+-- ---- the screen's key reaches somebody -------------------------------------
+-- The 0241 pattern, word for word in intent: MERGED into `admin` and
+-- `technical_support` (row 114: Technical Support holds every module key the
+-- admin holds), never overwritten, and a role with ZERO permissions left alone.
+-- No other role is touched; grant it on Roles & Permissions if wanted.
+do $$
+declare n integer;
+begin
+  if to_regclass('public.app_roles') is null then
+    raise notice '0249: app_roles is missing -- run rbac.sql first. The key is not granted.';
+    return;
+  end if;
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (
+               select jsonb_array_elements_text(ar.permissions) as v
+               union
+               select 'mod:/device-cache' as v
+             ) u
+         ),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and ar.role in ('admin', 'technical_support')
+     and not (ar.permissions ? 'mod:/device-cache');
+  get diagnostics n = row_count;
+  raise notice '0249: % of 2 role(s) given mod:/device-cache (admin + technical_support)', n;
+end $$;
+
+-- ---- the five system columns (0244) -----------------------------------------
+-- A table created AFTER 0244 does not get them from it, and `_status.sql` row
+-- 187 then reads NO until somebody re-runs sys_columns.sql. So it attaches
+-- itself, through 0244's own helper -- guarded, because on a fresh apply this
+-- bundle runs before sys_columns (which then covers it anyway).
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.device_cache_status'::regclass);
+  end if;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0244_sys_columns.sql

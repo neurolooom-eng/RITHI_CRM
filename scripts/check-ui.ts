@@ -3069,9 +3069,19 @@ console.log('\n-- every Party->Product->Serial cascade reads the product registe
   // extra steps.
   const mst = readFileSync('src/lib/masters.ts', 'utf8');
   eq('master lists are cached in the browser and revalidated',
-    /const stored = readStored\(name\);/.test(mst)
-    && /if \(stored\) \{ setValues\(/.test(mst)
+    /const entry = readEntry\(name\);/.test(mst)
+    && /if \(entry\) \{\s*setValues\(/.test(mst)
     && /void load\(name\)\.then/.test(mst), true);
+  // AND A FAILED REFRESH KEEPS THE GOOD COPY (2026-09-29). The old hook put the
+  // failed fetch's empty list on screen in place of the stored one -- on a weak
+  // signal a phone flashed a good list for one frame and then offered nothing.
+  // The decision is afterRefresh() in mastercache.ts, tested by check:paging;
+  // this holds the hook to actually calling it rather than `v.length ? v : ...`.
+  eq('...and a failed refresh keeps the stored list rather than replacing it',
+    /afterRefresh\(entry\?\.values \?\? null, masterFailed\(name\) \? null : v\)/.test(mst)
+    && !/setValues\(v\.length \? v : fallback\)/.test(mst), true);
+  eq('...and a young product list is served with no network call',
+    /isFresh\(name, entry\.at, Date\.now\(\)\)[\s\S]{0,120}return;/.test(mst), true);
   // Every localStorage access guarded: a private window throws on the accessor
   // itself, and a form that will not open because a cache is unavailable is
   // worse than one that is slow.
@@ -4059,7 +4069,7 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
 
   // The serial search must span customers — narrowing it by party would put
   // the slow search back in front of the fast one.
-  const fn = /export async function sbSearchMachines[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
+  const fn = /async function serverSearchMachines[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
   // THE CUSTOMER FILTER IS OPTIONAL, AND THAT IS THE POINT.
   //
   // This began as "the machine search is never narrowed by customer", which
@@ -4283,7 +4293,7 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // …and the serial search is party + product.
   eq('and the serial search is narrowed by customer too',
     /sbSearchMachines\(it\.product, qq, 50, i > 0 \? lockedParty : ''\)/.test(rq), true);
-  const fn = /export async function sbSearchMachines[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
+  const fn = /async function serverSearchMachines[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
   eq('the search takes a customer and filters on equality',
     /if \(party\.trim\(\)\) q = q\.eq\('party_name', party\.trim\(\)\)/.test(fn), true);
   // Call 1 must NOT be narrowed — there is no customer yet, and narrowing it
@@ -9306,6 +9316,10 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   };
   const returnsRows = (st: string) => {
     const t = topLevel(st);
+    // PLUMBING IS NOT A GRID ANYONE READS. `select set_config(...)` carries a
+    // value between statements (a timing, the impersonated login); the report
+    // after it is the last result, which is the one the editor shows.
+    if (/^\s*select\s+set_config\b/.test(t)) return false;
     if (/^\s*(select|values|table)\b/.test(t)) return true;
     if (/^\s*with\b/.test(t)) return /\breturning\b/.test(t) || !/\b(update|insert|delete|merge)\b/.test(t);
     return /^\s*(update|insert|delete|merge)\b/.test(t) && /\breturning\b/.test(t);
@@ -9317,13 +9331,15 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   eq('#40 counter: a do block is no grid', grids("do $x$ begin perform 1; end $x$;"), 0);
   eq('#40 counter: a semicolon inside a string or comment splits nothing',
     grids("select 'a;b' as x -- c;d\n;"), 1);
+  eq('#40 counter: set_config plumbing before the report is not a grid',
+    grids("select set_config('x', '1', true); select 1;"), 1);
   eq('#40 counter: a CTE that updates without RETURNING is no grid',
     grids('with a as (select 1) update t set x = 1 from a;'), 0);
   const GRANDFATHERED = [
     '_admin_grant_check.sql', '_dedupe_part_product_keys.sql', '_load_check.sql',
     '_move_blank_status_visits.sql', '_party_name_normalise.sql', '_party_search_diagnose.sql',
     '_reassign_spare_engineer.sql', '_registered_by_check.sql', '_reset_for_production.sql',
-    '_stray_cover_rows.sql', '_why_is_it_empty_2.sql', '_yearly_consumption_check.sql',
+    '_stray_cover_rows.sql', '_yearly_consumption_check.sql',
     // Landed on main from another session the same day this check did; its
     // header numbers its grids 0-3 for running one at a time.
     '_which_products_are_missing.sql',
@@ -9342,6 +9358,60 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   // list stops meaning anything.
   eq('#40 every grandfathered file still needs to be', GRANDFATHERED.filter((f) =>
     existsSync(dir + f) && grids(readFileSync(dir + f, 'utf8')) <= 1), []);
+}
+
+// THE MACHINE REGISTER ON THE DEVICE (2026-09-29). Every Product Database
+// search a picker or the register screen makes asks the device copy FIRST, and
+// the copy is wired to the places that must refresh or clear it. A reader that
+// quietly went back to the server alone would still work -- until the signal
+// dropped, which is the only moment this exists for.
+console.log('-- the machine register is searched on the device --');
+{
+  const rd = (f: string) => readFileSync(f, 'utf8');
+  const sbx = rd('src/lib/supabase.ts');
+  for (const fn of ['sbSearchProductParties', 'sbListPartyProducts', 'sbListProductNames', 'sbListProductSerials',
+    'sbListPartyItems', 'sbProductBySerial', 'sbSearchProducts', 'sbSearchMachines']) {
+    const body = new RegExp(`export async function ${fn}\\([\\s\\S]*?\\n\\}`).exec(sbx)?.[0] ?? '';
+    eq(`${fn} asks the device copy first`, /await localMachines\(\)/.test(body), true);
+  }
+  for (const fn of ['sbPartyInfo', 'sbPartyServiceEngineer', 'sbSearchParties', 'sbKycByParties']) {
+    const body = new RegExp(`export async function ${fn}\\([\\s\\S]*?\\n\\}`).exec(sbx)?.[0] ?? '';
+    eq(`${fn} asks the device's Party Master first`, /await localParties\(\)/.test(body), true);
+  }
+  eq('a Party Master edit re-downloads the copy', /update\(patch\)\.eq\('id', id\);\s*[\s\S]{0,200}refreshPartyRegister\(\{ force: true \}\)/.test(sbx), true);
+  eq('EVERY COLUMN is downloaded', /select\('\*'\)\.gt\('id', afterId\)/.test(rd('src/lib/machinestore.ts')), true);
+  eq('a Product Database or Party Master upload re-downloads the copy',
+    /written && \(table === 'products' \|\| table === 'parties'\)\) void refreshMachineRegister\(\{ force: true \}\)/.test(sbx), true);
+  eq('signing out wipes the copy', /export async function sbSignOut[\s\S]{0,200}await clearMachineRegister\(\)/.test(sbx), true);
+  const lay = rd('src/components/layout/Layout.tsx');
+  eq('the shell starts the download once somebody is signed in', /if \(user && supabaseConfigured\(\)\) watchMachineRegister\(\)/.test(lay), true);
+  // A RELEASE MUST NOT COST A DOWNLOAD (2026-09-29): Clear Cache and Update
+  // neither wipes nor re-downloads the offline registers, and the new-version
+  // banner offers a plain reload.
+  eq('Clear Cache and Update clears the dropdown lists -- it never did, and the help said it did',
+    /const forceRefresh = async[\s\S]{0,700}clearMasterCache\(\)/.test(lay), true);
+  eq('Clear Cache and Update leaves the offline registers alone',
+    !/requestMachineRefresh|clearMachineRegister|refreshMachineRegister/.test(lay), true);
+  eq('the new-version banner offers Update now, which leaves the offline registers alone',
+    /onClick=\{updateNow\}/.test(lay) && /const updateNow = \(\) => \{(?:(?!MachineRegister|indexedDB|rithi\.master)[\s\S])*?\n  \};/.test(lay), true);
+  eq('...and still clears the screens\' remembered lists, as Clear Cache does',
+    /const updateNow = \(\) => \{[\s\S]{0,300}rithi\.cache\.[\s\S]{0,60}rithi\.sync\./.test(lay), true);
+  const store = rd('src/lib/machinestore.ts');
+  eq('only a COMPLETE download replaces the copy', /if \(!r\.complete\) \{[\s\S]{0,200}return;\s*\}[\s\S]*st\.put\(/.test(store), true);
+  eq('...and it is refreshed every six hours', /MACHINE_REFRESH_MS = 6 \* 60 \* 60 \* 1000/.test(store), true);
+  for (const m of ['src/modules/Lookup.tsx', 'src/modules/ProductMaster.tsx', 'src/modules/RequestCallRegistration.tsx'])
+    eq(`${m} says what the device holds`, /<MachineRegisterNote \/>/.test(rd(m)), true);
+}
+
+// A STANDARD COMPLAINT CARRIES ITS PRODUCTS (2026-09-29): a multi-select on the
+// complaint list only, stored as extra.products, and a save keeps the rest of
+// the entry's details.
+console.log('-- the Standard Complaint master maps products --');
+{
+  const mlt = readFileSync('src/modules/MasterListTable.tsx', 'utf8');
+  eq('only the complaint list gets the Products field', /const byProduct = list\.key === 'complaint';/.test(mlt), true);
+  eq('...chosen with the multi-select, empty meaning all products', /<MultiPick[^>]*allLabel="All products"/.test(mlt), true);
+  eq('...and saving it keeps the rest of the entry', /const extra = \{ \.\.\.\(item\.extra \?\? \{\}\), products \}/.test(mlt), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

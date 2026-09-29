@@ -66,32 +66,168 @@ up)_
 
 ---
 
-## 2026-09-29 — "Today" is the local day; dates on screen per R2/R3 (v0.9.382, branch only)
+## 2026-09-29 — "Today" is the local day; dates on screen per R2/R3 (v0.9.394)
 
-⏳ **On `claude/usage-k7slq0`, NOT merged** — the user asked to hold `main`
-while another branch fixes something critical. Front end only, no SQL.
+Held on the branch while another branch fixed something critical, then
+merged at the user's word. Front end only, no SQL.
 - `todayLocal()` replaces every UTC "today" (`toISOString().slice(0, 10)`),
   which named yesterday from 00:00 to 05:29 IST.
 - Six screens now show dates as `dd-MMM-yyyy [HH:mm:ss]`.
 - ✅ Delivery Challan / Declaration KEEP `dd-mm-yyyy` (the user, 2026-09-29).
 - ✅ `sales_contracts.sql` timed out on live ("Failed to fetch"): 0238/0240
-  rewrote every machine through an unindexed lookup — 361 s measured. 0250's
-  indexes now run first in the bundle: 7 s on the same data.
+  rewrote every machine through an unindexed lookup — 361 s measured. 0252's
+  indexes (0250 until main took that number) now run first in the bundle: 7 s on the same data.
 
-## 2026-09-26 — Module review, batch 5: dates in downloads, honest call edits (v0.9.382)
+## 2026-09-26 — Module review, batch 5: dates in downloads, honest call edits (v0.9.394)
 
 - ✅ **7 / R2 / R3 (downloads)**: `buildXlsx` shapes every body cell; `csvExport`
   formats date values. Front end, live on merge.
 - ✅ **32 (rest)** and **40** — front end and hand-run files, live on merge.
   **40b** (12 more multi-grid probes) is open and listed in `check:ui`.
 - ⏳ **SQL to run**, each proved NO-before / yes-after on `_status.sql`:
-  - `objective.sql` — **0249**, objective evidence tiebreakers (row 191, finding 15);
-  - `sales_contracts.sql` — **0250**, ownership trigger indexes (row 192,
+  - `objective.sql` — **0251**, objective evidence tiebreakers (row 193, finding 15);
+  - `sales_contracts.sql` — **0252**, ownership trigger indexes (row 194,
     finding 38; 500 transfers 15.6 s → 0.57 s measured);
   - `sys_columns.sql` — **0245** regenerated with the honest calls update
-    (row 193, finding 48). 0114 carries the same generator, so
+    (row 195, finding 48). 0114 carries the same generator, so
     `call_requests.sql` restores it too.
 - ⏳ `_pm_call_numbers.sql` still cut off; needs the rest of the user's list.
+
+## 2026-09-29 — Standard Complaint mapped to products (v0.9.390) — CLIENT ONLY, no SQL
+
+The user: *"In Standard Complaint Master, I want a Product Field — should be a
+Multi Select, meaning the Complaint can be mapped to more than one Product.
+Also a provision to map the Complaint to all Products."*
+
+- ✅ `masters.extra.products` (a list), edited with `MultiPick` on the complaint
+  list only; EMPTY = ALL PRODUCTS, which is also what every existing complaint
+  reads as. `src/lib/complaints.ts` holds the rule (`complaintAppliesTo`);
+  `check:paging` + `check:ui` pin it. No migration: `extra` is jsonb, and the
+  masters unique key reads `extra->>'product'` (singular), so a mapping never
+  splits one complaint into several rows.
+- ⏳ **ASKED, NOT BUILT: should the Standard Complaint picker on the call
+  forms offer only the complaints mapped to the call's product?** The mapping
+  does nothing on the forms until that is decided.
+- ✅ **0.9.391 — the mapping by upload.** The user: *"If I re-upload masters
+  with Product Details, will it update?"* It would have, badly: a file with no
+  Products column replaced `extra` wholesale and reset every mapping to All,
+  a Products column landed as text under its own heading, and a heading
+  spelled `product` set the DCCR key (`product_key`, part of the unique key)
+  and DUPLICATED every complaint. `UploadDef.finish` +
+  `applyProductsFromFile()`: heading present → it is the mapping (blank/"All"
+  = all); heading absent → `extra` not sent, so the upsert leaves it alone.
+  Other extra columns are not kept on the complaint list. `check:uploads` (5,
+  mutation-tested).
+- ✅ **0.9.392 — matched by Key, never renamed.** The user: *"Map it per Key --
+  No need to update the Complaint Name at any point in time. It should update
+  only the Product Details; if the Complaint Name is absent then add it as a
+  New Complaint."* Export carries `Key` (= `masters.id`); `prepare:
+  'complaint-keys'` reads the list and `planComplaintKeys()` puts the STORED
+  name back on every matched row (by Key, else by name ignoring case), so the
+  upsert only ever updates `extra.products`; unknown Keys are held back.
+  `check:uploads` +11 (mutation-tested).
+- ✅ **0.9.393 — RAJU's phone offered 13 products of 44** (alphabetical, cut
+  short: the pre-0.9.381 prefix bug), while Device Cache Status showed his only
+  REPORTING device as "Linux · Chrome", v0.9.392, 19,266 machines. So the phone
+  is most likely on an OLD build (<0.9.388 does not report) or holds a list an
+  old build stored -- and 0.9.382 trusted a stored product list for six hours.
+  STORE_VERSION bumped to drop every stored dropdown list once; and
+  forceRefresh now calls clearMasterCache() -- **Clear Cache and Update never
+  cleared `rithi.master.*`**, while 0.9.382's changelog and the in-app help
+  said it fetched a fresh product list. That claim was false for a week.
+- ⏳ **Reported: "Unable to upload with Product List" on v0.9.391 (651 rows
+  shaped correctly, the write failed). NOT reproduced: the same upsert as an
+  administrator on a database built from every migration succeeds. Waiting for
+  the message shown after Upload.
+
+---
+
+## 2026-09-29 — The whole machine register on every device (v0.9.381–0.9.384) — CLIENT ONLY, no SQL
+
+The user: *"Remote location = Weak network signal and possible frequent
+disconnection. Whole machine register on every phone / laptop as a cached data.
+Search every thing relevant to Product Database from cached data."*
+
+- ✅ **0.9.381** — the product list could come back as an alphabetical PREFIX
+  (26 of 44, ending MONNAL T75, no VEGA) when one page of the walk failed.
+  `distinctValues()` retries a page and THROWS rather than returning a prefix.
+  Confirmed with the user's own numbers that there is NO user-based filtering
+  (`products_read` = authenticated).
+- ✅ **0.9.382** — a failed or empty refresh keeps the stored dropdown list;
+  the product list is fresh for six hours with no network call.
+- ✅ **0.9.383** — `machinestore.ts` keeps the whole `product_database` view in
+  IndexedDB, per signed-in user; `machinecache.ts` answers all eight Product
+  Database readers from it with the server's own rules (`check:paging`, 24
+  new assertions, mutation-tested; `check:ui` pins the wiring). Download is
+  KEYSET by id, resumes after a drop, and only a COMPLETE download replaces
+  the copy. Refresh: every six hours, on `online`, on returning to the app, on
+  a `products` upload, on ↻ Refresh / Download again / Clear Cache and Update
+  (which keeps the old copy until the new one lands). Wiped on sign-out.
+- ✅ **0.9.384** — the user: *"keep all columns in the cache"*, and the Call
+  Request flow (product → serial → customer details) cache-first, server on a
+  miss. The device copy now keeps EVERY column of `product_database` (was the
+  33 screen headings) and a second register, the whole `parties` table.
+  `sbPartyInfo`, `sbPartyServiceEngineer`, `sbSearchParties` and
+  `sbKycByParties` read it first. A party edit or a `parties` upload refreshes
+  it. The Party Master SCREEN (`queryParties`) still reads the server, since it
+  is where parties are edited.
+- ✅ **0.9.385–0.9.386 — why a test engineer's machine download never started.**
+  `_why_wont_the_machines_download.sql` on the live project: the first 1,000
+  machines took **24,687 ms** as a signed-in user and 322 ms in the SQL editor,
+  against a 20 s API limit, so every page was cancelled. Cause: 0008's
+  `products_write` / `parties_write` / `parts_write` are `FOR ALL`, so they
+  apply to READS too, and `has_perm('masters.edit')` was bare — asked once
+  per ROW. **0250** wraps it `(select has_perm(...))`: ~920 ms → 11-17 ms at
+  live size. Wrapping the READ policy was tried first and changed nothing.
+  ⏳ **User to run** `supabase/migrations/0250_master_write_policy_once_per_query.sql`;
+  `_status.sql` row 191.
+- ✅ `_status.sql` stopped dead with `function "public.upsert_product_from_sale(bigint)"
+  does not exist` (row 182): a literal `'…'::regprocedure` is resolved before
+  the `to_regprocedure(...) is not null` guard beside it. All 30 literal
+  `::regclass` casts and that one became `to_regclass()` / `to_regprocedure()`.
+  Rows naming a TABLE directly (`from public.quality_objectives`) still error if
+  the whole table is absent — not fixed.
+- ✅ **Confirmed on the live project after 0250**: the test engineer's device
+  downloaded all **19,266 machines** and 5,876 customers.
+- ✅ **0.9.387** — one walk stopped at "machine ids out of order after 4375"
+  and the next downloaded everything, so the cause is NOT established. The
+  same id twice is now kept once and counted instead of stopping the walk; a
+  DECREASING id still stops it. `_why_is_a_machine_listed_twice.sql` says
+  whether the view doubles any machine on live data (not yet run).
+- ✅ **0.9.388 — Device Cache Status** (`/device-cache`, the user: *"Build the
+  cache status report for my desk"*). 0249: `device_cache_status` (one row per
+  person per device, person stamped by trigger, own-row insert/update, read by
+  owner or `mod:/device-cache`), `device_cache_report()` (definer, permission
+  checked inside, anon revoked, every profile incl. never-reported), key merged
+  into admin + technical_support; own bundle `device_cache.sql`; `_status.sql`
+  row 192; suite `device_cache_status_test` (10 checks). Devices report after
+  each download and on sign-out, unchanged reports throttled to one per 6 h.
+  URS-078 / FRS-092 / OQ-80.
+  ⏳ **User to run** `supabase/apply/device_cache.sql`.
+- ✅ **0.9.389 — updating the app and refreshing the data are separate.** The
+  user: *"Since I am constantly working on Dev, invariably I ask the user to
+  Clear Cache and Update. Will that not defeat the purpose?"* Clear Cache and
+  Update no longer forces the registers to re-download; the banner's new
+  **Update now** reloads and clears the screens' remembered lists
+  (`rithi.cache.*`, `rithi.sync.*`) but not the offline registers. A release
+  that changes what a register HOLDS bumps `VERSION` in `machinestore.ts`.
+  ⏳ **MONITOR** (the user: *"I have a gut feeling that we might have some
+  issues in other modules if we don't clear cache"*). What Update now does NOT
+  clear, beyond the registers: the dropdown lists (`rithi.master.*`, which
+  Clear Cache never cleared either), the Cache Storage and any service worker
+  (the app registers none). If a screen shows stale or oddly-shaped data after a
+  release and Clear Cache fixes it, that key belongs in Update now's list.
+  Device Cache Status's App version column shows who has updated.
+- ⏳ **Not measured**: the download size on the live register. Nothing here
+  holds the data. The status line reports the machine count; the size is the
+  next thing to ask for if phones struggle.
+- ⏳ **Still server-only**: Machine History and Product Database 2.0 (they join
+  calls, visits and spares).
+- ⏳ **Still unknown**: why the primary product read failed for some sessions
+  in the first place — grid 0 of `_which_products_are_missing.sql` is with the
+  user.
+
+---
 
 ## 2026-09-26 — Module review, batch 4: rows that could be missed or doubled (v0.9.380)
 

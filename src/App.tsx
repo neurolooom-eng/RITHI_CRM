@@ -43,6 +43,7 @@ import { KpiAnalytics } from './modules/KpiAnalytics';
 import { Objective } from './modules/Objective';
 import { MachineHistory } from './modules/MachineHistory';
 import { SolvedWithoutReport } from './modules/SolvedWithoutReport';
+import { DeviceCacheStatus } from './modules/DeviceCacheStatus';
 import { HandStockReport } from './modules/HandStockReport';
 import { FeedbackWithoutReport } from './modules/FeedbackWithoutReport';
 import { ReportsHub } from './modules/ReportsHub';
@@ -180,6 +181,7 @@ function Shell() {
         <Route path="/exports/:tab" element={<ReportsHub />} />
         <Route path="/indoor" element={<IndoorService />} />
         <Route path="/missing-visit-reports" element={<SolvedWithoutReport />} />
+        <Route path="/device-cache" element={<DeviceCacheStatus />} />
         <Route path="/handstock-report" element={<HandStockReport />} />
         <Route path="/feedback-without-report" element={<FeedbackWithoutReport />} />
         <Route path="/tracker" element={<Tracker />} />

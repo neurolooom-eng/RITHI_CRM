@@ -46,6 +46,15 @@ different totals. An empty register usually means access, not emptiness.
 - **Product & Party Search** `/lookup` — find a machine or customer and see
   everything about it. The party list comes from the machines on record, so every
   customer offered has something to find.
+  > **It searches the copies of the machine register and the Party Master kept
+  > on your device** (every column of both), so it
+  > works with a weak or no signal. The copy is refreshed every six hours and when
+  > the signal returns; the line under the title says how many machines it holds
+  > and when it was downloaded. A machine added in the last few hours: press
+  > **Download again** there (or ↻ Refresh on the Product Database screen).
+  > **🧹 Clear Cache and Update does not re-download it**, and neither does
+  > **⟳ Update now** on the new-version banner — updating the app and refreshing
+  > the data are separate on purpose, so a new release costs nobody a download.
 - **Spare Insights** `/spare-insights` — consumption over a window, five ways.
   Both ends of the window count; voided lines do not; an uncategorised part shows
   as Unclassified rather than guessed at.
@@ -55,6 +64,9 @@ different totals. An empty register usually means access, not emptiness.
 - **Request Registration** `/request-registration` — **the machine names the
   customer**: search the serial first and the customer follows. An installation is
   the exception, since the machine may not exist yet.
+  > Product, serial and the customer's details all come from the copies kept on
+  > your device first, and from the server only for something the device does
+  > not have yet — so the form works on a weak signal.
 - **Pending Registrations** `/pending-registrations` — the Hotline queue.
   Registering one issues the UCN and files the call.
   > The call is filed to the Hotline desk, but the system separately records *who
@@ -85,6 +97,14 @@ restored) or **closed without a visit**; neither deletes anything.
   heading row even under a letterhead, reads tab-separated files, and lists what
   it kept and what it held back. Unrecognised columns are **kept on the row**
   where the register allows it.
+- **Device Cache Status** `/device-cache` — which phones and laptops hold the
+  machine register and Party Master for offline search: one row per person per
+  device, how many machines and customers it holds, when each was downloaded and
+  the last failure. Everybody is listed, including whoever has **never
+  reported** — the engineer worth chasing before they travel. A device reports
+  after each download and on sign-out, so one switched off shows its **last
+  report**; read *Last reported*. Administrators and Technical Support to begin
+  with; grant `Device Cache Status` on Roles & Permissions for anyone else.
 - **Data Export** `/data-export` — tick the tables you want and download them as
   one ZIP with a CSV per table. **The export runs as you** — it holds exactly the
   rows you are entitled to see, which is what makes it safe to have on a menu.
@@ -643,6 +663,19 @@ typed into a form that reads it.
   **per list**.
   > A value in use is **deactivated**, not deleted, so records that used it keep
   > reading correctly.
+  > **Standard Complaint carries a Products column.** Tick the products a
+  > complaint applies to — as many as it needs — or leave it empty for **all
+  > products**. Every complaint that existed before this reads as all products,
+  > so nothing stopped being offered. Press ✎ on a row to change it.
+  > **By upload** (Bulk Uploads → Master Value Lists → Standard Complaint): add a
+  > **Products** column — several products separated by commas, or blank /
+  > `All` for all products. A file **without** a Products column updates the
+  > complaints and leaves every product mapping exactly as it is.
+  > **The upload never renames a complaint.** Export CSV carries a **Key**; a
+  > row with a Key updates that complaint's Products only, whatever the name
+  > column says. A row without a Key updates the complaint of that name
+  > (upper/lower case ignored), or is **added** if the list has no such name. A
+  > Key that matches nothing is held back and named.
 - **Service Manuals** `/service-manuals` — indexed by product, so a call shows the
   right ones.
 - **QMS Documents** `/qms` — with number and revision.

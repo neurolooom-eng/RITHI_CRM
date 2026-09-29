@@ -71,6 +71,9 @@ export function supabaseConfigured(): boolean {
 // is the only way it can be TESTED: this file reads `import.meta.env` at load
 // and cannot be imported by a node script at all.
 import { allRows, distinctValues, PG_PAGE } from './paging';
+import { localMachines, localParties, refreshMachineRegister, refreshPartyRegister, clearMachineRegister } from './machinestore';
+import * as mc from './machinecache';
+import { planComplaintKeys, type ExistingComplaint } from './complaints';
 import type { LoadedReport, ConvertWrite } from './reportMapping';
 export { allRows, PG_PAGE };
 
@@ -846,6 +849,11 @@ export async function sbPartyServiceEngineer(party: string): Promise<string> {
   const name = (party ?? '').trim();
   if (!name) return '';
   const c = getSupabase(); if (!c) return '';
+  // THE PARTY MASTER ON THIS DEVICE FIRST (machinestore.ts); the server only
+  // for a customer the copy does not have.
+  const local = await localParties();
+  const hit = local ? mc.partyByName(local, name) : undefined;
+  if (hit) return String(hit.service_engineer ?? '').trim();
   const { data, error } = await c.from('parties')
     .select('service_engineer').eq('name_key', name.toLowerCase()).maybeSingle();
   if (error || !data) return '';
@@ -853,7 +861,11 @@ export async function sbPartyServiceEngineer(party: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// THE CUSTOMER LIST IS SEARCHED, NEVER DOWNLOADED.
+// THE CUSTOMER LIST IS SEARCHED, NEVER DOWNLOADED -- ON THE SERVER. Superseded
+// on 2026-09-29 for the reading side: the whole Party Master is now kept on the
+// device (machinestore.ts), downloaded in the BACKGROUND and never before the
+// field works, so the eight-second wait below cannot come back -- until the
+// copy has arrived, the server search here is what answers.
 //
 // It used to be downloaded whole — `product_party_names` paged a thousand rows
 // at a time — and cached in the browser. That was still the wrong shape: three
@@ -914,6 +926,10 @@ export async function sbPartyServiceEngineer(party: string): Promise<string> {
 const PARTY_SCAN_CAP = 1000;
 export async function sbSearchProductParties(query: string, limit = 50): Promise<string[]> {
   const c = getSupabase(); if (!c) return [];
+  // THE COPY ON THIS DEVICE FIRST (machinestore.ts) -- the user's rule for a
+  // weak signal. It sees every machine, so it is never shorter than the server.
+  const local = await localMachines();
+  if (local) return mc.searchProductParties(local, query, limit);
   const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
   let q = c.from('products').select('party_name').limit(PARTY_SCAN_CAP);
   // Ordering an unfiltered read walks the btree in order and stops at the cap;
@@ -939,6 +955,16 @@ export async function sbSearchProductParties(query: string, limit = 50): Promise
 // The maintained Party Master, searched the same way — for an INSTALLATION,
 // where the customer may have no machine yet and so cannot be in the register.
 export async function sbSearchParties(query: string, limit = 50): Promise<string[]> {
+  const c = getSupabase(); if (!c) return [];
+  const local = await localParties();
+  if (local) {
+    const hit = mc.searchPartyMaster(local, query, limit);
+    if (hit.length || !query.trim()) return hit;
+    try { return await serverSearchParties(query, limit); } catch { return hit; }
+  }
+  return serverSearchParties(query, limit);
+}
+async function serverSearchParties(query: string, limit = 50): Promise<string[]> {
   const c = getSupabase(); if (!c) return [];
   let q = c.from('parties').select('party_name').order('party_name').limit(limit);
   const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
@@ -1036,6 +1062,9 @@ export interface PartyPatch {
  *  them could sign somebody else's name to a verification. */
 export async function updateParty(id: number, patch: PartyPatch): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('parties').update(patch).eq('id', id);
+  // An edit here re-downloads this device's Party Master, so the next Call
+  // Request fills what was just saved rather than a copy up to six hours old.
+  if (!error) void refreshPartyRegister({ force: true });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
@@ -1226,6 +1255,17 @@ async function partyRows<T>(read: (exact: boolean) => Promise<T[]>): Promise<T[]
 }
 
 export async function sbListPartyProducts(party: string): Promise<string[]> {
+  const local = await localMachines();
+  if (local) {
+    const hit = mc.partyProducts(local, party);
+    if (hit.length) return hit;
+    // NOTHING ON THE DEVICE may only mean a machine added in the last six hours
+    // -- so ask the server, and if there is no signal, the device's answer stands.
+    try { return await serverPartyProducts(party); } catch { return hit; }
+  }
+  return serverPartyProducts(party);
+}
+async function serverPartyProducts(party: string): Promise<string[]> {
   // PAGED: `allRows` throws on the first failing page, so there is no error to
   // unpack here.
   const data = await partyRows<{ item_name: string | null; party_name: string | null }>((exact) =>
@@ -1429,6 +1469,8 @@ export async function sbListEngineerChanges(uid: string): Promise<EngineerChange
 // screen without a list. (A merged migration is not an applied one.)
 export interface ProductName { name: string; machines: number }
 export async function sbListProductNames(): Promise<ProductName[]> {
+  const local = await localMachines();
+  if (local && local.length) return mc.productNames(local);
   const c = must();
   const { data, error } = await c.from('product_register_names').select('item_name,machines').order('item_name');
   if (!error) {
@@ -1449,6 +1491,15 @@ export async function sbListProductNames(): Promise<ProductName[]> {
 
 // The serials of one product — an equality filter, so 0052's btree serves it.
 export async function sbListProductSerials(product: string): Promise<string[]> {
+  const local = await localMachines();
+  if (local) {
+    const hit = mc.productSerials(local, product);
+    if (hit.length) return hit;
+    try { return await serverProductSerials(product); } catch { return hit; }
+  }
+  return serverProductSerials(product);
+}
+async function serverProductSerials(product: string): Promise<string[]> {
   // PAGED. This is the one that was reported: ORION-G has 2,547 machines and
   // the picker offered 1,000 of them, so a real serial read as "Nothing
   // matches". Ordered by `id` so the pages cannot overlap.
@@ -1459,6 +1510,15 @@ export async function sbListProductSerials(product: string): Promise<string[]> {
 }
 
 export async function sbListPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
+  const local = await localMachines();
+  if (local) {
+    const hit = mc.partyItems(local, party, product);
+    if (hit.length) return hit;
+    try { return await serverPartyItems(party, product); } catch { return hit; }
+  }
+  return serverPartyItems(party, product);
+}
+async function serverPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
   // PAGED: a hospital group can hold more than a thousand machines, and the
   // screen that lists "everything they have" is the last place to stop at one.
   const data = await partyRows<Record<string, unknown>>((exact) =>
@@ -1512,6 +1572,18 @@ const dbMachineKey = (product: unknown, serial: unknown): string =>
 export async function sbProductBySerial(serial: string, product = ''): Promise<Record<string, unknown> | null> {
   const key = String(serial ?? '').trim().toLowerCase();
   if (!key) return null;
+  // `undefined` from the device means NOT THERE; `null` means there but
+  // ambiguous, which is an answer -- the server would say the same.
+  const local = await localMachines();
+  if (local) {
+    const hit = mc.bySerial(local, serial, product);
+    if (hit !== undefined) return hit;
+    try { return await serverProductBySerial(serial, product); } catch { return null; }
+  }
+  return serverProductBySerial(serial, product);
+}
+async function serverProductBySerial(serial: string, product = ''): Promise<Record<string, unknown> | null> {
+  const key = String(serial ?? '').trim().toLowerCase();
 
   if (String(product ?? '').trim()) {
     const { data, error } = await must().from('product_database').select('*')
@@ -1540,6 +1612,12 @@ export async function sbProductBySerial(serial: string, product = ''): Promise<R
 // goes to the table, which is untouched.
 // ---------------------------------------------------------------------------
 export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string; status?: string; exact?: boolean }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
+  // THE REGISTER SCREEN SEARCHES THE DEVICE TOO, in the same order (newest
+  // first, id as the tiebreak) and with the same filters. Its Refresh button
+  // re-downloads the copy, so a reload that has just been uploaded is one tap
+  // away rather than six hours.
+  const local = await localMachines();
+  if (local) return mc.searchProducts(local, filters, limit, offset);
   // NEWEST ENTRIES FIRST, AND THIS IS A CORRECTNESS FIX BEFORE IT IS A
   // PREFERENCE (the user, 2026-09-25: "Always show sorted date - Newest
   // entries first"). This read PAGED 200 AT A TIME WITH NO ORDER AT ALL, which
@@ -1614,6 +1692,20 @@ export interface PartyInfo {
 }
 
 export async function sbPartyInfo(party: string): Promise<PartyInfo | null> {
+  // THE CUSTOMER'S DETAILS FROM THIS DEVICE FIRST -- the step after the machine
+  // names the customer on a Call Request (the user, 2026-09-29: "all these
+  // should function from cached data at first, if it fails then do a server
+  // search"). Not on the device -> the server; no signal either -> nothing
+  // filled, which is what a failed read already did.
+  const local = await localParties();
+  if (local) {
+    const hit = mc.partyByName(local, party);
+    if (hit) return partyInfoFrom(hit);
+    try { return await serverPartyInfo(party); } catch { return null; }
+  }
+  return serverPartyInfo(party);
+}
+async function serverPartyInfo(party: string): Promise<PartyInfo | null> {
   // `name_key` IS `lower(btrim(party_name))` with a UNIQUE btree on it, and
   // `partyKey()` computes exactly that string in JavaScript -- so this is the
   // same case-insensitive, trimmed match the `ilike` was doing, through an
@@ -1622,7 +1714,9 @@ export async function sbPartyInfo(party: string): Promise<PartyInfo | null> {
   const { data } = await must().from('parties')
     .select('state,city,address,extra,pincode,phone,phone_2,pan,gstin,party_type,profile,service_engineer')
     .eq('name_key', partyKey(party)).limit(1).maybeSingle();
-  if (!data) return null;
+  return data ? partyInfoFrom(data) : null;
+}
+function partyInfoFrom(data: Record<string, unknown>): PartyInfo {
   const ex = (data.extra as Record<string, unknown>) ?? {};
   const t = (v: unknown) => String(v ?? '').trim();
   return {
@@ -1693,6 +1787,16 @@ const itemCols = (it: CallRequestItem) => ({
 // one. City rides in `products.extra` under the spreadsheet's own heading.
 export interface MachineHit { serial: string; product: string; party: string; city: string; state: string; address: string }
 export async function sbSearchMachines(product: string, query: string, limit = 50, party = ''): Promise<MachineHit[]> {
+  const c = getSupabase(); if (!c) return [];
+  const local = await localMachines();
+  if (local) {
+    const hit = mc.searchMachines(local, product, query, limit, party);
+    if (hit.length || !query.trim()) return hit;
+    try { return await serverSearchMachines(product, query, limit, party); } catch { return hit; }
+  }
+  return serverSearchMachines(product, query, limit, party);
+}
+async function serverSearchMachines(product: string, query: string, limit = 50, party = ''): Promise<MachineHit[]> {
   const c = getSupabase(); if (!c) return [];
   const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
   const cols = 'serial_number,item_name,party_name,extra';
@@ -1886,7 +1990,17 @@ export async function sbKycByParties(
   const out = new Map<string, { status: string; docs: unknown }>();
   const c = getSupabase();
   if (!c) return out;
-  const keys = [...new Set(names.map((n) => partyKey(n)).filter(Boolean))];
+  let keys = [...new Set(names.map((n) => partyKey(n)).filter(Boolean))];
+  // FROM THIS DEVICE FIRST; only the names it does not have go to the server.
+  const local = await localParties();
+  if (local) {
+    const byKey = new Map(local.map((p) => [String(p.name_key ?? partyKey(p.party_name)), p]));
+    keys = keys.filter((k) => {
+      const p = byKey.get(k);
+      if (p) out.set(k, { status: String(p.kyc_status ?? ''), docs: p.kyc_docs });
+      return !p;
+    });
+  }
   for (let i = 0; i < keys.length; i += 200) {
     const { data, error } = await c.from('parties')
       .select('name_key,kyc_status,kyc_docs').in('name_key', keys.slice(i, i + 200));
@@ -4020,6 +4134,8 @@ export async function sbSignIn(email: string, password: string): Promise<{ ok: b
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 export async function sbSignOut(): Promise<void> {
+  // The machine register on this device is the signed-in person's copy.
+  await clearMachineRegister();
   const c = getSupabase(); if (c) await c.auth.signOut();
 }
 // The signed-in user's own profile row (or null if not signed in / no row yet).
@@ -4265,10 +4381,29 @@ const IN_CHUNK = 200;   // keeps the request URL well inside every gateway's lim
 
 export async function prepareUpload(
   kind: 'spare-line-parents' | 'stock-transfer-parents' | 'handstock-engineers'
-    | 'consumption-visits',
+    | 'consumption-visits' | 'complaint-keys',
   rows: Record<string, unknown>[],
 ): Promise<{ ok: boolean; note?: string; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+
+  // ---- A STANDARD COMPLAINT IS MATCHED BY ITS KEY, AND NEVER RENAMED -------
+  // (the user, 2026-09-29). The whole list is read -- PAGED, since a complaint
+  // missing from the read would be ADDED again as a new one -- and the rules
+  // live in planComplaintKeys() in complaints.ts, where check:uploads proves
+  // them. Only the read is here.
+  if (kind === 'complaint-keys') {
+    let existing: ExistingComplaint[];
+    try {
+      existing = (await allRows<Record<string, unknown>>((a, b) => c.from('masters')
+        .select('id,name,value,extra').in('name', ['complaint', 'standardComplaint'])
+        .order('id').range(a, b), 20000))
+        .map((r) => ({ id: Number(r.id), name: String(r.name), value: String(r.value ?? ''),
+          extra: (r.extra ?? {}) as Record<string, unknown> }));
+    } catch (e) { return { ok: false, error: `Could not read the Standard Complaint list: ${e instanceof Error ? e.message : String(e)}` }; }
+    const plan = planComplaintKeys(rows, existing);
+    rows.splice(0, rows.length, ...plan.rows);
+    return { ok: true, note: plan.note };
+  }
 
   // ---- A SPARE NEEDS A VISIT, AND THE FILE USUALLY SAYS WHAT IT WAS -------
   //
@@ -4499,11 +4634,16 @@ export async function uploadRows(
           : /schema cache|does not exist/i.test(m)
             ? ` — the ${table} table (or a column of it) is not on this project. Run supabase/apply/_status.sql to see what is missing.`
             : '';
+      if (written && (table === 'products' || table === 'parties')) void refreshMachineRegister({ force: true });
       return { ok: false, written, error: `${m} (row ~${i + 1})${hint}` };
     }
     written += slice.length;
     onProgress?.(written, rows.length);
   }
+  // A PRODUCT DATABASE UPLOAD RE-DOWNLOADS THIS DEVICE'S COPY, so the person
+  // who loaded the file searches what they just loaded rather than a copy up
+  // to six hours old. Other devices pick it up within their six hours.
+  if (written && (table === 'products' || table === 'parties')) void refreshMachineRegister({ force: true });
   return { ok: true, written };
 }
 
@@ -5663,4 +5803,43 @@ export async function listFeedbackReport(
     onProgress?.(out.length);
     if (rows.length < page) return out;
   }
+}
+
+// ---------------------------------------------------------------------------
+// WHAT EACH DEVICE HOLDS OFFLINE (0249) -- the administrator's view of the
+// machine register and Party Master kept on every phone and laptop.
+//
+// A device reports its OWN row: the person is stamped by the database from the
+// session, so nothing here can report for somebody else. ONE ROW PER PERSON PER
+// DEVICE, upserted on (user_id, device_id) -- a re-report UPDATES it, which is
+// why 0249 carries an UPDATE policy as well as an INSERT one.
+// ---------------------------------------------------------------------------
+export interface DeviceCacheReport {
+  device_id: string; device_label: string; user_agent: string; app_version: string; storage_ok: boolean;
+  machines: number; machines_at: string | null; machines_error: string;
+  customers: number; customers_at: string | null; customers_error: string;
+}
+/** Never throws: a report that cannot be sent is simply sent next time. */
+export async function sbReportDeviceCache(r: DeviceCacheReport): Promise<boolean> {
+  const c = getSupabase(); if (!c) return false;
+  try {
+    const { error } = await c.from('device_cache_status').upsert(r, { onConflict: 'user_id,device_id' });
+    return !error;
+  } catch { return false; }
+}
+
+export interface DeviceCacheRow {
+  user_id: string; full_name: string; email: string; role: string; active: boolean;
+  device_id: string | null; device_label: string | null; user_agent: string | null; app_version: string | null;
+  storage_ok: boolean | null;
+  machines: number | null; machines_at: string | null; machines_error: string | null;
+  customers: number | null; customers_at: string | null; customers_error: string | null;
+  first_reported_at: string | null; reported_at: string | null;
+}
+/** Every person, and every device each has reported from -- a person with no
+ *  device reported comes back ONCE with the device fields null. */
+export async function sbDeviceCacheReport(): Promise<DeviceCacheRow[]> {
+  const { data, error } = await must().rpc('device_cache_report');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as DeviceCacheRow[];
 }

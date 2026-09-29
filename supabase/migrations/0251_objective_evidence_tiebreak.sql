@@ -16,7 +16,7 @@
 --   word -- NOT re-typed from an older file, which is how two guards here lost
 --   rules before. The FFR branch already ends in f.id and is untouched.
 --
---   `create or replace` keeps the grants 0142 set. _status.sql row 191.
+--   `create or replace` keeps the grants 0142 set. _status.sql row 193.
 -- ===========================================================================
 
 CREATE OR REPLACE FUNCTION public.objective_evidence(p_id bigint, p_month integer)

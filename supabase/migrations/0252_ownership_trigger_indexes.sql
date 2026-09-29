@@ -17,7 +17,7 @@
 --   NEW NAMES, so `if not exists` guards nothing it should not: there is no
 --   older index of these names with another definition to be silently kept.
 --   Guarded by to_regclass so the file runs on a project without either table.
---   _status.sql row 192.
+--   _status.sql row 194.
 -- ===========================================================================
 
 do $$
