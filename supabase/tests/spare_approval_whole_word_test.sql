@@ -26,11 +26,11 @@ declare
   waits text[] := array['Not Approved', 'NOT APPROVED', 'Approval Pending', 'Awaiting Approval',
                         'Pending Approval', 'For Approval', 'Approval Awaited', 'Disapproved',
                         'Pending', '', 'Approved by phone', 'Approve',
-                        -- 0263: the phrase WHOLE, not anything containing it
+                        -- 0266: the phrase WHOLE, not anything containing it
                         'Not cleared for stores processing', 'Cleared for Stores', 'Cleared'];
   passes text[] := array['Approved', 'APPROVED', ' approved ', 'Auto-Approved', 'Auto Approved',
                          'AutoApproved', 'auto-approved',
-                         -- 0263 (the user: "should be considered as Approved")
+                         -- 0266 (the user: "should be considered as Approved")
                          'Cleared for Stores Processing', 'CLEARED FOR STORES PROCESSING',
                          ' cleared  for stores processing '];
 begin
@@ -97,7 +97,7 @@ end $$;
 
 \echo ''
 \echo '--- 3. the restage moves a line the substring rule cached as Stores BACK, and a'
-\echo '---    "Cleared for Stores Processing" line 0256 held FORWARD (0263) ---'
+\echo '---    "Cleared for Stores Processing" line 0256 held FORWARD (0266) ---'
 -- Put each line in the state a previous rule left it in.
 alter table public.spare_request_lines disable trigger spare_request_lines_set_stage;
 update public.spare_request_lines set stage = 'Stores', status = 'Stores' where line_uid = 'SRQ-0256|1';
@@ -105,7 +105,7 @@ update public.spare_request_lines set stage = 'RM Approval', status = 'RM Approv
 alter table public.spare_request_lines enable trigger spare_request_lines_set_stage;
 
 -- The NEWEST definition, which carries 0256's restage and extends its rule.
-\ir ../migrations/0263_cleared_for_stores_is_approved.sql
+\ir ../migrations/0266_cleared_for_stores_is_approved.sql
 
 do $$
 declare l record;

@@ -7,6 +7,7 @@ import { useAuth, roleLabel } from '../lib/auth';
 import { permsForRole, DEFAULT_PERMS, FUNCTIONAL_ACTIONS, MODULES, moduleAction, legacyToRbac } from '../lib/rbac';
 import { useTheme } from '../theme/ThemeProvider';
 import { ChangePassword } from './ChangePassword';
+import { MyPeople } from '../components/people/MyPeople';
 
 // ===========================================================================
 // MY PROFILE — the signed-in user's own page: who they are, changing their
@@ -69,6 +70,9 @@ export function Profile() {
           Your role and access are managed by an administrator under User Access.
         </div>
       </SectionCard>
+
+      {/* PROFILE DETAILS, R&R AND TRAINING -- yours, and your team's (0264). */}
+      <MyPeople />
 
       {/* ---------------------------------------------------------------
           WHY CAN I NOT DO THIS?

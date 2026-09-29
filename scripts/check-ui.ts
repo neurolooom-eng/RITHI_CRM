@@ -9520,7 +9520,7 @@ console.log('\n-- 20: an approval is the WORD approved, not any text containing 
   eq('"Disapproved" waits at RM Approval', deriveStage(line('Disapproved') as never), 'RM Approval');
   eq('"Auto Approved" still reaches Stores', deriveStage(line('Auto Approved') as never), 'Stores');
   eq('" APPROVED " still reaches Stores', deriveStage(line(' APPROVED ') as never), 'Stores');
-  // 0263: the user, "'Cleared for Stores Processing' ... should be considered as Approved".
+  // 0266: the user, "'Cleared for Stores Processing' ... should be considered as Approved".
   eq('"Cleared for Stores Processing" reaches Stores', deriveStage(line('Cleared for Stores Processing') as never), 'Stores');
   eq('...but a sentence containing it still waits', deriveStage(line('Not cleared for stores processing') as never), 'RM Approval');
   eq('...and the upload keeps the phrase as written', approvalWord('Cleared for Stores Processing'), 'Cleared for Stores Processing');

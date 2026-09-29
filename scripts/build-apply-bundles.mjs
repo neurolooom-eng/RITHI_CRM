@@ -631,7 +631,23 @@ const MODULES = {
             'manuals and `qms.manage` for the controlled QMS documents, which are two',
             'separate jobs. A superseded document is RETIRED, never deleted.'],
     needs: ['profiles', 'rbac'],
-    files: ['0070_documents.sql'],
+    files: ['0070_documents.sql',
+            // The QMS Master List bulk upload's key (doc no + revision) and
+            // `extra` for the department's own headings (0265).
+            '0265_qms_document_key.sql'],
+  },
+  training: {
+    title: 'People: profile, Roles & Responsibilities, Training',
+    blurb: ['A person\'s private profile (employee code, joining date), their Roles &',
+            'Responsibilities documents with effective periods (a new one closes the',
+            'one before it), and training: sessions with bulk attendance and',
+            'assessment, assignments made when a QMS document is uploaded, and the',
+            'trainee\'s own "read & understood". Seen by the person, their managers,',
+            'users.manage and training.manage; the Training screen and',
+            'training.manage are granted to VP Technical and R&D Engineer only.',
+            'Nothing here is ever deleted.'],
+    needs: ['profiles', 'rbac', 'visibleEngineers'],
+    files: ['0264_people_and_training.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -666,7 +682,11 @@ const MODULES = {
             '0231_party_kyc_documents.sql',
             // Main product -> its accessories / allied products, on the product
             // line (0255): the placeholder the spare request's Phase 2 reads.
-            '0255_product_accessories.sql'],
+            '0255_product_accessories.sql',
+            // Department on the User Master, and its master list (0263). Here
+            // and not in user_directory: the list's registry (0021) is this
+            // module's table, and user_directory runs before it.
+            '0263_user_department.sql'],
   },
   reports: {
     title: 'Reports',
@@ -877,7 +897,7 @@ const MODULES = {
       '0256_spare_approval_whole_word.sql',
       // "Cleared for Stores Processing" is a yes too (the user, after 0256
       // went live). AFTER 0256, which owns the previous body.
-      '0263_cleared_for_stores_is_approved.sql',
+      '0266_cleared_for_stores_is_approved.sql',
       // WHO DISPATCHED IS STAMPED, NOT SENT. A trigger on spare_dispatches, so
       // the (much-revised) dispatch function is not touched at all.
       '0211_dispatched_by_is_stamped.sql',
@@ -1166,7 +1186,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'device_cache', 'sys_columns', 'lockdown'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'training', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'device_cache', 'sys_columns', 'lockdown'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

@@ -1421,7 +1421,7 @@ with checks(sort_order, bundle, provides, present) as (
          and exists (select 1 from pg_indexes i where i.schemaname = 'public' and i.indexname = 'product_accessories_main_key')
          and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'product_accessories'
                       and p.policyname = 'pa_update' and p.qual ilike '%select has_perm%'))),
-    (199, 'A refused spare is not an approved one', 'spare_line_stage() lets a stage pass only on the WORDS Approved or Auto-Approved -- any case, surrounding space, optional hyphen -- or the whole phrase "Cleared for Stores Processing" (0256, 0263, finding 20; the phrase added on the user''s word once 0256 was live). It asked whether the value CONTAINED "approv", so "Not Approved", "Approval Pending", "Disapproved" and seven other phrasings a spreadsheet brings in read as approved and the line reached Stores, one click from dispatch. Any other word now holds the line at that approver, kept as written. Asked of the function, not its text. NO means a refused spare can still be dispatched. Restore: Spare_1.sql',
+    (199, 'A refused spare is not an approved one', 'spare_line_stage() lets a stage pass only on the WORDS Approved or Auto-Approved -- any case, surrounding space, optional hyphen -- or the whole phrase "Cleared for Stores Processing" (0256, 0266, finding 20; the phrase added on the user''s word once 0256 was live). It asked whether the value CONTAINED "approv", so "Not Approved", "Approval Pending", "Disapproved" and seven other phrasings a spreadsheet brings in read as approved and the line reached Stores, one click from dispatch. Any other word now holds the line at that approver, kept as written. Asked of the function, not its text. NO means a refused spare can still be dispatched. Restore: Spare_1.sql',
         coalesce((select public.spare_line_stage('Not Approved', 'Auto-Approved', 'Auto-Approved', 'Pending', null, '') = 'RM Approval'
                      and public.spare_line_stage('Approved', 'Approval Pending', 'Approved', 'Pending', null, '') = 'Commercial'
                      and public.spare_line_stage('Auto Approved', 'APPROVED', 'Auto-Approved', 'Pending', null, '') = 'Stores'
@@ -1448,7 +1448,29 @@ with checks(sort_order, bundle, provides, present) as (
            where p.pronamespace = 'public'::regnamespace
              and p.proname in ('call_request_content_frozen', 'consumption_adjust_guard',
                                'spare_request_engineer_guard', 'notify_call_allotted')
-             and p.prosrc ~ 'engineer_rename_in_progress') = 4))
+             and p.prosrc ~ 'engineer_rename_in_progress') = 4)),
+    (204, 'Department on the User Master', 'user_directory.department and the Department master list (0263): the department each person belongs to, chosen from one list so every screen and every training audience spells it the same way. The list starts empty -- add the departments under Masters -> Department. NO means the User Master has no Department field. Restore: masters.sql',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'user_directory' and column_name = 'department')
+         and to_regclass('public.master_lists') is not null
+         and exists (select 1 from public.master_lists where key = 'department'))),
+    (205, 'QMS Master List bulk upload', 'documents.doc_key and its unique index, and documents.extra (0265): the key a re-load of the QMS Master List matches on (document number + revision, QMS shelf only) so it corrects a row instead of adding a second copy, and a place for the Master List''s own headings. NO with the column present means two QMS documents already share a number + revision -- the migration said which; retire or correct one on the QMS Documents screen and run the bundle again. Restore: documents.sql',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'documents' and column_name = 'extra')
+         and exists (select 1 from pg_indexes i where i.schemaname = 'public' and i.indexname = 'documents_doc_key_uniq'))),
+    (206, 'People: profile, Roles & Responsibilities, Training', 'user_profile, user_rr, training_sessions, training_attendance, training_assignments, the training_status and training_history views and acknowledge_training() (0264). Checks what makes it safe as well as present: row-level security on all five tables, both views security_invoker, a new R&R closing the one before it, and the not-signed-in role refused the acknowledgement. NO means User Master has no profile / R&R and the Training screen reads "not on the project yet". Restore: training.sql',
+        (to_regclass('public.user_profile') is not null and to_regclass('public.user_rr') is not null
+         and to_regclass('public.training_sessions') is not null and to_regclass('public.training_attendance') is not null
+         and to_regclass('public.training_assignments') is not null
+         and (select bool_and(c.relrowsecurity) from pg_class c
+               where c.oid in (to_regclass('public.user_profile'), to_regclass('public.user_rr'), to_regclass('public.training_sessions'),
+                               to_regclass('public.training_attendance'), to_regclass('public.training_assignments')))
+         and (select bool_and(coalesce(c.reloptions::text ilike '%security_invoker=on%', false)) from pg_class c
+               where c.oid in (to_regclass('public.training_status'), to_regclass('public.training_history')))
+         and (select count(*) from pg_class c where c.oid in (to_regclass('public.training_status'), to_regclass('public.training_history'))) = 2
+         and exists (select 1 from pg_trigger t where t.tgrelid = to_regclass('public.user_rr') and t.tgname = 'user_rr_close_previous')
+         and to_regprocedure('public.acknowledge_training(bigint)') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.acknowledge_training(bigint)'), 'EXECUTE')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

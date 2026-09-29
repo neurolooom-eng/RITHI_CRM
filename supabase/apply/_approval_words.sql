@@ -5,7 +5,7 @@
 -- applied. One grid.
 --
 -- 0256 lets a stage pass only on the WORDS Approved or Auto-Approved (any
--- case, surrounding space, optional hyphen); 0263 adds the phrase "Cleared for
+-- case, surrounding space, optional hyphen); 0266 adds the phrase "Cleared for
 -- Stores Processing", which the user confirmed is a yes. Before it, any value CONTAINING
 -- "approv" passed — so "Not Approved", "Approval Pending" and the like sent a
 -- line on towards Stores. This file does not depend on 0256: both rules are

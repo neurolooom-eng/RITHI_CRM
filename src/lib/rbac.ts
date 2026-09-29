@@ -91,6 +91,11 @@ export const MODULES: ModuleDef[] = [
   { path: '/knowledge-base/how-it-works', label: 'How RITHI Functions', admin: true },
   { path: '/service-manuals', label: 'Service Manuals' },
   { path: '/qms', label: 'QMS Documents' },
+  // TRAINING (0264): assignments, sessions, everyone's records. `admin: true`
+  // keeps it out of the everyday roles' code defaults; 0264 grants it to VP
+  // Technical and R&D Engineer -- the only roles the user allowed to change.
+  // Everybody sees their OWN training on My Profile, not here.
+  { path: '/training', label: 'Training', admin: true },
   { path: '/warranties', label: 'Warranty Register' },
   { path: '/contracts', label: 'Contract Register' },
   { path: '/ownership-transfer', label: 'Ownership Transfer' },
@@ -273,6 +278,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Masters', key: 'ownership.transfer', label: 'Transfer a machine between customers' },
   { group: 'Documents', key: 'docs.manage', label: 'Add / edit service manuals' },
   { group: 'Documents', key: 'qms.manage', label: 'Add / edit QMS documents' },
+  { group: 'Documents', key: 'training.manage', label: 'Manage training — assign, record sessions, see everyone\'s training and R&R' },
   { group: 'Analytics', key: 'reports.view', label: 'View reports' },
   { group: 'Analytics', key: 'dashboard.view', label: 'View dashboard' },
   { group: 'Analytics', key: 'feedback.view', label: 'View feedback' },
@@ -484,6 +490,7 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Documents', pages: [
     { path: '/qms', label: 'QMS Documents', actions: ['qms.manage'] },
+    { path: '/training', label: 'Training', actions: ['training.manage'] },
   ] },
   { title: 'Contracts & Warranty', pages: [
     { path: '/warranties', label: 'Warranty Register', actions: ['cover.edit'] },

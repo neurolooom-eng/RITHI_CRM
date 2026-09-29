@@ -66,7 +66,7 @@ export const needsReview = (itemStatus: unknown): boolean => needsCommercial(ite
 // anything else waits at that stage for the approver. The SQL copy is
 // `spare_line_stage` (0256) and `check:ui` holds the two patterns together.
 // "CLEARED FOR STORES PROCESSING" IS A YES TOO (the user, 2026-09-30, after
-// 0256 went live; SQL 0263) — the whole phrase, so "Not cleared for stores
+// 0256 went live; SQL 0266) — the whole phrase, so "Not cleared for stores
 // processing" still waits.
 export const APPROVED_RE = /^\s*((auto[\s-]*)?approved|cleared\s+for\s+stores\s+processing)\s*$/i;
 const isApproved = (v: unknown) => APPROVED_RE.test(s(v)); // Approved, Auto-Approved, Cleared for Stores Processing
@@ -84,7 +84,7 @@ export function approvalWord(v: string): string {
     return v;
   }
   // "Cleared for Stores Processing" counts as a yes but is KEPT as written,
-  // as 0263 keeps it in the database: it is the approver's own record.
+  // as 0266 keeps it in the database: it is the approver's own record.
   if (/^cleared/i.test(t)) return v;
   return /^auto/i.test(t) ? 'Auto-Approved' : 'Approved';
 }

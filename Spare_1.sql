@@ -31,7 +31,7 @@
 --   0210_handstock_needs_nsm.sql
 --   0217_restore_the_line_guard_rules.sql
 --   0256_spare_approval_whole_word.sql
---   0263_cleared_for_stores_is_approved.sql
+--   0266_cleared_for_stores_is_approved.sql
 --   0211_dispatched_by_is_stamped.sql
 --   0084_spare_request_import.sql
 --   0085_spare_request_or_no_key.sql
@@ -2599,7 +2599,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0263_cleared_for_stores_is_approved.sql
+-- 0266_cleared_for_stores_is_approved.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -2668,7 +2668,7 @@ begin
     returning l.request_uid
   )
   select count(*) into n from moved;
-  raise notice '0263: % open line(s) restaged', n;
+  raise notice '0266: % open line(s) restaged', n;
 end $$;
 
 -- ------------------------------------------------------------------------

@@ -14,6 +14,8 @@ import { logAudit } from '../lib/audit';
 import { generatePassword } from '../lib/password';
 import './fieldcalls.css';
 import { COMPLETE, cappedAt } from '../lib/exportscope';
+import { useMaster } from '../lib/masters';
+import { PersonProfile } from '../components/people/PersonProfile';
 
 // ===========================================================================
 // USER MASTER — the directory of everyone, whether or not they have ever
@@ -37,7 +39,7 @@ const roleLabel = (key: string) => roleLabelFor(key) || (key || '—');
 const emptyRow = (): DirectoryRow => ({
   id: 0, name: '', email: '', gmail: '', designation: '',
   reporting_manager: '', regional_manager: '', region: '', role: '', validity: true,
-  address: '', city: '', state: '', phone: '',
+  address: '', city: '', state: '', phone: '', department: '',
 });
 
 export function UserMasterView() {
@@ -50,6 +52,8 @@ export function UserMasterView() {
     [rolePerms]);
   const live = supabaseConfigured();
   const editable = live && can('users.manage');
+  // DEPARTMENT, from its master list (0263) -- one spelling everywhere.
+  const departments = useMaster('department', [], live).values;
 
   const [q, setQ] = useState('');
   const [dir, setDir] = useState<DirectoryRow[]>([]);
@@ -357,6 +361,15 @@ export function UserMasterView() {
     { key: 'name', header: 'Name', width: 170, render: cell('name', 'As on the call') },
     { key: 'designation', header: 'Designation', width: 150, render: cell('designation') },
     {
+      key: 'department', header: 'Department', width: 150,
+      render: (r) => (editing
+        ? <SelectPicker value={String(draftOf(r).department ?? '')} placeholder="— department —"
+            onChange={(v) => setField(r, 'department', v)}
+            options={departments.includes(String(draftOf(r).department ?? '')) || !draftOf(r).department
+              ? departments : [String(draftOf(r).department), ...departments]} />
+        : <>{r.department}</>),
+    },
+    {
       key: 'role', header: 'Role', width: 170,
       render: (r) => {
         if (editing) {
@@ -630,6 +643,7 @@ export function UserMasterView() {
             signedInRole={(profileByEmail.get(edit.email.trim().toLowerCase()) ?? profileByEmail.get(edit.gmail.trim().toLowerCase()))?.role}
             names={dirNames}
             regions={dirRegions}
+            departments={departments}
             roleOptions={roleOptions}
             renameNote={renameNote(edit)}
             onChange={setEdit}
@@ -683,6 +697,7 @@ export function UserMasterView() {
         const rows: [string, string][] = [
           ['Name', r.name || '—'],
           ['Designation', r.designation || '—'],
+          ['Department', r.department || '—'],
           ['Role', roleLabel(prof?.rbacRole || r.role)],
           ['Signed in', prof ? 'Yes' : 'Not yet'],
           ['Air Liquide ID', r.email || '—'],
@@ -696,7 +711,7 @@ export function UserMasterView() {
           ...(prof?.extraPermissions?.length ? [['Extra permissions', `${prof.extraPermissions.length} granted`] as [string, string]] : []),
         ];
         return (
-          <Drawer open onClose={() => setViewRow(null)} title={r.name || 'User'} width={560}>
+          <Drawer open onClose={() => setViewRow(null)} title={r.name || 'User'} width={760}>
             <div className="rep-form">
               {/* Actions at the top */}
               <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
@@ -729,6 +744,8 @@ export function UserMasterView() {
                   </tbody>
                 </table>
               </div>
+              {/* PROFILE, ROLES & RESPONSIBILITIES AND TRAINING (0264). */}
+              {live && r.id > 0 && <PersonProfile person={r} />}
             </div>
           </Drawer>
         );
@@ -872,7 +889,7 @@ function DataViewDrawer({ user, onClose }: { user: User; onClose: () => void }) 
   );
 }
 
-function UserForm({ row, busy, signedInRole, names, regions, roleOptions, renameNote, onChange, onCancel, onSave }: {
+function UserForm({ row, busy, signedInRole, names, regions, departments, roleOptions, renameNote, onChange, onCancel, onSave }: {
   row: DirectoryRow; busy: boolean; signedInRole?: string;
   // What changing this person's name will and will not move (finding 23);
   // empty unless the name has changed.
@@ -884,6 +901,8 @@ function UserForm({ row, busy, signedInRole, names, regions, roleOptions, rename
   // matched BY NAME to build the reporting tree, so choosing from the list is
   // what makes that tree work.
   names: string[]; regions: string[];
+  /** The Department master list (0263). */
+  departments: string[];
   // Passed in rather than read here: the list includes roles the DATABASE has
   // and the code does not, and it is the register above that holds them.
   roleOptions: { value: string; label: string }[];
@@ -926,6 +945,12 @@ function UserForm({ row, busy, signedInRole, names, regions, roleOptions, rename
           {renameNote && <span className="rep-hint" role="alert"><b>⚠ {renameNote}</b></span>}
         </label>
         {field('Designation', 'designation', 'e.g. Service Engineer')}
+        <label className="rep-field">
+          <span className="field-label">Department</span>
+          <SelectPicker value={row.department} onChange={(v) => set('department', v)}
+            placeholder={departments.length ? '— department —' : '— add departments under Masters → Department —'}
+            options={row.department && !departments.includes(row.department) ? [row.department, ...departments] : departments} />
+        </label>
         {field('Air Liquide ID (email)', 'email', 'name@airliquide.com', 'email')}
         {field('Gmail ID', 'gmail', 'name@gmail.com', 'email')}
 
