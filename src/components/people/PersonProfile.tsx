@@ -19,7 +19,7 @@ import { loadFailure } from '../../lib/dberror';
 //
 // Shown on User Master (a row's detail), on My Profile (yourself and your
 // team) and on the Training screen. WHO SEES IT is the database's decision
-// (0257 may_see_person): the person, their managers, users.manage and
+// (0264 may_see_person): the person, their managers, users.manage and
 // training.manage. Editing: profile by users.manage; R&R by users.manage or
 // training.manage; a trainee acknowledges their own training here.
 // ===========================================================================

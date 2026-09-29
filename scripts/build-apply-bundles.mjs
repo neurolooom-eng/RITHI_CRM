@@ -612,8 +612,8 @@ const MODULES = {
     needs: ['profiles', 'rbac'],
     files: ['0070_documents.sql',
             // The QMS Master List bulk upload's key (doc no + revision) and
-            // `extra` for the department's own headings (0258).
-            '0258_qms_document_key.sql'],
+            // `extra` for the department's own headings (0265).
+            '0265_qms_document_key.sql'],
   },
   training: {
     title: 'People: profile, Roles & Responsibilities, Training',
@@ -626,7 +626,7 @@ const MODULES = {
             'training.manage are granted to VP Technical and R&D Engineer only.',
             'Nothing here is ever deleted.'],
     needs: ['profiles', 'rbac', 'visibleEngineers'],
-    files: ['0257_people_and_training.sql'],
+    files: ['0264_people_and_training.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -662,10 +662,10 @@ const MODULES = {
             // Main product -> its accessories / allied products, on the product
             // line (0255): the placeholder the spare request's Phase 2 reads.
             '0255_product_accessories.sql',
-            // Department on the User Master, and its master list (0256). Here
+            // Department on the User Master, and its master list (0263). Here
             // and not in user_directory: the list's registry (0021) is this
             // module's table, and user_directory runs before it.
-            '0256_user_department.sql'],
+            '0263_user_department.sql'],
   },
   reports: {
     title: 'Reports',

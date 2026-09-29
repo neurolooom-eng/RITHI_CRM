@@ -2,7 +2,7 @@ import { getSupabase } from './supabase';
 import { allRows } from './paging';
 
 // ===========================================================================
-// A PERSON'S PROFILE, ROLES & RESPONSIBILITIES AND TRAINING (0257).
+// A PERSON'S PROFILE, ROLES & RESPONSIBILITIES AND TRAINING (0264).
 //
 // Who sees what is decided by the DATABASE (may_see_person: the person, their
 // managers, users.manage, training.manage), so every read here returns only
@@ -43,7 +43,7 @@ export async function listRR(dirId: number): Promise<RRRow[]> {
   if (error) throw new Error(msg(error));
   return (data ?? []) as RRRow[];
 }
-/** A NEW R&R CLOSES THE ONE BEFORE IT -- done by the database (0257), so the
+/** A NEW R&R CLOSES THE ONE BEFORE IT -- done by the database (0264), so the
  *  previous period ends the day before this one's From. */
 export async function addRR(r: Omit<RRRow, 'id' | 'created_at'>): Promise<Res> {
   const { error } = await db().from('user_rr').insert({ ...r, effective_to: r.effective_to || null });
@@ -85,7 +85,7 @@ export async function listTrainingHistory(dirId: number): Promise<TrainingHistor
 
 /** Assign one topic (a QMS document, or a free topic) to many people. ONE open
  *  item per person per document: someone already assigned is skipped, not
- *  doubled (the unique key, 0257). */
+ *  doubled (the unique key, 0264). */
 export async function assignTraining(
   dirIds: number[], t: { document_id: number | null; topic: string; due_date: string | null; assigned_by_name: string },
 ): Promise<{ ok: boolean; created: number; error?: string }> {

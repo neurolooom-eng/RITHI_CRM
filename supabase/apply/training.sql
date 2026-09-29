@@ -14,7 +14,7 @@
 -- Edit the migrations below and re-run the generator.
 --
 -- Carries, in order:
---   0257_people_and_training.sql
+--   0264_people_and_training.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -42,7 +42,7 @@ end $$;
 begin;
 
 -- ------------------------------------------------------------------------
--- 0257_people_and_training.sql
+-- 0264_people_and_training.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -79,7 +79,7 @@ begin;
 -- WHY THE PROFILE IS ITS OWN TABLE: `user_directory` is readable by everyone
 -- signed in (it drives the reporting tree). Joining date and employee code are
 -- not for everyone, so they live in `user_profile`, readable by the audience
--- above only. Department stays on the directory (0256): it is not private and
+-- above only. Department stays on the directory (0263): it is not private and
 -- the training audience picker needs it.
 --
 -- QUALITY RECORDS ARE NEVER DELETED: no delete policy on any table here. A
@@ -407,7 +407,7 @@ do $$
 declare n integer;
 begin
   if to_regclass('public.app_roles') is null then
-    raise notice '0257: app_roles is missing -- run rbac.sql first. Nothing granted.';
+    raise notice '0264: app_roles is missing -- run rbac.sql first. Nothing granted.';
     return;
   end if;
   update public.app_roles ar
@@ -421,7 +421,7 @@ begin
         or regexp_replace(lower(coalesce(ar.label, '')), '[^a-z0-9]', '', 'g') in ('vptechnical', 'rndengg', 'rndengineer') )
      and not (ar.permissions ?& array['mod:/training', 'training.manage']);
   get diagnostics n = row_count;
-  raise notice '0257: % role(s) given the Training screen and training.manage (VP Technical / R&D Engineer only)', n;
+  raise notice '0264: % role(s) given the Training screen and training.manage (VP Technical / R&D Engineer only)', n;
 end $$;
 
 -- ---- the five system columns (0244), attached as 0249 does -------------------

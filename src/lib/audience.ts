@@ -1,5 +1,5 @@
 // ===========================================================================
-// WHO TO TRAIN -- the audience picker's rule (0257). Pure, so check:paging can
+// WHO TO TRAIN -- the audience picker's rule (0264). Pure, so check:paging can
 // prove it (the paging.ts reason).
 // ===========================================================================
 // The user chose "Chosen at upload": roles, designations, departments, regions

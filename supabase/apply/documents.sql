@@ -14,7 +14,7 @@
 --
 -- Carries, in order:
 --   0070_documents.sql
---   0258_qms_document_key.sql
+--   0265_qms_document_key.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -184,7 +184,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0258_qms_document_key.sql
+-- 0265_qms_document_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -210,7 +210,7 @@ end $$;
 -- IF TWO QMS ROWS ALREADY SHARE A NUMBER AND REVISION, the index cannot be
 -- built, and this says so instead of failing: nothing is deleted or merged
 -- (quality records are never deleted) -- retire or correct one of them on the
--- QMS Documents screen and run this again. _status.sql row 200 checks it.
+-- QMS Documents screen and run this again. _status.sql row 205 checks it.
 -- ===========================================================================
 
 alter table public.documents add column if not exists extra jsonb not null default '{}'::jsonb;
@@ -228,7 +228,7 @@ begin
     from (select doc_key from public.documents where doc_key is not null
            group by doc_key having count(*) > 1 limit 20) x;
   if dup is not null then
-    raise notice '0258: QMS documents share a number + revision (%); the upload key was NOT created. Correct them and run again.', dup;
+    raise notice '0265: QMS documents share a number + revision (%); the upload key was NOT created. Correct them and run again.', dup;
     return;
   end if;
   create unique index documents_doc_key_uniq on public.documents (doc_key);

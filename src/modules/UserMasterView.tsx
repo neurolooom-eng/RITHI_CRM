@@ -52,7 +52,7 @@ export function UserMasterView() {
     [rolePerms]);
   const live = supabaseConfigured();
   const editable = live && can('users.manage');
-  // DEPARTMENT, from its master list (0256) -- one spelling everywhere.
+  // DEPARTMENT, from its master list (0263) -- one spelling everywhere.
   const departments = useMaster('department', [], live).values;
 
   const [q, setQ] = useState('');
@@ -714,7 +714,7 @@ export function UserMasterView() {
                   </tbody>
                 </table>
               </div>
-              {/* PROFILE, ROLES & RESPONSIBILITIES AND TRAINING (0257). */}
+              {/* PROFILE, ROLES & RESPONSIBILITIES AND TRAINING (0264). */}
               {live && r.id > 0 && <PersonProfile person={r} />}
             </div>
           </Drawer>
@@ -868,7 +868,7 @@ function UserForm({ row, busy, signedInRole, names, regions, departments, roleOp
   // matched BY NAME to build the reporting tree, so choosing from the list is
   // what makes that tree work.
   names: string[]; regions: string[];
-  /** The Department master list (0256). */
+  /** The Department master list (0263). */
   departments: string[];
   // Passed in rather than read here: the list includes roles the DATABASE has
   // and the code does not, and it is the register above that holds them.

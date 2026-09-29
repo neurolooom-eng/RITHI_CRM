@@ -71,7 +71,7 @@ export function Profile() {
         </div>
       </SectionCard>
 
-      {/* PROFILE DETAILS, R&R AND TRAINING -- yours, and your team's (0257). */}
+      {/* PROFILE DETAILS, R&R AND TRAINING -- yours, and your team's (0264). */}
       <MyPeople />
 
       {/* ---------------------------------------------------------------

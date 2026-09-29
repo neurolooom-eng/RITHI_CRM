@@ -230,15 +230,15 @@ Also a provision to map the Complaint to all Products."*
   by session, read-ack, attendance evidence and assessment — attended OR read,
   a Fail keeps it open; profile seen by self, managers, users.manage and
   training.manage; training.manage + `mod:/training` to VP Technical and R&D
-  Engineer only; the Master List carries Drive URLs. **0256** (Department +
-  master list, masters.sql), **0257** (profile, R&R, training; new bundle
-  `training.sql`), **0258** (documents.doc_key + extra, documents.sql);
-  `_status.sql` rows 199-201; suite `people_training_test`; URS-079 / FRS-093 /
+  Engineer only; the Master List carries Drive URLs. **0263** (Department +
+  master list, masters.sql), **0264** (profile, R&R, training; new bundle
+  `training.sql`), **0265** (documents.doc_key + extra, documents.sql);
+  `_status.sql` rows 204-206; suite `people_training_test`; URS-079 / FRS-093 /
   OQ-81. ⏳ The Master List's exact headings are not known yet — mapped by the
   usual names (Document No, Title, Rev, Effective Date, Drive URL) with every
   other heading kept in `extra`; confirm against the QMS department's file.
-  ⏳ 0258's key is NOT created if two QMS rows already share a number +
-  revision (row 200 reads NO; the apply log names them).
+  ⏳ 0265's key is NOT created if two QMS rows already share a number +
+  revision (row 205 reads NO; the apply log names them).
 - ✅ **0.10.1 — Phase 2: spares on a call, and Part Master loads everything.**
   The user: *"If a Call is logged against VEGA ... I can request for Main
   Product Spares / Accessory Spares"*; asked, they chose ONE list (main +

@@ -27,7 +27,7 @@
 --   0201_party_columns_and_kyc.sql
 --   0231_party_kyc_documents.sql
 --   0255_product_accessories.sql
---   0256_user_department.sql
+--   0263_user_department.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -1877,7 +1877,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0256_user_department.sql
+-- 0263_user_department.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================

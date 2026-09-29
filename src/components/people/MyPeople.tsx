@@ -10,7 +10,7 @@ import { PersonProfile } from './PersonProfile';
 // managers"). The team is the reporting tree the database already uses for
 // calls (visible_engineer_names), so a manager sees here exactly the people
 // whose calls they see -- and the rows each profile shows are checked again by
-// the database (0257 may_see_person).
+// the database (0264 may_see_person).
 // ===========================================================================
 export function MyPeople() {
   const { user } = useAuth();

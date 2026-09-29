@@ -81,10 +81,10 @@
 --   0201_party_columns_and_kyc.sql
 --   0231_party_kyc_documents.sql
 --   0255_product_accessories.sql
---   0256_user_department.sql
+--   0263_user_department.sql
 --   0070_documents.sql
---   0258_qms_document_key.sql
---   0257_people_and_training.sql
+--   0265_qms_document_key.sql
+--   0264_people_and_training.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
@@ -7797,7 +7797,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0256_user_department.sql
+-- 0263_user_department.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -7972,7 +7972,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0258_qms_document_key.sql
+-- 0265_qms_document_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -7998,7 +7998,7 @@ end $$;
 -- IF TWO QMS ROWS ALREADY SHARE A NUMBER AND REVISION, the index cannot be
 -- built, and this says so instead of failing: nothing is deleted or merged
 -- (quality records are never deleted) -- retire or correct one of them on the
--- QMS Documents screen and run this again. _status.sql row 200 checks it.
+-- QMS Documents screen and run this again. _status.sql row 205 checks it.
 -- ===========================================================================
 
 alter table public.documents add column if not exists extra jsonb not null default '{}'::jsonb;
@@ -8016,14 +8016,14 @@ begin
     from (select doc_key from public.documents where doc_key is not null
            group by doc_key having count(*) > 1 limit 20) x;
   if dup is not null then
-    raise notice '0258: QMS documents share a number + revision (%); the upload key was NOT created. Correct them and run again.', dup;
+    raise notice '0265: QMS documents share a number + revision (%); the upload key was NOT created. Correct them and run again.', dup;
     return;
   end if;
   create unique index documents_doc_key_uniq on public.documents (doc_key);
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0257_people_and_training.sql
+-- 0264_people_and_training.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -8060,7 +8060,7 @@ end $$;
 -- WHY THE PROFILE IS ITS OWN TABLE: `user_directory` is readable by everyone
 -- signed in (it drives the reporting tree). Joining date and employee code are
 -- not for everyone, so they live in `user_profile`, readable by the audience
--- above only. Department stays on the directory (0256): it is not private and
+-- above only. Department stays on the directory (0263): it is not private and
 -- the training audience picker needs it.
 --
 -- QUALITY RECORDS ARE NEVER DELETED: no delete policy on any table here. A
@@ -8388,7 +8388,7 @@ do $$
 declare n integer;
 begin
   if to_regclass('public.app_roles') is null then
-    raise notice '0257: app_roles is missing -- run rbac.sql first. Nothing granted.';
+    raise notice '0264: app_roles is missing -- run rbac.sql first. Nothing granted.';
     return;
   end if;
   update public.app_roles ar
@@ -8402,7 +8402,7 @@ begin
         or regexp_replace(lower(coalesce(ar.label, '')), '[^a-z0-9]', '', 'g') in ('vptechnical', 'rndengg', 'rndengineer') )
      and not (ar.permissions ?& array['mod:/training', 'training.manage']);
   get diagnostics n = row_count;
-  raise notice '0257: % role(s) given the Training screen and training.manage (VP Technical / R&D Engineer only)', n;
+  raise notice '0264: % role(s) given the Training screen and training.manage (VP Technical / R&D Engineer only)', n;
 end $$;
 
 -- ---- the five system columns (0244), attached as 0249 does -------------------

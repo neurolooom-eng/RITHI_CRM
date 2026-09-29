@@ -20,7 +20,7 @@ import { AudiencePicker } from '../components/people/AudiencePicker';
 import { PersonProfile } from '../components/people/PersonProfile';
 
 // ===========================================================================
-// TRAINING (0257). The user, 2026-09-30: "Add a Training Module; it should
+// TRAINING (0264). The user, 2026-09-30: "Add a Training Module; it should
 // Trigger Training if a New QMS document is Uploaded; Bulk Training. ... If a
 // User is given Training on a Specific topic then it should list all Past
 // Training details."

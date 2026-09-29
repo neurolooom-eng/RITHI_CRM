@@ -91,8 +91,8 @@ export const MODULES: ModuleDef[] = [
   { path: '/knowledge-base/how-it-works', label: 'How RITHI Functions', admin: true },
   { path: '/service-manuals', label: 'Service Manuals' },
   { path: '/qms', label: 'QMS Documents' },
-  // TRAINING (0257): assignments, sessions, everyone's records. `admin: true`
-  // keeps it out of the everyday roles' code defaults; 0257 grants it to VP
+  // TRAINING (0264): assignments, sessions, everyone's records. `admin: true`
+  // keeps it out of the everyday roles' code defaults; 0264 grants it to VP
   // Technical and R&D Engineer -- the only roles the user allowed to change.
   // Everybody sees their OWN training on My Profile, not here.
   { path: '/training', label: 'Training', admin: true },

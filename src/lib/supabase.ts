@@ -2625,7 +2625,7 @@ export interface DirectoryRow {
   reporting_manager: string; regional_manager: string; region: string;
   role: string; validity: boolean;
   address: string; city: string; state: string; phone: string;
-  /** 0256 -- from the Department master list. */
+  /** 0263 -- from the Department master list. */
   department: string;
 }
 
@@ -5041,7 +5041,7 @@ export async function serviceManualsForProduct(
 export async function addDocument(d: DocInput): Promise<{ ok: boolean; id?: number; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
   // The new id comes back so training on the document can be assigned at once
-  // (0257: the audience is chosen AT UPLOAD).
+  // (0264: the audience is chosen AT UPLOAD).
   const { data, error } = await c.from('documents').insert(d).select('id').single();
   return error ? { ok: false, error: errMsg(error) } : { ok: true, id: data ? Number(data.id) : undefined };
 }
