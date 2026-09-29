@@ -9574,5 +9574,56 @@ console.log('\n-- the Daily Complaint Review: auto review is a named person’s 
   eq('the DCCR Register upload marks every row imported', /\{ to: 'imported', from: \[\], derive: \(\) => true, always: true \}/.test(dccrUpload), true);
 }
 
+// THE DATA FLOWS CANNOT DRIFT (the user, 2026-09-30: flows "defined with the
+// validation"). A step naming a screen, a requirement or a test that does not
+// exist is a diagram that looks authoritative and is wrong — the one kind of
+// documentation this project refuses.
+console.log('\n-- data flows name real screens, requirements and tests --');
+{
+  const { FLOWS, rankSteps, layoutFlow, wrapLabel } = await import('../src/lib/flows');
+  const { URS: U, FRS: F, TESTS: T } = await import('../src/lib/validation');
+  const { MODULES: M } = await import('../src/lib/rbac');
+  const docIds = (f: string, re: RegExp) => new Set([...readFileSync(f, 'utf8').matchAll(re)].map((m) => m[1]));
+  const known = new Set<string>([
+    ...U.map((r) => r.id), ...F.map((r) => r.id), ...T.map((t) => t.id),
+    ...docIds('docs/CALL_REQUEST_REQUIREMENTS.md', /\*\*(CR-\d{3})\b/g),
+    ...docIds('docs/ISO13485_SERVICING.md', /\b(SR-\d{3})\b/g),
+    ...docIds('docs/COVER_REQUIREMENTS.md', /\b(CW-\d{3})\b/g),
+  ]);
+  const routes = new Set(M.map((m) => m.path));
+  eq('there is at least one flow', FLOWS.length > 0, true);
+  eq('flow ids are unique', new Set(FLOWS.map((f) => f.id)).size, FLOWS.length);
+  for (const f of FLOWS) {
+    const ids = f.steps.map((s) => s.id);
+    eq(`${f.id}: step ids are unique`, new Set(ids).size, ids.length);
+    eq(`${f.id}: every step names a real screen, where it names one`,
+      f.steps.filter((s) => s.route && !routes.has(s.route)).map((s) => `${s.id}:${s.route}`), []);
+    eq(`${f.id}: every requirement or test a step cites exists`,
+      f.steps.flatMap((s) => s.reqs.filter((r) => !known.has(r)).map((r) => `${s.id}:${r}`)), []);
+    eq(`${f.id}: every step cites at least one requirement`,
+      f.steps.filter((s) => !s.reqs.length).map((s) => s.id), []);
+    eq(`${f.id}: every arrow joins two steps of the flow`,
+      f.edges.filter((e) => !ids.includes(e.from) || !ids.includes(e.to)).map((e) => `${e.from}->${e.to}`), []);
+    eq(`${f.id}: no step is left unconnected`,
+      ids.filter((id) => !f.edges.some((e) => e.from === id || e.to === id)), []);
+    let acyclic = true;
+    try { rankSteps(f); } catch { acyclic = false; }
+    eq(`${f.id}: the forward arrows have no cycle (a return is marked loop)`, acyclic, true);
+    const lay = layoutFlow(f);
+    const overlap = lay.nodes.some((a, i) => lay.nodes.some((b, j) => j > i
+      && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h));
+    eq(`${f.id}: no two boxes overlap`, overlap, false);
+    eq(`${f.id}: every box is inside the drawing`,
+      lay.nodes.every((n) => n.x >= 0 && n.y >= 0 && n.x + n.w <= lay.width && n.y + n.h <= lay.height), true);
+  }
+  eq('a long label wraps without breaking a word', wrapLabel('Consumption booked on the visit report today'), ['Consumption booked on', 'the visit report today']);
+  const sv = readFileSync('src/modules/SoftwareValidation.tsx', 'utf8');
+  eq('Software Validation has its Data Flows tab and prints it in the full package',
+    /key: 'flows', label: 'Data Flows'/.test(sv) && /<FlowGallery printAll=\{all\} \/>/.test(sv), true);
+  eq('...and no two tabs share a key',
+    [...sv.matchAll(/\{ key: '([a-z]+)', label:/g)].map((m) => m[1]).filter((k, i, a) => a.indexOf(k) !== i), []);
+  eq('How RITHI Functions shows the same flows', /<FlowGallery \/>/.test(readFileSync('src/modules/HowRithiFunctions.tsx', 'utf8')), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

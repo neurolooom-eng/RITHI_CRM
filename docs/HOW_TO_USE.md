@@ -291,8 +291,19 @@ against the call it was fitted to.
     auto-save and the bulk answer. A later edit does not reassign it.
   - Answering in bulk refuses a first-year failure or an unknown age — those are
     reviewed one at a time.
-  - A call logged today stays pending all day; from 9:15 the next morning Review 2
-    answers itself *No*, marked as automatic.
+  - **Auto review is a switch, and a person's.** Only somebody given *Switch auto
+    review on or off* (Bagyaraj and Vignesh) can turn it on or off, from the top
+    of the register, which always shows whether it is on and in whose name.
+    While it is on, each morning Review 2 is answered *No* for calls logged
+    before that day that failed outside their first year — **in the name of the
+    person who switched it on**, and marked as an auto-review answer so Review 3
+    can tell it from one given by looking at the call. A call inside its first
+    year, or with no age on record, is always left for a person. It starts off.
+  - **Old reviews can be loaded in bulk** (Bulk Uploads → DCCR Register): they
+    come in as they were — the file's reviewer names and dates, not yours — and
+    loading them raises **no** Field Failure Report. Load the old reports
+    themselves through the Field Failure Register upload. Re-loading a corrected
+    file updates the same calls.
 - **Call Review** `/call-review` — a second look at the **report** on a solved
   call. Book a spare the engineer did not record (a **Reconciliation** line,
   visibly a correction), re-open the call, or mark it Report Reviewed.
@@ -301,7 +312,9 @@ against the call it was fitted to.
   restarting each year.
   - **A report raises itself** when the Daily Complaint Review Register
     answers any of Risk to Patient, Warranty Failure or Frequent Failure
-    as *Yes*.
+    as *Yes*. Its **CAPA fields start blank** — responsibility, CAPA No and
+    CAPA status are filled in by whoever handles the CAPA, and so are they on a
+    report raised with ＋ Raise FFR.
   - **Year and Product, both taking several values.** Tick as many as you like;
     the list stays open while you tick, and nothing ticked means everything.
     Year opens on this year; Product opens on all, so it costs nothing until you

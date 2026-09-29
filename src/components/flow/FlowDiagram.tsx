@@ -38,6 +38,14 @@ function StepDetail({ step }: { step: FlowStep }) {
           <li key={id}><code>{id}</code> {TITLES.get(id) ?? <span className="fl-muted">(stated in {id.split('-')[0]} requirements document)</span>}</li>
         ))}
       </ul>
+      {/* AND THE TESTS THAT SHOW IT: every test whose trace names one of the
+          step's requirements, so the step reads need → mechanism → evidence. */}
+      {(() => {
+        const tests = TESTS.filter((t) => t.reqs.some((r) => step.reqs.includes(r)));
+        return tests.length
+          ? <p className="fl-muted">Tests: {tests.map((t) => t.id).join(', ')}</p>
+          : <p className="fl-muted">No test traces to these requirements yet.</p>;
+      })()}
     </div>
   );
 }
