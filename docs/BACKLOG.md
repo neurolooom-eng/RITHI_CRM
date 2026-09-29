@@ -66,6 +66,39 @@ up)_
 
 ---
 
+## 2026-09-29 — The whole machine register on every device (v0.9.381–0.9.383) — CLIENT ONLY, no SQL
+
+The user: *"Remote location = Weak network signal and possible frequent
+disconnection. Whole machine register on every phone / laptop as a cached data.
+Search every thing relevant to Product Database from cached data."*
+
+- ✅ **0.9.381** — the product list could come back as an alphabetical PREFIX
+  (26 of 44, ending MONNAL T75, no VEGA) when one page of the walk failed.
+  `distinctValues()` retries a page and THROWS rather than returning a prefix.
+  Confirmed with the user's own numbers that there is NO user-based filtering
+  (`products_read` = authenticated).
+- ✅ **0.9.382** — a failed or empty refresh keeps the stored dropdown list;
+  the product list is fresh for six hours with no network call.
+- ✅ **0.9.383** — `machinestore.ts` keeps the whole `product_database` view in
+  IndexedDB, per signed-in user; `machinecache.ts` answers all eight Product
+  Database readers from it with the server's own rules (`check:paging`, 24
+  new assertions, mutation-tested; `check:ui` pins the wiring). Download is
+  KEYSET by id, resumes after a drop, and only a COMPLETE download replaces
+  the copy. Refresh: every six hours, on `online`, on returning to the app, on
+  a `products` upload, on ↻ Refresh / Download again / Clear Cache and Update
+  (which keeps the old copy until the new one lands). Wiped on sign-out.
+- ⏳ **Not measured**: the download size on the live register. Nothing here
+  holds the data. The status line reports the machine count; the size is the
+  next thing to ask for if phones struggle.
+- ⏳ **Still server-only**: Machine History and Product Database 2.0 (they join
+  calls, visits and spares); the Party Master (`sbSearchParties`, installations)
+  and `sbPartyInfo` — the `parties` table is not in the device copy.
+- ⏳ **Still unknown**: why the primary product read failed for some sessions
+  in the first place — grid 0 of `_which_products_are_missing.sql` is with the
+  user.
+
+---
+
 ## 2026-09-26 — Module review, batch 4: rows that could be missed or doubled (v0.9.380)
 
 Front end only, no SQL. ✅ Shipped on merge.

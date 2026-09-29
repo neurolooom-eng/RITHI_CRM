@@ -4069,7 +4069,7 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
 
   // The serial search must span customers — narrowing it by party would put
   // the slow search back in front of the fast one.
-  const fn = /export async function sbSearchMachines[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
+  const fn = /async function serverSearchMachines[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
   // THE CUSTOMER FILTER IS OPTIONAL, AND THAT IS THE POINT.
   //
   // This began as "the machine search is never narrowed by customer", which
@@ -4293,7 +4293,7 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // …and the serial search is party + product.
   eq('and the serial search is narrowed by customer too',
     /sbSearchMachines\(it\.product, qq, 50, i > 0 \? lockedParty : ''\)/.test(rq), true);
-  const fn = /export async function sbSearchMachines[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
+  const fn = /async function serverSearchMachines[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
   eq('the search takes a customer and filters on equality',
     /if \(party\.trim\(\)\) q = q\.eq\('party_name', party\.trim\(\)\)/.test(fn), true);
   // Call 1 must NOT be narrowed — there is no customer yet, and narrowing it
@@ -9159,6 +9159,33 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   // #14 the top-25 product list says it is the top 25.
   eq('#14 Spare Insights: a full product list says it is the top twenty-five',
     /by_product\.length >= 25/.test(rd('src/modules/SpareInsights.tsx')), true);
+}
+
+// THE MACHINE REGISTER ON THE DEVICE (2026-09-29). Every Product Database
+// search a picker or the register screen makes asks the device copy FIRST, and
+// the copy is wired to the places that must refresh or clear it. A reader that
+// quietly went back to the server alone would still work -- until the signal
+// dropped, which is the only moment this exists for.
+console.log('-- the machine register is searched on the device --');
+{
+  const rd = (f: string) => readFileSync(f, 'utf8');
+  const sbx = rd('src/lib/supabase.ts');
+  for (const fn of ['sbSearchProductParties', 'sbListPartyProducts', 'sbListProductNames', 'sbListProductSerials',
+    'sbListPartyItems', 'sbProductBySerial', 'sbSearchProducts', 'sbSearchMachines']) {
+    const body = new RegExp(`export async function ${fn}\\([\\s\\S]*?\\n\\}`).exec(sbx)?.[0] ?? '';
+    eq(`${fn} asks the device copy first`, /await localMachines\(\)/.test(body), true);
+  }
+  eq('a Product Database upload re-downloads the copy',
+    /written && table === 'products'\) void refreshMachineRegister\(\{ force: true \}\)/.test(sbx), true);
+  eq('signing out wipes the copy', /export async function sbSignOut[\s\S]{0,200}await clearMachineRegister\(\)/.test(sbx), true);
+  const lay = rd('src/components/layout/Layout.tsx');
+  eq('the shell starts the download once somebody is signed in', /if \(user && supabaseConfigured\(\)\) watchMachineRegister\(\)/.test(lay), true);
+  eq('Clear Cache and Update RE-DOWNLOADS rather than wiping it', /requestMachineRefresh\(\)/.test(lay) && !/clearMachineRegister/.test(lay), true);
+  const store = rd('src/lib/machinestore.ts');
+  eq('only a COMPLETE download replaces the copy', /if \(!r\.complete\) \{[\s\S]{0,200}return;\s*\}[\s\S]*st\.put\(/.test(store), true);
+  eq('...and it is refreshed every six hours', /MACHINE_REFRESH_MS = 6 \* 60 \* 60 \* 1000/.test(store), true);
+  for (const m of ['src/modules/Lookup.tsx', 'src/modules/ProductMaster.tsx'])
+    eq(`${m} says what the device holds`, /<MachineRegisterNote \/>/.test(rd(m)), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

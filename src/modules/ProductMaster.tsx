@@ -11,6 +11,8 @@ import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { isTimeout, errText } from '../lib/dberror';
 import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
+import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
+import { refreshMachineRegister } from '../lib/machinestore';
 
 const CACHE_KEY = 'productMasterRows';
 
@@ -172,7 +174,10 @@ export function ProductMaster() {
   return (
     <div>
       <PageHeader
-        onRefresh={() => void run({})}
+        // REFRESH SHOWS WHAT THE DEVICE HAS AT ONCE, then re-downloads the copy
+        // and searches again when a complete one has landed -- so a file loaded
+        // a minute ago is reachable without waiting out the six hours.
+        onRefresh={() => { void run({}); void refreshMachineRegister({ force: true }).then(() => run({})); }}
         refreshing={busy}
         syncedAt={lastSync}
         title="Product Database"
@@ -184,6 +189,7 @@ export function ProductMaster() {
         countMore={more}
       />
 
+      {dataConfigured() && <MachineRegisterNote />}
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>

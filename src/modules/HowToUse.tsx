@@ -413,7 +413,7 @@ const SECTIONS: Sec[] = [
       <><B>⟳ synced 3m ago</B> — a <i>status</i>, not a button. Shows how long since this screen synced; it also auto-syncs about every 30 minutes.</>,
       <><B>🧹 Clear Cache and Update</B> — the solid button at the bottom right of every screen, and in your name menu at the top right. Clears the copy held on this device and reloads the newest version. Use it after an update, or if the app looks stuck.<Hint>The app’s version of <K>Ctrl/⌘ + Shift + R</K>. It signs nobody out and deletes nothing from the database — only this device’s copy.</Hint></>,
     ],
-    note: { tone: 'good', icon: '✅', body: <><b>Rule of thumb:</b> list looks old → <B>↻ Refresh</B>. Whole app looks old → <B>🧹 Clear Cache and Update</B>. A product added in the last six hours missing from a dropdown → <B>🧹 Clear Cache and Update</B> too: the product list is kept on your device for six hours so it still works with no signal. Still wrong → note the <b>Build ID</b> and tell support.</> },
+    note: { tone: 'good', icon: '✅', body: <><b>Rule of thumb:</b> list looks old → <B>↻ Refresh</B>. Whole app looks old → <B>🧹 Clear Cache and Update</B>. A machine or product added in the last six hours missing from a search → <B>🧹 Clear Cache and Update</B> too: the whole machine register is kept on your device and refreshed every six hours, so every Product Database search still works with no signal. Still wrong → note the <b>Build ID</b> and tell support.</> },
   },
   {
     id: 'access', group: 'Admin & the team', n: '32', title: 'Give somebody access', who: 'Admin',

@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.383',
+    date: '2026-09-29',
+    title: 'The whole machine register is kept on your phone or laptop, and every Product Database search runs on it',
+    changes: [
+      'THE WHOLE PRODUCT DATABASE NOW LIVES ON YOUR DEVICE. After you sign in, the app downloads every machine — model, serial, customer, site, warranty, contract and item status — and keeps it on this phone or laptop. It is refreshed every six hours, and again as soon as the signal comes back or you return to the app.',
+      'EVERY PRODUCT DATABASE SEARCH ANSWERS FROM THAT COPY: the product list, the serial number box (it now works as you type with no signal), a customer\'s machines, the machine picked on a call or a request, Product & Party Search, and the Product Database screen itself. Nothing waits on the network, so a weak or dropping signal no longer produces a load error.',
+      'A DOWNLOAD THAT IS CUT OFF IS NOT WASTED. It is fetched a thousand machines at a time and picks up from where it stopped, rather than starting again. Until a download has finished completely, you keep searching the previous copy — a half-downloaded register is never used.',
+      'Both Product Database screens now say, in one line, how many machines are on your device and when they were downloaded, with a Download again button.',
+      'If something is not on your device yet (a machine added in the last few hours), the app still asks the server when there is a signal. Uploading a Product Database file refreshes your own copy straight away; ↻ Refresh on the Product Database screen and 🧹 Clear Cache and Update do the same. Clear Cache and Update keeps your current copy until the new one has fully arrived.',
+      'Signing out removes the copy from the device.',
+      'Not on the device: Machine History and Product Database 2.0 — they combine machines with calls, visits and spares, which are not kept on the device, so they still need a connection.',
+    ],
+  },
+  {
     version: '0.9.382',
     date: '2026-09-29',
     title: 'Dropdowns keep working with a weak signal; the product list lasts six hours on your device',

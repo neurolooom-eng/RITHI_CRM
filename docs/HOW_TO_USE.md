@@ -46,6 +46,11 @@ different totals. An empty register usually means access, not emptiness.
 - **Product & Party Search** `/lookup` — find a machine or customer and see
   everything about it. The party list comes from the machines on record, so every
   customer offered has something to find.
+  > **It searches the copy of the machine register kept on your device**, so it
+  > works with a weak or no signal. The copy is refreshed every six hours and when
+  > the signal returns; the line under the title says how many machines it holds
+  > and when it was downloaded. A machine added in the last few hours: press
+  > **Download again** there (or ↻ Refresh on the Product Database screen).
 - **Spare Insights** `/spare-insights` — consumption over a window, five ways.
   Both ends of the window count; voided lines do not; an uncategorised part shows
   as Unclassified rather than guessed at.

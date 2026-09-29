@@ -9,6 +9,7 @@ import { productToCallPrefill } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
 import './fieldcalls.css';
+import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
 
 // ===========================================================================
 // PRODUCT & PARTY SEARCH — the same question from either end.
@@ -190,6 +191,7 @@ export function Lookup() {
         count={party ? items.length : undefined}
       />
 
+      {dataConfigured() && <MachineRegisterNote />}
       {!dataConfigured() && <div className="sheet-banner sheet-banner-info">Connect the database in Settings to search.</div>}
       {msg && <div className="sheet-banner sheet-banner-error"><span>{msg}</span><button className="btn btn-ghost btn-sm" onClick={() => setMsg('')}>✕</button></div>}
 
