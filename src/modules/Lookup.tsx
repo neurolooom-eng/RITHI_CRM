@@ -63,6 +63,10 @@ export function Lookup() {
   const [serialOpts, setSerialOpts] = useState<string[]>([]);
   const [serialBusy, setSerialBusy] = useState(false);
   const [productOpts, setProductOpts] = useState<ProductName[]>([]);
+  // WHY THE PRIMARY LIST FAILED, kept so the screen can SAY it. It used to be
+  // swallowed and the screen fell back to the master list silently -- which is
+  // how a short list (26 of 44 products, VEGA missing) was shown as complete.
+  const [productErr, setProductErr] = useState('');
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
 
@@ -88,8 +92,8 @@ export function Lookup() {
     if (!onDb) { setProductOpts([]); return; }
     let cancelled = false;
     void sbListProductNames()
-      .then((rows) => { if (!cancelled) setProductOpts(rows); })
-      .catch(() => { if (!cancelled) setProductOpts([]); });
+      .then((rows) => { if (!cancelled) { setProductOpts(rows); setProductErr(''); } })
+      .catch((e) => { if (!cancelled) { setProductOpts([]); setProductErr(e instanceof Error ? e.message : String(e)); } });
     return () => { cancelled = true; };
   }, [onDb]);
 
@@ -198,7 +202,11 @@ export function Lookup() {
         {mode === 'machine' ? (
           <>
             <SelectPicker value={product} onChange={(v) => { setProduct(v); setSerial(''); }}
-              placeholder={`— any of the ${products.length} products —`}
+              placeholder={productMaster.failed && !productOpts.length
+                ? '— the product list could not be loaded: press ↻ Refresh —'
+                : `— any of the ${products.length} products —`}
+              loading={!productOpts.length && !productMaster.ready}
+              emptyHint={productMaster.failed ? `Could not load the product list${productErr ? ` (${productErr})` : ''}. Press ↻ Refresh -- this is a failed load, not a missing product.` : undefined}
               options={products.map((p) => ({ value: p.name, label: p.machines ? `${p.name} (${p.machines})` : p.name }))} />
             {/* The serials of the product chosen — a dependent dropdown. Free
                 text only while no product is chosen, since a serial on its own

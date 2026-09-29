@@ -38,6 +38,57 @@ export async function allRows<T>(
   return out;
 }
 
+// ===========================================================================
+// EVERY DISTINCT VALUE OF ONE COLUMN, AND NEVER A PREFIX OF THEM.
+//
+// Reported 2026-09-28/29: Product & Party Search offered 26 products and a
+// Call Registration Request offered 6, where the register holds 44 -- VEGA
+// among them, with 268 machines. The hand-written loop this replaces read the
+// register a thousand rows at a time SORTED BY THE COLUMN and did
+// `if (error) break`, then returned what it had collected. So a single failed
+// request -- a timeout, a dropped mobile connection -- ended the walk part-way
+// and the names reached so far came back AS THE WHOLE LIST: the first 26
+// alphabetically, ending at MONNAL T75, which is exactly what was on screen.
+// Nothing said it had stopped. The picker then told people "Nothing matches"
+// for products that exist, which reads as missing data, and was chased as
+// missing data twice before the loop was read.
+//
+// So: a failing page is RETRIED, because the likeliest cause is transient; and
+// one that still fails THROWS, naming how far the walk got. A caller that
+// catches it can say "could not load the list" -- the true statement -- instead
+// of offering a short list that looks complete. That is the same contract
+// `allRows` above has always had; this was a second copy of it that did not.
+//
+// Ordered by the column itself, so the same value sits at the same position
+// whatever order its ties come in and no value can fall between two pages.
+// ===========================================================================
+export async function distinctValues(
+  page: (from: number, to: number) => PromiseLike<{ data: Record<string, unknown>[] | null; error: { message?: string; code?: string } | null }>,
+  column: string,
+  opts: { max?: number; retries?: number; wait?: (ms: number) => Promise<void> } = {},
+): Promise<string[]> {
+  const max = opts.max ?? 40000;
+  const retries = opts.retries ?? 2;
+  const wait = opts.wait ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const set = new Set<string>();
+  for (let from = 0; from < max; from += PG_PAGE) {
+    const to = Math.min(from + PG_PAGE, max) - 1;
+    let res = await page(from, to);
+    for (let attempt = 1; res.error && attempt <= retries; attempt++) {
+      await wait(400 * attempt);
+      res = await page(from, to);
+    }
+    if (res.error) {
+      throw new Error(`${pageError(res.error)} (the list stopped after ${set.size} value${set.size === 1 ? '' : 's'}, `
+        + `at row ${from.toLocaleString()} -- it is incomplete, so it was not shown).`);
+    }
+    const rows = res.data ?? [];
+    rows.forEach((r) => { const v = String(r[column] ?? '').trim(); if (v) set.add(v); });
+    if (rows.length < PG_PAGE) break;
+  }
+  return [...set].sort();
+}
+
 // The message a failing page reports. Deliberately NOT `errMsg` from
 // ./supabase: importing that file pulls in `import.meta.env` and the Supabase
 // client, and this module exists to be importable without either. The two

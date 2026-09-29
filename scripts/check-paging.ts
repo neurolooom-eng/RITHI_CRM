@@ -15,7 +15,7 @@
 // 1,000 of them and said "Nothing matches" to a serial that was there.
 // ===========================================================================
 
-import { allRows, readUpTo, PG_PAGE } from '../src/lib/paging';
+import { allRows, readUpTo, distinctValues, PG_PAGE } from '../src/lib/paging';
 let fail = 0;
 const eq = (n: string, a: unknown, b: unknown) => {
   const ok = JSON.stringify(a) === JSON.stringify(b);
@@ -120,6 +120,66 @@ console.log('\n-- readUpTo re-reads as far as the reader had got (finding 22) --
   eq('3,000 loaded, register now 500: exactly 500, and that is all',
     [r.rows.length, r.more], [500, false]);
 }
+
+// ---------------------------------------------------------------------------
+// THE PRODUCT LIST THAT STOPPED AT 26 (2026-09-29). The register as it stood
+// that day -- 44 product names with their real machine counts, 20,012 rows --
+// read the way `distinctColumn` reads it: sorted by name, a thousand at a time.
+// ---------------------------------------------------------------------------
+{
+  const reg: [string, number][] = [
+    ['AIR COMPRESSOR', 17], ['AIR SUPPLY', 763], ['AMBU BAG', 16], ['ANAVENT', 654], ['BORA', 8],
+    ['CESAR', 53], ['CLARYS', 201], ['CPX CARE', 3842], ['EC-VENT', 1], ['ECLIPSE DELTA', 5],
+    ['EOVE', 35], ['EOVE-70', 1], ['EXTEND-XT', 2052], ['HORUS', 1274], ['HORUS EXTEND', 252],
+    ['INT STAND MONNAL T75', 1], ['MDV SCREEN', 8], ['MONAL-D M', 328], ['MONNAL DS', 25],
+    ['MONNAL INO', 1], ['MONNAL T20', 40], ['MONNAL T30', 40], ['MONNAL T50', 303], ['MONNAL T60', 622],
+    ['MONNAL T60 ADVANCED', 44], ['MONNAL T75', 2298], ['MONNAL TEO NF', 117], ['MONNAL-D', 559],
+    ['MONNAL-D ANASTESIA', 4], ['MONNAL-D COMPUTERISED', 10], ['MONNAL-D SIMV', 356], ['NA', 1],
+    ['NEFTIS', 15], ['NITRIC OXIDE REGULATOR', 1], ['OPTI-NO INJECTOR', 5], ['ORION', 1975],
+    ['ORION-G', 2549], ['OSIRIS - 2', 426], ['OSIRIS-3', 48], ['PO1', 2], ['SILENSIO', 5], ['VAL', 1],
+    ['VEGA', 268], ['ZEFIR', 40],
+  ];
+  const rows = reg.flatMap(([n, k]) => Array.from({ length: k }, () => ({ item_name: n })));
+  // `failAt` = the page that errors; `times` = how many times it errors before recovering.
+  const flaky = (failAt: number, times: number) => {
+    let left = times;
+    return async (from: number, to: number) => {
+      if (Math.floor(from / PG_PAGE) === failAt && left > 0) { left--; return { data: null, error: { message: 'canceling statement due to statement timeout' } }; }
+      return { data: rows.slice(from, Math.min(to + 1, from + PG_PAGE)), error: null };
+    };
+  };
+  const noWait = { wait: async () => {} };
+  const all = await distinctValues(flaky(-1, 0), 'item_name', noWait);
+  eq('the whole register gives all 44 names', all.length, 44);
+  eq('  ...VEGA among them', all.includes('VEGA'), true);
+
+  // THE FAULT, REPRODUCED: the old loop's behaviour, written out, stops at 26
+  // ending at MONNAL T75 -- the screenshot, to the name.
+  {
+    const set = new Set<string>(); const pg = flaky(12, 99);
+    for (let from = 0; from < 40000; from += PG_PAGE) {
+      const { data, error } = await pg(from, from + PG_PAGE - 1);
+      if (error) break;
+      (data ?? []).forEach((r) => set.add(r.item_name));
+      if ((data ?? []).length < PG_PAGE) break;
+    }
+    const old = [...set].sort();
+    eq('THE OLD LOOP: one failed page returns 26 names as the whole list', old.length, 26);
+    eq('  ...ending at MONNAL T75, as on screen', old[old.length - 1], 'MONNAL T75');
+    eq('  ...and VEGA is not in it', old.includes('VEGA'), false);
+  }
+
+  // A PAGE THAT FAILS ONCE IS RETRIED, and the list comes back whole.
+  eq('a page that fails twice then answers: all 44, retried', (await distinctValues(flaky(12, 2), 'item_name', noWait)).length, 44);
+
+  // A PAGE THAT KEEPS FAILING IS REFUSED -- never handed back as a short list.
+  let threw = '';
+  let got: string[] | null = null;
+  try { got = await distinctValues(flaky(12, 99), 'item_name', noWait); } catch (e) { threw = (e as Error).message; }
+  eq('a page that keeps failing THROWS rather than returning a prefix', got, null);
+  eq('  ...and says how far it got', /stopped after 26 values/.test(threw) && /incomplete/.test(threw), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 
 }
