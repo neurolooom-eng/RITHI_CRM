@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.0',
+    date: '2026-09-30',
+    title: 'Version 0.10.0',
+    changes: [
+      'THE VERSION NUMBER MOVES FROM 0.9.x TO 0.10.0. Nothing else changes in this build: every screen works exactly as it did in 0.9.400. Later changes will be numbered 0.10.1, 0.10.2 and so on.',
+    ],
+  },
+  {
     version: '0.9.400',
     date: '2026-09-30',
     title: 'Part Master: parts mapped to products like the Standard Complaints, and a place for each product\'s accessories',
