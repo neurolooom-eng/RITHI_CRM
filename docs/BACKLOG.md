@@ -66,6 +66,35 @@ up)_
 
 ---
 
+## 2026-09-29 — The migrate pipeline reaches the live database; baseline held
+
+The user reset the database password and set `SUPABASE_DB_URL` to the session
+pooler URI. Dry-run 36612995344 **connected** and stopped at the guard, as
+designed: *"This database already has a schema but no migration ledger"*. (Run
+36575787733, an hour earlier, got no host at all — the secret was not yet a
+full URI.) So the connection works and **nothing has been baselined yet**.
+
+The user then ran `HandStock_X.sql`, `sales_contracts.sql`, `objective.sql`,
+`data_integrity.sql`, `sys_columns.sql` and `lockdown.sql` by hand, and
+`_status.sql` read YES everywhere except **rows 55, 117, 149, 157, 183, 184
+and 185**. Those seven are not one kind of NO: some are migrations not yet run
+(0203, 0239 and 0242 are candidates, in `daily_review.sql`,
+`product_database_2.sql` and `call_requests.sql`), some test PERMISSION DATA
+the user tunes by hand (149, 157 and 184 fail if any role lacks a key, or if a
+role outside three holds `mod:/handstock-report` — which the 0241 ask said the
+user would grant), and row 55 is data.
+
+**Do not re-run `rbac.sql` to clear them blind**: it MERGES keys into roles
+and would undo a deliberate untick. `supabase/apply/_why_do_the_status_rows_say_no.sql`
+splits each row into its parts and labels every failing part MIGRATION,
+PERMISSION or DATA. It was tested on a database built from every migration
+(all OK) and on a copy with each fault put in (each named).
+
+**Baseline only after every MIGRATION line reads OK.** A plain `baseline`
+records all 275 files as applied; `baseline_through` cannot skip a gap in the
+middle. If a row is found to be a faulty check (184's leak clause is the
+likely one), correct the row rather than the data.
+
 ## 2026-09-29 — "Today" is the local day; dates on screen per R2/R3 (v0.9.394)
 
 Held on the branch while another branch fixed something critical, then
