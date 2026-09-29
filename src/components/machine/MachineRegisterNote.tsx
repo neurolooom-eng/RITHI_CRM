@@ -13,7 +13,10 @@ function describe(what: string, s: MachineRegisterStatus): string {
   const at = s.at ? new Date(s.at).toISOString() : '';
   if (s.downloading)
     return `Downloading ${what} to this device… ${s.progress.toLocaleString()} so far`
-      + (s.machines ? ` (searching the copy from ${timeAgo(at)} until it finishes).` : '.');
+      + (s.machines ? ` (searching the copy from ${timeAgo(at)} until it finishes).` : '.')
+      // THE REASON IT IS WAITING, in the server's words, while it retries --
+      // "0 so far" alone was indistinguishable from a slow start.
+      + (s.error ? ` Last request failed: ${s.error}.` : '');
   if (s.machines)
     return `${s.machines.toLocaleString()} ${what} on this device, downloaded ${timeAgo(at)} (${formatDayTime(at)}).`
       + (s.error ? ` The last refresh could not finish (${s.error}); it carries on when the signal returns.` : '');

@@ -188,7 +188,12 @@ export const DOWNLOAD_PAGE = 1000;
 export async function downloadAfter<T extends { id: number }>(
   fetchAfter: (afterId: number, size: number) => Promise<T[]>,
   from: DownloadState<T>,
-  opts: { waits?: number[]; wait?: (ms: number) => Promise<void>; onProgress?: (n: number) => void; max?: number } = {},
+  opts: {
+    waits?: number[]; wait?: (ms: number) => Promise<void>; onProgress?: (n: number) => void; max?: number;
+    /** Told about every failed request AS IT HAPPENS, so a screen can say why it
+     *  is waiting instead of reading "0 so far" for a minute (2026-09-29). */
+    onRetry?: (error: string, attempt: number) => void;
+  } = {},
 ): Promise<DownloadResult<T>> {
   const waits = opts.waits ?? [2000, 5000, 15000, 30000];
   const wait = opts.wait ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
@@ -203,6 +208,7 @@ export async function downloadAfter<T extends { id: number }>(
       catch (e) {
         error = e instanceof Error ? e.message : String(e);
         if (attempt >= waits.length) return { rows, lastId, complete: false, error };
+        opts.onRetry?.(error, attempt + 1);
         await wait(waits[attempt]);
       }
     }

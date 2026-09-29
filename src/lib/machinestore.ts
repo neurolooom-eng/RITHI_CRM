@@ -155,7 +155,10 @@ function register<T extends { id: number }>(o: {
           ? partial : { user, started: Date.now(), state: { rows: [], lastId: 0 } };
         partial = resume;
         publish({ downloading: true, progress: resume.state.rows.length, error: '' });
-        const r = await downloadAfter(fetchAfter, resume.state, { onProgress: (n) => publish({ progress: n }) });
+        const r = await downloadAfter(fetchAfter, resume.state, {
+          onProgress: (n) => publish({ progress: n, error: '' }),
+          onRetry: (error, attempt) => publish({ error: `${error} -- retrying (attempt ${attempt + 1})` }),
+        });
         if (!r.complete) {
           partial = { ...resume, state: { rows: r.rows, lastId: r.lastId } };
           publish({ downloading: false, error: r.error ?? 'the download stopped' });
