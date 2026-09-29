@@ -19,6 +19,7 @@ import { allRows, readUpTo, distinctValues, PG_PAGE } from '../src/lib/paging';
 import { isFresh, afterRefresh, HOUR } from '../src/lib/mastercache';
 import * as mc from '../src/lib/machinecache';
 import * as cp from '../src/lib/complaints';
+import * as pf from '../src/lib/partfit';
 let fail = 0;
 const eq = (n: string, a: unknown, b: unknown) => {
   const ok = JSON.stringify(a) === JSON.stringify(b);
@@ -328,6 +329,31 @@ console.log('-- the call form offers the product\'s complaints plus the all-prod
   eq('a plain value (no products part) reads as all products', cp.complaintOptionsFor(['LEGACY'], 'VEGA'), ['LEGACY']);
   const now = 1_000_000_000_000;
   eq('the mapped complaint list is served from the device for six hours (offline)', isFresh('complaintProducts', now - 5 * HOUR, now), true);
+}
+
+console.log('-- the spare pickers on a call: main product + accessories + common parts --');
+{
+  const parts = [
+    pf.encodePartEntry('P1|Vega board', 'VEGA'),
+    pf.encodePartEntry('P2|CPX filter', 'CPX CARE'),
+    pf.encodePartEntry('P3|Screw', ''),
+    pf.encodePartEntry('P4|Orion valve', 'ORION-G'),
+    pf.encodePartEntry('P5|Hose', 'vega , ASU '),
+  ];
+  const acc = [pf.encodeAccessoryEntry('VEGA', ['CPX CARE', 'ASU'])];
+  eq('a VEGA call: VEGA parts, its accessories\' parts, and the common ones', pf.partOptionsFor(parts, acc, ' vega'),
+    ['P1|Vega board', 'P2|CPX filter', 'P3|Screw', 'P5|Hose']);
+  eq('an ORION-G call (no accessories saved): its own and the common ones', pf.partOptionsFor(parts, acc, 'ORION-G'),
+    ['P3|Screw', 'P4|Orion valve']);
+  eq('no product on the call: every part', pf.partOptionsFor(parts, acc, '').length, 5);
+  eq('Show all parts: every part', pf.allPartValues(parts).length, 5);
+  eq('accessories are one-way: a CPX CARE call does not get VEGA parts', pf.partOptionsFor(parts, acc, 'CPX CARE'),
+    ['P2|CPX filter', 'P3|Screw']);
+  const fit = pf.makePartFit(parts, acc, 'VEGA');
+  eq('hand stock: an ORION-G part is hidden on a VEGA call', fit('P4|Orion valve', 'P4'), false);
+  eq('hand stock: an accessory part is shown', fit('P2|CPX filter', 'P2'), true);
+  eq('hand stock: a part the Part Master does not list is kept', fit('X9|Unknown', 'X9'), true);
+  eq('hand stock: matched by code when the text differs', fit('P4 | old text', 'p4'), false);
 }
 
 console.log('-- the Standard Complaint master: bulk products and filters --');

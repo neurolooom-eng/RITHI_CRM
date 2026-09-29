@@ -29,7 +29,7 @@ import {
 } from '../lib/spareapproval';
 import { useAuth } from '../lib/auth';
 import { useAccessScope, allowsAllottee, useTeamEngineers, useRegionByEngineer } from '../lib/access';
-import { useMaster } from '../lib/masters';
+import { useSpareParts } from '../lib/useSpareParts';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
@@ -115,7 +115,11 @@ export function SpareRequestDrawer({
   onSaved?: (ucn: string, uid?: string, orNo?: string) => void;
 }) {
   const { user } = useAuth();
-  const spareMaster = useMaster('spare');
+  // THE CALL'S PRODUCT + ITS ACCESSORIES + THE COMMON PARTS (partfit.ts, the
+  // user, 2026-09-30); "Show all parts" opens the whole Part Master. A
+  // HandStock request has no machine behind it and always gets the whole list.
+  const spareParts = useSpareParts();
+  const [showAllParts, setShowAllParts] = useState(false);
   const [reqType, setReqType] = useState('Call Based');
   const [engineer, setEngineer] = useState('');
   const [picked, setPicked] = useState<PickedCall>(EMPTY_CALL);
@@ -144,7 +148,7 @@ export function SpareRequestDrawer({
     setReqType('Call Based'); setRemarks(''); setHandstockReason('');
     setSpares([{ spare: '', qty: '1' }]); setUid(makeRequestUID()); setErr('');
     setEngineer(user?.fullName ?? '');
-    setPicked(callToPicked(call));
+    setPicked(callToPicked(call)); setShowAllParts(false);
   }, [open, call, user]);
 
   // Who this request may be raised FOR: a manager's own reporting engineers,
@@ -156,6 +160,14 @@ export function SpareRequestDrawer({
   // offered, or reopening a draft would silently drop it.
   const withCurrent = (list: string[], current: string) =>
     current && !list.includes(current) ? [current, ...list] : list;
+
+  const callProduct = reqType === 'Call Based' ? picked.productName.trim() : '';
+  const narrowed = !!callProduct && !showAllParts;
+  const spareMaster = {
+    values: narrowed ? spareParts.forProduct(callProduct) : spareParts.all,
+    ready: spareParts.ready,
+  };
+  const productAccessories = callProduct ? spareParts.accessories(callProduct) : [];
 
   const setSpare = (i: number, field: 'spare' | 'qty', v: string) =>
     setSpares((s) => s.map((x, j) => (j === i ? { ...x, [field]: v } : x)));
@@ -274,6 +286,19 @@ export function SpareRequestDrawer({
           <div className="rep-sec-title">
             Spares <span className="muted">{spareMaster.ready ? `(${spareMaster.values.length} parts)` : '(loading parts…)'} · {spares.length}/{MAX_SPARES}</span>
           </div>
+          {callProduct && (
+            <div className="muted" style={{ fontSize: 12.5, margin: '0 0 6px', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span>
+                {showAllParts
+                  ? 'Showing every part in the Part Master.'
+                  : <>Parts for <b>{callProduct}</b>{productAccessories.length ? <> and its accessories ({productAccessories.join(', ')})</> : ''}, plus the common parts.</>}
+              </span>
+              <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                <input type="checkbox" checked={showAllParts} onChange={(e) => setShowAllParts(e.target.checked)} />
+                Show all parts
+              </label>
+            </div>
+          )}
           {/* TYPE TO SEARCH (user's ask, 2026-09-09), the same control the call
               request uses for the Standard Complaint and the Serial No.
 
@@ -306,9 +331,12 @@ export function SpareRequestDrawer({
                   disabled={!spareMaster.values.length}
                   placeholder="Type any part of the code or description…"
                   emptyLabel={spareMaster.values.length ? '— pick a part —'
-                    : spareMaster.ready ? '— no parts in the master —'
-                    : '— loading parts… —'}
-                  emptyHint="If the part is not here, it needs adding to the Part Master."
+                    : !spareMaster.ready ? '— loading parts… —'
+                    : narrowed && spareParts.all.length ? `— no parts mapped to ${callProduct}: tick Show all parts —`
+                    : '— no parts in the master —'}
+                  emptyHint={narrowed
+                    ? 'Not in this list? Tick "Show all parts" above. Parts are mapped to products on the Part Master.'
+                    : 'If the part is not here, it needs adding to the Part Master.'}
                 />
               </div>
               <input className="input spare-qty" type="number" min={MIN_QTY} step={1} value={s.qty} onChange={(e) => setSpare(i, 'qty', e.target.value)} />

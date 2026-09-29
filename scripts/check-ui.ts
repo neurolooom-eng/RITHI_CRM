@@ -8944,7 +8944,10 @@ console.log('\n-- module review batch 2: frozen closures and over-strong counts 
   // #16 THE 30-MINUTE SYNC SEES THE CURRENT FILTER. Registered inside a
   // mount-only effect it read the first render's filter for ever and replaced
   // a filtered list with the unfiltered first page.
-  for (const f of ['PartyMaster', 'PartMaster', 'AuditLog', 'Reports']) {
+  // PART MASTER IS NOT IN THIS LIST ANY MORE (2026-09-30): it loads the WHOLE
+  // catalogue and filters on the device, so a sync cannot replace a filtered
+  // list with an unfiltered page -- asserted below instead.
+  for (const f of ['PartyMaster', 'AuditLog', 'Reports']) {
     const src = readFileSync(`src/modules/${f}.tsx`, 'utf8');
     eq(`${f}: the auto-sync is its own effect, rebuilt when the filter changes`,
       /\}, \[hasFilter\]\);/.test(src) && !/if \(!hasFilter\) void refresh\(\); \}, SYNC_TTL_MS\)/.test(src), true);
@@ -9445,8 +9448,27 @@ console.log('-- a new part must say Spare/Consumable and Product --');
   eq('the Add form refuses a part with no category, or no products and not Common',
     /if \(!form\.category\.trim\(\)\) return[\s\S]{0,300}if \(!form\.common && !form\.product\.trim\(\)\) return/.test(pm), true);
   eq('...and addPart() refuses it too', /if \(!more\.category\.trim\(\)\) return[\s\S]{0,300}if \(!more\.common && !more\.product\.trim\(\)\) return/.test(sbx), true);
-  eq('the Part Master filters by product (common / unrecognised) over the WHOLE catalogue',
-    /queryAllParts\(filter/.test(pm) && /UNRECOGNISED_FILTER/.test(pm), true);
+  // THE WHOLE LIST, RELOADED AUTOMATICALLY (the user, 2026-09-30), and every
+  // filter -- product, the global search -- applied to all of it on the device.
+  eq('the Part Master reloads the WHOLE catalogue, on open and on every sync',
+    /toRows\(await queryAllParts\(\{\}\), 0\)/.test(pm) && /void refresh\(\);\n/.test(pm)
+      && !/queryParts\(/.test(pm.replace(/import[\s\S]*?from '..\/lib\/supabase';/, '')), true);
+  eq('...filters by product (common / unrecognised) over that whole list',
+    /matchesProductFilter\(\{ products: String\(r\.product/.test(pm) && /UNRECOGNISED_FILTER/.test(pm), true);
+  eq('...and a global search matches every word anywhere in the part',
+    /words\.every\(\(w\) => h\.includes\(w\)\)/.test(pm), true);
+  // PHASE 2 (2026-09-30): both spare pickers on a call narrow through ONE rule.
+  const srq = readFileSync('src/modules/SpareRequests.tsx', 'utf8');
+  const crp = readFileSync('src/modules/CallReporting.tsx', 'utf8');
+  const pac = readFileSync('src/modules/ProductAccessories.tsx', 'utf8');
+  eq('the Spare Request offers the call\'s product + accessories + common parts, with Show all parts',
+    /useSpareParts\(\)/.test(srq) && /spareParts\.forProduct\(callProduct\)/.test(srq) && /Show all parts/.test(srq), true);
+  eq('...and a HandStock request is never narrowed', /reqType === 'Call Based' \? picked\.productName/.test(srq), true);
+  eq('the visit report narrows the hand stock the same way, with Show all parts',
+    /spareParts\.fits\(callProduct\)/.test(crp) && /Show all parts/.test(crp), true);
+  eq('the accessory panel takes its names from the Product Master\'s Category',
+    /mainAndAccessoryNames\(/.test(pac) && !/productNames/.test(pac), true);
+  eq('...and bulk-sets Spare / Consumable of ticked parts', /updatePart\(Number\(t\.id\), \{ category: bulkCategory \}\)/.test(pm), true);
   eq('...and bulk-edits products of ticked parts', /selectable=\{mayEdit\}/.test(pm) && /applyBulkProducts\(/.test(pm), true);
   eq('...and carries the main product -> accessories placeholder', /<ProductAccessories /.test(pm), true);
   eq('...while an edit does not demand them', /const saveEdit[\s\S]{0,600}Choose Spare/.test(pm), false);

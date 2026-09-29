@@ -192,3 +192,14 @@ export async function warmMaster(name: string): Promise<void> {
     await load(name);
   } catch { /* the screen that needs it will ask again */ }
 }
+
+/** Fetch and store a list only if this device holds NO copy of it at all --
+ *  for a list that is re-read whenever its form opens (the parts), so it is on
+ *  the device for use with no signal without being re-downloaded on a timer.
+ *  Never throws. */
+export async function warmMasterIfMissing(name: string): Promise<void> {
+  try {
+    if (readEntry(name) || !dataConfigured()) return;
+    await load(name);
+  } catch { /* the form that needs it will ask again */ }
+}
