@@ -1031,6 +1031,11 @@ typed into a form that reads it.
   intended use, regulatory basis, requirements and the tests that answer them.
   > Not the servicing process requirements. Software validation does not discharge
   > a process requirement, which is why they are two documents.
+  > **Data Flows** draws how a record moves from screen to screen — a call to
+  > its spares, closure, consumption and feedback; a review to its FFR and the
+  > Objective; hand stock; a sale to installation, cover and PM. Select a box to
+  > see what that step does, where, and the requirements and tests behind it.
+  > The same diagrams are under **How RITHI Functions → Data flows**.
 - **Settings** `/settings` — your preferences, and for an administrator the
   connection settings.
 - **Your Profile** `/profile` — **My Signature** lives here, not in Settings:

@@ -177,7 +177,7 @@ export function seedUsers() {
     fullName: 'ALMS Service',
     email: 'service.almsind@gmail.com',
     role: 'admin',
-    passwordHash: '8c543c4f', // hash('Coxpass105!') — temporary test password, to be reset
+    passwordHash: '8c543c4f', // a temporary test password (its plaintext was removed from this comment 2026-09-30; treat it as disclosed and change it)
   });
 }
 

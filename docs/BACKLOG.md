@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-30 (FINDING 20 FOLLOW-UP — "Cleared for Stores Processing"
+_Last updated: 2026-09-30 (SOFTWARE VALIDATION REV 3.0 — every page read (docs/CAPABILITY_INVENTORY.md, 1,072 actions), 87 URS / 121 FRS / 126 tests / 61 risks / 61 DFMEA / 58 defects added, 27 corrections; 53 DEFECTS OPEN, each with a test that fails until it is fixed; data flow diagrams; 0269 auto review switch (Bagyaraj, Vignesh), imported reviews raise no FFR, CAPA blank. ⚠️ CHANGE THE PASSWORD of service.almsind@gmail.com — its plaintext was in a comment in src/lib/auth.tsx (removed, still in git history). On the branch, NOT merged. Before that: FINDING 20 FOLLOW-UP — "Cleared for Stores Processing"
 counts as approved, 0268, v0.10.6, on the branch, NOT merged; _status.sql row
 199. Before that: MODULE REVIEW BATCH 7 — findings 20, 23, 31, v0.10.2,
 MERGED in #453 on the user's word ("Lets merge"). Migrations 0256 (approval words), 0257 (a rename carries

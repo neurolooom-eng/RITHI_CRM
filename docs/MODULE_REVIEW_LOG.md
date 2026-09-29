@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-30. **20, follow-up (v0.10.6, on the branch, not merged): "Cleared for Stores Processing" counts as approved.** Before that: **Batch 7 (v0.10.2): 20, 23 and 31 fixed as you decided, merged in #453 on your word ("Lets merge"); migrations 0256–0262 are applied by that merge's "Apply database migrations" run.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
+_Last updated: 2026-09-30. **Software Validation Rev 3.0 (v0.10.6, on the branch): every page read, 1,072 actions, every gap given a requirement, test and — where the code falls short — an open defect; data flow diagrams; the auto review switch.** Before that: **20, follow-up (v0.10.6, on the branch, not merged): "Cleared for Stores Processing" counts as approved.** Before that: **Batch 7 (v0.10.2): 20, 23 and 31 fixed as you decided, merged in #453 on your word ("Lets merge"); migrations 0256–0262 are applied by that merge's "Apply database migrations" run.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
 
 ---
 
@@ -168,6 +168,34 @@ dates are shown and exported, not how they are stored.**
 
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
+
+### 2026-09-30 — Software Validation Rev 3.0: every page read, every action given a requirement (v0.10.6, on the branch, not merged)
+- **Your ask:** read every page, list every action, update the requirements, then everything downstream (risk, DFMEA, tests), and add data flow charts.
+- **Inventory** — [`docs/CAPABILITY_INVENTORY.md`](CAPABILITY_INVENTORY.md): 1,072 actions across every screen, each with the line it was read from and what guards it. Before this, 474 had no requirement stating them and 309 were only partly stated. The document ends with where each gap is now stated.
+- **Package** (`src/lib/validation.ts`), now 166 URS, 215 FRS, 216 tests, 104 risks, 93 DFMEA rows and 75 defects:
+  - added 87 URS, 121 FRS, 126 tests, 61 risks, 61 DFMEA rows and 58 defects;
+  - folded duplicates first (three "every download is authorised" requirements, two "a register says how much it shows", two old-review loads, two Excel-export defects);
+  - applied 27 corrections to existing requirements, tests and the CW/SR documents that the reading proved false (e.g. FRS-064 said a re-open reason is recorded — it is discarded; URS-024 said balances cannot go negative; FRS-017 said feedback is scoped like calls; CW-020 still said Product Database 2.0 follows row-level security).
+- **Traceability:** every URS has an FRS and a test, and every FRS has a test. Requirement Coverage reads 0 of 64 screens and 0 of 115 actions unnamed. `MODULES_WITHOUT_REQUIREMENT` is now empty.
+- **What is still false, said as such:** 53 defects are open, and 68 tests say they are expected to fail until their defect is fixed. Among them:
+  - Excel downloads skip the export permission (D-018);
+  - approver, receiver and consumption-author names are taken from the browser;
+  - Additional Entries cannot be saved from their screen;
+  - an ownership transfer moves every machine sharing the serial;
+  - closed calls can be cancelled through the API;
+  - feedback is not scoped in the database;
+  - Data Export and uploads leave no audit entry.
+- **Your decisions, built (0269):**
+  - Auto review is Bagyaraj's and Vignesh's switch. Its answers carry the switcher's name and an auto marker, and it never touches a started Review 2.
+  - Old reviews load as imported and raise no FFR.
+  - FFR CAPA starts blank.
+  - "9:15" is no longer in the documents.
+- **Data flows:** four flows are defined in the package and drawn in Software Validation (Data Flows) and How RITHI Functions: a call through to feedback, Daily Review → FFR → Objective, hand stock, and a sale to cover and PM. `check:ui` fails any step citing a screen, requirement or test that does not exist.
+- **Fixed on the way:**
+  - The two traceability tabs shared a key, and one claimed every requirement was covered (D-073).
+  - **A plaintext password for `service.almsind@gmail.com` sat in a comment in `src/lib/auth.tsx`.** It is removed from the file but remains in git history, and the stored hash is short enough to reverse. **Change that password wherever it is used** (D-074).
+- **Proved:** validate with every suite and check; `check:ui`, `check:uploads`, `check:generated`, build. The document generators were re-run: REQUIREMENTS.md, REQUIREMENT_COVERAGE.md, DATABASE_SCHEMA.md.
+- **Not verified:** the inventory was built by reading code, not by running it on live; the open defects are unconfirmed on live data.
 
 ### 2026-09-30 — 20, follow-up (v0.10.6, on the branch, not merged): "Cleared for Stores Processing" is a yes
 - **Your word**, after 0256 went live: *"'Cleared for Stores Processing' - These values should be considered as Approved."*

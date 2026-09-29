@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**87 tables · 36 views · 2598 columns · 173 policies · 59 foreign keys.**
+**88 tables · 36 views · 2610 columns · 174 policies · 59 foreign keys.**
 
 ## How to read this
 
@@ -37,6 +37,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [app_super_admins](#app-super-admins)
 - [audit_log](#audit-log)
 - [audit_mode_changes](#audit-mode-changes)
+- [auto_review_changes](#auto-review-changes)
 - [call_number_seq](#call-number-seq)
 - [call_report_reviews](#call-report-reviews)
 - [call_requests](#call-requests)
@@ -279,6 +280,37 @@ Views are listed [after the tables](#views).
 
 ---
 
+## auto_review_changes
+
+> Every time auto review (Review 2) was switched on or off, by whom and when (0269). Written only by set_auto_review().
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `turned_on` | boolean | **no** |  |  |
+| 3 | `changed_by` | uuid | yes |  |  |
+| 4 | `changed_by_name` | text | **no** | `''::text` |  |
+| 5 | `changed_at` | timestamp with time zone | **no** | `now()` |  |
+| 6 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 7 | `sys_created_by` | uuid | yes |  |  |
+| 8 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 9 | `sys_updated_by` | uuid | yes |  |  |
+| 10 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(auto_review_changes_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| SELECT | `arc_read` | `true` | — |
+
+---
+
 ## call_number_seq
 
 **Primary key:** `yy` · **Row-level security:** **on**
@@ -425,6 +457,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 26 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 27 | `sys_updated_by` | uuid | yes |  |  |
 | 28 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 29 | `review2_auto` | boolean | **no** | `false` | Review 2 was answered by the auto review, in the name of the person who switched it on (0269). Set only by the database. |
+| 30 | `imported` | boolean | **no** | `false` | Loaded from an old register by an administrator (0269): keeps its own reviewers and dates and raises no FFR. |
 
 **Unique:** `sys_id` _(call_reviews_sys_id_key)_
 
@@ -434,7 +468,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 - `review3_by_uid` → **users**(`id`) · on delete no action _(call_reviews_review3_by_uid_fkey)_
 - `updated_by` → **users**(`id`) · on delete no action _(call_reviews_updated_by_fkey)_
 
-**Triggers:** `call_reviews_stamp` → `call_review_stamp()` · `zz_ffr_from_review` → `ffr_from_review()` · `zz_ffr_observation` → `ffr_observation_from_review()` · `zzz_call_review_reviewer` → `call_review_reviewer_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `a_call_review_markers` → `call_review_markers()` · `call_reviews_stamp` → `call_review_stamp()` · `zz_ffr_from_review` → `ffr_from_review()` · `zz_ffr_observation` → `ffr_observation_from_review()` · `zzz_call_review_reviewer` → `call_review_reviewer_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1046,8 +1080,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 16 | `service_observation` | text | **no** | `''::text` |  |
 | 17 | `problem_status` | text | **no** | `''::text` |  |
 | 18 | `capa_responsibility` | text | **no** | `''::text` |  |
-| 19 | `capa_no` | text | **no** | `'NA'::text` |  |
-| 20 | `capa_status` | text | **no** | `'Not required'::text` |  |
+| 19 | `capa_no` | text | **no** | `''::text` |  |
+| 20 | `capa_status` | text | **no** | `''::text` |  |
 | 21 | `verified_by` | text | **no** | `''::text` |  |
 | 22 | `remarks` | text | **no** | `''::text` |  |
 | 23 | `current_call_status` | text | **no** | `''::text` |  |

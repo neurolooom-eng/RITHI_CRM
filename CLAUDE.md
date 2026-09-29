@@ -170,10 +170,20 @@ on testing the old shape. **When a migration replaces a definition, move the
   `validation.ts`, with a written reason, for the ones whose words name nothing.
   **Derivation alone left 34 of 56 screens with no requirement section**,
   including the Field Call Register — URS-003 says "register a customer call"
-  and never says "field" — which is what the user found. It is 2 of 56 now, both
-  listed with their reason in `MODULES_WITHOUT_REQUIREMENT`, and `check:ui`
-  fails on a third appearing without one, or on a declaration naming a route
-  that does not exist. **Do not invert the DERIVED match to claim a screen is
+  and never says "field" — which is what the user found. It is **0 of 64** since
+  Rev 3.0 (2026-09-30), when every screen was read action by action
+  (`docs/CAPABILITY_INVENTORY.md`, 1,072 actions) and every gap was given a
+  requirement, a test and, where the code falls short, an open defect — so
+  `MODULES_WITHOUT_REQUIREMENT` is empty, and `check:ui` fails on a screen
+  appearing without a reason, or on a declaration naming a route that does not
+  exist. **A NEW SCREEN, OR A NEW ACTION ON ONE, GETS ITS REQUIREMENT IN THE SAME
+  CHANGE**: the inventory is the baseline, not a one-off.
+  **DATA FLOWS ARE DEFINED WITH THE VALIDATION** (`src/lib/flows.ts`, the user,
+  2026-09-30): each step names its screen and the requirement and test IDs that
+  state it, and the diagram in Software Validation → Data Flows and How RITHI
+  Functions is DRAWN from that; `check:ui` fails a step naming anything that
+  does not exist. A change to how a record moves between screens changes the
+  flow in the same change. **Do not invert the DERIVED match to claim a screen is
   uncovered**: it was, for one run, and reported 31 of 54 as unnamed. Ask it of
   the FILED set (`modulesWithNoRequirement()`), which is a different question,
   or `REQUIREMENT_COVERAGE.md` for the whole package.

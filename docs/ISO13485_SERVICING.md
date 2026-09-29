@@ -233,10 +233,7 @@ supplier approval status is held against a part.
 **SR-015 — The part fitted to a device is traceable to what was fitted.**
 *§7.5.9, §7.5.4.* For a device where a failed part is subsequently investigated,
 the record must say which part went in.
-**Status: Partial — and worth a decision.** Consumption records the part **code
-and quantity** against the call. It does **not** record the **batch, lot or
-serial number** of the individual part fitted. Where a supplier issues a field
-action against a lot, this system cannot answer which devices received it.
+**Status: Partial.** Consumption records the part code and quantity against the call, and since 0078 a GRIR / traceability reference per line (batch, goods receipt or serial) entered by the engineer on the visit. The reference is free text and optional, so a field action on a lot can be answered only for the lines that carry one, and only by matching text.
 
 **SR-016 — Parts are preserved, identified and controlled in the field.**
 *§7.5.11, §7.5.8.*

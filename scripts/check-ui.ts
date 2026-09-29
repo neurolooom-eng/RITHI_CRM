@@ -162,7 +162,10 @@ eq('the challan itself is untouched', dcLines.length, 4);
   // or the matrix reads as covered while referring to nothing.
   {
     const { RISKS, FMEA } = await import('../src/lib/validation');
-    const known = new Set([...FRS.map((f) => f.id), ...TESTS.map((t) => t.id), ...URS.map((u) => u.id)]);
+    // A risk may also cite the DEFECT that realises it (Rev 3.0, 2026-09-30):
+    // the register's ids are as checkable as the requirements'.
+    const { DEFECTS } = await import('../src/lib/validation');
+    const known = new Set([...FRS.map((f) => f.id), ...TESTS.map((t) => t.id), ...URS.map((u) => u.id), ...DEFECTS.map((d) => d.id)]);
     const dangling = [...RISKS, ...FMEA]
       .flatMap((r) => (r.refs ?? []).map((x) => ({ id: r.id, ref: x })))
       .filter((x) => !known.has(x.ref));
