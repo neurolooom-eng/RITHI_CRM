@@ -66,6 +66,26 @@ up)_
 
 ---
 
+## 2026-09-29 — Standard Complaint mapped to products (v0.9.390) — CLIENT ONLY, no SQL
+
+The user: *"In Standard Complaint Master, I want a Product Field — should be a
+Multi Select, meaning the Complaint can be mapped to more than one Product.
+Also a provision to map the Complaint to all Products."*
+
+- ✅ `masters.extra.products` (a list), edited with `MultiPick` on the complaint
+  list only; EMPTY = ALL PRODUCTS, which is also what every existing complaint
+  reads as. `src/lib/complaints.ts` holds the rule (`complaintAppliesTo`);
+  `check:paging` + `check:ui` pin it. No migration: `extra` is jsonb, and the
+  masters unique key reads `extra->>'product'` (singular), so a mapping never
+  splits one complaint into several rows.
+- ⏳ **ASKED, NOT BUILT: should the Standard Complaint picker on the call
+  forms offer only the complaints mapped to the call's product?** The mapping
+  does nothing on the forms until that is decided.
+- ⏳ Bulk upload of the mapping (a Products column on the master upload) — not
+  asked for; possible if typing it per row is too slow.
+
+---
+
 ## 2026-09-29 — The whole machine register on every device (v0.9.381–0.9.384) — CLIENT ONLY, no SQL
 
 The user: *"Remote location = Weak network signal and possible frequent

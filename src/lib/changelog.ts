@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.390',
+    date: '2026-09-29',
+    title: 'Standard Complaint master: map a complaint to one product, several, or all',
+    changes: [
+      'THE STANDARD COMPLAINT LIST HAS A PRODUCTS COLUMN. Pick as many products as a complaint applies to, or leave it empty for ALL PRODUCTS. Press ✎ on a row to change it; the Add row has the same picker.',
+      'EVERY COMPLAINT ALREADY ON THE LIST READS AS ALL PRODUCTS, so nothing has stopped being offered anywhere.',
+      'The product names offered are the ones in the Product Database, spelled as they are there. The CSV export of the list carries the Products column.',
+    ],
+  },
+  {
     version: '0.9.389',
     date: '2026-09-29',
     title: 'Updating the app no longer re-downloads the machine and customer lists',

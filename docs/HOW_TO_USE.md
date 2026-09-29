@@ -663,6 +663,10 @@ typed into a form that reads it.
   **per list**.
   > A value in use is **deactivated**, not deleted, so records that used it keep
   > reading correctly.
+  > **Standard Complaint carries a Products column.** Tick the products a
+  > complaint applies to — as many as it needs — or leave it empty for **all
+  > products**. Every complaint that existed before this reads as all products,
+  > so nothing stopped being offered. Press ✎ on a row to change it.
 - **Service Manuals** `/service-manuals` — indexed by product, so a call shows the
   right ones.
 - **QMS Documents** `/qms` — with number and revision.

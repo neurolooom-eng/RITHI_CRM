@@ -18,6 +18,7 @@
 import { allRows, readUpTo, distinctValues, PG_PAGE } from '../src/lib/paging';
 import { isFresh, afterRefresh, HOUR } from '../src/lib/mastercache';
 import * as mc from '../src/lib/machinecache';
+import * as cp from '../src/lib/complaints';
 let fail = 0;
 const eq = (n: string, a: unknown, b: unknown) => {
   const ok = JSON.stringify(a) === JSON.stringify(b);
@@ -295,6 +296,21 @@ console.log('-- the machine register on the device --');
   eq('...a blank name finds nobody', mc.partyByName(ps, '  '), undefined);
   eq('Party Master search: contains, any case, sorted, capped',
     mc.searchPartyMaster(ps, 'c', 2), ['Apollo Clinic', 'City Hospital']);
+}
+
+console.log('-- a Standard Complaint mapped to products --');
+{
+  eq('nothing mapped means ALL products -- every complaint that existed before',
+    [cp.appliesToAllProducts({}), cp.appliesToAllProducts({ products: [] }), cp.productsLabel(undefined)], [true, true, 'All products']);
+  eq('several products are kept, once each, as spelled', cp.complaintProducts({ products: ['ORION-G', ' VEGA ', 'orion-g', ''] }), ['ORION-G', 'VEGA']);
+  eq('a comma-separated value (typed or uploaded) is read too', cp.complaintProducts({ products: 'VEGA, EXTEND-XT' }), ['VEGA', 'EXTEND-XT']);
+  eq('a mapped complaint applies to its own products...', cp.complaintAppliesTo({ products: ['VEGA'] }, 'vega'), true);
+  eq('...even when the product name carries a stray space (the Extend XT fault)', cp.complaintAppliesTo({ products: ['EXTEND-XT'] }, 'EXTEND-XT '), true);
+  eq('...and not to another product', cp.complaintAppliesTo({ products: ['VEGA'] }, 'ORION-G'), false);
+  eq('an ALL-products complaint applies to every product', cp.complaintAppliesTo({}, 'ORION-G'), true);
+  eq('a call with no product chosen yet is offered everything', cp.complaintAppliesTo({ products: ['VEGA'] }, ''), true);
+  eq('the single `product` key the per-product DCCR lists use is NOT read as this mapping',
+    cp.complaintProducts({ product: 'T60' }), []);
 }
 
 console.log('-- the device, named for the administrator --');

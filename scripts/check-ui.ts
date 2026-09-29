@@ -9202,5 +9202,16 @@ console.log('-- the machine register is searched on the device --');
     eq(`${m} says what the device holds`, /<MachineRegisterNote \/>/.test(rd(m)), true);
 }
 
+// A STANDARD COMPLAINT CARRIES ITS PRODUCTS (2026-09-29): a multi-select on the
+// complaint list only, stored as extra.products, and a save keeps the rest of
+// the entry's details.
+console.log('-- the Standard Complaint master maps products --');
+{
+  const mlt = readFileSync('src/modules/MasterListTable.tsx', 'utf8');
+  eq('only the complaint list gets the Products field', /const byProduct = list\.key === 'complaint';/.test(mlt), true);
+  eq('...chosen with the multi-select, empty meaning all products', /<MultiPick[^>]*allLabel="All products"/.test(mlt), true);
+  eq('...and saving it keeps the rest of the entry', /const extra = \{ \.\.\.\(item\.extra \?\? \{\}\), products \}/.test(mlt), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
