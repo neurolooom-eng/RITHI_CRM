@@ -161,7 +161,7 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-09-30 — The admin-only actions are keys; only the Admin column is greyed (v0.10.14)
+### 2026-09-30 — The admin-only actions are keys; only the Admin column is greyed (v0.10.15)
 - **Your ask:** *"All Admin Actions that are greyed out now should be editable from the Role & Permissions. Only the Admin Role should be Greyed out not the Actions."* It reverses finding 65's "shown greyed, never tickable".
 - **Ten keys, one per action:**
   - `review.correct_date`, `objective.lock`, `spare.reassign` and `users.reset_password`;
@@ -179,7 +179,7 @@ checked.
   - validate: 123 suites and 22 checks.
   - Also clean: `check:replay`, `check:views`, `check:status` (rows 228–233), `check:generated`, `check:bundles`, `check:ui` and the build.
 
-### 2026-09-30 — D-074 fixed: one way in, and an unknown login holds nothing (v0.10.13)
+### 2026-09-30 — D-074 fixed: one way in, and an unknown login holds nothing (v0.10.14)
 - **Your ask:** *"Remove the demo sign-in and fix D-074."*
 - **One way in.** The local sign-in, its seeded demo accounts and the stored hash of the old `service.almsind@gmail.com` password are gone from `src/lib/auth.tsx`. So is the sheet-era User Master sign-in (`auth.tsx`, `sheets.ts`). The copy an old browser holds (`rithi.db.users`, `rithi.session`) is deleted on load, because that copy carried the hash whatever the code said.
   - Without a Supabase connection nobody is signed in. The sign-in screen offers **Reconnect to the RITHI database**, since Settings is behind the sign-in.

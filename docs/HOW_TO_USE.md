@@ -725,8 +725,9 @@ typed into a form that reads it.
   > paste its Drive link) and give **Effective From** (and **To** if it ends).
   > Saving a new one **ends the current one the day before** the new From —
   > nothing is deleted, and *✎ Period* changes either date afterwards.
-  > **Everybody sees their own profile, R&R and training under My Profile**,
-  > and a manager sees their team's there too (*My team → 👤 Profile*). A
+  > **Everybody sees their own profile, R&R and training under My Profile**
+  > (the *Details & R&R* and *Training* tabs), and a manager sees their team's
+  > there too (*My Team → 👤 Profile*). A
   > trainee confirms a document with **✓ Read & understood**.
   > **DESIGNATION AND ROLE ARE DIFFERENT THINGS, and they often differ.** The
   > **Designation** is the job somebody holds in the company; the **Permission**
@@ -1109,7 +1110,10 @@ typed into a form that reads it.
   > The same diagrams are under **How RITHI Functions → Data flows**.
 - **Settings** `/settings` — your preferences, and for an administrator the
   connection settings.
-- **Your Profile** `/profile` — **My Signature** lives here, not in Settings:
+- **Your Profile** `/profile` — **one tab per section**: Account, Details &
+  R&R, Training, **My Team** (only if people report to you), What I can do,
+  Signature, Password and Appearance. The tab you last opened is remembered on
+  that device. **My Signature** lives here, not in Settings:
   only you can see or set it, and it prints only in the block that names you. An
   administrator can ask who has saved one and remove a leaver's, never read one.
 - **Version History** `/version-history` — what changed in each release.

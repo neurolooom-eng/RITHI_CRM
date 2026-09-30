@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.14',
+    version: '0.10.15',
     date: '2026-09-30',
     title: 'Roles & Permissions: the admin-only actions can now be ticked for any role',
     changes: [
@@ -25,7 +25,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.13',
+    version: '0.10.14',
     date: '2026-09-30',
     title: 'Sign-in: one way in, and a login nobody set up gets nothing',
     changes: [
@@ -33,6 +33,15 @@ export const CHANGELOG: ChangeEntry[] = [
       'IF A BROWSER HAS BEEN POINTED AT A DIFFERENT DATABASE, the sign-in screen says so and offers "Reconnect to the RITHI database", instead of quietly switching to the demo sign-in.',
       'A LOGIN THAT IS NOT SET UP GETS NOTHING. If somebody signs in with a login that has no profile and no User Master entry, they see one page telling them to ask an administrator to add them to the User Master, and a Sign out button. Before this they were let in as an Engineer and could raise call and spare requests. The database now refuses them too.',
       'FORGOTTEN PASSWORD: the sign-in screen and the password-reset screen both say the same thing now — ask an administrator.',
+    ],
+  },
+  {
+    version: '0.10.13',
+    date: '2026-09-30',
+    title: 'My Profile in tabs',
+    changes: [
+      'MY PROFILE HAS ONE TAB PER SECTION: Account, Details & R&R, Training, My Team, What I can do, Signature, Password and Appearance — instead of everything down one long page. My Team shows only if people report to you. The tab you last opened is remembered on that device.',
+      'FIXED: on the Reports screen the tab you are on is now highlighted.',
     ],
   },
   {

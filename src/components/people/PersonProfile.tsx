@@ -26,7 +26,12 @@ import { loadFailure } from '../../lib/dberror';
 
 const today = todayLocal;
 
-export function PersonProfile({ person }: { person: DirectoryRow }) {
+// `part` lets My Profile show the two halves on separate tabs (the user,
+// 2026-09-30: "In My Profile, split the sections into tabs"); everywhere else
+// shows the whole person on one page, as before.
+export type PersonProfilePart = 'all' | 'details' | 'training';
+
+export function PersonProfile({ person, part = 'all' }: { person: DirectoryRow; part?: PersonProfilePart }) {
   const { user, can } = useAuth();
   const mayEditProfile = can('users.manage.details');
   const mayEditRR = can('users.manage.details') || can('training.manage');
@@ -135,6 +140,7 @@ export function PersonProfile({ person }: { person: DirectoryRow }) {
       {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span><button className="btn btn-ghost btn-sm" onClick={() => setErr('')}>✕</button></div>}
       {note && !err && <div className="sheet-banner sheet-banner-ok"><span>{note}</span><button className="btn btn-ghost btn-sm" onClick={() => setNote('')}>✕</button></div>}
 
+      {part !== 'training' && (<>
       <section className="rep-sec">
         <div className="rep-sec-title">
           Profile details
@@ -235,6 +241,9 @@ export function PersonProfile({ person }: { person: DirectoryRow }) {
         )}
       </section>
 
+      </>)}
+
+      {part !== 'details' && (<>
       <section className="rep-sec">
         <div className="rep-sec-title">Training to do <span className="muted">({open.length})</span></div>
         {open.length === 0 ? <div className="muted">Nothing open.</div> : (
@@ -283,6 +292,7 @@ export function PersonProfile({ person }: { person: DirectoryRow }) {
           </div>
         )}
       </section>
+      </>)}
     </div>
   );
 }
