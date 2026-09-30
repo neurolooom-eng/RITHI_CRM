@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.10',
+    version: '0.10.11',
     date: '2026-09-30',
     title: 'Roles & Permissions: every button has its tick on its own page; big permissions split into parts',
     changes: [
@@ -27,7 +27,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.9',
+    version: '0.10.10',
     date: '2026-09-30',
     title: 'Auto review: who may switch it is a role — Admin, NSM, Technical Support',
     changes: [
@@ -35,6 +35,15 @@ export const CHANGELOG: ChangeEntry[] = [
       'Anybody else can still be given "Switch auto review on or off" on User Master → Access, and a role can be given it or have it taken away on Roles & Permissions.',
       'For Technical Support this is the one thing the role can change; everything else it does stays read-only. Zoho Migration, which otherwise has the same rights as Technical Support, does not get it.',
       'Nothing else about auto review changes: its answers still carry the name of whoever switched it on, and it stays on or off as it is now.',
+    ],
+  },
+  {
+    version: '0.10.9',
+    date: '2026-09-30',
+    title: 'Technical / Service Notes by bulk upload; Update Party / Product Details moved into their sections',
+    changes: [
+      'BULK UPLOADS → TECHNICAL / SERVICE NOTES: the whole list at once — Title, Product, the Drive Link, and optionally Document No, Tags and Notes. Loading the list again corrects those notes (matched on the Drive link) instead of adding them twice; your list\'s other columns are kept with each note.',
+      'CALL VIEW: Update Party Details now sits in the header of the Customer & Product section, and Update Product Details in the header of Warranty & Contract. They are no longer in the button row at the top or in the table\'s actions column. Ticking calls in the register still offers both for many calls at once.',
     ],
   },
   {

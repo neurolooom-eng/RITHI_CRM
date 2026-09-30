@@ -10,11 +10,11 @@ or the database.** Asked by the user:
 
 | Finding | Your decision | What it became |
 |---|---|---|
-| 57, 58, 59 | fix them | Pending Registrations' editor applies the register's section locks and never edits a closed call; SLA Targets asks *Admin config* and a refused save says "Not saved"; an Indoor unit is not Dispatched or Closed without *Dispatch a unit back* (0283). |
+| 57, 58, 59 | fix them | Pending Registrations' editor applies the register's section locks and never edits a closed call; SLA Targets asks *Admin config* and a refused save says "Not saved"; an Indoor unit is not Dispatched or Closed without *Dispatch a unit back* (0297). |
 | 60 | "as intended" | Closed, unchanged. |
 | 61 | "acceptable" | Closed, unchanged. |
 | 62 (and 42) | "park it for now" | Open. |
-| 63, 64 | "It should show the Individual View's Control Action and its Check Box" — own keys per screen | Installation and PM registers, Contract Register, Objective, chart sharing, validation results, table layouts, the 2.0 rebuild, the Tracker's delete and returning stock for another engineer each have keys of their own (0272–0283); every row lists every key its buttons test; each screen asks the database's key. 0284 copied each new key once from the key it replaced. `check:ui` fails a screen testing a key its row does not show. |
+| 63, 64 | "It should show the Individual View's Control Action and its Check Box" — own keys per screen | Installation and PM registers, Contract Register, Objective, chart sharing, validation results, table layouts, the 2.0 rebuild, the Tracker's delete and returning stock for another engineer each have keys of their own (0286–0297); every row lists every key its buttons test; each screen asks the database's key. 0298 copied each new key once from the key it replaced. `check:ui` fails a screen testing a key its row does not show. |
 | 65 | list them, greyed | Nine "Admin only" rows, ticked for Admin, never tickable. |
 | 66 | "Fix it" | `dashboard.view` and User Access removed; `reports.view`, `masters.view` and `config.manage` shown only where they govern something, and *Admin config* now opens the three Admin Config cards the database already allowed. |
 | 67 | "Break it down" | Manage users, Edit masters, Edit sales / warranties, Edit contracts and each register's Report split into parts, the old key kept as their PARENT (`perm_parents`, read by the database and the app alike). |

@@ -1035,6 +1035,28 @@ export const UPLOADS: UploadDef[] = [
   // A document loaded this way assigns NO training -- a one-time load of the
   // whole shelf is not a new issue; assign training on the Training screen.
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // TECHNICAL / SERVICE NOTES (0272). The user, 2026-09-30, with the Drive
+  // listing of the Technical Note folder: "Normalise this for bulk upload".
+  // KEYED ON THE DRIVE LINK (documents.url_key): a note has no controlled
+  // number + revision, and one number can be filed under two products. The
+  // listing's other columns (Folder Path, Created, Last Modified, File ID...)
+  // are kept with the note under their own headings.
+  // ---------------------------------------------------------------------------
+  { key: 'service_notes', label: 'Technical / Service Notes', group: 'Quality', table: 'documents',
+    extraInto: 'extra', conflict: 'url_key', conflictFrom: ['url'], stamp: { kind: 'service_note' },
+    note: 'One row per note: Title, Product (as the Product Database spells it — that is how a note is found for a machine), the Drive Link, and optionally Document No, Revision, Tags and Notes. Matched on the Drive link, so a corrected list updates those notes instead of adding them again. Every other column is kept with the note under its own heading.',
+    cols: [
+      { to: 'title', from: ['title', 'name', 'document title', 'note title'], required: true },
+      TEXT('product', 'product', 'product name', 'model'),
+      { to: 'url', from: ['drive url', 'link', 'url', 'drive link', 'file link'], required: true },
+      TEXT('doc_no', 'document no', 'doc no', 'note no', 'tn no'),
+      TEXT('revision', 'rev', 'rev no', 'revision no', 'version'),
+      DATE('effective_date', 'effective date', 'issue date'),
+      TEXT('file_name', 'file name', 'filename'),
+      TEXT('tags', 'tags', 'tag'),
+      TEXT('notes', 'remarks', 'comments'),
+    ] },
   { key: 'qms_master_list', label: 'QMS Documents (Master List)', group: 'Quality', table: 'documents',
     extraInto: 'extra', conflict: 'doc_key', conflictFrom: ['doc_no', 'revision'], stamp: { kind: 'qms' },
     note: 'One row per QMS document: its Document No, Title, Revision, Effective Date and the Drive URL of the file. Matched on Document No + Revision, so a corrected list updates those rows instead of adding them again, and a new revision is a new entry. Every other column of your Master List is kept with the document under its own heading. Loading does not assign training — do that on the Training screen.',

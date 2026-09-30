@@ -77,7 +77,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 export function SoftwareValidation() {
   const { can } = useAuth();
-  // The key the database asks (0279) -- it refused users.manage, which this
+  // The key the database asks (0293) -- it refused users.manage, which this
   // screen used to accept (finding 64).
   const canRecord = can('validation.manage');
   const [tab, setTab] = useState<TabKey>('overview');

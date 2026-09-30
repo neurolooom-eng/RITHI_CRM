@@ -256,7 +256,7 @@ const MODULES = {
             // A key can have a PARENT (perm_parents + has_perm), and the rules
             // rbac owns move to the per-screen and split keys (findings 63-67).
             // Before the tail below, which mirrors cons_write and masters_*.
-            '0272_permission_parents.sql',
+            '0286_permission_parents.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -327,9 +327,9 @@ const MODULES = {
       // request follows a User Master rename (0259).
       '0260_rename_passes_the_request_freeze.sql',
       // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
-      // and split keys (0272 has the parent rule). BEFORE the file below, which
+      // and split keys (0286 has the parent rule). BEFORE the file below, which
       // must stay last.
-      '0273_call_keys_per_register.sql',
+      '0287_call_keys_per_register.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -498,8 +498,8 @@ const MODULES = {
              // on four ORDER BYs and nothing else (finding 15).
              '0251_objective_evidence_tiebreak.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
-            // and split keys; see 0272 for the parent rule.
-            '0278_objective_manage_key.sql'],
+            // and split keys; see 0286 for the parent rule.
+            '0292_objective_manage_key.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -509,8 +509,8 @@ const MODULES = {
     needs: ['profiles', 'rbac', 'isAdmin'],
     files: ['0046_validation_results.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
-            // and split keys; see 0272 for the parent rule.
-            '0279_validation_manage_key.sql'],
+            // and split keys; see 0286 for the parent rule.
+            '0293_validation_manage_key.sql'],
   },
   data_integrity: {
     title: 'Data Integrity (audit trail & retention)',
@@ -561,8 +561,8 @@ const MODULES = {
             // put an older rule back.
             '0208_cover_code_normalised.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
-            // and split keys; see 0272 for the parent rule.
-            '0274_feedback_update_visit_key.sql'],
+            // and split keys; see 0286 for the parent rule.
+            '0288_feedback_update_visit_key.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',
@@ -632,7 +632,7 @@ const MODULES = {
     files: ['0143_tracker.sql', '0144_tracker_seed_backlog.sql', '0146_tracker_air_liquide_id.sql', '0150_tracker_sync_backlog.sql', '0157_tracker_sync_0909.sql',
             // Findings 63-67 (2026-09-30): deleting a Tracker item is its own key.
             // BEFORE the renamer below, which must stay last.
-            '0282_tracker_delete_key.sql',
+            '0296_tracker_delete_key.sql',
             '0162_tracker_nl_team.sql'],
   },
   indoor: {
@@ -653,8 +653,8 @@ const MODULES = {
     needs: ['rbac', 'visibleEngineers'],
     files: ['0158_indoor_service.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
-            // and split keys; see 0272 for the parent rule.
-            '0283_indoor_status_needs_dispatch.sql'],
+            // and split keys; see 0286 for the parent rule.
+            '0297_indoor_status_needs_dispatch.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -669,7 +669,9 @@ const MODULES = {
     files: ['0070_documents.sql',
             // The QMS Master List bulk upload's key (doc no + revision) and
             // `extra` for the department's own headings (0265).
-            '0265_qms_document_key.sql'],
+            '0265_qms_document_key.sql',
+            // The Technical / Service Notes upload's key: the Drive link (0272).
+            '0272_service_note_upload_key.sql'],
   },
   training: {
     title: 'People: profile, Roles & Responsibilities, Training',
@@ -684,8 +686,8 @@ const MODULES = {
     needs: ['profiles', 'rbac', 'visibleEngineers'],
     files: ['0264_people_and_training.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
-            // and split keys; see 0272 for the parent rule.
-            '0281_user_profile_details_key.sql'],
+            // and split keys; see 0286 for the parent rule.
+            '0295_user_profile_details_key.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -726,8 +728,8 @@ const MODULES = {
             // module's table, and user_directory runs before it.
             '0263_user_department.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
-            // and split keys; see 0272 for the parent rule.
-            '0276_master_keys_split.sql'],
+            // and split keys; see 0286 for the parent rule.
+            '0290_master_keys_split.sql'],
   },
   reports: {
     title: 'Reports',
@@ -809,8 +811,8 @@ const MODULES = {
             // handstock_movements, and eBizWiz Admin's opening rows removed.
             '0266_handstock_adjustments.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
-            // and split keys; see 0272 for the parent rule.
-            '0275_spares_on_a_visit_rename_and_returns.sql'],
+            // and split keys; see 0286 for the parent rule.
+            '0289_spares_on_a_visit_rename_and_returns.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -879,8 +881,8 @@ const MODULES = {
             // else in any module redefines it.
             '0258_link_install_call.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
-            // and split keys; see 0272 for the parent rule.
-            '0277_cover_keys_split.sql'],
+            // and split keys; see 0286 for the parent rule.
+            '0291_cover_keys_split.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -1019,9 +1021,9 @@ const MODULES = {
             // machine_key() and contract_cover_code(), which 0218 owns.
             '0271_call_refresh_from_masters.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
-            // and split keys; see 0272 for the parent rule. AFTER 0271, whose gate it widens
+            // and split keys; see 0286 for the parent rule. AFTER 0271, whose gate it widens
             // to every register.
-            '0280_product_database_2_rebuild_key.sql'],
+            '0294_product_database_2_rebuild_key.sql'],
   },
   feedback_checks: {
     title: 'Feedback Without a Report',
@@ -1090,9 +1092,9 @@ const MODULES = {
             'It also takes off the two ticks that did nothing (finding 66).',
             '',
             'LATE IN THE ORDER so every earlier module has granted its keys first.',
-            '_status.sql row 224 says whether it has run.'],
+            '_status.sql row 225 says whether it has run.'],
     needs: [],
-    files: ['0284_permission_grants_copied.sql'],
+    files: ['0298_permission_grants_copied.sql'],
   },
   sys_columns: {
     title: 'System columns on every table',

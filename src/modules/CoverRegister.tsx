@@ -552,7 +552,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const cfg = configFor(kind);
   const { can } = useAuth();
   const navigate = useNavigate();
-  // EACH REGISTER ITS OWN KEYS (findings 63, 67; 0277): the Warranty Register
+  // EACH REGISTER ITS OWN KEYS (findings 63, 67; 0291): the Warranty Register
   // answers to cover.edit, the Contract Register to contract.edit, and each
   // splits adding/editing an entry from deleting a whole one.
   const K = kind === 'contract' ? 'contract.edit' : 'cover.edit';

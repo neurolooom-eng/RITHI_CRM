@@ -338,7 +338,7 @@ function IndoorJobDrawer({
               onBlur={(e) => set({ tag_no: e.target.value })} />
           </Field>
           <Field label="Status">
-            {/* DISPATCHED AND CLOSED ARE THE DISPATCH RIGHT'S (finding 59, 0283):
+            {/* DISPATCHED AND CLOSED ARE THE DISPATCH RIGHT'S (finding 59, 0297):
                 the picker offered them to indoor.work, and the database now
                 refuses that, so the picker does not offer what it will refuse. */}
             <SelectPicker value={job.status}

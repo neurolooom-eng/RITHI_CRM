@@ -49,7 +49,7 @@
 --   0235_product_database_computed.sql
 --   0239_attachments_follow_the_owner.sql
 --   0271_call_refresh_from_masters.sql
---   0280_product_database_2_rebuild_key.sql
+--   0294_product_database_2_rebuild_key.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -1890,19 +1890,19 @@ revoke execute on function public.refresh_calls_product(text[]) from public, ano
 grant execute on function public.refresh_calls_product(text[]) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0280_product_database_2_rebuild_key.sql
+-- 0294_product_database_2_rebuild_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0280 — REBUILDING PRODUCT DATABASE 2.0 HAS A KEY OF ITS OWN
+-- 0294 — REBUILDING PRODUCT DATABASE 2.0 HAS A KEY OF ITS OWN
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: the Rebuild button asked masters.edit or cover.edit; now
 -- pd2.rebuild. Reading its state follows the cover keys' split.
@@ -1934,7 +1934,7 @@ end $function$;
 
 -- ---- 0271's refresh gate, for every register -----------------------------
 -- "Update Party / Product Details" runs on a call of any register, and each
--- register has its own customer-section key since 0273. The gate asks whether
+-- register has its own customer-section key since 0287. The gate asks whether
 -- the caller may change customer details on ANY register; the section guard
 -- then refuses the call the caller holds no key for, per call, by its table.
 create or replace function public.call_refresh_allowed()

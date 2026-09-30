@@ -1,6 +1,6 @@
 -- ===========================================================================
 -- EACH SCREEN'S CONTROLS HAVE THEIR OWN TICK; A BIG KEY IS A PARENT OF SMALL
--- ONES (0272-0284, findings 57-67, the user's decisions of 2026-09-30).
+-- ONES (0286-0298, findings 57-67, the user's decisions of 2026-09-30).
 --
 -- What this suite holds, every part as a signed-in user (the superuser
 -- ignores row-level security and EXECUTE grants alike):
@@ -23,7 +23,7 @@
 --      (finding 59);
 --   9. objective, chart sharing, validation and Product Database 2.0 rebuild
 --      answer to their own keys;
---  10. the grant copy (0284) runs ONCE: re-running it does not hand a key back
+--  10. the grant copy (0298) runs ONCE: re-running it does not hand a key back
 --      to a role it was taken from, and the two ticks that did nothing are gone.
 --
 -- Run after _stub.sql + every migration.
@@ -309,11 +309,11 @@ reset role;
 \echo ''
 \echo '--- 10. the grant copy runs once, and the dead ticks are gone ---'
 update public.app_roles set permissions = permissions - 'install.edit' where role = 'hotline';
-\ir ../migrations/0284_permission_grants_copied.sql
+\ir ../migrations/0298_permission_grants_copied.sql
 do $$
 begin
   if exists (select 1 from public.app_roles where role = 'hotline' and permissions ? 'install.edit') then
-    raise exception 're-running 0284 handed install.edit back to a role it was taken from';
+    raise exception 're-running 0298 handed install.edit back to a role it was taken from';
   end if;
   if exists (select 1 from public.app_roles where permissions ?| array['dashboard.view', 'mod:/users']) then
     raise exception 'a tick that did nothing is still held';

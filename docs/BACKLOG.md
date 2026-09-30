@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-30 (FINDINGS 57–67 BUILT — per-screen keys (0272–0283), today's grants copied once (0284, new `permissions` bundle), parent keys in `perm_parents`, admin-only rows, dead ticks gone, a login's role guarded on insert; _status.sql rows 213–224; v0.10.10, NOT merged. Before that: AUTO REVIEW BY ROLE — 0285 gives review.auto to Admin, NSM and Technical Support and takes back 0269's grant by name, _status.sql row 212, v0.10.8. Before that: SOFTWARE VALIDATION REV 3.0 — every page read (docs/CAPABILITY_INVENTORY.md, 1,072 actions), 87 URS / 121 FRS / 126 tests / 61 risks / 61 DFMEA / 58 defects added, 27 corrections; 53 DEFECTS OPEN, each with a test that fails until it is fixed; data flow diagrams; 0269 auto review switch (Bagyaraj, Vignesh), imported reviews raise no FFR, CAPA blank. ⚠️ CHANGE THE PASSWORD of service.almsind@gmail.com — its plaintext was in a comment in src/lib/auth.tsx (removed, still in git history). On the branch, NOT merged. Before that: FINDING 20 FOLLOW-UP — "Cleared for Stores Processing"
+_Last updated: 2026-09-30 (FINDINGS 57–67 BUILT — per-screen keys (0286–0297), today's grants copied once (0298, new `permissions` bundle), parent keys in `perm_parents`, admin-only rows, dead ticks gone, a login's role guarded on insert; _status.sql rows 214–225; v0.10.11, NOT merged. Before that: AUTO REVIEW BY ROLE — 0285 gives review.auto to Admin, NSM and Technical Support and takes back 0269's grant by name, _status.sql row 213, v0.10.10. Before that: SOFTWARE VALIDATION REV 3.0 — every page read (docs/CAPABILITY_INVENTORY.md, 1,072 actions), 87 URS / 121 FRS / 126 tests / 61 risks / 61 DFMEA / 58 defects added, 27 corrections; 53 DEFECTS OPEN, each with a test that fails until it is fixed; data flow diagrams; 0269 auto review switch (Bagyaraj, Vignesh), imported reviews raise no FFR, CAPA blank. ⚠️ CHANGE THE PASSWORD of service.almsind@gmail.com — its plaintext was in a comment in src/lib/auth.tsx (removed, still in git history). On the branch, NOT merged. Before that: FINDING 20 FOLLOW-UP — "Cleared for Stores Processing"
 counts as approved, 0270, v0.10.7, on the branch, NOT merged; _status.sql row
 199. Before that: MODULE REVIEW BATCH 7 — findings 20, 23, 31, v0.10.2,
 MERGED in #453 on the user's word ("Lets merge"). Migrations 0256 (approval words), 0257 (a rename carries
@@ -230,6 +230,17 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.9 — Technical / Service Notes bulk upload; call-view buttons in their sections.**
+  The user pasted the Drive listing of the Technical Note folder (115 rows):
+  normalised to `Technical_Notes_bulk_upload.csv` (112 notes; 3 index Google
+  Sheets left out; product per folder, spelled as the live Product Database
+  spells it -- checked with the read-only `_product_names.sql` probe; Osiris
+  (9) and Monnal-root MU_MSM left BLANK for the user to set). **0286**
+  (documents.url_key = the Drive link, service notes only; documents.sql);
+  `_status.sql` row 212; `service_note_upload_key_test`. Update Party /
+  Product Details moved from the Call View's top row and the actions column
+  into the Customer & Product / Warranty & Contract section headers
+  (`SchemaForm sectionActions`).
 - ✅ **0.10.8 — Calls: Update Party / Product Details, not in Audit Mode.**
   Asked and answered: no cover on the date → the last that had ended + OGP;
   both → warranty decides (WGP); any status; single + bulk; hidden and refused

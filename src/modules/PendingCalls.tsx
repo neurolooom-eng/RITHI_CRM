@@ -78,7 +78,7 @@ export function PendingCalls() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [allotTo, setAllotTo] = useState('');
   const [allotBusy, setAllotBusy] = useState(false);
-  // The same right as on each register (0126), and PER REGISTER since 0273:
+  // The same right as on each register (0126), and PER REGISTER since 0287:
   // a Field call moves with calls.allot, an Installation call with
   // install.allot, a PM call with pm.allot. This list mixes all three, so the
   // right is asked of each call, not of the screen.

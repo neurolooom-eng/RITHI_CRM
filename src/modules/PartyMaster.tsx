@@ -147,7 +147,7 @@ export function PartyMaster() {
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load Party Master.' },
   );
   const { can, user } = useAuth();
-  // THREE RIGHTS HERE, NOT ONE (finding 67, 0276): editing a party's record,
+  // THREE RIGHTS HERE, NOT ONE (finding 67, 0290): editing a party's record,
   // verifying its KYC, and changing the Serviceman on every party at once.
   const mayEdit = can('masters.edit.records') && supabaseConfigured();
   const mayKyc = can('masters.edit.kyc') && supabaseConfigured();

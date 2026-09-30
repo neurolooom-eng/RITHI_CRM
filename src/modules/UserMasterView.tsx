@@ -52,7 +52,7 @@ export function UserMasterView() {
     [rolePerms]);
   const live = supabaseConfigured();
   const editable = live && can('users.manage.details');
-  // "MANAGE USERS" IS FIVE TICKS NOW (finding 67, 0272): editing the details
+  // "MANAGE USERS" IS FIVE TICKS NOW (finding 67, 0286): editing the details
   // above; creating a login; disabling or deleting one; assigning roles and
   // permissions; and Settings. Each button below asks for its own, as the
   // database does. Resetting a password stays an administrator's (finding 65).
@@ -275,7 +275,7 @@ export function UserMasterView() {
       const extras = cloneSrc ? [...(cloneSrc.extraPermissions ?? [])] : [];
       if (dataAccess && !extras.includes('data.view_all')) extras.push('data.view_all');
       // A LOGIN THAT CAN DO MORE THAN AN ENGINEER is an assignment of access
-      // (0272 refuses it otherwise) -- said here, before anything is written.
+      // (0286 refuses it otherwise) -- said here, before anything is written.
       if (!mayAccess && ((row.role && row.role !== 'engineer') || extras.length)) {
         setMsg({ tone: 'error', text: 'Creating a login with a role other than Engineer, or with extra permissions, needs “Assign roles & grant permissions”.' });
         setBusy(false); return;
@@ -966,7 +966,7 @@ function UserForm({ row, busy, signedInRole, names, regions, departments, roleOp
   roleOptions: { value: string; label: string }[];
   onChange: (r: DirectoryRow) => void; onCancel: () => void; onSave: () => void;
 }) {
-  // The role is "Assign roles & grant permissions" (0272's ud_role_guard).
+  // The role is "Assign roles & grant permissions" (0286's ud_role_guard).
   const { can } = useAuth();
   const mayAccess = supabaseConfigured() && can('users.manage.access');
   const set = <K extends keyof DirectoryRow>(k: K, v: DirectoryRow[K]) => onChange({ ...row, [k]: v });

@@ -57,7 +57,7 @@ export function Tracker() {
   // rule, and the database policy says exactly the same thing.
   const mayEdit = can('mod:/tracker');
   // Adding and editing is the page ("all who have access should be able add,
-  // edit"); DELETING is its own tick since 0282, copied to everyone who had
+  // edit"); DELETING is its own tick since 0296, copied to everyone who had
   // the page.
   const mayDelete = can('tracker.delete');
 

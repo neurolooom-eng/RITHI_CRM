@@ -383,7 +383,7 @@ export function CallReportDrawer({
       if (miss.length) return `Fill the Service Report: ${miss.join(', ')}.`;
       const consProblem = consumptionProblem(String(work['Add Consumption?'] ?? ''), spares.length, spareDraft.part);
       if (consProblem) return consProblem;
-      // SPARES ON A VISIT ARE THEIR OWN TICK (finding 67, 0275). Said BEFORE
+      // SPARES ON A VISIT ARE THEIR OWN TICK (finding 67, 0289). Said BEFORE
       // anything is written: the visit is saved first, so a refusal arriving
       // with the spares would leave a visit whose parts were never booked.
       if (wantsConsumption && !can('visit.spares'))

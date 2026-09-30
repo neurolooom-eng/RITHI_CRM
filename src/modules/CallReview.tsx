@@ -47,7 +47,7 @@ export function CallReview() {
   const mayMark = can('callreview.mark');
   // Reco and Re-open are asked of the keys the DATABASE asks (finding 64):
   // a reconciliation is consumption.reconcile, a re-open the call's own
-  // register's re-open key (0273). They used to ride on callreview.mark.
+  // register's re-open key (0287). They used to ride on callreview.mark.
   const mayReco = can('consumption.reconcile');
 
   const [rows, setRows] = useState<Call[]>([]);

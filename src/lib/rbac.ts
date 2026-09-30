@@ -236,13 +236,13 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // `calls.report` is their PARENT, as `calls.edit` is of the sections: a role
   // holding it keeps all three until an administrator unticks it and picks.
   // Spares and feedback are the same act on every register, so they are one
-  // key each, children of all three registers' report keys (perm_parents, 0272).
+  // key each, children of all three registers' report keys (perm_parents, 0286).
   { group: 'Calls', key: 'calls.report.visit', label: ' File a visit on a Field call' },
   { group: 'Calls', key: 'visit.spares', label: ' Book spares used on a visit (any register)' },
   { group: 'Calls', key: 'visit.feedback', label: ' Record customer feedback on a visit (any register)' },
   { group: 'Calls', key: 'calls.cancel', label: 'Cancel a Field call (and restore it)' },
   // RE-OPENING is its own tick (finding 63): it was "calls.create or
-  // pending.register", shown on no row. Copied from those two by 0284.
+  // pending.register", shown on no row. Copied from those two by 0298.
   { group: 'Calls', key: 'calls.reopen', label: 'Re-open, close or close again a Field call' },
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
   // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269, 0285). Its answers carry the
@@ -268,7 +268,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // INSTALLATION AND PM CALLS HAVE KEYS OF THEIR OWN (findings 63/64, the user,
   // 2026-09-30: "It should show the Individual View's Control Action and its
   // Check Box"). They were governed by the Field Call keys and showed none, so
-  // an administrator could neither see nor separate them. 0284 copied today's
+  // an administrator could neither see nor separate them. 0298 copied today's
   // grants across, so nobody gained or lost anything the day they appeared.
   { group: 'Installation Calls', key: 'install.edit', label: 'Edit installation calls (all sections)' },
   { group: 'Installation Calls', key: 'install.edit.complaint', label: ' Edit the complaint' },
@@ -303,7 +303,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'stock.return', label: 'Return spares to Stores (MRN)' },
   // Returning stock IN ANOTHER ENGINEER'S NAME (finding 64): the screen asked
   // users.manage / dispatch / RM approval, the database any approval stage or
-  // dispatch. One key now, copied from what the database asked (0284).
+  // dispatch. One key now, copied from what the database asked (0298).
   { group: 'Spares', key: 'stock.return.others', label: 'Return stock in another engineer\u2019s name' },
   // INDOOR SERVICE — five rights, because the procedure separates the roles.
   // `indoor.qc` being its own right is the one that matters: it is what allows
@@ -335,7 +335,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Masters', key: 'cover.edit.entries', label: ' Add / edit warranty entries and their machines' },
   { group: 'Masters', key: 'cover.edit.delete', label: ' Delete a whole warranty entry with its machines' },
   // THE CONTRACT REGISTER'S OWN (finding 63): it was governed by cover.edit and
-  // its row showed nothing. Copied from cover.edit by 0284.
+  // its row showed nothing. Copied from cover.edit by 0298.
   { group: 'Masters', key: 'contract.edit', label: 'Edit contracts (all of the below)' },
   { group: 'Masters', key: 'contract.edit.entries', label: ' Add / edit contract entries and their machines' },
   { group: 'Masters', key: 'contract.edit.delete', label: ' Delete a whole contract entry with its machines' },
@@ -358,7 +358,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Admin', key: 'users.manage.settings', label: ' Change the Settings page (connections, templates)' },
   { group: 'Admin', key: 'config.manage', label: 'Admin config (SLA targets, Call Registration desk, Frequent Failure rule)' },
   // SCREENS THAT BORROWED config.manage get keys of their own (finding 63);
-  // 0284 copied each from config.manage, which the database asked for.
+  // 0298 copied each from config.manage, which the database asked for.
   { group: 'Admin', key: 'objective.manage', label: 'Edit, recalculate and cut off the quality objectives' },
   { group: 'Admin', key: 'charts.share', label: 'Share a chart with a role or with everyone' },
   { group: 'Admin', key: 'validation.manage', label: 'Record software validation results' },
@@ -455,7 +455,7 @@ FUNCTIONAL_DEFAULTS.nsm.push('review.auto');
 const SEES_EVERY_MODULE = new Set(['admin', 'technical_support', 'zoho_migration']);
 
 // THE PER-SCREEN KEYS, COPIED FROM THE KEY EACH REPLACES (findings 63/64).
-// The SAME list 0284_permission_grants_copied.sql applied once to the stored
+// The SAME list 0298_permission_grants_copied.sql applied once to the stored
 // roles and people; applied here to the defaults, so a role that has never
 // been configured reads exactly as a configured one did. `check:ui` compares
 // the two lists pair by pair.
@@ -757,7 +757,7 @@ export const dynamicActionLabel = (key: string): string | undefined => {
   return m[2] === 'edit' ? 'Add / edit values in this list' : 'Delete values from this list';
 };
 
-// A KEY'S PARENTS (0272, public.perm_parents): holding a parent grants the
+// A KEY'S PARENTS (0286, public.perm_parents): holding a parent grants the
 // child. THE SAME LIST THE DATABASE READS, compared word for word by
 // check:ui -- a parent honoured here and not there is a button that is offered
 // and then refused, and the reverse is a right nobody can see.
@@ -781,7 +781,7 @@ export const PERM_PARENTS: Record<string, string[]> = {
   'users.manage.settings': ['users.manage'],
 };
 
-/** Which register's keys govern a call of this type (0273): calls / install / pm.
+/** Which register's keys govern a call of this type (0287): calls / install / pm.
  *  Through callFamily(), the one classifier -- a second pattern here is how a
  *  "PM VISIT" row would come to be governed by the Field keys. */
 export const callPermPrefix = (callType: unknown): 'calls' | 'install' | 'pm' => {

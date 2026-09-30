@@ -87,7 +87,7 @@ begin;
 commit;
 
 \echo ''
-\echo '=== 5. somebody with charts.share CAN (0272; it was config.manage) ======'
+\echo '=== 5. somebody with charts.share CAN (0286; it was config.manage) ======'
 call public.be('chart.cfg@example.com');
 begin;
   set local role authenticated;

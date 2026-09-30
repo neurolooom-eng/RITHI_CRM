@@ -364,7 +364,7 @@ export function RolePermissions() {
     } finally { setBusy(false); }
   };
 
-  // A CHILD HELD THROUGH ITS PARENT (0272) reads as held -- ticked and locked,
+  // A CHILD HELD THROUGH ITS PARENT (0286) reads as held -- ticked and locked,
   // saying which tick grants it -- because that is what the database does with
   // it. Unticking the child alone would change nothing, so the box does not
   // pretend it could; untick the parent and pick the children instead.

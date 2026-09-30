@@ -125,3 +125,8 @@
 .sf-section-vital .field-help { color: var(--surface); opacity: 0.75; }
 /* The buttons that reorder sections sit on the inverted ground too. */
 .sf-section-vital .sf-section-move .btn { color: var(--surface); }
+
+/* A control in a section header (sectionActions): pushed to the right, beside
+   the move arrows, and not in the header's capitals. */
+.sf-section-action { margin-left: auto; text-transform: none; letter-spacing: normal; font-weight: normal; }
+.sf-section-action + .sf-section-move { margin-left: 4px; }

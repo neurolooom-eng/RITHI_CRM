@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-30. **Findings 57–67 decided and built (v0.10.10, on the branch): per-screen keys, parent keys, admin-only rows, dead ticks gone.** Before that: **Software Validation Rev 3.0 (v0.10.7, on the branch): every page read, 1,072 actions, every gap given a requirement, test and — where the code falls short — an open defect; data flow diagrams; the auto review switch.** Before that: **20, follow-up (v0.10.7, on the branch, not merged): "Cleared for Stores Processing" counts as approved.** Before that: **Batch 7 (v0.10.2): 20, 23 and 31 fixed as you decided, merged in #453 on your word ("Lets merge"); migrations 0256–0262 are applied by that merge's "Apply database migrations" run.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
+_Last updated: 2026-09-30. **Findings 57–67 decided and built (v0.10.11, on the branch): per-screen keys, parent keys, admin-only rows, dead ticks gone.** Before that: **Software Validation Rev 3.0 (v0.10.7, on the branch): every page read, 1,072 actions, every gap given a requirement, test and — where the code falls short — an open defect; data flow diagrams; the auto review switch.** Before that: **20, follow-up (v0.10.7, on the branch, not merged): "Cleared for Stores Processing" counts as approved.** Before that: **Batch 7 (v0.10.2): 20, 23 and 31 fixed as you decided, merged in #453 on your word ("Lets merge"); migrations 0256–0262 are applied by that merge's "Apply database migrations" run.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
 
 ---
 
@@ -15,7 +15,7 @@ _Last updated: 2026-09-30. **Findings 57–67 decided and built (v0.10.10, on th
 | | Count | Findings |
 | --- | --- | --- |
 | ✅ **Fixed and live** | **43** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 38, 40, 41, 43, 45, 46, 47, 48, 49, 50, 51, 52 — 20, 23 and 31 in batch 7 (v0.10.2, #453) |
-| 🔀 **Fixed on the branch, not merged** | **8** | 57, 58, 59, 63, 64, 65, 66, 67 (PR #464, v0.10.10) |
+| 🔀 **Fixed on the branch, not merged** | **8** | 57, 58, 59, 63, 64, 65, 66, 67 (PR #464, v0.10.11) |
 | ☑ **Closed by your decision** | **2** | 60 and 61 — as designed (2026-09-30) |
 | ⏳ **Open** | **14** | 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56, 62 (62 parked by you) |
 | | **67** | |
@@ -161,7 +161,7 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-09-30 — Findings 57–67 decided and built (v0.10.10, on the branch, not merged)
+### 2026-09-30 — Findings 57–67 decided and built (v0.10.11, on the branch, not merged)
 
 Your decisions, and what each became:
 
@@ -176,31 +176,31 @@ Your decisions, and what each became:
   the 2.0 rebuild `pd2.rebuild`; returning stock for another engineer `stock.return.others`.
   Every row now lists every key its buttons test, a key of another module included (a call register
   shows Request spares and Reco), and `check:ui` fails a screen that tests a key its row does not show.
-  Each screen asks the key the database asks (0273–0283). **0284 copied every new key once** to exactly
+  Each screen asks the key the database asks (0287–0297). **0298 copied every new key once** to exactly
   the roles and people holding the key it replaced, so nobody gained or lost anything on the day.
 - **65 — admin-only actions listed, greyed.** Nine rows (bulk uploads, PM bulk upload, the Data Import
   panel, table export and export schedules, Audit Mode, password reset, changing a spare request's engineer,
   correcting a review date, locking an objective month): ticked for Admin, disabled for everyone.
-- **66 — ticks that did nothing, fixed.** `dashboard.view` and the User Access page are gone (0284 removes
+- **66 — ticks that did nothing, fixed.** `dashboard.view` and the User Access page are gone (0298 removes
   them from every role); `reports.view` moved to the rows that test it; `masters.view` shown only where it
   governs reading (Warranty, Contract, Machine History, 2.0); Admin config now opens SLA Targets, the Call
   Registration desk and the Frequent Failure rule, which the database already allowed it.
 - **67 — "Break it down".** Manage users → details, create logins, disable/delete, assign roles & permissions,
   Settings. Edit masters → records, KYC, rename a part, swap the Serviceman. Edit sales/warranties → entries,
   delete an entry; contracts the same. Each register's Report key → file a visit, book spares on a visit, record
-  feedback on a visit. The Tracker's delete is its own tick. The old key is the PARENT (0272, `perm_parents`, read
+  feedback on a visit. The Tracker's delete is its own tick. The old key is the PARENT (0286, `perm_parents`, read
   by `has_perm()` and `can()` alike), so a role holding it keeps everything until you untick it and pick.
   **Resetting a password stays an administrator's** (65).
 - **57, 58, 59 fixed.** Pending Registrations' editor applies the register's section locks and never edits a closed
   call; SLA Targets is gated on Admin config and a refused save says so (it read "saved"); an Indoor unit cannot be
-  set to Dispatched or Closed without the dispatch right (0283).
+  set to Dispatched or Closed without the dispatch right (0297).
 
 **Found while building it, and closed:** a login could be created WITH ANY ROLE, Admin included, by anybody holding
 "Manage users" — the role guard fired on updates only. It fires on insert now: "Create logins" makes an Engineer, and
 any other role, or the role a User Master row grants at first sign-in, needs "Assign roles & grant permissions".
 
 Proved by `permissions_by_screen_test` as signed-in users; `npm run validate` 118/118 suites, 22/22 checks, the
-replay check included. `_status.sql` rows 213–224. **Not merged.**
+replay check included. `_status.sql` rows 214–225. **Not merged.**
 
 ### 2026-09-30 — Software Validation Rev 3.0: every page read, every action given a requirement (v0.10.7, on the branch, not merged)
 - **Your ask:** read every page, list every action, update the requirements, then everything downstream (risk, DFMEA, tests), and add data flow charts.

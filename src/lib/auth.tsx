@@ -602,7 +602,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // A single master list is covered by All Masters unless the role has been
     // narrowed to specific lists; a list's own edit / delete action is covered
     // by the global "Edit masters". Same inheritance the DB policies use.
-    // ...and a split key by its parent (0272's perm_parents, the same list).
+    // ...and a split key by its parent (0286's perm_parents, the same list).
     return parentActions(canonical).some(held);
   };
 

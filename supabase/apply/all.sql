@@ -59,7 +59,7 @@
 --   0172_user_signatures.sql
 --   0180_zoho_readonly.sql
 --   0250_master_write_policy_once_per_query.sql
---   0272_permission_parents.sql
+--   0286_permission_parents.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
@@ -70,10 +70,10 @@
 --   0146_tracker_air_liquide_id.sql
 --   0150_tracker_sync_backlog.sql
 --   0157_tracker_sync_0909.sql
---   0282_tracker_delete_key.sql
+--   0296_tracker_delete_key.sql
 --   0162_tracker_nl_team.sql
 --   0158_indoor_service.sql
---   0283_indoor_status_needs_dispatch.sql
+--   0297_indoor_status_needs_dispatch.sql
 --   0021_master_lists.sql
 --   0066_master_values_active.sql
 --   0067_master_list_permissions.sql
@@ -88,11 +88,12 @@
 --   0231_party_kyc_documents.sql
 --   0255_product_accessories.sql
 --   0263_user_department.sql
---   0276_master_keys_split.sql
+--   0290_master_keys_split.sql
 --   0070_documents.sql
 --   0265_qms_document_key.sql
+--   0272_service_note_upload_key.sql
 --   0264_people_and_training.sql
---   0281_user_profile_details_key.sql
+--   0295_user_profile_details_key.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
@@ -124,7 +125,7 @@
 --   0242_cancel_calls_in_one_go.sql
 --   0232_call_request_edit.sql
 --   0260_rename_passes_the_request_freeze.sql
---   0273_call_keys_per_register.sql
+--   0287_call_keys_per_register.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
@@ -220,7 +221,7 @@
 --   0196_rename_part.sql
 --   0261_rename_passes_the_spare_guards.sql
 --   0266_handstock_adjustments.sql
---   0275_spares_on_a_visit_rename_and_returns.sql
+--   0289_spares_on_a_visit_rename_and_returns.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
 --   0072_ownership_transfer.sql
@@ -243,7 +244,7 @@
 --   0240_ownership_transfer_timestamp.sql
 --   0247_cover_maintenance_needs_cover_edit.sql
 --   0258_link_install_call.sql
---   0277_cover_keys_split.sql
+--   0291_cover_keys_split.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -253,7 +254,7 @@
 --   0262_rename_is_not_an_allotment.sql
 --   0122_notifications_replay_tail.sql
 --   0046_validation_results.sql
---   0279_validation_manage_key.sql
+--   0293_validation_manage_key.sql
 --   0130_quality_objectives.sql
 --   0132_objective_recalc.sql
 --   0133_objective_serial_filter.sql
@@ -267,7 +268,7 @@
 --   0141_reliability_template.sql
 --   0142_objective_ffr_count.sql
 --   0251_objective_evidence_tiebreak.sql
---   0278_objective_manage_key.sql
+--   0292_objective_manage_key.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0103_record_audit_not_bulk.sql
@@ -282,7 +283,7 @@
 --   0189_feedback_update_policy.sql
 --   0190_feedback_dates_and_origin.sql
 --   0208_cover_code_normalised.sql
---   0274_feedback_update_visit_key.sql
+--   0288_feedback_update_visit_key.sql
 --   0052_search_indexes.sql
 --   0098_product_register_names.sql
 --   0099_no_jit.sql
@@ -308,13 +309,13 @@
 --   0235_product_database_computed.sql
 --   0239_attachments_follow_the_owner.sql
 --   0271_call_refresh_from_masters.sql
---   0280_product_database_2_rebuild_key.sql
+--   0294_product_database_2_rebuild_key.sql
 --   0229_feedback_without_report.sql
 --   0227_data_export.sql
 --   0228_export_schedules.sql
 --   0249_device_cache_status.sql
 --   0253_device_cache_complaints.sql
---   0284_permission_grants_copied.sql
+--   0298_permission_grants_copied.sql
 --   0244_sys_columns.sql
 --   0245_sys_columns_view_tail.sql
 --   0248_lock_down_internal_functions.sql
@@ -4677,19 +4678,19 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0272_permission_parents.sql
+-- 0286_permission_parents.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0272 — A PERMISSION CAN HAVE A PARENT; RBAC-OWNED RULES MOVE TO THE NEW KEYS
+-- 0286 — A PERMISSION CAN HAVE A PARENT; RBAC-OWNED RULES MOVE TO THE NEW KEYS
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: public.perm_parents and has_perm(); call_perm(), which picks the
 -- register a UCN is on; visit reports, feedback, user administration, shared
@@ -4899,7 +4900,7 @@ begin
     return new;
   end if;
 
-  -- WHICH KEY MAY MOVE WHICH COLUMN (0272): the role and extra permissions are
+  -- WHICH KEY MAY MOVE WHICH COLUMN (0286): the role and extra permissions are
   -- "Assign roles & grant permissions"; switching a login on or off is
   -- "Disable or delete logins".
   if api and not public.is_admin() then
@@ -5964,22 +5965,22 @@ begin
 end $seed$;
 
 -- ------------------------------------------------------------------------
--- 0282_tracker_delete_key.sql
+-- 0296_tracker_delete_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0282 — DELETING A TRACKER ITEM IS ITS OWN KEY
+-- 0296 — DELETING A TRACKER ITEM IS ITS OWN KEY
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: everybody who opens the Tracker still adds and edits (the
--- user's design); deleting asks tracker.delete, copied by 0284 to every
+-- user's design); deleting asks tracker.delete, copied by 0298 to every
 -- role that holds the Tracker today.
 -- ===========================================================================
 
@@ -6676,19 +6677,19 @@ begin
 end $indoor_perms$;
 
 -- ------------------------------------------------------------------------
--- 0283_indoor_status_needs_dispatch.sql
+-- 0297_indoor_status_needs_dispatch.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0283 — A UNIT IS NOT DISPATCHED THROUGH THE STATUS PICKER WITHOUT THE DISPATCH RIGHT
+-- 0297 — A UNIT IS NOT DISPATCHED THROUGH THE STATUS PICKER WITHOUT THE DISPATCH RIGHT
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: finding 59. The guard asked indoor.dispatch only when the
 -- dispatch date, reference or dispatcher changed, so the Status picker could
@@ -8652,19 +8653,19 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0276_master_keys_split.sql
+-- 0290_master_keys_split.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0276 — EDITING MASTERS, VERIFYING KYC AND THE SERVICEMAN SWAP ARE SEPARATE
+-- 0290 — EDITING MASTERS, VERIFYING KYC AND THE SERVICEMAN SWAP ARE SEPARATE
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: every master write rule the masters module owns asks
 -- masters.edit.records; a KYC status change asks masters.edit.kyc; the bulk
@@ -8769,7 +8770,7 @@ begin
       new.extra ->> 'PAN', new.extra ->> 'PAN No')), '');
   end if;
   if new.kyc_status is distinct from (case when tg_op = 'UPDATE' then old.kyc_status else null end) then
-    -- VERIFYING KYC IS ITS OWN KEY (0276). A new party starting at Pending is
+    -- VERIFYING KYC IS ITS OWN KEY (0290). A new party starting at Pending is
     -- not a verification; the SQL editor or an import is not a caller through
     -- the API (the `role` setting survives SECURITY DEFINER).
     if tg_op = 'UPDATE' and coalesce(current_setting('role', true), 'none') in ('authenticated', 'anon') and not public.is_admin()
@@ -8984,6 +8985,51 @@ begin
     return;
   end if;
   create unique index documents_doc_key_uniq on public.documents (doc_key);
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0272_service_note_upload_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- TECHNICAL / SERVICE NOTES BY BULK UPLOAD -- a key for re-loading the list.
+--
+--   The user, 2026-09-30, pasting the Drive listing of the Technical Note
+--   folder: "Normalise this for bulk upload". The shelf itself exists since
+--   v0.10.6 (documents kind 'service_note', no migration); what a bulk load
+--   needs is a KEY, so loading the list a second time CORRECTS those rows
+--   instead of adding a second copy of every note.
+--
+-- THE KEY IS THE DRIVE LINK. A note has no controlled number and revision the
+-- way a QMS document does (0265): the listing's file names carry a number
+-- sometimes and a revision rarely, and two different notes are filed under the
+-- same number in two product folders (NT606 is under Extend-XT AND Monnal
+-- T75). What names ONE file unambiguously is its Drive link. So url_key is the
+-- link, lower-cased and trimmed, for SERVICE NOTES ONLY -- NULL for every other
+-- kind, and NULLs never collide, so the index constrains exactly the rows this
+-- upload writes and is a plain unique index PostgREST can infer.
+--
+-- IF TWO NOTES ALREADY SHARE A LINK the index cannot be built; this says so
+-- instead of failing, and nothing is deleted. _status.sql row 212 checks it.
+-- ===========================================================================
+
+alter table public.documents add column if not exists url_key text generated always as (
+  case when kind = 'service_note' and btrim(url) <> '' then lower(btrim(url)) end) stored;
+
+do $$
+declare dup text;
+begin
+  if exists (select 1 from pg_indexes where schemaname = 'public' and indexname = 'documents_url_key_uniq') then
+    return;
+  end if;
+  select string_agg(url_key, ', ') into dup
+    from (select url_key from public.documents where url_key is not null
+           group by url_key having count(*) > 1 limit 20) x;
+  if dup is not null then
+    raise notice '0272: service notes share a Drive link (%); the upload key was NOT created. Retire one of each and run again.', dup;
+    return;
+  end if;
+  create unique index documents_url_key_uniq on public.documents (url_key);
 end $$;
 
 -- ------------------------------------------------------------------------
@@ -9380,19 +9426,19 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0281_user_profile_details_key.sql
+-- 0295_user_profile_details_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0281 — A PERSON'S PROFILE AND R&R ARE "EDIT USER MASTER DETAILS"
+-- 0295 — A PERSON'S PROFILE AND R&R ARE "EDIT USER MASTER DETAILS"
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: the training module's rules that asked users.manage now ask
 -- its child users.manage.details.
@@ -12820,24 +12866,24 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0273_call_keys_per_register.sql
+-- 0287_call_keys_per_register.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0273 — EACH CALL REGISTER IS GOVERNED BY ITS OWN KEYS
+-- 0287 — EACH CALL REGISTER IS GOVERNED BY ITS OWN KEYS
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: Installation and PM calls are edited, re-allocated, reported,
 -- cancelled and re-opened with install.* and pm.* keys, and Field calls with
 -- calls.* -- the section guard and the allot guard read the table they fire
--- on, and the functions that take a UCN ask call_perm() (0272).
+-- on, and the functions that take a UCN ask call_perm() (0286).
 -- ===========================================================================
 
 -- ---- the write policies, per register ------------------------------------
@@ -27501,19 +27547,19 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0275_spares_on_a_visit_rename_and_returns.sql
+-- 0289_spares_on_a_visit_rename_and_returns.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0275 — SPARES BOOKED ON A VISIT, A PART RENAME, AN MRN FOR SOMEBODY ELSE
+-- 0289 — SPARES BOOKED ON A VISIT, A PART RENAME, AN MRN FOR SOMEBODY ELSE
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: cons_write asks visit.spares for a line booked on a visit;
 -- rename_part asks masters.edit.rename_part; mr_insert asks
@@ -30190,19 +30236,19 @@ revoke execute on function public.link_install_call(bigint, text) from public, a
 grant  execute on function public.link_install_call(bigint, text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0277_cover_keys_split.sql
+-- 0291_cover_keys_split.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0277 — WARRANTY AND CONTRACT HAVE KEYS OF THEIR OWN; DELETING AN ENTRY IS SEPARATE
+-- 0291 — WARRANTY AND CONTRACT HAVE KEYS OF THEIR OWN; DELETING AN ENTRY IS SEPARATE
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: the sale and contract write rules, split into add/edit and
 -- delete, the additional-entries rule, and the three maintenance functions
@@ -30856,19 +30902,19 @@ create policy valres_write on public.validation_results for all
   with check (public.is_admin() or public.has_perm('config.manage'));
 
 -- ------------------------------------------------------------------------
--- 0279_validation_manage_key.sql
+-- 0293_validation_manage_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0279 — RECORDING VALIDATION RESULTS HAS A KEY OF ITS OWN
+-- 0293 — RECORDING VALIDATION RESULTS HAS A KEY OF ITS OWN
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: valres_write asked config.manage while the screen asked
 -- config.manage OR users.manage (finding 64). Both now ask validation.manage.
@@ -35162,19 +35208,19 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
--- 0278_objective_manage_key.sql
+-- 0292_objective_manage_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0278 — THE OBJECTIVE SCREEN HAS A KEY OF ITS OWN
+-- 0292 — THE OBJECTIVE SCREEN HAS A KEY OF ITS OWN
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: quality objectives were edited, recalculated and cut off under
 -- config.manage, which the Objective row did not show. Now objective.manage.
@@ -36403,19 +36449,19 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0274_feedback_update_visit_key.sql
+-- 0288_feedback_update_visit_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0274 — FEEDBACK TAKEN ON A VISIT IS ITS OWN KEY
+-- 0288 — FEEDBACK TAKEN ON A VISIT IS ITS OWN KEY
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: fb_update, which 0189 created, now asks visit.feedback -- the
 -- child of each register's report key -- instead of calls.report.
@@ -40278,19 +40324,19 @@ revoke execute on function public.refresh_calls_product(text[]) from public, ano
 grant execute on function public.refresh_calls_product(text[]) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0280_product_database_2_rebuild_key.sql
+-- 0294_product_database_2_rebuild_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0280 — REBUILDING PRODUCT DATABASE 2.0 HAS A KEY OF ITS OWN
+-- 0294 — REBUILDING PRODUCT DATABASE 2.0 HAS A KEY OF ITS OWN
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: the Rebuild button asked masters.edit or cover.edit; now
 -- pd2.rebuild. Reading its state follows the cover keys' split.
@@ -40322,7 +40368,7 @@ end $function$;
 
 -- ---- 0271's refresh gate, for every register -----------------------------
 -- "Update Party / Product Details" runs on a call of any register, and each
--- register has its own customer-section key since 0273. The gate asks whether
+-- register has its own customer-section key since 0287. The gate asks whether
 -- the caller may change customer details on ANY register; the section guard
 -- then refuses the call the caller holds no key for, per call, by its table.
 create or replace function public.call_refresh_allowed()
@@ -41120,15 +41166,15 @@ revoke execute on function public.device_cache_report() from public, anon;
 grant execute on function public.device_cache_report() to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0284_permission_grants_copied.sql
+-- 0298_permission_grants_copied.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0284 — TODAY'S GRANTS, COPIED ONTO THE NEW PER-SCREEN KEYS, ONCE.
+-- 0298 — TODAY'S GRANTS, COPIED ONTO THE NEW PER-SCREEN KEYS, ONCE.
 --
 -- The user, 2026-09-30, on findings 63 and 64: "It should show the Individual
 -- View's Control Action and its Check Box" -- answered with keys of their own
--- per screen (0272-0283). A key nobody holds would take every one of those
+-- per screen (0286-0297). A key nobody holds would take every one of those
 -- buttons away from everybody the day this ships, so each new key is given to
 -- exactly the roles and people that hold the key it replaces:
 --
@@ -41146,7 +41192,7 @@ grant execute on function public.device_cache_report() to authenticated;
 -- ONCE, AND SAID SO IN A TABLE. A re-run that copied again would hand a key
 -- back to a role an administrator had deliberately unticked it from, which is
 -- the one thing a permission migration must never do. The keys that are
--- CHILDREN of a key somebody holds (0272's perm_parents) are not copied at all:
+-- CHILDREN of a key somebody holds (0286's perm_parents) are not copied at all:
 -- the parent already grants them.
 --
 -- A role row with no permissions is left alone: an empty array means "not
@@ -41177,11 +41223,11 @@ declare
   n_roles int; n_people int;
 begin
   if to_regclass('public.app_roles') is null or to_regclass('public.profiles') is null then
-    raise notice '0284: app_roles or profiles missing -- nothing copied';
+    raise notice '0298: app_roles or profiles missing -- nothing copied';
     return;
   end if;
   if exists (select 1 from public.permission_copies_done where name = '0284_per_screen_keys') then
-    raise notice '0284: the per-screen keys were copied before -- not copied again';
+    raise notice '0298: the per-screen keys were copied before -- not copied again';
   else
     for pair in
       select * from (values
@@ -41226,7 +41272,7 @@ begin
        where coalesce(extra_permissions, '[]'::jsonb) ?| pair.old_keys
          and not coalesce(extra_permissions, '[]'::jsonb) ? pair.new_key;
       get diagnostics n_people = row_count;
-      raise notice '0284: % given to % role(s) and % person(s) holding %', pair.new_key, n_roles, n_people, pair.old_keys;
+      raise notice '0298: % given to % role(s) and % person(s) holding %', pair.new_key, n_roles, n_people, pair.old_keys;
     end loop;
     insert into public.permission_copies_done (name) values ('0284_per_screen_keys');
   end if;

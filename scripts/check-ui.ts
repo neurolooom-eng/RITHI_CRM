@@ -1196,7 +1196,7 @@ console.log('\n-- re-allocating a call is its own permission --');
 
   for (const mod of ['FieldCalls', 'PendingCalls']) {
     const src = readFileSync(`${process.cwd()}/src/modules/${mod}.tsx`, 'utf8');
-    // PER REGISTER since 0273: the register asks its own key, and Pending
+    // PER REGISTER since 0287: the register asks its own key, and Pending
     // Calls -- which mixes all three -- asks each call's own.
     eq(`${mod} gates re-allocation on the register's allot key, not an edit key`,
       mod === 'FieldCalls'
@@ -2871,19 +2871,19 @@ console.log('\n-- every control a screen tests is on its own Roles & Permissions
   }
   eq('each call register’s row carries its own register’s keys', regMissing, []);
 
-  // THE PARENT LIST IS ONE LIST IN TWO PLACES: rbac.ts and 0272's perm_parents.
-  const m0272 = readFileSync('supabase/migrations/0272_permission_parents.sql', 'utf8');
+  // THE PARENT LIST IS ONE LIST IN TWO PLACES: rbac.ts and 0286's perm_parents.
+  const m0272 = readFileSync('supabase/migrations/0286_permission_parents.sql', 'utf8');
   const sqlPairs = [...m0272.slice(m0272.indexOf('insert into public.perm_parents'), m0272.indexOf(';', m0272.indexOf('insert into public.perm_parents')))
     .matchAll(/\('([a-z0-9_.]+)', '([a-z0-9_.]+)'\)/g)].map((m) => `${m[1]}<${m[2]}`).sort();
   const tsPairs = Object.entries(PARENTS).flatMap(([c, ps]) => ps.map((p) => `${c}<${p}`)).sort();
   eq('the client’s parent list is the database’s, pair for pair', tsPairs, sqlPairs);
 
-  // THE COPY LIST IS ONE LIST IN TWO PLACES: rbac.ts and 0284.
-  const m0284 = readFileSync('supabase/migrations/0284_permission_grants_copied.sql', 'utf8');
+  // THE COPY LIST IS ONE LIST IN TWO PLACES: rbac.ts and 0298.
+  const m0284 = readFileSync('supabase/migrations/0298_permission_grants_copied.sql', 'utf8');
   const sqlCopies = [...m0284.matchAll(/\('([a-z0-9_.]+)',\s+array\[([^\]]+)\]\)/g)]
     .map((m) => `${m[1]}<${[...m[2].matchAll(/'([^']+)'/g)].map((x) => x[1]).join('|')}`).sort();
   const tsCopies = COPIES.map(([k, from]) => `${k}<${from.join('|')}`).sort();
-  eq('the client’s copy list is the one 0284 applied, pair for pair', tsCopies, sqlCopies);
+  eq('the client’s copy list is the one 0298 applied, pair for pair', tsCopies, sqlCopies);
 
   // Every key on a row exists, or it is a tick that grants nothing.
   const { ACTIONS: ALL } = await import('../src/lib/rbac');
@@ -6983,7 +6983,7 @@ console.log('\n-- one Serviceman, changed everywhere it appears --');
 
   // ONE STATEMENT, so every party moves together or none does. A row at a time
   // is 328 requests and a half-finished rename if one fails.
-  // ...and ONE DATABASE CALL with a key of its own since 0276.
+  // ...and ONE DATABASE CALL with a key of its own since 0290.
   eq('the rename is one statement, not one per party',
     /rpc\('swap_service_engineer', \{ p_from: from, p_to: to \}\)/.test(sb), true);
   // MATCHED EXACTLY. A rename that quietly caught a second spelling would be

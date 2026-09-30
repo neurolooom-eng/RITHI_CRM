@@ -185,7 +185,7 @@ export function PartMaster() {
   const { can } = useAuth();
   const mayEdit = can('masters.edit.records') && live;
   // A RENAME moves every record naming the part, so it is its own tick
-  // (finding 67, 0275); the other fields are ordinary record edits.
+  // (finding 67, 0289); the other fields are ordinary record edits.
   const mayRename = can('masters.edit.rename_part');
   const [form, setForm] = useState<{ code: string; description: string; category: string; product: string; cost: string; common: boolean } | null>(null);
   const [saving, setSaving] = useState(false);

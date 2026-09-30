@@ -15,7 +15,7 @@
 --
 -- Carries, in order:
 --   0264_people_and_training.sql
---   0281_user_profile_details_key.sql
+--   0295_user_profile_details_key.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -436,19 +436,19 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0281_user_profile_details_key.sql
+-- 0295_user_profile_details_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0281 — A PERSON'S PROFILE AND R&R ARE "EDIT USER MASTER DETAILS"
+-- 0295 — A PERSON'S PROFILE AND R&R ARE "EDIT USER MASTER DETAILS"
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: the training module's rules that asked users.manage now ask
 -- its child users.manage.details.

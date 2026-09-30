@@ -29,7 +29,7 @@ export function Settings() {
   // asked when something is not loading. Nothing here is a secret it is being
   // trusted with: the anon key is public by design, and the connection is this
   // browser's own setting.
-  // Its own tick since finding 67 (a child of Manage users, 0272).
+  // Its own tick since finding 67 (a child of Manage users, 0286).
   const mayManage = can('users.manage.settings');
   const mayOpen = mayManage || can('admin.view');
 

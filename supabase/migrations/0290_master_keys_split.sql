@@ -1,13 +1,13 @@
 -- ===========================================================================
--- 0276 — EDITING MASTERS, VERIFYING KYC AND THE SERVICEMAN SWAP ARE SEPARATE
+-- 0290 — EDITING MASTERS, VERIFYING KYC AND THE SERVICEMAN SWAP ARE SEPARATE
 --
 -- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
 -- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
 -- its Check Box" -- each screen gets keys of its own, today's grants copied
--- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- across (0298) so nobody gains or loses anything on the day it ships -- and
 -- "67: Break it down", with the old key kept as the PARENT of the new ones, so
 -- a role holding it keeps everything until an administrator unticks it.
--- The parent rule itself is in has_perm() (0272, public.perm_parents).
+-- The parent rule itself is in has_perm() (0286, public.perm_parents).
 --
 -- This file: every master write rule the masters module owns asks
 -- masters.edit.records; a KYC status change asks masters.edit.kyc; the bulk
@@ -112,7 +112,7 @@ begin
       new.extra ->> 'PAN', new.extra ->> 'PAN No')), '');
   end if;
   if new.kyc_status is distinct from (case when tg_op = 'UPDATE' then old.kyc_status else null end) then
-    -- VERIFYING KYC IS ITS OWN KEY (0276). A new party starting at Pending is
+    -- VERIFYING KYC IS ITS OWN KEY (0290). A new party starting at Pending is
     -- not a verification; the SQL editor or an import is not a caller through
     -- the API (the `role` setting survives SECURITY DEFINER).
     if tg_op = 'UPDATE' and coalesce(current_setting('role', true), 'none') in ('authenticated', 'anon') and not public.is_admin()
