@@ -54,7 +54,7 @@ export function ResetPassword() {
           <button className="btn login-btn" type="button" onClick={cancelRecovery} disabled={busy}>Cancel</button>
         </form>
       </div>
-      <div className="login-foot muted">This link works once. If it has expired, {invite ? 'ask an admin to re-invite you.' : 'request a new one from the sign-in screen.'}</div>
+      <div className="login-foot muted">This link works once. If it has expired, {invite ? 'ask an administrator to re-invite you.' : 'ask an administrator to reset your password.'}</div>
     </div>
   );
 }

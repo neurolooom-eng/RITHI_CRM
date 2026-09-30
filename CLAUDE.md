@@ -401,6 +401,14 @@ on testing the old shape. **When a migration replaces a definition, move the
   ZERO permissions — a row with *some* permissions but missing `calls.view`
   silently blocks everything. Grant by MERGING into `app_roles`, never by
   overwriting: an admin may have tuned the role.
+  **A signed-in login with NO PROFILE gets no fallback at all** (0300, D-074):
+  `has_perm()` answers FALSE for it — FALSE, not NULL, because a guard written
+  `if not has_perm(...) then raise` skips on NULL and a NULL would WIDEN what it
+  may do. Before 0300 it held the engineer permissions and could raise call and
+  spare requests through the API. The client matches: `can()` refuses an
+  `unresolved` identity first and the shell shows it one page. There is ONE way
+  in — Supabase Auth; the local demo and sheet sign-ins are gone, so do not
+  bring back a fallback sign-in "for when the database is down".
 - **Office-role visibility lives in `can_view_all_calls()`** (hotline, nsm,
   commercial, spare_coordinator, stores_incharge, tally_coordinator). A read
   policy only benefits from it if it actually calls it — `cr_read` did not.

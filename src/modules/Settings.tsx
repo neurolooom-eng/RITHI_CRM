@@ -16,7 +16,7 @@ export function Settings() {
   const templates = useCollection('templates');
 
   const resetData = () => {
-    if (!confirm('This clears ALL demo data (parties, products, calls, etc.) but keeps users & theme. Continue?')) return;
+    if (!confirm('This clears ALL demo data (parties, products, calls, etc.) but keeps your sign-in and theme. Continue?')) return;
     Object.keys(localStorage)
       .filter((k) => k.startsWith('rithi.db.') && !k.endsWith('users'))
       .forEach((k) => localStorage.removeItem(k));

@@ -1574,7 +1574,11 @@ with checks(sort_order, bundle, provides, present) as (
     (226, 'A Technical / Service Note keeps its Drive details', 'documents.source_created_at, source_modified_at and source_modified_by (0299): the Created, Last Modified and Last Modified By the Drive listing gave, shown on the Technical / Service Notes shelf as Added, Updated and Added By, beside RITHI''s own created_at / updated_at. NO means documents.sql has not been re-run since. Restore: documents.sql',
         (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'source_created_at')
          and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'source_modified_at')
-         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'source_modified_by')))
+         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'source_modified_by'))),
+    (227, 'A login nobody has set up holds no permission', 'has_perm() answers FALSE for a signed-in login with no profile instead of the engineer fallback (0300), and Field Solutions asks for a profile to read or add an article (0301). D-074. NO means rbac.sql or knowledge_base.sql has not been re-run since. Restore: rbac.sql (0300), knowledge_base.sql (0301)',
+        (coalesce((select p.prosrc like '%not exists (select 1 from public.profiles p where p.id = auth.uid())%' from pg_proc p where p.oid = to_regprocedure('public.has_perm(text)')), false)
+         and coalesce((select coalesce(with_check, '') like '%my_role()%' from pg_policies where schemaname = 'public' and tablename = 'kb_articles' and policyname = 'kb_insert'), false)
+         and coalesce((select coalesce(qual, '') like '%my_role()%' from pg_policies where schemaname = 'public' and tablename = 'kb_articles' and policyname = 'kb_read'), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

@@ -60,6 +60,7 @@
 --   0180_zoho_readonly.sql
 --   0250_master_write_policy_once_per_query.sql
 --   0286_permission_parents.sql
+--   0300_unresolved_login_holds_nothing.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
@@ -249,6 +250,7 @@
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
+--   0301_knowledge_base_needs_a_profile.sql
 --   0045_notifications.sql
 --   0054_notify_uid_ambiguous.sql
 --   0123_clear_notifications_on_signout.sql
@@ -5016,6 +5018,69 @@ begin
    where storage_key = btrim(p_storage_key) and role = coalesce(btrim(p_role), '');
   return found;
 end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0300_unresolved_login_holds_nothing.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A LOGIN THE ORGANISATION DOES NOT KNOW HOLDS NO PERMISSION (D-074, FRS-210.5).
+--
+-- has_perm() takes the caller's role row and, when that row is empty or absent,
+-- falls back to the ENGINEER permissions. For a person with a profile that is
+-- the documented default ("an empty row means not configured"). For a person
+-- with NO profile it meant this: anybody who could create a Supabase Auth
+-- account -- with no profile and no User Master row -- held an engineer's write
+-- authority through the API. my_role() returns NULL for them, no role row
+-- matches NULL, and the fallback answered for them.
+--
+-- The client already signs such a person in only as "unresolved" and now gives
+-- them nothing (src/lib/auth.tsx); this is the half that decides.
+--
+-- WHAT CHANGES: a SIGNED-IN caller with no profile row gets FALSE from every
+-- has_perm(), unless they are a super administrator (app_super_admins, matched
+-- by e-mail, as is_admin() already does).
+--
+-- WHAT DOES NOT:
+--   * a caller WITH a profile -- same answer as 0286, the engineer fallback for
+--     an empty role row included;
+--   * no signed-in user at all (an import, a scheduled run, the SQL editor) --
+--     the same expression as 0286, NULL included, because callers rely on
+--     `if not has_perm()` being skipped there (0286's note).
+-- FALSE, NOT NULL, for the unknown login: `if not has_perm(...) then raise` is
+-- how the guards refuse, and NOT NULL is NULL, so a NULL here would have
+-- WIDENED what an unknown login may do past the guards rather than narrowed it.
+-- ===========================================================================
+
+create or replace function public.has_perm(action text)
+returns boolean language sql stable security definer set search_path = public as $$
+  with role_row as (
+    select r.permissions from public.app_roles r
+     where r.role = public.my_role() and jsonb_array_length(coalesce(r.permissions, '[]'::jsonb)) > 0
+  ),
+  fallback as (
+    select r.permissions from public.app_roles r where r.role = 'engineer'
+  ),
+  perms as (
+    select permissions from role_row
+    union all
+    select permissions from fallback where not exists (select 1 from role_row)
+  ),
+  keys as (
+    select action as k
+    union all
+    select pp.parent from public.perm_parents pp where pp.child = action
+  )
+  select case
+    when auth.uid() is not null
+     and not exists (select 1 from public.profiles p where p.id = auth.uid())
+      then coalesce(public.is_super_admin(), false)
+    else public.is_admin()
+      or exists (select 1 from perms p, keys where p.permissions ? keys.k)
+      or (select bool_or(public.my_extra_perms() ? keys.k) from keys)
+  end;
+$$;
+grant execute on function public.has_perm(text) to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0121_rbac_policy_tail.sql
@@ -30600,6 +30665,34 @@ create policy help_shot_update on public.help_screenshots for update
 drop policy if exists help_shot_delete on public.help_screenshots;
 create policy help_shot_delete on public.help_screenshots for delete
   using (public.is_admin());
+
+-- ------------------------------------------------------------------------
+-- 0301_knowledge_base_needs_a_profile.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE KNOWLEDGE BASE ASKS FOR A KNOWN LOGIN, NOT JUST A SIGNED-IN ONE (D-074).
+--
+-- 0042 let "everyone signed in" read Field Solutions and "any signed-in user"
+-- write one. Signed in is not the same as known: a Supabase Auth account with
+-- no profile and no User Master row is signed in, and FRS-210.5 says it holds
+-- nothing. These two policies did not go through has_perm(), so 0300 could not
+-- reach them.
+--
+-- A PROFILE is the test -- my_role() is NULL only when there is none (it reads
+-- a blank role as engineer). Every person the app admits has one, so nobody
+-- who can use Field Solutions today loses it. Wrapped in a sub-select so it is
+-- asked once per query, not once per article (0250).
+-- Edit and delete are untouched: they already need the author or an admin.
+-- ===========================================================================
+
+drop policy if exists kb_read on public.kb_articles;
+create policy kb_read on public.kb_articles for select
+  using ((select public.my_role()) is not null);
+
+drop policy if exists kb_insert on public.kb_articles;
+create policy kb_insert on public.kb_articles for insert
+  with check ((select public.my_role()) is not null);
 
 -- ------------------------------------------------------------------------
 -- 0045_notifications.sql

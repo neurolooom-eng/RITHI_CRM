@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.13',
+    date: '2026-09-30',
+    title: 'Sign-in: one way in, and a login nobody set up gets nothing',
+    changes: [
+      'THE ONLY WAY TO SIGN IN IS YOUR RITHI LOGIN. The old demo sign-in and its sample accounts are gone, and so is the sheet-era User Master sign-in. Any copy of those accounts left in your browser is deleted the next time the app loads.',
+      'IF A BROWSER HAS BEEN POINTED AT A DIFFERENT DATABASE, the sign-in screen says so and offers "Reconnect to the RITHI database", instead of quietly switching to the demo sign-in.',
+      'A LOGIN THAT IS NOT SET UP GETS NOTHING. If somebody signs in with a login that has no profile and no User Master entry, they see one page telling them to ask an administrator to add them to the User Master, and a Sign out button. Before this they were let in as an Engineer and could raise call and spare requests. The database now refuses them too.',
+      'FORGOTTEN PASSWORD: the sign-in screen and the password-reset screen both say the same thing now — ask an administrator.',
+    ],
+  },
+  {
     version: '0.10.12',
     date: '2026-09-30',
     title: 'Technical Notes: Drive dates, several products, and offered on calls',

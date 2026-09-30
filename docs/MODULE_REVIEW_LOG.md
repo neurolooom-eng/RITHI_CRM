@@ -161,6 +161,20 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-09-30 — D-074 fixed: one way in, and an unknown login holds nothing (v0.10.13)
+- **Your ask:** *"Remove the demo sign-in and fix D-074."*
+- **One way in.** The local sign-in, its seeded demo accounts and the stored hash of the old `service.almsind@gmail.com` password are gone from `src/lib/auth.tsx`. So is the sheet-era User Master sign-in (`auth.tsx`, `sheets.ts`). The copy an old browser holds (`rithi.db.users`, `rithi.session`) is deleted on load, because that copy carried the hash whatever the code said.
+  - Without a Supabase connection nobody is signed in. The sign-in screen offers **Reconnect to the RITHI database**, since Settings is behind the sign-in.
+  - `UsersAdmin.tsx`, dead since `/users` redirected to the User Master and the last caller of the local account functions, is deleted.
+- **An unknown login holds nothing.** This is a login with no profile and no User Master row.
+  - In the app, `can()` refuses it before anything else, it is given no role, and it sees one page saying the login is not set up, with Sign out.
+  - In the database, `has_perm()` answers **FALSE** for it (0300). It is FALSE and not NULL because `if not has_perm()` skips on NULL. A super administrator is the one exception.
+  - Field Solutions now asks for a profile to read or add an article (0301).
+- **Measured:** on a database built without 0300/0301, such a login inserted a call request, a spare request and a Field Solutions article. With them, all three are refused. The engineer, the super administrator and the no-session paths are unchanged. `unresolved_login_test`, `_status.sql` row 227.
+- **One remedy for a forgotten password:** the reset screen now says to ask an administrator, as the sign-in screen does.
+- **Proved:** validate — 122 suites, 22 checks. Also `check:ui` (11 new assertions, one mutation-tested), `check:replay`, `check:views`, `check:status`, `check:generated`, `check:bundles` and the build.
+- **Still true:** the old password is in git history. The system owner reported it changed on 2026-09-30; that is reported, not verified from here.
+
 ### 2026-09-30 — Findings 57–67 decided and built (v0.10.11, on the branch, not merged)
 
 Your decisions, and what each became:

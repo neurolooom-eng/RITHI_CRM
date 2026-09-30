@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { db, genId, type BaseRecord } from './db';
-import { authLogin, authSetPassword, listUsers, sheetsConfigured, type SheetUser } from './sheets';
+import { db, type BaseRecord } from './db';
 import { sbSignIn, sbSignOut, clearMyNotifications, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, getRoleLabels, supabaseConfigured, hasPendingRecovery, sbConsumeRecovery, sbUpdatePassword, type Profile } from './supabase';
 import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac, parentActions, ROLES , roleLabelFor, setRoleLabels } from './rbac';
 import { setAuditUser, logAudit } from './audit';
@@ -31,7 +30,11 @@ function profileToUser(p: Profile): User {
     region: p.region,
     reportingManager: p.reporting_manager_email,
     regionalManager: p.regional_manager_email,
-    rbacRole: (p.role || 'engineer').toLowerCase(),
+    // An unresolved login has NO role -- not the engineer one (D-074). Its
+    // coarse role is `viewer` only because the type needs a value; can() and
+    // roleLabel() both answer from `unresolved` before they look at either.
+    ...(p.unresolved ? { role: 'viewer' as Role } : {}),
+    rbacRole: p.unresolved ? '' : (p.role || 'engineer').toLowerCase(),
     extraPermissions: Array.isArray(p.extra_permissions) ? p.extra_permissions : [],
     // CARRIED, so a screen can say the profile did not load rather than
     // showing a nameless Engineer and leaving the reader to guess.
@@ -58,9 +61,15 @@ const isSuper = (...ids: (string | undefined)[]) =>
 
 // ---------------------------------------------------------------------------
 // Authentication & user access.
-// POC-grade: credentials live in the local "users" collection with a salted
-// hash (NOT production crypto — clearly a demo). Sessions persist the active
-// user id in localStorage. Roles drive access control across modules.
+//
+// ONE WAY IN: Supabase Auth, e-mail and password (FRS-210.1/.2, D-074). There
+// used to be two more, both reachable from a released build: a local sign-in
+// against seeded demo accounts -- one of them a real super-administrator
+// address carrying a short hash of its old password -- switched on by saving a
+// connection that was not a Supabase project URL; and the sheet-era User Master
+// sign-in through CallReg. Both are gone, and the browser's old copy of the
+// local accounts is deleted on load (LEGACY_KEYS below), because that copy held
+// the hash whatever the code said.
 // ---------------------------------------------------------------------------
 
 export type Role = 'admin' | 'manager' | 'engineer' | 'viewer';
@@ -117,89 +126,33 @@ export const ROLE_LABELS: Record<Role, string> = {
  * the database holds for a role added from the app, else the key humanised.
  * Every one of those NAMES THE ROLE THE PERSON IS ACTUALLY ON.
  */
-export function roleLabel(u: { rbacRole?: string; role: Role } | null | undefined): string {
+export function roleLabel(u: { rbacRole?: string; role: Role; unresolved?: boolean } | null | undefined): string {
   if (!u) return '';
+  // A login nobody has set up holds no role, and must not be NAMED as one.
+  if (u.unresolved) return 'None — this login is not set up';
   const rb = (u.rbacRole || '').toLowerCase();
   // Only when there is no rbac key at all is the legacy label the right answer.
   if (!rb) return ROLE_LABELS[u.role] || '';
   return roleLabelFor(rb) || rb;
 }
 
-const USERS = 'users';
-const SESSION_KEY = 'rithi.session';
 const VIEWAS_KEY = 'rithi.viewAs'; // admin "View as engineer" preview identity
 
-// Deterministic, lightweight hash — sufficient to demonstrate password-gating.
-function hash(pw: string): string {
-  let h = 2166136261;
-  const salted = 'rithi$' + pw;
-  for (let i = 0; i < salted.length; i++) {
-    h ^= salted.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(16);
-}
-
-export function seedUsers() {
-  if (db.list(USERS).length === 0) {
-    const now = new Date().toISOString();
-    const make = (u: Partial<User>): User =>
-      ({ id: genId(), createdAt: now, updatedAt: now, active: true, ...u }) as User;
-    db.seedIfEmpty(USERS, [
-      make({
-        username: 'admin',
-        fullName: 'Dr. Anita Rao',
-        email: 'admin@rithi.health',
-        role: 'admin',
-        passwordHash: hash('admin123'),
-      }),
-      make({
-        username: 'manager',
-        fullName: 'Suresh Kumar',
-        email: 'manager@rithi.health',
-        role: 'manager',
-        passwordHash: hash('manager123'),
-      }),
-      make({
-        username: 'engineer',
-        fullName: 'Ravi Menon',
-        email: 'ravi@rithi.health',
-        role: 'engineer',
-        passwordHash: hash('engineer123'),
-      }),
-    ]);
-  }
-  // Ensure operational test logins exist even on browsers that already seeded
-  // the demo users. Passwords are stored only as hashes (never plaintext here);
-  // these will be superseded by the User Master login and can be reset anytime.
-  ensureUser({
-    username: 'service.almsind@gmail.com',
-    fullName: 'ALMS Service',
-    email: 'service.almsind@gmail.com',
-    role: 'admin',
-    passwordHash: '8c543c4f', // the OLD test password (plaintext removed from this comment 2026-09-30; the real password was changed the same day). Only the local demo sign-in reads it — D-074.
-  });
-}
-
-// Insert a user if one with the same username doesn't already exist (idempotent).
-function ensureUser(u: {
-  username: string;
-  fullName: string;
-  email: string;
-  role: Role;
-  passwordHash: string;
-}) {
-  const exists = (db.list(USERS) as User[]).some(
-    (x) => x.username.toLowerCase() === u.username.toLowerCase(),
-  );
-  if (exists) return;
-  db.insert(USERS, { ...u, active: true });
+// What the local sign-in left in this browser: the seeded accounts (with the
+// hashes) and the id of the one signed in. Nothing reads them any more; they
+// are deleted so the hash stops sitting in storage on every device that ever
+// seeded it.
+const LEGACY_KEYS = ['rithi.db.users', 'rithi.session'];
+function forgetLocalAccounts() {
+  try {
+    LEGACY_KEYS.forEach((k) => localStorage.removeItem(k));
+    db.replaceAll('users', []);
+  } catch { /* storage blocked: nothing was stored either */ }
 }
 
 export interface LoginResult {
   ok: boolean;
   error?: string;
-  needsPassword?: boolean; // first login: must set a password
 }
 
 interface AuthContextValue {
@@ -207,18 +160,7 @@ interface AuthContextValue {
   users: User[];
   booting: boolean; // true while restoring a persisted session (avoid login flash)
   login: (username: string, password: string) => Promise<LoginResult>;
-  setPassword: (id: string, password: string) => Promise<LoginResult>;
-  importSheetUsers: () => Promise<{ added: number; total: number }>;
   logout: () => void;
-  createUser: (input: {
-    username: string;
-    fullName: string;
-    email: string;
-    role: Role;
-    password: string;
-  }) => { ok: boolean; error?: string };
-  updateUser: (id: string, patch: Partial<User> & { password?: string }) => void;
-  removeUser: (id: string) => void;
   can: (action: string) => boolean; // RBAC: legacy keys + canonical action keys
   rolePerms: Record<string, string[]>; // role → allowed actions (admin-editable)
   reloadRoles: () => Promise<void>;
@@ -244,9 +186,6 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [tick, setTick] = useState(0);
-  const refresh = () => setTick((t) => t + 1);
-  const [userId, setUserId] = useState<string | null>(() => localStorage.getItem(SESSION_KEY));
   const [viewAsRaw, setViewAsRaw] = useState<User | null>(() => {
     try { const r = localStorage.getItem(VIEWAS_KEY); return r ? (JSON.parse(r) as User) : null; } catch { return null; }
   });
@@ -322,8 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const cancelRecovery = () => { setRecovering(false); void sbSignOut(); };
 
-  useEffect(() => seedUsers(), []);
-  useEffect(() => db.subscribe(USERS, refresh), []);
+  useEffect(() => forgetLocalAccounts(), []);
 
   // Hydrate from the persisted Supabase session on load, and whenever auth changes.
   useEffect(() => {
@@ -376,10 +314,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supaMode]);
 
-  const localUsers = db.list(USERS) as User[];
-  const users = supaMode ? supaUsers : localUsers;
-  const user = supaMode ? supaUser : (localUsers.find((u) => u.id === userId && u.active) ?? null);
-  void tick;
+  // No database connection, nobody signed in: there is no other way in.
+  const users = supaMode ? supaUsers : [];
+  const user = supaMode ? supaUser : null;
 
   // Real admin? (super admin or admin role). Impersonation is only offered to,
   // and only honoured for, real admins.
@@ -403,78 +340,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { u ? localStorage.setItem(VIEWAS_KEY, JSON.stringify(u)) : localStorage.removeItem(VIEWAS_KEY); } catch { /* ignore */ }
   };
 
-  const setSession = (id: string) => {
-    localStorage.setItem(SESSION_KEY, id);
-    setUserId(id);
-  };
-
-  // Create/refresh a local record for a User-Master-authenticated user so the
-  // rest of the app (roles, context, engineer lists) works. Role: engineer.
-  const upsertSheetUser = (su: SheetUser, id: string): string => {
-    const username = String(su.email || su.gmail || id).toLowerCase();
-    const existing = (db.list(USERS) as User[]).find((u) => u.username.toLowerCase() === username);
-    const patch: Partial<User> = {
-      username,
-      fullName: su.name || id,
-      email: su.email || id,
-      role: isSuper(su.email, su.gmail, id) ? 'admin' : 'engineer',
-      active: true,
-      activated: true, // they've just authenticated
-      authSource: 'sheet',
-      region: su.region,
-      designation: su.designation,
-      reportingManager: su.rm,
-      regionalManager: su.rgm,
-    };
-    if (existing) {
-      db.update(USERS, existing.id, patch);
-      return existing.id;
-    }
-    return db.insert(USERS, { ...patch, passwordHash: '' }).id;
-  };
-
-  // Import every User Master user into the local users list (role engineer, or
-  // admin for super admins). Activation is preserved; new users start inactive.
-  const importSheetUsers = async (): Promise<{ added: number; total: number }> => {
-    const rows = await listUsers('', 1000);
-    let added = 0;
-    rows.forEach((u) => {
-      const email = String(u['Email ID'] ?? '').trim();
-      const gmail = String(u['GMAIL ID'] ?? '').trim();
-      const username = (email || gmail || String(u['User Name'] ?? '')).toLowerCase();
-      if (!username) return;
-      const existing = (db.list(USERS) as User[]).find((x) => x.username.toLowerCase() === username);
-      const patch: Partial<User> = {
-        username,
-        fullName: String(u['User Name'] ?? username),
-        email: email || gmail,
-        role: isSuper(email, gmail) ? 'admin' : 'engineer',
-        active: String(u['Validity'] ?? '').toUpperCase() === 'TRUE',
-        authSource: 'sheet',
-        region: String(u['REGION'] ?? ''),
-        designation: String(u['Designation'] ?? ''),
-        reportingManager: String(u['RM'] ?? ''),
-        regionalManager: String(u['RGM'] ?? ''),
-      };
-      if (existing) db.update(USERS, existing.id, patch);
-      else { db.insert(USERS, { ...patch, passwordHash: '', activated: false }); added++; }
-    });
-    return { added, total: rows.length };
-  };
-
-  const authError = (code?: string): string => {
-    switch (code) {
-      case 'not_found': return 'ID not found in the User Master.';
-      case 'inactive': return 'Your account is not active (Validity is not TRUE).';
-      case 'bad_password': return 'Incorrect password.';
-      case 'weak': return 'Password too short (minimum 5 characters).';
-      default: return code || 'Login failed.';
-    }
-  };
-
   const login: AuthContextValue['login'] = async (id, password) => {
     const idNorm = id.trim();
-    // 0) Supabase (email + password) — the primary path once a DB is connected.
+    // Supabase (e-mail + password) — the ONLY way in (FRS-210.2).
     if (supaMode) {
       const t0 = performance.now();
       const res = await sbSignIn(idNorm, password);
@@ -507,47 +375,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logAudit({ action: 'login', status: 'ok', duration_ms: Math.round(performance.now() - t0) });
       return { ok: true };
     }
-    // 1) Local demo/offline accounts (username or email), password-checked here.
-    const local = (db.list(USERS) as User[]).find(
-      (u) => u.authSource !== 'sheet' &&
-        (u.username.toLowerCase() === idNorm.toLowerCase() || String(u.email).toLowerCase() === idNorm.toLowerCase()),
-    );
-    if (local) {
-      if (!local.active) return { ok: false, error: 'Account is disabled' };
-      if (local.passwordHash !== hash(password)) return { ok: false, error: 'Incorrect password' };
-      if (!local.activated) db.update(USERS, local.id, { activated: true });
-      setSession(local.id);
-      return { ok: true };
-    }
-    // 2) User Master via CallReg.
-    if (sheetsConfigured()) {
-      try {
-        const res = await authLogin(idNorm, password);
-        if (res.ok && res.needsPassword) return { ok: false, needsPassword: true };
-        if (res.ok && res.user) { setSession(upsertSheetUser(res.user, idNorm)); return { ok: true }; }
-        return { ok: false, error: authError(res.error) };
-      } catch {
-        return { ok: false, error: 'Could not reach the login service. Check the connection in Settings.' };
-      }
-    }
-    return { ok: false, error: 'User not found' };
-  };
-
-  const setPassword: AuthContextValue['setPassword'] = async (id, password) => {
-    if (!sheetsConfigured()) return { ok: false, error: 'No sheet connected.' };
-    try {
-      const res = await authSetPassword(id.trim(), password);
-      if (res.ok && res.user) { setSession(upsertSheetUser(res.user, id.trim())); return { ok: true }; }
-      return { ok: false, error: authError(res.error) };
-    } catch {
-      return { ok: false, error: 'Could not reach the login service.' };
-    }
+    // No other way in (FRS-210.2). The only way here is a saved connection that
+    // is not a Supabase project, and the sign-in screen offers to undo that.
+    return { ok: false, error: 'This browser is not connected to the RITHI database, so nobody can sign in. Reconnect it from this screen.' };
   };
 
   const logout = () => {
-    localStorage.removeItem(SESSION_KEY);
     setViewAs(null);
-    setUserId(null);
     if (supaMode) {
       logAudit({ action: 'logout', status: 'ok' });
       setAuditUser(null); setSupaUser(null); setSupaUsers([]);
@@ -562,35 +396,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const createUser: AuthContextValue['createUser'] = (input) => {
-    const exists = (db.list(USERS) as User[]).some(
-      (u) => u.username.toLowerCase() === input.username.trim().toLowerCase(),
-    );
-    if (exists) return { ok: false, error: 'Username already taken' };
-    if (input.password.length < 5) return { ok: false, error: 'Password too short (min 5)' };
-    db.insert(USERS, {
-      username: input.username.trim(),
-      fullName: input.fullName.trim(),
-      email: input.email.trim(),
-      role: input.role,
-      passwordHash: hash(input.password),
-      active: true,
-    });
-    return { ok: true };
-  };
-
-  const updateUser: AuthContextValue['updateUser'] = (id, patch) => {
-    const { password, ...rest } = patch;
-    const next: Partial<User> = { ...rest };
-    if (password) next.passwordHash = hash(password);
-    db.update(USERS, id, next);
-  };
-
-  const removeUser: AuthContextValue['removeUser'] = (id) => db.remove(USERS, id);
-
   const can: AuthContextValue['can'] = (action) => {
     const u = effectiveUser; // reflects the impersonated engineer while previewing
     if (!u) return false;
+    // A login with no profile and no User Master row holds NOTHING -- not the
+    // engineer defaults it used to fall back to (D-074, FRS-210.5). The shell
+    // shows it one page saying so; the database refuses it the same way (0300).
+    if (u.unresolved) return false;
     if (action === 'view') return true; // any signed-in user can view
     if (isSuper(u.email, u.username)) return true; // super admins — all rights
     const roleKey = u.rbacRole || legacyToRbac(u.role);
@@ -612,7 +424,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, users, booting: supaBooting, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can, rolePerms, reloadRoles, reloadUsers, recovering, finishRecovery, cancelRecovery, realUser, isAdmin, viewAs, setViewAs, managerViewMode, setManagerViewMode }}
+      value={{ user, users, booting: supaBooting, login, logout, can, rolePerms, reloadRoles, reloadUsers, recovering, finishRecovery, cancelRecovery, realUser, isAdmin, viewAs, setViewAs, managerViewMode, setManagerViewMode }}
     >
       {children}
     </AuthContext.Provider>

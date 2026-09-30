@@ -273,32 +273,9 @@ export async function searchProducts(filters: ProdFilters | string = {}, limit =
   return (r.rows as Record<string, unknown>[]) ?? [];
 }
 
-// ---- User Master auth (via CallReg; GET so the JSONP fallback covers CORS) --
-export interface SheetUser {
-  name: string;
-  email: string;
-  gmail: string;
-  designation: string;
-  region: string;
-  rm: string;
-  rgm: string;
-}
-export interface AuthResult {
-  ok: boolean;
-  needsPassword?: boolean;
-  user?: SheetUser;
-  error?: string;
-}
-
-export async function authLogin(id: string, password: string): Promise<AuthResult> {
-  const r = await getJson({ action: 'auth', mode: 'login', id, password });
-  return r as unknown as AuthResult;
-}
-
-export async function authSetPassword(id: string, password: string): Promise<AuthResult> {
-  const r = await getJson({ action: 'auth', mode: 'setpassword', id, password });
-  return r as unknown as AuthResult;
-}
+// ---- User Master auth (via CallReg) was REMOVED (D-074, FRS-210.2): the
+// only way in is Supabase Auth. The Apps Script `auth` action is no longer
+// called by any client.
 
 // ---- Admin config: sheet links stored in the backend + verification -------
 export interface SheetConfig {

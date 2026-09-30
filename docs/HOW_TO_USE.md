@@ -1045,6 +1045,17 @@ typed into a form that reads it.
 
 - **User Access** (`/users`) is gone: it opens the **User Master**, where logins
   are created, roles assigned and — by an administrator — passwords reset.
+- **Signing in** is only ever with a RITHI login (e-mail and password). There is no
+  demo sign-in and no sheet sign-in. A forgotten password: ask an administrator —
+  both the sign-in and the reset screen say so.
+  > **A login that is not set up gets nothing.** If somebody can sign in but has no
+  > profile and no User Master entry, they see one page asking them to get an
+  > administrator to add them to the User Master, and a Sign out button — nothing
+  > else, and the database refuses them too. Add their User Master row and they
+  > arrive with its role the next time they sign in.
+  > **"Not connected to the RITHI database"** on the sign-in screen means this
+  > browser was pointed at another database in Settings; press **Reconnect to the
+  > RITHI database**.
 - **Roles & Permissions** `/roles` — which role holds which right, page by page and
   action by action. Roles can be added without code.
   > **Every button has its tick on its own page's row.** Open a page's row and you

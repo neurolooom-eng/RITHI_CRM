@@ -6,6 +6,7 @@ import { ThemeProvider } from './theme/ThemeProvider';
 import { clearDemoData } from './lib/seed';
 import { Layout } from './components/layout/Layout';
 import { Login } from './modules/Login';
+import { UnresolvedLogin } from './modules/UnresolvedLogin';
 import { ResetPassword } from './modules/ResetPassword';
 import { FieldCalls, InstallationCalls, PMCalls } from './modules/FieldCalls';
 import { ProductMaster } from './modules/ProductMaster';
@@ -84,6 +85,11 @@ function Shell() {
   // else (the recovery session is signed in, so this comes before the app).
   if (recovering) return <ResetPassword />;
   if (!user) return <Login />;
+  // A LOGIN NOBODY HAS SET UP SEES ONE PAGE, and it says so (D-074,
+  // FRS-210.5). It stays signed in -- it did authenticate -- but it holds no
+  // permission here or in the database (0300), so the app would be a menu of
+  // locked doors; this tells them the one thing they can act on.
+  if (user.unresolved) return <UnresolvedLogin />;
 
   // The challan and the declaration print on their own: no sidebar, no header,
   // nothing that would land on the paper. Their rows are RLS-scoped, so a stock

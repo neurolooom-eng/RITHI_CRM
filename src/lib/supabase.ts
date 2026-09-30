@@ -59,6 +59,17 @@ export function setSupabaseCreds(url: string, anon: string): void {
   _client = null; // force re-create with the new creds
 }
 
+/** Forget a connection saved in Settings and go back to the built-in RITHI
+ *  database. Offered on the sign-in screen, because a saved connection that is
+ *  not a Supabase project leaves nobody able to sign in to reach Settings. */
+export function resetSupabaseCreds(): void {
+  try {
+    localStorage.removeItem(URL_KEY);
+    localStorage.removeItem(KEY_KEY);
+  } catch { /* ignore */ }
+  _client = null;
+}
+
 export function supabaseConfigured(): boolean {
   const { url, anon } = getSupabaseCreds();
   return /^https:\/\/.+\.supabase\.co/.test(url) && anon.length > 20;
@@ -4275,7 +4286,10 @@ export async function sbCurrentProfile(): Promise<Profile | null> {
     id: user.id,
     email: user.email ?? '',
     full_name: user.email || 'Profile not loaded',
-    role: 'engineer',
+    // NO ROLE, not the engineer one (D-074): the app gives this login nothing
+    // and the database refuses it everything (0300), so naming a role here would
+    // be the one place still claiming it holds one.
+    role: '',
     unresolved: true,
   } as Profile;
 }

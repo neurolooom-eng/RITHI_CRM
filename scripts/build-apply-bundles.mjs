@@ -257,6 +257,10 @@ const MODULES = {
             // rbac owns move to the per-screen and split keys (findings 63-67).
             // Before the tail below, which mirrors cons_write and masters_*.
             '0286_permission_parents.sql',
+            // A signed-in login with no profile holds nothing (D-074): has_perm()
+            // stops answering for it with the engineer fallback. Redefines 0286
+            // above, so it follows it; before the tail, which does not touch it.
+            '0300_unresolved_login_holds_nothing.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -347,7 +351,10 @@ const MODULES = {
             'every article and contributes one; the author or an admin edits or deletes.',
             'Rich text with images and tables is stored as sanitized HTML on the row.'],
     needs: ['profiles', 'isAdmin'],
-    files: ['0042_knowledge_base.sql', '0043_help_screenshots.sql'],
+    files: ['0042_knowledge_base.sql', '0043_help_screenshots.sql',
+            // Field Solutions asks for a known login (D-074). Redefines 0042's
+            // two policies, so it lives with them.
+            '0301_knowledge_base_needs_a_profile.sql'],
   },
   daily_review: {
     title: 'Daily Call Review (DCCR)',
