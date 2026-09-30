@@ -250,6 +250,12 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // Support (0285, which replaced 0269's two names); anybody else can be given
   // it on User Master -> Access.
   { group: 'Calls', key: 'review.auto', label: 'Switch auto review on or off (Review 2 answered No in your name)' },
+  // WHAT WAS ADMIN-ONLY IS A KEY NOW (the user, 2026-09-30: "All Admin Actions
+  // that are greyed out now should be editable from the Role & Permissions.
+  // Only the Admin Role should be Greyed out not the Actions."). Ten of them,
+  // each asked for by the database as well as the screen (0302-0307). Nobody
+  // but Admin holds any on the day they arrive: an administrator ticks them.
+  { group: 'Calls', key: 'review.correct_date', label: 'Correct the date a review was completed' },
   // A SECOND review, on the REPORT rather than the failure -- so a separate
   // right. Somebody who completes the DCCR is not thereby entitled to sign off
   // that a closed call's report stands, and the two are held by different
@@ -300,6 +306,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'spare.dispatch', label: 'Dispatch / DC (Stores)' },
   { group: 'Spares', key: 'spare.drop', label: 'Drop a spare (any stage)' },
   { group: 'Spares', key: 'spare.receive', label: 'Acknowledge spare receipt' },
+  { group: 'Spares', key: 'spare.reassign', label: 'Change the engineer on a spare request (before dispatch)' },
   { group: 'Spares', key: 'stock.return', label: 'Return spares to Stores (MRN)' },
   // Returning stock IN ANOTHER ENGINEER'S NAME (finding 64): the screen asked
   // users.manage / dispatch / RM approval, the database any approval stage or
@@ -350,16 +357,28 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Admin', key: 'users.manage', label: 'Manage users (all of the below)' },
   // THE PARTS OF "MANAGE USERS" (finding 67). Creating a login no longer
   // carries the right to decide what that login may do. Resetting a password
-  // is not here: the database keeps it an administrator's (shown greyed).
+  // is NOT a part of it -- it is its own key below, so ticking Manage users
+  // never hands it over.
   { group: 'Admin', key: 'users.manage.details', label: ' Edit User Master details, profiles and R&R' },
   { group: 'Admin', key: 'users.manage.create', label: ' Create logins (a new login is an Engineer; any other role needs the tick below)' },
   { group: 'Admin', key: 'users.manage.disable', label: ' Disable or delete logins' },
   { group: 'Admin', key: 'users.manage.access', label: ' Assign roles & grant permissions' },
   { group: 'Admin', key: 'users.manage.settings', label: ' Change the Settings page (connections, templates)' },
+  // NOT a child of users.manage, deliberately: it lets somebody sign in as
+  // anyone whose password they reset, so it is ticked on its own. The database
+  // still refuses a non-administrator resetting an administrator's (0305).
+  { group: 'Admin', key: 'users.reset_password', label: 'Reset a person\u2019s password' },
   { group: 'Admin', key: 'config.manage', label: 'Admin config (SLA targets, Call Registration desk, Frequent Failure rule)' },
   // SCREENS THAT BORROWED config.manage get keys of their own (finding 63);
   // 0298 copied each from config.manage, which the database asked for.
   { group: 'Admin', key: 'objective.manage', label: 'Edit, recalculate and cut off the quality objectives' },
+  { group: 'Admin', key: 'objective.lock', label: 'Lock or unlock the objective cut-off' },
+  { group: 'Admin', key: 'bulk.upload', label: 'Load registers in bulk (Bulk Uploads)' },
+  { group: 'Admin', key: 'pm.bulk_upload', label: 'Upload PM calls in bulk' },
+  { group: 'Admin', key: 'import.panel', label: 'Load data through the Data Import panel' },
+  { group: 'Admin', key: 'export.tables', label: 'Export whole tables (Data Export)' },
+  { group: 'Admin', key: 'export.schedules', label: 'Create, pause or delete an export schedule' },
+  { group: 'Admin', key: 'audit.mode', label: 'Switch Audit Mode on or off, and read its history' },
   { group: 'Admin', key: 'charts.share', label: 'Share a chart with a role or with everyone' },
   { group: 'Admin', key: 'validation.manage', label: 'Record software validation results' },
   { group: 'Admin', key: 'layouts.share', label: 'Save a table layout for everyone or for a role' },
@@ -567,12 +586,12 @@ export const permsForRole = (role: string, config: Record<string, string[]>): st
 // `view` is always the module's own mod: key, kept separate from the actions so
 // seeing a page and acting on it are granted independently.
 // ---------------------------------------------------------------------------
-// `adminOnly` (finding 65, the user: "Add those to the Roles & Permissions,
-// only because I should know that they exist; it can still be greyed out for
-// Checking or Un-Checking"): things on the page ONLY an administrator can do,
-// shown on its row, ticked for Admin, disabled for everybody. Not keys --
-// nothing reads them -- so they are never stored.
-export interface PermPage { path: string; label: string; actions: string[]; adminOnly?: string[] }
+// NO ADMIN-ONLY ROWS ANY MORE. Finding 65 listed the things only an
+// administrator could do, greyed; the user then asked for them to be tickable
+// (2026-09-30: "Only the Admin Role should be Greyed out not the Actions"), so
+// each is an ordinary key on its page's row and the Admin COLUMN is what is
+// greyed -- Admin holds everything and cannot be narrowed.
+export interface PermPage { path: string; label: string; actions: string[] }
 // `lists: true` — the header also carries one page per master value list, read
 // from the registry at render time so a list added later needs no code change.
 export interface PermHeaderOpts { lists?: boolean }
@@ -609,8 +628,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/machine-history', label: 'Machine History', actions: ['masters.view'] },
   ] },
   { title: 'Quality & Analytics', pages: [
-    { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', actions: ['review.edit', 'review.auto', 'ffr.manage'],
-      adminOnly: ['Correct the date a review was completed'] },
+    { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', actions: ['review.edit', 'review.auto', 'review.correct_date', 'ffr.manage'] },
     { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.view', 'ffr.manage'] },
     // MOVED HERE FROM OVERVIEW WITH THE MENU (the user, 2026-09-15). The
     // header follows the menu because that is where an administrator looks
@@ -622,8 +640,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/product-failure', label: 'Product Failure Analysis', actions: ['charts.share'] },
     { path: '/kpi', label: 'KPI & Failure Analysis', actions: [] },
     { path: '/spare-insights', label: 'Spare Insights', actions: ['consumption.view'] },
-    { path: '/objective', label: 'Objective', actions: ['objective.manage', 'reports.view'],
-      adminOnly: ['Lock a month\u2019s cut-off date'] },
+    { path: '/objective', label: 'Objective', actions: ['objective.manage', 'objective.lock', 'reports.view'] },
   ] },
   { title: 'Documents', pages: [
     { path: '/qms', label: 'QMS Documents', actions: ['qms.manage'] },
@@ -666,8 +683,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/feedback', label: 'Customer Feedback', actions: ['feedback.view'] },
   ] },
   { title: 'Spares', pages: [
-    { path: '/spare-requests', label: 'Spare Requests', actions: ['spare.request', 'spare.approve_rm', 'spare.approve_commercial', 'spare.approve_nsm', 'spare.dispatch', 'spare.drop', 'spare.receive'],
-      adminOnly: ['Change the engineer on a request'] },
+    { path: '/spare-requests', label: 'Spare Requests', actions: ['spare.request', 'spare.approve_rm', 'spare.approve_commercial', 'spare.approve_nsm', 'spare.dispatch', 'spare.drop', 'spare.receive', 'spare.reassign'] },
     { path: '/spare-rm-approval', label: 'RM Approval', actions: ['spare.approve_rm'] },
     { path: '/spare-dispatch', label: 'Pending Dispatch', actions: ['spare.dispatch', 'spare.drop'] },
     { path: '/stock-out', label: 'Stock Out', actions: [] },
@@ -707,8 +723,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/product-database', label: 'Product Database', actions: ['install.create'] },
     { path: '/product-database-2', label: 'Product Database 2.0', actions: ['masters.view', 'pd2.rebuild'] },
     { path: '/product-master', label: 'Product Master (product lines)', actions: [] },
-    { path: '/user-master', label: 'User Master', actions: ['users.manage', 'users.manage.details', 'users.manage.create', 'users.manage.disable', 'users.manage.access'],
-      adminOnly: ['Reset a password'] },
+    { path: '/user-master', label: 'User Master', actions: ['users.manage', 'users.manage.details', 'users.manage.create', 'users.manage.disable', 'users.manage.access', 'users.reset_password'] },
     { path: '/parts', label: 'Part Master', actions: ['masters.edit', 'masters.edit.records', 'masters.edit.rename_part'] },
     // All Masters is just the overview screen; each value list is its own page
     // under this header, so access is given list by list.
@@ -719,16 +734,12 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/tracker', label: 'Tracker', actions: ['tracker.delete'] },
     { path: '/roles', label: 'Roles & Permissions', actions: ['rbac.manage'] },
     { path: '/audit', label: 'Audit Log', actions: ['audit.view'] },
-    { path: '/bulk-uploads', label: 'Bulk Uploads', actions: [],
-      adminOnly: ['Load any of the registers in bulk'] },
+    { path: '/bulk-uploads', label: 'Bulk Uploads', actions: ['bulk.upload'] },
     { path: '/report-mapping', label: 'Bulk Report Mapping', actions: ['calls.report.visit', 'install.report.visit', 'pm.report.visit'] },
-    { path: '/data-export', label: 'Data Export', actions: [],
-      adminOnly: ['Export whole tables', 'Create, pause or delete an export schedule'] },
+    { path: '/data-export', label: 'Data Export', actions: ['export.tables', 'export.schedules'] },
     { path: '/device-cache', label: 'Device Cache Status', actions: [] },
-    { path: '/pm-bulk-upload', label: 'PM Bulk Upload', actions: [],
-      adminOnly: ['Upload PM calls in bulk'] },
-    { path: '/admin-config', label: 'Admin Config', actions: ['config.manage'],
-      adminOnly: ['Load data through the Data Import panel', 'Switch Audit Mode on or off'] },
+    { path: '/pm-bulk-upload', label: 'PM Bulk Upload', actions: ['pm.bulk_upload'] },
+    { path: '/admin-config', label: 'Admin Config', actions: ['config.manage', 'import.panel', 'audit.mode'] },
     { path: '/software-validation', label: 'Software Validation', actions: ['validation.manage'] },
     { path: '/settings', label: 'Settings', actions: ['users.manage.settings'] },
     { path: '/version-history', label: 'Version History', actions: [] },

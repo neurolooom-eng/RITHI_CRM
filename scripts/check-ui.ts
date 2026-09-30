@@ -1837,12 +1837,13 @@ console.log('\n-- the evidence workbook --');
   // date is permanent.
   eq('a blank date clears the month rather than storing an empty one',
     /p_date: date && date\.trim\(\) \? date\.trim\(\) : null/.test(objSb), true);
-  // The lock is an ADMIN's switch; config.manage is who it holds back, so
-  // config.manage must not be what unlocks it.
-  eq('the cut-off lock is an admin switch, not a config.manage one',
-    /const \{ can, isAdmin \} = useAuth\(\)/.test(obj)
-    && /\{isAdmin && \(/.test(obj)
-    && /!cutoffLocked \|\| isAdmin/.test(obj), true);
+  // The lock is its own key (objective.lock, 2026-09-30); objective.manage is
+  // who it holds back, so objective.manage must not be what unlocks it.
+  eq('the cut-off lock is its own key, not an objective.manage one',
+    /const mayLock = can\('objective\.lock'\)/.test(obj)
+    && /\{mayLock && \(/.test(obj)
+    && /!cutoffLocked \|\| mayLock/.test(obj)
+    && !/!cutoffLocked \|\| mayEdit/.test(obj), true);
   // Sheet 3 is counted from sheets 1 and 2 — the file has to add up to itself.
   eq('the calculation is counted from the rows, not read off the page',
     /const numerator = isRate \? calls\.length/.test(obj)

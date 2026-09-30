@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.14',
+    date: '2026-09-30',
+    title: 'Roles & Permissions: the admin-only actions can now be ticked for any role',
+    changes: [
+      'THE TEN ACTIONS THAT WERE GREYED OUT AS "ADMIN ONLY" ARE NOW ORDINARY TICKS on their page\'s row: correct the date a review was completed, lock the objective cut-off, change the engineer on a spare request, reset a password, load registers in bulk, upload PM calls in bulk, the Data Import panel, export whole tables, export schedules, and switching Audit Mode.',
+      'ONLY THE ADMIN COLUMN IS GREYED NOW. Admin holds everything and cannot be narrowed; every other role can be given any of these.',
+      'NOBODY GETS THEM TODAY: only Admin holds them until you tick them for a role. The database checks the same ticks, so a role given one can really do it, and one without it is still refused.',
+      'RESETTING A PASSWORD IS NOT PART OF "MANAGE USERS" and must be ticked on its own, because it lets somebody sign in as that person. Someone who is not an administrator can never reset an Admin\'s password, or the password of anyone who can grant permissions.',
+      'A ROLE GIVEN AN ADMINISTRATION PAGE (Bulk Uploads, Data Export, PM Bulk Upload…) now sees it in the menu.',
+      'FIXED ON THE WAY: a review\'s completion date could be changed through the database by anybody who could edit reviews; it now needs the "Correct the date a review was completed" tick, as the screen always said.',
+    ],
+  },
+  {
     version: '0.10.13',
     date: '2026-09-30',
     title: 'Sign-in: one way in, and a login nobody set up gets nothing',

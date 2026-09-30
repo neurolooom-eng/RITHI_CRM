@@ -76,6 +76,11 @@ const NEW_DRAFT: Draft = { label: '', frequency: 'daily', day_of_week: 2, time: 
 
 export default function DataExport() {
   const { can } = useAuth();
+  // TWO KEYS, one per thing this page does (the user, 2026-09-30): exporting
+  // tables and keeping export schedules. Both were an administrator's alone;
+  // the database asks for the same two (0306).
+  const mayTables = can('export.tables');
+  const maySchedules = can('export.schedules');
   const [tables, setTables] = useState<ExportableTable[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [q, setQ] = useState('');
@@ -88,6 +93,8 @@ export default function DataExport() {
 
   useEffect(() => {
     if (!supabaseConfigured()) { setMsg({ tone: 'error', text: 'Connect the database in Settings first.' }); return; }
+    // The list is the picker for BOTH: a schedule is made from ticked tables.
+    if (!mayTables && !maySchedules) return;
     exportableTables()
       .then(setTables)
       // NAMES THE FILE TO RUN. The first person to open this screen got
@@ -101,13 +108,14 @@ export default function DataExport() {
         functions: ['exportable_tables', 'is_exportable_table'],
         hint: 'This screen needs its database side: run supabase/apply/data_export.sql in the Supabase SQL editor.',
       }) }));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mayTables, maySchedules]);
 
   // THE SCHEDULES LOAD SEPARATELY AND FAIL SEPARATELY. A project that has run
   // 0227 and not 0228 has a working picker and no schedule table, and one
   // banner covering both would make the download look broken when it is not.
   const loadSchedules = () => {
-    if (!supabaseConfigured()) return;
+    if (!supabaseConfigured() || !maySchedules) return;
     exportSchedules().then(setSchedules).catch((e) => setScheduleErr(loadFailure(e, {
       tables: ['export_schedules', 'export_schedule_state'],
       functions: ['export_run_due_at'],
@@ -115,7 +123,8 @@ export default function DataExport() {
     })));
     exportRuns().then(setRuns).catch(() => { /* the schedules banner already says it */ });
   };
-  useEffect(loadSchedules, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadSchedules, [maySchedules]);
 
   const shown = useMemo(() => {
     const n = q.trim().toLowerCase();
@@ -212,8 +221,8 @@ export default function DataExport() {
     } catch (e) { setScheduleErr(e instanceof Error ? e.message : String(e)); }
   };
 
-  if (!can('mod:/data-export')) {
-    return <div className="card"><p className="muted">You need admin access to export data.</p></div>;
+  if (!can('mod:/data-export') || (!mayTables && !maySchedules)) {
+    return <div className="card"><p className="muted">Exporting needs “Export whole tables” or “Create, pause or delete an export schedule” on Roles &amp; Permissions.</p></div>;
   }
 
   const total = [...picked].reduce((n, name) =>
@@ -254,11 +263,12 @@ export default function DataExport() {
             </label>
           ))}
           {!shown.length && <div className="muted" style={{ padding: 10 }}>
-            {tables.length ? 'Nothing matches that.' : 'No tables to offer — this needs admin access.'}
+            {tables.length ? 'Nothing matches that.' : 'No tables to offer.'}
           </div>}
         </div>
       </SectionCard>
 
+      {mayTables && (
       <SectionCard title="2 · Download">
         <p className="muted" style={{ marginTop: 0 }}>
           One ZIP, with one CSV per table inside it. Dates are written <b>dd-MMM-yyyy HH:mm:ss</b> so a
@@ -271,7 +281,9 @@ export default function DataExport() {
           {busy && <span className="muted">{busy}</span>}
         </div>
       </SectionCard>
+      )}
 
+      {maySchedules && (
       <SectionCard title="3 · Scheduled exports">
         {/* WHAT AND WHEN ARE YOURS. WHERE IS NOT, AND THAT IS SAID PLAINLY
             RATHER THAN LEFT AS A MISSING FIELD — somebody who cannot find the
@@ -425,6 +437,7 @@ export default function DataExport() {
           that are kept and start sending when it is live.
         </p>
       </SectionCard>
+      )}
     </div>
   );
 }

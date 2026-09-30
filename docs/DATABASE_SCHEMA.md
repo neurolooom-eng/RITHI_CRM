@@ -278,7 +278,7 @@ Views are listed [after the tables](#views).
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| SELECT | `amc_read` | `(is_admin() OR has_perm('audit.view'::text))` | — |
+| SELECT | `amc_read` | `(is_admin() OR has_perm('audit.view'::text) OR has_perm('audit.mode'::text))` | — |
 
 ---
 
@@ -824,7 +824,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| SELECT | `export_runs_read` | `is_admin()` | — |
+| SELECT | `export_runs_read` | `( SELECT has_perm('export.schedules'::text) AS has_perm)` | — |
 
 ---
 
@@ -874,7 +874,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `export_schedules_admin` | `is_admin()` | `is_admin()` |
+| ALL | `export_schedules_admin` | `( SELECT has_perm('export.schedules'::text) AS has_perm)` | `( SELECT has_perm('export.schedules'::text) AS has_perm)` |
 
 ---
 
@@ -2141,7 +2141,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| SELECT | `pwr_read` | `is_admin()` | — |
+| SELECT | `pwr_read` | `(( SELECT is_admin() AS is_admin) OR ( SELECT has_perm('users.reset_password'::text) AS has_perm))` | — |
 
 ---
 
@@ -3263,7 +3263,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| SELECT | `srel_read` | `(( SELECT is_admin() AS is_admin) OR ( SELECT has_perm('spare.dispatch'::text) AS has_perm) OR ( SELECT has_perm('spare.approve'::text) AS has_perm) OR (lower(from_email) = lower((…` | — |
+| SELECT | `srel_read` | `(( SELECT is_admin() AS is_admin) OR ( SELECT has_perm('spare.reassign'::text) AS has_perm) OR ( SELECT has_perm('spare.dispatch'::text) AS has_perm) OR ( SELECT has_perm('spare.ap…` | — |
 
 ---
 

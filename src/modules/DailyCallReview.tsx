@@ -125,7 +125,7 @@ function windowLabel(months: number): string {
 }
 
 export function DailyCallReview() {
-  const { user, can, isAdmin } = useAuth();
+  const { user, can } = useAuth();
   const live = supabaseConfigured();
   const editable = live && can('review.edit');
   // AUTO SAVE IS A SETTING FOR THE MODULE, not for a record — and there are two
@@ -1102,8 +1102,11 @@ function ReviewDrawer({
   // deciding a failure goes to manufacturing is not the same act as coding the
   // call, and the two are held by different people here.
   const nav = useNavigate();
-  const { can: canDo, isAdmin } = useAuth();
+  const { can: canDo } = useAuth();
   const canFfr = canDo('ffr.manage');
+  // `review.correct_date` (0302): correcting a completion date is its own key,
+  // no longer an administrator's alone -- and the database now asks for it too.
+  const mayCorrectDate = canDo('review.correct_date');
   const [ffrsHere, setFfrsHere] = useState<Record<string, unknown>[]>([]);
   // MACHINE HISTORY IN A POP-UP (the user, 2026-09-22). Not a permission of
   // its own: a reviewer who may read this call's machine, complaint and visit
@@ -1156,8 +1159,8 @@ function ReviewDrawer({
   // whoever is accountable for the register rather than to everyone who can
   // complete one.
   const adminDate = (key: 'review1_at' | 'review2_at' | 'review3_at', current: unknown) => (
-    isAdmin ? (
-      <label className="dccr-admin-date" title="Administrator: correct the date this review was completed">
+    mayCorrectDate ? (
+      <label className="dccr-admin-date" title="Correct the date this review was completed">
         <span>set</span>
         <input
           type="date"

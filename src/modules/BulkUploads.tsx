@@ -208,7 +208,11 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
 }
 
 export function BulkUploads() {
-  const { isAdmin } = useAuth();
+  // ITS OWN KEY, `bulk.upload` (the user, 2026-09-30). What each upload may
+  // write is still decided row by row by that table's own policies, so the key
+  // opens the screen and adds reach to nothing.
+  const { can } = useAuth();
+  const mayUpload = can('bulk.upload');
   const [lists, setLists] = useState<MasterList[]>([]);
   const [counts, setCounts] = useState<Record<string, number | null>>({});
 
@@ -230,7 +234,7 @@ export function BulkUploads() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defs.length]);
 
-  if (!isAdmin) return <div style={{ padding: 24 }} className="muted">Bulk uploads are admin-only.</div>;
+  if (!mayUpload) return <div style={{ padding: 24 }} className="muted">Bulk uploads need “Load registers in bulk” on Roles &amp; Permissions.</div>;
   if (!supabaseConfigured()) return <div style={{ padding: 24 }} className="muted">Connect the database in Settings first.</div>;
 
   return (

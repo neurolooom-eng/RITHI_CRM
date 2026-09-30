@@ -1071,6 +1071,12 @@ on testing the old shape. **When a migration replaces a definition, move the
   (0298's `permission_copies_done`), never on every run, or a re-run hands back a
   key an administrator removed. And **every key a screen's buttons test must be on
   that screen's `PERM_TREE` row** — `check:ui` holds it for the screens it maps.
+  **THERE ARE NO ADMIN-ONLY ACTIONS ANY MORE (0302–0307, the user, 2026-09-30:
+  *"Only the Admin Role should be Greyed out not the Actions"*).** A new action
+  gets a key on its page's row and the database asks `has_perm(<key>)`, never a
+  bare `is_admin()` — an administrator passes `has_perm()` anyway. A key that
+  lets its holder act AS somebody (`users.reset_password`) is not a child of a
+  broader key and refuses targets who could grant the holder more.
 - **THE MODULE KEY OPENS A SCREEN; THE READ POLICIES DECIDE THE ROWS.** Granting
   `mod:/x` correctly and seeing an empty page is not a fault in the grant — it is
   the other half, and the standing rule about Roles & Permissions does not cover

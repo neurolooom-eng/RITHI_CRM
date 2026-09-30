@@ -29,7 +29,9 @@ interface FileState {
 // running through the signed-in admin session (works from the browser even when
 // a server-side load is blocked by network policy).
 export function DataImport() {
-  const { isAdmin } = useAuth();
+  // Its own key, `import.panel`; every row it loads still passes that table's policies.
+  const { can } = useAuth();
+  const mayImport = can('import.panel');
   const [counts, setCounts] = useState<Partial<Record<ImportTable, number | null>>>({});
   const [files, setFiles] = useState<FileState[]>([]);
   const [busy, setBusy] = useState(false);
@@ -45,7 +47,7 @@ export function DataImport() {
   };
   useEffect(() => { if (supabaseConfigured()) void refreshCounts(); }, []);
 
-  if (!isAdmin) return null;
+  if (!mayImport) return null;
 
   const onPick = async (list: FileList | null) => {
     if (!list) return;

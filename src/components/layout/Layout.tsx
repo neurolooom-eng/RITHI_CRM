@@ -292,9 +292,15 @@ export const NAV: NavGroup[] = [
 // there was no way to let somebody merely look at the administration pages.
 // `admin.view` opens them read-only (Technical Support, 2026-09-08); every
 // control on them still asks separately for the right that changes something.
+// AND AN ADMINISTRATION PAGE A ROLE HAS BEEN GIVEN IS IN ITS MENU (the user,
+// 2026-09-30: the admin actions are tickable per role). Its own page key opens
+// it at the route guard already; without this a role given Bulk Uploads could
+// reach it only by typing the address.
 const navItemVisible = (it: NavItem, can: (a: string) => boolean): boolean =>
   !!it.alwaysOpen
-  || (it.adminOnly ? (USER_ADMIN_KEYS.some((k) => can(k)) || can('admin.view')) : can(it.perm ?? actionForPath(it.to)));
+  || (it.adminOnly
+    ? (USER_ADMIN_KEYS.some((k) => can(k)) || can('admin.view') || can(it.perm ?? actionForPath(it.to)))
+    : can(it.perm ?? actionForPath(it.to)));
 
 // Global search across all modules (nav items). Jump straight to any screen.
 function ModuleSearch() {

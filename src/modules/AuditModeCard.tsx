@@ -32,7 +32,9 @@ import {
 // where the requirement came from — not that its use goes unrecorded.
 // ===========================================================================
 export function AuditModeCard() {
-  const { isAdmin } = useAuth();
+  // ITS OWN KEY, `audit.mode` (0307): the switch and its history, as the database asks.
+  const { can } = useAuth();
+  const mayAudit = can('audit.mode');
   const names = useUserNames();
   const onDb = supabaseConfigured();
   const [on, setOn] = useState<boolean | null>(null);
@@ -45,7 +47,7 @@ export function AuditModeCard() {
     if (!onDb) { setMsg({ tone: 'info', text: 'Connect the database to use this.' }); return; }
     try {
       setOn(await getAuditMode());
-      if (isAdmin) setHistory(await listAuditModeChanges());
+      if (mayAudit) setHistory(await listAuditModeChanges());
     } catch (e) {
       setMsg({
         tone: 'error',
@@ -55,7 +57,7 @@ export function AuditModeCard() {
       });
     }
   };
-  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [isAdmin]);
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [mayAudit]);
 
   const flip = async (next: boolean) => {
     if (!reason.trim()) { setMsg({ tone: 'error', text: 'Give a reason — it is kept with the change.' }); return; }
@@ -71,7 +73,7 @@ export function AuditModeCard() {
   return (
     <SectionCard title="Audit Mode">
       <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-        A switch only an administrator can throw. <b>While it is on:</b> a call&rsquo;s <b>Update Party
+        A switch only a holder of “Switch Audit Mode” can throw. <b>While it is on:</b> a call&rsquo;s <b>Update Party
         Details</b> and <b>Update Product Details</b> are hidden, and the database refuses them. Nothing else
         behaves differently yet. Every change is kept with its reason, so it is always answerable whether
         the mode was on when a record was made.
@@ -85,7 +87,7 @@ export function AuditModeCard() {
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
         <span className={`badge ${on ? 'badge-warning' : 'badge-neutral'}`}>{on === null ? '—' : on ? 'ON' : 'OFF'}</span>
-        {isAdmin && onDb && (
+        {mayAudit && onDb && (
           <>
             <input
               className="input"
@@ -101,9 +103,9 @@ export function AuditModeCard() {
         )}
         <button className="btn btn-ghost btn-sm" onClick={() => void load()} disabled={busy}>Refresh</button>
       </div>
-      {!isAdmin && <p className="muted" style={{ fontSize: 12 }}>Only an administrator can change it, or read its history.</p>}
+      {!mayAudit && <p className="muted" style={{ fontSize: 12 }}>Changing it, or reading its history, needs “Switch Audit Mode on or off” on Roles &amp; Permissions.</p>}
 
-      {isAdmin && history.length > 0 && (
+      {mayAudit && history.length > 0 && (
         <div className="assoc-scroll">
           <table className="assoc-table" style={{ minWidth: 520 }}>
             <thead><tr><th style={{ width: 180 }}>When</th><th style={{ width: 70 }}>To</th><th>Reason</th><th style={{ width: 160 }}>By</th></tr></thead>

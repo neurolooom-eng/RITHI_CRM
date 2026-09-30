@@ -61,11 +61,13 @@
 --   0250_master_write_policy_once_per_query.sql
 --   0286_permission_parents.sql
 --   0300_unresolved_login_holds_nothing.sql
+--   0305_reset_password_key.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
 --   0047_audit_retention_compliance.sql
 --   0114_audit_mode.sql
+--   0307_audit_mode_key.sql
 --   0143_tracker.sql
 --   0144_tracker_seed_backlog.sql
 --   0146_tracker_air_liquide_id.sql
@@ -155,6 +157,7 @@
 --   0203_review_view_actual_product.sql
 --   0181_ffr_one_row_per_machine.sql
 --   0269_dccr_auto_review_switch.sql
+--   0302_review_dates_and_imports_have_keys.sql
 --   0285_auto_review_by_role.sql
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
@@ -219,6 +222,7 @@
 --   0095_rls_initplans.sql
 --   0096_handstock_period_close.sql
 --   0100_spare_request_reassign.sql
+--   0304_spare_reassign_key.sql
 --   0102_handstock_balance_history_split.sql
 --   0196_rename_part.sql
 --   0261_rename_passes_the_spare_guards.sql
@@ -272,6 +276,7 @@
 --   0142_objective_ffr_count.sql
 --   0251_objective_evidence_tiebreak.sql
 --   0292_objective_manage_key.sql
+--   0303_objective_lock_key.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0103_record_audit_not_bulk.sql
@@ -316,6 +321,7 @@
 --   0229_feedback_without_report.sql
 --   0227_data_export.sql
 --   0228_export_schedules.sql
+--   0306_export_keys.sql
 --   0249_device_cache_status.sql
 --   0253_device_cache_complaints.sql
 --   0298_permission_grants_copied.sql
@@ -5083,6 +5089,100 @@ $$;
 grant execute on function public.has_perm(text) to authenticated;
 
 -- ------------------------------------------------------------------------
+-- 0305_reset_password_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- RESETTING A PASSWORD IS users.reset_password -- AND NOT A CHILD OF users.manage.
+-- WHAT WAS AN ADMINISTRATOR'S ALONE IS A KEY (the user, 2026-09-30: "All
+-- Admin Actions that are greyed out now should be editable from the Role &
+-- Permissions. Only the Admin Role should be Greyed out not the Actions.")
+--
+-- is_admin() becomes has_perm(<key>). An administrator still passes -- has_perm()
+-- answers true for is_admin() -- so nobody loses anything, and NOBODY ELSE GAINS
+-- ANYTHING ON THE DAY: no role holds the new key until an administrator ticks it
+-- on Roles & Permissions. coalesce(..., false) so a NULL (no session) refuses.
+--
+-- Not a child of users.manage on purpose: a reset lets its holder sign in as
+-- the person, so ticking Manage users must never hand it over. And a holder
+-- who is not an administrator is refused an Admin's password, and the password
+-- of anyone who can grant permissions (see the function) -- otherwise the key
+-- would be a route to every other key. A super admin's still needs a super
+-- admin. The reset log is readable by the same holders.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.admin_reset_password(p_email text, p_password text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions', 'auth'
+AS $function$
+declare v_id uuid; v_email text; v_target_super boolean; v_target_keys jsonb; v_target_role text;
+begin
+  if not coalesce(public.has_perm('users.reset_password'), false) then
+    raise exception 'RBAC: resetting a password needs "Reset a person''s password"';
+  end if;
+  -- The generator makes 14; this floor is here so the function cannot be used
+  -- to set something weak by hand.
+  if length(coalesce(p_password, '')) < 10 then
+    raise exception 'A reset password must be at least 10 characters';
+  end if;
+
+  v_email := lower(btrim(coalesce(p_email, '')));
+  select u.id into v_id from auth.users u where lower(u.email) = v_email;
+  if v_id is null then raise exception 'No login for %', p_email; end if;
+
+  select exists (select 1 from public.app_super_admins s where lower(s.email) = v_email)
+    into v_target_super;
+  if v_target_super and not public.is_super_admin() then
+    raise exception 'Only a super admin can reset a super admin''s password';
+  end if;
+
+  -- A RESET IS A WAY TO SIGN IN AS SOMEBODY, so a holder who is not an
+  -- administrator may not reset the password of anyone who could hand them
+  -- more than they hold: an Admin, or anyone whose role or own grants carry
+  -- rbac.manage, users.manage / users.manage.access, or this key itself.
+  if not coalesce(public.is_admin(), false) then
+    select lower(coalesce(nullif(btrim(p.role), ''), 'engineer')),
+           coalesce(r.permissions, '[]'::jsonb) || coalesce(p.extra_permissions, '[]'::jsonb)
+      into v_target_role, v_target_keys
+      from public.profiles p
+      left join public.app_roles r on r.role = lower(coalesce(nullif(btrim(p.role), ''), 'engineer'))
+     where p.id = v_id;
+    if v_target_role = 'admin'
+       or coalesce(v_target_keys, '[]'::jsonb) ?| array['rbac.manage', 'users.manage', 'users.manage.access', 'users.reset_password'] then
+      raise exception 'Only an administrator can reset the password of an administrator or of somebody who can grant permissions';
+    end if;
+  end if;
+
+  update auth.users
+     set encrypted_password = crypt(p_password, gen_salt('bf')),
+         updated_at         = now()
+   where id = v_id;
+
+  -- End what they had open, so the reset takes effect on every device rather
+  -- than leaving an old session signed in. Both tables are Supabase's own and
+  -- absent from a bare Postgres, so neither is allowed to fail the reset.
+  begin
+    delete from auth.sessions where user_id = v_id;
+  exception when others then null;
+  end;
+  begin
+    delete from auth.refresh_tokens where user_id::text = v_id::text;
+  exception when others then null;
+  end;
+
+  insert into public.password_resets (target_email, target_id, reset_by, reset_by_email)
+  values (v_email, v_id, auth.uid(), coalesce(auth.email(), ''));
+
+  return v_email;
+end $function$;
+
+drop policy if exists pwr_read on public.password_resets;
+create policy pwr_read on public.password_resets for select
+  using ((select public.is_admin()) or (select public.has_perm('users.reset_password')));
+
+-- ------------------------------------------------------------------------
 -- 0121_rbac_policy_tail.sql
 -- ------------------------------------------------------------------------
 
@@ -5554,6 +5654,61 @@ grant execute on function public.set_audit_mode(boolean, text) to authenticated;
 
 comment on table public.audit_mode_changes is
   'Every change of Audit Mode: on/off, why, who, when. Written only by set_audit_mode(); never purged, never editable through the API.';
+
+-- ------------------------------------------------------------------------
+-- 0307_audit_mode_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- SWITCHING AUDIT MODE IS audit.mode.
+-- WHAT WAS AN ADMINISTRATOR'S ALONE IS A KEY (the user, 2026-09-30: "All
+-- Admin Actions that are greyed out now should be editable from the Role &
+-- Permissions. Only the Admin Role should be Greyed out not the Actions.")
+--
+-- is_admin() becomes has_perm(<key>). An administrator still passes -- has_perm()
+-- answers true for is_admin() -- so nobody loses anything, and NOBODY ELSE GAINS
+-- ANYTHING ON THE DAY: no role holds the new key until an administrator ticks it
+-- on Roles & Permissions. coalesce(..., false) so a NULL (no session) refuses.
+--
+-- A reason is still demanded and every change is still kept. Its history is
+-- readable by a holder of the key as well as by audit.view.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.set_audit_mode(p_on boolean, p_reason text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_now boolean;
+begin
+  if not coalesce(public.has_perm('audit.mode'), false) then
+    raise exception 'RBAC: changing Audit Mode needs "Switch Audit Mode on or off"';
+  end if;
+  if coalesce(btrim(p_reason), '') = '' then
+    raise exception 'Changing Audit Mode needs a reason';
+  end if;
+
+  v_now := public.audit_mode();
+  if v_now is not distinct from p_on then
+    -- Not an error, and not a log entry either: recording "changed from off to
+    -- off" would pad the history that the history exists to keep readable.
+    return v_now;
+  end if;
+
+  insert into public.app_settings (key, value, updated_at)
+       values ('audit_mode', case when p_on then 'on' else 'off' end, now())
+  on conflict (key) do update set value = excluded.value, updated_at = excluded.updated_at;
+
+  insert into public.audit_mode_changes (turned_on, reason, changed_by)
+       values (p_on, btrim(p_reason), auth.uid());
+
+  return p_on;
+end $function$;
+
+drop policy if exists amc_read on public.audit_mode_changes;
+create policy amc_read on public.audit_mode_changes for select
+  using (public.is_admin() or public.has_perm('audit.view') or public.has_perm('audit.mode'));
 
 -- ------------------------------------------------------------------------
 -- 0143_tracker.sql
@@ -18800,6 +18955,61 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0302_review_dates_and_imports_have_keys.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- CORRECTING A REVIEW DATE AND MARKING A REVIEW IMPORTED HAVE KEYS OF THEIR OWN.
+-- WHAT WAS AN ADMINISTRATOR'S ALONE IS A KEY (the user, 2026-09-30: "All
+-- Admin Actions that are greyed out now should be editable from the Role &
+-- Permissions. Only the Admin Role should be Greyed out not the Actions.")
+--
+-- is_admin() becomes has_perm(<key>). An administrator still passes -- has_perm()
+-- answers true for is_admin() -- so nobody loses anything, and NOBODY ELSE GAINS
+-- ANYTHING ON THE DAY: no role holds the new key until an administrator ticks it
+-- on Roles & Permissions. coalesce(..., false) so a NULL (no session) refuses.
+--
+-- Two rules in call_review_markers(), which runs FIRST among the review's
+-- before-triggers (a_): the `imported` marker now needs bulk.upload (the key
+-- for the upload that sets it), and the three completion dates now need
+-- review.correct_date -- which the screen alone enforced before (D-020): any
+-- holder of review.edit could back-date a review through the API. Review 1's
+-- date is not stored on the review (it is derived), so only Review 2 and 3's
+-- are guarded.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.call_review_markers()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if current_user in ('authenticated', 'anon') then
+    new.review2_auto := case when tg_op = 'UPDATE' then old.review2_auto else false end;
+    if coalesce(new.imported, false) and not coalesce(public.has_perm('bulk.upload'), false) then
+      new.imported := case when tg_op = 'UPDATE' then old.imported else false end;
+    end if;
+    -- A REVIEW'S COMPLETION DATE IS CHANGED ONLY WITH review.correct_date
+    -- (FRS-106.3, D-020: it was administrator-only on the screen alone, and
+    -- any holder of review.edit could back-date a review through the API).
+    -- REFUSED, as FRS-106.3 says -- a date is what a reviewer is held to, and
+    -- one quietly dropped would read as saved. Only a CHANGE is refused: the
+    -- screen sends an unchanged date back untouched, and call_review_stamp()
+    -- still stamps an empty one when its stage completes. An imported review
+    -- loaded by a holder of bulk.upload carries its file's dates.
+    if not coalesce(public.has_perm('review.correct_date'), false)
+       and not (coalesce(new.imported, false) and coalesce(public.has_perm('bulk.upload'), false)) then
+      if (tg_op = 'UPDATE' and (new.review2_at is distinct from old.review2_at
+                                or new.review3_at is distinct from old.review3_at))
+         or (tg_op = 'INSERT' and (new.review2_at is not null or new.review3_at is not null)) then
+        raise exception 'RBAC: changing the date a review was completed needs "Correct the date a review was completed"';
+      end if;
+    end if;
+  end if;
+  return new;
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0285_auto_review_by_role.sql
 -- ------------------------------------------------------------------------
 
@@ -26822,6 +27032,91 @@ end $$;
 drop trigger if exists spare_request_engineer_guard on public.spare_requests;
 create trigger spare_request_engineer_guard before update on public.spare_requests
   for each row execute function public.spare_request_engineer_guard();
+
+-- ------------------------------------------------------------------------
+-- 0304_spare_reassign_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- CHANGING THE ENGINEER ON A SPARE REQUEST IS spare.reassign.
+-- WHAT WAS AN ADMINISTRATOR'S ALONE IS A KEY (the user, 2026-09-30: "All
+-- Admin Actions that are greyed out now should be editable from the Role &
+-- Permissions. Only the Admin Role should be Greyed out not the Actions.")
+--
+-- is_admin() becomes has_perm(<key>). An administrator still passes -- has_perm()
+-- answers true for is_admin() -- so nobody loses anything, and NOBODY ELSE GAINS
+-- ANYTHING ON THE DAY: no role holds the new key until an administrator ticks it
+-- on Roles & Permissions. coalesce(..., false) so a NULL (no session) refuses.
+--
+-- The rest of the function is untouched: still refused once anything on the
+-- order has been dispatched, and every change still lands in
+-- spare_request_engineer_log -- which a holder of the key may now read.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.reassign_spare_request(p_uid text, p_engineer text, p_email text DEFAULT ''::text, p_reason text DEFAULT ''::text)
+ RETURNS spare_requests
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  r      public.spare_requests;
+  v_name text := coalesce((select full_name from public.profiles where id = auth.uid()), '');
+  v_to   text := btrim(coalesce(p_engineer, ''));
+  v_mail text := lower(btrim(coalesce(p_email, '')));
+begin
+  if not coalesce(public.has_perm('spare.reassign'), false) then
+    raise exception 'Changing the engineer on a spare request needs "Change the engineer on a spare request"';
+  end if;
+  if v_to = '' then
+    raise exception 'Give the engineer the request is being moved to';
+  end if;
+
+  select * into r from public.spare_requests where uid = p_uid;
+  if not found then
+    raise exception 'No spare request %', p_uid;
+  end if;
+  if public.spare_request_is_dispatched(p_uid) then
+    raise exception 'OR % has already been dispatched — the parts are in %''s hands, so the engineer cannot be changed. Use a stock transfer instead.',
+      coalesce(nullif(r.or_no, ''), p_uid), coalesce(nullif(r.engineer, ''), 'the engineer');
+  end if;
+  if lower(btrim(coalesce(r.engineer, ''))) = lower(v_to)
+     and (v_mail = '' or lower(coalesce(r.engineer_email, '')) = v_mail) then
+    return r;                       -- already there; nothing to log
+  end if;
+
+  -- The address is looked up when it is not given, so the request keeps a
+  -- working one: every engineer-scoped read matches on email, and a name with
+  -- the wrong address beside it is a request its own engineer cannot see.
+  if v_mail = '' then
+    v_mail := lower(coalesce((select email from public.profiles
+                               where lower(full_name) = lower(v_to)
+                               order by id limit 1), ''));
+  end if;
+
+  -- Tell the guard trigger that this update is the one it is meant to allow.
+  -- `true` scopes it to this transaction, so it cannot leak into the next.
+  perform set_config('rithi.reassigning', p_uid, true);
+
+  insert into public.spare_request_engineer_log
+    (request_uid, or_no, from_engineer, from_email, to_engineer, to_email, reason, changed_by, changed_by_name)
+  values (p_uid, coalesce(r.or_no, ''), coalesce(r.engineer, ''), coalesce(r.engineer_email, ''),
+          v_to, v_mail, btrim(coalesce(p_reason, '')), auth.uid(), v_name);
+
+  update public.spare_requests
+     set engineer = v_to, engineer_email = v_mail
+   where uid = p_uid
+  returning * into r;
+
+  perform set_config('rithi.reassigning', '', true);
+  return r;
+end $function$;
+
+drop policy if exists srel_read on public.spare_request_engineer_log;
+create policy srel_read on public.spare_request_engineer_log for select
+  using ((select public.is_admin()) or (select public.has_perm('spare.reassign'))
+         or (select public.has_perm('spare.dispatch')) or (select public.has_perm('spare.approve'))
+         or lower(from_email) = lower((select auth.email())) or lower(to_email) = lower((select auth.email())));
 
 -- ------------------------------------------------------------------------
 -- 0102_handstock_balance_history_split.sql
@@ -35437,6 +35732,97 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
+-- 0303_objective_lock_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- LOCKING THE OBJECTIVE CUT-OFF IS objective.lock.
+-- WHAT WAS AN ADMINISTRATOR'S ALONE IS A KEY (the user, 2026-09-30: "All
+-- Admin Actions that are greyed out now should be editable from the Role &
+-- Permissions. Only the Admin Role should be Greyed out not the Actions.")
+--
+-- is_admin() becomes has_perm(<key>). An administrator still passes -- has_perm()
+-- answers true for is_admin() -- so nobody loses anything, and NOBODY ELSE GAINS
+-- ANYTHING ON THE DAY: no role holds the new key until an administrator ticks it
+-- on Roles & Permissions. coalesce(..., false) so a NULL (no session) refuses.
+--
+-- The lock, the guard that honours it, and the per-month setter all asked
+-- is_admin(). objective.manage is still NOT what unlocks it: that is the
+-- audience the lock exists to hold back.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.set_objective_cutoff_lock(p_on boolean)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not coalesce(public.has_perm('objective.lock'), false) then
+    raise exception 'RBAC: locking or unlocking the objective cut-off needs "Lock or unlock the objective cut-off"';
+  end if;
+  insert into public.app_settings (key, value, updated_at)
+       values ('objective_cutoff_locked', case when p_on then 'on' else 'off' end, now())
+  on conflict (key) do update set value = excluded.value, updated_at = excluded.updated_at;
+  return p_on;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.quality_objectives_cutoff_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.objective_cutoff_locked() then return new; end if;
+  if coalesce(public.has_perm('objective.lock'), false) then return new; end if;
+  if (old.calc_params->>'cutoff_date') is distinct from (new.calc_params->>'cutoff_date')
+     or (old.calc_params->>'cutoff_days') is distinct from (new.calc_params->>'cutoff_days') then
+    raise exception 'The objective cut-off is locked. A holder of "Lock or unlock the objective cut-off" can unlock it on the Objective page.';
+  end if;
+  return new;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.set_objective_cutoff(p_year integer, p_month integer, p_date date)
+ RETURNS date
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  -- coalesce, NOT a bare `if not has_perm(...)`. `my_extra_perms()` returns NULL
+  -- when there is no signed-in user, which makes has_perm() NULL -- and
+  -- `if not NULL` never fires, so the guard would fall THROUGH and the write
+  -- would go ahead. Caught by a test whose fixture user did not exist; the
+  -- pattern is used in fifteen other migrations and is noted in the backlog.
+  -- (Not reachable from the API today: execute is granted to `authenticated`
+  -- only. That is a second lock, not a reason to leave the first one open.)
+  if not coalesce(public.has_perm('objective.manage'), false) then
+    raise exception 'RBAC: you cannot change the objective cut-off dates';
+  end if;
+  if coalesce(public.objective_cutoff_locked(), false)
+     and not coalesce(public.has_perm('objective.lock'), false) then
+    raise exception 'The objective cut-off is locked. A holder of "Lock or unlock the objective cut-off" can unlock it on the Objective page.';
+  end if;
+  if p_month is null or p_month < 1 or p_month > 12 then
+    raise exception 'A cut-off belongs to a month between 1 and 12';
+  end if;
+
+  if p_date is null then
+    delete from public.objective_cutoffs where year = p_year and month = p_month;
+    return null;
+  end if;
+
+  insert into public.objective_cutoffs (year, month, cutoff_date, updated_by, updated_at)
+       values (p_year, p_month, p_date, auth.uid(), now())
+  on conflict (year, month) do update
+    set cutoff_date = excluded.cutoff_date,
+        updated_by  = excluded.updated_by,
+        updated_at  = excluded.updated_at;
+  return p_date;
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0048_record_audit.sql
 -- ------------------------------------------------------------------------
 
@@ -41047,6 +41433,52 @@ create trigger zz_export_schedule_guard
 -- ---- the screen's key ------------------------------------------------------
 -- No new module: the schedule lives on the Data Export screen, because it is
 -- the same act with a clock on it. `mod:/data-export` (0227) already governs it.
+
+-- ------------------------------------------------------------------------
+-- 0306_export_keys.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- DATA EXPORT HAS TWO KEYS: export.tables AND export.schedules.
+-- WHAT WAS AN ADMINISTRATOR'S ALONE IS A KEY (the user, 2026-09-30: "All
+-- Admin Actions that are greyed out now should be editable from the Role &
+-- Permissions. Only the Admin Role should be Greyed out not the Actions.")
+--
+-- is_admin() becomes has_perm(<key>). An administrator still passes -- has_perm()
+-- answers true for is_admin() -- so nobody loses anything, and NOBODY ELSE GAINS
+-- ANYTHING ON THE DAY: no role holds the new key until an administrator ticks it
+-- on Roles & Permissions. coalesce(..., false) so a NULL (no session) refuses.
+--
+-- The list of tables answers to either -- a schedule is made from ticked
+-- tables. A download still runs AS THE PERSON, so it holds only the rows
+-- their policies let them read. A schedule is mailed by the server to the
+-- recipients set there, never to an address chosen on the screen, so the key
+-- lets its holder decide WHAT and WHEN, not WHERE.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.exportable_tables()
+ RETURNS TABLE(table_name text, approx_rows bigint)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select c.relname::text,
+         greatest(c.reltuples, 0)::bigint
+    from pg_class c
+   where c.relnamespace = 'public'::regnamespace
+     and public.is_exportable_table(c.relname)
+     and (coalesce(public.has_perm('export.tables'), false) or coalesce(public.has_perm('export.schedules'), false))
+   order by c.relname;
+$function$;
+
+drop policy if exists export_schedules_admin on public.export_schedules;
+create policy export_schedules_admin on public.export_schedules for all
+  using ((select public.has_perm('export.schedules')))
+  with check ((select public.has_perm('export.schedules')));
+
+drop policy if exists export_runs_read on public.export_runs;
+create policy export_runs_read on public.export_runs for select
+  using ((select public.has_perm('export.schedules')));
 
 -- ------------------------------------------------------------------------
 -- 0249_device_cache_status.sql

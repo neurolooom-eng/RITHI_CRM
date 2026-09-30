@@ -161,6 +161,24 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-09-30 — The admin-only actions are keys; only the Admin column is greyed (v0.10.14)
+- **Your ask:** *"All Admin Actions that are greyed out now should be editable from the Role & Permissions. Only the Admin Role should be Greyed out not the Actions."* It reverses finding 65's "shown greyed, never tickable".
+- **Ten keys, one per action:**
+  - `review.correct_date`, `objective.lock`, `spare.reassign` and `users.reset_password`;
+  - `bulk.upload`, `pm.bulk_upload` and `import.panel`;
+  - `export.tables`, `export.schedules` and `audit.mode`.
+  - Each sits on its page's row. The Admin column is the one greyed.
+- **The database asks the same keys** (0302–0307), replacing `is_admin()` in the functions and policies behind them.
+  - An administrator still passes. Nobody else holds a key until it is ticked, so nothing widens on the day.
+- **Two rules that are not a straight swap:**
+  - `users.reset_password` is not a child of Manage users. A holder who is not an administrator is refused an Admin's password, and the password of anyone holding rbac.manage, users.manage, users.manage.access or the reset key.
+  - A review's completion date is now refused in the database without `review.correct_date`. The screen alone held it before (D-020, now partly fixed; recording the change, FRS-106.4, is still open).
+- **Found on the way:** Review 1's date is not stored on `call_reviews` (it is derived), so only Review 2 and 3 are guarded. My first draft named `review1_at` and would have broken every review save; the new suite caught it before commit.
+- **Proved:**
+  - `admin_keys_grantable_test`: a non-admin role with the keys passes each gate, one without is refused, and the two password-reset refusals fire.
+  - validate: 123 suites and 22 checks.
+  - Also clean: `check:replay`, `check:views`, `check:status` (rows 228–233), `check:generated`, `check:bundles`, `check:ui` and the build.
+
 ### 2026-09-30 — D-074 fixed: one way in, and an unknown login holds nothing (v0.10.13)
 - **Your ask:** *"Remove the demo sign-in and fix D-074."*
 - **One way in.** The local sign-in, its seeded demo accounts and the stored hash of the old `service.almsind@gmail.com` password are gone from `src/lib/auth.tsx`. So is the sheet-era User Master sign-in (`auth.tsx`, `sheets.ts`). The copy an old browser holds (`rithi.db.users`, `rithi.session`) is deleted on load, because that copy carried the hash whatever the code said.

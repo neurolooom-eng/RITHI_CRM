@@ -373,7 +373,7 @@ export function RolePermissions() {
   const cells = (action: string, kind: '' | 'view' = '') => roles.map((r) => {
     const parent = viaParent(r.key, action);
     return (
-      <td key={r.key} className="rbac-cell">
+      <td key={r.key} className={`rbac-cell${r.key === 'admin' ? ' rbac-col-admin' : ''}`}>
         <input type="checkbox" className={kind === 'view' ? 'rbac-view-box' : parent ? 'rbac-inherited' : undefined}
           checked={has(r.key, action) || !!parent} disabled={!mayEdit || r.key === 'admin' || !!parent}
           title={parent ? `Granted by “${label(parent)}” — untick that to choose this one separately` : undefined}
@@ -381,13 +381,6 @@ export function RolePermissions() {
       </td>
     );
   });
-  // ADMIN ONLY (finding 65): shown so its existence is known, never tickable.
-  const adminOnlyCells = () => roles.map((r) => (
-    <td key={r.key} className="rbac-cell">
-      <input type="checkbox" checked={r.key === 'admin'} disabled
-        title="Only an administrator can do this — it cannot be given to another role" readOnly />
-    </td>
-  ));
 
   return (
     <div>
@@ -458,7 +451,11 @@ export function RolePermissions() {
             <thead>
               <tr>
                 <th className="rbac-action">Module / action</th>
-                {roles.map((r) => <th key={r.key} title={r.key}>{r.label}</th>)}
+                {/* THE ADMIN COLUMN IS THE ONE THING GREYED (the user, 2026-09-30):
+                    Admin holds every permission and cannot be narrowed, so
+                    every other role's every action is tickable. */}
+                {roles.map((r) => <th key={r.key} className={r.key === 'admin' ? 'rbac-col-admin' : undefined}
+                  title={r.key === 'admin' ? 'Admin holds every permission — this column cannot be changed' : r.key}>{r.label}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -479,8 +476,7 @@ export function RolePermissions() {
                       const pageOpen = openPages.has(pk);
                       const view = page.path ? moduleAction(page.path) : '';
                       const childKeys = [...page.actions];
-                      const adminOnly = page.adminOnly ?? [];
-                      const hasChildren = childKeys.length + adminOnly.length > 0;
+                      const hasChildren = childKeys.length > 0;
                       return (
                         <Fragment key={pk}>
                           <tr className="rbac-page-row">
@@ -493,7 +489,6 @@ export function RolePermissions() {
                               {hasChildren && (
                                 <span className="muted rbac-count">
                                   {page.actions.length} action{page.actions.length === 1 ? '' : 's'}
-                                  {adminOnly.length > 0 && ` · ${adminOnly.length} admin only`}
                                 </span>
                               )}
                             </td>
@@ -508,15 +503,6 @@ export function RolePermissions() {
                                 <span>{label(a)}</span><code className="muted">{a}</code>
                               </td>
                               {cells(a)}
-                            </tr>
-                          ))}
-
-                          {pageOpen && adminOnly.map((a) => (
-                            <tr key={`admin:${a}`} className="rbac-child rbac-admin-only">
-                              <td className="rbac-action rbac-indent">
-                                <span>{a}</span><span className="muted"> — Admin only</span>
-                              </td>
-                              {adminOnlyCells()}
                             </tr>
                           ))}
 
