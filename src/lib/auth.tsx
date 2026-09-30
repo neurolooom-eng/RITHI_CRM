@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { db, genId, type BaseRecord } from './db';
 import { authLogin, authSetPassword, listUsers, sheetsConfigured, type SheetUser } from './sheets';
 import { sbSignIn, sbSignOut, clearMyNotifications, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, getRoleLabels, supabaseConfigured, hasPendingRecovery, sbConsumeRecovery, sbUpdatePassword, type Profile } from './supabase';
-import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac, parentAction, ROLES , roleLabelFor, setRoleLabels } from './rbac';
+import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac, parentActions, ROLES , roleLabelFor, setRoleLabels } from './rbac';
 import { setAuditUser, logAudit } from './audit';
 import { setCanExport } from './format';
 
@@ -177,7 +177,7 @@ export function seedUsers() {
     fullName: 'ALMS Service',
     email: 'service.almsind@gmail.com',
     role: 'admin',
-    passwordHash: '8c543c4f', // a temporary test password (its plaintext was removed from this comment 2026-09-30; treat it as disclosed and change it)
+    passwordHash: '8c543c4f', // the OLD test password (plaintext removed from this comment 2026-09-30; the real password was changed the same day). Only the local demo sign-in reads it — D-074.
   });
 }
 
@@ -602,9 +602,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // A single master list is covered by All Masters unless the role has been
     // narrowed to specific lists; a list's own edit / delete action is covered
     // by the global "Edit masters". Same inheritance the DB policies use.
-    const parent = parentAction(canonical);
-    if (parent) return held(parent);
-    return false;
+    // ...and a split key by its parent (0286's perm_parents, the same list).
+    return parentActions(canonical).some(held);
   };
 
   // Enforce CSV/download permission centrally (csvExport reads this flag).

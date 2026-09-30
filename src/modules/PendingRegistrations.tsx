@@ -12,7 +12,7 @@ import { StateBadge } from '../lib/callstate';
 import { productToCallPrefill, callDateFromRequest } from '../lib/fieldcall';
 import { SupportingDocs } from './CallAssociations';
 import { todayISO, fmtLongDate } from '../lib/format';
-import { buildCreateFields, buildPayload, ProductLookup, FIELD_CONFIG, INST_CONFIG, type CallSheetConfig } from './FieldCalls';
+import { buildCreateFields, buildPayload, ProductLookup, FIELD_CONFIG, INST_CONFIG, lockCallFields, callPermPrefix, mayEditCallOn, type CallSheetConfig } from './FieldCalls';
 import { db } from '../lib/db';
 import { C } from './collections';
 import { useAuth } from '../lib/auth';
@@ -104,7 +104,11 @@ function MappedUcnCell({ row, canAct, onSave }: { row: Row; canAct: boolean; onS
 export function PendingRegistrations() {
   const navigate = useNavigate();
   const { can, user } = useAuth();
-  const canAct = can('pending.register') || can('edit');
+  // Mapping, cancelling and reading a request are the desk's (pending.register).
+  // Creating a call from one is the REGISTER'S key -- the database asks
+  // calls.create or install.create (finding 64), so the button asks the same.
+  const canAct = can('pending.register');
+  const mayCreateFor = (row: Row) => can(/install/i.test(g(row, 'CALL TYPE')) ? 'install.create' : 'calls.create');
   const [rows, setRows] = useState<Row[]>([]);
   const [openCalls, setOpenCalls] = useState<Record<string, OpenCall[]>>({});
   const [search, setSearch] = useState('');
@@ -316,6 +320,7 @@ export function PendingRegistrations() {
           onClose={() => setDetail(null)}
           onMap={(ucn) => void mapToUcn(detail, ucn)}
           onCreate={() => void register(detail)}
+          canCreate={mayCreateFor(detail)}
           onCancel={(reason) => void cancelRequest(detail, reason)}
           onOpenCall={(c) => { setDetail(null); navigate(/install/i.test(c.callType) ? '/installations' : '/field-calls', { state: { editUcn: c.ucn } }); }}
         />
@@ -339,11 +344,12 @@ export function PendingRegistrations() {
 // create a new one, or cancel.
 // ---------------------------------------------------------------------------
 function RequestActions({
-  row, openCalls, canAct, busy, onClose, onMap, onCreate, onCancel, onOpenCall,
+  row, openCalls, canAct, canCreate, busy, onClose, onMap, onCreate, onCancel, onOpenCall,
 }: {
   row: Row;
   openCalls: OpenCall[];
   canAct: boolean;
+  canCreate: boolean;
   busy: boolean;
   onClose: () => void;
   onMap: (ucn: string) => void;
@@ -374,7 +380,8 @@ function RequestActions({
   // BEFORE the request is mapped onto it — otherwise the request is closed out
   // against a call that does not yet say what happened. So the third pane
   // becomes the editor for one call and comes back when it is saved.
-  const [editing, setEditing] = useState<{ ucn: string; values: FormValues } | null>(null);
+  const [editing, setEditing] = useState<{ ucn: string; values: FormValues; perm: 'calls' | 'install' | 'pm' } | null>(null);
+  const { can } = useAuth();
   const [editErr, setEditErr] = useState('');
   const [saving, setSaving] = useState(false);
   const [reload, setReload] = useState(0);
@@ -396,7 +403,9 @@ function RequestActions({
     try {
       const row = await callByUcn(ucn);
       if (!row) { setEditErr(`Could not load ${ucn}.`); return; }
-      setEditing({ ucn, values: row as FormValues });
+      const perm = callPermPrefix((row as FormValues).callType);
+      if (!mayEditCallOn(perm, can)) { setEditErr(`Your role cannot edit this ${perm === 'install' ? 'installation' : perm === 'pm' ? 'PM' : 'field'} call.`); return; }
+      setEditing({ ucn, values: row as FormValues, perm });
     } catch (e) {
       setEditErr(e instanceof Error ? e.message : String(e));
     } finally { setSaving(false); }
@@ -426,10 +435,12 @@ function RequestActions({
   // The register's own fields with the register's own lists — then the allottee
   // narrowed to who THIS person may allot to, which is the one list this drawer
   // does not take from the directory at large.
-  const editFields = callMasters.inject(FIELD_CALL_FIELDS).map((f) =>
+  // THE SAME SECTION LOCKS AS THE CALL REGISTERS (finding 57): this editor
+  // rewrote any field of a live call with no check on screen at all.
+  const editFields = lockCallFields(callMasters.inject(FIELD_CALL_FIELDS).map((f) =>
     f.name === 'allocatedTo'
       ? { ...f, options: editTeam.names.map((n) => ({ value: n, label: n })) }
-      : f);
+      : f), editing?.perm ?? 'calls', can);
 
   // ---- the columns are the reader's to size -------------------------------
   //
@@ -555,7 +566,8 @@ function RequestActions({
 
                 <div className="rep-actions">
                   <button className="btn btn-danger" disabled={!canAct || busy} onClick={() => setMode('cancel')}>✕ Cancel request</button>
-                  <button className="btn btn-primary" disabled={!canAct || busy} onClick={onCreate}>＋ Create new call</button>
+                  <button className="btn btn-primary" disabled={!canCreate || busy} onClick={onCreate}
+                    title={canCreate ? undefined : 'Creating this kind of call needs its register’s Create permission'}>＋ Create new call</button>
                 </div>
               </>
             ) : (
@@ -668,7 +680,11 @@ function RequestActions({
                           failure details filling in first, and mapping a
                           request onto a call that does not yet say what
                           happened is how the detail gets lost. */}
-                      <button className="btn btn-sm btn-ghost" disabled={saving} onClick={() => void openEditor(c.ucn)}>✎ Edit</button>
+                      {/* The register's own rule: a closed or cancelled call is
+                          read-only until it is re-opened or restored (D-034). */}
+                      {mayEditCallOn(callPermPrefix(c.callType), can) && !c.solved && c.state !== 'Cancelled' && (
+                        <button className="btn btn-sm btn-ghost" disabled={saving} onClick={() => void openEditor(c.ucn)}>✎ Edit</button>
+                      )}
                       <button className="btn btn-sm" disabled={!canAct || busy} onClick={() => onMap(c.ucn)}>Map</button>
                     </div>
                   </div>

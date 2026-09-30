@@ -157,7 +157,7 @@ export function ProductDatabase2() {
                   : `Live as of ${formatDayTime(builtAt)}`}
               </span>
             )}
-            {can('masters.edit') && (
+            {can('pd2.rebuild') && (
               <button className="btn btn-sm" disabled={rebuilding} onClick={() => void rebuild()}
                 title="Re-derive every machine from the five registers. Readers are not blocked while it runs.">
                 {rebuilding ? 'Rebuilding…' : '⟳ Rebuild from the registers'}

@@ -63,7 +63,7 @@ export function useAccessScope(): AccessScope {
 
     // Administrators and super admins see every call — unless they are actively
     // previewing as someone else, in which case we scope to that person.
-    if (!viewAs && can('manage-users')) {
+    if (!viewAs && can('users.manage.access')) {
       setScope({ ready: true, all: true, names: new Set(), isManager: true, reports: [], selfName: identity.fullName });
       return;
     }

@@ -12,6 +12,32 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.11',
+    date: '2026-09-30',
+    title: 'Roles & Permissions: every button has its tick on its own page; big permissions split into parts',
+    changes: [
+      'ROLES & PERMISSIONS NOW SHOWS EVERY BUTTON ON ITS OWN PAGE. Open a page\'s row and every action that page offers is listed with its tick — including one that belongs to another module but is used there, such as Request spares and Reco on a call register.',
+      'INSTALLATION AND PM CALLS HAVE THEIR OWN TICKS: edit (and its four sections), re-allocate, report, file a visit, cancel and re-open — PM also create. Allowing Field Call edits no longer allows PM or Installation edits. The Contract Register, the Objective page, sharing a chart, recording validation results, saving a table layout for everyone, rebuilding Product Database 2.0, deleting a Tracker item and returning stock for another engineer have their own ticks too.',
+      'NOTHING CHANGED FOR ANYBODY ON THE DAY: every new tick was given to exactly the roles and people who held the one it replaced. From here you can take them apart.',
+      'BIG PERMISSIONS ARE MADE OF PARTS. Manage users → edit User Master details, create logins, disable or delete logins, assign roles & grant permissions, the Settings page. Edit masters → edit records, verify KYC, rename a part, swap the Serviceman on every party. Edit sales / warranties and Edit contracts → add or edit entries, delete a whole entry. Reporting a call → file the visit, book spares on it, record the customer\'s feedback. Ticking the big one gives every part; to give only some, untick it and tick the parts.',
+      'A LOGIN CREATED BY SOMEBODY WHO MAY ONLY CREATE LOGINS IS AN ENGINEER. Giving it any other role — or setting the role a new joiner will sign in with — needs Assign roles & grant permissions. Before this, anybody who could manage users could create an Admin login.',
+      'ADMIN-ONLY ACTIONS ARE LISTED, GREYED: bulk uploads, PM bulk upload, the Data Import panel, exporting tables and export schedules, Audit Mode, resetting a password, changing a spare request\'s engineer, correcting a review date and locking an objective month. They are there so you know they exist; they cannot be given to another role.',
+      'TICKS THAT DID NOTHING ARE GONE: "View dashboard" and the User Access page. Admin config now opens SLA Targets, the Call Registration desk and the Frequent Failure rule.',
+      'FIXED: the call editor on Pending Registrations now obeys the same section rights as the call registers and never edits a closed call; SLA Targets no longer says "saved" when your role was refused; an Indoor unit can no longer be set to Dispatched or Closed without the dispatch right.',
+    ],
+  },
+  {
+    version: '0.10.10',
+    date: '2026-09-30',
+    title: 'Auto review: who may switch it is a role — Admin, NSM, Technical Support',
+    changes: [
+      'DAILY COMPLAINT REVIEW — AUTO REVIEW IS SWITCHED BY ROLE, NOT BY NAME. Everybody who is an Admin, an NSM or Technical Support can now turn auto review on or off. It was given to two people by name in 0.10.7; that grant has been taken back, so somebody who was given it by name and holds none of those three roles no longer has it.',
+      'Anybody else can still be given "Switch auto review on or off" on User Master → Access, and a role can be given it or have it taken away on Roles & Permissions.',
+      'For Technical Support this is the one thing the role can change; everything else it does stays read-only. Zoho Migration, which otherwise has the same rights as Technical Support, does not get it.',
+      'Nothing else about auto review changes: its answers still carry the name of whoever switched it on, and it stays on or off as it is now.',
+    ],
+  },
+  {
     version: '0.10.9',
     date: '2026-09-30',
     title: 'Technical / Service Notes by bulk upload; Update Party / Product Details moved into their sections',

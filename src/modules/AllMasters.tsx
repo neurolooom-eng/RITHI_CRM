@@ -58,7 +58,7 @@ export function AllMasters() {
   const navigate = useNavigate();
   const { can } = useAuth();
   const live = supabaseConfigured();
-  const editable = live && can('masters.edit');
+  const editable = live && can('masters.edit.records');
   const cached = loadCache<SummaryRow>(CACHE_KEY);
 
   const [rows, setRows] = useState<SummaryRow[]>(cached?.rows ?? []);

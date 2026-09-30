@@ -414,7 +414,12 @@ export interface CallSheetConfig {
   collection: string;   // cache collection name
   storageKey: string;   // table layout key
   csvName: string;
-  createPerm?: string;  // permission to create one (default calls.create)
+  createPerm?: string;  // permission to create one (default `${perm}.create`)
+  // WHICH REGISTER'S KEYS GOVERN IT (findings 63/64, 0287): Field calls answer
+  // to calls.*, Installation calls to install.*, PM calls to pm.* -- the same
+  // split the database makes, so a button is never offered for a register the
+  // role holds no key on.
+  perm: 'calls' | 'install' | 'pm';
 }
 
 export const FIELD_CONFIG: CallSheetConfig = {
@@ -427,6 +432,7 @@ export const FIELD_CONFIG: CallSheetConfig = {
   collection: C.fieldCalls,
   storageKey: 'fieldCalls',
   csvName: 'field-calls.csv',
+  perm: 'calls',
 };
 
 export const INST_CONFIG: CallSheetConfig = {
@@ -440,6 +446,7 @@ export const INST_CONFIG: CallSheetConfig = {
   storageKey: 'instCalls',
   csvName: 'installation-calls.csv',
   createPerm: 'install.create',   // installations are created by Commercial (+ admin)
+  perm: 'install',
 };
 
 export const PM_CONFIG: CallSheetConfig = {
@@ -452,7 +459,51 @@ export const PM_CONFIG: CallSheetConfig = {
   collection: C.pmcalls,
   storageKey: 'pmCalls',
   csvName: 'pm-calls.csv',
+  perm: 'pm',
 };
+
+// WHAT OF A CALL MAY THIS PERSON CHANGE? "Edit calls" used to be all of it,
+// which suited the Hotline desk and nobody else (0127). Each section has its
+// own right, with the register's edit key as the parent — so a role that had
+// the whole thing still has it, and a manager can be given the parts they need.
+// PER REGISTER since 0287 (`P` is calls / install / pm), and ONE copy shared by
+// every screen that edits a call — Pending Registrations' editor had no locks
+// at all (finding 57), which is what a second copy of a list turns into.
+//
+// Read-only with a reason, never removed: what is on the call is worth seeing
+// whether or not you may change it, and a field that quietly vanishes is how
+// "where has it gone?" starts. The database enforces the same rule (the form
+// is the courtesy), so the two cannot drift apart into a lie.
+export const callFieldRights = (P: string): Record<string, { perm: string; what: string }> => ({
+  allocatedTo:         { perm: `${P}.allot`,          what: 'Re-allocate' },
+  standardComplaint:   { perm: `${P}.edit.complaint`, what: 'Edit the complaint' },
+  complaintReported:   { perm: `${P}.edit.complaint`, what: 'Edit the complaint' },
+  breakdownDate:       { perm: `${P}.edit.complaint`, what: 'Edit the complaint' },
+  partyName:           { perm: `${P}.edit.customer`,  what: 'Edit customer & product' },
+  city:                { perm: `${P}.edit.customer`,  what: 'Edit customer & product' },
+  state:               { perm: `${P}.edit.customer`,  what: 'Edit customer & product' },
+  productName:         { perm: `${P}.edit.customer`,  what: 'Edit customer & product' },
+  serial:              { perm: `${P}.edit.customer`,  what: 'Edit customer & product' },
+  itemStatus:          { perm: `${P}.edit.customer`,  what: 'Edit customer & product' },
+  publicHealthThreat:  { perm: `${P}.edit.vigilance`, what: 'Edit the vigilance answers' },
+  death:               { perm: `${P}.edit.vigilance`, what: 'Edit the vigilance answers' },
+  seriousIncident:     { perm: `${P}.edit.vigilance`, what: 'Edit the vigilance answers' },
+  customerName:        { perm: `${P}.edit.contact`,   what: 'Edit customer contact details' },
+  customerNumber:      { perm: `${P}.edit.contact`,   what: 'Edit customer contact details' },
+  customerDesignation: { perm: `${P}.edit.contact`,   what: 'Edit customer contact details' },
+});
+export const lockCallFields = (fields: FieldDef[], P: string, can: (k: string) => boolean): FieldDef[] => {
+  const rights = callFieldRights(P);
+  return fields.map((f) => {
+    const r = rights[f.name];
+    if (!r || f.readOnly || can(r.perm)) return f;
+    return { ...f, readOnly: true, help: `Needs the "${r.what}" permission` };
+  });
+};
+export { callPermPrefix } from '../lib/rbac';
+/** May this person edit any part of a call on that register? */
+export const mayEditCallOn = (P: string, can: (k: string) => boolean): boolean =>
+  ['edit', 'edit.complaint', 'edit.customer', 'edit.vigilance', 'edit.contact'].some((k) => can(`${P}.${k}`));
 
 export function FieldCalls() {
   return <CallSheetModule config={FIELD_CONFIG} />;
@@ -475,16 +526,22 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // A cancelled call is a record, not work: nothing is edited, visited or
   // ordered against it until somebody restores it.
   const isCancelled = (row: Rec) => String(row.callState ?? '') === 'Cancelled';
-  const mayCancel = can('calls.cancel');
+  const P = config.perm;
+  const mayCancel = can(`${P}.cancel`);
   // UPDATE PARTY / PRODUCT DETAILS from the masters (0271, the user,
   // 2026-09-30). ANY STATUS, Solved and Cancelled included; HIDDEN WHILE AUDIT
   // MODE IS ON (and refused by the database then too) -- a non-auditable
   // requirement (NAR-006), not an edit of what happened on the call.
+  // The register's own customer-section key (0287; its parent is the
+  // register's edit key).
   const audit = useAuditMode();
-  const mayRefresh = supabaseConfigured() && !audit.on && (can('calls.edit') || can('calls.edit.customer'));
+  const mayRefresh = supabaseConfigured() && !audit.on && can(`${P}.edit.customer`);
   // Closed means closed — for admins too. The way back is Re-open, not an
   // exemption, so a call's history cannot gain a visit that never happened.
-  const canEditRow = (row: Rec) => can('calls.edit') && !isSolved(row) && !isCancelled(row);
+  // Any section is a way in: the database admits a section-only holder
+  // (0127/0287) and the form locks every field outside their sections.
+  const mayEditAny = mayEditCallOn(P, can);
+  const canEditRow = (row: Rec) => mayEditAny && !isSolved(row) && !isCancelled(row);
   // A closed call takes no visit entry and no spare request until re-opened.
   const canWorkRow = (row: Rec) => !isSolved(row) && !isCancelled(row);
   // "CLOSE CALL" IS GONE (the user, 2026-09-15: "Remove the Close call option
@@ -507,11 +564,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // once.
   const OPEN_STATES = ['', 'Unattended', 'Unsolved'];
   const canCancelRow = (row: Rec) => !isCancelled(row) && OPEN_STATES.includes(String(row.callState ?? ''));
-  const canReopen = (row: Rec) => isSolved(row) && !isCancelled(row) && !row._pending && (can('pending.register') || can('calls.create'));
+  const canReopen = (row: Rec) => isSolved(row) && !isCancelled(row) && !row._pending && can(`${P}.reopen`);
   // A call re-opened only to correct it is closed again by withdrawing the
   // re-open — entering a visit that never happened is not the way back.
   const isReopened = (row: Rec) => String(row.callState ?? '') === 'Reopened';
-  const canCloseReopen = (row: Rec) => isReopened(row) && !row._pending && (can('pending.register') || can('calls.create'));
+  const canCloseReopen = (row: Rec) => isReopened(row) && !row._pending && can(`${P}.reopen`);
   const scope = useAccessScope();
   const userNameMap = useUserNames();
   // Party datalist, the Standard Complaint master + its suggestions, and the
@@ -532,29 +589,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // whether or not you may change it, and a field that quietly vanishes is how
   // "where has it gone?" starts. The database enforces the same rule (the form
   // is the courtesy), so the two cannot drift apart into a lie.
-  const FIELD_RIGHT: Record<string, { perm: string; what: string }> = {
-    allocatedTo:         { perm: 'calls.allot',          what: 'Re-allocate a call to another engineer' },
-    standardComplaint:   { perm: 'calls.edit.complaint', what: 'Edit the complaint' },
-    complaintReported:   { perm: 'calls.edit.complaint', what: 'Edit the complaint' },
-    breakdownDate:       { perm: 'calls.edit.complaint', what: 'Edit the complaint' },
-    partyName:           { perm: 'calls.edit.customer',  what: 'Edit customer & product' },
-    city:                { perm: 'calls.edit.customer',  what: 'Edit customer & product' },
-    state:               { perm: 'calls.edit.customer',  what: 'Edit customer & product' },
-    productName:         { perm: 'calls.edit.customer',  what: 'Edit customer & product' },
-    serial:              { perm: 'calls.edit.customer',  what: 'Edit customer & product' },
-    itemStatus:          { perm: 'calls.edit.customer',  what: 'Edit customer & product' },
-    publicHealthThreat:  { perm: 'calls.edit.vigilance', what: 'Edit the vigilance answers' },
-    death:               { perm: 'calls.edit.vigilance', what: 'Edit the vigilance answers' },
-    seriousIncident:     { perm: 'calls.edit.vigilance', what: 'Edit the vigilance answers' },
-    customerName:        { perm: 'calls.edit.contact',   what: 'Edit customer contact details' },
-    customerNumber:      { perm: 'calls.edit.contact',   what: 'Edit customer contact details' },
-    customerDesignation: { perm: 'calls.edit.contact',   what: 'Edit customer contact details' },
-  };
-  const lockByRight = (fields: FieldDef[]): FieldDef[] => fields.map((f) => {
-    const r = FIELD_RIGHT[f.name];
-    if (!r || f.readOnly || can(r.perm)) return f;
-    return { ...f, readOnly: true, help: `Needs the "${r.what}" permission` };
-  });
+  const lockByRight = (fields: FieldDef[]): FieldDef[] => lockCallFields(fields, P, can);
 
   const [srch, setSrch] = useState({ ucn: '', productName: '', serial: '', partyName: '', q: '' });
   // A SEARCH RETURNS AT MOST SEARCH_CAP CALLS -- the server's own cap on one
@@ -591,11 +626,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // rewriting the rest of the call, and it appeared nowhere on Roles &
   // Permissions — which is how "where is re-allocation?" ended up with no
   // answer to find.
-  const mayAllot = can('calls.allot') && allotTeam.names.length > 0;
+  const mayAllot = can(`${P}.allot`) && allotTeam.names.length > 0;
   // A control that is simply absent teaches nobody anything. Said only to
   // people who would otherwise have somebody to allot TO — an engineer whose
   // list is just themselves is not missing a feature.
-  const allotBlocked = !can('calls.allot') && allotTeam.canPick;
+  const allotBlocked = !can(`${P}.allot`) && allotTeam.canPick;
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [report, setReport] = useState<Rec | null>(null); // "Visit Entry" → a new visit row
@@ -1140,7 +1175,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       show: canEditRow(row),
       run: () => setDrawer({ mode: 'edit', row }) },
     { key: 'visit', icon: '📝', label: 'Visit Entry', title: 'Visit Entry — record a visit against this call', primary: true,
-      show: can('calls.report') && !row._pending && canWorkRow(row),
+      show: can(`${P}.report.visit`) && !row._pending && canWorkRow(row),
       run: () => { setDrawer(null); setReport(row); } },
     { key: 'spares', icon: '📦', label: 'Request Spares', title: 'Request spares against this call',
       show: can('spare.request') && !row._pending && canWorkRow(row),
@@ -1173,7 +1208,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
           <button key={a.key} className={`btn btn-sm btn-icon${a.primary ? ' btn-primary' : ''}`} title={a.title} onClick={a.run}>{a.icon}</button>
         ))}
         {isSolved(row) && !canReopen(row) && <span className="muted" title="Closed — Solved">🔒</span>}
-        {row._pending && (can('calls.create') || can('calls.edit')) && (
+        {row._pending && (can(config.createPerm ?? `${P}.create`) || can(`${P}.edit`)) && (
           <button className="btn btn-sm btn-icon btn-ghost" title="Discard this unsynced local call" onClick={() => discardOne(row)}>🗑</button>
         )}
       </div>
@@ -1221,7 +1256,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
           </>
         }
         actions={
-          can(config.createPerm ?? 'calls.create') && (
+          can(config.createPerm ?? `${P}.create`) && (
             <button
               className="btn btn-primary"
               onClick={() => { setPrefill(undefined); setPrefillKey((k) => k + 1); setPendingRow(null); setDrawer({ mode: 'create' }); }}

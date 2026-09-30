@@ -266,7 +266,9 @@ function MrnDrawer({
   const { user, can } = useAuth();
   // Engineers return their own stock; anyone who acts for others (admin,
   // Stores, an approver) may record a return on their behalf.
-  const forOthers = can('users.manage') || can('spare.dispatch') || can('spare.approve_rm');
+  // The database's key (0289): it asked any approval stage or dispatch while
+  // this asked users.manage too (finding 64).
+  const forOthers = can('stock.return.others');
   const [engineer, setEngineer] = useState(defaultEngineer);
   const [mrnNo, setMrnNo] = useState('');
   const [mrnDate, setMrnDate] = useState(todayISO());

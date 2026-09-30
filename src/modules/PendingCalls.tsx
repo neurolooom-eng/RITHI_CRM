@@ -78,10 +78,14 @@ export function PendingCalls() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [allotTo, setAllotTo] = useState('');
   const [allotBusy, setAllotBusy] = useState(false);
-  // The same right as on the register (0126) — re-allocation is its own
-  // permission, not a corner of `calls.edit`.
-  const mayAllot = can('calls.allot') && allotTeam.names.length > 0;
-  const allotBlocked = !can('calls.allot') && allotTeam.canPick;
+  // The same right as on each register (0126), and PER REGISTER since 0287:
+  // a Field call moves with calls.allot, an Installation call with
+  // install.allot, a PM call with pm.allot. This list mixes all three, so the
+  // right is asked of each call, not of the screen.
+  const allotKey = (fam: CallFamily | '') => (fam === 'install' ? 'install.allot' : fam === 'pm' ? 'pm.allot' : 'calls.allot');
+  const mayAllotAny = can('calls.allot') || can('install.allot') || can('pm.allot');
+  const mayAllot = mayAllotAny && allotTeam.names.length > 0;
+  const allotBlocked = !mayAllotAny && allotTeam.canPick;
   const [state, setState] = useState<CallState | ''>('');
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
@@ -136,8 +140,15 @@ export function PendingCalls() {
   }, [rows, type, state, q, scope, engineerFilter]);
 
   const saveAllotment = async () => {
-    const ucns = visible.filter((r) => picked.has(String(r.id)))
-      .map((r) => String(r.ucn ?? '').trim()).filter(Boolean);
+    const chosen = visible.filter((r) => picked.has(String(r.id)));
+    const refused = chosen.filter((r) => !can(allotKey(callFamily(r.callType))));
+    if (refused.length) {
+      setMsg({ tone: 'error', text: `Your role cannot re-allocate ${refused.length === 1 ? 'this call' : 'these calls'} — `
+        + `${refused.map((r) => String(r.ucn ?? '')).join(', ')}. Re-allocating is its own tick on each register `
+        + '(Field, Installation, PM) under Roles & Permissions. Nothing was moved.' });
+      return;
+    }
+    const ucns = chosen.map((r) => String(r.ucn ?? '').trim()).filter(Boolean);
     if (!ucns.length || !allotTo) return;
     setAllotBusy(true);
     const res = await reallocateCalls(ucns, allotTo);
@@ -235,8 +246,8 @@ export function PendingCalls() {
 
       {allotBlocked && (
         <p className="muted" style={{ margin: '4px 2px 0', fontSize: 12.5 }}>
-          Re-allocating a call needs the <b>Re-allocate a call to another engineer</b> permission,
-          which your role does not have — an administrator can grant it under Roles &amp; Permissions → Calls.
+          Re-allocating a call needs that register’s <b>Re-allocate</b> permission (Field, Installation or PM),
+          which your role does not have — an administrator can grant it under Roles &amp; Permissions.
         </p>
       )}
 

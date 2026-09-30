@@ -183,7 +183,10 @@ export function PartMaster() {
   // out or an engineer's hand stock. Deactivating keeps that history and takes
   // the part out of the pickers.
   const { can } = useAuth();
-  const mayEdit = can('masters.edit') && live;
+  const mayEdit = can('masters.edit.records') && live;
+  // A RENAME moves every record naming the part, so it is its own tick
+  // (finding 67, 0289); the other fields are ordinary record edits.
+  const mayRename = can('masters.edit.rename_part');
   const [form, setForm] = useState<{ code: string; description: string; category: string; product: string; cost: string; common: boolean } | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -278,6 +281,7 @@ export function PartMaster() {
     if (!edit.description.trim()) return 'Give the description.';
     if (edit.description.includes('|')) return 'A description cannot contain "|" either.';
     if (edit.cost.trim() && !Number.isFinite(Number(edit.cost))) return 'Purchase cost has to be a number.';
+    if (renaming && !mayRename) return 'Changing the code or description renames the part everywhere, which needs the “Rename a part” permission.';
     return '';
   };
   const renaming = !!edit

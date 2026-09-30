@@ -401,7 +401,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
 
   // ---- charts a reader built and kept (0206) ------------------------------
   const { can, rolePerms } = useAuth();
-  const maySh: boolean = can('config.manage');
+  const maySh: boolean = can('charts.share');
   const [saved, setSaved] = useState<SavedChart[]>([]);
   const [builder, setBuilder] = useState<{ dim: string; form: SavedChartSpec['form']; name: string; scope: string } | null>(null);
   const [savingMsg, setSavingMsg] = useState('');
@@ -824,8 +824,8 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
                 onChange={(v) => setBuilder((b) => b && ({ ...b, scope: v }))} />
               {!maySh && (
                 <span className="muted" style={{ fontSize: 12 }}>
-                  Sharing a chart with a role, or with everyone, needs the “Manage configuration”
-                  permission.
+                  Sharing a chart with a role, or with everyone, needs the “Share a chart with a role
+                  or with everyone” permission.
                 </span>
               )}
             </div>

@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-30. **Software Validation Rev 3.0 (v0.10.7, on the branch): every page read, 1,072 actions, every gap given a requirement, test and — where the code falls short — an open defect; data flow diagrams; the auto review switch.** Before that: **20, follow-up (v0.10.7, on the branch, not merged): "Cleared for Stores Processing" counts as approved.** Before that: **Batch 7 (v0.10.2): 20, 23 and 31 fixed as you decided, merged in #453 on your word ("Lets merge"); migrations 0256–0262 are applied by that merge's "Apply database migrations" run.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
+_Last updated: 2026-09-30. **Findings 57–67 decided and built (v0.10.11, on the branch): per-screen keys, parent keys, admin-only rows, dead ticks gone.** Before that: **Software Validation Rev 3.0 (v0.10.7, on the branch): every page read, 1,072 actions, every gap given a requirement, test and — where the code falls short — an open defect; data flow diagrams; the auto review switch.** Before that: **20, follow-up (v0.10.7, on the branch, not merged): "Cleared for Stores Processing" counts as approved.** Before that: **Batch 7 (v0.10.2): 20, 23 and 31 fixed as you decided, merged in #453 on your word ("Lets merge"); migrations 0256–0262 are applied by that merge's "Apply database migrations" run.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
 
 ---
 
@@ -15,7 +15,9 @@ _Last updated: 2026-09-30. **Software Validation Rev 3.0 (v0.10.7, on the branch
 | | Count | Findings |
 | --- | --- | --- |
 | ✅ **Fixed and live** | **43** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 38, 40, 41, 43, 45, 46, 47, 48, 49, 50, 51, 52 — 20, 23 and 31 in batch 7 (v0.10.2, #453) |
-| ⏳ **Open** | **24** | 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67 |
+| 🔀 **Fixed on the branch, not merged** | **8** | 57, 58, 59, 63, 64, 65, 66, 67 (PR #464, v0.10.11) |
+| ☑ **Closed by your decision** | **2** | 60 and 61 — as designed (2026-09-30) |
+| ⏳ **Open** | **14** | 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56, 62 (62 parked by you) |
 | | **67** | |
 
 **SQL is no longer a hand step for new fixes.** On 2026-09-29 the live
@@ -46,13 +48,7 @@ below). They apply to every table and every date, not to one finding.
 | **44** | Calls | Batch cancel: build the button, or keep it SQL-only and record who cancelled. |
 | **26** | Call Reporting | **Moved here from C (2026-09-26): it is not a one-line fix.** The form stores a visit date as UTC midnight (reads back 05:30); the upload stores it as IST midnight, which is 18:30 UTC the day before. **Five live database objects** cast `visit_at` to a date — `objective_value`, `objective_evidence`, `reliability_wrr`, `machine_install_start` and the `kpi_field_inst` export (counted on a database built from every migration) — and on a database in UTC (the test database is; `show timezone` on the live project was NOT checked) that makes an UPLOADED visit's day one day EARLY in those calculations — so "fixing" the form to match the upload would move form-entered visits a day early too. Options: set the database time zone to `Asia/Kolkata` (also settles 13), **or** keep UTC and store every date-only visit at UTC midnight on BOTH paths. Run `show timezone;` in the SQL editor first. |
 
-| **60** | User Master → Access | **A holder of "Manage users" can grant any other person "Manage roles & permissions", "Manage users" or "View all data"**, and that person can grant them back. Neither can change their own permissions or make anyone Admin (`profiles_role_guard`). Verified on the database. Decide: should granting those admin-level keys through a person's extra permissions need Admin (recommended)? |
-| **61** | Field Solutions | **Any signed-in user can add an article** (`kb_insert`: `auth.uid() is not null`). Decide whether anyone may, or only a role with a key. |
-| **62** | downloads | **Finding 42 is wider than Excel.** Word (the FFR R-SER-03), the Data Export ZIP, the ⭳ Download on a signed service report, and the print pages (`/dc`, `/declaration`, `/ffr`) never check `export.data` either; only CSV does. Decide together with 42: one "Export / download" for everything, or a download tick per page? |
-| **63** | Roles & Permissions | **A page's row does not show the keys its buttons test.** Installation Calls and PM Calls are governed by the Field Call keys and show none (PM shows nothing at all); Contract Register by `cover.edit` (including delete-an-entry) and shows nothing; Objective by `config.manage`; Pending Calls, Product Database 2.0, Product Failure Analysis, the six Reports rows, Pending Dispatch's Drop, MRN-for-someone-else, Bulk Report Mapping, Settings — all by keys filed on other rows. Decide: show shared keys on every row that uses them, or give Installation and PM keys of their own (needs a migration copying today's grants)? |
-| **65** | several | **Admin only, so no other role can ever be given it**: Bulk Uploads (32 registers), PM Bulk Upload, Data Import, Data Export (export and schedules), Audit Mode, Frequent Failure rule, Call Registration desk, User Master reset password, Spare Requests change engineer, Daily Complaint Review date correction, Objective cut-off lock. Decide which should become grantable keys. |
-| **66** | Roles & Permissions | **Ticks that do nothing**: `dashboard.view` (tested nowhere); `reports.view` on Visit Reports (the screen and its table test `calls.view`); `config.manage` on Admin Config (no control there tests it); `masters.edit` on Product Master (read-only screen); `masters.view` on six rows (only the database's read rules use it); the User Access row (`/users` redirects to User Master). Decide: remove, or make each mean something. |
-| **67** | several | **One key does many jobs**: `users.manage` (create logins, reset passwords, disable, delete, assign roles, grant any key, clone — and every Settings control); `masters.edit` (KYC verification, part rename that moves every record naming the part, bulk Serviceman swap); `cover.edit` (includes deleting a whole entry with its machines); `calls.report` (saving a visit also books spare consumption and feedback); Tracker's page key (includes delete). Decide which to split. |
+| **62** | downloads | **PARKED by you (2026-09-30: "Park it for now").** **Finding 42 is wider than Excel.** Word (the FFR R-SER-03), the Data Export ZIP, the ⭳ Download on a signed service report, and the print pages (`/dc`, `/declaration`, `/ffr`) never check `export.data` either; only CSV does. Decide together with 42: one "Export / download" for everything, or a download tick per page? |
 
 ### B. SQL or performance, no decision needed
 
@@ -61,15 +57,11 @@ below). They apply to every table and every date, not to one finding.
 | **40b** | Found while fixing 40: **12 more hand-run files** return more than one grid (`_which_products_are_missing` — added on 2026-09-29 by another session, its grids numbered 0–3 to run one at a time; `_admin_grant_check`, `_dedupe_part_product_keys`, `_load_check`, `_move_blank_status_visits`, `_party_name_normalise`, `_party_search_diagnose`, `_reassign_spare_engineer`, `_registered_by_check`, `_reset_for_production`, `_stray_cover_rows`, `_yearly_consumption_check`; `_why_is_it_empty_2` was only its `set_config` lines, which the check now ignores). `check:ui` now refuses a NEW one and lists these by name. Also `_pm_call_numbers.sql` is still cut off mid-list and marked DO NOT RUN — it needs the rest of YOUR list to finish. |
 | **56** | Filter/sort columns with no index on big registers (feedback paging, call_requests paging, spare line stage, …) — candidates only; confirm with the probe's Full scans rows before adding any. |
 
-| **59** | **Indoor Service: a unit can be set to Dispatched or Closed without the dispatch right.** The Status picker needs only `indoor.work`; the guard (0158) checks `indoor.dispatch` when the dispatch date, reference or dispatcher changes, not the status. A passed quality check is still required. Verified on the database. |
 
 ### C. Front end, no decision needed
 
 | # | What |
 | --- | --- |
-| **57** | **Pending Registrations → ✎ Edit → Save call rewrites any field of a live call with no permission check**, and without the per-section locks the call registers apply (`PendingRegistrations.tsx:671`, `:405`). Only the database's `calls_update` stands behind it. Verified. |
-| **58** | **Admin Config → SLA Targets: no check on screen, and a refused save reads "saved".** The database requires Admin or `config.manage`; `saveSlaRule` looks only for an error, and a refused update is not one. Technical Support opens this page by default and holds neither. Verified. |
-| **64** | **The screen tests a different key from the database**, so a button is offered and then refused, or offered to the wrong role: Warranty → "+ Installation call" (no check; database wants `install.create` + `cover.edit`); Warranty/Contract → "+ Field call" and Product Database → "+ Install" (no check / wrong key); Pending Registrations → "Create new call" (tests `pending.register`, database wants `calls.create`/`install.create`); Call Review → Reco and Re-open (test `callreview.mark`, database wants `consumption.reconcile` / `pending.register` or `calls.create`); Software Validation (also accepts `users.manage`, database does not); Reset password and Change engineer (offered on `users.manage`, database wants Admin); Data Export (page key on screen, Admin in the database); Call Registration desk and Frequent Failure rule (Admin on screen, database also accepts `config.manage`); Request Registration → Correct this request (no check on screen). |
 
 Evidence for 57–67, screen by screen: [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md).
 
@@ -169,6 +161,47 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-09-30 — Findings 57–67 decided and built (v0.10.11, on the branch, not merged)
+
+Your decisions, and what each became:
+
+- **60 — "Manage users" can grant any key: as intended.** Closed by decision.
+- **61 — anybody signed in adds a Field Solutions article: acceptable.** Closed by decision.
+- **62 — downloads that skip the export permission: parked.** Stays open.
+- **63, 64 — "It should show the Individual View's Control Action and its Check Box": keys of their own per screen.**
+  Installation Calls get `install.*` and PM Calls `pm.*` (edit and its four sections, re-allocate, report,
+  file a visit, cancel, re-open; PM also create), Field calls `calls.reopen` and `calls.report.visit`.
+  The Contract Register gets `contract.edit`; the Objective page `objective.manage`; chart sharing
+  `charts.share`; validation results `validation.manage`; shared table layouts `layouts.share`;
+  the 2.0 rebuild `pd2.rebuild`; returning stock for another engineer `stock.return.others`.
+  Every row now lists every key its buttons test, a key of another module included (a call register
+  shows Request spares and Reco), and `check:ui` fails a screen that tests a key its row does not show.
+  Each screen asks the key the database asks (0287–0297). **0298 copied every new key once** to exactly
+  the roles and people holding the key it replaced, so nobody gained or lost anything on the day.
+- **65 — admin-only actions listed, greyed.** Nine rows (bulk uploads, PM bulk upload, the Data Import
+  panel, table export and export schedules, Audit Mode, password reset, changing a spare request's engineer,
+  correcting a review date, locking an objective month): ticked for Admin, disabled for everyone.
+- **66 — ticks that did nothing, fixed.** `dashboard.view` and the User Access page are gone (0298 removes
+  them from every role); `reports.view` moved to the rows that test it; `masters.view` shown only where it
+  governs reading (Warranty, Contract, Machine History, 2.0); Admin config now opens SLA Targets, the Call
+  Registration desk and the Frequent Failure rule, which the database already allowed it.
+- **67 — "Break it down".** Manage users → details, create logins, disable/delete, assign roles & permissions,
+  Settings. Edit masters → records, KYC, rename a part, swap the Serviceman. Edit sales/warranties → entries,
+  delete an entry; contracts the same. Each register's Report key → file a visit, book spares on a visit, record
+  feedback on a visit. The Tracker's delete is its own tick. The old key is the PARENT (0286, `perm_parents`, read
+  by `has_perm()` and `can()` alike), so a role holding it keeps everything until you untick it and pick.
+  **Resetting a password stays an administrator's** (65).
+- **57, 58, 59 fixed.** Pending Registrations' editor applies the register's section locks and never edits a closed
+  call; SLA Targets is gated on Admin config and a refused save says so (it read "saved"); an Indoor unit cannot be
+  set to Dispatched or Closed without the dispatch right (0297).
+
+**Found while building it, and closed:** a login could be created WITH ANY ROLE, Admin included, by anybody holding
+"Manage users" — the role guard fired on updates only. It fires on insert now: "Create logins" makes an Engineer, and
+any other role, or the role a User Master row grants at first sign-in, needs "Assign roles & grant permissions".
+
+Proved by `permissions_by_screen_test` as signed-in users; `npm run validate` 118/118 suites, 22/22 checks, the
+replay check included. `_status.sql` rows 214–225. **Not merged.**
+
 ### 2026-09-30 — Software Validation Rev 3.0: every page read, every action given a requirement (v0.10.7, on the branch, not merged)
 - **Your ask:** read every page, list every action, update the requirements, then everything downstream (risk, DFMEA, tests), and add data flow charts.
 - **Inventory** — [`docs/CAPABILITY_INVENTORY.md`](CAPABILITY_INVENTORY.md): 1,072 actions across every screen, each with the line it was read from and what guards it. Before this, 474 had no requirement stating them and 309 were only partly stated. The document ends with where each gap is now stated.
@@ -186,14 +219,15 @@ checked.
   - feedback is not scoped in the database;
   - Data Export and uploads leave no audit entry.
 - **Your decisions, built (0269):**
-  - Auto review is Bagyaraj's and Vignesh's switch. Its answers carry the switcher's name and an auto marker, and it never touches a started Review 2.
+  - Auto review is a person's switch. Its answers carry the switcher's name and an auto marker, and it never touches a started Review 2.
+  - Who may switch it was two names in 0269; **0285 makes it a role — Admin, NSM, Technical Support** (the user, 2026-09-30), and takes the by-name grant back. For Technical Support it is the role's one write.
   - Old reviews load as imported and raise no FFR.
   - FFR CAPA starts blank.
   - "9:15" is no longer in the documents.
 - **Data flows:** four flows are defined in the package and drawn in Software Validation (Data Flows) and How RITHI Functions: a call through to feedback, Daily Review → FFR → Objective, hand stock, and a sale to cover and PM. `check:ui` fails any step citing a screen, requirement or test that does not exist.
 - **Fixed on the way:**
   - The two traceability tabs shared a key, and one claimed every requirement was covered (D-073).
-  - **A plaintext password for `service.almsind@gmail.com` sat in a comment in `src/lib/auth.tsx`.** It is removed from the file but remains in git history, and the stored hash is short enough to reverse. **Change that password wherever it is used** (D-074).
+  - **A plaintext password for `service.almsind@gmail.com` sat in a comment in `src/lib/auth.tsx`.** It is removed from the file but remains in git history, and the stored hash is short enough to reverse. **The system owner changed that password on 2026-09-30** (reported, not verified from here). The local demo sign-in still admits the old one; removing that path is the open half of D-074.
 - **Proved:** validate with every suite and check; `check:ui`, `check:uploads`, `check:generated`, build. The document generators were re-run: REQUIREMENTS.md, REQUIREMENT_COVERAGE.md, DATABASE_SCHEMA.md.
 - **Not verified:** the inventory was built by reading code, not by running it on live; the open defects are unconfirmed on live data.
 

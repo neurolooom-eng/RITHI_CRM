@@ -131,7 +131,7 @@ begin
       with check (
         case when coalesce(source, 'Report') = 'Reconciliation'
              then public.has_perm('consumption.reconcile')
-             else (public.has_perm('calls.report') or public.has_perm('spare.dispatch'))
+             else (public.has_perm('visit.spares') or public.has_perm('spare.dispatch'))
         end
       );
   else
@@ -162,17 +162,17 @@ begin
   drop policy if exists masters_delete on public.masters;
 
   create policy masters_insert on public.masters for insert
-    with check (public.has_perm('masters.edit')
+    with check (public.has_perm('masters.edit.records')
              or public.has_perm('master.' || coalesce(name, '') || '.edit'));
 
   create policy masters_update on public.masters for update
-    using      (public.has_perm('masters.edit')
+    using      (public.has_perm('masters.edit.records')
              or public.has_perm('master.' || coalesce(name, '') || '.edit'))
-    with check (public.has_perm('masters.edit')
+    with check (public.has_perm('masters.edit.records')
              or public.has_perm('master.' || coalesce(name, '') || '.edit'));
 
   create policy masters_delete on public.masters for delete
-    using      (public.has_perm('masters.edit')
+    using      (public.has_perm('masters.edit.records')
              or public.has_perm('master.' || coalesce(name, '') || '.delete'));
 end $$;
 

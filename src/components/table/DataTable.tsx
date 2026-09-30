@@ -957,7 +957,7 @@ export function DataTable<T>({
                   <div className="dt-cols-actions">
                     <button className="btn btn-sm" onClick={resetLayout}>Reset</button>
                     <div className="spacer" />
-                    {can('manage-users') && (
+                    {can('layouts.share') && (
                       <button className="btn btn-sm btn-primary" onClick={() => void saveForEveryone()} title="Apply this layout — columns, order, widths, grouping — to everybody">
                         Save for everyone
                       </button>
@@ -968,7 +968,7 @@ export function DataTable<T>({
                       Pending Dispatch" is a thing an administrator can now say
                       (the user's ask, 2026-09-06). Everyone is the same
                       mechanism with an empty role, so the two cannot drift. */}
-                  {can('manage-users') && supabaseConfigured() && (
+                  {can('layouts.share') && supabaseConfigured() && (
                     <div className="dt-cols-role">
                       <label className="field-label" style={{ marginBottom: 4 }}>…or apply it to one role</label>
                       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>

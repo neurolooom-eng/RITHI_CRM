@@ -27,7 +27,7 @@ export function FeedbackReport() {
     count: countFeedbackReport,
     list: listFeedbackReport,
     live: supabaseConfigured(),
-    mayExport: can('feedback.view') || can('calls.report'),
+    mayExport: can('feedback.view') || can('visit.feedback'),
     fields: [
       // THE FEEDBACK'S OWN DATE, never "Loaded On" (0190). On a migrated row
       // the two differ by up to two years, and somebody filtering for 2025

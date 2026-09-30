@@ -45,7 +45,8 @@ export function ReportMapping() {
   const [onlyProblems, setOnlyProblems] = useState(false);
 
   const sum = useMemo(() => summarise(rows), [rows]);
-  const mayRun = (isAdmin || can('calls.report')) && supabaseConfigured();
+  // Rewriting visit history is filing visits: the register's own key (0286).
+  const mayRun = (isAdmin || can('calls.report.visit') || can('install.report.visit') || can('pm.report.visit')) && supabaseConfigured();
 
   if (!mayRun) {
     return (

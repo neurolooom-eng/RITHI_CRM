@@ -23,7 +23,10 @@ import {
 // them instead of guessing — so somebody has to say which desk. That is this.
 // ===========================================================================
 export function CallRegistrationCard() {
-  const { isAdmin } = useAuth();
+  // Admin config, which the database already accepted here while the screen
+  // refused it (finding 66: the tick on Admin Config meant nothing).
+  const { isAdmin: isAdminRole, can } = useAuth();
+  const isAdmin = isAdminRole || can('config.manage');
   const onDb = supabaseConfigured();
   const [desks, setDesks] = useState<RegistrantDesk[]>([]);
   const [pinned, setPinned] = useState('');
@@ -87,7 +90,7 @@ export function CallRegistrationCard() {
         {resolved
           ? <>Right now, a new call is filed to <b>{resolved.name}</b> ({resolved.email}).</>
           : <>Right now no desk resolves, so a new call is filed to whoever registers it.</>}
-        {!isAdmin && <> Only an administrator can change this.</>}
+        {!isAdmin && <> Changing this needs “Admin config”.</>}
       </p>
     </SectionCard>
   );

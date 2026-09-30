@@ -552,12 +552,20 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const cfg = configFor(kind);
   const { can } = useAuth();
   const navigate = useNavigate();
-  const canEdit = can('cover.edit');
+  // EACH REGISTER ITS OWN KEYS (findings 63, 67; 0291): the Warranty Register
+  // answers to cover.edit, the Contract Register to contract.edit, and each
+  // splits adding/editing an entry from deleting a whole one.
+  const K = kind === 'contract' ? 'contract.edit' : 'cover.edit';
+  const canEdit = can(`${K}.entries`);
+  const canDelete = can(`${K}.delete`);
+  // "+ Field call" opens the Field Call form: its save is calls.create.
+  const canRaiseField = can('calls.create');
   // THE PER-MACHINE "+ Installation call" follows the permission that RAISES
-  // the call. Mapping it back is `link_install_call` (0258), which accepts
-  // install.create or cover.edit, so whoever may press the button can finish
-  // what it starts (finding 31).
-  const canRaiseInstall = can('install.create') || canEdit;
+  // the call -- install.create, which the database asks of the insert (finding
+  // 64: cover.edit alone was offered the button and refused the call).
+  // Mapping it back is `link_install_call` (0258), which accepts install.create,
+  // so whoever may press the button can finish what it starts (finding 31).
+  const canRaiseInstall = can('install.create');
   const live = supabaseConfigured();
 
   const [tab, setTab] = useState<Tab>('entries');
@@ -1018,7 +1026,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     } },
     { key: '_call', header: 'Register call', width: 230, sortable: false, wrap: false, render: (r) => (
       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-        <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); navigate('/field-calls', { state: { prefill: prefillFrom(r, kind) } }); }}>+ Field call</button>
+        {canRaiseField && <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); navigate('/field-calls', { state: { prefill: prefillFrom(r, kind) } }); }}>+ Field call</button>}
         {/* INSTALLATION IS A SALE'S EVENT, NOT A CONTRACT'S. A machine reaches
             a contract already installed, so the button is not offered there --
             an action that makes no sense for the record in front of you is
@@ -1121,7 +1129,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                   ↺ Update from Party Master
                 </button>
               )}
-              {!!open.id && <button className="btn" onClick={() => void removeEntry()}>Delete entry</button>}
+              {!!open.id && canDelete && <button className="btn" onClick={() => void removeEntry()}>Delete entry</button>}
             </div>
           )}
 
@@ -1158,7 +1166,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                   call — the call would be about nothing. */}
               {kind === 'sale' && (
                 needCalls.length > 0
-                  ? <button className="btn btn-sm" disabled={saving} onClick={() => void raiseCalls()}
+                  ? canRaiseInstall && <button className="btn btn-sm" disabled={saving} onClick={() => void raiseCalls()}
                       title="Raise an installation call for each machine that has not got one">
                       ＋ Installation calls ({needCalls.length})
                     </button>

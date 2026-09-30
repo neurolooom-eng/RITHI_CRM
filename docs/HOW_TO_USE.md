@@ -314,9 +314,11 @@ against the call it was fitted to.
     auto-save and the bulk answer. A later edit does not reassign it.
   - Answering in bulk refuses a first-year failure or an unknown age — those are
     reviewed one at a time.
-  - **Auto review is a switch, and a person's.** Only somebody given *Switch auto
-    review on or off* (Bagyaraj and Vignesh) can turn it on or off, from the top
-    of the register, which always shows whether it is on and in whose name.
+  - **Auto review is a switch, and a person's.** It can be turned on or off by
+    **Admin, NSM and Technical Support** — by role, not by name — and by anybody
+    an administrator gives *Switch auto review on or off* on User Master →
+    Access. It is the one thing Technical Support can change. The switch is at
+    the top of the register, which always shows whether it is on and in whose name.
     While it is on, each morning Review 2 is answered *No* for calls logged
     before that day that failed outside their first year — **in the name of the
     person who switched it on**, and marked as an auto-review answer so Review 3
@@ -1033,10 +1035,27 @@ typed into a form that reads it.
 
 ## Administration
 
-- **User Access** `/users` — who can sign in and on what role; an administrator
-  resets a forgotten password here.
+- **User Access** (`/users`) is gone: it opens the **User Master**, where logins
+  are created, roles assigned and — by an administrator — passwords reset.
 - **Roles & Permissions** `/roles` — which role holds which right, page by page and
   action by action. Roles can be added without code.
+  > **Every button has its tick on its own page's row.** Open a page's row and you
+  > see each thing that page lets somebody do — including a right that belongs to
+  > another module but is used there (a call register shows *Request spares* and
+  > *Reco*). The **Installation** and **PM** registers have their own ticks now:
+  > allowing Field Call edits no longer allows PM edits. Nothing changed for
+  > anybody on the day this arrived — each new tick was given to exactly the roles
+  > that held the one it replaced.
+  > **A tick with parts.** *Manage users*, *Edit masters*, *Edit sales /
+  > warranties*, *Edit contracts* and each register's *Edit* and *Report* are made
+  > of smaller ticks listed under them. Ticking the big one gives all its parts
+  > (they show ticked and greyed); to give only some, untick the big one and tick
+  > the parts. So you can let somebody verify KYC without editing parties, or
+  > create logins without deciding what those logins may do — a login they create
+  > is an Engineer until somebody with *Assign roles & grant permissions* changes it.
+  > **Greyed rows marked "Admin only"** are things only an administrator can do
+  > (bulk uploads, password reset, Audit Mode and a few more). They are listed so you
+  > know they exist; they cannot be given to another role.
   > **If a role sees nothing** it is almost always a missing *action*, not a
   > missing page: a role with some permissions but not "View calls" sees an empty
   > register with everything apparently granted.
@@ -1047,10 +1066,13 @@ typed into a form that reads it.
   > so look for it under the group it sits in on the left.
 - **Audit Log** `/audit` — what was recorded while audit mode was on. Turning it on
   or off needs a reason, and that history outlives the log.
-- **Admin Config** `/admin-config` — the settings the rules read: the
-  frequent-failure window and threshold, the objective cut-offs and their lock,
-  audit mode. **While Audit Mode is ON** a call's Update Party Details and Update
-  Product Details are hidden (and refused).
+- **Admin Config** `/admin-config` — the settings the rules read: the SLA
+  targets, the Call Registration desk, the frequent-failure window and threshold,
+  the objective cut-offs and their lock, audit mode. The SLA targets, the desk
+  and the frequent-failure rule are open to anybody given *Admin config*; Audit
+  Mode and the Data Import panel are an administrator's. **While Audit Mode is
+  ON** a call's Update Party Details and Update Product Details are hidden (and
+  refused).
 - **Software Validation** `/software-validation` — the ISO 13485 §4.1.6 package:
   intended use, regulatory basis, requirements and the tests that answer them.
   > Not the servicing process requirements. Software validation does not discharge

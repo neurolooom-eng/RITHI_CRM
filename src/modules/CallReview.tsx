@@ -3,7 +3,7 @@ import { PageHeader, SearchBox } from '../components/ui/ui';
 import { PickList } from '../components/ui/PickList';
 import { StateBadge } from '../lib/callstate';
 import { useAuth } from '../lib/auth';
-import { seesEveryRecord } from '../lib/rbac';
+import { seesEveryRecord, callPermPrefix } from '../lib/rbac';
 import { logAudit } from '../lib/audit';
 import {
   listSolvedCalls, reportsByCall, consumptionForCall, listCallReportReviews,
@@ -45,6 +45,10 @@ const g = (r: Call, k: string) => String(r[k] ?? '');
 export function CallReview() {
   const { user, can } = useAuth();
   const mayMark = can('callreview.mark');
+  // Reco and Re-open are asked of the keys the DATABASE asks (finding 64):
+  // a reconciliation is consumption.reconcile, a re-open the call's own
+  // register's re-open key (0287). They used to ride on callreview.mark.
+  const mayReco = can('consumption.reconcile');
 
   const [rows, setRows] = useState<Call[]>([]);
   const [reviews, setReviews] = useState<Record<string, { status: string; remarks: string; by: string; at: string }>>({});
@@ -343,12 +347,16 @@ export function CallReview() {
                       <button className="btn btn-primary btn-sm" onClick={() => void doMark()} disabled={busy}>
                         {currentReview ? 'Update review' : '✓ Report Reviewed'}
                       </button>
-                      <button className="btn btn-sm" onClick={() => { setRecoOpen((v) => !v); setReopenOpen(false); }} disabled={busy}>
-                        ＋ Reco
-                      </button>
-                      <button className="btn btn-sm" onClick={() => { setReopenOpen((v) => !v); setRecoOpen(false); }} disabled={busy}>
-                        ↺ Re-open call
-                      </button>
+                      {mayReco && (
+                        <button className="btn btn-sm" onClick={() => { setRecoOpen((v) => !v); setReopenOpen(false); }} disabled={busy}>
+                          ＋ Reco
+                        </button>
+                      )}
+                      {can(`${callPermPrefix(g(current, 'callType'))}.reopen`) && (
+                        <button className="btn btn-sm" onClick={() => { setReopenOpen((v) => !v); setRecoOpen(false); }} disabled={busy}>
+                          ↺ Re-open call
+                        </button>
+                      )}
                     </div>
                   </>
                 )}

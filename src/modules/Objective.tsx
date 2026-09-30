@@ -65,7 +65,7 @@ export function Objective() {
   // switch, and `config.manage` is the audience it exists to hold back, so
   // config.manage must not be what unlocks it.
   const { can, isAdmin } = useAuth();
-  const mayEdit = can('config.manage');
+  const mayEdit = can('objective.manage');
   const YEAR = new Date().getFullYear();
   const [objectives, setObjectives] = useState<QualityObjective[]>([]);
   const [oMsg, setOMsg] = useState('');

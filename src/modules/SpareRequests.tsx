@@ -1163,7 +1163,7 @@ function orderSummary(lines: Row[]): string {
 // Before dispatch nothing has moved and the name is simply a correction.
 // ---------------------------------------------------------------------------
 function EngineerOnOrder({ row, lines, onDone }: { row: Row; lines: Row[]; onDone: () => void }) {
-  const { can } = useAuth();
+  const { isAdmin } = useAuth();
   const uid = String(row.uid ?? '');
   const current = String(row.req_engineer ?? row.engineer ?? '');
   const team = useTeamEngineers(current);
@@ -1180,7 +1180,9 @@ function EngineerOnOrder({ row, lines, onDone }: { row: Row; lines: Row[]; onDon
   const dispatched = [row, ...lines].some((l) =>
     !!l.dispatched_at || !!String(l.dc_number ?? '') || Number(l.dispatched_qty ?? 0) > 0
     || /dispatch/i.test(String(l.stores_status ?? '')));
-  const mayChange = can('manage-users') && !dispatched && supabaseConfigured();
+  // ADMIN ONLY, as the database is (finding 65; shown greyed on Roles &
+  // Permissions). It was offered to Manage users and then refused.
+  const mayChange = isAdmin && !dispatched && supabaseConfigured();
 
   useEffect(() => {
     if (!uid || !supabaseConfigured()) return;
@@ -1221,7 +1223,7 @@ function EngineerOnOrder({ row, lines, onDone }: { row: Row; lines: Row[]; onDon
           <button className="btn btn-sm" onClick={() => { setOpen(true); setErr(''); }}>✎ Change engineer</button>
         </div>
       )}
-      {!can('manage-users') ? null : dispatched && (
+      {!isAdmin ? null : dispatched && (
         <p className="muted" style={{ fontSize: 12.5, margin: '6px 0 0' }}>
           Dispatched — the parts are in {current || 'the engineer'}&rsquo;s hands, so the name is fixed. Move the stock with a
           stock transfer instead.

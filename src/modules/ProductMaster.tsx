@@ -212,7 +212,9 @@ export function ProductMaster() {
       </div>
 
       <DataTable<Row>
-        columns={can('calls.create') ? [...COLUMNS, actionsColumn] : COLUMNS}
+        // "+ Install" raises an INSTALLATION call: install.create, which the
+        // database asks of it (finding 64 -- it tested calls.create).
+        columns={can('install.create') ? [...COLUMNS, actionsColumn] : COLUMNS}
         allFields={ALL_FIELDS}
         rows={rows}
         getRowId={(r) => r.id}

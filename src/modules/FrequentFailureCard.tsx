@@ -38,7 +38,10 @@ const DEFAULTS = {
 };
 
 export function FrequentFailureCard() {
-  const { isAdmin } = useAuth();
+  // Admin config, which the database already accepted here while the screen
+  // refused it (finding 66: the tick on Admin Config meant nothing).
+  const { isAdmin: isAdminRole, can } = useAuth();
+  const isAdmin = isAdminRole || can('config.manage');
   const onDb = supabaseConfigured();
   const [rule, setRule] = useState(DEFAULTS);
   const [loaded, setLoaded] = useState(false);
@@ -138,7 +141,7 @@ export function FrequentFailureCard() {
       <p className="muted" style={{ fontSize: 12.5 }}>
         <b>Failures needed</b> counts the call under review, so <b>2</b> means one earlier failure is enough.
       </p>
-      {!isAdmin && <p className="muted" style={{ fontSize: 12.5 }}>Only an administrator can change these.</p>}
+      {!isAdmin && <p className="muted" style={{ fontSize: 12.5 }}>Changing these needs “Admin config”.</p>}
       {msg && <div className={`sheet-banner sheet-banner-${msg.tone === 'ok' ? 'ok' : msg.tone}`}><span>{msg.text}</span></div>}
     </SectionCard>
   );

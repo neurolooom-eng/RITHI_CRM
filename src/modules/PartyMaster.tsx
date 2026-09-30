@@ -147,7 +147,11 @@ export function PartyMaster() {
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load Party Master.' },
   );
   const { can, user } = useAuth();
-  const mayEdit = can('masters.edit') && supabaseConfigured();
+  // THREE RIGHTS HERE, NOT ONE (finding 67, 0290): editing a party's record,
+  // verifying its KYC, and changing the Serviceman on every party at once.
+  const mayEdit = can('masters.edit.records') && supabaseConfigured();
+  const mayKyc = can('masters.edit.kyc') && supabaseConfigured();
+  const maySwap = can('masters.edit.swap_serviceman') && supabaseConfigured();
   const [uploading, setUploading] = useState(false);
   const [edit, setEdit] = useState<Row | null>(null);
   const [saving, setSaving] = useState(false);
@@ -392,7 +396,7 @@ export function PartyMaster() {
               <input className="input" placeholder="Type" value={filter.type} onChange={(e) => set('type', e.target.value)} />
             </div>
             <div className="spacer" />
-            {mayEdit && (
+            {maySwap && (
               <button className="btn btn-sm" onClick={() => void openSwap()} title="Change one Serviceman everywhere it appears">
                 ✎ Change engineer
               </button>
@@ -538,7 +542,9 @@ export function PartyMaster() {
                 options={KYC_STATUSES}
                 onPick={(v) => setEditField('kyc_status', v)}
                 placeholder="Pending, Verified or Rejected…"
+                disabled={!mayKyc}
               />
+              {!mayKyc && <div className="muted" style={{ fontSize: 12 }}>Changing the status needs the “Verify a party’s KYC” permission.</div>}
             </div>
             <div className="field">
               <label className="field-label">Notes</label>

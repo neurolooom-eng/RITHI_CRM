@@ -43,7 +43,7 @@ const emptyRow = (): DirectoryRow => ({
 });
 
 export function UserMasterView() {
-  const { users, can, reloadUsers, rolePerms } = useAuth();
+  const { users, can, reloadUsers, rolePerms, isAdmin } = useAuth();
   // EVERY role the database knows, not only the ones in the code: a role added
   // on Roles & Permissions that no picker offers is a role nobody can be put
   // on, which is a feature that does nothing.
@@ -51,7 +51,14 @@ export function UserMasterView() {
     () => rolesWith(Object.keys(rolePerms ?? {})).map((r) => ({ value: r.key, label: r.label })),
     [rolePerms]);
   const live = supabaseConfigured();
-  const editable = live && can('users.manage');
+  const editable = live && can('users.manage.details');
+  // "MANAGE USERS" IS FIVE TICKS NOW (finding 67, 0286): editing the details
+  // above; creating a login; disabling or deleting one; assigning roles and
+  // permissions; and Settings. Each button below asks for its own, as the
+  // database does. Resetting a password stays an administrator's (finding 65).
+  const mayCreate = live && can('users.manage.create');
+  const mayAccess = live && can('users.manage.access');
+  const mayDisable = live && can('users.manage.disable');
   // DEPARTMENT, from its master list (0263) -- one spelling everywhere.
   const departments = useMaster('department', [], live).values;
 
@@ -267,6 +274,12 @@ export function UserMasterView() {
       if (!email) { setMsg({ tone: 'error', text: 'A login needs an email — enter the Air Liquide or Gmail ID.' }); setBusy(false); return; }
       const extras = cloneSrc ? [...(cloneSrc.extraPermissions ?? [])] : [];
       if (dataAccess && !extras.includes('data.view_all')) extras.push('data.view_all');
+      // A LOGIN THAT CAN DO MORE THAN AN ENGINEER is an assignment of access
+      // (0286 refuses it otherwise) -- said here, before anything is written.
+      if (!mayAccess && ((row.role && row.role !== 'engineer') || extras.length)) {
+        setMsg({ tone: 'error', text: 'Creating a login with a role other than Engineer, or with extra permissions, needs “Assign roles & grant permissions”.' });
+        setBusy(false); return;
+      }
       const res = await sbAdminCreateUser({ email, fullName: row.name.trim(), role: row.role || 'engineer', password: pwd, extraPermissions: extras.length ? extras : undefined });
       logAudit({ action: cloneSrc ? 'user.clone' : 'user.create', target: email.toLowerCase(), status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, meta: { role: row.role, from: cloneSrc?.email, data: dataAccess } });
       if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not create the login.' }); setBusy(false); return; }
@@ -405,7 +418,7 @@ export function UserMasterView() {
         if (editing) {
           return (
             <SelectPicker value={String(draftOf(r).role ?? '')} placeholder="— no role —"
-              onChange={(v) => setField(r, 'role', v)}
+              onChange={(v) => setField(r, 'role', v)} disabled={!mayAccess}
               options={roleOptions} />
           );
         }
@@ -457,10 +470,10 @@ export function UserMasterView() {
         return (
           <div className="row" style={{ gap: 4 }} onClick={(e) => e.stopPropagation()}>
             <button className="btn btn-sm btn-ghost" title="Open the full form" onClick={() => openEdit(r)}>⋯</button>
-            <button className="btn btn-sm" title={prof ? 'Role & permissions' : 'They must sign in before permissions can be set'}
-              disabled={!prof} onClick={() => prof && setAccessFor(prof)}>🔐</button>
-            <button className="btn btn-sm" title={prof ? 'Clone this user’s role & permissions to a new login' : 'They must sign in before they can be cloned'}
-              disabled={!prof} onClick={() => prof && openClone(prof)}>⧉ Clone</button>
+            {mayAccess && <button className="btn btn-sm" title={prof ? 'Role & permissions' : 'They must sign in before permissions can be set'}
+              disabled={!prof} onClick={() => prof && setAccessFor(prof)}>🔐</button>}
+            {mayCreate && mayAccess && <button className="btn btn-sm" title={prof ? 'Clone this user’s role & permissions to a new login' : 'They must sign in before they can be cloned'}
+              disabled={!prof} onClick={() => prof && openClone(prof)}>⧉ Clone</button>}
             <button className="btn btn-sm" title={prof ? 'See everything this user entered' : 'They must sign in first'}
               disabled={!prof} onClick={() => prof && setDataFor(prof)}>📊</button>
           </div>
@@ -576,7 +589,7 @@ export function UserMasterView() {
             actually have. A role set here only reaches the sign-in when the row
             is saved — a bulk import of this directory does not.
           </span>
-          {editable && (
+          {mayAccess && (
             <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => void applyRoleDrift()}>
               Apply this list's role to {roleDrift.length === 1 ? 'it' : 'them'}
             </button>
@@ -657,7 +670,7 @@ export function UserMasterView() {
           {edit.id === 0 && (
             <div className="rep-form" style={{ marginBottom: 8 }}>
               <label className="row" style={{ gap: 8, alignItems: 'center' }}>
-                <input type="checkbox" checked={mkLogin} onChange={(e) => setMkLogin(e.target.checked)} />
+                <input type="checkbox" checked={mkLogin} disabled={!mayCreate} onChange={(e) => setMkLogin(e.target.checked)} />
                 <b>Create a sign-in login now</b>
               </label>
               {mkLogin && (
@@ -761,22 +774,22 @@ export function UserMasterView() {
               {/* Actions at the top */}
               <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
                 {editable && <button className="btn btn-sm btn-primary" onClick={() => { setViewRow(null); openEdit(r); }}>✏️ Edit</button>}
-                {editable && prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); setAccessFor(prof); }}>🔐 Access</button>}
-                {editable && prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); openClone(prof); }}>⧉ Clone</button>}
-                {editable && prof && (
+                {mayAccess && prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); setAccessFor(prof); }}>🔐 Access</button>}
+                {mayCreate && mayAccess && prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); openClone(prof); }}>⧉ Clone</button>}
+                {isAdmin && prof && (
                   <button className="btn btn-sm" disabled={busy} title="Generate a new password and show it once, to pass on"
                     onClick={() => void resetPassword(r.email || prof.email, r.name || prof.fullName)}>
                     🔑 Reset password
                   </button>
                 )}
                 {prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); setDataFor(prof); }}>📊 Data</button>}
-                {editable && prof && (
+                {mayDisable && prof && (
                   <button className={`btn btn-sm ${prof.active === false ? '' : 'btn-danger'}`} disabled={busy}
                     onClick={() => { setViewRow(null); void toggleActive(prof); }}>
                     {prof.active === false ? '🔓 Enable login' : '🔒 Disable login'}
                   </button>
                 )}
-                {editable && <button className="btn btn-sm btn-danger" disabled={busy} title="Remove this User Master entry" onClick={() => void removeRow(r)}>🗑 Delete</button>}
+                {mayDisable && <button className="btn btn-sm btn-danger" disabled={busy} title="Remove this User Master entry" onClick={() => void removeRow(r)}>🗑 Delete</button>}
               </div>
               {prof?.active === false && <div className="sheet-banner sheet-banner-info" style={{ marginBottom: 8 }}><span>🔒 This login is <b>disabled</b> — they cannot sign in, but all their records are kept.</span></div>}
               {!prof && <div className="muted rep-hint">This person has not signed in yet, so there is no login to set permissions on, clone, or report data for. Set their role above; it applies when they first sign in.</div>}
@@ -953,6 +966,9 @@ function UserForm({ row, busy, signedInRole, names, regions, departments, roleOp
   roleOptions: { value: string; label: string }[];
   onChange: (r: DirectoryRow) => void; onCancel: () => void; onSave: () => void;
 }) {
+  // The role is "Assign roles & grant permissions" (0286's ud_role_guard).
+  const { can } = useAuth();
+  const mayAccess = supabaseConfigured() && can('users.manage.access');
   const set = <K extends keyof DirectoryRow>(k: K, v: DirectoryRow[K]) => onChange({ ...row, [k]: v });
   // A DATALIST, NOT A SELECT. A select would refuse anything not already in the
   // directory; this suggests and gets out of the way — the same shape the call
@@ -1002,7 +1018,7 @@ function UserForm({ row, busy, signedInRole, names, regions, departments, roleOp
         <label className="rep-field">
           <span className="field-label">Role</span>
           <SelectPicker value={row.role} onChange={(v) => set('role', v)} placeholder="— no role —"
-            options={roleOptions} />
+            options={roleOptions} disabled={!mayAccess} />
         </label>
         <label className="rep-field">
           <span className="field-label">Active</span>

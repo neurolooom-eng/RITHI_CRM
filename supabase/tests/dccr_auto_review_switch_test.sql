@@ -13,7 +13,11 @@
 --      is not stamped with the uploader, and raises no FFR;
 --   6. a non-administrator cannot mark a review imported to dodge the FFR rule;
 --   7. an FFR raised from a review has its CAPA fields blank;
---   8. a Review 2 a person has part-answered is never overwritten by the rule.
+--   8. a Review 2 a person has part-answered is never overwritten by the rule;
+--   9. it is held by ROLE (0285): an NSM and a Technical Support user holding
+--      nothing of their own can switch it, a Zoho Migration user cannot, and
+--      0269's grant to a person by name is taken back while a grant an
+--      administrator gave somebody else is kept.
 --
 -- Run ONCE after _stub.sql + every migration.
 -- Every error printed is labelled `expect ERROR` -- anything else is a failure.
@@ -27,7 +31,7 @@ insert into auth.users (id, email) values
   ('02670000-0000-0000-0000-000000000003', 'dccr-admin@x.com')
 on conflict do nothing;
 insert into public.profiles (id, email, full_name, role, extra_permissions) values
-  ('02670000-0000-0000-0000-000000000001', 'bagya@x.com',      'M Bagyaraj', 'nsm',     '["review.auto"]'),
+  ('02670000-0000-0000-0000-000000000001', 'bagya@x.com',      'M Bagyaraj', 'nsm',     '[]'),
   ('02670000-0000-0000-0000-000000000002', 'opener@x.com',     'The Opener', 'hotline', '[]'),
   ('02670000-0000-0000-0000-000000000003', 'dccr-admin@x.com', 'DCCR Admin', 'admin',   '[]')
 on conflict (id) do update set role = excluded.role, extra_permissions = excluded.extra_permissions;
@@ -185,4 +189,56 @@ begin
     raise exception 'CAPA should start blank, got % / % / %', r.capa_responsibility, r.capa_no, r.capa_status;
   end if;
   raise notice 'ok: imported flag discarded, FFR raised with CAPA blank and status %', r.ffr_status;
+end $$;
+
+\echo ''
+\echo '--- 9. held by role: NSM and Technical Support may switch it, Zoho Migration may not; the by-name grant is taken back ---'
+insert into auth.users (id, email) values
+  ('02670000-0000-0000-0000-000000000011', 'ts@x.com'),
+  ('02670000-0000-0000-0000-000000000012', 'zoho@x.com'),
+  ('02670000-0000-0000-0000-000000000013', 'vig@x.com'),
+  ('02670000-0000-0000-0000-000000000014', 'given@x.com')
+on conflict do nothing;
+insert into public.profiles (id, email, full_name, role, extra_permissions) values
+  ('02670000-0000-0000-0000-000000000011', 'ts@x.com',    'Tech Support', 'technical_support', '[]'),
+  ('02670000-0000-0000-0000-000000000012', 'zoho@x.com',  'Zoho Person',  'zoho_migration',    '[]'),
+  ('02670000-0000-0000-0000-000000000013', 'vig@x.com',   'Vignesh T',    'engineer',          '["review.auto"]'),
+  ('02670000-0000-0000-0000-000000000014', 'given@x.com', 'Given By Hand','engineer',          '["review.auto"]')
+on conflict (id) do update set role = excluded.role, extra_permissions = excluded.extra_permissions;
+insert into public.user_directory (name, email) values ('Vignesh T', 'vig@x.com'), ('Given By Hand', 'given@x.com');
+
+call public.be('ts@x.com');
+set role authenticated;
+select 'switched on by technical support' as check, enabled, by_name from public.set_auto_review(true);
+reset role;
+
+call public.be('zoho@x.com');
+set role authenticated;
+\echo 'expect ERROR: RBAC, Zoho Migration does not hold review.auto'
+select * from public.set_auto_review(false);
+reset role;
+
+-- The nsm row holds it through the role, whatever Bagyaraj holds of his own.
+call public.be('bagya@x.com');
+set role authenticated;
+select 'switched off by nsm' as check, enabled, by_name from public.set_auto_review(false);
+reset role;
+
+-- Re-running 0285 takes back what 0269 gave by name, and nothing else.
+\ir ../migrations/0285_auto_review_by_role.sql
+do $$
+declare v text; g text;
+begin
+  select extra_permissions::text into v from public.profiles where email = 'vig@x.com';
+  select extra_permissions::text into g from public.profiles where email = 'given@x.com';
+  if v is distinct from '[]' then raise exception 'the by-name grant was not taken back: %', v; end if;
+  if g is distinct from '["review.auto"]' then raise exception 'a grant given by hand was taken: %', g; end if;
+  if exists (select 1 from public.app_roles where role = 'zoho_migration' and permissions ? 'review.auto') then
+    raise exception 'Zoho Migration was given review.auto';
+  end if;
+  if exists (select 1 from public.app_roles where role in ('admin', 'nsm', 'technical_support')
+              and jsonb_array_length(permissions) > 0 and not (permissions ? 'review.auto')) then
+    raise exception 'a configured Admin, NSM or Technical Support row lacks review.auto';
+  end if;
+  raise notice 'ok: role grant in place, by-name grant taken back, a hand grant kept';
 end $$;

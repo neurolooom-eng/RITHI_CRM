@@ -1,3 +1,4 @@
+import { callFamily } from './calltype';
 // ---------------------------------------------------------------------------
 // Role-Based Access Control (RBAC).
 // Roles, the canonical action list (functional actions + one per module), and
@@ -182,7 +183,6 @@ export const MODULES: ModuleDef[] = [
   // half, because on a project in use a code default reaches nobody.
   { path: '/missing-visit-reports', label: 'Solved Without a Report', admin: true },
   { path: '/tracker', label: 'Tracker' },
-  { path: '/users', label: 'User Access', admin: true },
   { path: '/roles', label: 'Roles & Permissions', admin: true },
   { path: '/audit', label: 'Audit Log', admin: true },
   { path: '/admin-config', label: 'Admin Config', admin: true },
@@ -211,13 +211,13 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'calls.view', label: 'View calls' },
   { group: 'Calls', key: 'calls.create', label: 'Create / register calls' },
   { group: 'Calls', key: 'install.create', label: 'Create installation calls (Commercial)' },
-  { group: 'Calls', key: 'calls.edit', label: 'Edit calls' },
+  { group: 'Calls', key: 'calls.edit', label: 'Edit Field calls (all sections)' },
   // MOVING A CALL TO ANOTHER ENGINEER is its own right, not a corner of "Edit
   // calls". It was bundled there, so it could not be granted to a manager who
   // should not be editing the rest of the call, nor withheld from one who
   // should — and it appeared nowhere on this screen, so "where is
   // re-allocation?" had no answer to find (reported 2026-09-06).
-  { group: 'Calls', key: 'calls.allot', label: 'Re-allocate a call to another engineer' },
+  { group: 'Calls', key: 'calls.allot', label: 'Re-allocate a Field call to another engineer' },
   // "EDIT" IS NOT ONE THING. It let anybody who could correct a customer's
   // phone number also rewrite the machine, the complaint and the vigilance
   // answers. The Hotline desk does need all of that; a manager needs almost
@@ -231,12 +231,23 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'calls.edit.customer', label: ' Edit customer & product (party, city, product, serial)' },
   { group: 'Calls', key: 'calls.edit.vigilance', label: ' Edit the vigilance answers (health threat, death, incident)' },
   { group: 'Calls', key: 'calls.edit.contact', label: ' Edit customer contact details (name, number, designation)' },
-  { group: 'Calls', key: 'calls.report', label: 'Report / update calls' },
-  { group: 'Calls', key: 'calls.cancel', label: 'Cancel a call (and restore it)' },
+  { group: 'Calls', key: 'calls.report', label: 'Report / update Field calls (all of the below)' },
+  // THE PARTS OF REPORTING A VISIT (finding 67, the user: "Break it down").
+  // `calls.report` is their PARENT, as `calls.edit` is of the sections: a role
+  // holding it keeps all three until an administrator unticks it and picks.
+  // Spares and feedback are the same act on every register, so they are one
+  // key each, children of all three registers' report keys (perm_parents, 0286).
+  { group: 'Calls', key: 'calls.report.visit', label: ' File a visit on a Field call' },
+  { group: 'Calls', key: 'visit.spares', label: ' Book spares used on a visit (any register)' },
+  { group: 'Calls', key: 'visit.feedback', label: ' Record customer feedback on a visit (any register)' },
+  { group: 'Calls', key: 'calls.cancel', label: 'Cancel a Field call (and restore it)' },
+  // RE-OPENING is its own tick (finding 63): it was "calls.create or
+  // pending.register", shown on no row. Copied from those two by 0298.
+  { group: 'Calls', key: 'calls.reopen', label: 'Re-open, close or close again a Field call' },
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
-  // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269). Its answers carry the name of
-  // whoever switched it on, so it is a person's right, not a role's: the
-  // migration gives it to Bagyaraj and Vignesh by name; anybody else is given
+  // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269, 0285). Its answers carry the
+  // name of whoever switched it on. Held by ROLE -- Admin, NSM and Technical
+  // Support (0285, which replaced 0269's two names); anybody else can be given
   // it on User Master -> Access.
   { group: 'Calls', key: 'review.auto', label: 'Switch auto review on or off (Review 2 answered No in your name)' },
   // A SECOND review, on the REPORT rather than the failure -- so a separate
@@ -254,6 +265,32 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // to call visibility instead.
   { group: 'Calls', key: 'ffr.view', label: 'Read the whole Field Failure Register' },
   { group: 'Calls', key: 'ffr.manage', label: 'Raise and complete a Field Failure Report' },
+  // INSTALLATION AND PM CALLS HAVE KEYS OF THEIR OWN (findings 63/64, the user,
+  // 2026-09-30: "It should show the Individual View's Control Action and its
+  // Check Box"). They were governed by the Field Call keys and showed none, so
+  // an administrator could neither see nor separate them. 0298 copied today's
+  // grants across, so nobody gained or lost anything the day they appeared.
+  { group: 'Installation Calls', key: 'install.edit', label: 'Edit installation calls (all sections)' },
+  { group: 'Installation Calls', key: 'install.edit.complaint', label: ' Edit the complaint' },
+  { group: 'Installation Calls', key: 'install.edit.customer', label: ' Edit customer & product' },
+  { group: 'Installation Calls', key: 'install.edit.vigilance', label: ' Edit the vigilance answers' },
+  { group: 'Installation Calls', key: 'install.edit.contact', label: ' Edit customer contact details' },
+  { group: 'Installation Calls', key: 'install.allot', label: 'Re-allocate an installation call' },
+  { group: 'Installation Calls', key: 'install.report', label: 'Report / update installation calls (all of the below)' },
+  { group: 'Installation Calls', key: 'install.report.visit', label: ' File a visit on an installation call' },
+  { group: 'Installation Calls', key: 'install.cancel', label: 'Cancel an installation call (and restore it)' },
+  { group: 'Installation Calls', key: 'install.reopen', label: 'Re-open, close or close again an installation call' },
+  { group: 'PM Calls', key: 'pm.create', label: 'Create PM calls' },
+  { group: 'PM Calls', key: 'pm.edit', label: 'Edit PM calls (all sections)' },
+  { group: 'PM Calls', key: 'pm.edit.complaint', label: ' Edit the complaint' },
+  { group: 'PM Calls', key: 'pm.edit.customer', label: ' Edit customer & product' },
+  { group: 'PM Calls', key: 'pm.edit.vigilance', label: ' Edit the vigilance answers' },
+  { group: 'PM Calls', key: 'pm.edit.contact', label: ' Edit customer contact details' },
+  { group: 'PM Calls', key: 'pm.allot', label: 'Re-allocate a PM call' },
+  { group: 'PM Calls', key: 'pm.report', label: 'Report / update PM calls (all of the below)' },
+  { group: 'PM Calls', key: 'pm.report.visit', label: ' File a visit on a PM call' },
+  { group: 'PM Calls', key: 'pm.cancel', label: 'Cancel a PM call (and restore it)' },
+  { group: 'PM Calls', key: 'pm.reopen', label: 'Re-open, close or close again a PM call' },
   { group: 'Requests', key: 'request.create', label: 'Raise call requests' },
   { group: 'Requests', key: 'pending.register', label: 'Register pending (Hotline)' },
   { group: 'Spares', key: 'spare.request', label: 'Request spares' },
@@ -264,6 +301,10 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'spare.drop', label: 'Drop a spare (any stage)' },
   { group: 'Spares', key: 'spare.receive', label: 'Acknowledge spare receipt' },
   { group: 'Spares', key: 'stock.return', label: 'Return spares to Stores (MRN)' },
+  // Returning stock IN ANOTHER ENGINEER'S NAME (finding 64): the screen asked
+  // users.manage / dispatch / RM approval, the database any approval stage or
+  // dispatch. One key now, copied from what the database asked (0298).
+  { group: 'Spares', key: 'stock.return.others', label: 'Return stock in another engineer\u2019s name' },
   // INDOOR SERVICE — five rights, because the procedure separates the roles.
   // `indoor.qc` being its own right is the one that matters: it is what allows
   // the quality check of 4.5.6 to be somebody other than the person who did the
@@ -282,18 +323,47 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'consumption.reconcile', label: 'Add consumption against a call (reconciliation)' },
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
   { group: 'Masters', key: 'masters.view', label: 'View masters' },
-  { group: 'Masters', key: 'masters.edit', label: 'Edit masters' },
-  { group: 'Masters', key: 'cover.edit', label: 'Edit sales / warranties / contracts' },
+  { group: 'Masters', key: 'masters.edit', label: 'Edit masters (all of the below)' },
+  // THE PARTS OF "EDIT MASTERS" (finding 67). Its children, so a role holding
+  // it keeps all four; untick it and pick to separate them. KYC and the part
+  // rename were the two nobody could withhold from a master editor.
+  { group: 'Masters', key: 'masters.edit.records', label: ' Add / edit master records (parties, parts, products, lists)' },
+  { group: 'Masters', key: 'masters.edit.kyc', label: ' Verify a party\u2019s KYC' },
+  { group: 'Masters', key: 'masters.edit.rename_part', label: ' Rename a part (moves every record that names it)' },
+  { group: 'Masters', key: 'masters.edit.swap_serviceman', label: ' Swap the Serviceman on every party at once' },
+  { group: 'Masters', key: 'cover.edit', label: 'Edit sales / warranties (all of the below)' },
+  { group: 'Masters', key: 'cover.edit.entries', label: ' Add / edit warranty entries and their machines' },
+  { group: 'Masters', key: 'cover.edit.delete', label: ' Delete a whole warranty entry with its machines' },
+  // THE CONTRACT REGISTER'S OWN (finding 63): it was governed by cover.edit and
+  // its row showed nothing. Copied from cover.edit by 0298.
+  { group: 'Masters', key: 'contract.edit', label: 'Edit contracts (all of the below)' },
+  { group: 'Masters', key: 'contract.edit.entries', label: ' Add / edit contract entries and their machines' },
+  { group: 'Masters', key: 'contract.edit.delete', label: ' Delete a whole contract entry with its machines' },
+  { group: 'Masters', key: 'pd2.rebuild', label: 'Rebuild Product Database 2.0' },
   { group: 'Masters', key: 'ownership.transfer', label: 'Transfer a machine between customers' },
   { group: 'Documents', key: 'docs.manage', label: 'Add / edit service manuals' },
   { group: 'Documents', key: 'qms.manage', label: 'Add / edit QMS documents' },
   { group: 'Documents', key: 'training.manage', label: 'Manage training — assign, record sessions, see everyone\'s training and R&R' },
   { group: 'Analytics', key: 'reports.view', label: 'View reports' },
-  { group: 'Analytics', key: 'dashboard.view', label: 'View dashboard' },
   { group: 'Analytics', key: 'feedback.view', label: 'View feedback' },
   { group: 'Analytics', key: 'export.data', label: 'Export / download CSV' },
-  { group: 'Admin', key: 'users.manage', label: 'Manage users' },
-  { group: 'Admin', key: 'config.manage', label: 'Admin config' },
+  { group: 'Admin', key: 'users.manage', label: 'Manage users (all of the below)' },
+  // THE PARTS OF "MANAGE USERS" (finding 67). Creating a login no longer
+  // carries the right to decide what that login may do. Resetting a password
+  // is not here: the database keeps it an administrator's (shown greyed).
+  { group: 'Admin', key: 'users.manage.details', label: ' Edit User Master details, profiles and R&R' },
+  { group: 'Admin', key: 'users.manage.create', label: ' Create logins (a new login is an Engineer; any other role needs the tick below)' },
+  { group: 'Admin', key: 'users.manage.disable', label: ' Disable or delete logins' },
+  { group: 'Admin', key: 'users.manage.access', label: ' Assign roles & grant permissions' },
+  { group: 'Admin', key: 'users.manage.settings', label: ' Change the Settings page (connections, templates)' },
+  { group: 'Admin', key: 'config.manage', label: 'Admin config (SLA targets, Call Registration desk, Frequent Failure rule)' },
+  // SCREENS THAT BORROWED config.manage get keys of their own (finding 63);
+  // 0298 copied each from config.manage, which the database asked for.
+  { group: 'Admin', key: 'objective.manage', label: 'Edit, recalculate and cut off the quality objectives' },
+  { group: 'Admin', key: 'charts.share', label: 'Share a chart with a role or with everyone' },
+  { group: 'Admin', key: 'validation.manage', label: 'Record software validation results' },
+  { group: 'Admin', key: 'layouts.share', label: 'Save a table layout for everyone or for a role' },
+  { group: 'Admin', key: 'tracker.delete', label: 'Delete a Tracker item' },
   { group: 'Admin', key: 'rbac.manage', label: 'Manage roles & permissions' },
   { group: 'Admin', key: 'audit.view', label: 'View audit log' },
   // SEEING AN ADMIN PAGE IS NOT RUNNING IT. The administration screens gated
@@ -328,7 +398,7 @@ export const legacyToRbac = (role: string): string =>
 // non-admin modules by default (admins remove what a role shouldn't see).
 const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   admin: FUNCTIONAL_ACTIONS.map((a) => a.key),
-  // TECHNICAL SUPPORT — READ ONLY, and the list is written out rather than
+  // TECHNICAL SUPPORT — READ ONLY but for the Auto Review switch, and the list is written out rather than
   // filtered by a name pattern: `.view` is not what makes an action safe.
   // `consumption.reconcile` and `ownership.transfer` do not say "edit" either,
   // and a rule that goes by the key's spelling would hand over both the day
@@ -337,24 +407,25 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   // `data.view_all` is what makes the rest of it useful: without it the role
   // sees every PAGE and, on the call pages, only its own rows -- which for a
   // support login is nothing at all.
+  // ONE EXCEPTION, added below the Zoho clone: review.auto (0285).
   technical_support: ['calls.view', 'masters.view', 'consumption.view', 'reports.view',
-                      'dashboard.view', 'feedback.view', 'audit.view', 'admin.view',
+                      'feedback.view', 'audit.view', 'admin.view',
                       'export.data', 'data.view_all'],
   // NSM HOLDS THE KEY BY NAME. The module is marked `admin: true` so it stays
   // out of NON_ADMIN_MODULES, which would otherwise hand it to all twelve
   // roles; that leaves admin, technical_support and zoho_migration (the three
   // in SEES_EVERY_MODULE), and the user asked for NSM as well.
-  nsm: ['mod:/knowledge-base/how-it-works', 'ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit', 'indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch'],
-  rgm: ['ffr.view', 'ffr.manage', 'calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
-  rm: ['ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
+  nsm: ['mod:/knowledge-base/how-it-works', 'ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'feedback.view', 'spare.approve_nsm', 'review.edit', 'indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch'],
+  rgm: ['ffr.view', 'ffr.manage', 'calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'feedback.view', 'review.edit'],
+  rm: ['ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'feedback.view', 'review.edit'],
   // Engineers: view + report their calls; no create/edit, no spare requests.
-  engineer: ['calls.view', 'calls.report', 'request.create', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
+  engineer: ['calls.view', 'calls.report', 'request.create', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view'],
   // Hotline: register/create calls; no spare requests. May drop a spare.
-  hotline: ['ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'ownership.transfer', 'calls.create', 'install.create', 'calls.edit', 'calls.allot', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'consumption.view', 'consumption.reconcile', 'masters.view', 'dashboard.view', 'review.edit'],
-  spare_coordinator: ['calls.view', 'docs.manage', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'consumption.reconcile', 'reports.view', 'dashboard.view', 'indoor.receive', 'indoor.work', 'indoor.dispatch'],
-  stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view', 'indoor.receive', 'indoor.work', 'indoor.dispatch'],
-  tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
-  commercial: ['calls.view', 'ownership.transfer', 'install.create', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial', 'cover.edit', 'review.edit'],
+  hotline: ['ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'ownership.transfer', 'calls.create', 'install.create', 'calls.edit', 'calls.allot', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'consumption.view', 'consumption.reconcile', 'masters.view', 'review.edit'],
+  spare_coordinator: ['calls.view', 'docs.manage', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'consumption.reconcile', 'reports.view', 'indoor.receive', 'indoor.work', 'indoor.dispatch'],
+  stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'indoor.receive', 'indoor.work', 'indoor.dispatch'],
+  tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view'],
+  commercial: ['calls.view', 'ownership.transfer', 'install.create', 'consumption.view', 'reports.view', 'feedback.view', 'masters.view', 'spare.approve_commercial', 'cover.edit', 'review.edit'],
 };
 
 // CLONED FROM TECHNICAL SUPPORT, by reference rather than by a second copy of
@@ -363,6 +434,14 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
 // means a change to one is a change to both. `export.data` is the permission
 // doing the actual work.
 FUNCTIONAL_DEFAULTS.zoho_migration = [...FUNCTIONAL_DEFAULTS.technical_support];
+
+// WHO MAY SWITCH AUTO REVIEW IS A ROLE (0285, the user, 2026-09-30: "instead of
+// hard coded names, can u change it to role - Admin, NSM, Technical Support").
+// Admin already holds every functional action. Added AFTER the Zoho clone so
+// that role does not inherit it: for Technical Support it is the ONE write the
+// role holds, given knowingly ("Yes, include it"), not a widening to copy.
+FUNCTIONAL_DEFAULTS.technical_support.push('review.auto');
+FUNCTIONAL_DEFAULTS.nsm.push('review.auto');
 
 // Everyone but a plain engineer can export / download data by default.
 // (admin already has every functional action, so it is covered.)
@@ -374,12 +453,54 @@ FUNCTIONAL_DEFAULTS.zoho_migration = [...FUNCTIONAL_DEFAULTS.technical_support];
 // "map this role to all modules" is the whole point of it -- and stays read-only
 // because of what it does NOT hold above, not because a page is hidden from it.
 const SEES_EVERY_MODULE = new Set(['admin', 'technical_support', 'zoho_migration']);
+
+// THE PER-SCREEN KEYS, COPIED FROM THE KEY EACH REPLACES (findings 63/64).
+// The SAME list 0298_permission_grants_copied.sql applied once to the stored
+// roles and people; applied here to the defaults, so a role that has never
+// been configured reads exactly as a configured one did. `check:ui` compares
+// the two lists pair by pair.
+export const PERM_COPIES: [string, string[]][] = [
+  ['install.edit', ['calls.edit']],
+  ['install.edit.complaint', ['calls.edit.complaint']],
+  ['install.edit.customer', ['calls.edit.customer']],
+  ['install.edit.vigilance', ['calls.edit.vigilance']],
+  ['install.edit.contact', ['calls.edit.contact']],
+  ['install.allot', ['calls.allot']],
+  ['install.report', ['calls.report']],
+  ['install.cancel', ['calls.cancel']],
+  ['install.reopen', ['calls.create', 'pending.register']],
+  ['pm.create', ['calls.create']],
+  ['pm.edit', ['calls.edit']],
+  ['pm.edit.complaint', ['calls.edit.complaint']],
+  ['pm.edit.customer', ['calls.edit.customer']],
+  ['pm.edit.vigilance', ['calls.edit.vigilance']],
+  ['pm.edit.contact', ['calls.edit.contact']],
+  ['pm.allot', ['calls.allot']],
+  ['pm.report', ['calls.report']],
+  ['pm.cancel', ['calls.cancel']],
+  ['pm.reopen', ['calls.create', 'pending.register']],
+  ['calls.reopen', ['calls.create', 'pending.register']],
+  ['contract.edit', ['cover.edit']],
+  ['tracker.delete', ['mod:/tracker']],
+  ['objective.manage', ['config.manage']],
+  ['charts.share', ['config.manage']],
+  ['validation.manage', ['config.manage']],
+  ['layouts.share', ['config.manage']],
+  ['pd2.rebuild', ['masters.edit', 'cover.edit']],
+  ['stock.return.others', ['spare.approve_rm', 'spare.approve_commercial', 'spare.approve_nsm', 'spare.dispatch']],
+];
+const withCopies = (keys: string[]): string[] => {
+  const out = [...keys];
+  for (const [key, from] of PERM_COPIES) if (!out.includes(key) && from.some((k) => out.includes(k))) out.push(key);
+  return out;
+};
+
 export const DEFAULT_PERMS: Record<string, string[]> = Object.fromEntries(
   ROLE_KEYS.map((role) => [
     role,
-    SEES_EVERY_MODULE.has(role)
+    withCopies(SEES_EVERY_MODULE.has(role)
       ? [...(FUNCTIONAL_DEFAULTS[role] ?? []), ...ALL_MODULES]
-      : [...(FUNCTIONAL_DEFAULTS[role] ?? FUNCTIONAL_DEFAULTS.engineer), ...NON_ADMIN_MODULES],
+      : [...(FUNCTIONAL_DEFAULTS[role] ?? FUNCTIONAL_DEFAULTS.engineer), ...NON_ADMIN_MODULES]),
   ]),
 );
 void ADMIN_MODULES;
@@ -446,7 +567,12 @@ export const permsForRole = (role: string, config: Record<string, string[]>): st
 // `view` is always the module's own mod: key, kept separate from the actions so
 // seeing a page and acting on it are granted independently.
 // ---------------------------------------------------------------------------
-export interface PermPage { path: string; label: string; actions: string[] }
+// `adminOnly` (finding 65, the user: "Add those to the Roles & Permissions,
+// only because I should know that they exist; it can still be greyed out for
+// Checking or Un-Checking"): things on the page ONLY an administrator can do,
+// shown on its row, ticked for Admin, disabled for everybody. Not keys --
+// nothing reads them -- so they are never stored.
+export interface PermPage { path: string; label: string; actions: string[]; adminOnly?: string[] }
 // `lists: true` — the header also carries one page per master value list, read
 // from the registry at render time so a list added later needs no code change.
 export interface PermHeaderOpts { lists?: boolean }
@@ -468,22 +594,23 @@ export const PERM_TREE: PermHeader[] = [
   // header each page sits under, the order of headers and of pages, the label,
   // and whether a migration ever grants the key.
   { title: 'Overview', pages: [
-    { path: '/', label: 'Dashboard', actions: ['dashboard.view'] },
+    { path: '/', label: 'Dashboard', actions: [] },
     // NO ACTIONS OF ITS OWN. The page reads seven registers and shows a
     // section only where the reader already holds that register's key, so the
     // authority it needs is entirely theirs — granting `mod:/workload` adds
     // reach to nothing.
     { path: '/workload', label: 'My Workload', actions: [] },
-    { path: '/lookup', label: 'Product & Party Search', actions: ['masters.view', 'calls.create'] },
+    { path: '/lookup', label: 'Product & Party Search', actions: ['calls.create'] },
     // MOVED HERE WITH THE MENU (2026-09-14). It had a header of its own while
     // it sat under Reports; leaving that header behind after the screen moved
     // is how an administrator looks for it under Overview, does not find it,
     // and grants nothing. `check:ui` compares the two now, which is what the
     // comment above claimed and nothing did.
-    { path: '/machine-history', label: 'Machine History', actions: [] },
+    { path: '/machine-history', label: 'Machine History', actions: ['masters.view'] },
   ] },
   { title: 'Quality & Analytics', pages: [
-    { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', actions: ['review.edit', 'review.auto'] },
+    { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', actions: ['review.edit', 'review.auto', 'ffr.manage'],
+      adminOnly: ['Correct the date a review was completed'] },
     { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.view', 'ffr.manage'] },
     // MOVED HERE FROM OVERVIEW WITH THE MENU (the user, 2026-09-15). The
     // header follows the menu because that is where an administrator looks
@@ -492,19 +619,20 @@ export const PERM_TREE: PermHeader[] = [
     // needed — unlike a rename, where the key IS the route and must move.
     // READ-ONLY, and it holds no action of its own: it analyses the review
     // register, which `call_reviews_read` already opens to any signed-in user.
-    { path: '/product-failure', label: 'Product Failure Analysis', actions: [] },
+    { path: '/product-failure', label: 'Product Failure Analysis', actions: ['charts.share'] },
     { path: '/kpi', label: 'KPI & Failure Analysis', actions: [] },
     { path: '/spare-insights', label: 'Spare Insights', actions: ['consumption.view'] },
-    { path: '/objective', label: 'Objective', actions: [] },
+    { path: '/objective', label: 'Objective', actions: ['objective.manage', 'reports.view'],
+      adminOnly: ['Lock a month\u2019s cut-off date'] },
   ] },
   { title: 'Documents', pages: [
     { path: '/qms', label: 'QMS Documents', actions: ['qms.manage'] },
     { path: '/training', label: 'Training', actions: ['training.manage'] },
   ] },
   { title: 'Contracts & Warranty', pages: [
-    { path: '/warranties', label: 'Warranty Register', actions: ['cover.edit'] },
-    { path: '/contracts', label: 'Contract Register', actions: [] },
-    { path: '/ownership-transfer', label: 'Ownership Transfer', actions: ['ownership.transfer', 'cover.edit'] },
+    { path: '/warranties', label: 'Warranty Register', actions: ['masters.view', 'cover.edit', 'cover.edit.entries', 'cover.edit.delete', 'calls.create', 'install.create'] },
+    { path: '/contracts', label: 'Contract Register', actions: ['masters.view', 'contract.edit', 'contract.edit.entries', 'contract.edit.delete', 'calls.create'] },
+    { path: '/ownership-transfer', label: 'Ownership Transfer', actions: ['ownership.transfer', 'cover.edit.entries'] },
   ] },
   // KNOWLEDGE BASE, WHICH THE MATRIX DID NOT HAVE AT ALL until 2026-09-14.
   // Service Manuals sat under Documents here while the MENU put it under
@@ -527,24 +655,25 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/service-manuals/notes', label: 'Technical / Service Notes', actions: ['docs.manage'] },
   ] },
   { title: 'Service Calls', pages: [
-    { path: '/request-registration', label: 'Request Registration', actions: ['request.create'] },
-    { path: '/pending-registrations', label: 'Pending Registrations', actions: ['pending.register'] },
-    { path: '/field-calls', label: 'Field Call Register', actions: ['calls.view', 'calls.create', 'calls.edit', 'calls.edit.complaint', 'calls.edit.customer', 'calls.edit.vigilance', 'calls.edit.contact', 'calls.allot', 'calls.report', 'calls.cancel'] },
-    { path: '/installations', label: 'Installation Calls', actions: ['install.create'] },
-    { path: '/pm-calls', label: 'Preventive (PM)', actions: [] },
-    { path: '/pending-calls', label: 'Pending Calls', actions: [] },
-    { path: '/reports', label: 'Visit Reports / Service Reports', actions: ['reports.view'] },
-    { path: '/call-review', label: 'Call Review', actions: ['callreview.mark'] },
+    { path: '/request-registration', label: 'Request Registration', actions: ['request.create', 'calls.create', 'pending.register'] },
+    { path: '/pending-registrations', label: 'Pending Registrations', actions: ['pending.register', 'calls.create', 'install.create', 'calls.edit', 'install.edit'] },
+    { path: '/field-calls', label: 'Field Call Register', actions: ['calls.view', 'calls.create', 'calls.edit', 'calls.edit.complaint', 'calls.edit.customer', 'calls.edit.vigilance', 'calls.edit.contact', 'calls.allot', 'calls.report', 'calls.report.visit', 'visit.spares', 'visit.feedback', 'calls.cancel', 'calls.reopen', 'spare.request', 'consumption.reconcile'] },
+    { path: '/installations', label: 'Installation Calls', actions: ['calls.view', 'install.create', 'install.edit', 'install.edit.complaint', 'install.edit.customer', 'install.edit.vigilance', 'install.edit.contact', 'install.allot', 'install.report', 'install.report.visit', 'visit.spares', 'visit.feedback', 'install.cancel', 'install.reopen', 'spare.request', 'consumption.reconcile'] },
+    { path: '/pm-calls', label: 'Preventive (PM)', actions: ['calls.view', 'pm.create', 'pm.edit', 'pm.edit.complaint', 'pm.edit.customer', 'pm.edit.vigilance', 'pm.edit.contact', 'pm.allot', 'pm.report', 'pm.report.visit', 'visit.spares', 'visit.feedback', 'pm.cancel', 'pm.reopen', 'spare.request', 'consumption.reconcile'] },
+    { path: '/pending-calls', label: 'Pending Calls', actions: ['calls.allot', 'install.allot', 'pm.allot'] },
+    { path: '/reports', label: 'Visit Reports / Service Reports', actions: ['calls.view'] },
+    { path: '/call-review', label: 'Call Review', actions: ['callreview.mark', 'consumption.reconcile', 'calls.reopen', 'install.reopen', 'pm.reopen'] },
     { path: '/feedback', label: 'Customer Feedback', actions: ['feedback.view'] },
   ] },
   { title: 'Spares', pages: [
-    { path: '/spare-requests', label: 'Spare Requests', actions: ['spare.request', 'spare.approve_rm', 'spare.approve_commercial', 'spare.approve_nsm', 'spare.drop', 'spare.receive'] },
+    { path: '/spare-requests', label: 'Spare Requests', actions: ['spare.request', 'spare.approve_rm', 'spare.approve_commercial', 'spare.approve_nsm', 'spare.dispatch', 'spare.drop', 'spare.receive'],
+      adminOnly: ['Change the engineer on a request'] },
     { path: '/spare-rm-approval', label: 'RM Approval', actions: ['spare.approve_rm'] },
-    { path: '/spare-dispatch', label: 'Pending Dispatch', actions: ['spare.dispatch'] },
+    { path: '/spare-dispatch', label: 'Pending Dispatch', actions: ['spare.dispatch', 'spare.drop'] },
     { path: '/stock-out', label: 'Stock Out', actions: [] },
     { path: '/spare-consumption', label: 'Spare Consumption', actions: ['consumption.view', 'consumption.reconcile'] },
-    { path: '/handstock', label: 'Hand Stock', actions: [] },
-    { path: '/mrn', label: 'Material Returns (MRN)', actions: ['stock.return'] },
+    { path: '/handstock', label: 'Hand Stock', actions: ['consumption.reconcile', 'stock.transfer'] },
+    { path: '/mrn', label: 'Material Returns (MRN)', actions: ['stock.return', 'stock.return.others'] },
     { path: '/stock-transfer', label: 'Stock Transfer', actions: ['stock.transfer'] },
   ] },
   // A HEADER OF ITS OWN, because the MENU has one (2026-09-08). The matrix is
@@ -559,11 +688,11 @@ export const PERM_TREE: PermHeader[] = [
     // The parent GRANTS ALL THREE below it, so a role that only needs one is
     // given that one and not this.
     { path: '/exports', label: 'Reports (all of them)', actions: [] },
-    { path: '/exports/consumption', label: '↳ Consumption Report', actions: [] },
+    { path: '/exports/consumption', label: '↳ Consumption Report', actions: ['reports.view'] },
     { path: '/exports/kpi', label: '↳ KPI Export', actions: [] },
-    { path: '/exports/unused', label: '↳ Not Consumed Against this Call', actions: [] },
-    { path: '/exports/calls', label: '↳ Call Report', actions: [] },
-    { path: '/exports/feedback', label: '↳ Customer Feedback Report', actions: [] },
+    { path: '/exports/unused', label: '↳ Not Consumed Against this Call', actions: ['reports.view'] },
+    { path: '/exports/calls', label: '↳ Call Report', actions: ['reports.view'] },
+    { path: '/exports/feedback', label: '↳ Customer Feedback Report', actions: ['feedback.view', 'visit.feedback'] },
     // NOT a child of /exports: it does not inherit, and it is administrators
     // only. Its position here matches the menu's, which is the half of this
     // that is easy to get wrong — a page filed under the wrong neighbour is
@@ -574,34 +703,38 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/handstock-report', label: 'Hand Stock Report', actions: [] },
   ] },
   { title: 'Master', lists: true, pages: [
-    { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },
-    { path: '/product-database', label: 'Product Database', actions: ['masters.view', 'calls.create'] },
-    { path: '/product-database-2', label: 'Product Database 2.0', actions: ['masters.view'] },
-    { path: '/product-master', label: 'Product Master (product lines)', actions: ['masters.view', 'masters.edit'] },
-    { path: '/user-master', label: 'User Master', actions: ['users.manage'] },
-    { path: '/parts', label: 'Part Master', actions: ['masters.view', 'masters.edit'] },
+    { path: '/parties', label: 'Party Master', actions: ['masters.edit', 'masters.edit.records', 'masters.edit.kyc', 'masters.edit.swap_serviceman'] },
+    { path: '/product-database', label: 'Product Database', actions: ['install.create'] },
+    { path: '/product-database-2', label: 'Product Database 2.0', actions: ['masters.view', 'pd2.rebuild'] },
+    { path: '/product-master', label: 'Product Master (product lines)', actions: [] },
+    { path: '/user-master', label: 'User Master', actions: ['users.manage', 'users.manage.details', 'users.manage.create', 'users.manage.disable', 'users.manage.access'],
+      adminOnly: ['Reset a password'] },
+    { path: '/parts', label: 'Part Master', actions: ['masters.edit', 'masters.edit.records', 'masters.edit.rename_part'] },
     // All Masters is just the overview screen; each value list is its own page
     // under this header, so access is given list by list.
-    { path: '/masters', label: 'All Masters (overview)', actions: ['masters.view', 'masters.edit'] },
+    { path: '/masters', label: 'All Masters (overview)', actions: ['masters.edit', 'masters.edit.records'] },
   ] },
   { title: 'Administration', pages: [
     { path: '/missing-visit-reports', label: 'Solved Without a Report', actions: [] },
-    { path: '/tracker', label: 'Tracker', actions: [] },
-    { path: '/users', label: 'User Access', actions: [] },
+    { path: '/tracker', label: 'Tracker', actions: ['tracker.delete'] },
     { path: '/roles', label: 'Roles & Permissions', actions: ['rbac.manage'] },
     { path: '/audit', label: 'Audit Log', actions: ['audit.view'] },
-    { path: '/bulk-uploads', label: 'Bulk Uploads', actions: [] },
-    { path: '/report-mapping', label: 'Bulk Report Mapping', actions: [] },
-    { path: '/data-export', label: 'Data Export', actions: [] },
+    { path: '/bulk-uploads', label: 'Bulk Uploads', actions: [],
+      adminOnly: ['Load any of the registers in bulk'] },
+    { path: '/report-mapping', label: 'Bulk Report Mapping', actions: ['calls.report.visit', 'install.report.visit', 'pm.report.visit'] },
+    { path: '/data-export', label: 'Data Export', actions: [],
+      adminOnly: ['Export whole tables', 'Create, pause or delete an export schedule'] },
     { path: '/device-cache', label: 'Device Cache Status', actions: [] },
-    { path: '/pm-bulk-upload', label: 'PM Bulk Upload', actions: [] },
-    { path: '/admin-config', label: 'Admin Config', actions: ['config.manage'] },
-    { path: '/software-validation', label: 'Software Validation', actions: ['config.manage'] },
-    { path: '/settings', label: 'Settings', actions: [] },
+    { path: '/pm-bulk-upload', label: 'PM Bulk Upload', actions: [],
+      adminOnly: ['Upload PM calls in bulk'] },
+    { path: '/admin-config', label: 'Admin Config', actions: ['config.manage'],
+      adminOnly: ['Load data through the Data Import panel', 'Switch Audit Mode on or off'] },
+    { path: '/software-validation', label: 'Software Validation', actions: ['validation.manage'] },
+    { path: '/settings', label: 'Settings', actions: ['users.manage.settings'] },
     { path: '/version-history', label: 'Version History', actions: [] },
   ] },
   { title: 'Across the system', pages: [
-    { path: '', label: 'Not tied to one page', actions: ['data.view_all', 'export.data', 'admin.view'] },
+    { path: '', label: 'Not tied to one page', actions: ['data.view_all', 'export.data', 'admin.view', 'layouts.share'] },
   ] },
 ];
 
@@ -622,6 +755,51 @@ export const dynamicActionLabel = (key: string): string | undefined => {
   const m = /^master\.(.+)\.(edit|delete)$/.exec(key);
   if (!m) return undefined;
   return m[2] === 'edit' ? 'Add / edit values in this list' : 'Delete values from this list';
+};
+
+// A KEY'S PARENTS (0286, public.perm_parents): holding a parent grants the
+// child. THE SAME LIST THE DATABASE READS, compared word for word by
+// check:ui -- a parent honoured here and not there is a button that is offered
+// and then refused, and the reverse is a right nobody can see.
+export const PERM_PARENTS: Record<string, string[]> = {
+  'calls.edit.complaint': ['calls.edit'], 'calls.edit.customer': ['calls.edit'],
+  'calls.edit.vigilance': ['calls.edit'], 'calls.edit.contact': ['calls.edit'],
+  'install.edit.complaint': ['install.edit'], 'install.edit.customer': ['install.edit'],
+  'install.edit.vigilance': ['install.edit'], 'install.edit.contact': ['install.edit'],
+  'pm.edit.complaint': ['pm.edit'], 'pm.edit.customer': ['pm.edit'],
+  'pm.edit.vigilance': ['pm.edit'], 'pm.edit.contact': ['pm.edit'],
+  'calls.report.visit': ['calls.report'], 'install.report.visit': ['install.report'],
+  'pm.report.visit': ['pm.report'],
+  'visit.spares': ['calls.report', 'install.report', 'pm.report'],
+  'visit.feedback': ['calls.report', 'install.report', 'pm.report'],
+  'cover.edit.entries': ['cover.edit'], 'cover.edit.delete': ['cover.edit'],
+  'contract.edit.entries': ['contract.edit'], 'contract.edit.delete': ['contract.edit'],
+  'masters.edit.records': ['masters.edit'], 'masters.edit.kyc': ['masters.edit'],
+  'masters.edit.rename_part': ['masters.edit'], 'masters.edit.swap_serviceman': ['masters.edit'],
+  'users.manage.details': ['users.manage'], 'users.manage.create': ['users.manage'],
+  'users.manage.disable': ['users.manage'], 'users.manage.access': ['users.manage'],
+  'users.manage.settings': ['users.manage'],
+};
+
+/** Which register's keys govern a call of this type (0287): calls / install / pm.
+ *  Through callFamily(), the one classifier -- a second pattern here is how a
+ *  "PM VISIT" row would come to be governed by the Field keys. */
+export const callPermPrefix = (callType: unknown): 'calls' | 'install' | 'pm' => {
+  const f = callFamily(callType);
+  return f === 'install' ? 'install' : f === 'pm' ? 'pm' : 'calls';
+};
+
+/** Any of these opens the administration menu (it was `manage-users` alone). */
+export const USER_ADMIN_KEYS = ['users.manage', 'users.manage.details', 'users.manage.create',
+  'users.manage.disable', 'users.manage.access', 'users.manage.settings'];
+
+// Every key that grants this one: its declared parents, and the older
+// pattern-based inheritance below.
+export const parentActions = (key: string): string[] => {
+  const out = [...(PERM_PARENTS[key] ?? [])];
+  const p = parentAction(key);
+  if (p && !out.includes(p)) out.push(p);
+  return out;
 };
 
 // Does this key inherit from a broader one the role may already hold?

@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useAuth } from '../lib/auth';
-import { ACTIONS, ROLES, PERM_TREE, permsForRole, moduleAction, masterAction, masterListActions, dynamicActionLabel,
+import { ACTIONS, ROLES, PERM_TREE, permsForRole, moduleAction, masterAction, masterListActions, dynamicActionLabel, PERM_PARENTS,
   roleKeyFrom, roleProblem, type RoleDef,
   type PermHeader, type PermPage } from '../lib/rbac';
 import { setRolePerms, listMasterLists, listRoleRows, createRole, supabaseConfigured, type MasterList } from '../lib/supabase';
@@ -364,11 +364,28 @@ export function RolePermissions() {
     } finally { setBusy(false); }
   };
 
-  const cells = (action: string, kind: '' | 'view' = '') => roles.map((r) => (
+  // A CHILD HELD THROUGH ITS PARENT (0286) reads as held -- ticked and locked,
+  // saying which tick grants it -- because that is what the database does with
+  // it. Unticking the child alone would change nothing, so the box does not
+  // pretend it could; untick the parent and pick the children instead.
+  const viaParent = (role: string, action: string) =>
+    !has(role, action) ? (PERM_PARENTS[action] ?? []).find((p) => has(role, p)) : undefined;
+  const cells = (action: string, kind: '' | 'view' = '') => roles.map((r) => {
+    const parent = viaParent(r.key, action);
+    return (
+      <td key={r.key} className="rbac-cell">
+        <input type="checkbox" className={kind === 'view' ? 'rbac-view-box' : parent ? 'rbac-inherited' : undefined}
+          checked={has(r.key, action) || !!parent} disabled={!mayEdit || r.key === 'admin' || !!parent}
+          title={parent ? `Granted by “${label(parent)}” — untick that to choose this one separately` : undefined}
+          onChange={() => toggle(r.key, action)} />
+      </td>
+    );
+  });
+  // ADMIN ONLY (finding 65): shown so its existence is known, never tickable.
+  const adminOnlyCells = () => roles.map((r) => (
     <td key={r.key} className="rbac-cell">
-      <input type="checkbox" className={kind === 'view' ? 'rbac-view-box' : undefined}
-        checked={has(r.key, action)} disabled={!mayEdit || r.key === 'admin'}
-        onChange={() => toggle(r.key, action)} />
+      <input type="checkbox" checked={r.key === 'admin'} disabled
+        title="Only an administrator can do this — it cannot be given to another role" readOnly />
     </td>
   ));
 
@@ -462,7 +479,8 @@ export function RolePermissions() {
                       const pageOpen = openPages.has(pk);
                       const view = page.path ? moduleAction(page.path) : '';
                       const childKeys = [...page.actions];
-                      const hasChildren = childKeys.length > 0;
+                      const adminOnly = page.adminOnly ?? [];
+                      const hasChildren = childKeys.length + adminOnly.length > 0;
                       return (
                         <Fragment key={pk}>
                           <tr className="rbac-page-row">
@@ -475,6 +493,7 @@ export function RolePermissions() {
                               {hasChildren && (
                                 <span className="muted rbac-count">
                                   {page.actions.length} action{page.actions.length === 1 ? '' : 's'}
+                                  {adminOnly.length > 0 && ` · ${adminOnly.length} admin only`}
                                 </span>
                               )}
                             </td>
@@ -492,7 +511,16 @@ export function RolePermissions() {
                             </tr>
                           ))}
 
-                          {pageOpen && hasChildren && (
+                          {pageOpen && adminOnly.map((a) => (
+                            <tr key={`admin:${a}`} className="rbac-child rbac-admin-only">
+                              <td className="rbac-action rbac-indent">
+                                <span>{a}</span><span className="muted"> — Admin only</span>
+                              </td>
+                              {adminOnlyCells()}
+                            </tr>
+                          ))}
+
+                          {pageOpen && childKeys.length > 0 && (
                             <tr className="rbac-child rbac-bulk">
                               <td className="rbac-action rbac-indent muted">Everything on this page</td>
                               {roles.map((r) => (

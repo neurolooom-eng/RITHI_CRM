@@ -145,7 +145,7 @@ export function ProductLines() {
         {!busy && !rows.length && (
           <div className="muted" style={{ marginTop: 10 }}>
             Nothing here yet. Load it under <b>Bulk Uploads → Product Master (product lines)</b>
-            {can('masters.edit') ? '' : ' — which needs the right to edit masters'}.
+            {' — an administrator’s upload, since this screen is read-only'}.
           </div>
         )}
       </SectionCard>
