@@ -193,7 +193,7 @@ checked.
 - **Data flows:** four flows are defined in the package and drawn in Software Validation (Data Flows) and How RITHI Functions: a call through to feedback, Daily Review → FFR → Objective, hand stock, and a sale to cover and PM. `check:ui` fails any step citing a screen, requirement or test that does not exist.
 - **Fixed on the way:**
   - The two traceability tabs shared a key, and one claimed every requirement was covered (D-073).
-  - **A plaintext password for `service.almsind@gmail.com` sat in a comment in `src/lib/auth.tsx`.** It is removed from the file but remains in git history, and the stored hash is short enough to reverse. **Change that password wherever it is used** (D-074).
+  - **A plaintext password for `service.almsind@gmail.com` sat in a comment in `src/lib/auth.tsx`.** It is removed from the file but remains in git history, and the stored hash is short enough to reverse. **The system owner changed that password on 2026-09-30** (reported, not verified from here). The local demo sign-in still admits the old one; removing that path is the open half of D-074.
 - **Proved:** validate with every suite and check; `check:ui`, `check:uploads`, `check:generated`, build. The document generators were re-run: REQUIREMENTS.md, REQUIREMENT_COVERAGE.md, DATABASE_SCHEMA.md.
 - **Not verified:** the inventory was built by reading code, not by running it on live; the open defects are unconfirmed on live data.
 

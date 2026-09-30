@@ -177,7 +177,7 @@ export function seedUsers() {
     fullName: 'ALMS Service',
     email: 'service.almsind@gmail.com',
     role: 'admin',
-    passwordHash: '8c543c4f', // a temporary test password (its plaintext was removed from this comment 2026-09-30; treat it as disclosed and change it)
+    passwordHash: '8c543c4f', // the OLD test password (plaintext removed from this comment 2026-09-30; the real password was changed the same day). Only the local demo sign-in reads it — D-074.
   });
 }
 
