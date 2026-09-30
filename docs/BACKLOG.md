@@ -230,6 +230,12 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.13 — My Profile in tabs.** Account, Details & R&R, Training, My
+  Team (only with a team), What I can do, Signature, Password, Appearance;
+  last tab remembered per device. `PersonProfile` takes `part`
+  (details / training); `useMyPeople()` reads the directory once for the tabs.
+  FRS-216.5. Also fixed: the Reports tab bar set `is-on` where the CSS styled
+  only `is-active`, so its active tab was never highlighted. No migration.
 - ✅ **0.10.12 — Technical Notes: Drive dates, several products, offered on calls.**
   The user after loading the notes: the Updated column showed the load time
   (30-Sep-2026 10:27:25); it must be Drive's. Answers: Added = Drive Created,

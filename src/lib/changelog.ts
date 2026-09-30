@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.13',
+    date: '2026-09-30',
+    title: 'My Profile in tabs',
+    changes: [
+      'MY PROFILE HAS ONE TAB PER SECTION: Account, Details & R&R, Training, My Team, What I can do, Signature, Password and Appearance — instead of everything down one long page. My Team shows only if people report to you. The tab you last opened is remembered on that device.',
+      'FIXED: on the Reports screen the tab you are on is now highlighted.',
+    ],
+  },
+  {
     version: '0.10.12',
     date: '2026-09-30',
     title: 'Technical Notes: Drive dates, several products, and offered on calls',

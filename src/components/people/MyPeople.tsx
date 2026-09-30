@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { SectionCard, Drawer } from '../ui/ui';
 import { useAuth } from '../../lib/auth';
 import { getSupabase, listDirectory, supabaseConfigured, type DirectoryRow } from '../../lib/supabase';
-import { PersonProfile } from './PersonProfile';
+import { PersonProfile, type PersonProfilePart } from './PersonProfile';
 
 // ===========================================================================
 // MY PROFILE -> my own details, R&R and training, and MY TEAM'S (the user,
@@ -12,11 +12,16 @@ import { PersonProfile } from './PersonProfile';
 // whose calls they see -- and the rows each profile shows are checked again by
 // the database (0264 may_see_person).
 // ===========================================================================
-export function MyPeople() {
+//
+// Read ONCE by My Profile and handed to its tabs (the user, 2026-09-30: "split
+// the sections into tabs"), so moving between Details, Training and My Team
+// does not read the User Master again each time.
+export interface MyPeopleData { me: DirectoryRow | null; team: DirectoryRow[]; loaded: boolean }
+
+export function useMyPeople(): MyPeopleData {
   const { user } = useAuth();
   const [me, setMe] = useState<DirectoryRow | null>(null);
   const [team, setTeam] = useState<DirectoryRow[]>([]);
-  const [open, setOpen] = useState<DirectoryRow | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -41,15 +46,29 @@ export function MyPeople() {
     })();
     return () => { alive = false; };
   }, [user?.email]);
+  return { me, team, loaded };
+}
 
+/** My own details and R&R, or my training -- one tab each on My Profile. */
+export function MyOwn({ data, part, title }: { data: MyPeopleData; part: PersonProfilePart; title: string }) {
+  if (!supabaseConfigured()) return <div className="muted">Connect the database in Settings to see this.</div>;
+  const { me, loaded } = data;
+  return (
+    <SectionCard title={title}>
+      {me ? <PersonProfile person={me} part={part} />
+        : <div className="muted">{loaded ? 'You are not on the User Master yet (matched by your sign-in email) — ask an administrator to add you.' : 'Loading…'}</div>}
+    </SectionCard>
+  );
+}
+
+/** The people who report to me, each with their profile a click away. */
+export function MyTeam({ data }: { data: MyPeopleData }) {
+  const [open, setOpen] = useState<DirectoryRow | null>(null);
+  const { team } = data;
   if (!supabaseConfigured()) return null;
   return (
     <>
-      <SectionCard title="My details, Roles & Responsibilities and training">
-        {me ? <PersonProfile person={me} />
-          : <div className="muted">{loaded ? 'You are not on the User Master yet (matched by your sign-in email) — ask an administrator to add you.' : 'Loading…'}</div>}
-      </SectionCard>
-      {team.length > 0 && (
+      {team.length === 0 ? <div className="muted">Nobody reports to you on the User Master.</div> : (
         <SectionCard title={`My team (${team.length})`}>
           <div className="assoc-scroll">
             <table className="assoc-table">
