@@ -20,7 +20,9 @@ const s = (v: unknown) => String(v ?? '');
 const fmtAt = (iso: unknown) => formatDayTime(s(iso));
 
 export function PmBulkUpload() {
-  const { isAdmin } = useAuth();
+  const { can } = useAuth();
+  // Its own key, `pm.bulk_upload`; each call it creates still passes pm_calls' own insert policy.
+  const mayUpload = can('pm.bulk_upload');
   const onDb = supabaseConfigured();
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState('');
@@ -55,11 +57,11 @@ export function PmBulkUpload() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
 
-  if (!isAdmin) {
+  if (!mayUpload) {
     return (
       <div>
         <PageHeader title="PM Bulk Upload" subtitle="Upload the monthly Preventive Maintenance batch." icon="⬆️" />
-        <div className="sheet-banner sheet-banner-info"><span>🔒 PM bulk upload is for Admin / Super-Admin only.</span></div>
+        <div className="sheet-banner sheet-banner-info"><span>🔒 PM bulk upload needs “Upload PM calls in bulk” on Roles &amp; Permissions.</span></div>
       </div>
     );
   }

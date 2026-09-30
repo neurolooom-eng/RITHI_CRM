@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**90 tables · 36 views · 2625 columns · 191 policies · 59 foreign keys.**
+**90 tables · 36 views · 2628 columns · 191 policies · 59 foreign keys.**
 
 ## How to read this
 
@@ -278,7 +278,7 @@ Views are listed [after the tables](#views).
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| SELECT | `amc_read` | `(is_admin() OR has_perm('audit.view'::text))` | — |
+| SELECT | `amc_read` | `(is_admin() OR has_perm('audit.view'::text) OR has_perm('audit.mode'::text))` | — |
 
 ---
 
@@ -736,6 +736,9 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 22 | `extra` | jsonb | **no** | `'{}'::jsonb` |  |
 | 23 | `doc_key` | text _(generated)_ | yes |  |  |
 | 24 | `url_key` | text _(generated)_ | yes |  |  |
+| 25 | `source_created_at` | timestamp with time zone | yes |  | Drive's Created date-time of the file, from the listing it was loaded from (0299). Not when it was entered here -- that is created_at. |
+| 26 | `source_modified_at` | timestamp with time zone | yes |  | Drive's Last Modified date-time of the file (0299). Not when the row was last changed here -- that is updated_at. |
+| 27 | `source_modified_by` | text | **no** | `''::text` | Drive's Last Modified By, as the listing wrote it (0299). Not who entered it here -- that is uploaded_by. |
 
 **Unique:** `doc_key` _(documents_doc_key_uniq)_ · `sys_id` _(documents_sys_id_key)_ · `url_key` _(documents_url_key_uniq)_
 
@@ -821,7 +824,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| SELECT | `export_runs_read` | `is_admin()` | — |
+| SELECT | `export_runs_read` | `( SELECT has_perm('export.schedules'::text) AS has_perm)` | — |
 
 ---
 
@@ -871,7 +874,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `export_schedules_admin` | `is_admin()` | `is_admin()` |
+| ALL | `export_schedules_admin` | `( SELECT has_perm('export.schedules'::text) AS has_perm)` | `( SELECT has_perm('export.schedules'::text) AS has_perm)` |
 
 ---
 
@@ -1696,8 +1699,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | DELETE | `kb_delete` | `((created_by = auth.uid()) OR is_admin())` | — |
-| INSERT | `kb_insert` | — | `(auth.uid() IS NOT NULL)` |
-| SELECT | `kb_read` | `(auth.role() = 'authenticated'::text)` | — |
+| INSERT | `kb_insert` | — | `(( SELECT my_role() AS my_role) IS NOT NULL)` |
+| SELECT | `kb_read` | `(( SELECT my_role() AS my_role) IS NOT NULL)` | — |
 | UPDATE | `kb_update` | `((created_by = auth.uid()) OR is_admin())` | `((created_by = auth.uid()) OR is_admin())` |
 
 ---
@@ -2138,7 +2141,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| SELECT | `pwr_read` | `is_admin()` | — |
+| SELECT | `pwr_read` | `(( SELECT is_admin() AS is_admin) OR ( SELECT has_perm('users.reset_password'::text) AS has_perm))` | — |
 
 ---
 
@@ -3260,7 +3263,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| SELECT | `srel_read` | `(( SELECT is_admin() AS is_admin) OR ( SELECT has_perm('spare.dispatch'::text) AS has_perm) OR ( SELECT has_perm('spare.approve'::text) AS has_perm) OR (lower(from_email) = lower((…` | — |
+| SELECT | `srel_read` | `(( SELECT is_admin() AS is_admin) OR ( SELECT has_perm('spare.reassign'::text) AS has_perm) OR ( SELECT has_perm('spare.dispatch'::text) AS has_perm) OR ( SELECT has_perm('spare.ap…` | — |
 
 ---
 

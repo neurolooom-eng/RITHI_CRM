@@ -1574,7 +1574,32 @@ with checks(sort_order, bundle, provides, present) as (
     (226, 'A Technical / Service Note keeps its Drive details', 'documents.source_created_at, source_modified_at and source_modified_by (0299): the Created, Last Modified and Last Modified By the Drive listing gave, shown on the Technical / Service Notes shelf as Added, Updated and Added By, beside RITHI''s own created_at / updated_at. NO means documents.sql has not been re-run since. Restore: documents.sql',
         (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'source_created_at')
          and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'source_modified_at')
-         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'source_modified_by')))
+         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'source_modified_by'))),
+    (227, 'A login nobody has set up holds no permission', 'has_perm() answers FALSE for a signed-in login with no profile instead of the engineer fallback (0300), and Field Solutions asks for a profile to read or add an article (0301). D-074. NO means rbac.sql or knowledge_base.sql has not been re-run since. Restore: rbac.sql (0300), knowledge_base.sql (0301)',
+        (coalesce((select p.prosrc like '%not exists (select 1 from public.profiles p where p.id = auth.uid())%' from pg_proc p where p.oid = to_regprocedure('public.has_perm(text)')), false)
+         and coalesce((select coalesce(with_check, '') like '%my_role()%' from pg_policies where schemaname = 'public' and tablename = 'kb_articles' and policyname = 'kb_insert'), false)
+         and coalesce((select coalesce(qual, '') like '%my_role()%' from pg_policies where schemaname = 'public' and tablename = 'kb_articles' and policyname = 'kb_read'), false))),
+    (228, 'Correcting a review date and marking a review imported have keys', 'call_review_markers() refuses a changed Review 2 / 3 completion date without review.correct_date, and keeps the imported marker only for bulk.upload (0302, D-020). NO means daily_review.sql has not been re-run since. Restore: daily_review.sql (0302)',
+        (coalesce((select p.prosrc like '%review.correct_date%' from pg_proc p where p.oid = to_regprocedure('public.call_review_markers()')), false)
+         and coalesce((select p.prosrc like '%bulk.upload%' from pg_proc p where p.oid = to_regprocedure('public.call_review_markers()')), false))),
+    (229, 'Locking the objective cut-off is its own key', 'set_objective_cutoff_lock(), set_objective_cutoff() and the guard ask objective.lock instead of is_admin() (0303). NO means objective.sql has not been re-run since. Restore: objective.sql (0303)',
+        (coalesce((select p.prosrc like '%objective.lock%' from pg_proc p where p.oid = to_regprocedure('public.set_objective_cutoff_lock(boolean)')), false)
+         and coalesce((select p.prosrc like '%objective.lock%' from pg_proc p where p.oid = to_regprocedure('public.quality_objectives_cutoff_guard()')), false)
+         and coalesce((select p.prosrc like '%objective.lock%' from pg_proc p where p.oid = to_regprocedure('public.set_objective_cutoff(integer,integer,date)')), false))),
+    (230, 'Changing the engineer on a spare request is its own key', 'reassign_spare_request() asks spare.reassign, and its log is readable with it (0304). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0304)',
+        (coalesce((select p.prosrc like '%spare.reassign%' from pg_proc p where p.oid = to_regprocedure('public.reassign_spare_request(text,text,text,text)')), false)
+         and coalesce((select coalesce(qual, '') || coalesce(with_check, '') like '%spare.reassign%' from pg_policies where schemaname = 'public' and tablename = 'spare_request_engineer_log' and policyname = 'srel_read'), false))),
+    (231, 'Resetting a password is its own key, and never reaches an administrator''s', 'admin_reset_password() asks users.reset_password, and refuses a non-administrator resetting an Admin''s password or that of anyone who can grant permissions (0305). NO means rbac.sql has not been re-run since. Restore: rbac.sql (0305)',
+        (coalesce((select p.prosrc like '%users.reset_password%' from pg_proc p where p.oid = to_regprocedure('public.admin_reset_password(text,text)')), false)
+         and coalesce((select p.prosrc like '%Only an administrator can reset the password of an administrator%' from pg_proc p where p.oid = to_regprocedure('public.admin_reset_password(text,text)')), false)
+         and coalesce((select coalesce(qual, '') || coalesce(with_check, '') like '%users.reset_password%' from pg_policies where schemaname = 'public' and tablename = 'password_resets' and policyname = 'pwr_read'), false))),
+    (232, 'Data Export has two keys: tables and schedules', 'exportable_tables() answers export.tables or export.schedules; the schedules and their runs ask export.schedules (0306). NO means data_export.sql has not been re-run since. Restore: data_export.sql (0306)',
+        (coalesce((select p.prosrc like '%export.tables%' from pg_proc p where p.oid = to_regprocedure('public.exportable_tables()')), false)
+         and coalesce((select coalesce(qual, '') || coalesce(with_check, '') like '%export.schedules%' from pg_policies where schemaname = 'public' and tablename = 'export_schedules' and policyname = 'export_schedules_admin'), false)
+         and coalesce((select coalesce(qual, '') || coalesce(with_check, '') like '%export.schedules%' from pg_policies where schemaname = 'public' and tablename = 'export_runs' and policyname = 'export_runs_read'), false))),
+    (233, 'Switching Audit Mode is its own key', 'set_audit_mode() asks audit.mode, and its history is readable with it (0307). NO means audit.sql has not been re-run since. Restore: audit.sql (0307)',
+        (coalesce((select p.prosrc like '%audit.mode%' from pg_proc p where p.oid = to_regprocedure('public.set_audit_mode(boolean,text)')), false)
+         and coalesce((select coalesce(qual, '') || coalesce(with_check, '') like '%audit.mode%' from pg_policies where schemaname = 'public' and tablename = 'audit_mode_changes' and policyname = 'amc_read'), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

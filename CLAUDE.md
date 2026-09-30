@@ -401,6 +401,14 @@ on testing the old shape. **When a migration replaces a definition, move the
   ZERO permissions — a row with *some* permissions but missing `calls.view`
   silently blocks everything. Grant by MERGING into `app_roles`, never by
   overwriting: an admin may have tuned the role.
+  **A signed-in login with NO PROFILE gets no fallback at all** (0300, D-074):
+  `has_perm()` answers FALSE for it — FALSE, not NULL, because a guard written
+  `if not has_perm(...) then raise` skips on NULL and a NULL would WIDEN what it
+  may do. Before 0300 it held the engineer permissions and could raise call and
+  spare requests through the API. The client matches: `can()` refuses an
+  `unresolved` identity first and the shell shows it one page. There is ONE way
+  in — Supabase Auth; the local demo and sheet sign-ins are gone, so do not
+  bring back a fallback sign-in "for when the database is down".
 - **Office-role visibility lives in `can_view_all_calls()`** (hotline, nsm,
   commercial, spare_coordinator, stores_incharge, tally_coordinator). A read
   policy only benefits from it if it actually calls it — `cr_read` did not.
@@ -1063,6 +1071,12 @@ on testing the old shape. **When a migration replaces a definition, move the
   (0298's `permission_copies_done`), never on every run, or a re-run hands back a
   key an administrator removed. And **every key a screen's buttons test must be on
   that screen's `PERM_TREE` row** — `check:ui` holds it for the screens it maps.
+  **THERE ARE NO ADMIN-ONLY ACTIONS ANY MORE (0302–0307, the user, 2026-09-30:
+  *"Only the Admin Role should be Greyed out not the Actions"*).** A new action
+  gets a key on its page's row and the database asks `has_perm(<key>)`, never a
+  bare `is_admin()` — an administrator passes `has_perm()` anyway. A key that
+  lets its holder act AS somebody (`users.reset_password`) is not a child of a
+  broader key and refuses targets who could grant the holder more.
 - **THE MODULE KEY OPENS A SCREEN; THE READ POLICIES DECIDE THE ROWS.** Granting
   `mod:/x` correctly and seeing an empty page is not a fault in the grant — it is
   the other half, and the standing rule about Roles & Permissions does not cover

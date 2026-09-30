@@ -61,11 +61,13 @@ const showValue = (target: string, v: number | null): string => {
 export function Objective() {
   const live = supabaseConfigured();
   const scope = useAccessScope();
-  // `isAdmin` from the same place Audit Mode reads it — the lock is an ADMIN's
-  // switch, and `config.manage` is the audience it exists to hold back, so
-  // config.manage must not be what unlocks it.
-  const { can, isAdmin } = useAuth();
+  // THE LOCK IS ITS OWN KEY, `objective.lock` (the user, 2026-09-30: admin
+  // actions are ticked per role on Roles & Permissions). It is deliberately
+  // NOT objective.manage -- that is the audience the lock exists to hold back,
+  // so it must not be what unlocks it. Administrators hold it by being admin.
+  const { can } = useAuth();
   const mayEdit = can('objective.manage');
+  const mayLock = can('objective.lock');
   const YEAR = new Date().getFullYear();
   const [objectives, setObjectives] = useState<QualityObjective[]>([]);
   const [oMsg, setOMsg] = useState('');
@@ -122,7 +124,7 @@ export function Objective() {
   const loadCutoffs = () => { void listObjectiveCutoffs(YEAR).then(setCutoffs); };
   useEffect(() => { void objectiveCutoffLocked().then(setCutoffLocked); }, []);
   useEffect(loadCutoffs, [live, YEAR]);
-  const maySetCutoff = mayEdit && (!cutoffLocked || isAdmin);
+  const maySetCutoff = mayEdit && (!cutoffLocked || mayLock);
   const saveCutoff = (month: number, value: string) => {
     // Optimistic, then reconciled from the database: a date that looks saved
     // and was refused is the one somebody reports a figure from.
@@ -488,15 +490,15 @@ export function Objective() {
             <button className="btn" onClick={() => void addObjective(YEAR, (objectives.length ? objectives[objectives.length - 1].sort_order : 0) + 1).then(loadObjectives)}>
               + Add an objective
             </button>
-            {/* THE ADMIN'S SWITCH over whether anyone else may re-base the
-                figures by moving the cut-off. Shown to an administrator only —
+            {/* THE SWITCH over whether anyone else may re-base the figures by
+                moving the cut-off. Shown only to a holder of objective.lock —
                 a control that refuses everyone who can see it is noise. */}
-            {isAdmin && (
+            {mayLock && (
               <button
                 className="btn"
                 title={cutoffLocked
                   ? 'Anyone with config.manage may change the cut-off again'
-                  : 'Stop anyone but an administrator changing the cut-off date'}
+                  : 'Stop anyone without "Lock the objective cut-off" changing the cut-off date'}
                 onClick={() => {
                   void setObjectiveCutoffLock(!cutoffLocked).then((r) => {
                     if (!r.ok) { setOMsg(`Could not change the lock: ${r.error}`); return; }

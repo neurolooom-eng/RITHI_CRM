@@ -43,7 +43,7 @@ const emptyRow = (): DirectoryRow => ({
 });
 
 export function UserMasterView() {
-  const { users, can, reloadUsers, rolePerms, isAdmin } = useAuth();
+  const { users, can, reloadUsers, rolePerms } = useAuth();
   // EVERY role the database knows, not only the ones in the code: a role added
   // on Roles & Permissions that no picker offers is a role nobody can be put
   // on, which is a feature that does nothing.
@@ -776,7 +776,7 @@ export function UserMasterView() {
                 {editable && <button className="btn btn-sm btn-primary" onClick={() => { setViewRow(null); openEdit(r); }}>✏️ Edit</button>}
                 {mayAccess && prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); setAccessFor(prof); }}>🔐 Access</button>}
                 {mayCreate && mayAccess && prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); openClone(prof); }}>⧉ Clone</button>}
-                {isAdmin && prof && (
+                {can('users.reset_password') && prof && (
                   <button className="btn btn-sm" disabled={busy} title="Generate a new password and show it once, to pass on"
                     onClick={() => void resetPassword(r.email || prof.email, r.name || prof.fullName)}>
                     🔑 Reset password

@@ -48,6 +48,8 @@
 --   0180_zoho_readonly.sql
 --   0250_master_write_policy_once_per_query.sql
 --   0286_permission_parents.sql
+--   0300_unresolved_login_holds_nothing.sql
+--   0305_reset_password_key.sql
 --   0121_rbac_policy_tail.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -3557,6 +3559,163 @@ begin
    where storage_key = btrim(p_storage_key) and role = coalesce(btrim(p_role), '');
   return found;
 end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0300_unresolved_login_holds_nothing.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A LOGIN THE ORGANISATION DOES NOT KNOW HOLDS NO PERMISSION (D-074, FRS-210.5).
+--
+-- has_perm() takes the caller's role row and, when that row is empty or absent,
+-- falls back to the ENGINEER permissions. For a person with a profile that is
+-- the documented default ("an empty row means not configured"). For a person
+-- with NO profile it meant this: anybody who could create a Supabase Auth
+-- account -- with no profile and no User Master row -- held an engineer's write
+-- authority through the API. my_role() returns NULL for them, no role row
+-- matches NULL, and the fallback answered for them.
+--
+-- The client already signs such a person in only as "unresolved" and now gives
+-- them nothing (src/lib/auth.tsx); this is the half that decides.
+--
+-- WHAT CHANGES: a SIGNED-IN caller with no profile row gets FALSE from every
+-- has_perm(), unless they are a super administrator (app_super_admins, matched
+-- by e-mail, as is_admin() already does).
+--
+-- WHAT DOES NOT:
+--   * a caller WITH a profile -- same answer as 0286, the engineer fallback for
+--     an empty role row included;
+--   * no signed-in user at all (an import, a scheduled run, the SQL editor) --
+--     the same expression as 0286, NULL included, because callers rely on
+--     `if not has_perm()` being skipped there (0286's note).
+-- FALSE, NOT NULL, for the unknown login: `if not has_perm(...) then raise` is
+-- how the guards refuse, and NOT NULL is NULL, so a NULL here would have
+-- WIDENED what an unknown login may do past the guards rather than narrowed it.
+-- ===========================================================================
+
+create or replace function public.has_perm(action text)
+returns boolean language sql stable security definer set search_path = public as $$
+  with role_row as (
+    select r.permissions from public.app_roles r
+     where r.role = public.my_role() and jsonb_array_length(coalesce(r.permissions, '[]'::jsonb)) > 0
+  ),
+  fallback as (
+    select r.permissions from public.app_roles r where r.role = 'engineer'
+  ),
+  perms as (
+    select permissions from role_row
+    union all
+    select permissions from fallback where not exists (select 1 from role_row)
+  ),
+  keys as (
+    select action as k
+    union all
+    select pp.parent from public.perm_parents pp where pp.child = action
+  )
+  select case
+    when auth.uid() is not null
+     and not exists (select 1 from public.profiles p where p.id = auth.uid())
+      then coalesce(public.is_super_admin(), false)
+    else public.is_admin()
+      or exists (select 1 from perms p, keys where p.permissions ? keys.k)
+      or (select bool_or(public.my_extra_perms() ? keys.k) from keys)
+  end;
+$$;
+grant execute on function public.has_perm(text) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0305_reset_password_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- RESETTING A PASSWORD IS users.reset_password -- AND NOT A CHILD OF users.manage.
+-- WHAT WAS AN ADMINISTRATOR'S ALONE IS A KEY (the user, 2026-09-30: "All
+-- Admin Actions that are greyed out now should be editable from the Role &
+-- Permissions. Only the Admin Role should be Greyed out not the Actions.")
+--
+-- is_admin() becomes has_perm(<key>). An administrator still passes -- has_perm()
+-- answers true for is_admin() -- so nobody loses anything, and NOBODY ELSE GAINS
+-- ANYTHING ON THE DAY: no role holds the new key until an administrator ticks it
+-- on Roles & Permissions. coalesce(..., false) so a NULL (no session) refuses.
+--
+-- Not a child of users.manage on purpose: a reset lets its holder sign in as
+-- the person, so ticking Manage users must never hand it over. And a holder
+-- who is not an administrator is refused an Admin's password, and the password
+-- of anyone who can grant permissions (see the function) -- otherwise the key
+-- would be a route to every other key. A super admin's still needs a super
+-- admin. The reset log is readable by the same holders.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.admin_reset_password(p_email text, p_password text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions', 'auth'
+AS $function$
+declare v_id uuid; v_email text; v_target_super boolean; v_target_keys jsonb; v_target_role text;
+begin
+  if not coalesce(public.has_perm('users.reset_password'), false) then
+    raise exception 'RBAC: resetting a password needs "Reset a person''s password"';
+  end if;
+  -- The generator makes 14; this floor is here so the function cannot be used
+  -- to set something weak by hand.
+  if length(coalesce(p_password, '')) < 10 then
+    raise exception 'A reset password must be at least 10 characters';
+  end if;
+
+  v_email := lower(btrim(coalesce(p_email, '')));
+  select u.id into v_id from auth.users u where lower(u.email) = v_email;
+  if v_id is null then raise exception 'No login for %', p_email; end if;
+
+  select exists (select 1 from public.app_super_admins s where lower(s.email) = v_email)
+    into v_target_super;
+  if v_target_super and not public.is_super_admin() then
+    raise exception 'Only a super admin can reset a super admin''s password';
+  end if;
+
+  -- A RESET IS A WAY TO SIGN IN AS SOMEBODY, so a holder who is not an
+  -- administrator may not reset the password of anyone who could hand them
+  -- more than they hold: an Admin, or anyone whose role or own grants carry
+  -- rbac.manage, users.manage / users.manage.access, or this key itself.
+  if not coalesce(public.is_admin(), false) then
+    select lower(coalesce(nullif(btrim(p.role), ''), 'engineer')),
+           coalesce(r.permissions, '[]'::jsonb) || coalesce(p.extra_permissions, '[]'::jsonb)
+      into v_target_role, v_target_keys
+      from public.profiles p
+      left join public.app_roles r on r.role = lower(coalesce(nullif(btrim(p.role), ''), 'engineer'))
+     where p.id = v_id;
+    if v_target_role = 'admin'
+       or coalesce(v_target_keys, '[]'::jsonb) ?| array['rbac.manage', 'users.manage', 'users.manage.access', 'users.reset_password'] then
+      raise exception 'Only an administrator can reset the password of an administrator or of somebody who can grant permissions';
+    end if;
+  end if;
+
+  update auth.users
+     set encrypted_password = crypt(p_password, gen_salt('bf')),
+         updated_at         = now()
+   where id = v_id;
+
+  -- End what they had open, so the reset takes effect on every device rather
+  -- than leaving an old session signed in. Both tables are Supabase's own and
+  -- absent from a bare Postgres, so neither is allowed to fail the reset.
+  begin
+    delete from auth.sessions where user_id = v_id;
+  exception when others then null;
+  end;
+  begin
+    delete from auth.refresh_tokens where user_id::text = v_id::text;
+  exception when others then null;
+  end;
+
+  insert into public.password_resets (target_email, target_id, reset_by, reset_by_email)
+  values (v_email, v_id, auth.uid(), coalesce(auth.email(), ''));
+
+  return v_email;
+end $function$;
+
+drop policy if exists pwr_read on public.password_resets;
+create policy pwr_read on public.password_resets for select
+  using ((select public.is_admin()) or (select public.has_perm('users.reset_password')));
 
 -- ------------------------------------------------------------------------
 -- 0121_rbac_policy_tail.sql

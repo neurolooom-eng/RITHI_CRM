@@ -56,7 +56,7 @@ export function Profile() {
     // "Permission" there are one thing. "Permission" is the user's own name for
     // it (2026-09-18).
     ...(user?.designation ? [['Designation', user.designation] as [string, string]] : []),
-    ['Permission', user?.unresolved ? 'Engineer (a fallback, not your permission)' : (roleLabel(user) || '—')],
+    ['Permission', user?.unresolved ? 'None (this login is not set up)' : (roleLabel(user) || '—')],
     ...(user?.region ? [['Region', user.region] as [string, string]] : []),
   ];
 
@@ -74,10 +74,9 @@ export function Profile() {
         <div className="sheet-banner sheet-banner-error">
           <span>
             <b>Your profile did not load.</b> You are signed in, but there is no profile record
-            for this login — so the name, email and role above are not yours, and the app is
-            treating you as an Engineer until one exists. An administrator can put it right under{' '}
-            <b>User Access</b>; until then, do not take what this page says about your role as
-            fact. Signing out and in again will not fix it.
+            for this login, so it holds no permission until one exists (D-074). An administrator
+            can put it right by adding you to the <b>User Master</b>. Signing out and in again
+            will not fix it.
           </span>
         </div>
       )}

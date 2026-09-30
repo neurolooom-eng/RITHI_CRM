@@ -1046,6 +1046,17 @@ typed into a form that reads it.
 
 - **User Access** (`/users`) is gone: it opens the **User Master**, where logins
   are created, roles assigned and — by an administrator — passwords reset.
+- **Signing in** is only ever with a RITHI login (e-mail and password). There is no
+  demo sign-in and no sheet sign-in. A forgotten password: ask an administrator —
+  both the sign-in and the reset screen say so.
+  > **A login that is not set up gets nothing.** If somebody can sign in but has no
+  > profile and no User Master entry, they see one page asking them to get an
+  > administrator to add them to the User Master, and a Sign out button — nothing
+  > else, and the database refuses them too. Add their User Master row and they
+  > arrive with its role the next time they sign in.
+  > **"Not connected to the RITHI database"** on the sign-in screen means this
+  > browser was pointed at another database in Settings; press **Reconnect to the
+  > RITHI database**.
 - **Roles & Permissions** `/roles` — which role holds which right, page by page and
   action by action. Roles can be added without code.
   > **Every button has its tick on its own page's row.** Open a page's row and you
@@ -1062,9 +1073,15 @@ typed into a form that reads it.
   > the parts. So you can let somebody verify KYC without editing parties, or
   > create logins without deciding what those logins may do — a login they create
   > is an Engineer until somebody with *Assign roles & grant permissions* changes it.
-  > **Greyed rows marked "Admin only"** are things only an administrator can do
-  > (bulk uploads, password reset, Audit Mode and a few more). They are listed so you
-  > know they exist; they cannot be given to another role.
+  > **Only the Admin column is greyed** — Admin holds everything and cannot be
+  > narrowed. The things that used to be "Admin only" (bulk uploads, PM bulk upload,
+  > the Data Import panel, exporting tables and export schedules, Audit Mode,
+  > resetting a password, changing a spare request's engineer, correcting a review
+  > date, locking the objective cut-off) are ordinary ticks now: nobody but Admin
+  > holds them until you tick them for a role. **Reset a password** is never part
+  > of *Manage users* — tick it on its own — and somebody who is not an
+  > administrator can never reset an Admin's password, or that of anyone who can
+  > grant permissions. A role given an administration page sees it in the menu.
   > **If a role sees nothing** it is almost always a missing *action*, not a
   > missing page: a role with some permissions but not "View calls" sees an empty
   > register with everything apparently granted.

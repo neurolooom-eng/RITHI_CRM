@@ -1837,12 +1837,13 @@ console.log('\n-- the evidence workbook --');
   // date is permanent.
   eq('a blank date clears the month rather than storing an empty one',
     /p_date: date && date\.trim\(\) \? date\.trim\(\) : null/.test(objSb), true);
-  // The lock is an ADMIN's switch; config.manage is who it holds back, so
-  // config.manage must not be what unlocks it.
-  eq('the cut-off lock is an admin switch, not a config.manage one',
-    /const \{ can, isAdmin \} = useAuth\(\)/.test(obj)
-    && /\{isAdmin && \(/.test(obj)
-    && /!cutoffLocked \|\| isAdmin/.test(obj), true);
+  // The lock is its own key (objective.lock, 2026-09-30); objective.manage is
+  // who it holds back, so objective.manage must not be what unlocks it.
+  eq('the cut-off lock is its own key, not an objective.manage one',
+    /const mayLock = can\('objective\.lock'\)/.test(obj)
+    && /\{mayLock && \(/.test(obj)
+    && /!cutoffLocked \|\| mayLock/.test(obj)
+    && !/!cutoffLocked \|\| mayEdit/.test(obj), true);
   // Sheet 3 is counted from sheets 1 and 2 — the file has to add up to itself.
   eq('the calculation is counted from the rows, not read off the page',
     /const numerator = isRate \? calls\.length/.test(obj)
@@ -1878,7 +1879,6 @@ console.log('\n-- Technical Support: the Super Admin\'s reach, none of its write
 {
   const rbacSrc = readFileSync('src/lib/rbac.ts', 'utf8');
   const layout  = readFileSync('src/components/layout/Layout.tsx', 'utf8');
-  const users   = readFileSync('src/modules/UsersAdmin.tsx', 'utf8');
   const settings = readFileSync('src/modules/Settings.tsx', 'utf8');
   const roles   = readFileSync('src/modules/RolePermissions.tsx', 'utf8');
 
@@ -1921,10 +1921,9 @@ console.log('\n-- Technical Support: the Super Admin\'s reach, none of its write
 
   // Seeing an admin screen is not running it: each one keeps its own right for
   // everything that changes something.
-  eq('User Access opens read-only but is still managed by manage-users',
-    /const mayManage = can\('manage-users'\)/.test(users)
-    && /const mayOpen = mayManage \|\| can\('admin.view'\)/.test(users)
-    && /actions=\{mayManage \?/.test(users), true);
+  // (UsersAdmin.tsx was asserted here. It had been dead code since /users
+  // began redirecting to the User Master, and was the last caller of the local
+  // account functions D-074 removed, so it went with them.)
   eq('Settings shows the connection but does not let a read-only login change it',
     /const mayOpen = mayManage \|\| can\('admin.view'\)/.test(settings)
     && /<DbConnection readOnly=\{!mayManage\} \/>/.test(settings)
@@ -7897,6 +7896,54 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     /user\?\.unresolved \? ' user-avatar-unresolved' : ''/.test(readFileSync('src/components/layout/Layout.tsx', 'utf8')), true);
   eq('...with a rule of its own',
     /\.user-avatar-unresolved \{/.test(readFileSync('src/components/layout/layout.css', 'utf8')), true);
+}
+
+{
+  // -------------------------------------------------------------------------
+  // ONE WAY IN, AND AN UNKNOWN LOGIN HOLDS NOTHING (D-074, FRS-210.2/.5/.9).
+  //
+  // A released build offered two ways in besides Supabase: a local sign-in
+  // against seeded demo accounts -- one a real super-administrator address with
+  // a short hash of its old password -- reached by saving a connection that was
+  // not a Supabase project; and the sheet-era User Master sign-in. And a login
+  // with no profile and no User Master row was admitted as an ENGINEER, in the
+  // browser and in has_perm(). Each half is pinned, because each was reachable
+  // with the other one fixed.
+  // -------------------------------------------------------------------------
+  console.log('\n-- one way in, and an unknown login holds nothing (D-074) --');
+  const au = code(readFileSync('src/lib/auth.tsx', 'utf8'));
+  const auRaw = readFileSync('src/lib/auth.tsx', 'utf8');
+  eq('no local account is checked against a password in the browser',
+    /passwordHash !== hash\(/.test(au) || /function hash\(/.test(au) || /seedUsers|ensureUser/.test(au), false);
+  eq('...no seeded account, and no stored hash of anybody\u2019s password',
+    /passwordHash: '[0-9a-f]{6,}'/.test(auRaw) || /admin123|manager123|engineer123/.test(auRaw), false);
+  eq('...no sheet-era sign-in',
+    /authLogin|authSetPassword|importSheetUsers/.test(au)
+    || /export async function authLogin|export async function authSetPassword/.test(readFileSync('src/lib/sheets.ts', 'utf8')), false);
+  eq('...and the copy an old browser still holds is deleted',
+    /'rithi\.db\.users'/.test(au) && /useEffect\(\(\) => forgetLocalAccounts\(\), \[\]\)/.test(au), true);
+  eq('without a Supabase connection nobody is signed in',
+    /const user = supaMode \? supaUser : null;/.test(au), true);
+  // The way back has to be on the sign-in screen: Settings is behind it.
+  const login = readFileSync('src/modules/Login.tsx', 'utf8');
+  eq('...and the sign-in screen offers the way back', /resetSupabaseCreds\(\)/.test(login), true);
+  eq('an unresolved login holds nothing in the browser -- asked BEFORE "view"',
+    /if \(u\.unresolved\) return false;[\s\S]{0,40}if \(action === 'view'\) return true;/.test(au), true);
+  eq('...is given no role to be named by',
+    /role: '',\s*unresolved: true,/.test(code(readFileSync('src/lib/supabase.ts', 'utf8')))
+    && /if \(u\.unresolved\) return 'None/.test(au), true);
+  eq('...and sees one page saying so, not the app',
+    /if \(user\.unresolved\) return <UnresolvedLogin \/>;/.test(readFileSync('src/App.tsx', 'utf8')), true);
+  // The database half: FALSE for a signed-in login with no profile -- not the
+  // engineer fallback, and not NULL, because `if not has_perm()` skips on NULL.
+  const m300 = readFileSync('supabase/migrations/0300_unresolved_login_holds_nothing.sql', 'utf8');
+  eq('has_perm() gives a signed-in login with no profile FALSE',
+    /when auth\.uid\(\) is not null\s+and not exists \(select 1 from public\.profiles p where p\.id = auth\.uid\(\)\)\s+then coalesce\(public\.is_super_admin\(\), false\)/.test(m300), true);
+  // One remedy for a forgotten password, on both screens.
+  const reset = readFileSync('src/modules/ResetPassword.tsx', 'utf8');
+  eq('the sign-in and reset screens give one remedy: ask an administrator',
+    /Ask an administrator to reset it/.test(login) && /ask an administrator to reset your password/.test(reset)
+    && !/from the sign-in screen/.test(reset), true);
 }
 
 {

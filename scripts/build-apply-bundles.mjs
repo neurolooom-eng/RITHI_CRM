@@ -257,6 +257,12 @@ const MODULES = {
             // rbac owns move to the per-screen and split keys (findings 63-67).
             // Before the tail below, which mirrors cons_write and masters_*.
             '0286_permission_parents.sql',
+            // A signed-in login with no profile holds nothing (D-074): has_perm()
+            // stops answering for it with the engineer fallback. Redefines 0286
+            // above, so it follows it; before the tail, which does not touch it.
+            '0300_unresolved_login_holds_nothing.sql',
+            // Resetting a password is users.reset_password. Redefines 0110 above; before the tail.
+            '0305_reset_password_key.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -347,7 +353,10 @@ const MODULES = {
             'every article and contributes one; the author or an admin edits or deletes.',
             'Rich text with images and tables is stored as sanitized HTML on the row.'],
     needs: ['profiles', 'isAdmin'],
-    files: ['0042_knowledge_base.sql', '0043_help_screenshots.sql'],
+    files: ['0042_knowledge_base.sql', '0043_help_screenshots.sql',
+            // Field Solutions asks for a known login (D-074). Redefines 0042's
+            // two policies, so it lives with them.
+            '0301_knowledge_base_needs_a_profile.sql'],
   },
   daily_review: {
     title: 'Daily Call Review (DCCR)',
@@ -446,6 +455,8 @@ const MODULES = {
             // user, 2026-09-30). LAST: it redefines raise_ffr (0173), the
             // auto answer (0124) and both review stamps (0044, 0173).
             '0269_dccr_auto_review_switch.sql',
+            // Correcting a review date and marking a review imported have keys (review.correct_date, bulk.upload). Redefines 0269 above.
+            '0302_review_dates_and_imports_have_keys.sql',
             // Who may switch it is a ROLE (admin, nsm, technical_support),
             // not two names; after 0269, whose by-name grant it takes back.
             '0285_auto_review_by_role.sql'],
@@ -499,7 +510,9 @@ const MODULES = {
              '0251_objective_evidence_tiebreak.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
             // and split keys; see 0286 for the parent rule.
-            '0292_objective_manage_key.sql'],
+            '0292_objective_manage_key.sql',
+            // The objective cut-off lock is objective.lock. Redefines 0138/0139/0292 above.
+            '0303_objective_lock_key.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -616,7 +629,9 @@ const MODULES = {
             'database so it cannot be forged, and only admins can read it.'],
     needs: ['profiles', 'isAdmin'],
     files: ['0009_audit_log.sql', '0033_audit_retention.sql', '0047_audit_retention_compliance.sql',
-            '0114_audit_mode.sql'],
+            '0114_audit_mode.sql',
+            // Switching Audit Mode is audit.mode. Redefines 0114 above.
+            '0307_audit_mode_key.sql'],
   },
   tracker: {
     title: 'Tracker (the shared activity list)',
@@ -799,6 +814,8 @@ const MODULES = {
             '0243_reconciliation_needs_no_visit.sql',
             '0064_stock_out_lines_and_refurb.sql',
             '0065_refurb_stock_and_part_master.sql', '0074_handstock_opening.sql', '0075_spare_history.sql', '0078_consumption_grir.sql', '0081_part_product_keys_inferable.sql', '0082_part_key_is_item_detail.sql', '0089_spare_imports_load.sql', '0090_spare_issue_history.sql', '0091_handstock_read_indexes.sql', '0095_rls_initplans.sql', '0096_handstock_period_close.sql', '0100_spare_request_reassign.sql',
+            // Changing the engineer on a request is spare.reassign. Redefines 0100 above.
+            '0304_spare_reassign_key.sql',
             '0102_handstock_balance_history_split.sql',
             // LAST IN THIS MODULE, and in this module rather than `masters`
             // though the Part Master is a master: it redefines
@@ -1068,7 +1085,9 @@ const MODULES = {
     // is_admin() gates the picker; app_roles takes the module key (guarded, so
     // the file still runs on a database that has not got it yet).
     needs: ['isAdmin'],
-    files: ['0227_data_export.sql', '0228_export_schedules.sql'],
+    files: ['0227_data_export.sql', '0228_export_schedules.sql',
+    // Data Export has two keys, export.tables and export.schedules. Redefines 0227/0228 above.
+    '0306_export_keys.sql'],
   },
   device_cache: {
     title: 'Device Cache Status',
