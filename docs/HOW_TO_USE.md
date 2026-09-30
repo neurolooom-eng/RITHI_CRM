@@ -1094,7 +1094,9 @@ typed into a form that reads it.
 - **Settings** `/settings` — your preferences, and for an administrator the
   connection settings.
 - **Your Profile** `/profile` — **one tab per section**: Account, Details &
-  R&R, Training, **My Team** (only if people report to you), What I can do,
+  R&R, Training, **My Team** (only if people report to you — split into
+  **Active / Current** and **Ex Employees** by the User Master's *Active*
+  column; a leaver's profile and training stay one click away), What I can do,
   Signature, Password and Appearance. The tab you last opened is remembered on
   that device. **My Signature** lives here, not in Settings:
   only you can see or set it, and it prints only in the block that names you. An
