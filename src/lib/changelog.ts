@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.9',
+    date: '2026-09-30',
+    title: 'Technical / Service Notes by bulk upload; Update Party / Product Details moved into their sections',
+    changes: [
+      'BULK UPLOADS → TECHNICAL / SERVICE NOTES: the whole list at once — Title, Product, the Drive Link, and optionally Document No, Tags and Notes. Loading the list again corrects those notes (matched on the Drive link) instead of adding them twice; your list\'s other columns are kept with each note.',
+      'CALL VIEW: Update Party Details now sits in the header of the Customer & Product section, and Update Product Details in the header of Warranty & Contract. They are no longer in the button row at the top or in the table\'s actions column. Ticking calls in the register still offers both for many calls at once.',
+    ],
+  },
+  {
     version: '0.10.8',
     date: '2026-09-30',
     title: 'Calls: Update Party Details and Update Product Details (not in Audit Mode)',

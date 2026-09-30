@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**88 tables · 36 views · 2610 columns · 174 policies · 59 foreign keys.**
+**88 tables · 36 views · 2611 columns · 174 policies · 59 foreign keys.**
 
 ## How to read this
 
@@ -729,8 +729,9 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 21 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 | 22 | `extra` | jsonb | **no** | `'{}'::jsonb` |  |
 | 23 | `doc_key` | text _(generated)_ | yes |  |  |
+| 24 | `url_key` | text _(generated)_ | yes |  |  |
 
-**Unique:** `doc_key` _(documents_doc_key_uniq)_ · `sys_id` _(documents_sys_id_key)_
+**Unique:** `doc_key` _(documents_doc_key_uniq)_ · `sys_id` _(documents_sys_id_key)_ · `url_key` _(documents_url_key_uniq)_
 
 **References:**
 
