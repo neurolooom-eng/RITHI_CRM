@@ -77,6 +77,15 @@ different totals. An empty register usually means access, not emptiness.
 - **Field Call Register** `/field-calls` — breakdown calls.
 - **Installation Calls** `/installations` — new machines going in.
 - **Preventive (PM)** `/pm-calls` — planned maintenance.
+  > **Update Party Details / Update Product Details** (all three registers, on a
+  > call of any status — in the Call View, or tick calls and use the bar):
+  > **Party** sets City and State from the Party Master (a party the master
+  > does not hold is left as it was). **Product** sets Warranty No, Warranty
+  > Start and End, Contract No, Start, End and Type, and Item Status **as on the
+  > call's registration date** — the warranty and contract running that day;
+  > if none was, the last ones that had ended, with Item Status OGP; if both
+  > were, WGP. Needs the edit rights for the call's customer section. **Hidden
+  > while Audit Mode is ON.**
 - **Pending Calls** `/pending-calls` — everything still open, across all three.
 - **Visit Reports / Service Reports** `/reports` — one row per **visit**, not per
   call.
@@ -1053,8 +1062,11 @@ typed into a form that reads it.
   or off needs a reason, and that history outlives the log.
 - **Admin Config** `/admin-config` — the settings the rules read: the SLA
   targets, the Call Registration desk, the frequent-failure window and threshold,
-  audit mode. The first three are open to anybody given *Admin config*; Audit
-  Mode and the Data Import panel are an administrator's.
+  the objective cut-offs and their lock, audit mode. The SLA targets, the desk
+  and the frequent-failure rule are open to anybody given *Admin config*; Audit
+  Mode and the Data Import panel are an administrator's. **While Audit Mode is
+  ON** a call's Update Party Details and Update Product Details are hidden (and
+  refused).
 - **Software Validation** `/software-validation` — the ISO 13485 §4.1.6 package:
   intended use, regulatory basis, requirements and the tests that answer them.
   > Not the servicing process requirements. Software validation does not discharge

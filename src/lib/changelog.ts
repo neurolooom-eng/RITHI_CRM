@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.9',
+    version: '0.10.10',
     date: '2026-09-30',
     title: 'Roles & Permissions: every button has its tick on its own page; big permissions split into parts',
     changes: [
@@ -27,7 +27,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.8',
+    version: '0.10.9',
     date: '2026-09-30',
     title: 'Auto review: who may switch it is a role — Admin, NSM, Technical Support',
     changes: [
@@ -35,6 +35,17 @@ export const CHANGELOG: ChangeEntry[] = [
       'Anybody else can still be given "Switch auto review on or off" on User Master → Access, and a role can be given it or have it taken away on Roles & Permissions.',
       'For Technical Support this is the one thing the role can change; everything else it does stays read-only. Zoho Migration, which otherwise has the same rights as Technical Support, does not get it.',
       'Nothing else about auto review changes: its answers still carry the name of whoever switched it on, and it stays on or off as it is now.',
+    ],
+  },
+  {
+    version: '0.10.8',
+    date: '2026-09-30',
+    title: 'Calls: Update Party Details and Update Product Details (not in Audit Mode)',
+    changes: [
+      'UPDATE PARTY DETAILS (Call View, and the call registers\' bar for ticked calls): sets the call\'s City and State from the Party Master. A party the Party Master does not have is left as it was, and the message says how many.',
+      'UPDATE PRODUCT DETAILS: sets Warranty No, Warranty Start and End, Contract No, Contract Start and End, Contract Type and Item Status AS ON THE DATE THE CALL WAS REGISTERED — the warranty and contract running that day. If none was running, the last ones that had ended are shown and the Item Status is OGP; if both were running, the Item Status is WGP.',
+      'Both work on a call of any status, one at a time or many at once, for anyone who may edit the call\'s customer details.',
+      'AUDIT MODE: while it is ON, both buttons are hidden and the database refuses them. This is the first rule attached to Audit Mode.',
     ],
   },
   {

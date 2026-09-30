@@ -14,7 +14,7 @@
 --   6. a non-administrator cannot mark a review imported to dodge the FFR rule;
 --   7. an FFR raised from a review has its CAPA fields blank;
 --   8. a Review 2 a person has part-answered is never overwritten by the rule;
---   9. it is held by ROLE (0271): an NSM and a Technical Support user holding
+--   9. it is held by ROLE (0285): an NSM and a Technical Support user holding
 --      nothing of their own can switch it, a Zoho Migration user cannot, and
 --      0269's grant to a person by name is taken back while a grant an
 --      administrator gave somebody else is kept.
@@ -224,8 +224,8 @@ set role authenticated;
 select 'switched off by nsm' as check, enabled, by_name from public.set_auto_review(false);
 reset role;
 
--- Re-running 0271 takes back what 0269 gave by name, and nothing else.
-\ir ../migrations/0271_auto_review_by_role.sql
+-- Re-running 0285 takes back what 0269 gave by name, and nothing else.
+\ir ../migrations/0285_auto_review_by_role.sql
 do $$
 declare v text; g text;
 begin

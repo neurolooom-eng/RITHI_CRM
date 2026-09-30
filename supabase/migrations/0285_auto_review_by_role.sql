@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0271 — WHO MAY SWITCH AUTO REVIEW IS A ROLE, NOT TWO NAMES.
+-- 0285 — WHO MAY SWITCH AUTO REVIEW IS A ROLE, NOT TWO NAMES.
 --
 -- The user, 2026-09-30: "instead of hard coded names, can u change it to role -
 -- Admin, NSM, Technical Support" -- and, asked whether Technical Support should
@@ -42,7 +42,7 @@ begin
      and ar.role in ('admin', 'nsm', 'technical_support')
      and not (ar.permissions ? 'review.auto');
   get diagnostics n = row_count;
-  raise notice '0271: review.auto given to % of 3 role(s)', n;
+  raise notice '0285: review.auto given to % of 3 role(s)', n;
 end $$;
 
 do $$
@@ -61,7 +61,7 @@ begin
                 where e <> '"review.auto"'::jsonb), '[]'::jsonb)
        where id = v_id and coalesce(extra_permissions, '[]'::jsonb) ? 'review.auto';
       get diagnostics n = row_count;
-      raise notice '0271: the by-name grant of review.auto to % taken back (% row)', who, n;
+      raise notice '0285: the by-name grant of review.auto to % taken back (% row)', who, n;
     end if;
   end loop;
 end $$;

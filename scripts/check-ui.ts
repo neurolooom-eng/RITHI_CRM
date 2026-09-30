@@ -1897,7 +1897,7 @@ console.log('\n-- Technical Support: the Super Admin\'s reach, none of its write
     'users.manage', 'config.manage', 'rbac.manage'];
   eq('...and not one action that writes',
     WRITES.filter((w) => DEFAULT_PERMS.technical_support?.includes(w)), []);
-  // ...but for ONE, given knowingly (0271, the user 2026-09-30: "Yes, include
+  // ...but for ONE, given knowingly (0285, the user 2026-09-30: "Yes, include
   // it"): switching Auto Review. Named here so a second write cannot arrive
   // under cover of the first.
   eq('...except the Auto Review switch, its one write',
@@ -2806,7 +2806,7 @@ console.log('\n-- Zoho Migration is a clone, and stays one --');
   // The clone is only worth anything while it matches. DEFAULT_PERMS is the
   // app-side fallback; this compares the two lists it builds.
   // ...but for the Auto Review switch, which the user gave Technical Support
-  // and not this role (0271): a clone that inherited a WRITE would stop being
+  // and not this role (0285): a clone that inherited a WRITE would stop being
   // read-only without anybody deciding it.
   const a = [...(DEFAULT_PERMS.technical_support ?? [])].filter((k) => k !== 'review.auto').sort();
   const b = [...(DEFAULT_PERMS.zoho_migration ?? [])].sort();

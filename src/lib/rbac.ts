@@ -245,9 +245,9 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // pending.register", shown on no row. Copied from those two by 0284.
   { group: 'Calls', key: 'calls.reopen', label: 'Re-open, close or close again a Field call' },
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
-  // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269, 0271). Its answers carry the
+  // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269, 0285). Its answers carry the
   // name of whoever switched it on. Held by ROLE -- Admin, NSM and Technical
-  // Support (0271, which replaced 0269's two names); anybody else can be given
+  // Support (0285, which replaced 0269's two names); anybody else can be given
   // it on User Master -> Access.
   { group: 'Calls', key: 'review.auto', label: 'Switch auto review on or off (Review 2 answered No in your name)' },
   // A SECOND review, on the REPORT rather than the failure -- so a separate
@@ -407,7 +407,7 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   // `data.view_all` is what makes the rest of it useful: without it the role
   // sees every PAGE and, on the call pages, only its own rows -- which for a
   // support login is nothing at all.
-  // ONE EXCEPTION, added below the Zoho clone: review.auto (0271).
+  // ONE EXCEPTION, added below the Zoho clone: review.auto (0285).
   technical_support: ['calls.view', 'masters.view', 'consumption.view', 'reports.view',
                       'feedback.view', 'audit.view', 'admin.view',
                       'export.data', 'data.view_all'],
@@ -435,7 +435,7 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
 // doing the actual work.
 FUNCTIONAL_DEFAULTS.zoho_migration = [...FUNCTIONAL_DEFAULTS.technical_support];
 
-// WHO MAY SWITCH AUTO REVIEW IS A ROLE (0271, the user, 2026-09-30: "instead of
+// WHO MAY SWITCH AUTO REVIEW IS A ROLE (0285, the user, 2026-09-30: "instead of
 // hard coded names, can u change it to role - Admin, NSM, Technical Support").
 // Admin already holds every functional action. Added AFTER the Zoho clone so
 // that role does not inherit it: for Technical Support it is the ONE write the

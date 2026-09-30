@@ -30,7 +30,8 @@ import {
   updateFieldCall,
 } from '../lib/sheets';
 import { formatDay } from '../lib/dates';
-import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, type CallServiceReport } from '../lib/supabase';
+import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, refreshCallsParty, refreshCallsProduct, type CallServiceReport } from '../lib/supabase';
+import { useAuditMode } from '../lib/auditMode';
 import { useCallFieldMasters } from './callFields';
 import { StateBadge, Ucn } from '../lib/callstate';
 import { useUserNames, nameForUserId } from '../lib/userNames';
@@ -527,6 +528,14 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const isCancelled = (row: Rec) => String(row.callState ?? '') === 'Cancelled';
   const P = config.perm;
   const mayCancel = can(`${P}.cancel`);
+  // UPDATE PARTY / PRODUCT DETAILS from the masters (0271, the user,
+  // 2026-09-30). ANY STATUS, Solved and Cancelled included; HIDDEN WHILE AUDIT
+  // MODE IS ON (and refused by the database then too) -- a non-auditable
+  // requirement (NAR-006), not an edit of what happened on the call.
+  // The register's own customer-section key (0273; its parent is the
+  // register's edit key).
+  const audit = useAuditMode();
+  const mayRefresh = supabaseConfigured() && !audit.on && can(`${P}.edit.customer`);
   // Closed means closed — for admins too. The way back is Re-open, not an
   // exemption, so a call's history cannot gain a visit that never happened.
   // Any section is a way in: the database admits a section-only holder
@@ -1011,6 +1020,25 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     return [...r].reverse();
   }, [cached, srch, scope, user?.id, onDb, openOnly, reopenedOnly, engineerFilter]);
 
+  const refreshFromMasters = async (what: 'party' | 'product', ucns: string[], clear?: () => void) => {
+    const list = ucns.map((u) => u.trim()).filter(Boolean);
+    if (!list.length) return;
+    const label = what === 'party' ? 'Party details (City, State)' : 'Product details (warranty, contract, item status as on the registration date)';
+    if (list.length > 1 && !confirm(`Update the ${label} of ${list.length} calls from the masters?`)) return;
+    setAllotBusy(true);
+    const res = what === 'party' ? await refreshCallsParty(list) : await refreshCallsProduct(list);
+    setAllotBusy(false);
+    if (!res.ok) { setBanner({ tone: 'error', text: res.error ?? 'Could not update.' }); return; }
+    const n = res.updated ?? 0;
+    const unmatched = 'unmatched' in res ? Number(res.unmatched ?? 0) : 0;
+    setBanner({ tone: 'ok', text: `${label}: ${n} of ${list.length} call${list.length === 1 ? '' : 's'} updated`
+      + `${list.length - n - unmatched > 0 ? `, ${list.length - n - unmatched} already matched` : ''}`
+      + `${unmatched ? `, ${unmatched} whose party is not in the Party Master (left as they were)` : ''}.` });
+    clear?.();
+    setPicked(new Set());
+    void refresh();
+  };
+
   const saveAllotment = async () => {
     const ucns = rowsWithRegion.filter((r) => picked.has(String(r.id)))
       .map((r) => String((r as Rec).ucn ?? '').trim()).filter(Boolean);
@@ -1146,6 +1174,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     { key: 'edit', icon: '✏️', label: 'Edit', title: 'Edit this call',
       show: canEditRow(row),
       run: () => setDrawer({ mode: 'edit', row }) },
+    { key: 'party', icon: '🏢', label: 'Update Party Details', title: 'Update City and State from the Party Master',
+      show: mayRefresh && !row._pending,
+      run: () => { setDrawer(null); void refreshFromMasters('party', [String(row.ucn ?? '')]); } },
+    { key: 'product', icon: '🛡️', label: 'Update Product Details', title: 'Update Warranty, Contract and Item Status as on the call\'s registration date',
+      show: mayRefresh && !row._pending,
+      run: () => { setDrawer(null); void refreshFromMasters('product', [String(row.ucn ?? '')]); } },
     { key: 'visit', icon: '📝', label: 'Visit Entry', title: 'Visit Entry — record a visit against this call', primary: true,
       show: can(`${P}.report.visit`) && !row._pending && canWorkRow(row),
       run: () => { setDrawer(null); setReport(row); } },
@@ -1172,7 +1206,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const actionsColumn: Column<Rec> = {
     // Icons, not words: the column has to fit four actions without stealing the
     // width the call itself needs. Every button keeps a title for its meaning.
-    key: '_actions', header: '⚙', width: 138, sortable: false, wrap: false, align: 'center',
+    key: '_actions', header: '⚙', width: 190, sortable: false, wrap: false, align: 'center',
     render: (row) => (
       <div className="row act-row" onClick={(e) => e.stopPropagation()}>
         <button className="btn btn-sm btn-icon" title="View this call" onClick={() => setDrawer({ mode: 'view', row })}>👁</button>
@@ -1269,21 +1303,36 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         allFields={CALL_ALL_FIELDS}
         rows={rowsWithRegion}
         getRowId={(r) => r.id}
-        selectable={mayAllot}
+        selectable={mayAllot || mayRefresh}
         selected={picked}
         onSelectedChange={setPicked}
-        bulkBar={(ids, clear) => (
-          <>
-            <b>{ids.length} selected</b>
-            <span className="muted">Allot to</span>
-            <SelectPicker value={allotTo} onChange={setAllotTo} disabled={allotBusy}
-              placeholder="— choose an engineer —" options={allotTeam.names} />
-            <button className="btn btn-primary btn-sm" disabled={!allotTo || allotBusy} onClick={() => void saveAllotment()}>
-              {allotBusy ? 'Saving…' : `Save ${ids.length}`}
-            </button>
-            <button className="btn btn-ghost btn-sm" disabled={allotBusy} onClick={clear}>Clear</button>
-          </>
-        )}
+        bulkBar={(ids, clear) => {
+          const ucns = rowsWithRegion.filter((r) => ids.includes(String(r.id))).map((r) => String((r as Rec).ucn ?? ''));
+          return (
+            <>
+              <b>{ids.length} selected</b>
+              {mayAllot && (
+                <>
+                  <span className="muted">Allot to</span>
+                  <SelectPicker value={allotTo} onChange={setAllotTo} disabled={allotBusy}
+                    placeholder="— choose an engineer —" options={allotTeam.names} />
+                  <button className="btn btn-primary btn-sm" disabled={!allotTo || allotBusy} onClick={() => void saveAllotment()}>
+                    {allotBusy ? 'Saving…' : `Save ${ids.length}`}
+                  </button>
+                </>
+              )}
+              {mayRefresh && (
+                <>
+                  <button className="btn btn-sm" disabled={allotBusy} title="Update City and State from the Party Master"
+                    onClick={() => void refreshFromMasters('party', ucns, clear)}>🏢 Update Party Details</button>
+                  <button className="btn btn-sm" disabled={allotBusy} title="Update Warranty, Contract and Item Status as on each call's registration date"
+                    onClick={() => void refreshFromMasters('product', ucns, clear)}>🛡️ Update Product Details</button>
+                </>
+              )}
+              <button className="btn btn-ghost btn-sm" disabled={allotBusy} onClick={clear}>Clear</button>
+            </>
+          );
+        }}
         storageKey={config.storageKey}
         // Region, engineer, call status — in any order, up to three deep.
         groupable={[

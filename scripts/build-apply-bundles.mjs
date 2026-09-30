@@ -448,7 +448,7 @@ const MODULES = {
             '0269_dccr_auto_review_switch.sql',
             // Who may switch it is a ROLE (admin, nsm, technical_support),
             // not two names; after 0269, whose by-name grant it takes back.
-            '0271_auto_review_by_role.sql'],
+            '0285_auto_review_by_role.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -1014,8 +1014,13 @@ const MODULES = {
             // AFTER 0235: it replaces that view so the contract and the
             // installation call match the machine's CURRENT owner.
             '0239_attachments_follow_the_owner.sql',
+            // A call's Party / Product details refreshed from the masters, cover
+            // as on the registration date (0271). Here because it reads
+            // machine_key() and contract_cover_code(), which 0218 owns.
+            '0271_call_refresh_from_masters.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
-            // and split keys; see 0272 for the parent rule.
+            // and split keys; see 0272 for the parent rule. AFTER 0271, whose gate it widens
+            // to every register.
             '0280_product_database_2_rebuild_key.sql'],
   },
   feedback_checks: {
@@ -1085,7 +1090,7 @@ const MODULES = {
             'It also takes off the two ticks that did nothing (finding 66).',
             '',
             'LATE IN THE ORDER so every earlier module has granted its keys first.',
-            '_status.sql row 212 says whether it has run.'],
+            '_status.sql row 224 says whether it has run.'],
     needs: [],
     files: ['0284_permission_grants_copied.sql'],
   },

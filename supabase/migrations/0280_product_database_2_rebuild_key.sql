@@ -36,3 +36,24 @@ begin
    where only_row;
   return (select refreshed_at from public.product_database_v2_state where only_row);
 end $function$;
+
+-- ---- 0271's refresh gate, for every register -----------------------------
+-- "Update Party / Product Details" runs on a call of any register, and each
+-- register has its own customer-section key since 0273. The gate asks whether
+-- the caller may change customer details on ANY register; the section guard
+-- then refuses the call the caller holds no key for, per call, by its table.
+create or replace function public.call_refresh_allowed()
+returns void language plpgsql stable set search_path = public as $$
+begin
+  if coalesce(public.audit_mode(), false) then
+    raise exception 'Audit Mode is ON: a call''s party and product details cannot be refreshed from the masters until an administrator turns it off.'
+      using errcode = '42501';
+  end if;
+  if not (public.has_perm('calls.edit.customer') or public.has_perm('install.edit.customer')
+          or public.has_perm('pm.edit.customer')) then
+    raise exception 'RBAC: refreshing a call''s party or product details needs that register''s "Edit customer & product" (or its whole Edit).'
+      using errcode = '42501';
+  end if;
+end $$;
+revoke execute on function public.call_refresh_allowed() from public, anon;
+grant execute on function public.call_refresh_allowed() to authenticated;

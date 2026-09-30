@@ -2989,7 +2989,7 @@ export async function autoAnswerReview2():
   };
 }
 
-// AUTO REVIEW IS A PERSON'S SWITCH, HELD BY ROLE (0269, 0271, the user,
+// AUTO REVIEW IS A PERSON'S SWITCH, HELD BY ROLE (0269, 0285, the user,
 // 2026-09-30: "Record that Person's name in Auto Reviewal", then "instead of
 // hard coded names, can u change it to role - Admin, NSM, Technical Support").
 // While it is on, the answers above carry the name of the person who switched
@@ -5234,6 +5234,26 @@ export async function setDefaultRegistrantEmail(email: string): Promise<{ ok: bo
 // not.
 // ---------------------------------------------------------------------------
 export interface AuditModeChange { id: number; at: string; turned_on: boolean; reason: string; changed_by: string | null }
+/** PARTY DETAILS (City, State) and PRODUCT DETAILS (warranty, contract, item
+ *  status AS ON THE CALL'S REGISTRATION DATE) refreshed from the masters (0271).
+ *  Refused by the database while Audit Mode is ON, and without calls.edit /
+ *  calls.edit.customer. */
+export async function refreshCallsParty(ucns: string[]): Promise<{ ok: boolean; updated?: number; unmatched?: number; error?: string }> {
+  const list = [...new Set(ucns.filter(Boolean))];
+  if (!list.length) return { ok: true, updated: 0, unmatched: 0 };
+  const { data, error } = await must().rpc('refresh_calls_party', { p_ucns: list });
+  if (error) return { ok: false, error: errMsg(error) };
+  const r = (data ?? {}) as { updated?: number; unmatched?: number };
+  return { ok: true, updated: Number(r.updated ?? 0), unmatched: Number(r.unmatched ?? 0) };
+}
+export async function refreshCallsProduct(ucns: string[]): Promise<{ ok: boolean; updated?: number; error?: string }> {
+  const list = [...new Set(ucns.filter(Boolean))];
+  if (!list.length) return { ok: true, updated: 0 };
+  const { data, error } = await must().rpc('refresh_calls_product', { p_ucns: list });
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true, updated: Number(((data ?? {}) as { updated?: number }).updated ?? 0) };
+}
+
 export async function getAuditMode(): Promise<boolean> {
   const { data, error } = await must().rpc('audit_mode');
   if (error) throw new Error(errMsg(error));

@@ -6,7 +6,7 @@ what happened when**. Updated with every batch. Evidence for each finding is in
 [`MODULE_REVIEW_HANDOFF.md`](MODULE_REVIEW_HANDOFF.md). This file is the index,
 not the argument.
 
-_Last updated: 2026-09-30. **Findings 57–67 decided and built (v0.10.9, on the branch): per-screen keys, parent keys, admin-only rows, dead ticks gone.** Before that: **Software Validation Rev 3.0 (v0.10.7, on the branch): every page read, 1,072 actions, every gap given a requirement, test and — where the code falls short — an open defect; data flow diagrams; the auto review switch.** Before that: **20, follow-up (v0.10.7, on the branch, not merged): "Cleared for Stores Processing" counts as approved.** Before that: **Batch 7 (v0.10.2): 20, 23 and 31 fixed as you decided, merged in #453 on your word ("Lets merge"); migrations 0256–0262 are applied by that merge's "Apply database migrations" run.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
+_Last updated: 2026-09-30. **Findings 57–67 decided and built (v0.10.10, on the branch): per-screen keys, parent keys, admin-only rows, dead ticks gone.** Before that: **Software Validation Rev 3.0 (v0.10.7, on the branch): every page read, 1,072 actions, every gap given a requirement, test and — where the code falls short — an open defect; data flow diagrams; the auto review switch.** Before that: **20, follow-up (v0.10.7, on the branch, not merged): "Cleared for Stores Processing" counts as approved.** Before that: **Batch 7 (v0.10.2): 20, 23 and 31 fixed as you decided, merged in #453 on your word ("Lets merge"); migrations 0256–0262 are applied by that merge's "Apply database migrations" run.** Before that: **Findings 57–67 added: every screen's actions checked against Roles & Permissions** (evidence in [`PERMISSIONS_REVIEW.md`](PERMISSIONS_REVIEW.md)). Batch 6 in v0.9.398: 13 fixed (0254, the first migration to apply itself); the background-sync race in D fixed. On 2026-09-29 the live project was baselined, so a merged migration now applies itself. Table review findings 49–56, page: [RITHI Table Atlas](https://claude.ai/artifact/6fPgVRuyiVcATdfzekKwTs)._
 
 ---
 
@@ -15,7 +15,7 @@ _Last updated: 2026-09-30. **Findings 57–67 decided and built (v0.10.9, on the
 | | Count | Findings |
 | --- | --- | --- |
 | ✅ **Fixed and live** | **43** | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 38, 40, 41, 43, 45, 46, 47, 48, 49, 50, 51, 52 — 20, 23 and 31 in batch 7 (v0.10.2, #453) |
-| 🔀 **Fixed on the branch, not merged** | **8** | 57, 58, 59, 63, 64, 65, 66, 67 (PR #464, v0.10.9) |
+| 🔀 **Fixed on the branch, not merged** | **8** | 57, 58, 59, 63, 64, 65, 66, 67 (PR #464, v0.10.10) |
 | ☑ **Closed by your decision** | **2** | 60 and 61 — as designed (2026-09-30) |
 | ⏳ **Open** | **14** | 26, 27, 34, 35, 36, 37, 39, 42, 44, 53, 54, 55, 56, 62 (62 parked by you) |
 | | **67** | |
@@ -161,7 +161,7 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-09-30 — Findings 57–67 decided and built (v0.10.9, on the branch, not merged)
+### 2026-09-30 — Findings 57–67 decided and built (v0.10.10, on the branch, not merged)
 
 Your decisions, and what each became:
 
@@ -200,7 +200,7 @@ Your decisions, and what each became:
 any other role, or the role a User Master row grants at first sign-in, needs "Assign roles & grant permissions".
 
 Proved by `permissions_by_screen_test` as signed-in users; `npm run validate` 118/118 suites, 22/22 checks, the
-replay check included. `_status.sql` rows 212–223. **Not merged.**
+replay check included. `_status.sql` rows 213–224. **Not merged.**
 
 ### 2026-09-30 — Software Validation Rev 3.0: every page read, every action given a requirement (v0.10.7, on the branch, not merged)
 - **Your ask:** read every page, list every action, update the requirements, then everything downstream (risk, DFMEA, tests), and add data flow charts.
@@ -220,7 +220,7 @@ replay check included. `_status.sql` rows 212–223. **Not merged.**
   - Data Export and uploads leave no audit entry.
 - **Your decisions, built (0269):**
   - Auto review is a person's switch. Its answers carry the switcher's name and an auto marker, and it never touches a started Review 2.
-  - Who may switch it was two names in 0269; **0271 makes it a role — Admin, NSM, Technical Support** (the user, 2026-09-30), and takes the by-name grant back. For Technical Support it is the role's one write.
+  - Who may switch it was two names in 0269; **0285 makes it a role — Admin, NSM, Technical Support** (the user, 2026-09-30), and takes the by-name grant back. For Technical Support it is the role's one write.
   - Old reviews load as imported and raise no FFR.
   - FFR CAPA starts blank.
   - "9:15" is no longer in the documents.
