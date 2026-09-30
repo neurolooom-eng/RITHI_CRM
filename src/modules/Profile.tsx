@@ -33,7 +33,7 @@ export function Profile() {
     { key: 'account', icon: '🪪', label: 'Account' },
     { key: 'details', icon: '👤', label: 'Details & R&R' },
     { key: 'training', icon: '🎓', label: 'Training' },
-    ...(people.team.length ? [{ key: 'team' as TabKey, icon: '👥', label: `My Team (${people.team.length})` }] : []),
+    ...(people.team.length ? [{ key: 'team' as TabKey, icon: '👥', label: `My Team (${people.team.filter((t) => t.validity).length})` }] : []),
     { key: 'access', icon: '🔑', label: 'What I can do' },
     { key: 'signature', icon: '✍️', label: 'Signature' },
     { key: 'password', icon: '🔒', label: 'Password' },

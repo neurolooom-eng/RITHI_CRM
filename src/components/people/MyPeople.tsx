@@ -61,15 +61,37 @@ export function MyOwn({ data, part, title }: { data: MyPeopleData; part: PersonP
   );
 }
 
-/** The people who report to me, each with their profile a click away. */
+/** The people who report to me, each with their profile a click away.
+ *
+ *  CURRENT AND EX EMPLOYEES APART (the user, 2026-09-30: "My Team should have
+ *  Active/Current and Ex Employee [based on Status of the Employee]"). The
+ *  status is the User Master's Active column (`validity`). The reporting tree
+ *  does not drop somebody who has left -- their name still sits under their
+ *  manager -- so they were listed beside the current team with nothing to say
+ *  they had gone. Their profile, R&R and training stay a click away: a leaver's
+ *  training record is still a quality record. */
 export function MyTeam({ data }: { data: MyPeopleData }) {
   const [open, setOpen] = useState<DirectoryRow | null>(null);
-  const { team } = data;
+  const [which, setWhich] = useState<'current' | 'ex'>('current');
+  const current = data.team.filter((t) => t.validity);
+  const ex = data.team.filter((t) => !t.validity);
+  const team = which === 'current' ? current : ex;
   if (!supabaseConfigured()) return null;
   return (
     <>
-      {team.length === 0 ? <div className="muted">Nobody reports to you on the User Master.</div> : (
-        <SectionCard title={`My team (${team.length})`}>
+      <div className="row" style={{ gap: 6, marginBottom: 10 }} role="tablist" aria-label="Team status">
+        <button role="tab" aria-selected={which === 'current'} className={`btn btn-sm${which === 'current' ? ' btn-primary' : ''}`}
+          onClick={() => setWhich('current')}>Active / Current ({current.length})</button>
+        <button role="tab" aria-selected={which === 'ex'} className={`btn btn-sm${which === 'ex' ? ' btn-primary' : ''}`}
+          onClick={() => setWhich('ex')}>Ex Employees ({ex.length})</button>
+      </div>
+      {team.length === 0 ? (
+        <div className="muted">
+          {data.team.length === 0 ? 'Nobody reports to you on the User Master.'
+            : which === 'current' ? 'Nobody currently active reports to you.' : 'No ex employees in your team.'}
+        </div>
+      ) : (
+        <SectionCard title={which === 'current' ? `Active / Current (${team.length})` : `Ex Employees (${team.length})`}>
           <div className="assoc-scroll">
             <table className="assoc-table">
               <thead><tr><th>Name</th><th>Designation</th><th>Department</th><th>Region</th><th /></tr></thead>

@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.14',
+    date: '2026-09-30',
+    title: 'My Team: current and ex employees apart',
+    changes: [
+      'MY TEAM (My Profile) IS SPLIT INTO ACTIVE / CURRENT AND EX EMPLOYEES, by the Active column on the User Master, each with its count. The tab counts your current team. An ex employee\'s profile, R&R and training are still one click away.',
+    ],
+  },
+  {
     version: '0.10.13',
     date: '2026-09-30',
     title: 'My Profile in tabs',

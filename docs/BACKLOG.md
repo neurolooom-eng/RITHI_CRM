@@ -230,6 +230,10 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.14 — My Team: Active / Current and Ex Employees**, by
+  `user_directory.validity` (the User Master's Active column). The reporting
+  walk (`visible_engineer_names`) does not drop leavers, which is why they were
+  listed as team. FRS-216.6. No migration.
 - ✅ **0.10.13 — My Profile in tabs.** Account, Details & R&R, Training, My
   Team (only with a team), What I can do, Signature, Password, Appearance;
   last tab remembered per device. `PersonProfile` takes `part`
