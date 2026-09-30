@@ -1507,7 +1507,15 @@ with checks(sort_order, bundle, provides, present) as (
          and coalesce((select p.prosrc ~ 'auto_review_state' from pg_proc p
                         where p.oid = to_regprocedure('public.auto_answer_review2_asof(timestamptz)')), false)
          and coalesce((select column_default from information_schema.columns where table_schema = 'public'
-                        and table_name = 'field_failure_reports' and column_name = 'capa_status'), '') = '''''::text'))
+                        and table_name = 'field_failure_reports' and column_name = 'capa_status'), '') = '''''::text')),
+    (211, 'A call''s Party and Product details refreshed from the masters, not in Audit Mode', 'call_cover_as_of(), refresh_calls_party(), refresh_calls_product() and call_refresh_allowed() (0271). The user, 2026-09-30: Update Party Details sets City / State from the Party Master; Update Product Details sets warranty, contract and Item Status AS ON THE CALL''S REGISTRATION DATE from the warranty and contract registers; both hidden, and refused here, while Audit Mode is ON (NAR-006). Checks the four functions, that the gate reads audit_mode(), that the public key can call neither update, and that the cover lookup is a definer function (so a caller who cannot read the cover registers is not told "no cover"). NO means the two buttons fail with "not on the project yet". Restore: product_database_2.sql',
+        (to_regprocedure('public.call_cover_as_of(text,text,date)') is not null
+         and to_regprocedure('public.refresh_calls_party(text[])') is not null
+         and to_regprocedure('public.refresh_calls_product(text[])') is not null
+         and coalesce((select p.prosrc ilike '%audit_mode()%' from pg_proc p where p.oid = to_regprocedure('public.call_refresh_allowed()')), false)
+         and coalesce((select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.call_cover_as_of(text,text,date)')), false)
+         and not has_function_privilege('anon', to_regprocedure('public.refresh_calls_party(text[])'), 'EXECUTE')
+         and not has_function_privilege('anon', to_regprocedure('public.refresh_calls_product(text[])'), 'EXECUTE')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

@@ -230,6 +230,14 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.8 — Calls: Update Party / Product Details, not in Audit Mode.**
+  Asked and answered: no cover on the date → the last that had ended + OGP;
+  both → warranty decides (WGP); any status; single + bulk; hidden and refused
+  while Audit Mode is ON (NAR-006, the first Audit Mode rule; NAR-001 amended).
+  **0271** (`call_cover_as_of` definer over warranty_sale_details /
+  contract_details by machine_key, `refresh_calls_party`,
+  `refresh_calls_product`, `call_refresh_allowed`; product_database_2.sql);
+  `_status.sql` row 211; `call_refresh_from_masters_test`.
 - ✅ **0.10.6 — Spare requests follow their call; Technical / Service Notes.**
   The user: Complaint / Item Status "should inherit as is from the Call
   register" -- asked, any stage, and button + bulk + automatic. **0268**

@@ -8030,12 +8030,24 @@ questions for a person.
 
 ---
 
-**166** user requirements · **216** system requirements · **31** call-request · **44** servicing · **217** tests · **5** recorded as non-auditable · **479** of 166 user requirements tied to a module.
+**166** user requirements · **216** system requirements · **31** call-request · **44** servicing · **217** tests · **6** recorded as non-auditable · **479** of 166 user requirements tied to a module.
 ---
 
 ## Non-auditable requirements
 
 Recorded here because a feature absent from the specification is the thing an assessor finds. Each is classified by PROVENANCE: it is not derived from a regulatory clause and is not offered as evidence against one. That is a statement about where the requirement came from, NOT a statement that its use goes unrecorded.
+
+### NAR-006 — A call's Party and Product details refreshed from the masters — only while Audit Mode is OFF
+
+*Non-Auditable Requirement (user-originated; no regulatory clause claimed) — the first rule conditioned on Audit Mode (NAR-001)* · risk: **Medium**
+
+NAR-006.1 The Call View and the call registers shall offer Update Party Details, which sets a call's City and State from the Party Master entry for its party, leaving a call whose party the master does not hold unchanged. NAR-006.2 They shall offer Update Product Details, which sets the Warranty No, Warranty Start and End, Contract No, Contract Start and End, Contract Type and Item Status to what was in force ON THE CALL'S REGISTRATION DATE: the warranty and the contract running on that date; where none was running, the last that had ended before it, with Item Status OGP; where both were running, Item Status WGP. The machine is matched on product and serial together. NAR-006.3 Both shall be available on a call of any status, one call at a time or for many selected calls, to a holder of calls.edit or calls.edit.customer. NAR-006.4 While Audit Mode is ON both controls shall be hidden and the database shall refuse both functions.
+
+**Why it is classified this way.** Requested by the system owner on 2026-09-30: "Give a Provision to update Party Details and Product Details as Separate Functions in the Call View ... As on the Date of Call registration", and "This Button falls under Audit Mode, this can be enabled when the Audit Mode is disabled and should be hidden when Audit Mode is enabled. It's a Non Auditable Requirement." ASSESSED AGAINST NAR-001's condition: the Audit Mode rule WITHHOLDS a write while the mode is on; it does not alter, conceal or suppress any record, nor change what a record shows an assessor. The refresh itself writes through the calls' ordinary policies and every change is recorded by the calls' record_audit triggers with its before and after values, so a refreshed call remains traceable. Implemented by 0271 (call_cover_as_of, refresh_calls_party, refresh_calls_product) and proved by call_refresh_from_masters_test.
+
+**No test protocol names this requirement.** That is a gap, not a decision.
+
+**Where it lives:** 0271_call_refresh_from_masters.sql · supabase/tests/call_refresh_from_masters_test.sql · src/modules/FieldCalls.tsx · src/lib/auditMode.ts
 
 ### NAR-005 — The cover registers are worked as two windows
 
@@ -8091,7 +8103,7 @@ An activity list a handful of people keep together: anyone who can open it may a
 
 The system provides a system-wide Audit Mode that only an administrator may switch on or off. The switch is held in app_settings; it is changed only through set_audit_mode(), which refuses a caller who is not an administrator and refuses a change with no reason; every change is written to audit_mode_changes with the new state, the reason, the actor and the time. That table has no insert, update or delete path through the API and is not covered by the audit-log retention purge, so the record of when the mode was on outlives the audit log itself.
 
-**Why it is classified this way.** Requested by the system owner on 2026-09-06, with the rules governing the mode’s BEHAVIOUR to be supplied separately. As at this revision NO APPLICATION BEHAVIOUR IS CONDITIONED ON THE MODE: the switch is built, its use is recorded, and nothing reads it. It is documented now rather than later because an undocumented switch in a validated system is a finding in itself. When the rules arrive, each one is to be assessed on its own merits — any rule that would alter, conceal or suppress a quality record, or change what a record shows to an assessor, is NOT covered by this classification and must be raised as an auditable requirement with its own risk assessment before it is built.
+**Why it is classified this way.** Requested by the system owner on 2026-09-06, with the rules governing the mode’s BEHAVIOUR to be supplied separately. As at this revision ONE BEHAVIOUR IS CONDITIONED ON THE MODE, and it is NAR-006: while the mode is ON, a call's Party and Product details cannot be refreshed from the masters (the controls are hidden and the database refuses). Nothing else reads it. It is documented now rather than later because an undocumented switch in a validated system is a finding in itself. When the rules arrive, each one is to be assessed on its own merits — any rule that would alter, conceal or suppress a quality record, or change what a record shows to an assessor, is NOT covered by this classification and must be raised as an auditable requirement with its own risk assessment before it is built.
 
 **Verified by:** OQ-38 — Audit Mode is an administrator’s switch, and every throw of it is kept.
 
