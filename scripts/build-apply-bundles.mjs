@@ -974,7 +974,11 @@ const MODULES = {
             '0235_product_database_computed.sql',
             // AFTER 0235: it replaces that view so the contract and the
             // installation call match the machine's CURRENT owner.
-            '0239_attachments_follow_the_owner.sql'],
+            '0239_attachments_follow_the_owner.sql',
+            // A call's Party / Product details refreshed from the masters, cover
+            // as on the registration date (0271). Here because it reads
+            // machine_key() and contract_cover_code(), which 0218 owns.
+            '0271_call_refresh_from_masters.sql'],
   },
   feedback_checks: {
     title: 'Feedback Without a Report',

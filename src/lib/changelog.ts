@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.8',
+    date: '2026-09-30',
+    title: 'Calls: Update Party Details and Update Product Details (not in Audit Mode)',
+    changes: [
+      'UPDATE PARTY DETAILS (Call View, and the call registers\' bar for ticked calls): sets the call\'s City and State from the Party Master. A party the Party Master does not have is left as it was, and the message says how many.',
+      'UPDATE PRODUCT DETAILS: sets Warranty No, Warranty Start and End, Contract No, Contract Start and End, Contract Type and Item Status AS ON THE DATE THE CALL WAS REGISTERED — the warranty and contract running that day. If none was running, the last ones that had ended are shown and the Item Status is OGP; if both were running, the Item Status is WGP.',
+      'Both work on a call of any status, one at a time or many at once, for anyone who may edit the call\'s customer details.',
+      'AUDIT MODE: while it is ON, both buttons are hidden and the database refuses them. This is the first rule attached to Audit Mode.',
+    ],
+  },
+  {
     version: '0.10.7',
     date: '2026-09-30',
     title: 'Auto review is a named person\'s switch; old reviews load without raising reports; CAPA starts blank; data flow diagrams; "Cleared for Stores Processing" counts as approved',

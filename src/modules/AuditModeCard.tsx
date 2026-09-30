@@ -71,10 +71,10 @@ export function AuditModeCard() {
   return (
     <SectionCard title="Audit Mode">
       <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-        A switch only an administrator can throw. <b>Nothing in the app behaves differently while it is on
-        yet</b> — the rules for it have not been given, and guessing at them would be worse than waiting.
-        Every change is kept with its reason, so once the rules do arrive it will always be answerable
-        whether the mode was on when a record was made.
+        A switch only an administrator can throw. <b>While it is on:</b> a call&rsquo;s <b>Update Party
+        Details</b> and <b>Update Product Details</b> are hidden, and the database refuses them. Nothing else
+        behaves differently yet. Every change is kept with its reason, so it is always answerable whether
+        the mode was on when a record was made.
       </p>
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`} style={{ marginBottom: 10 }}>
