@@ -28,8 +28,8 @@ const today = todayLocal;
 
 export function PersonProfile({ person }: { person: DirectoryRow }) {
   const { user, can } = useAuth();
-  const mayEditProfile = can('users.manage');
-  const mayEditRR = can('users.manage') || can('training.manage');
+  const mayEditProfile = can('users.manage.details');
+  const mayEditRR = can('users.manage.details') || can('training.manage');
   const isMe = !!user?.email && [person.email, person.gmail].some((e) => e && e.toLowerCase() === user.email.toLowerCase());
 
   const [profile, setProfile] = useState<Profile | null>(null);

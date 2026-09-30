@@ -456,6 +456,10 @@
 .rbac-view-box { accent-color: var(--primary, #0f766e); }
 
 .rbac-child td { background: var(--surface-alt, #fafbfc); }
+/* Held through a parent tick (0272), and admin-only actions (finding 65): locked, and read as such. */
+.rbac-cell input.rbac-inherited { opacity: .55; cursor: not-allowed; }
+.rbac-admin-only td { color: var(--text-muted); }
+.rbac-admin-only .rbac-cell input { cursor: not-allowed; }
 .rbac-indent { padding-left: 28px !important; }
 .rbac-bulk td { border-top-style: dashed; }
 

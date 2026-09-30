@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { db, genId, type BaseRecord } from './db';
 import { authLogin, authSetPassword, listUsers, sheetsConfigured, type SheetUser } from './sheets';
 import { sbSignIn, sbSignOut, clearMyNotifications, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, getRoleLabels, supabaseConfigured, hasPendingRecovery, sbConsumeRecovery, sbUpdatePassword, type Profile } from './supabase';
-import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac, parentAction, ROLES , roleLabelFor, setRoleLabels } from './rbac';
+import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac, parentActions, ROLES , roleLabelFor, setRoleLabels } from './rbac';
 import { setAuditUser, logAudit } from './audit';
 import { setCanExport } from './format';
 
@@ -602,9 +602,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // A single master list is covered by All Masters unless the role has been
     // narrowed to specific lists; a list's own edit / delete action is covered
     // by the global "Edit masters". Same inheritance the DB policies use.
-    const parent = parentAction(canonical);
-    if (parent) return held(parent);
-    return false;
+    // ...and a split key by its parent (0272's perm_parents, the same list).
+    return parentActions(canonical).some(held);
   };
 
   // Enforce CSV/download permission centrally (csvExport reads this flag).

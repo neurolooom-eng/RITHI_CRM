@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
 import { listSlaRules, saveSlaRule, supabaseConfigured, type SlaRuleRow } from '../lib/supabase';
 import { DEFAULT_SLA_RULES } from '../lib/sla';
+import { useAuth } from '../lib/auth';
 
 // Admin Config → SLA targets. Each rule's hours and on/off are editable; the
 // app highlights open calls against the active rules.
@@ -10,6 +11,10 @@ const asDays = (h: number) => (h % 24 === 0 ? `${h / 24} day${h / 24 === 1 ? '' 
 
 export function SlaRulesCard() {
   const onDb = supabaseConfigured();
+  // GATED ON SCREEN as the database is (finding 58): Admin config. Technical
+  // Support opens this page by default and holds neither.
+  const { can, isAdmin } = useAuth();
+  const mayEdit = onDb && (isAdmin || can('config.manage'));
   const [rules, setRules] = useState<SlaRuleRow[]>([]);
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
@@ -68,12 +73,12 @@ export function SlaRulesCard() {
                 <td>
                   <input className="input" type="number" min={1} value={r.target_hours}
                     onChange={(e) => edit(r.key, { target_hours: Number(e.target.value) })}
-                    style={{ width: 90 }} disabled={!onDb} />
+                    style={{ width: 90 }} disabled={!mayEdit} />
                 </td>
                 <td className="muted">{asDays(r.target_hours)}</td>
                 <td>
                   <label className="switch-lite">
-                    <input type="checkbox" checked={r.active} onChange={(e) => edit(r.key, { active: e.target.checked })} disabled={!onDb} />
+                    <input type="checkbox" checked={r.active} onChange={(e) => edit(r.key, { active: e.target.checked })} disabled={!mayEdit} />
                   </label>
                 </td>
               </tr>
@@ -82,7 +87,7 @@ export function SlaRulesCard() {
         </table>
       </div>
       <div className="row" style={{ marginTop: 12 }}>
-        <button className="btn btn-primary" onClick={() => void save()} disabled={busy || !onDb || !changedCount}>
+        <button className="btn btn-primary" onClick={() => void save()} disabled={busy || !mayEdit || !changedCount}>
           {busy ? 'Saving…' : changedCount ? `Save ${changedCount} change${changedCount === 1 ? '' : 's'}` : 'Saved'}
         </button>
         <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>↻ Refresh</button>

@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**88 tables · 36 views · 2610 columns · 174 policies · 59 foreign keys.**
+**90 tables · 36 views · 2624 columns · 191 policies · 59 foreign keys.**
 
 ## How to read this
 
@@ -82,6 +82,8 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [party_key_seq](#party-key-seq)
 - [password_resets](#password-resets)
 - [pending_registrations](#pending-registrations)
+- [perm_parents](#perm-parents)
+- [permission_copies_done](#permission-copies-done)
 - [pm_calls](#pm-calls)
 - [product_accessories](#product-accessories)
 - [product_additional_entries](#product-additional-entries)
@@ -589,8 +591,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `contract_entries_write` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` |
-| SELECT | `contract_entries_read` | `(( SELECT has_perm('masters.view'::text) AS has_perm) OR ( SELECT has_perm('cover.edit'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
+| DELETE | `contract_entries_delete` | `( SELECT has_perm('contract.edit.delete'::text) AS has_perm)` | — |
+| INSERT | `contract_entries_insert` | — | `( SELECT has_perm('contract.edit.entries'::text) AS has_perm)` |
+| SELECT | `contract_entries_read` | `(( SELECT has_perm('masters.view'::text) AS has_perm) OR ( SELECT has_perm('contract.edit.entries'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
+| UPDATE | `contract_entries_update` | `( SELECT has_perm('contract.edit.entries'::text) AS has_perm)` | `( SELECT has_perm('contract.edit.entries'::text) AS has_perm)` |
 
 ---
 
@@ -650,8 +654,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `contract_items_write` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` |
-| SELECT | `contract_items_read` | `(( SELECT has_perm('masters.view'::text) AS has_perm) OR ( SELECT has_perm('cover.edit'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
+| DELETE | `contract_items_delete` | `( SELECT has_perm('contract.edit.entries'::text) AS has_perm)` | — |
+| INSERT | `contract_items_insert` | — | `( SELECT has_perm('contract.edit.entries'::text) AS has_perm)` |
+| SELECT | `contract_items_read` | `(( SELECT has_perm('masters.view'::text) AS has_perm) OR ( SELECT has_perm('contract.edit.entries'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
+| UPDATE | `contract_items_update` | `( SELECT has_perm('contract.edit.entries'::text) AS has_perm)` | `( SELECT has_perm('contract.edit.entries'::text) AS has_perm)` |
 
 ---
 
@@ -912,9 +918,9 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| INSERT | `fb_write` | — | `(has_perm('calls.report'::text) OR has_perm('feedback.view'::text))` |
-| SELECT | `fb_read` | `(has_perm('feedback.view'::text) OR has_perm('calls.report'::text))` | — |
-| UPDATE | `fb_update` | `(has_perm('calls.report'::text) OR has_perm('feedback.view'::text))` | `(has_perm('calls.report'::text) OR has_perm('feedback.view'::text))` |
+| INSERT | `fb_write` | — | `(has_perm('visit.feedback'::text) OR has_perm('feedback.view'::text))` |
+| SELECT | `fb_read` | `(has_perm('feedback.view'::text) OR has_perm('visit.feedback'::text))` | — |
+| UPDATE | `fb_update` | `(has_perm('visit.feedback'::text) OR has_perm('feedback.view'::text))` | `(has_perm('visit.feedback'::text) OR has_perm('feedback.view'::text))` |
 
 ---
 
@@ -1050,7 +1056,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | --- | --- | --- | --- |
 | INSERT | `calls_insert` | — | `has_perm('calls.create'::text)` |
 | SELECT | `calls_scoped_read` | `(( SELECT has_perm('calls.view'::text) AS has_perm) AND (( SELECT can_view_all_calls() AS can_view_all_calls) OR (created_by = ( SELECT auth.uid() AS uid)) OR (actual_created_by = …` | — |
-| UPDATE | `calls_update` | `(( SELECT (has_perm('calls.edit'::text) OR has_perm('calls.report'::text) OR has_perm('calls.allot'::text) OR has_perm('calls.edit.complaint'::text) OR has_perm('calls.edit.custome…` | `(( SELECT (has_perm('calls.edit'::text) OR has_perm('calls.report'::text) OR has_perm('calls.allot'::text) OR has_perm('calls.edit.complaint'::text) OR has_perm('calls.edit.custome…` |
+| UPDATE | `calls_update` | `(( SELECT (has_perm('calls.edit.complaint'::text) OR has_perm('calls.edit.customer'::text) OR has_perm('calls.edit.vigilance'::text) OR has_perm('calls.edit.contact'::text) OR has_…` | `(( SELECT (has_perm('calls.edit.complaint'::text) OR has_perm('calls.edit.customer'::text) OR has_perm('calls.edit.vigilance'::text) OR has_perm('calls.edit.contact'::text) OR has_…` |
 
 ---
 
@@ -1648,7 +1654,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | --- | --- | --- | --- |
 | INSERT | `calls_insert` | — | `has_perm('install.create'::text)` |
 | SELECT | `calls_scoped_read` | `(( SELECT has_perm('calls.view'::text) AS has_perm) AND (( SELECT can_view_all_calls() AS can_view_all_calls) OR (created_by = ( SELECT auth.uid() AS uid)) OR (actual_created_by = …` | — |
-| UPDATE | `calls_update` | `(( SELECT (has_perm('calls.edit'::text) OR has_perm('calls.report'::text) OR has_perm('calls.allot'::text) OR has_perm('calls.edit.complaint'::text) OR has_perm('calls.edit.custome…` | `(( SELECT (has_perm('calls.edit'::text) OR has_perm('calls.report'::text) OR has_perm('calls.allot'::text) OR has_perm('calls.edit.complaint'::text) OR has_perm('calls.edit.custome…` |
+| UPDATE | `calls_update` | `(( SELECT (has_perm('install.edit.complaint'::text) OR has_perm('install.edit.customer'::text) OR has_perm('install.edit.vigilance'::text) OR has_perm('install.edit.contact'::text)…` | `(( SELECT (has_perm('install.edit.complaint'::text) OR has_perm('install.edit.customer'::text) OR has_perm('install.edit.vigilance'::text) OR has_perm('install.edit.contact'::text)…` |
 
 ---
 
@@ -1722,7 +1728,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `master_lists_write` | `has_perm('masters.edit'::text)` | `has_perm('masters.edit'::text)` |
+| ALL | `master_lists_write` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 | SELECT | `master_lists_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -1756,10 +1762,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| DELETE | `masters_delete` | `(has_perm('masters.edit'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.delete'::text)))` | — |
-| INSERT | `masters_insert` | — | `(has_perm('masters.edit'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.edit'::text)))` |
+| DELETE | `masters_delete` | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.delete'::text)))` | — |
+| INSERT | `masters_insert` | — | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.edit'::text)))` |
 | SELECT | `masters_read` | `(auth.role() = 'authenticated'::text)` | — |
-| UPDATE | `masters_update` | `(has_perm('masters.edit'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.edit'::text)))` | `(has_perm('masters.edit'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.edit'::text)))` |
+| UPDATE | `masters_update` | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.edit'::text)))` | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.edit'::text)))` |
 
 ---
 
@@ -1829,7 +1835,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | DELETE | `mr_delete` | `is_admin()` | — |
-| INSERT | `mr_insert` | — | `(has_perm('stock.return'::text) AND (is_admin() OR can_approve_spares() OR (lower(COALESCE(engineer_email, ''::text)) = lower(auth.email()))))` |
+| INSERT | `mr_insert` | — | `(has_perm('stock.return'::text) AND (is_admin() OR has_perm('stock.return.others'::text) OR (lower(COALESCE(engineer_email, ''::text)) = lower(auth.email()))))` |
 | SELECT | `mr_read` | `(( SELECT can_view_all_calls() AS can_view_all_calls) OR (created_by = ( SELECT auth.uid() AS uid)) OR (lower(COALESCE(engineer_email, ''::text)) = lower(( SELECT auth.email() AS e…` | — |
 
 ---
@@ -2039,7 +2045,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `parties_write` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` |
+| ALL | `parties_write` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 | SELECT | `parties_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -2081,7 +2087,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `parts_write` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` |
+| ALL | `parts_write` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 | SELECT | `parts_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -2179,6 +2185,54 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ---
 
+## perm_parents
+
+**Primary key:** `child, parent` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `child` | text | **no** |  |  |
+| 2 | `parent` | text | **no** |  |  |
+| 3 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 4 | `sys_created_by` | uuid | yes |  |  |
+| 5 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 6 | `sys_updated_by` | uuid | yes |  |  |
+| 7 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(perm_parents_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
+
+---
+
+## permission_copies_done
+
+**Primary key:** `name` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `name` | text | **no** |  |  |
+| 2 | `applied_at` | timestamp with time zone | **no** | `now()` |  |
+| 3 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 4 | `sys_created_by` | uuid | yes |  |  |
+| 5 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 6 | `sys_updated_by` | uuid | yes |  |  |
+| 7 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(permission_copies_done_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
+
+---
+
 ## pm_calls
 
 **Primary key:** `id` · **Row-level security:** **on**
@@ -2257,9 +2311,9 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| INSERT | `calls_insert` | — | `has_perm('calls.create'::text)` |
+| INSERT | `calls_insert` | — | `has_perm('pm.create'::text)` |
 | SELECT | `calls_scoped_read` | `(( SELECT has_perm('calls.view'::text) AS has_perm) AND (( SELECT can_view_all_calls() AS can_view_all_calls) OR (created_by = ( SELECT auth.uid() AS uid)) OR (actual_created_by = …` | — |
-| UPDATE | `calls_update` | `(( SELECT (has_perm('calls.edit'::text) OR has_perm('calls.report'::text) OR has_perm('calls.allot'::text) OR has_perm('calls.edit.complaint'::text) OR has_perm('calls.edit.custome…` | `(( SELECT (has_perm('calls.edit'::text) OR has_perm('calls.report'::text) OR has_perm('calls.allot'::text) OR has_perm('calls.edit.complaint'::text) OR has_perm('calls.edit.custome…` |
+| UPDATE | `calls_update` | `(( SELECT (has_perm('pm.edit.complaint'::text) OR has_perm('pm.edit.customer'::text) OR has_perm('pm.edit.vigilance'::text) OR has_perm('pm.edit.contact'::text) OR has_perm('pm.rep…` | `(( SELECT (has_perm('pm.edit.complaint'::text) OR has_perm('pm.edit.customer'::text) OR has_perm('pm.edit.vigilance'::text) OR has_perm('pm.edit.contact'::text) OR has_perm('pm.rep…` |
 
 ---
 
@@ -2290,10 +2344,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| DELETE | `pa_delete` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` | — |
-| INSERT | `pa_insert` | — | `( SELECT has_perm('masters.edit'::text) AS has_perm)` |
+| DELETE | `pa_delete` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | — |
+| INSERT | `pa_insert` | — | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 | SELECT | `pa_read` | `true` | — |
-| UPDATE | `pa_update` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` |
+| UPDATE | `pa_update` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 
 ---
 
@@ -2342,7 +2396,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `pae_write` | `has_perm('cover.edit'::text)` | `has_perm('cover.edit'::text)` |
+| ALL | `pae_write` | `has_perm('cover.edit.entries'::text)` | `has_perm('cover.edit.entries'::text)` |
 | SELECT | `pae_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -2376,7 +2430,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| SELECT | `pdv2_state_read` | `(has_perm('masters.view'::text) OR has_perm('cover.edit'::text) OR is_admin())` | — |
+| SELECT | `pdv2_state_read` | `(has_perm('masters.view'::text) OR has_perm('cover.edit.entries'::text) OR has_perm('contract.edit.entries'::text) OR is_admin())` | — |
 | SELECT | `pdv2_state_read_all` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -2420,7 +2474,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `pm_write` | `has_perm('masters.edit'::text)` | `has_perm('masters.edit'::text)` |
+| ALL | `pm_write` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 | SELECT | `pm_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -2483,7 +2537,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `products_write` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` | `( SELECT has_perm('masters.edit'::text) AS has_perm)` |
+| ALL | `products_write` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 | SELECT | `products_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -2523,8 +2577,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `profiles_admin_write` | `has_perm('users.manage'::text)` | `has_perm('users.manage'::text)` |
-| SELECT | `profiles_self_read` | `((id = auth.uid()) OR is_admin() OR has_perm('users.manage'::text))` | — |
+| DELETE | `profiles_admin_delete` | `( SELECT has_perm('users.manage.disable'::text) AS has_perm)` | — |
+| INSERT | `profiles_admin_insert` | — | `( SELECT has_perm('users.manage.create'::text) AS has_perm)` |
+| SELECT | `profiles_self_read` | `((id = auth.uid()) OR is_admin() OR ( SELECT (has_perm('users.manage.details'::text) OR has_perm('users.manage.access'::text) OR has_perm('users.manage.disable'::text) OR has_perm(…` | — |
+| UPDATE | `profiles_admin_update` | `( SELECT (has_perm('users.manage.details'::text) OR has_perm('users.manage.access'::text) OR has_perm('users.manage.disable'::text) OR has_perm('users.manage.create'::text)))` | `( SELECT (has_perm('users.manage.details'::text) OR has_perm('users.manage.access'::text) OR has_perm('users.manage.disable'::text) OR has_perm('users.manage.create'::text)))` |
 
 ---
 
@@ -2576,7 +2632,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `qo_write` | `has_perm('config.manage'::text)` | `has_perm('config.manage'::text)` |
+| ALL | `qo_write` | `has_perm('objective.manage'::text)` | `has_perm('objective.manage'::text)` |
 | SELECT | `qo_read` | `(has_perm('calls.view'::text) OR has_perm('reports.view'::text))` | — |
 
 ---
@@ -2655,8 +2711,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `reports_write` | `has_perm('calls.report'::text)` | `has_perm('calls.report'::text)` |
+| DELETE | `reports_delete` | `call_perm(ucn, 'report.visit'::text)` | — |
+| INSERT | `reports_insert` | — | `call_perm(ucn, 'report.visit'::text)` |
 | SELECT | `reports_read` | `(( SELECT is_admin() AS is_admin) OR (( SELECT has_perm('calls.view'::text) AS has_perm) AND (( SELECT can_view_all_calls() AS can_view_all_calls) OR (EXISTS ( SELECT 1    FROM cal…` | — |
+| UPDATE | `reports_update` | `call_perm(ucn, 'report.visit'::text)` | `call_perm(ucn, 'report.visit'::text)` |
 
 ---
 
@@ -2692,7 +2750,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `rtv_write` | `(is_admin() OR has_perm('config.manage'::text))` | `(is_admin() OR has_perm('config.manage'::text))` |
+| ALL | `rtv_write` | `(is_admin() OR has_perm('layouts.share'::text))` | `(is_admin() OR has_perm('layouts.share'::text))` |
 | SELECT | `rtv_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -2754,8 +2812,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `sale_entries_write` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` |
-| SELECT | `sale_entries_read` | `(( SELECT has_perm('masters.view'::text) AS has_perm) OR ( SELECT has_perm('cover.edit'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
+| DELETE | `sale_entries_delete` | `( SELECT has_perm('cover.edit.delete'::text) AS has_perm)` | — |
+| INSERT | `sale_entries_insert` | — | `( SELECT has_perm('cover.edit.entries'::text) AS has_perm)` |
+| SELECT | `sale_entries_read` | `(( SELECT has_perm('masters.view'::text) AS has_perm) OR ( SELECT has_perm('cover.edit.entries'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
+| UPDATE | `sale_entries_update` | `( SELECT has_perm('cover.edit.entries'::text) AS has_perm)` | `( SELECT has_perm('cover.edit.entries'::text) AS has_perm)` |
 
 ---
 
@@ -2817,8 +2877,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `sale_items_write` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` | `( SELECT has_perm('cover.edit'::text) AS has_perm)` |
-| SELECT | `sale_items_read` | `(( SELECT has_perm('masters.view'::text) AS has_perm) OR ( SELECT has_perm('cover.edit'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
+| DELETE | `sale_items_delete` | `( SELECT has_perm('cover.edit.entries'::text) AS has_perm)` | — |
+| INSERT | `sale_items_insert` | — | `( SELECT has_perm('cover.edit.entries'::text) AS has_perm)` |
+| SELECT | `sale_items_read` | `(( SELECT has_perm('masters.view'::text) AS has_perm) OR ( SELECT has_perm('cover.edit.entries'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
+| UPDATE | `sale_items_update` | `( SELECT has_perm('cover.edit.entries'::text) AS has_perm)` | `( SELECT has_perm('cover.edit.entries'::text) AS has_perm)` |
 
 ---
 
@@ -2860,7 +2922,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | ALL | `sc_write_mine` | `((role IS NULL) AND (owner = auth.uid()))` | `((role IS NULL) AND (owner = auth.uid()))` |
-| ALL | `sc_write_shared` | `((role IS NOT NULL) AND (is_admin() OR has_perm('config.manage'::text)))` | `((role IS NOT NULL) AND (is_admin() OR has_perm('config.manage'::text)))` |
+| ALL | `sc_write_shared` | `((role IS NOT NULL) AND (is_admin() OR has_perm('charts.share'::text)))` | `((role IS NOT NULL) AND (is_admin() OR has_perm('charts.share'::text)))` |
 | SELECT | `sc_read` | `(((role IS NULL) AND (owner = auth.uid())) OR (role = ''::text) OR (role = my_role()))` | — |
 
 ---
@@ -2940,7 +3002,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| INSERT | `cons_write` | — | `CASE     WHEN (COALESCE(source, 'Report'::text) = 'Reconciliation'::text) THEN has_perm('consumption.reconcile'::text)     ELSE (has_perm('calls.report'::text) OR has_perm('spare.d…` |
+| INSERT | `cons_write` | — | `CASE     WHEN (COALESCE(source, 'Report'::text) = 'Reconciliation'::text) THEN has_perm('consumption.reconcile'::text)     ELSE (has_perm('visit.spares'::text) OR has_perm('spare.d…` |
 | SELECT | `cons_read` | `(( SELECT can_view_all_calls() AS can_view_all_calls) OR (created_by = ( SELECT auth.uid() AS uid)) OR (lower(engineer_email) = lower(( SELECT auth.email() AS email))) OR (lower(TR…` | — |
 | UPDATE | `cons_update` | `has_perm('consumption.reconcile'::text)` | `has_perm('consumption.reconcile'::text)` |
 
@@ -3478,7 +3540,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `tracker_rw` | `has_perm('mod:/tracker'::text)` | `has_perm('mod:/tracker'::text)` |
+| DELETE | `tracker_delete` | `(has_perm('mod:/tracker'::text) AND has_perm('tracker.delete'::text))` | — |
+| INSERT | `tracker_insert` | — | `has_perm('mod:/tracker'::text)` |
+| SELECT | `tracker_read` | `has_perm('mod:/tracker'::text)` | — |
+| UPDATE | `tracker_update` | `has_perm('mod:/tracker'::text)` | `has_perm('mod:/tracker'::text)` |
 
 ---
 
@@ -3662,15 +3727,17 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Referenced by:** `training_assignments.dir_id` · `training_attendance.dir_id` · `user_profile.dir_id` · `user_rr.dir_id`
 
-**Triggers:** `user_directory_address_guard` → `user_directory_address_guard()` · `user_directory_carry_rename` → `user_directory_carry_rename()` · `user_directory_carry_rename_records` → `user_directory_carry_rename_records()` · `user_directory_profile_sync` → `sync_profile_from_user_directory()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `ud_role_guard` → `user_directory_role_guard()` · `user_directory_address_guard` → `user_directory_address_guard()` · `user_directory_carry_rename` → `user_directory_carry_rename()` · `user_directory_carry_rename_records` → `user_directory_carry_rename_records()` · `user_directory_profile_sync` → `sync_profile_from_user_directory()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `ud_write` | `has_perm('users.manage'::text)` | `has_perm('users.manage'::text)` |
+| DELETE | `ud_delete` | `( SELECT has_perm('users.manage.disable'::text) AS has_perm)` | — |
+| INSERT | `ud_insert` | — | `( SELECT (has_perm('users.manage.details'::text) OR has_perm('users.manage.create'::text)))` |
 | SELECT | `ud_read` | `(auth.role() = 'authenticated'::text)` | — |
 | UPDATE | `ud_address_update` | `(is_admin() OR has_perm('spare.dispatch'::text))` | `(is_admin() OR has_perm('spare.dispatch'::text))` |
+| UPDATE | `ud_update` | `( SELECT has_perm('users.manage.details'::text) AS has_perm)` | `( SELECT has_perm('users.manage.details'::text) AS has_perm)` |
 
 ---
 
@@ -3703,9 +3770,9 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| INSERT | `up_insert` | — | `( SELECT has_perm('users.manage'::text) AS has_perm)` |
+| INSERT | `up_insert` | — | `( SELECT has_perm('users.manage.details'::text) AS has_perm)` |
 | SELECT | `up_read` | `may_see_person(dir_id)` | — |
-| UPDATE | `up_update` | `( SELECT has_perm('users.manage'::text) AS has_perm)` | `( SELECT has_perm('users.manage'::text) AS has_perm)` |
+| UPDATE | `up_update` | `( SELECT has_perm('users.manage.details'::text) AS has_perm)` | `( SELECT has_perm('users.manage.details'::text) AS has_perm)` |
 
 ---
 
@@ -3749,9 +3816,9 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| INSERT | `rr_insert` | — | `(( SELECT has_perm('users.manage'::text) AS has_perm) OR ( SELECT has_perm('training.manage'::text) AS has_perm))` |
+| INSERT | `rr_insert` | — | `(( SELECT has_perm('users.manage.details'::text) AS has_perm) OR ( SELECT has_perm('training.manage'::text) AS has_perm))` |
 | SELECT | `rr_read` | `may_see_person(dir_id)` | — |
-| UPDATE | `rr_update` | `(( SELECT has_perm('users.manage'::text) AS has_perm) OR ( SELECT has_perm('training.manage'::text) AS has_perm))` | `(( SELECT has_perm('users.manage'::text) AS has_perm) OR ( SELECT has_perm('training.manage'::text) AS has_perm))` |
+| UPDATE | `rr_update` | `(( SELECT has_perm('users.manage.details'::text) AS has_perm) OR ( SELECT has_perm('training.manage'::text) AS has_perm))` | `(( SELECT has_perm('users.manage.details'::text) AS has_perm) OR ( SELECT has_perm('training.manage'::text) AS has_perm))` |
 
 ---
 
@@ -3823,7 +3890,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `valres_write` | `(is_admin() OR has_perm('config.manage'::text))` | `(is_admin() OR has_perm('config.manage'::text))` |
+| ALL | `valres_write` | `(is_admin() OR has_perm('validation.manage'::text))` | `(is_admin() OR has_perm('validation.manage'::text))` |
 | SELECT | `valres_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---

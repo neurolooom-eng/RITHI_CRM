@@ -253,6 +253,10 @@ const MODULES = {
             // It ALTERS 0008's policies, so it lives with 0008 and before the
             // mirror tail, which does not re-assert these three.
             '0250_master_write_policy_once_per_query.sql',
+            // A key can have a PARENT (perm_parents + has_perm), and the rules
+            // rbac owns move to the per-screen and split keys (findings 63-67).
+            // Before the tail below, which mirrors cons_write and masters_*.
+            '0272_permission_parents.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -322,6 +326,10 @@ const MODULES = {
       // AFTER 0232, which owns the previous body: the engineer on an answered
       // request follows a User Master rename (0259).
       '0260_rename_passes_the_request_freeze.sql',
+      // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
+      // and split keys (0272 has the parent rule). BEFORE the file below, which
+      // must stay last.
+      '0273_call_keys_per_register.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -488,7 +496,10 @@ const MODULES = {
              '0142_objective_ffr_count.sql',
              // After 0142, which it copies: objective_evidence with a tiebreaker
              // on four ORDER BYs and nothing else (finding 15).
-             '0251_objective_evidence_tiebreak.sql'],
+             '0251_objective_evidence_tiebreak.sql',
+            // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
+            // and split keys; see 0272 for the parent rule.
+            '0278_objective_manage_key.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -496,7 +507,10 @@ const MODULES = {
             'result of each IQ/OQ/PQ test case in the database. Read by signed-in',
             'users; recorded by admins / config.manage.'],
     needs: ['profiles', 'rbac', 'isAdmin'],
-    files: ['0046_validation_results.sql'],
+    files: ['0046_validation_results.sql',
+            // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
+            // and split keys; see 0272 for the parent rule.
+            '0279_validation_manage_key.sql'],
   },
   data_integrity: {
     title: 'Data Integrity (audit trail & retention)',
@@ -545,7 +559,10 @@ const MODULES = {
             // the last module in ALL_ORDER that runs after all of them. It
             // defines two functions nothing else redefines, so no bundle can
             // put an older rule back.
-            '0208_cover_code_normalised.sql'],
+            '0208_cover_code_normalised.sql',
+            // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
+            // and split keys; see 0272 for the parent rule.
+            '0274_feedback_update_visit_key.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',
@@ -612,7 +629,11 @@ const MODULES = {
     // ancestor table -- the tracker's view joins it for the "who touched it last"
     // name. `rbac` is has_perm(), which the one policy asks.
     needs: ['rbac', 'visibleEngineers'],
-    files: ['0143_tracker.sql', '0144_tracker_seed_backlog.sql', '0146_tracker_air_liquide_id.sql', '0150_tracker_sync_backlog.sql', '0157_tracker_sync_0909.sql', '0162_tracker_nl_team.sql'],
+    files: ['0143_tracker.sql', '0144_tracker_seed_backlog.sql', '0146_tracker_air_liquide_id.sql', '0150_tracker_sync_backlog.sql', '0157_tracker_sync_0909.sql',
+            // Findings 63-67 (2026-09-30): deleting a Tracker item is its own key.
+            // BEFORE the renamer below, which must stay last.
+            '0282_tracker_delete_key.sql',
+            '0162_tracker_nl_team.sql'],
   },
   indoor: {
     title: 'Indoor Service (the workshop register, §4.5)',
@@ -630,7 +651,10 @@ const MODULES = {
     // ancestor table --- the list view joins it five times for the who-did-what
     // names.
     needs: ['rbac', 'visibleEngineers'],
-    files: ['0158_indoor_service.sql'],
+    files: ['0158_indoor_service.sql',
+            // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
+            // and split keys; see 0272 for the parent rule.
+            '0283_indoor_status_needs_dispatch.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -658,7 +682,10 @@ const MODULES = {
             'training.manage are granted to VP Technical and R&D Engineer only.',
             'Nothing here is ever deleted.'],
     needs: ['profiles', 'rbac', 'visibleEngineers'],
-    files: ['0264_people_and_training.sql'],
+    files: ['0264_people_and_training.sql',
+            // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
+            // and split keys; see 0272 for the parent rule.
+            '0281_user_profile_details_key.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -697,7 +724,10 @@ const MODULES = {
             // Department on the User Master, and its master list (0263). Here
             // and not in user_directory: the list's registry (0021) is this
             // module's table, and user_directory runs before it.
-            '0263_user_department.sql'],
+            '0263_user_department.sql',
+            // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
+            // and split keys; see 0272 for the parent rule.
+            '0276_master_keys_split.sql'],
   },
   reports: {
     title: 'Reports',
@@ -777,7 +807,10 @@ const MODULES = {
             '0261_rename_passes_the_spare_guards.sql',
             // Hand stock ADJUSTMENTS (+/- with a reason), the tenth arm of
             // handstock_movements, and eBizWiz Admin's opening rows removed.
-            '0266_handstock_adjustments.sql'],
+            '0266_handstock_adjustments.sql',
+            // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
+            // and split keys; see 0272 for the parent rule.
+            '0275_spares_on_a_visit_rename_and_returns.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -844,7 +877,10 @@ const MODULES = {
             // Whoever raises a machine's installation call can map it back,
             // and only that (finding 31). Defines a new function; nothing
             // else in any module redefines it.
-            '0258_link_install_call.sql'],
+            '0258_link_install_call.sql',
+            // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
+            // and split keys; see 0272 for the parent rule.
+            '0277_cover_keys_split.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -977,7 +1013,10 @@ const MODULES = {
             '0235_product_database_computed.sql',
             // AFTER 0235: it replaces that view so the contract and the
             // installation call match the machine's CURRENT owner.
-            '0239_attachments_follow_the_owner.sql'],
+            '0239_attachments_follow_the_owner.sql',
+            // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
+            // and split keys; see 0272 for the parent rule.
+            '0280_product_database_2_rebuild_key.sql'],
   },
   feedback_checks: {
     title: 'Feedback Without a Report',
@@ -1034,6 +1073,21 @@ const MODULES = {
             'small file to run, not a replay of rbac.'],
     needs: ['profiles', 'rbac'],
     files: ['0249_device_cache_status.sql', '0253_device_cache_complaints.sql'],
+  },
+  permissions: {
+    title: 'Per-screen permission keys: today\'s grants copied across',
+    blurb: ['Findings 63, 64 and 67 gave several screens keys of their own',
+            '(Installation and PM calls, the Contract Register, Objective, the',
+            'Tracker\'s delete, and more). This copies each new key ONCE to',
+            'exactly the roles and people holding the key it replaces, so nobody',
+            'gains or loses anything the day it ships, and records that it did so',
+            'a re-run never hands back a key an administrator has since removed.',
+            'It also takes off the two ticks that did nothing (finding 66).',
+            '',
+            'LATE IN THE ORDER so every earlier module has granted its keys first.',
+            '_status.sql row 212 says whether it has run.'],
+    needs: [],
+    files: ['0284_permission_grants_copied.sql'],
   },
   sys_columns: {
     title: 'System columns on every table',
@@ -1203,7 +1257,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'training', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'device_cache', 'sys_columns', 'lockdown'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'training', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'device_cache', 'permissions', 'sys_columns', 'lockdown'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

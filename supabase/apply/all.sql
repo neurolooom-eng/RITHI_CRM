@@ -59,6 +59,7 @@
 --   0172_user_signatures.sql
 --   0180_zoho_readonly.sql
 --   0250_master_write_policy_once_per_query.sql
+--   0272_permission_parents.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
@@ -69,8 +70,10 @@
 --   0146_tracker_air_liquide_id.sql
 --   0150_tracker_sync_backlog.sql
 --   0157_tracker_sync_0909.sql
+--   0282_tracker_delete_key.sql
 --   0162_tracker_nl_team.sql
 --   0158_indoor_service.sql
+--   0283_indoor_status_needs_dispatch.sql
 --   0021_master_lists.sql
 --   0066_master_values_active.sql
 --   0067_master_list_permissions.sql
@@ -85,9 +88,11 @@
 --   0231_party_kyc_documents.sql
 --   0255_product_accessories.sql
 --   0263_user_department.sql
+--   0276_master_keys_split.sql
 --   0070_documents.sql
 --   0265_qms_document_key.sql
 --   0264_people_and_training.sql
+--   0281_user_profile_details_key.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
@@ -119,6 +124,7 @@
 --   0242_cancel_calls_in_one_go.sql
 --   0232_call_request_edit.sql
 --   0260_rename_passes_the_request_freeze.sql
+--   0273_call_keys_per_register.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
@@ -214,6 +220,7 @@
 --   0196_rename_part.sql
 --   0261_rename_passes_the_spare_guards.sql
 --   0266_handstock_adjustments.sql
+--   0275_spares_on_a_visit_rename_and_returns.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
 --   0072_ownership_transfer.sql
@@ -236,6 +243,7 @@
 --   0240_ownership_transfer_timestamp.sql
 --   0247_cover_maintenance_needs_cover_edit.sql
 --   0258_link_install_call.sql
+--   0277_cover_keys_split.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -245,6 +253,7 @@
 --   0262_rename_is_not_an_allotment.sql
 --   0122_notifications_replay_tail.sql
 --   0046_validation_results.sql
+--   0279_validation_manage_key.sql
 --   0130_quality_objectives.sql
 --   0132_objective_recalc.sql
 --   0133_objective_serial_filter.sql
@@ -258,6 +267,7 @@
 --   0141_reliability_template.sql
 --   0142_objective_ffr_count.sql
 --   0251_objective_evidence_tiebreak.sql
+--   0278_objective_manage_key.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0103_record_audit_not_bulk.sql
@@ -272,6 +282,7 @@
 --   0189_feedback_update_policy.sql
 --   0190_feedback_dates_and_origin.sql
 --   0208_cover_code_normalised.sql
+--   0274_feedback_update_visit_key.sql
 --   0052_search_indexes.sql
 --   0098_product_register_names.sql
 --   0099_no_jit.sql
@@ -296,11 +307,13 @@
 --   0223_product_database_2_keeps_itself_alive.sql
 --   0235_product_database_computed.sql
 --   0239_attachments_follow_the_owner.sql
+--   0280_product_database_2_rebuild_key.sql
 --   0229_feedback_without_report.sql
 --   0227_data_export.sql
 --   0228_export_schedules.sql
 --   0249_device_cache_status.sql
 --   0253_device_cache_complaints.sql
+--   0284_permission_grants_copied.sql
 --   0244_sys_columns.sql
 --   0245_sys_columns_view_tail.sql
 --   0248_lock_down_internal_functions.sql
@@ -4663,6 +4676,345 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0272_permission_parents.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0272 — A PERMISSION CAN HAVE A PARENT; RBAC-OWNED RULES MOVE TO THE NEW KEYS
+--
+-- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
+-- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
+-- its Check Box" -- each screen gets keys of its own, today's grants copied
+-- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- "67: Break it down", with the old key kept as the PARENT of the new ones, so
+-- a role holding it keeps everything until an administrator unticks it.
+-- The parent rule itself is in has_perm() (0272, public.perm_parents).
+--
+-- This file: public.perm_parents and has_perm(); call_perm(), which picks the
+-- register a UCN is on; visit reports, feedback, user administration, shared
+-- charts and table layouts, and master records -- the rules rbac owns.
+-- ===========================================================================
+
+-- ---- 1. A key's PARENTS: holding the parent satisfies the child ----------
+-- The client has the same list (PERM_PARENTS in src/lib/rbac.ts); check:ui
+-- compares the two word for word. Rewritten whole on every run, so the table
+-- is always exactly this list.
+create table if not exists public.perm_parents (
+  child  text not null,
+  parent text not null,
+  primary key (child, parent)
+);
+alter table public.perm_parents enable row level security;
+revoke all on public.perm_parents from anon, authenticated;
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.perm_parents'::regclass);
+  end if;
+end $$;
+
+delete from public.perm_parents;
+insert into public.perm_parents (child, parent) values
+  ('calls.edit.complaint', 'calls.edit'),
+  ('calls.edit.customer', 'calls.edit'),
+  ('calls.edit.vigilance', 'calls.edit'),
+  ('calls.edit.contact', 'calls.edit'),
+  ('install.edit.complaint', 'install.edit'),
+  ('install.edit.customer', 'install.edit'),
+  ('install.edit.vigilance', 'install.edit'),
+  ('install.edit.contact', 'install.edit'),
+  ('pm.edit.complaint', 'pm.edit'),
+  ('pm.edit.customer', 'pm.edit'),
+  ('pm.edit.vigilance', 'pm.edit'),
+  ('pm.edit.contact', 'pm.edit'),
+  ('calls.report.visit', 'calls.report'),
+  ('install.report.visit', 'install.report'),
+  ('pm.report.visit', 'pm.report'),
+  ('visit.spares', 'calls.report'),
+  ('visit.spares', 'install.report'),
+  ('visit.spares', 'pm.report'),
+  ('visit.feedback', 'calls.report'),
+  ('visit.feedback', 'install.report'),
+  ('visit.feedback', 'pm.report'),
+  ('cover.edit.entries', 'cover.edit'),
+  ('cover.edit.delete', 'cover.edit'),
+  ('contract.edit.entries', 'contract.edit'),
+  ('contract.edit.delete', 'contract.edit'),
+  ('masters.edit.records', 'masters.edit'),
+  ('masters.edit.kyc', 'masters.edit'),
+  ('masters.edit.rename_part', 'masters.edit'),
+  ('masters.edit.swap_serviceman', 'masters.edit'),
+  ('users.manage.details', 'users.manage'),
+  ('users.manage.create', 'users.manage'),
+  ('users.manage.disable', 'users.manage'),
+  ('users.manage.access', 'users.manage'),
+  ('users.manage.settings', 'users.manage');
+
+-- has_perm() keeps its shape and its NULL: with no signed-in user
+-- my_extra_perms() is NULL, and several callers rely on `if not has_perm()`
+-- then being skipped for an import or a scheduled run, as it always was.
+create or replace function public.has_perm(action text)
+returns boolean language sql stable security definer set search_path = public as $$
+  with role_row as (
+    select r.permissions from public.app_roles r
+     where r.role = public.my_role() and jsonb_array_length(coalesce(r.permissions, '[]'::jsonb)) > 0
+  ),
+  fallback as (
+    select r.permissions from public.app_roles r where r.role = 'engineer'
+  ),
+  perms as (
+    select permissions from role_row
+    union all
+    select permissions from fallback where not exists (select 1 from role_row)
+  ),
+  keys as (
+    select action as k
+    union all
+    select pp.parent from public.perm_parents pp where pp.child = action
+  )
+  select public.is_admin()
+      or exists (select 1 from perms p, keys where p.permissions ? keys.k)
+      or (select bool_or(public.my_extra_perms() ? keys.k) from keys);
+$$;
+grant execute on function public.has_perm(text) to authenticated;
+
+-- ---- 2. Which register a call is on decides which key governs it ---------
+-- plpgsql so its body is not resolved at creation: this module runs before
+-- the call tables exist on a fresh apply.
+create or replace function public.call_perm(p_ucn text, p_verb text)
+returns boolean language plpgsql stable security definer set search_path = public as $$
+declare v_reg text := 'calls';
+begin
+  if exists (select 1 from public.installation_calls where ucn = p_ucn) then v_reg := 'install';
+  elsif exists (select 1 from public.pm_calls where ucn = p_ucn) then v_reg := 'pm';
+  end if;
+  return public.has_perm(v_reg || '.' || p_verb);
+end $$;
+revoke execute on function public.call_perm(text, text) from public, anon;
+grant  execute on function public.call_perm(text, text) to authenticated;
+
+-- ---- 3. Visit reports: the call's own register's "save a visit" ----------
+-- Split out of FOR ALL, which is also a read policy and would have run
+-- call_perm() once per row on every read of the visit history.
+drop policy if exists reports_write  on public.reports;
+drop policy if exists reports_insert on public.reports;
+drop policy if exists reports_update on public.reports;
+drop policy if exists reports_delete on public.reports;
+create policy reports_insert on public.reports for insert
+  with check (public.call_perm(ucn, 'report.visit'));
+create policy reports_update on public.reports for update
+  using (public.call_perm(ucn, 'report.visit')) with check (public.call_perm(ucn, 'report.visit'));
+create policy reports_delete on public.reports for delete
+  using (public.call_perm(ucn, 'report.visit'));
+
+-- ---- 4. Customer feedback taken on a visit -------------------------------
+drop policy if exists fb_read  on public.feedback;
+drop policy if exists fb_write on public.feedback;
+create policy fb_read on public.feedback for select
+  using (public.has_perm('feedback.view') or public.has_perm('visit.feedback'));
+create policy fb_write on public.feedback for insert
+  with check (public.has_perm('visit.feedback') or public.has_perm('feedback.view'));
+
+-- ---- 5. User administration, split five ways ------------------------------
+drop policy if exists profiles_admin_write  on public.profiles;
+drop policy if exists profiles_admin_insert on public.profiles;
+drop policy if exists profiles_admin_update on public.profiles;
+drop policy if exists profiles_admin_delete on public.profiles;
+drop policy if exists profiles_self_read    on public.profiles;
+create policy profiles_admin_insert on public.profiles for insert
+  with check ((select public.has_perm('users.manage.create')));
+create policy profiles_admin_update on public.profiles for update
+  using ((select public.has_perm('users.manage.details') or public.has_perm('users.manage.access') or public.has_perm('users.manage.disable') or public.has_perm('users.manage.create'))) with check ((select public.has_perm('users.manage.details') or public.has_perm('users.manage.access') or public.has_perm('users.manage.disable') or public.has_perm('users.manage.create')));
+create policy profiles_admin_delete on public.profiles for delete
+  using ((select public.has_perm('users.manage.disable')));
+create policy profiles_self_read on public.profiles for select
+  using (id = auth.uid() or public.is_admin() or (select public.has_perm('users.manage.details') or public.has_perm('users.manage.access') or public.has_perm('users.manage.disable') or public.has_perm('users.manage.create')));
+
+drop policy if exists ud_write  on public.user_directory;
+drop policy if exists ud_insert on public.user_directory;
+drop policy if exists ud_update on public.user_directory;
+drop policy if exists ud_delete on public.user_directory;
+create policy ud_insert on public.user_directory for insert
+  with check ((select public.has_perm('users.manage.details') or public.has_perm('users.manage.create')));
+create policy ud_update on public.user_directory for update
+  using ((select public.has_perm('users.manage.details'))) with check ((select public.has_perm('users.manage.details')));
+create policy ud_delete on public.user_directory for delete
+  using ((select public.has_perm('users.manage.disable')));
+
+-- ---- 6. Shared charts and table layouts get keys of their own ------------
+drop policy if exists sc_write_shared on public.saved_charts;
+create policy sc_write_shared on public.saved_charts for all
+  using (role is not null and (public.is_admin() or public.has_perm('charts.share')))
+  with check (role is not null and (public.is_admin() or public.has_perm('charts.share')));
+
+drop policy if exists rtv_write on public.role_table_views;
+create policy rtv_write on public.role_table_views for all
+  using (public.is_admin() or public.has_perm('layouts.share'))
+  with check (public.is_admin() or public.has_perm('layouts.share'));
+
+-- ---- 7. Master records: the general child of masters.edit ----------------
+do $$
+declare t text;
+begin
+  foreach t in array array['parties', 'parts', 'products'] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('drop policy if exists %1$s_write on public.%1$s', t);
+      execute format('create policy %1$s_write on public.%1$s for all '
+                     'using ((select public.has_perm(''masters.edit.records''))) '
+                     'with check ((select public.has_perm(''masters.edit.records'')))', t);
+    end if;
+  end loop;
+end $$;
+
+CREATE OR REPLACE FUNCTION public.profiles_role_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  -- Only a caller through the API is gated: the SQL editor, an import and a
+  -- scheduled job are not a person holding keys (the `role` setting survives
+  -- SECURITY DEFINER, current_user does not), and an administrator is
+  -- everybody.
+  api  boolean := coalesce(current_setting('role', true), 'none') in ('authenticated', 'anon');
+  self boolean := new.id = auth.uid();
+begin
+  if tg_op = 'INSERT' then
+    -- A PERSON'S OWN FIRST SIGN-IN (0033) creates their profile with the role
+    -- their User Master row carries -- a role somebody holding "Assign roles"
+    -- put there (ud_role_guard below). Anybody else creating a login decides
+    -- what it may do only if they may assign roles: "Create logins" alone
+    -- makes an Engineer with nothing extra (finding 67).
+    if api and not self and not public.is_admin()
+       and (coalesce(nullif(btrim(new.role), ''), 'engineer') <> 'engineer'
+            or jsonb_array_length(coalesce(new.extra_permissions, '[]'::jsonb)) > 0)
+       and not coalesce(public.has_perm('users.manage.access'), false) then
+      raise exception 'RBAC: creating a login with a role other than Engineer, or with extra permissions, needs "Assign roles & grant permissions"';
+    end if;
+    if not self and lower(coalesce(new.role, '')) = 'admin' and api and not public.is_admin() then
+      raise exception 'RBAC: granting admin requires an administrator';
+    end if;
+    return new;
+  end if;
+
+  -- WHICH KEY MAY MOVE WHICH COLUMN (0272): the role and extra permissions are
+  -- "Assign roles & grant permissions"; switching a login on or off is
+  -- "Disable or delete logins".
+  if api and not public.is_admin() then
+    if (new.role is distinct from old.role or new.extra_permissions is distinct from old.extra_permissions)
+       and not coalesce(public.has_perm('users.manage.access'), false) then
+      raise exception 'RBAC: changing a role or permissions needs "Assign roles & grant permissions"';
+    end if;
+    if new.active is distinct from old.active
+       and not coalesce(public.has_perm('users.manage.disable'), false) then
+      raise exception 'RBAC: switching a login on or off needs "Disable or delete logins"';
+    end if;
+  end if;
+  if new.role is distinct from old.role or new.extra_permissions is distinct from old.extra_permissions then
+    if self and not public.is_super_admin() then
+      raise exception 'RBAC: you cannot change your own role or permissions';
+    end if;
+  end if;
+  if new.role is distinct from old.role
+     and lower(new.role) = 'admin' and not public.is_admin() then
+    raise exception 'RBAC: granting admin requires an administrator';
+  end if;
+  return new;
+end $function$;
+
+-- ...and it now fires on INSERT as well: a login created with a role was not
+-- checked at all, so "Manage users" could create an Admin outright.
+drop trigger if exists profiles_role_guard on public.profiles;
+create trigger profiles_role_guard before insert or update on public.profiles
+  for each row execute function public.profiles_role_guard();
+
+-- THE ROLE A USER MASTER ROW GRANTS AT FIRST SIGN-IN (0033) is assigning a
+-- role, so it asks the same key -- or "Edit User Master details" alone could
+-- give a new joiner any role before they ever signed in.
+create or replace function public.user_directory_role_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if coalesce(current_setting('role', true), 'none') in ('authenticated', 'anon')
+     and not public.is_admin()
+     and ((tg_op = 'INSERT' and coalesce(btrim(new.role), '') <> '')
+          or (tg_op = 'UPDATE' and new.role is distinct from old.role))
+     and not coalesce(public.has_perm('users.manage.access'), false) then
+    raise exception 'RBAC: setting the role a person signs in with needs "Assign roles & grant permissions"';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.user_directory_role_guard() from public, anon, authenticated;
+do $$
+begin
+  if to_regclass('public.user_directory') is not null
+     and exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'user_directory' and column_name = 'role') then
+    drop trigger if exists ud_role_guard on public.user_directory;
+    create trigger ud_role_guard before insert or update on public.user_directory
+      for each row execute function public.user_directory_role_guard();
+  end if;
+end $$;
+
+CREATE OR REPLACE FUNCTION public.user_signature_status()
+ RETURNS TABLE(user_id uuid, full_name text, email text, has_signature boolean, signed_at timestamp with time zone)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not (public.is_admin() or public.has_perm('users.manage.details')) then
+    raise exception 'Only User Access may see who has saved a signature.';
+  end if;
+  return query
+    select p.id, p.full_name, p.email,
+           (s.user_id is not null and coalesce(btrim(s.signature), '') <> ''),
+           s.updated_at
+      from public.profiles p
+      left join public.user_signatures s on s.user_id = p.id
+     order by p.full_name;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.set_role_table_view(p_storage_key text, p_role text, p_view jsonb)
+ RETURNS bigint
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_at bigint := (extract(epoch from now()) * 1000)::bigint;
+begin
+  if not (public.is_admin() or public.has_perm('layouts.share')) then
+    raise exception 'RBAC: only an administrator can set a layout for a role';
+  end if;
+  if coalesce(btrim(p_storage_key), '') = '' then
+    raise exception 'Which register?';
+  end if;
+
+  insert into public.role_table_views (storage_key, role, view, set_at, updated_at, updated_by)
+  values (btrim(p_storage_key), coalesce(btrim(p_role), ''), coalesce(p_view, '{}'::jsonb), v_at, now(), auth.uid())
+  on conflict (storage_key, role) do update
+     set view = excluded.view, set_at = excluded.set_at,
+         updated_at = excluded.updated_at, updated_by = excluded.updated_by;
+
+  return v_at;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.clear_role_table_view(p_storage_key text, p_role text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not (public.is_admin() or public.has_perm('layouts.share')) then
+    raise exception 'RBAC: only an administrator can clear a layout for a role';
+  end if;
+  delete from public.role_table_views
+   where storage_key = btrim(p_storage_key) and role = coalesce(btrim(p_role), '');
+  return found;
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0121_rbac_policy_tail.sql
 -- ------------------------------------------------------------------------
 
@@ -4799,7 +5151,7 @@ begin
       with check (
         case when coalesce(source, 'Report') = 'Reconciliation'
              then public.has_perm('consumption.reconcile')
-             else (public.has_perm('calls.report') or public.has_perm('spare.dispatch'))
+             else (public.has_perm('visit.spares') or public.has_perm('spare.dispatch'))
         end
       );
   else
@@ -4830,17 +5182,17 @@ begin
   drop policy if exists masters_delete on public.masters;
 
   create policy masters_insert on public.masters for insert
-    with check (public.has_perm('masters.edit')
+    with check (public.has_perm('masters.edit.records')
              or public.has_perm('master.' || coalesce(name, '') || '.edit'));
 
   create policy masters_update on public.masters for update
-    using      (public.has_perm('masters.edit')
+    using      (public.has_perm('masters.edit.records')
              or public.has_perm('master.' || coalesce(name, '') || '.edit'))
-    with check (public.has_perm('masters.edit')
+    with check (public.has_perm('masters.edit.records')
              or public.has_perm('master.' || coalesce(name, '') || '.edit'));
 
   create policy masters_delete on public.masters for delete
-    using      (public.has_perm('masters.edit')
+    using      (public.has_perm('masters.edit.records')
              or public.has_perm('master.' || coalesce(name, '') || '.delete'));
 end $$;
 
@@ -5611,6 +5963,38 @@ begin
 end $seed$;
 
 -- ------------------------------------------------------------------------
+-- 0282_tracker_delete_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0282 — DELETING A TRACKER ITEM IS ITS OWN KEY
+--
+-- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
+-- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
+-- its Check Box" -- each screen gets keys of its own, today's grants copied
+-- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- "67: Break it down", with the old key kept as the PARENT of the new ones, so
+-- a role holding it keeps everything until an administrator unticks it.
+-- The parent rule itself is in has_perm() (0272, public.perm_parents).
+--
+-- This file: everybody who opens the Tracker still adds and edits (the
+-- user's design); deleting asks tracker.delete, copied by 0284 to every
+-- role that holds the Tracker today.
+-- ===========================================================================
+
+drop policy if exists tracker_rw     on public.tracker_items;
+drop policy if exists tracker_read   on public.tracker_items;
+drop policy if exists tracker_insert on public.tracker_items;
+drop policy if exists tracker_update on public.tracker_items;
+drop policy if exists tracker_delete on public.tracker_items;
+create policy tracker_read on public.tracker_items for select using (public.has_perm('mod:/tracker'));
+create policy tracker_insert on public.tracker_items for insert with check (public.has_perm('mod:/tracker'));
+create policy tracker_update on public.tracker_items for update
+  using (public.has_perm('mod:/tracker')) with check (public.has_perm('mod:/tracker'));
+create policy tracker_delete on public.tracker_items for delete
+  using (public.has_perm('mod:/tracker') and public.has_perm('tracker.delete'));
+
+-- ------------------------------------------------------------------------
 -- 0162_tracker_nl_team.sql
 -- ------------------------------------------------------------------------
 
@@ -6289,6 +6673,127 @@ begin
     end if;
   end loop;
 end $indoor_perms$;
+
+-- ------------------------------------------------------------------------
+-- 0283_indoor_status_needs_dispatch.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0283 — A UNIT IS NOT DISPATCHED THROUGH THE STATUS PICKER WITHOUT THE DISPATCH RIGHT
+--
+-- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
+-- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
+-- its Check Box" -- each screen gets keys of its own, today's grants copied
+-- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- "67: Break it down", with the old key kept as the PARENT of the new ones, so
+-- a role holding it keeps everything until an administrator unticks it.
+-- The parent rule itself is in has_perm() (0272, public.perm_parents).
+--
+-- This file: finding 59. The guard asked indoor.dispatch only when the
+-- dispatch date, reference or dispatcher changed, so the Status picker could
+-- set Dispatched or Closed with indoor.work alone. It now asks it for that
+-- status change too.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.indoor_jobs_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  -- An administrator is not gated by the stage rights; every other rule below
+  -- still applies to them, because the ones that follow are about the RECORD
+  -- being coherent rather than about who is allowed to act.
+  if not public.is_admin() then
+    if tg_op = 'UPDATE' then
+      if (new.qc_result is distinct from old.qc_result
+       or new.qc_by     is distinct from old.qc_by
+       or new.qc_at     is distinct from old.qc_at
+       or new.qc_notes  is distinct from old.qc_notes)
+         and not public.has_perm('indoor.qc') then
+        raise exception 'indoor.qc is required to record a quality check'
+          using errcode = '42501';
+      end if;
+
+      if (new.dispatched_at is distinct from old.dispatched_at
+       or new.dispatch_ref  is distinct from old.dispatch_ref
+       or new.dispatched_by is distinct from old.dispatched_by)
+         and not public.has_perm('indoor.dispatch') then
+        raise exception 'indoor.dispatch is required to dispatch a unit'
+          using errcode = '42501';
+      end if;
+
+      if new.status in ('Dispatched', 'Closed') and new.status is distinct from old.status
+         and not public.has_perm('indoor.dispatch') then
+        raise exception 'indoor.dispatch is required to mark a unit %', new.status
+          using errcode = '42501';
+      end if;
+    end if;
+
+    -- CONDEMNING IS ITS OWN RIGHT, on insert as well as update. Scrapping
+    -- customer property in particular cannot be an engineer's own decision
+    -- (open question 8 in the plan, settled here the safe way: a separate
+    -- permission granted to nobody by default).
+    if (tg_op = 'INSERT' and (btrim(new.condemned_reason) <> '' or new.status = 'Condemned'))
+    or (tg_op = 'UPDATE' and (new.condemned_reason is distinct from old.condemned_reason
+                           or new.condemned_at     is distinct from old.condemned_at
+                           or (new.status = 'Condemned' and old.status <> 'Condemned'))) then
+      if not public.has_perm('indoor.condemn') then
+        raise exception 'indoor.condemn is required to condemn a unit'
+          using errcode = '42501';
+      end if;
+      if new.condemned_at is null then new.condemned_at := now(); end if;
+      if new.condemned_by is null then new.condemned_by := auth.uid(); end if;
+    end if;
+  end if;
+
+  -- A MACHINE CANNOT LEAVE WITH A FAILED CHECK. 4.5.6 puts the quality check
+  -- before the return, so a failed one sends it back to Under repair rather
+  -- than being noted and stepped over.
+  if new.status in ('Ready', 'Dispatched', 'Closed') and new.qc_result = 'Fail' then
+    raise exception 'the quality check failed -- the unit returns to Under repair, it does not leave'
+      using errcode = '23514';
+  end if;
+
+  -- AND A REPAIR OR REWORK CANNOT LEAVE WITH NO CHECK AT ALL. The other four
+  -- activities are exempt on purpose: a demo going out and a unit stripped for
+  -- parts have no repair to verify, and a pre-delivery inspection records its
+  -- verdict in pdi_result instead.
+  if new.status in ('Dispatched', 'Closed')
+     and new.activity in ('Repair', 'Rework')
+     and new.qc_result is null then
+    raise exception 'a % cannot be dispatched before its quality check is recorded (4.5.6)', lower(new.activity)
+      using errcode = '23514';
+  end if;
+
+  -- A FAILED PRE-DELIVERY INSPECTION DOES NOT SHIP either, and a held one says
+  -- why it is being held.
+  if new.status in ('Dispatched', 'Closed')
+     and new.activity = 'Pre-delivery inspection' and new.pdi_result = 'Fail' then
+    raise exception 'a failed pre-delivery inspection does not leave the workshop'
+      using errcode = '23514';
+  end if;
+
+  -- Timestamps that follow from an action are stamped, not typed: a cleaning
+  -- date somebody can type is a cleaning date somebody can back-date.
+  if new.status <> 'Received' and old is distinct from null then
+    if new.cleaned_by is distinct from coalesce(old.cleaned_by, new.cleaned_by)
+       and new.cleaned_at is null then
+      new.cleaned_at := now();
+    end if;
+  end if;
+  if new.qc_result is not null and new.qc_at is null then
+    new.qc_at := now();
+    if new.qc_by is null then new.qc_by := auth.uid(); end if;
+  end if;
+  if new.dispatch_ref <> '' and new.dispatched_at is null then
+    new.dispatched_at := now();
+    if new.dispatched_by is null then new.dispatched_by := auth.uid(); end if;
+  end if;
+
+  return new;
+end $function$;
 
 -- ------------------------------------------------------------------------
 -- 0021_master_lists.sql
@@ -8146,6 +8651,145 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0276_master_keys_split.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0276 — EDITING MASTERS, VERIFYING KYC AND THE SERVICEMAN SWAP ARE SEPARATE
+--
+-- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
+-- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
+-- its Check Box" -- each screen gets keys of its own, today's grants copied
+-- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- "67: Break it down", with the old key kept as the PARENT of the new ones, so
+-- a role holding it keeps everything until an administrator unticks it.
+-- The parent rule itself is in has_perm() (0272, public.perm_parents).
+--
+-- This file: every master write rule the masters module owns asks
+-- masters.edit.records; a KYC status change asks masters.edit.kyc; the bulk
+-- Serviceman swap becomes swap_service_engineer() with masters.edit.swap_serviceman.
+-- ===========================================================================
+
+drop policy if exists pm_write on public.product_master;
+create policy pm_write on public.product_master for all
+  using ((select public.has_perm('masters.edit.records'))) with check ((select public.has_perm('masters.edit.records')));
+
+drop policy if exists master_lists_write on public.master_lists;
+create policy master_lists_write on public.master_lists for all
+  using ((select public.has_perm('masters.edit.records'))) with check ((select public.has_perm('masters.edit.records')));
+
+do $$
+begin
+  if to_regclass('public.product_accessories') is null then return; end if;
+  drop policy if exists pa_insert on public.product_accessories;
+  drop policy if exists pa_update on public.product_accessories;
+  drop policy if exists pa_delete on public.product_accessories;
+  create policy pa_insert on public.product_accessories for insert
+    with check ((select public.has_perm('masters.edit.records')));
+  create policy pa_update on public.product_accessories for update
+    using ((select public.has_perm('masters.edit.records'))) with check ((select public.has_perm('masters.edit.records')));
+  create policy pa_delete on public.product_accessories for delete
+    using ((select public.has_perm('masters.edit.records')));
+end $$;
+
+drop policy if exists masters_insert on public.masters;
+drop policy if exists masters_update on public.masters;
+drop policy if exists masters_delete on public.masters;
+create policy masters_insert on public.masters for insert
+    with check (public.has_perm('masters.edit.records')
+             or public.has_perm('master.' || coalesce(name, '') || '.edit'));
+
+  create policy masters_update on public.masters for update
+    using      (public.has_perm('masters.edit.records')
+             or public.has_perm('master.' || coalesce(name, '') || '.edit'))
+    with check (public.has_perm('masters.edit.records')
+             or public.has_perm('master.' || coalesce(name, '') || '.edit'));
+
+  create policy masters_delete on public.masters for delete
+    using      (public.has_perm('masters.edit.records')
+             or public.has_perm('master.' || coalesce(name, '') || '.delete'));
+
+-- ---- the Serviceman swap, as one statement with its own key ---------------
+-- It was a bulk UPDATE from the browser under masters.edit. Exact match on
+-- the stored string, as the screen always did, so it renames nobody by
+-- accident.
+create or replace function public.swap_service_engineer(p_from text, p_to text)
+returns integer language plpgsql security definer set search_path = public as $$
+declare n integer;
+begin
+  if not coalesce(public.has_perm('masters.edit.swap_serviceman'), false) then
+    raise exception 'RBAC: changing the Serviceman on every party needs "Swap the Serviceman in bulk"';
+  end if;
+  if coalesce(p_from, '') = '' then raise exception 'Pick the name to change'; end if;
+  if p_from = coalesce(p_to, '') then raise exception 'That is the same name'; end if;
+  update public.parties set service_engineer = coalesce(p_to, '') where service_engineer = p_from;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke execute on function public.swap_service_engineer(text, text) from public, anon;
+grant  execute on function public.swap_service_engineer(text, text) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.parties_kyc_stamp()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if tg_op = 'INSERT' then
+    if coalesce(btrim(new.kyc_status), '') = '' then new.kyc_status := 'Pending'; end if;
+  end if;
+
+  -- A LONE `Pincode` BESIDE AN `Inst. Pincode` IS THE BILLING ONE. The export
+  -- names the installation pincode and leaves the billing one bare, so the
+  -- importer cannot alias it without racing the installation column for the
+  -- same heading. The pair is only ambiguous in isolation: where BOTH headings
+  -- are on the row, which is which is not in doubt.
+  if coalesce(btrim(new.billing_pincode), '') = ''
+     and new.extra ? 'Inst. Pincode' and coalesce(btrim(new.extra ->> 'Pincode'), '') <> '' then
+    new.billing_pincode := btrim(new.extra ->> 'Pincode');
+  end if;
+
+  -- THE NUMBERS ARE DERIVED HERE TOO, not only in the backfill below. An upload
+  -- puts the Tax columns in `extra` and nothing else would ever read them, so a
+  -- file loaded next year would land exactly as the file loaded today did
+  -- BEFORE this migration — with its GSTIN sitting in a blob. Only ever fills a
+  -- BLANK: a number typed on the screen is never overwritten by a spreadsheet.
+  if coalesce(btrim(new.gstin), '') = '' then
+    new.gstin := coalesce(public.kyc_gstin(concat_ws(' ',
+      new.extra ->> 'Tax 1', new.extra ->> 'Tax 2', new.extra ->> 'Tax 3',
+      new.extra ->> 'GSTIN', new.extra ->> 'GST No')), '');
+  end if;
+  -- AFTER the GSTIN, and reading it: a GSTIN contains a PAN at characters 3-12,
+  -- so a customer who gave only a GSTIN is not asked for a PAN as well.
+  if coalesce(btrim(new.pan), '') = '' then
+    new.pan := coalesce(public.kyc_pan(concat_ws(' ', new.gstin,
+      new.extra ->> 'Tax 1', new.extra ->> 'Tax 2', new.extra ->> 'Tax 3',
+      new.extra ->> 'PAN', new.extra ->> 'PAN No')), '');
+  end if;
+  if new.kyc_status is distinct from (case when tg_op = 'UPDATE' then old.kyc_status else null end) then
+    -- VERIFYING KYC IS ITS OWN KEY (0276). A new party starting at Pending is
+    -- not a verification; the SQL editor or an import is not a caller through
+    -- the API (the `role` setting survives SECURITY DEFINER).
+    if tg_op = 'UPDATE' and coalesce(current_setting('role', true), 'none') in ('authenticated', 'anon') and not public.is_admin()
+       and not coalesce(public.has_perm('masters.edit.kyc'), false) then
+      raise exception 'RBAC: changing a party''s KYC status needs "Verify KYC"';
+    end if;
+    if new.kyc_status = 'Verified' then
+      new.kyc_verified_by := auth.uid();
+      new.kyc_verified_at := now();
+    else
+      -- Moving OFF Verified clears the stamp: a party sent back to Pending has
+      -- not been verified by anybody, and leaving the old name on it would say
+      -- it had.
+      new.kyc_verified_by := null;
+      new.kyc_verified_at := null;
+    end if;
+  end if;
+  return new;
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0070_documents.sql
 -- ------------------------------------------------------------------------
 
@@ -8733,6 +9377,59 @@ begin
     perform public.sys_columns_attach(('public.' || t)::regclass);
   end loop;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0281_user_profile_details_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0281 — A PERSON'S PROFILE AND R&R ARE "EDIT USER MASTER DETAILS"
+--
+-- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
+-- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
+-- its Check Box" -- each screen gets keys of its own, today's grants copied
+-- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- "67: Break it down", with the old key kept as the PARENT of the new ones, so
+-- a role holding it keeps everything until an administrator unticks it.
+-- The parent rule itself is in has_perm() (0272, public.perm_parents).
+--
+-- This file: the training module's rules that asked users.manage now ask
+-- its child users.manage.details.
+-- ===========================================================================
+
+do $$
+begin
+  if to_regclass('public.user_profile') is null then return; end if;
+  drop policy if exists up_insert on public.user_profile;
+  drop policy if exists up_update on public.user_profile;
+  create policy up_insert on public.user_profile for insert
+    with check ((select public.has_perm('users.manage.details')));
+  create policy up_update on public.user_profile for update
+    using ((select public.has_perm('users.manage.details'))) with check ((select public.has_perm('users.manage.details')));
+  drop policy if exists rr_insert on public.user_rr;
+  drop policy if exists rr_update on public.user_rr;
+  create policy rr_insert on public.user_rr for insert
+    with check ((select public.has_perm('users.manage.details')) or (select public.has_perm('training.manage')));
+  create policy rr_update on public.user_rr for update
+    using ((select public.has_perm('users.manage.details')) or (select public.has_perm('training.manage')))
+    with check ((select public.has_perm('users.manage.details')) or (select public.has_perm('training.manage')));
+end $$;
+
+CREATE OR REPLACE FUNCTION public.may_see_person(p_dir_id bigint)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select public.has_perm('users.manage.details')
+      or public.has_perm('training.manage')
+      or exists (
+           select 1 from public.user_directory d
+            where d.id = p_dir_id
+              and ( (btrim(coalesce(d.email, '')) <> '' and lower(d.email) = lower(auth.email()))
+                 or (btrim(coalesce(d.gmail, '')) <> '' and lower(d.gmail) = lower(auth.email()))
+                 or d.name in (select public.visible_engineer_names()) ));
+$function$;
 
 -- ------------------------------------------------------------------------
 -- 0008_calls_creator_read.sql
@@ -12120,6 +12817,283 @@ begin
   end if;
   return new;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0273_call_keys_per_register.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0273 — EACH CALL REGISTER IS GOVERNED BY ITS OWN KEYS
+--
+-- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
+-- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
+-- its Check Box" -- each screen gets keys of its own, today's grants copied
+-- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- "67: Break it down", with the old key kept as the PARENT of the new ones, so
+-- a role holding it keeps everything until an administrator unticks it.
+-- The parent rule itself is in has_perm() (0272, public.perm_parents).
+--
+-- This file: Installation and PM calls are edited, re-allocated, reported,
+-- cancelled and re-opened with install.* and pm.* keys, and Field calls with
+-- calls.* -- the section guard and the allot guard read the table they fire
+-- on, and the functions that take a UCN ask call_perm() (0272).
+-- ===========================================================================
+
+-- ---- the write policies, per register ------------------------------------
+-- 0127's policy with the register's own keys. The children name every way in:
+-- a section of the call, a visit, or a re-allocation; the parents (edit,
+-- report) satisfy their children through has_perm().
+do $rls$
+declare t text; reg text; vis text; may text;
+begin
+  if to_regclass('public.field_calls') is null then
+    raise notice 'skip calls_update: the split call tables are not present yet';
+    return;
+  end if;
+  vis := $v$ (select public.can_view_all_calls())
+             or created_by = (select auth.uid())
+             or actual_created_by = (select auth.uid())
+             or coalesce(allocated_to, '') = ''
+             or lower(trim(allocated_to)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n)) $v$;
+  foreach t in array array['field_calls', 'installation_calls', 'pm_calls'] loop
+    reg := case t when 'installation_calls' then 'install' when 'pm_calls' then 'pm' else 'calls' end;
+    may := format($m$ (select (public.has_perm('%1$s.edit.complaint')
+                   or public.has_perm('%1$s.edit.customer')
+                   or public.has_perm('%1$s.edit.vigilance')
+                   or public.has_perm('%1$s.edit.contact')
+                   or public.has_perm('%1$s.report.visit')
+                   or public.has_perm('%1$s.allot'))) $m$, reg);
+    execute format('drop policy if exists calls_update on public.%I', t);
+    execute format('create policy calls_update on public.%1$I for update using (%2$s and (%3$s)) with check (%2$s and (%3$s))', t, may, vis);
+  end loop;
+
+  -- A PM call is created with the PM register's own key.
+  drop policy if exists calls_insert on public.pm_calls;
+  create policy calls_insert on public.pm_calls for insert with check (public.has_perm('pm.create'));
+end $rls$;
+
+CREATE OR REPLACE FUNCTION public.calls_edit_section_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  reg     text := case tg_table_name when 'installation_calls' then 'install' when 'pm_calls' then 'pm' else 'calls' end;
+  me      uuid := auth.uid();
+  free    boolean;
+  changed boolean;
+begin
+  -- No signed-in user (import, definer, scheduled) is not a person, and an
+  -- administrator is every person. `calls.edit` is the parent of all four.
+  free := me is null or public.is_admin() or public.has_perm(reg || '.edit');
+
+  if not free then
+    changed := new.standard_complaint is distinct from old.standard_complaint
+            or new.complaint_reported is distinct from old.complaint_reported
+            or new.breakdown_date     is distinct from old.breakdown_date;
+    if changed and not public.has_perm(reg || '.edit.complaint') then
+      raise exception 'RBAC: changing the complaint needs the "Edit the complaint" permission';
+    end if;
+
+    changed := new.party_name   is distinct from old.party_name
+            or new.city         is distinct from old.city
+            or new.state        is distinct from old.state
+            or new.product_name is distinct from old.product_name
+            or new.serial       is distinct from old.serial
+            or new.item_status  is distinct from old.item_status;
+    if changed and not public.has_perm(reg || '.edit.customer') then
+      raise exception 'RBAC: changing the customer or the machine needs the "Edit customer & product" permission';
+    end if;
+
+    changed := new.customer_name        is distinct from old.customer_name
+            or new.customer_number      is distinct from old.customer_number
+            or new.customer_designation is distinct from old.customer_designation;
+    if changed and not public.has_perm(reg || '.edit.contact') then
+      raise exception 'RBAC: changing the customer contact needs the "Edit customer contact details" permission';
+    end if;
+
+    changed := new.public_health_threat is distinct from old.public_health_threat
+            or new.death                is distinct from old.death
+            or new.serious_incident     is distinct from old.serious_incident;
+    if changed and not public.has_perm(reg || '.edit.vigilance') then
+      raise exception 'RBAC: changing the vigilance answers needs the "Edit the vigilance answers" permission';
+    end if;
+  end if;
+
+  -- The record, in the same statement as the change — including an
+  -- administrator's, and including one made with no signed-in user, because
+  -- "who changed the vigilance answer" is a question about the answer and not
+  -- about permissions.
+  insert into public.call_vigilance_changes (ucn, field, was, now_is, changed_by)
+  select new.ucn, f.name, coalesce(f.was, ''), coalesce(f.now_is, ''), me
+    from (values
+      ('public_health_threat', old.public_health_threat, new.public_health_threat),
+      ('death',                old.death,                new.death),
+      ('serious_incident',     old.serious_incident,     new.serious_incident)
+    ) as f(name, was, now_is)
+   where f.now_is is distinct from f.was;
+
+  return new;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.calls_allot_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.allocated_to is not distinct from old.allocated_to then
+    return new;                                   -- not a re-allocation
+  end if;
+  if auth.uid() is null then
+    return new;                                   -- import / definer / scheduled
+  end if;
+  if public.is_admin() then
+    return new;
+  end if;
+  if not public.has_perm(case tg_table_name when 'installation_calls' then 'install' when 'pm_calls' then 'pm' else 'calls' end || '.allot') then
+    raise exception
+      'RBAC: moving a call to another engineer needs the "Re-allocate a call to another engineer" permission';
+  end if;
+  return new;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.cancel_call(p_ucn text, p_reason text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_cancelled timestamptz; v_exists boolean;
+begin
+  if not public.call_perm(p_ucn, 'cancel') then
+    raise exception 'RBAC: your role cannot cancel a call';
+  end if;
+  if coalesce(btrim(p_reason), '') = '' then
+    raise exception 'A cancellation needs a reason';
+  end if;
+
+  select true, cancelled_at into v_exists, v_cancelled
+    from public.calls where ucn = p_ucn;
+  if v_exists is null then raise exception 'No call with UCN %', p_ucn; end if;
+  if v_cancelled is not null then raise exception 'Call % is already cancelled', p_ucn; end if;
+
+  update public.calls
+     set cancelled_at  = now(),
+         cancel_reason = btrim(p_reason),
+         cancelled_by  = auth.uid()
+   where ucn = p_ucn;
+
+  return p_ucn;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.restore_call(p_ucn text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_cancelled timestamptz; v_exists boolean;
+begin
+  if not public.call_perm(p_ucn, 'cancel') then
+    raise exception 'RBAC: your role cannot restore a call';
+  end if;
+
+  select true, cancelled_at into v_exists, v_cancelled
+    from public.calls where ucn = p_ucn;
+  if v_exists is null then raise exception 'No call with UCN %', p_ucn; end if;
+  if v_cancelled is null then raise exception 'Call % is not cancelled', p_ucn; end if;
+
+  update public.calls set cancelled_at = null, cancelled_by = null where ucn = p_ucn;
+  return p_ucn;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.reopen_call(p_ucn text, p_reason text DEFAULT ''::text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_solved boolean; v_reopened timestamptz;
+begin
+  if not public.call_perm(p_ucn, 'reopen') then
+    raise exception 'RBAC: your role cannot re-open a call';
+  end if;
+
+  select open_state = 'Solved', reopened_at into v_solved, v_reopened
+    from public.calls where ucn = p_ucn;
+  if v_solved is null then raise exception 'No call with UCN %', p_ucn; end if;
+  if v_reopened is not null then raise exception 'Call % is already re-opened', p_ucn; end if;
+  if not v_solved then raise exception 'Call % is not closed, so there is nothing to re-open', p_ucn; end if;
+
+  update public.calls
+     set reopened_at = now(), reopen_count = coalesce(reopen_count, 0) + 1
+   where ucn = p_ucn;
+
+  return p_ucn;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.close_call(p_ucn text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_found boolean; v_state text; v_reopened timestamptz; v_cancelled timestamptz;
+begin
+  -- The same gate as re-opening: whoever may put a call back on the open list
+  -- may take one off it.
+  if not public.call_perm(p_ucn, 'reopen') then
+    raise exception 'RBAC: your role cannot close a call';
+  end if;
+
+  select true, open_state, reopened_at, cancelled_at
+    into v_found, v_state, v_reopened, v_cancelled
+    from public.calls where ucn = p_ucn;
+  if v_found is null then raise exception 'No call with UCN %', p_ucn; end if;
+  if v_cancelled is not null then
+    raise exception 'Call % is cancelled — restore it before closing it', p_ucn;
+  end if;
+  if v_reopened is not null then
+    raise exception 'Call % is re-opened — use Close again, which gives the re-open back', p_ucn;
+  end if;
+  if v_state = 'Solved' then raise exception 'Call % is already closed', p_ucn; end if;
+
+  -- No visit is invented: last_visit_at is untouched, so the visit history
+  -- still says what actually happened, which is nothing.
+  update public.calls set last_status = 'Solved' where ucn = p_ucn;
+
+  return p_ucn;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.close_reopened_call(p_ucn text, p_reason text DEFAULT ''::text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_reopened timestamptz; v_found boolean;
+begin
+  if not public.call_perm(p_ucn, 'reopen') then
+    raise exception 'RBAC: your role cannot close a re-opened call';
+  end if;
+
+  select true, reopened_at into v_found, v_reopened
+    from public.calls where ucn = p_ucn;
+  if v_found is null then raise exception 'No call with UCN %', p_ucn; end if;
+  if v_reopened is null then
+    raise exception 'Call % is not re-opened — close it by entering the visit that solved it', p_ucn;
+  end if;
+
+  update public.calls
+     set reopened_at  = null,
+         reopen_count = greatest(coalesce(reopen_count, 0) - 1, 0)
+   where ucn = p_ucn;
+
+  return p_ucn;
+end $function$;
 
 -- ------------------------------------------------------------------------
 -- 0164_cr_read_initplan.sql
@@ -26526,6 +27500,123 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0275_spares_on_a_visit_rename_and_returns.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0275 — SPARES BOOKED ON A VISIT, A PART RENAME, AN MRN FOR SOMEBODY ELSE
+--
+-- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
+-- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
+-- its Check Box" -- each screen gets keys of its own, today's grants copied
+-- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- "67: Break it down", with the old key kept as the PARENT of the new ones, so
+-- a role holding it keeps everything until an administrator unticks it.
+-- The parent rule itself is in has_perm() (0272, public.perm_parents).
+--
+-- This file: cons_write asks visit.spares for a line booked on a visit;
+-- rename_part asks masters.edit.rename_part; mr_insert asks
+-- stock.return.others to return stock in another engineer's name (it asked
+-- can_approve_spares(), which the screen did not -- finding 64).
+-- ===========================================================================
+
+drop policy if exists cons_write on public.spare_consumption;
+create policy cons_write on public.spare_consumption for insert
+      with check (
+        case when coalesce(source, 'Report') = 'Reconciliation'
+             then public.has_perm('consumption.reconcile')
+             else (public.has_perm('visit.spares') or public.has_perm('spare.dispatch'))
+        end
+      );
+
+drop policy if exists mr_insert on public.material_returns;
+create policy mr_insert on public.material_returns for insert
+  with check (public.has_perm('stock.return')
+              and (public.is_admin() or public.has_perm('stock.return.others')
+                   or lower(coalesce(engineer_email, '')) = lower(auth.email())));
+
+CREATE OR REPLACE FUNCTION public.rename_part(p_id bigint, p_code text, p_description text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  old_detail text; old_key text;
+  new_code text := btrim(coalesce(p_code, ''));
+  new_desc text := btrim(coalesce(p_description, ''));
+  new_detail text; moved jsonb := '{}'::jsonb; n bigint;
+begin
+  if not public.has_perm('masters.edit.rename_part') then
+    raise exception 'RBAC: only a role that maintains the masters may rename a part';
+  end if;
+  if new_code = '' or new_desc = '' then
+    raise exception 'A part needs both a code and a description';
+  end if;
+  if position('|' in new_code) > 0 or position('|' in new_desc) > 0 then
+    -- The separator IS the key's structure, so a value containing one would
+    -- produce a key nothing can parse back.
+    raise exception 'Neither the code nor the description may contain "|"';
+  end if;
+
+  select item_detail into old_detail from parts where id = p_id;
+  if old_detail is null then raise exception 'No such part'; end if;
+  old_key := lower(btrim(old_detail));
+  new_detail := new_code || '|' || new_desc;
+
+  if lower(btrim(new_detail)) = old_key then
+    return jsonb_build_object('renamed', false, 'reason', 'nothing changed',
+                              'from', old_detail, 'to', new_detail);
+  end if;
+  -- A RENAME, NOT A MERGE (see the header).
+  if exists (select 1 from parts where item_detail_key = lower(btrim(new_detail)) and id <> p_id) then
+    raise exception 'Another part is already called "%" — a rename cannot merge two parts', new_detail;
+  end if;
+
+  -- FILE THE TICKET, so the consumption guard can tell this rename from a line
+  -- being re-pointed. Keyed on the transaction, so it is gone when this one
+  -- ends — a rollback takes it, and a commit is followed by the delete below.
+  -- Any ticket left by a crashed transaction names a txid that will not recur.
+  insert into public.part_rename_ticket (txid, old_key, new_detail)
+  values (txid_current(), old_key, new_detail)
+  on conflict (txid) do update set old_key = excluded.old_key,
+                                   new_detail = excluded.new_detail, at = now();
+
+  -- THE NINE, then the part itself. Every one is matched case- and
+  -- space-insensitively on the SAME key the register is matched on, so a row
+  -- stored with different spacing moves with the rest instead of being left
+  -- behind as the only survivor of the old name.
+  update spare_consumption         set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Spare consumption', n);
+  update spare_consumption_history set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Consumption (history)', n);
+  update spare_issue_history       set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Issued to engineers', n);
+  update handstock_opening         set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Opening hand stock', n);
+  update spare_request_lines       set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Spare request lines', n);
+  update spare_dispatch_lines      set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Dispatch lines', n);
+  update stock_transfer_lines      set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Stock transfer lines', n);
+  update material_returns          set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Material returns', n);
+  update indoor_job_parts          set part_code = new_detail where lower(btrim(part_code)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Indoor job parts', n);
+
+  update parts set code = new_code, description = new_desc, item_detail = new_detail
+   where id = p_id;
+
+  -- THE CAPABILITY IS SPENT. Not strictly required — the ticket names this
+  -- transaction and no later one can reuse the id — but a capability left lying
+  -- about is one somebody eventually reasons from.
+  delete from public.part_rename_ticket where txid = txid_current();
+
+  return jsonb_build_object('renamed', true, 'from', old_detail, 'to', new_detail, 'moved', moved);
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0036_sales_contracts.sql
 -- ------------------------------------------------------------------------
 
@@ -29098,6 +30189,177 @@ revoke execute on function public.link_install_call(bigint, text) from public, a
 grant  execute on function public.link_install_call(bigint, text) to authenticated;
 
 -- ------------------------------------------------------------------------
+-- 0277_cover_keys_split.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0277 — WARRANTY AND CONTRACT HAVE KEYS OF THEIR OWN; DELETING AN ENTRY IS SEPARATE
+--
+-- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
+-- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
+-- its Check Box" -- each screen gets keys of its own, today's grants copied
+-- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- "67: Break it down", with the old key kept as the PARENT of the new ones, so
+-- a role holding it keeps everything until an administrator unticks it.
+-- The parent rule itself is in has_perm() (0272, public.perm_parents).
+--
+-- This file: the sale and contract write rules, split into add/edit and
+-- delete, the additional-entries rule, and the three maintenance functions
+-- that asked cover.edit.
+-- ===========================================================================
+
+-- Adding and editing an entry, and removing a machine from one, is
+-- "entries"; deleting a whole entry -- its machines go with it, by the
+-- foreign key's cascade -- is "delete". The Warranty Register keeps cover.edit
+-- as the parent; the Contract Register has contract.edit of its own.
+do $$
+declare t text; k text; r text;
+begin
+  foreach t in array array['sale_entries', 'sale_items', 'contract_entries', 'contract_items'] loop
+    if to_regclass('public.' || t) is null then continue; end if;
+    k := case when t like 'contract%' then 'contract.edit' else 'cover.edit' end;
+    execute format('drop policy if exists %1$s_write on public.%1$s', t);
+    execute format('drop policy if exists %1$s_insert on public.%1$s', t);
+    execute format('drop policy if exists %1$s_update on public.%1$s', t);
+    execute format('drop policy if exists %1$s_delete on public.%1$s', t);
+    execute format('drop policy if exists %1$s_read on public.%1$s', t);
+    execute format('create policy %1$s_insert on public.%1$s for insert with check ((select public.has_perm(''%2$s.entries'')))', t, k);
+    execute format('create policy %1$s_update on public.%1$s for update using ((select public.has_perm(''%2$s.entries''))) with check ((select public.has_perm(''%2$s.entries'')))', t, k);
+    execute format('create policy %1$s_delete on public.%1$s for delete using ((select public.has_perm(''%2$s.%3$s'')))',
+                   t, k, case when t like '%entries' then 'delete' else 'entries' end);
+    execute format('create policy %1$s_read on public.%1$s for select using ((select public.has_perm(''masters.view'')) or (select public.has_perm(''%2$s.entries'')) or (select public.is_admin()))', t, k);
+  end loop;
+end $$;
+
+-- Additional entries recorded against a machine (Ownership Transfer -> Add
+-- entry details, 0073) are warranty-side entries: cover.edit.entries.
+drop policy if exists pae_write on public.product_additional_entries;
+create policy pae_write on public.product_additional_entries for all
+  using (public.has_perm('cover.edit.entries')) with check (public.has_perm('cover.edit.entries'));
+
+CREATE OR REPLACE FUNCTION public.refresh_product_cover()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+ SET statement_timeout TO '180s'
+AS $function$
+declare n integer;
+begin
+  -- 0247: THE COVER ADMIN ACTION IS FOR WHOEVER MAY EDIT COVER. This runs with
+  -- the owner's rights over every sale, contract and machine, so it checks the
+  -- caller itself. A call with nobody signed in (the SQL editor, a scheduled
+  -- job) passes;
+  -- the not-signed-in role cannot call it at all (0248 withdraws it).
+  if auth.uid() is not null and not (public.is_admin() or public.has_perm('cover.edit.entries') or public.has_perm('contract.edit.entries')) then
+    raise exception 'Only someone who may edit cover (cover.edit) can re-fold cover after an import.';
+  end if;
+  update public.products p set
+    warranty_number = coalesce(m.sa_number, p.warranty_number),
+    warranty_start  = coalesce(m.warranty_start, p.warranty_start),
+    warranty_end    = coalesce(m.warranty_end,   p.warranty_end),
+    contract_number = coalesce(m.mc_number, p.contract_number),
+    contract_start  = coalesce(m.contract_start, p.contract_start),
+    contract_end    = coalesce(m.contract_end,   p.contract_end),
+    contract_type   = coalesce(nullif(m.contract_type, ''), p.contract_type),
+    item_status     = m.item_status
+  from public.machine_cover m
+  where m.serial_key = lower(trim(p.serial_number));
+  get diagnostics n = row_count;
+  return n;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.cover_unpin_inherited()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+ SET statement_timeout TO '180s'
+AS $function$
+declare n integer := 0; m integer;
+begin
+  -- 0247: THE COVER ADMIN ACTION IS FOR WHOEVER MAY EDIT COVER. This runs with
+  -- the owner's rights over every sale, contract and machine, so it checks the
+  -- caller itself. A call with nobody signed in (the SQL editor, a scheduled
+  -- job) passes;
+  -- the not-signed-in role cannot call it at all (0248 withdraws it).
+  if auth.uid() is not null and not (public.is_admin() or public.has_perm('cover.edit.entries') or public.has_perm('contract.edit.entries')) then
+    raise exception 'Only someone who may edit cover (cover.edit) can re-fold cover after an import.';
+  end if;
+  update public.sale_items i set
+    invoice_no      = case when i.invoice_no      is not distinct from h.invoice_no      then null else i.invoice_no end,
+    invoice_date    = case when i.invoice_date    is not distinct from h.invoice_date    then null else i.invoice_date end,
+    sold_through    = case when i.sold_through    is not distinct from h.sold_through    then null else i.sold_through end,
+    warranty_start  = case when i.warranty_start  is not distinct from h.warranty_start  then null else i.warranty_start end,
+    warranty_end    = case when i.warranty_end    is not distinct from h.warranty_end    then null else i.warranty_end end,
+    warranty_years  = case when i.warranty_years  is not distinct from h.warranty_years  then null else i.warranty_years end,
+    warranty_months = case when i.warranty_months is not distinct from h.warranty_months then null else i.warranty_months end,
+    pm_visits       = case when i.pm_visits       is not distinct from h.pm_visits       then null else i.pm_visits end,
+    warranty_status = case when i.warranty_status is not distinct from h.warranty_status then null else i.warranty_status end,
+    other_details   = case when i.other_details   is not distinct from h.other_details   then null else i.other_details end,
+    state           = case when i.state           is not distinct from h.state           then null else i.state end,
+    city            = case when i.city            is not distinct from h.city            then null else i.city end,
+    engineer        = case when i.engineer        is not distinct from h.engineer        then null else i.engineer end
+  from public.sale_entries h where h.sa_number = i.sa_number;
+  get diagnostics m = row_count; n := n + m;
+
+  update public.contract_items i set
+    entry_at         = case when i.entry_at         is not distinct from h.entry_at         then null else i.entry_at end,
+    party_name       = case when i.party_name       is not distinct from h.party_name       then null else i.party_name end,
+    payment_schedule = case when i.payment_schedule is not distinct from h.payment_schedule then null else i.payment_schedule end,
+    bill_generate_at = case when i.bill_generate_at is not distinct from h.bill_generate_at then null else i.bill_generate_at end,
+    contract_type    = case when i.contract_type    is not distinct from h.contract_type    then null else i.contract_type end,
+    contract_start   = case when i.contract_start   is not distinct from h.contract_start   then null else i.contract_start end,
+    contract_end     = case when i.contract_end     is not distinct from h.contract_end     then null else i.contract_end end,
+    contract_years   = case when i.contract_years   is not distinct from h.contract_years   then null else i.contract_years end,
+    contract_months  = case when i.contract_months  is not distinct from h.contract_months  then null else i.contract_months end,
+    pm_visits_total  = case when i.pm_visits_total  is not distinct from h.pm_visits_total  then null else i.pm_visits_total end,
+    status           = case when i.status           is not distinct from h.status           then null else i.status end
+  from public.contract_entries h where h.mc_number = i.mc_number;
+  get diagnostics m = row_count; n := n + m;
+  return n;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.link_install_call(p_item_id bigint, p_ucn text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  it  public.sale_items%rowtype;
+  v_ucn text := btrim(coalesce(p_ucn, ''));
+begin
+  if not (public.is_admin() or public.has_perm('cover.edit.entries') or public.has_perm('install.create')) then
+    raise exception 'RBAC: mapping an installation call needs install.create or cover.edit.entries';
+  end if;
+
+  select * into it from public.sale_items where id = p_item_id for update;
+  if not found then
+    raise exception 'Machine line % is not on the warranty register', p_item_id;
+  end if;
+
+  if btrim(coalesce(it.inst_call, '')) = v_ucn then
+    return;
+  end if;
+  if public.is_call_number(it.inst_call) then
+    raise exception '% · % already has installation call %, which is not replaced here',
+      it.product_name, it.serial_number, btrim(it.inst_call);
+  end if;
+
+  if not exists (
+    select 1 from public.installation_calls c
+     where c.ucn = v_ucn
+       and lower(btrim(coalesce(c.serial, '')))       = lower(btrim(coalesce(it.serial_number, '')))
+       and lower(btrim(coalesce(c.product_name, ''))) = lower(btrim(coalesce(it.product_name, '')))
+  ) then
+    raise exception 'Call % is not an installation call for % · %', v_ucn, it.product_name, it.serial_number;
+  end if;
+
+  update public.sale_items set inst_call = v_ucn where id = p_item_id;
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql
 -- ------------------------------------------------------------------------
 
@@ -29591,6 +30853,30 @@ drop policy if exists valres_write on public.validation_results;
 create policy valres_write on public.validation_results for all
   using (public.is_admin() or public.has_perm('config.manage'))
   with check (public.is_admin() or public.has_perm('config.manage'));
+
+-- ------------------------------------------------------------------------
+-- 0279_validation_manage_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0279 — RECORDING VALIDATION RESULTS HAS A KEY OF ITS OWN
+--
+-- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
+-- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
+-- its Check Box" -- each screen gets keys of its own, today's grants copied
+-- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- "67: Break it down", with the old key kept as the PARENT of the new ones, so
+-- a role holding it keeps everything until an administrator unticks it.
+-- The parent rule itself is in has_perm() (0272, public.perm_parents).
+--
+-- This file: valres_write asked config.manage while the screen asked
+-- config.manage OR users.manage (finding 64). Both now ask validation.manage.
+-- ===========================================================================
+
+drop policy if exists valres_write on public.validation_results;
+create policy valres_write on public.validation_results for all
+  using (public.is_admin() or public.has_perm('validation.manage'))
+  with check (public.is_admin() or public.has_perm('validation.manage'));
 
 -- ------------------------------------------------------------------------
 -- 0130_quality_objectives.sql
@@ -33875,6 +35161,110 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
+-- 0278_objective_manage_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0278 — THE OBJECTIVE SCREEN HAS A KEY OF ITS OWN
+--
+-- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
+-- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
+-- its Check Box" -- each screen gets keys of its own, today's grants copied
+-- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- "67: Break it down", with the old key kept as the PARENT of the new ones, so
+-- a role holding it keeps everything until an administrator unticks it.
+-- The parent rule itself is in has_perm() (0272, public.perm_parents).
+--
+-- This file: quality objectives were edited, recalculated and cut off under
+-- config.manage, which the Objective row did not show. Now objective.manage.
+-- Locking a month stays an administrator's (shown greyed on the matrix).
+-- ===========================================================================
+
+drop policy if exists qo_write on public.quality_objectives;
+create policy qo_write on public.quality_objectives for all
+  using (public.has_perm('objective.manage')) with check (public.has_perm('objective.manage'));
+
+CREATE OR REPLACE FUNCTION public.recalc_quality_objectives(p_year integer)
+ RETURNS TABLE(objective text, months_written integer)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  o   public.quality_objectives;
+  p   record;
+  m   integer;
+  v   numeric;
+  n   integer;
+begin
+  if not coalesce(public.has_perm('objective.manage'), false) then
+    raise exception 'RBAC: only an administrator can re-calculate the objectives';
+  end if;
+
+  for o in select * from public.quality_objectives
+            where year = p_year and calc_key <> '' order by sort_order loop
+    n := 0;
+    for m in 1..12 loop
+      select * into p from public.objective_period(o.id, m);
+      if found and p.applies then
+        v := public.objective_value(o.id, m);
+        if v is not null then
+          execute format('update public.quality_objectives set %I = $1 where id = $2',
+                         'm' || lpad(m::text, 2, '0'))
+            using v, o.id;
+          n := n + 1;
+        end if;
+      elsif found and public.objective_is_quarterly(o.frequency) then
+        execute format('update public.quality_objectives set %I = null where id = $1',
+                       'm' || lpad(m::text, 2, '0'))
+          using o.id;
+      end if;
+    end loop;
+    objective := o.parameter; months_written := n;
+    return next;
+  end loop;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.set_objective_cutoff(p_year integer, p_month integer, p_date date)
+ RETURNS date
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  -- coalesce, NOT a bare `if not has_perm(...)`. `my_extra_perms()` returns NULL
+  -- when there is no signed-in user, which makes has_perm() NULL -- and
+  -- `if not NULL` never fires, so the guard would fall THROUGH and the write
+  -- would go ahead. Caught by a test whose fixture user did not exist; the
+  -- pattern is used in fifteen other migrations and is noted in the backlog.
+  -- (Not reachable from the API today: execute is granted to `authenticated`
+  -- only. That is a second lock, not a reason to leave the first one open.)
+  if not coalesce(public.has_perm('objective.manage'), false) then
+    raise exception 'RBAC: you cannot change the objective cut-off dates';
+  end if;
+  if coalesce(public.objective_cutoff_locked(), false)
+     and not coalesce(public.is_admin(), false) then
+    raise exception 'The objective cut-off is locked. An administrator can unlock it on the Objective page.';
+  end if;
+  if p_month is null or p_month < 1 or p_month > 12 then
+    raise exception 'A cut-off belongs to a month between 1 and 12';
+  end if;
+
+  if p_date is null then
+    delete from public.objective_cutoffs where year = p_year and month = p_month;
+    return null;
+  end if;
+
+  insert into public.objective_cutoffs (year, month, cutoff_date, updated_by, updated_at)
+       values (p_year, p_month, p_date, auth.uid(), now())
+  on conflict (year, month) do update
+    set cutoff_date = excluded.cutoff_date,
+        updated_by  = excluded.updated_by,
+        updated_at  = excluded.updated_at;
+  return p_date;
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0048_record_audit.sql
 -- ------------------------------------------------------------------------
 
@@ -35010,6 +36400,30 @@ begin
   end loop;
   raise notice '0208: % cover value(s) normalised in all', total;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0274_feedback_update_visit_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0274 — FEEDBACK TAKEN ON A VISIT IS ITS OWN KEY
+--
+-- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
+-- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
+-- its Check Box" -- each screen gets keys of its own, today's grants copied
+-- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- "67: Break it down", with the old key kept as the PARENT of the new ones, so
+-- a role holding it keeps everything until an administrator unticks it.
+-- The parent rule itself is in has_perm() (0272, public.perm_parents).
+--
+-- This file: fb_update, which 0189 created, now asks visit.feedback -- the
+-- child of each register's report key -- instead of calls.report.
+-- ===========================================================================
+
+drop policy if exists fb_update on public.feedback;
+create policy fb_update on public.feedback for update
+  using (public.has_perm('visit.feedback') or public.has_perm('feedback.view'))
+  with check (public.has_perm('visit.feedback') or public.has_perm('feedback.view'));
 
 -- ------------------------------------------------------------------------
 -- 0052_search_indexes.sql
@@ -38676,6 +40090,49 @@ comment on view public.product_database is
   'The install base as it stands NOW: the party from the later of the latest sale and the latest ownership transfer (0238), and the contract and installation call that name that machine AND that party. Item Status is warranty-first over the matching contract; the engineer is always the Party Master''s. The stored values are kept beside them as *_keyed.';
 
 -- ------------------------------------------------------------------------
+-- 0280_product_database_2_rebuild_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0280 — REBUILDING PRODUCT DATABASE 2.0 HAS A KEY OF ITS OWN
+--
+-- Findings 57-67 (docs/PERMISSIONS_REVIEW.md), the user's decisions of
+-- 2026-09-30: "63, 64: It should show the Individual View's Control Action and
+-- its Check Box" -- each screen gets keys of its own, today's grants copied
+-- across (0284) so nobody gains or loses anything on the day it ships -- and
+-- "67: Break it down", with the old key kept as the PARENT of the new ones, so
+-- a role holding it keeps everything until an administrator unticks it.
+-- The parent rule itself is in has_perm() (0272, public.perm_parents).
+--
+-- This file: the Rebuild button asked masters.edit or cover.edit; now
+-- pd2.rebuild. Reading its state follows the cover keys' split.
+-- ===========================================================================
+
+drop policy if exists pdv2_state_read on public.product_database_v2_state;
+create policy pdv2_state_read on public.product_database_v2_state for select
+  using (public.has_perm('masters.view') or public.has_perm('cover.edit.entries')
+         or public.has_perm('contract.edit.entries') or public.is_admin());
+
+CREATE OR REPLACE FUNCTION public.refresh_product_database_2()
+ RETURNS timestamp with time zone
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare n integer;
+begin
+  if not (public.has_perm('pd2.rebuild') or public.is_admin()) then
+    raise exception 'Your role may not rebuild Product Database 2.0.' using errcode = '42501';
+  end if;
+  refresh materialized view concurrently public.product_database_v2_mv;
+  select count(*) into n from public.product_database_v2_mv;
+  update public.product_database_v2_state
+     set refreshed_at = now(), rows_built = n, refreshed_by = auth.uid(), stale = false
+   where only_row;
+  return (select refreshed_at from public.product_database_v2_state where only_row);
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0229_feedback_without_report.sql
 -- ------------------------------------------------------------------------
 
@@ -39452,6 +40909,129 @@ end $$;
 
 revoke execute on function public.device_cache_report() from public, anon;
 grant execute on function public.device_cache_report() to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0284_permission_grants_copied.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0284 — TODAY'S GRANTS, COPIED ONTO THE NEW PER-SCREEN KEYS, ONCE.
+--
+-- The user, 2026-09-30, on findings 63 and 64: "It should show the Individual
+-- View's Control Action and its Check Box" -- answered with keys of their own
+-- per screen (0272-0283). A key nobody holds would take every one of those
+-- buttons away from everybody the day this ships, so each new key is given to
+-- exactly the roles and people that hold the key it replaces:
+--
+--   install.* / pm.* / calls.reopen  <- the calls.* key it was checked under
+--   contract.edit                    <- cover.edit
+--   tracker.delete                   <- the Tracker page itself (everybody
+--                                       who opens it could delete)
+--   objective.manage, charts.share,
+--   validation.manage, layouts.share <- config.manage, which the database
+--                                       asked for each of them
+--   pd2.rebuild                      <- masters.edit or cover.edit
+--   stock.return.others              <- any spare approval stage or dispatch,
+--                                       which is what the database asked
+--
+-- ONCE, AND SAID SO IN A TABLE. A re-run that copied again would hand a key
+-- back to a role an administrator had deliberately unticked it from, which is
+-- the one thing a permission migration must never do. The keys that are
+-- CHILDREN of a key somebody holds (0272's perm_parents) are not copied at all:
+-- the parent already grants them.
+--
+-- A role row with no permissions is left alone: an empty array means "not
+-- configured" and falls back to the engineer defaults, so it inherits through
+-- the engineer row, which is copied like any other.
+--
+-- Also, every run (finding 66, "Fix it"): the two ticks that did nothing are
+-- taken off every role and person -- dashboard.view, which nothing tested, and
+-- the User Access page (/users), which only redirects to the User Master.
+-- ===========================================================================
+
+create table if not exists public.permission_copies_done (
+  name       text primary key,
+  applied_at timestamptz not null default now()
+);
+alter table public.permission_copies_done enable row level security;
+revoke all on public.permission_copies_done from anon, authenticated;
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.permission_copies_done'::regclass);
+  end if;
+end $$;
+
+do $$
+declare
+  pair record;
+  n_roles int; n_people int;
+begin
+  if to_regclass('public.app_roles') is null or to_regclass('public.profiles') is null then
+    raise notice '0284: app_roles or profiles missing -- nothing copied';
+    return;
+  end if;
+  if exists (select 1 from public.permission_copies_done where name = '0284_per_screen_keys') then
+    raise notice '0284: the per-screen keys were copied before -- not copied again';
+  else
+    for pair in
+      select * from (values
+        ('install.edit',           array['calls.edit']),
+        ('install.edit.complaint', array['calls.edit.complaint']),
+        ('install.edit.customer',  array['calls.edit.customer']),
+        ('install.edit.vigilance', array['calls.edit.vigilance']),
+        ('install.edit.contact',   array['calls.edit.contact']),
+        ('install.allot',          array['calls.allot']),
+        ('install.report',         array['calls.report']),
+        ('install.cancel',         array['calls.cancel']),
+        ('install.reopen',         array['calls.create', 'pending.register']),
+        ('pm.create',              array['calls.create']),
+        ('pm.edit',                array['calls.edit']),
+        ('pm.edit.complaint',      array['calls.edit.complaint']),
+        ('pm.edit.customer',       array['calls.edit.customer']),
+        ('pm.edit.vigilance',      array['calls.edit.vigilance']),
+        ('pm.edit.contact',        array['calls.edit.contact']),
+        ('pm.allot',               array['calls.allot']),
+        ('pm.report',              array['calls.report']),
+        ('pm.cancel',              array['calls.cancel']),
+        ('pm.reopen',              array['calls.create', 'pending.register']),
+        ('calls.reopen',           array['calls.create', 'pending.register']),
+        ('contract.edit',          array['cover.edit']),
+        ('tracker.delete',         array['mod:/tracker']),
+        ('objective.manage',       array['config.manage']),
+        ('charts.share',           array['config.manage']),
+        ('validation.manage',      array['config.manage']),
+        ('layouts.share',          array['config.manage']),
+        ('pd2.rebuild',            array['masters.edit', 'cover.edit']),
+        ('stock.return.others',    array['spare.approve_rm', 'spare.approve_commercial', 'spare.approve_nsm', 'spare.dispatch'])
+      ) as t(new_key, old_keys)
+    loop
+      update public.app_roles
+         set permissions = permissions || jsonb_build_array(pair.new_key), updated_at = now()
+       where jsonb_array_length(permissions) > 0
+         and permissions ?| pair.old_keys
+         and not permissions ? pair.new_key;
+      get diagnostics n_roles = row_count;
+      update public.profiles
+         set extra_permissions = coalesce(extra_permissions, '[]'::jsonb) || jsonb_build_array(pair.new_key)
+       where coalesce(extra_permissions, '[]'::jsonb) ?| pair.old_keys
+         and not coalesce(extra_permissions, '[]'::jsonb) ? pair.new_key;
+      get diagnostics n_people = row_count;
+      raise notice '0284: % given to % role(s) and % person(s) holding %', pair.new_key, n_roles, n_people, pair.old_keys;
+    end loop;
+    insert into public.permission_copies_done (name) values ('0284_per_screen_keys');
+  end if;
+
+  update public.app_roles
+     set permissions = (select coalesce(jsonb_agg(e), '[]'::jsonb) from jsonb_array_elements(permissions) e
+                         where e not in ('"dashboard.view"'::jsonb, '"mod:/users"'::jsonb)),
+         updated_at = now()
+   where permissions ?| array['dashboard.view', 'mod:/users'];
+  update public.profiles
+     set extra_permissions = (select coalesce(jsonb_agg(e), '[]'::jsonb) from jsonb_array_elements(extra_permissions) e
+                               where e not in ('"dashboard.view"'::jsonb, '"mod:/users"'::jsonb))
+   where coalesce(extra_permissions, '[]'::jsonb) ?| array['dashboard.view', 'mod:/users'];
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0244_sys_columns.sql

@@ -56,6 +56,10 @@ export function Tracker() {
   // ONE permission. Seeing the page IS the right to change it — the user's own
   // rule, and the database policy says exactly the same thing.
   const mayEdit = can('mod:/tracker');
+  // Adding and editing is the page ("all who have access should be able add,
+  // edit"); DELETING is its own tick since 0282, copied to everyone who had
+  // the page.
+  const mayDelete = can('tracker.delete');
 
   const [items, setItems] = useState<TrackerItem[]>([]);
   const [showClosed, setShowClosed] = useState(false);
@@ -198,7 +202,8 @@ export function Tracker() {
                 className="input" type="date" value={it.due_date ?? ''} disabled={!mayEdit}
                 onChange={(e) => patch(it.id, { due_date: e.target.value || null })}
               />
-              <button className="btn btn-ghost btn-sm" disabled={!mayEdit} onClick={() => remove(it)}>
+              <button className="btn btn-ghost btn-sm" disabled={!mayDelete} onClick={() => remove(it)}
+                title={mayDelete ? undefined : 'Deleting needs the “Delete a Tracker item” permission — mark it Done or Dropped instead'}>
                 Delete
               </button>
             </div>

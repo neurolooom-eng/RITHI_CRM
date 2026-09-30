@@ -33,7 +33,7 @@ export function OwnershipTransfer() {
   const { user, can } = useAuth();
   const live = supabaseConfigured();
   const mayMove = live && can('ownership.transfer');
-  const mayCover = live && can('cover.edit');
+  const mayCover = live && can('cover.edit.entries');
 
   const [tab, setTab] = useState<Tab>('transfers');
   const [transfers, setTransfers] = useState<OT[]>([]);

@@ -1183,7 +1183,8 @@ console.log('\n-- re-allocating a call is its own permission --');
 {
   const rbacSrc = readFileSync(`${process.cwd()}/src/lib/rbac.ts`, 'utf8');
   eq('it is offered on the Roles & Permissions screen',
-    /key: 'calls\.allot', label: 'Re-allocate a call to another engineer'/.test(rbacSrc), true);
+    /key: 'calls\.allot', label: 'Re-allocate a Field call to another engineer'/.test(rbacSrc)
+    && /key: 'install\.allot'/.test(rbacSrc) && /key: 'pm\.allot'/.test(rbacSrc), true);
   // Nobody may lose the ability on the day it lands: every default that has
   // calls.edit must also have calls.allot. (The migration does the same by
   // merging into app_roles, which is what the live project actually reads.)
@@ -1195,19 +1196,23 @@ console.log('\n-- re-allocating a call is its own permission --');
 
   for (const mod of ['FieldCalls', 'PendingCalls']) {
     const src = readFileSync(`${process.cwd()}/src/modules/${mod}.tsx`, 'utf8');
-    eq(`${mod} gates re-allocation on calls.allot, not calls.edit`,
-      /mayAllot = can\('calls\.allot'\)/.test(src), true);
+    // PER REGISTER since 0273: the register asks its own key, and Pending
+    // Calls -- which mixes all three -- asks each call's own.
+    eq(`${mod} gates re-allocation on the register's allot key, not an edit key`,
+      mod === 'FieldCalls'
+        ? /mayAllot = can\(`\$\{P\}\.allot`\)/.test(src)
+        : /const allotKey = /.test(src) && /!can\(allotKey\(callFamily\(r\.callType\)\)\)/.test(src), true);
     // "Bulk only, but say why it is hidden" (user's choice, 2026-09-06): a
     // control that is simply absent teaches nobody anything.
     eq(`${mod} says why the tick-boxes are not there`,
-      /allotBlocked = !can\('calls\.allot'\) && allotTeam\.canPick/.test(src)
-      && /Re-allocating a call needs the/.test(src), true);
+      /allotBlocked = !(can\(`\$\{P\}\.allot`\)|mayAllotAny) && allotTeam\.canPick/.test(src)
+      && /Re-allocating a call needs/.test(src), true);
   }
   // The drawer is the OTHER way to move a call, so it obeys the same right —
   // otherwise the permission would be decoration on one route out of two.
   const fc = readFileSync(`${process.cwd()}/src/modules/FieldCalls.tsx`, 'utf8');
   eq('the drawer locks the engineer box without it too',
-    /allocatedTo: +\{ perm: 'calls\.allot'/.test(fc) && /lockByRight/.test(fc), true);
+    /allocatedTo: +\{ perm: `\$\{P\}\.allot`/.test(fc) && /lockCallFields/.test(fc), true);
 }
 
 // "Edit calls" was one right over the whole call — right for the Hotline desk,
@@ -1237,7 +1242,7 @@ console.log('\n-- editing a call is four rights, not one --');
     customerName: 'contact', customerNumber: 'contact', customerDesignation: 'contact',
   };
   const missing = Object.entries(guarded)
-    .filter(([field, sec]) => !new RegExp(`${field}: +\\{ perm: 'calls\\.edit\\.${sec}'`).test(fc))
+    .filter(([field, sec]) => !new RegExp(`${field}: +\\{ perm: \`\\$\\{P\\}\\.edit\\.${sec}\``).test(fc))
     .map(([field]) => field);
   eq('every field the database guards is locked on the form too', missing.join(',') || 'none', 'none');
   // Read-only with a reason, not removed: a field that vanishes is how "where
@@ -1437,7 +1442,7 @@ console.log('\n-- the Objective page --');
   eq('it is a module, so a role can be given or refused it',
     /\{ path: '\/objective', label: 'Objective' \}/.test(rbacSrc), true);
   eq('...it is on the permission tree, or it can never be granted',
-    /path: '\/objective', label: 'Objective', actions: \[\]/.test(rbacSrc), true);
+    /path: '\/objective', label: 'Objective', actions: \['objective\.manage'/.test(rbacSrc), true);
   eq('...in the menu', /to: '\/objective'/.test(layout), true);
   eq('...and routed', /path="\/objective"/.test(app), true);
 
@@ -1905,8 +1910,8 @@ console.log('\n-- Technical Support: the Super Admin\'s reach, none of its write
 
   // The admin pages gated themselves on the right to CHANGE what is on them,
   // so there was no way to let somebody look. One key, checked in one place.
-  eq('an admin-only nav item opens on admin.view too, not just manage-users',
-    /can\('manage-users'\) \|\| can\('admin.view'\)/.test(layout)
+  eq('an admin-only nav item opens on admin.view too, not just the user-admin keys',
+    /USER_ADMIN_KEYS\.some\(\(k\) => can\(k\)\) \|\| can\('admin\.view'\)/.test(layout)
     && !/adminOnly \? can\('manage-users'\) :/.test(layout), true);
 
   // Seeing an admin screen is not running it: each one keeps its own right for
@@ -2815,6 +2820,78 @@ console.log('\n-- Zoho Migration is a clone, and stays one --');
     writes.filter((w) => (DEFAULT_PERMS.zoho_migration ?? []).includes(w)), []);
   // ...and the one that makes it useful.
   eq('it can export, which is the job', (DEFAULT_PERMS.zoho_migration ?? []).includes('export.data'), true);
+}
+
+// EVERY KEY A SCREEN'S BUTTONS TEST IS ON THAT SCREEN'S ROW (findings 63/64,
+// the user, 2026-09-30: "It should show the Individual View's Control Action
+// and its Check Box"). A button governed by a key filed under another page's
+// row is a button an administrator reading this page cannot see, or control.
+// The keys a register builds from its own prefix (FieldCalls' `${P}.edit`) are
+// checked separately below, per register.
+console.log('\n-- every control a screen tests is on its own Roles & Permissions row --');
+{
+  const { PERM_TREE: TREE, PERM_PARENTS: PARENTS, PERM_COPIES: COPIES } = await import('../src/lib/rbac');
+  const rowKeys = (paths: string[]) => new Set(TREE.flatMap((h) => h.pages).filter((pg) => paths.includes(pg.path)).flatMap((pg) => pg.actions));
+  const SCREENS: Record<string, string[]> = {
+    'DailyCallReview.tsx': ['/daily-review'], 'FieldFailureReport.tsx': ['/failure-report'],
+    'ProductFailureAnalysis.tsx': ['/product-failure'], 'Objective.tsx': ['/objective'],
+    'CoverRegister.tsx': ['/warranties', '/contracts'], 'OwnershipTransfer.tsx': ['/ownership-transfer'],
+    'RequestCallRegistration.tsx': ['/request-registration'], 'PendingRegistrations.tsx': ['/pending-registrations'],
+    'FieldCalls.tsx': ['/field-calls', '/installations', '/pm-calls'], 'PendingCalls.tsx': ['/pending-calls'],
+    'CallReview.tsx': ['/call-review'], 'CustomerFeedback.tsx': ['/feedback'],
+    'SpareRequests.tsx': ['/spare-requests'], 'SpareRmApproval.tsx': ['/spare-rm-approval'],
+    'SpareDispatch.tsx': ['/spare-dispatch'], 'SpareConsumption.tsx': ['/spare-consumption'],
+    'HandStock.tsx': ['/handstock'], 'MaterialReturns.tsx': ['/mrn'], 'StockTransfer.tsx': ['/stock-transfer'],
+    'IndoorService.tsx': ['/indoor'], 'PartyMaster.tsx': ['/parties'], 'ProductMaster.tsx': ['/product-database'],
+    'ProductDatabase2.tsx': ['/product-database-2'], 'UserMasterView.tsx': ['/user-master'],
+    'PartMaster.tsx': ['/parts'], 'AllMasters.tsx': ['/masters'], 'Tracker.tsx': ['/tracker'],
+    'RolePermissions.tsx': ['/roles'], 'ReportMapping.tsx': ['/report-mapping'],
+    'SoftwareValidation.tsx': ['/software-validation'], 'Settings.tsx': ['/settings'],
+    'Training.tsx': ['/training'], 'SlaRulesCard.tsx': ['/admin-config'],
+    'CallRegistrationCard.tsx': ['/admin-config'], 'FrequentFailureCard.tsx': ['/admin-config'],
+    'Lookup.tsx': ['/lookup'], 'SpareInsights.tsx': ['/spare-insights'],
+  };
+  // Keys that are not one page's: they live under "Across the system".
+  const ACROSS = new Set(TREE.flatMap((h) => h.pages).filter((pg) => pg.path === '').flatMap((pg) => pg.actions));
+  const missing: string[] = [];
+  for (const [file, paths] of Object.entries(SCREENS)) {
+    const src = readFileSync(`src/modules/${file}`, 'utf8').replace(/\/\/[^\n]*/g, '');
+    const keys = new Set([...src.matchAll(/\bcan(?:Do)?\('([a-z0-9_]+\.[a-z0-9_.]+)'\)/g)].map((m) => m[1]));
+    const row = rowKeys(paths);
+    for (const k of keys) if (!row.has(k) && !ACROSS.has(k)) missing.push(`${file}: ${k}`);
+  }
+  eq('every key a screen tests is shown on that screen’s row', missing, []);
+
+  // THE THREE REGISTERS, per prefix: each row carries its own register's keys.
+  const regMissing: string[] = [];
+  for (const [path, P] of [['/field-calls', 'calls'], ['/installations', 'install'], ['/pm-calls', 'pm']] as const) {
+    const row = rowKeys([path]);
+    for (const v of ['edit', 'edit.complaint', 'edit.customer', 'edit.vigilance', 'edit.contact', 'allot', 'report', 'report.visit', 'cancel', 'reopen'])
+      if (!row.has(`${P}.${v}`)) regMissing.push(`${path}: ${P}.${v}`);
+  }
+  eq('each call register’s row carries its own register’s keys', regMissing, []);
+
+  // THE PARENT LIST IS ONE LIST IN TWO PLACES: rbac.ts and 0272's perm_parents.
+  const m0272 = readFileSync('supabase/migrations/0272_permission_parents.sql', 'utf8');
+  const sqlPairs = [...m0272.slice(m0272.indexOf('insert into public.perm_parents'), m0272.indexOf(';', m0272.indexOf('insert into public.perm_parents')))
+    .matchAll(/\('([a-z0-9_.]+)', '([a-z0-9_.]+)'\)/g)].map((m) => `${m[1]}<${m[2]}`).sort();
+  const tsPairs = Object.entries(PARENTS).flatMap(([c, ps]) => ps.map((p) => `${c}<${p}`)).sort();
+  eq('the client’s parent list is the database’s, pair for pair', tsPairs, sqlPairs);
+
+  // THE COPY LIST IS ONE LIST IN TWO PLACES: rbac.ts and 0284.
+  const m0284 = readFileSync('supabase/migrations/0284_permission_grants_copied.sql', 'utf8');
+  const sqlCopies = [...m0284.matchAll(/\('([a-z0-9_.]+)',\s+array\[([^\]]+)\]\)/g)]
+    .map((m) => `${m[1]}<${[...m[2].matchAll(/'([^']+)'/g)].map((x) => x[1]).join('|')}`).sort();
+  const tsCopies = COPIES.map(([k, from]) => `${k}<${from.join('|')}`).sort();
+  eq('the client’s copy list is the one 0284 applied, pair for pair', tsCopies, sqlCopies);
+
+  // Every key on a row exists, or it is a tick that grants nothing.
+  const { ACTIONS: ALL } = await import('../src/lib/rbac');
+  const known = new Set(ALL.map((a) => a.key));
+  eq('every key on the matrix is a real action',
+    TREE.flatMap((h) => h.pages).flatMap((pg) => pg.actions).filter((k) => !known.has(k)), []);
+  // ...and the two that did nothing are gone (finding 66).
+  eq('dashboard.view and the User Access page are gone', known.has('dashboard.view') || known.has('mod:/users'), false);
 }
 
 console.log('\n-- dropdowns are one control --');
@@ -3856,7 +3933,7 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // The pickers must ask for the merged list, not the code's.
   const um = readFileSync('src/modules/UserMasterView.tsx', 'utf8');
   eq('the User Master pickers offer every role',
-    (um.match(/options=\{roleOptions\} \/>/g) ?? []).length, 3);
+    (um.match(/options=\{roleOptions\}/g) ?? []).length, 3);
   eq('and the options come from the stored keys', /rolesWith\(Object\.keys\(rolePerms/.test(um), true);
   const rp = readFileSync('src/modules/RolePermissions.tsx', 'utf8');
   eq('the matrix draws a column per stored role, not per coded one',
@@ -6810,8 +6887,8 @@ console.log('\n-- a new column reaches the Party Master screen, not just the tab
   eq('...and the count says it is a lower bound', /count=\{rows\.length\} countMore=\{more\}/.test(pm), true);
 
   // KYC HAS TO BE CAPTURABLE, or the columns are a report on an empty table.
-  eq('a party can be edited, by whoever may edit masters',
-    /can\('masters\.edit'\)/.test(pm) && /onRowClick=\{mayEdit/.test(pm), true);
+  eq('a party can be edited, by whoever may edit master records',
+    /can\('masters\.edit\.records'\)/.test(pm) && /onRowClick=\{mayEdit/.test(pm), true);
   // THE PARTY NAME IS NOT EDITABLE. Every machine, call and contract names the
   // customer by that string and there is no foreign key to `parties`.
   eq('...but never its NAME, which everything else points at by string',
@@ -6906,8 +6983,9 @@ console.log('\n-- one Serviceman, changed everywhere it appears --');
 
   // ONE STATEMENT, so every party moves together or none does. A row at a time
   // is 328 requests and a half-finished rename if one fails.
+  // ...and ONE DATABASE CALL with a key of its own since 0276.
   eq('the rename is one statement, not one per party',
-    /\.update\(\{ service_engineer: to \}, \{ count: 'exact' \}\)\s*\.eq\('service_engineer', from\)/.test(sb), true);
+    /rpc\('swap_service_engineer', \{ p_from: from, p_to: to \}\)/.test(sb), true);
   // MATCHED EXACTLY. A rename that quietly caught a second spelling would be
   // one nobody asked for.
   eq('...matched exactly, never trimmed or case-folded',
@@ -6933,8 +7011,8 @@ console.log('\n-- one Serviceman, changed everywhere it appears --');
     /not in User Master/.test(pm), true);
   // GATED. `parties_write` is has_perm('masters.edit'); the button must not be
   // offered to somebody the database will refuse.
-  eq('only somebody who may edit masters is offered it',
-    /\{mayEdit && \([\s\S]{0,200}openSwap/.test(pm), true);
+  eq('only somebody who may swap the Serviceman is offered it',
+    /maySwap = can\('masters\.edit\.swap_serviceman'\)/.test(pm) && /\{maySwap && \([\s\S]{0,200}openSwap/.test(pm), true);
 }
 
 console.log('\n-- the requirements document and the requirements PAGE are one document --');
@@ -7191,9 +7269,9 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   // they open a screen — the same thing setting a register layout for a role
   // does — so it takes the same authority, and somebody without it is told
   // rather than offered the choice and refused later.
-  eq('sharing is gated on config.manage, and the reader is told',
-    /const maySh: boolean = can\('config\.manage'\)/.test(di)
-    && /Manage configuration/.test(di), true);
+  eq('sharing is gated on charts.share, and the reader is told',
+    /const maySh: boolean = can\('charts\.share'\)/.test(di)
+    && /Share a chart with a role/.test(di), true);
   // THE OWNER IS NOT SENT. The database stamps it, so a chart cannot be filed
   // under somebody else's name even by a client that means to.
   const sb2 = code(readFileSync('src/lib/supabase.ts', 'utf8'));
@@ -9567,8 +9645,10 @@ console.log('\n-- 31: whoever may press "+ Installation call" can map it back --
   const cr = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
   eq('the write-back goes through link_install_call', /rpc\('link_install_call', \{ p_item_id: Number\(it\.id\), p_ucn: ucn \}\)/.test(cv), true);
   eq('...and no longer updates the line directly', /from\('sale_items'\)\s*\.update\(\{ inst_call/.test(cv), false);
-  eq('the per-machine button is offered to install.create or cover.edit',
-    /const canRaiseInstall = can\('install\.create'\) \|\| canEdit;/.test(cr) && /\{canRaiseInstall && <button[^>]*disabled=\{raisingId !== null\}/.test(cr), true);
+  // install.create ALONE since finding 64: cover.edit was offered the button
+  // and then refused the call it had to create.
+  eq('the per-machine button is offered to install.create',
+    /const canRaiseInstall = can\('install\.create'\);/.test(cr) && /\{canRaiseInstall && <button[^>]*disabled=\{raisingId !== null\}/.test(cr), true);
 }
 
 console.log('\n-- the Daily Complaint Review: auto review is a role’s switch (Admin, NSM, Technical Support); old reviews load as imported --');
@@ -9579,7 +9659,7 @@ console.log('\n-- the Daily Complaint Review: auto review is a role’s switch (
     /Auto review: <b>\{auto\.enabled \? 'On' : 'Off'\}<\/b>/.test(dccr), true);
   eq('...and only review.auto may switch it', /auto && can\('review\.auto'\) && \(/.test(dccr), true);
   eq('review.auto is on Roles & Permissions, on the Daily Review row',
-    /key: 'review\.auto'/.test(r('src/lib/rbac.ts')) && /'\/daily-review'[^\n]*actions: \['review\.edit', 'review\.auto'\]/.test(r('src/lib/rbac.ts')), true);
+    /key: 'review\.auto'/.test(r('src/lib/rbac.ts')) && /'\/daily-review'[^\n]*actions: \['review\.edit', 'review\.auto'/.test(r('src/lib/rbac.ts')), true);
   const up = r('src/lib/uploads.ts');
   const dccrUpload = up.slice(up.indexOf("key: 'call_reviews'"), up.indexOf("key: 'parties'"));
   eq('the DCCR Register upload marks every row imported', /\{ to: 'imported', from: \[\], derive: \(\) => true, always: true \}/.test(dccrUpload), true);

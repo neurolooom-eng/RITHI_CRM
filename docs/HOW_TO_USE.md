@@ -1020,10 +1020,27 @@ typed into a form that reads it.
 
 ## Administration
 
-- **User Access** `/users` — who can sign in and on what role; an administrator
-  resets a forgotten password here.
+- **User Access** (`/users`) is gone: it opens the **User Master**, where logins
+  are created, roles assigned and — by an administrator — passwords reset.
 - **Roles & Permissions** `/roles` — which role holds which right, page by page and
   action by action. Roles can be added without code.
+  > **Every button has its tick on its own page's row.** Open a page's row and you
+  > see each thing that page lets somebody do — including a right that belongs to
+  > another module but is used there (a call register shows *Request spares* and
+  > *Reco*). The **Installation** and **PM** registers have their own ticks now:
+  > allowing Field Call edits no longer allows PM edits. Nothing changed for
+  > anybody on the day this arrived — each new tick was given to exactly the roles
+  > that held the one it replaced.
+  > **A tick with parts.** *Manage users*, *Edit masters*, *Edit sales /
+  > warranties*, *Edit contracts* and each register's *Edit* and *Report* are made
+  > of smaller ticks listed under them. Ticking the big one gives all its parts
+  > (they show ticked and greyed); to give only some, untick the big one and tick
+  > the parts. So you can let somebody verify KYC without editing parties, or
+  > create logins without deciding what those logins may do — a login they create
+  > is an Engineer until somebody with *Assign roles & grant permissions* changes it.
+  > **Greyed rows marked "Admin only"** are things only an administrator can do
+  > (bulk uploads, password reset, Audit Mode and a few more). They are listed so you
+  > know they exist; they cannot be given to another role.
   > **If a role sees nothing** it is almost always a missing *action*, not a
   > missing page: a role with some permissions but not "View calls" sees an empty
   > register with everything apparently granted.
@@ -1034,9 +1051,10 @@ typed into a form that reads it.
   > so look for it under the group it sits in on the left.
 - **Audit Log** `/audit` — what was recorded while audit mode was on. Turning it on
   or off needs a reason, and that history outlives the log.
-- **Admin Config** `/admin-config` — the settings the rules read: the
-  frequent-failure window and threshold, the objective cut-offs and their lock,
-  audit mode.
+- **Admin Config** `/admin-config` — the settings the rules read: the SLA
+  targets, the Call Registration desk, the frequent-failure window and threshold,
+  audit mode. The first three are open to anybody given *Admin config*; Audit
+  Mode and the Data Import panel are an administrator's.
 - **Software Validation** `/software-validation` — the ISO 13485 §4.1.6 package:
   intended use, regulatory basis, requirements and the tests that answer them.
   > Not the servicing process requirements. Software validation does not discharge

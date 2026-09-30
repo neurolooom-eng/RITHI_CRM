@@ -113,7 +113,7 @@ export function CallReportDrawer({
   onClose: () => void;
   onSaved?: (mode: string, ucn: string) => void;
 }) {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, can } = useAuth();
   const scope = useAccessScope();
   const ucn = String(call?.ucn ?? '');
   const callNumber = String(call?.callNumber ?? call?.['call_number'] ?? '');
@@ -383,11 +383,18 @@ export function CallReportDrawer({
       if (miss.length) return `Fill the Service Report: ${miss.join(', ')}.`;
       const consProblem = consumptionProblem(String(work['Add Consumption?'] ?? ''), spares.length, spareDraft.part);
       if (consProblem) return consProblem;
+      // SPARES ON A VISIT ARE THEIR OWN TICK (finding 67, 0275). Said BEFORE
+      // anything is written: the visit is saved first, so a refusal arriving
+      // with the spares would leave a visit whose parts were never booked.
+      if (wantsConsumption && !can('visit.spares'))
+        return 'Booking spares on a visit needs “Book spares used on a visit” — answer None Consumed, or ask an administrator for it.';
     }
     if (solved) {
       if (!manualLink.trim()) return 'Manual Report is mandatory when the call is Solved - Report Completed — upload the signed report.';
       const missFb = fbQuestions.filter((q) => (q.answer === 'rating' || q.answer === 'yesno') && !String(feedback[q.col] ?? '').trim());
       if (missFb.length) return `Customer feedback is mandatory for a solved call. Answer: ${missFb.map((q) => q.col).join(', ')}.`;
+      if (fbQuestions.length && !can('visit.feedback'))
+        return 'A solved call records the customer’s feedback, which needs “Record customer feedback on a visit” — ask an administrator for it.';
     }
     return '';
   };

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, roleLabel } from '../../lib/auth';
-import { actionForPath } from '../../lib/rbac';
+import { actionForPath, USER_ADMIN_KEYS } from '../../lib/rbac';
 import { useTheme } from '../../theme/ThemeProvider';
 import { fmtDateTime } from '../../lib/format';
 import { ViewAsControl, ViewAsBanner } from './ViewAs';
@@ -294,7 +294,7 @@ export const NAV: NavGroup[] = [
 // control on them still asks separately for the right that changes something.
 const navItemVisible = (it: NavItem, can: (a: string) => boolean): boolean =>
   !!it.alwaysOpen
-  || (it.adminOnly ? (can('manage-users') || can('admin.view')) : can(it.perm ?? actionForPath(it.to)));
+  || (it.adminOnly ? (USER_ADMIN_KEYS.some((k) => can(k)) || can('admin.view')) : can(it.perm ?? actionForPath(it.to)));
 
 // Global search across all modules (nav items). Jump straight to any screen.
 function ModuleSearch() {

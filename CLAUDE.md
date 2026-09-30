@@ -1050,6 +1050,19 @@ on testing the old shape. **When a migration replaces a definition, move the
   four date parsers and they had started to disagree. A wall-clock export time is
   LOCAL (`toIsoTimestamp(v, 'local')`, settled with the user); display of a
   non-ISO string is day-first too (`parseAnyDate`). Neither is a per-file habit.
+- **A KEY CAN HAVE A PARENT, AND EACH CALL REGISTER HAS ITS OWN KEYS (0272–0284,
+  findings 63–67).** `public.perm_parents` + `has_perm()` and `PERM_PARENTS` +
+  `can()` are ONE list in two places (`check:ui` compares them pair for pair):
+  holding `users.manage`, `masters.edit`, `cover.edit`, `contract.edit` or a
+  register's `*.edit` / `*.report` grants its children. **A policy or a screen
+  tests the CHILD** (`masters.edit.records`, `calls.report.visit`, `visit.spares`),
+  never the parent, or a person given only the child is refused. Installation
+  calls answer to `install.*`, PM calls to `pm.*` — a function taking a UCN asks
+  `call_perm(ucn, verb)`, a trigger on a call table reads `tg_table_name`, a screen
+  uses `callPermPrefix()`. **A new key that replaces an old one is copied ONCE**
+  (0284's `permission_copies_done`), never on every run, or a re-run hands back a
+  key an administrator removed. And **every key a screen's buttons test must be on
+  that screen's `PERM_TREE` row** — `check:ui` holds it for the screens it maps.
 - **THE MODULE KEY OPENS A SCREEN; THE READ POLICIES DECIDE THE ROWS.** Granting
   `mod:/x` correctly and seeing an empty page is not a fault in the grant — it is
   the other half, and the standing rule about Roles & Permissions does not cover

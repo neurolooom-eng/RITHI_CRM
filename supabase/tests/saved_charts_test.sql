@@ -11,7 +11,7 @@
 
 insert into public.app_roles (role, label, permissions) values
   ('engineer','Engineer','[]'::jsonb),
-  ('configurer','Configurer','["config.manage"]'::jsonb),
+  ('configurer','Configurer','["charts.share"]'::jsonb),
   ('admin','Admin','[]'::jsonb)
 on conflict (role) do update set permissions = excluded.permissions;
 
@@ -87,7 +87,7 @@ begin;
 commit;
 
 \echo ''
-\echo '=== 5. somebody with config.manage CAN ================================='
+\echo '=== 5. somebody with charts.share CAN (0272; it was config.manage) ======'
 call public.be('chart.cfg@example.com');
 begin;
   set local role authenticated;

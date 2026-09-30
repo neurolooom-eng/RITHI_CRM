@@ -423,7 +423,7 @@ const SECTIONS: Sec[] = [
       <>Open <b>Admin → Roles &amp; Permissions</b> to change what a role may do — page by page and action by action.</>,
       <>Tick the <b>page</b> and the <b>actions</b> the role needs.</>,
     ],
-    go: [{ to: '/users', label: 'User Access' }, { to: '/roles', label: 'Roles & Permissions' }],
+    go: [{ to: '/user-master', label: 'User Master' }, { to: '/roles', label: 'Roles & Permissions' }],
     note: { tone: 'warn', icon: '⚠', body: <>If somebody opens a register and sees <b>nothing</b>, it is almost always a missing <b>action</b> rather than a missing page — a role with some permissions but not “View calls” sees an empty screen with everything apparently granted.</> },
   },
   {

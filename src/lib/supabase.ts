@@ -1123,14 +1123,12 @@ export async function renamePartyServiceEngineer(
   const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
   if (!from) return { ok: false, error: 'Pick the name to change.' };
   if (from === to) return { ok: false, error: 'That is the same name.' };
-  const { error, count } = await c.from('parties')
-    .update({ service_engineer: to }, { count: 'exact' })
-    .eq('service_engineer', from);
-  if (error) {
-    const m = errMsg(error);
-    return { ok: false, error: /permission|policy/i.test(m) ? `${m} — this needs the “Edit masters” permission.` : m };
-  }
-  return { ok: true, changed: count ?? 0 };
+  // ONE DATABASE CALL WITH ITS OWN KEY (0276): swap_service_engineer() asks
+  // masters.edit.swap_serviceman, so the swap can be given to somebody who may
+  // not edit a party's record, and withheld from somebody who may.
+  const { data, error } = await c.rpc('swap_service_engineer', { p_from: from, p_to: to });
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true, changed: Number(data ?? 0) };
 }
 
 // ---------------------------------------------------------------------------
@@ -5185,8 +5183,14 @@ export async function listSlaRules(): Promise<SlaRuleRow[]> {
   return (data ?? []) as SlaRuleRow[];
 }
 export async function saveSlaRule(key: string, patch: { target_hours?: number; active?: boolean }): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('sla_rules').update(patch).eq('key', key);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // COUNT THE ROWS (finding 58, as finding 48 did for calls): row-level security
+  // refuses an UPDATE by matching nothing, which is not an error -- so a refused
+  // save used to read "saved" while nothing changed.
+  const { data, error } = await must().from('sla_rules').update(patch).eq('key', key).select('key');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0)
+    return { ok: false, error: 'Not saved — your role cannot change the SLA targets (it needs “Admin config”).' };
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------

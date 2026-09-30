@@ -45,7 +45,7 @@ export function MachineRegisterNote() {
     window.addEventListener(MASTER_STORED_EVENT, read);
     return () => window.removeEventListener(MASTER_STORED_EVENT, read);
   }, []);
-  const admin = can('manage-users') || can('admin.view');
+  const admin = can('users.manage.details') || can('admin.view');
   useEffect(() => onMachineRegister(setM), []);
   useEffect(() => onPartyRegister(setP), []);
   if (!m || !p || !supabaseConfigured()) return null;
