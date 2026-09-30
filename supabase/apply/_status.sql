@@ -1494,7 +1494,7 @@ with checks(sort_order, bundle, provides, present) as (
              and t.tgrelid in (to_regclass('public.field_calls'), to_regclass('public.installation_calls'), to_regclass('public.pm_calls'))) = 3
          and to_regprocedure('public.refresh_spare_requests_from_call(text[])') is not null
          and not has_function_privilege('anon', to_regprocedure('public.refresh_spare_requests_from_call(text[])'), 'EXECUTE'))),
-    (210, 'Auto review is a named person''s switch; old reviews load without raising reports; CAPA starts blank', 'set_auto_review() / auto_review_state() and auto_review_changes, the review2_auto and imported markers on call_reviews guarded by a_call_review_markers, and raise_ffr() (0269, the user 2026-09-30). Review 2''s automatic NO runs only while a person holding review.auto has switched it on, and its answers carry THAT PERSON''S name and the review2_auto marker; the API can set neither marker, except that an administrator''s upload may mark a review imported. An imported review keeps its file''s reviewers and dates and raises no FFR. An FFR raised from a review leaves CAPA responsibility, CAPA No and CAPA status blank, and so do the column defaults. The row checks each part by name. NO means Review 2 is still answered as ''Auto (9:15 am)'' whether or not anybody switched it on, old reviews raise reports as they load, or CAPA is pre-filled. Restore: daily_review.sql',
+    (210, 'Auto review is a person''s switch; old reviews load without raising reports; CAPA starts blank', 'set_auto_review() / auto_review_state() and auto_review_changes, the review2_auto and imported markers on call_reviews guarded by a_call_review_markers, and raise_ffr() (0269, the user 2026-09-30). Review 2''s automatic NO runs only while a person holding review.auto has switched it on, and its answers carry THAT PERSON''S name and the review2_auto marker; the API can set neither marker, except that an administrator''s upload may mark a review imported. An imported review keeps its file''s reviewers and dates and raises no FFR. An FFR raised from a review leaves CAPA responsibility, CAPA No and CAPA status blank, and so do the column defaults. The row checks each part by name. NO means Review 2 is still answered as ''Auto (9:15 am)'' whether or not anybody switched it on, old reviews raise reports as they load, or CAPA is pre-filled. Restore: daily_review.sql',
         (to_regprocedure('public.set_auto_review(boolean)') is not null
          and to_regprocedure('public.auto_review_state()') is not null
          and not has_function_privilege('anon', to_regprocedure('public.set_auto_review(boolean)'), 'EXECUTE')
@@ -1507,7 +1507,13 @@ with checks(sort_order, bundle, provides, present) as (
          and coalesce((select p.prosrc ~ 'auto_review_state' from pg_proc p
                         where p.oid = to_regprocedure('public.auto_answer_review2_asof(timestamptz)')), false)
          and coalesce((select column_default from information_schema.columns where table_schema = 'public'
-                        and table_name = 'field_failure_reports' and column_name = 'capa_status'), '') = '''''::text'))
+                        and table_name = 'field_failure_reports' and column_name = 'capa_status'), '') = '''''::text')),
+    (211, 'Who may switch auto review is a role: Admin, NSM, Technical Support', 'review.auto merged into the admin, nsm and technical_support role rows, and 0269''s grant of it to two people by name taken back (0271, the user 2026-09-30: "instead of hard coded names, can u change it to role - Admin, NSM, Technical Support"). A role row with no permissions at all is not configured and is passed over, as the migration passes it over. NO means one of the three configured rows lacks review.auto: either 0271 has not run, or an administrator has since removed it on Roles & Permissions -- re-running puts it back, so only re-run if that removal was not deliberate. Restore: daily_review.sql',
+        (to_regclass('public.app_roles') is not null
+         and not exists (select 1 from public.app_roles r
+                          where r.role in ('admin', 'nsm', 'technical_support')
+                            and jsonb_array_length(r.permissions) > 0
+                            and not (r.permissions ? 'review.auto'))))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

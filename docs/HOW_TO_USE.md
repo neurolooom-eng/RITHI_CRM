@@ -303,9 +303,11 @@ against the call it was fitted to.
     auto-save and the bulk answer. A later edit does not reassign it.
   - Answering in bulk refuses a first-year failure or an unknown age — those are
     reviewed one at a time.
-  - **Auto review is a switch, and a person's.** Only somebody given *Switch auto
-    review on or off* (Bagyaraj and Vignesh) can turn it on or off, from the top
-    of the register, which always shows whether it is on and in whose name.
+  - **Auto review is a switch, and a person's.** It can be turned on or off by
+    **Admin, NSM and Technical Support** — by role, not by name — and by anybody
+    an administrator gives *Switch auto review on or off* on User Master →
+    Access. It is the one thing Technical Support can change. The switch is at
+    the top of the register, which always shows whether it is on and in whose name.
     While it is on, each morning Review 2 is answered *No* for calls logged
     before that day that failed outside their first year — **in the name of the
     person who switched it on**, and marked as an auto-review answer so Review 3

@@ -234,9 +234,9 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'calls.report', label: 'Report / update calls' },
   { group: 'Calls', key: 'calls.cancel', label: 'Cancel a call (and restore it)' },
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
-  // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269). Its answers carry the name of
-  // whoever switched it on, so it is a person's right, not a role's: the
-  // migration gives it to Bagyaraj and Vignesh by name; anybody else is given
+  // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269, 0271). Its answers carry the
+  // name of whoever switched it on. Held by ROLE -- Admin, NSM and Technical
+  // Support (0271, which replaced 0269's two names); anybody else can be given
   // it on User Master -> Access.
   { group: 'Calls', key: 'review.auto', label: 'Switch auto review on or off (Review 2 answered No in your name)' },
   // A SECOND review, on the REPORT rather than the failure -- so a separate
@@ -328,7 +328,7 @@ export const legacyToRbac = (role: string): string =>
 // non-admin modules by default (admins remove what a role shouldn't see).
 const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   admin: FUNCTIONAL_ACTIONS.map((a) => a.key),
-  // TECHNICAL SUPPORT — READ ONLY, and the list is written out rather than
+  // TECHNICAL SUPPORT — READ ONLY but for the Auto Review switch, and the list is written out rather than
   // filtered by a name pattern: `.view` is not what makes an action safe.
   // `consumption.reconcile` and `ownership.transfer` do not say "edit" either,
   // and a rule that goes by the key's spelling would hand over both the day
@@ -337,6 +337,7 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   // `data.view_all` is what makes the rest of it useful: without it the role
   // sees every PAGE and, on the call pages, only its own rows -- which for a
   // support login is nothing at all.
+  // ONE EXCEPTION, added below the Zoho clone: review.auto (0271).
   technical_support: ['calls.view', 'masters.view', 'consumption.view', 'reports.view',
                       'dashboard.view', 'feedback.view', 'audit.view', 'admin.view',
                       'export.data', 'data.view_all'],
@@ -363,6 +364,14 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
 // means a change to one is a change to both. `export.data` is the permission
 // doing the actual work.
 FUNCTIONAL_DEFAULTS.zoho_migration = [...FUNCTIONAL_DEFAULTS.technical_support];
+
+// WHO MAY SWITCH AUTO REVIEW IS A ROLE (0271, the user, 2026-09-30: "instead of
+// hard coded names, can u change it to role - Admin, NSM, Technical Support").
+// Admin already holds every functional action. Added AFTER the Zoho clone so
+// that role does not inherit it: for Technical Support it is the ONE write the
+// role holds, given knowingly ("Yes, include it"), not a widening to copy.
+FUNCTIONAL_DEFAULTS.technical_support.push('review.auto');
+FUNCTIONAL_DEFAULTS.nsm.push('review.auto');
 
 // Everyone but a plain engineer can export / download data by default.
 // (admin already has every functional action, so it is covered.)

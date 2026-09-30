@@ -2991,10 +2991,11 @@ export async function autoAnswerReview2():
   };
 }
 
-// AUTO REVIEW IS A NAMED PERSON'S SWITCH (0269, the user, 2026-09-30:
-// "Create a Provision for Bagyaraj and Vignesh to Enable Auto Review or Disable
-// Auto Review. And Record that Person's name in Auto Reviewal."). While it is
-// on, the answers above carry the name of the person who switched it on.
+// AUTO REVIEW IS A PERSON'S SWITCH, HELD BY ROLE (0269, 0271, the user,
+// 2026-09-30: "Record that Person's name in Auto Reviewal", then "instead of
+// hard coded names, can u change it to role - Admin, NSM, Technical Support").
+// While it is on, the answers above carry the name of the person who switched
+// it on.
 export interface AutoReviewState { enabled: boolean; byName: string; at: string | null }
 const autoState = (data: unknown): AutoReviewState => {
   const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;

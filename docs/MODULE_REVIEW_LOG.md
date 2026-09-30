@@ -186,7 +186,8 @@ checked.
   - feedback is not scoped in the database;
   - Data Export and uploads leave no audit entry.
 - **Your decisions, built (0269):**
-  - Auto review is Bagyaraj's and Vignesh's switch. Its answers carry the switcher's name and an auto marker, and it never touches a started Review 2.
+  - Auto review is a person's switch. Its answers carry the switcher's name and an auto marker, and it never touches a started Review 2.
+  - Who may switch it was two names in 0269; **0271 makes it a role — Admin, NSM, Technical Support** (the user, 2026-09-30), and takes the by-name grant back. For Technical Support it is the role's one write.
   - Old reviews load as imported and raise no FFR.
   - FFR CAPA starts blank.
   - "9:15" is no longer in the documents.

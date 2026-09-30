@@ -1892,6 +1892,11 @@ console.log('\n-- Technical Support: the Super Admin\'s reach, none of its write
     'users.manage', 'config.manage', 'rbac.manage'];
   eq('...and not one action that writes',
     WRITES.filter((w) => DEFAULT_PERMS.technical_support?.includes(w)), []);
+  // ...but for ONE, given knowingly (0271, the user 2026-09-30: "Yes, include
+  // it"): switching Auto Review. Named here so a second write cannot arrive
+  // under cover of the first.
+  eq('...except the Auto Review switch, its one write',
+    !!DEFAULT_PERMS.technical_support?.includes('review.auto'), true);
 
   // Without this it opens every page and the call pages are empty, which reads
   // as a broken login rather than as a scoped one.
@@ -2795,14 +2800,17 @@ console.log('\n-- Zoho Migration is a clone, and stays one --');
 
   // The clone is only worth anything while it matches. DEFAULT_PERMS is the
   // app-side fallback; this compares the two lists it builds.
-  const a = [...(DEFAULT_PERMS.technical_support ?? [])].sort();
+  // ...but for the Auto Review switch, which the user gave Technical Support
+  // and not this role (0271): a clone that inherited a WRITE would stop being
+  // read-only without anybody deciding it.
+  const a = [...(DEFAULT_PERMS.technical_support ?? [])].filter((k) => k !== 'review.auto').sort();
   const b = [...(DEFAULT_PERMS.zoho_migration ?? [])].sort();
-  eq('the two roles default to exactly the same rights', b, a);
+  eq('the two roles default to the same rights, but for the Auto Review switch', b, a);
 
   // READ ONLY, by what it does not hold. Nothing here is hidden from it; the
   // refusal on a write is Postgres's.
   const writes = ['calls.edit', 'calls.create', 'masters.edit', 'users.manage', 'rbac.manage',
-                  'spare.dispatch', 'review.edit', 'cover.edit', 'consumption.reconcile'];
+                  'spare.dispatch', 'review.edit', 'review.auto', 'cover.edit', 'consumption.reconcile'];
   eq('it holds nothing that writes',
     writes.filter((w) => (DEFAULT_PERMS.zoho_migration ?? []).includes(w)), []);
   // ...and the one that makes it useful.
@@ -9563,7 +9571,7 @@ console.log('\n-- 31: whoever may press "+ Installation call" can map it back --
     /const canRaiseInstall = can\('install\.create'\) \|\| canEdit;/.test(cr) && /\{canRaiseInstall && <button[^>]*disabled=\{raisingId !== null\}/.test(cr), true);
 }
 
-console.log('\n-- the Daily Complaint Review: auto review is a named person’s switch; old reviews load as imported --');
+console.log('\n-- the Daily Complaint Review: auto review is a role’s switch (Admin, NSM, Technical Support); old reviews load as imported --');
 {
   const r = (f: string) => readFileSync(f, 'utf8');
   const dccr = r('src/modules/DailyCallReview.tsx');

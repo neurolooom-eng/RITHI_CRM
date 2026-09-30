@@ -437,7 +437,10 @@ const MODULES = {
             // loaded without raising reports, CAPA blank at generation (the
             // user, 2026-09-30). LAST: it redefines raise_ffr (0173), the
             // auto answer (0124) and both review stamps (0044, 0173).
-            '0269_dccr_auto_review_switch.sql'],
+            '0269_dccr_auto_review_switch.sql',
+            // Who may switch it is a ROLE (admin, nsm, technical_support),
+            // not two names; after 0269, whose by-name grant it takes back.
+            '0271_auto_review_by_role.sql'],
   },
   notifications: {
     title: 'Notifications',

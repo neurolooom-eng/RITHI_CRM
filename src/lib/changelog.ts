@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.8',
+    date: '2026-09-30',
+    title: 'Auto review: who may switch it is a role — Admin, NSM, Technical Support',
+    changes: [
+      'DAILY COMPLAINT REVIEW — AUTO REVIEW IS SWITCHED BY ROLE, NOT BY NAME. Everybody who is an Admin, an NSM or Technical Support can now turn auto review on or off. It was given to two people by name in 0.10.7; that grant has been taken back, so somebody who was given it by name and holds none of those three roles no longer has it.',
+      'Anybody else can still be given "Switch auto review on or off" on User Master → Access, and a role can be given it or have it taken away on Roles & Permissions.',
+      'For Technical Support this is the one thing the role can change; everything else it does stays read-only. Zoho Migration, which otherwise has the same rights as Technical Support, does not get it.',
+      'Nothing else about auto review changes: its answers still carry the name of whoever switched it on, and it stays on or off as it is now.',
+    ],
+  },
+  {
     version: '0.10.7',
     date: '2026-09-30',
     title: 'Auto review is a named person\'s switch; old reviews load without raising reports; CAPA starts blank; data flow diagrams; "Cleared for Stores Processing" counts as approved',
