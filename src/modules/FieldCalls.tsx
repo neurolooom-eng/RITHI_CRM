@@ -1139,12 +1139,6 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     { key: 'edit', icon: '✏️', label: 'Edit', title: 'Edit this call',
       show: canEditRow(row),
       run: () => setDrawer({ mode: 'edit', row }) },
-    { key: 'party', icon: '🏢', label: 'Update Party Details', title: 'Update City and State from the Party Master',
-      show: mayRefresh && !row._pending,
-      run: () => { setDrawer(null); void refreshFromMasters('party', [String(row.ucn ?? '')]); } },
-    { key: 'product', icon: '🛡️', label: 'Update Product Details', title: 'Update Warranty, Contract and Item Status as on the call\'s registration date',
-      show: mayRefresh && !row._pending,
-      run: () => { setDrawer(null); void refreshFromMasters('product', [String(row.ucn ?? '')]); } },
     { key: 'visit', icon: '📝', label: 'Visit Entry', title: 'Visit Entry — record a visit against this call', primary: true,
       show: can('calls.report') && !row._pending && canWorkRow(row),
       run: () => { setDrawer(null); setReport(row); } },
@@ -1171,7 +1165,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const actionsColumn: Column<Rec> = {
     // Icons, not words: the column has to fit four actions without stealing the
     // width the call itself needs. Every button keeps a title for its meaning.
-    key: '_actions', header: '⚙', width: 190, sortable: false, wrap: false, align: 'center',
+    key: '_actions', header: '⚙', width: 138, sortable: false, wrap: false, align: 'center',
     render: (row) => (
       <div className="row act-row" onClick={(e) => e.stopPropagation()}>
         <button className="btn btn-sm btn-icon" title="View this call" onClick={() => setDrawer({ mode: 'view', row })}>👁</button>
@@ -1433,6 +1427,24 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               key={drawer.mode === 'create' ? `create-${prefillKey}` : String(drawer.row?.id)}
               sectionOrderKey="callform"
               emphasisSections={[VIGILANCE_SECTION]}
+              // IN THEIR OWN SECTIONS (the user, 2026-09-30: "Move the Update
+              // Party Details to the respective section. I don't need the button
+              // at the top or the Actions column in the table"). Viewing a saved
+              // call only; hidden while Audit Mode is ON (mayRefresh).
+              sectionActions={drawer.mode === 'view' && mayRefresh && drawer.row && !(drawer.row as Rec)._pending ? {
+                'Customer & Product': (
+                  <button type="button" className="btn btn-sm" title="Update City and State from the Party Master"
+                    onClick={() => { const r = drawer.row as Rec; setDrawer(null); void refreshFromMasters('party', [String(r.ucn ?? '')]); }}>
+                    🏢 Update Party Details
+                  </button>
+                ),
+                'Warranty & Contract': (
+                  <button type="button" className="btn btn-sm" title="Update Warranty, Contract and Item Status as on the call's registration date"
+                    onClick={() => { const r = drawer.row as Rec; setDrawer(null); void refreshFromMasters('product', [String(r.ucn ?? '')]); }}>
+                    🛡️ Update Product Details
+                  </button>
+                ),
+              } : undefined}
               // THREE COLUMNS (the user, 2026-09-15: "Make it 3 columns ...
               // Minimize the no of rows"). The drawer was two fields wide and
               // ran to a phone-screen-and-a-half of scrolling for a record

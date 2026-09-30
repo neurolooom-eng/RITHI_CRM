@@ -642,7 +642,9 @@ const MODULES = {
     files: ['0070_documents.sql',
             // The QMS Master List bulk upload's key (doc no + revision) and
             // `extra` for the department's own headings (0265).
-            '0265_qms_document_key.sql'],
+            '0265_qms_document_key.sql',
+            // The Technical / Service Notes upload's key: the Drive link (0272).
+            '0272_service_note_upload_key.sql'],
   },
   training: {
     title: 'People: profile, Roles & Responsibilities, Training',

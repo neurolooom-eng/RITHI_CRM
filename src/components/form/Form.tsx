@@ -94,6 +94,9 @@ interface FormProps {
   // say Highlight"). Used for the vigilance questions on a call, which are a
   // regulatory record and the one part of the form nobody may overlook.
   emphasisSections?: string[];
+  /** A control placed in a section's HEADER, by section name (e.g. the call
+   *  view's Update Party Details beside Customer & Product). */
+  sectionActions?: Record<string, ReactNode>;
 }
 
 const resolveOptions = (f: FieldDef, values: Record<string, unknown> = {}): FieldOption[] =>
@@ -117,6 +120,7 @@ export function SchemaForm({
   footer,
   sectionOrderKey,
   emphasisSections,
+  sectionActions,
 }: FormProps) {
   const initValues = (): FormValues => {
     const v: FormValues = {};
@@ -247,6 +251,7 @@ export function SchemaForm({
           {section && (
             <div className="sf-section-title">
               <span>{section}</span>
+              {sectionActions?.[section] && <span className="sf-section-action">{sectionActions[section]}</span>}
               {storeKey && orderedSections.length > 1 && (
                 <span className="sf-section-move">
                   <button type="button" className="btn btn-ghost btn-sm" disabled={si === 0} title="Move section up" onClick={() => moveSection(section, -1)}>↑</button>

@@ -85,7 +85,9 @@ different totals. An empty register usually means access, not emptiness.
   > call's registration date** — the warranty and contract running that day;
   > if none was, the last ones that had ended, with Item Status OGP; if both
   > were, WGP. Needs the edit rights for the call's customer section. **Hidden
-  > while Audit Mode is ON.**
+  > while Audit Mode is ON.** In the Call View each sits in its own section's
+  > header — Party in *Customer & Product*, Product in *Warranty & Contract*;
+  > for many calls, tick them and use the bar.
 - **Pending Calls** `/pending-calls` — everything still open, across all three.
 - **Visit Reports / Service Reports** `/reports` — one row per **visit**, not per
   call.
@@ -785,6 +787,10 @@ typed into a form that reads it.
 - **Technical / Service Notes** `/service-manuals/notes` — technical bulletins and
   service notes, by product, kept the same way as the manuals. Whoever can open
   Service Manuals can open these; adding them needs the same permission.
+  > **Many at once:** Bulk Uploads → **Technical / Service Notes** — Title,
+  > Product (spelled as the Product Database spells it), the Drive Link, and
+  > optionally Document No, Tags and Notes. Matched on the Drive link, so
+  > loading the list again corrects those notes rather than adding them twice.
 - **QMS Documents** `/qms` — with number and revision.
   > **Adding a document asks who must be trained on it** — roles,
   > designations, departments, regions or named people (anyone matching any of

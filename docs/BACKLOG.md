@@ -230,6 +230,17 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.9 — Technical / Service Notes bulk upload; call-view buttons in their sections.**
+  The user pasted the Drive listing of the Technical Note folder (115 rows):
+  normalised to `Technical_Notes_bulk_upload.csv` (112 notes; 3 index Google
+  Sheets left out; product per folder, spelled as the live Product Database
+  spells it -- checked with the read-only `_product_names.sql` probe; Osiris
+  (9) and Monnal-root MU_MSM left BLANK for the user to set). **0272**
+  (documents.url_key = the Drive link, service notes only; documents.sql);
+  `_status.sql` row 212; `service_note_upload_key_test`. Update Party /
+  Product Details moved from the Call View's top row and the actions column
+  into the Customer & Product / Warranty & Contract section headers
+  (`SchemaForm sectionActions`).
 - ✅ **0.10.8 — Calls: Update Party / Product Details, not in Audit Mode.**
   Asked and answered: no cover on the date → the last that had ended + OGP;
   both → warranty decides (WGP); any status; single + bulk; hidden and refused

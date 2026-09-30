@@ -1515,7 +1515,11 @@ with checks(sort_order, bundle, provides, present) as (
          and coalesce((select p.prosrc ilike '%audit_mode()%' from pg_proc p where p.oid = to_regprocedure('public.call_refresh_allowed()')), false)
          and coalesce((select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.call_cover_as_of(text,text,date)')), false)
          and not has_function_privilege('anon', to_regprocedure('public.refresh_calls_party(text[])'), 'EXECUTE')
-         and not has_function_privilege('anon', to_regprocedure('public.refresh_calls_product(text[])'), 'EXECUTE')))
+         and not has_function_privilege('anon', to_regprocedure('public.refresh_calls_product(text[])'), 'EXECUTE'))),
+    (212, 'Technical / Service Notes can be bulk-loaded and re-loaded', 'documents.url_key and its unique index (0272): the key the Technical / Service Notes upload matches on -- the Drive link, service notes only -- so loading the list again corrects those notes instead of adding a second copy of each. NO with the column present means two service notes already share a Drive link -- the migration said which; retire one of each and run the bundle again. Restore: documents.sql',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'documents' and column_name = 'url_key')
+         and exists (select 1 from pg_indexes i where i.schemaname = 'public' and i.indexname = 'documents_url_key_uniq')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
