@@ -234,6 +234,11 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'calls.report', label: 'Report / update calls' },
   { group: 'Calls', key: 'calls.cancel', label: 'Cancel a call (and restore it)' },
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
+  // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269). Its answers carry the name of
+  // whoever switched it on, so it is a person's right, not a role's: the
+  // migration gives it to Bagyaraj and Vignesh by name; anybody else is given
+  // it on User Master -> Access.
+  { group: 'Calls', key: 'review.auto', label: 'Switch auto review on or off (Review 2 answered No in your name)' },
   // A SECOND review, on the REPORT rather than the failure -- so a separate
   // right. Somebody who completes the DCCR is not thereby entitled to sign off
   // that a closed call's report stands, and the two are held by different
@@ -478,7 +483,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/machine-history', label: 'Machine History', actions: [] },
   ] },
   { title: 'Quality & Analytics', pages: [
-    { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', actions: ['review.edit'] },
+    { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', actions: ['review.edit', 'review.auto'] },
     { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.view', 'ffr.manage'] },
     // MOVED HERE FROM OVERVIEW WITH THE MENU (the user, 2026-09-15). The
     // header follows the menu because that is where an administrator looks

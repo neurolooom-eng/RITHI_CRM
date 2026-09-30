@@ -25,9 +25,14 @@ declare
   w text; got text;
   waits text[] := array['Not Approved', 'NOT APPROVED', 'Approval Pending', 'Awaiting Approval',
                         'Pending Approval', 'For Approval', 'Approval Awaited', 'Disapproved',
-                        'Pending', '', 'Approved by phone', 'Approve'];
+                        'Pending', '', 'Approved by phone', 'Approve',
+                        -- 0270: the phrase WHOLE, not anything containing it
+                        'Not cleared for stores processing', 'Cleared for Stores', 'Cleared'];
   passes text[] := array['Approved', 'APPROVED', ' approved ', 'Auto-Approved', 'Auto Approved',
-                         'AutoApproved', 'auto-approved'];
+                         'AutoApproved', 'auto-approved',
+                         -- 0270 (the user: "should be considered as Approved")
+                         'Cleared for Stores Processing', 'CLEARED FOR STORES PROCESSING',
+                         ' cleared  for stores processing '];
 begin
   foreach w in array waits loop
     got := public.spare_line_stage(w, 'Auto-Approved', 'Auto-Approved', 'Pending', null, 'CMC');
@@ -69,34 +74,38 @@ insert into public.spare_request_lines
   ('SRQ-0256', 'SRQ-0256|1', 'P-1|Refused by the RM', 1, 'Not Approved',  'Auto-Approved', 'Auto-Approved'),
   ('SRQ-0256', 'SRQ-0256|2', 'P-2|Awaiting the RM',   1, 'Approval Pending', 'Auto-Approved', 'Auto-Approved'),
   ('SRQ-0256', 'SRQ-0256|3', 'P-3|Cleared',           1, 'Auto Approved', 'Auto-Approved', 'Auto-Approved'),
-  ('SRQ-0256', 'SRQ-0256|4', 'P-4|Cleared',           1, 'APPROVED',      'Auto-Approved', 'Auto-Approved');
+  ('SRQ-0256', 'SRQ-0256|4', 'P-4|Cleared',           1, 'APPROVED',      'Auto-Approved', 'Auto-Approved'),
+  ('SRQ-0256', 'SRQ-0256|5', 'P-5|Cleared for Stores', 1, 'Cleared for Stores Processing', 'Auto-Approved', 'Auto-Approved');
 
 do $$
 declare got text; offered text[];
 begin
   select string_agg(line_uid || '=' || stage, ', ' order by line_uid) into got
     from public.spare_request_lines where request_uid = 'SRQ-0256';
-  if got <> 'SRQ-0256|1=RM Approval, SRQ-0256|2=RM Approval, SRQ-0256|3=Stores, SRQ-0256|4=Stores' then
+  if got <> 'SRQ-0256|1=RM Approval, SRQ-0256|2=RM Approval, SRQ-0256|3=Stores, SRQ-0256|4=Stores, SRQ-0256|5=Stores' then
     raise exception 'stored stages wrong: %', got;
   end if;
   select array_agg(split_part(v.part, '|', 1) order by v.part) into offered
     from public.spare_pending_dispatch v
     join public.spare_request_lines l on l.id = v.line_id
    where l.request_uid = 'SRQ-0256';
-  if offered is distinct from array['P-3', 'P-4'] then
-    raise exception 'Stores should be offered P-3 and P-4 only, got %', offered;
+  if offered is distinct from array['P-3', 'P-4', 'P-5'] then
+    raise exception 'Stores should be offered P-3, P-4 and P-5 only, got %', offered;
   end if;
   raise notice 'ok: stages %; Stores offered %', got, offered;
 end $$;
 
 \echo ''
-\echo '--- 3. the migration moves a line the old rule had cached as Stores ---'
--- Put the line back in the state the OLD rule left it in: cached as Stores.
+\echo '--- 3. the restage moves a line the substring rule cached as Stores BACK, and a'
+\echo '---    "Cleared for Stores Processing" line 0256 held FORWARD (0270) ---'
+-- Put each line in the state a previous rule left it in.
 alter table public.spare_request_lines disable trigger spare_request_lines_set_stage;
 update public.spare_request_lines set stage = 'Stores', status = 'Stores' where line_uid = 'SRQ-0256|1';
+update public.spare_request_lines set stage = 'RM Approval', status = 'RM Approval' where line_uid = 'SRQ-0256|5';
 alter table public.spare_request_lines enable trigger spare_request_lines_set_stage;
 
-\ir ../migrations/0256_spare_approval_whole_word.sql
+-- The NEWEST definition, which carries 0256's restage and extends its rule.
+\ir ../migrations/0270_cleared_for_stores_is_approved.sql
 
 do $$
 declare l record;
@@ -109,4 +118,9 @@ begin
     raise exception 'the approval word must be left as written, it is now %', l.rm_approval;
   end if;
   raise notice 'ok: restaged to %, word kept as "%"', l.stage, l.rm_approval;
+  select stage, rm_approval into l from public.spare_request_lines where line_uid = 'SRQ-0256|5';
+  if l.stage <> 'Stores' or l.rm_approval <> 'Cleared for Stores Processing' then
+    raise exception 'the cleared line should move on to Stores with its words kept, it is % / "%"', l.stage, l.rm_approval;
+  end if;
+  raise notice 'ok: "%" moved on to %', l.rm_approval, l.stage;
 end $$;

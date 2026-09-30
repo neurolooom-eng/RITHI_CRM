@@ -162,7 +162,10 @@ eq('the challan itself is untouched', dcLines.length, 4);
   // or the matrix reads as covered while referring to nothing.
   {
     const { RISKS, FMEA } = await import('../src/lib/validation');
-    const known = new Set([...FRS.map((f) => f.id), ...TESTS.map((t) => t.id), ...URS.map((u) => u.id)]);
+    // A risk may also cite the DEFECT that realises it (Rev 3.0, 2026-09-30):
+    // the register's ids are as checkable as the requirements'.
+    const { DEFECTS } = await import('../src/lib/validation');
+    const known = new Set([...FRS.map((f) => f.id), ...TESTS.map((t) => t.id), ...URS.map((u) => u.id), ...DEFECTS.map((d) => d.id)]);
     const dangling = [...RISKS, ...FMEA]
       .flatMap((r) => (r.refs ?? []).map((x) => ({ id: r.id, ref: x })))
       .filter((x) => !known.has(x.ref));
@@ -4359,10 +4362,11 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // Filled in all 35 rows of the sheet, and the register keeps it as the
   // warranty start.
   eq('the installation date is filled from the machine', fromCall.installation_date, '2025-07-08');
-  // The sheet's own defaults, from its LookupValues tab.
-  eq('the CAPA columns take the sheet\u2019s defaults',
+  // CAPA IS DECIDED LATER (the user, 2026-09-30): blank at generation, where it
+  // used to take the sheet's LookupValues defaults — a decision nobody had made.
+  eq('the CAPA columns start blank, to be filled by whoever handles the CAPA',
     [fromCall.capa_responsibility, fromCall.capa_no, fromCall.capa_status],
-    ['No closed in FFR', 'NA', 'Not required']);
+    ['', '', '']);
   eq('and the source is the only one the 2026 tab uses', fromCall.source, 'PC');
   // A status the register already uses and the picker will not offer is a value
   // somebody has to work around.
@@ -9520,6 +9524,10 @@ console.log('\n-- 20: an approval is the WORD approved, not any text containing 
   eq('"Disapproved" waits at RM Approval', deriveStage(line('Disapproved') as never), 'RM Approval');
   eq('"Auto Approved" still reaches Stores', deriveStage(line('Auto Approved') as never), 'Stores');
   eq('" APPROVED " still reaches Stores', deriveStage(line(' APPROVED ') as never), 'Stores');
+  // 0270: the user, "'Cleared for Stores Processing' ... should be considered as Approved".
+  eq('"Cleared for Stores Processing" reaches Stores', deriveStage(line('Cleared for Stores Processing') as never), 'Stores');
+  eq('...but a sentence containing it still waits', deriveStage(line('Not cleared for stores processing') as never), 'RM Approval');
+  eq('...and the upload keeps the phrase as written', approvalWord('Cleared for Stores Processing'), 'Cleared for Stores Processing');
   eq('the upload tidies the two yes words', [approvalWord('auto approved'), approvalWord('APPROVED')], ['Auto-Approved', 'Approved']);
   eq('...and keeps any other word as written', approvalWord('Approval Awaited'), 'Approval Awaited');
   // THE TWO COPIES MOVE TOGETHER: the client pattern is the SQL one, character
@@ -9553,6 +9561,71 @@ console.log('\n-- 31: whoever may press "+ Installation call" can map it back --
   eq('...and no longer updates the line directly', /from\('sale_items'\)\s*\.update\(\{ inst_call/.test(cv), false);
   eq('the per-machine button is offered to install.create or cover.edit',
     /const canRaiseInstall = can\('install\.create'\) \|\| canEdit;/.test(cr) && /\{canRaiseInstall && <button[^>]*disabled=\{raisingId !== null\}/.test(cr), true);
+}
+
+console.log('\n-- the Daily Complaint Review: auto review is a named person’s switch; old reviews load as imported --');
+{
+  const r = (f: string) => readFileSync(f, 'utf8');
+  const dccr = r('src/modules/DailyCallReview.tsx');
+  eq('the register shows whether auto review is on, and in whose name',
+    /Auto review: <b>\{auto\.enabled \? 'On' : 'Off'\}<\/b>/.test(dccr), true);
+  eq('...and only review.auto may switch it', /auto && can\('review\.auto'\) && \(/.test(dccr), true);
+  eq('review.auto is on Roles & Permissions, on the Daily Review row',
+    /key: 'review\.auto'/.test(r('src/lib/rbac.ts')) && /'\/daily-review'[^\n]*actions: \['review\.edit', 'review\.auto'\]/.test(r('src/lib/rbac.ts')), true);
+  const up = r('src/lib/uploads.ts');
+  const dccrUpload = up.slice(up.indexOf("key: 'call_reviews'"), up.indexOf("key: 'parties'"));
+  eq('the DCCR Register upload marks every row imported', /\{ to: 'imported', from: \[\], derive: \(\) => true, always: true \}/.test(dccrUpload), true);
+}
+
+// THE DATA FLOWS CANNOT DRIFT (the user, 2026-09-30: flows "defined with the
+// validation"). A step naming a screen, a requirement or a test that does not
+// exist is a diagram that looks authoritative and is wrong — the one kind of
+// documentation this project refuses.
+console.log('\n-- data flows name real screens, requirements and tests --');
+{
+  const { FLOWS, rankSteps, layoutFlow, wrapLabel } = await import('../src/lib/flows');
+  const { URS: U, FRS: F, TESTS: T } = await import('../src/lib/validation');
+  const { MODULES: M } = await import('../src/lib/rbac');
+  const docIds = (f: string, re: RegExp) => new Set([...readFileSync(f, 'utf8').matchAll(re)].map((m) => m[1]));
+  const known = new Set<string>([
+    ...U.map((r) => r.id), ...F.map((r) => r.id), ...T.map((t) => t.id),
+    ...docIds('docs/CALL_REQUEST_REQUIREMENTS.md', /\*\*(CR-\d{3})\b/g),
+    ...docIds('docs/ISO13485_SERVICING.md', /\b(SR-\d{3})\b/g),
+    ...docIds('docs/COVER_REQUIREMENTS.md', /\b(CW-\d{3})\b/g),
+  ]);
+  const routes = new Set(M.map((m) => m.path));
+  eq('there is at least one flow', FLOWS.length > 0, true);
+  eq('flow ids are unique', new Set(FLOWS.map((f) => f.id)).size, FLOWS.length);
+  for (const f of FLOWS) {
+    const ids = f.steps.map((s) => s.id);
+    eq(`${f.id}: step ids are unique`, new Set(ids).size, ids.length);
+    eq(`${f.id}: every step names a real screen, where it names one`,
+      f.steps.filter((s) => s.route && !routes.has(s.route)).map((s) => `${s.id}:${s.route}`), []);
+    eq(`${f.id}: every requirement or test a step cites exists`,
+      f.steps.flatMap((s) => s.reqs.filter((r) => !known.has(r)).map((r) => `${s.id}:${r}`)), []);
+    eq(`${f.id}: every step cites at least one requirement`,
+      f.steps.filter((s) => !s.reqs.length).map((s) => s.id), []);
+    eq(`${f.id}: every arrow joins two steps of the flow`,
+      f.edges.filter((e) => !ids.includes(e.from) || !ids.includes(e.to)).map((e) => `${e.from}->${e.to}`), []);
+    eq(`${f.id}: no step is left unconnected`,
+      ids.filter((id) => !f.edges.some((e) => e.from === id || e.to === id)), []);
+    let acyclic = true;
+    try { rankSteps(f); } catch { acyclic = false; }
+    eq(`${f.id}: the forward arrows have no cycle (a return is marked loop)`, acyclic, true);
+    const lay = layoutFlow(f);
+    const overlap = lay.nodes.some((a, i) => lay.nodes.some((b, j) => j > i
+      && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h));
+    eq(`${f.id}: no two boxes overlap`, overlap, false);
+    eq(`${f.id}: every box is inside the drawing`,
+      lay.nodes.every((n) => n.x >= 0 && n.y >= 0 && n.x + n.w <= lay.width && n.y + n.h <= lay.height), true);
+  }
+  eq('a long label wraps without breaking a word', wrapLabel('Consumption booked on the visit report today'), ['Consumption booked on', 'the visit report today']);
+  const sv = readFileSync('src/modules/SoftwareValidation.tsx', 'utf8');
+  eq('Software Validation has its Data Flows tab and prints it in the full package',
+    /key: 'flows', label: 'Data Flows'/.test(sv) && /<FlowGallery printAll=\{all\} \/>/.test(sv), true);
+  eq('...and no two tabs share a key',
+    [...sv.matchAll(/\{ key: '([a-z]+)', label:/g)].map((m) => m[1]).filter((k, i, a) => a.indexOf(k) !== i), []);
+  eq('How RITHI Functions shows the same flows', /<FlowGallery \/>/.test(readFileSync('src/modules/HowRithiFunctions.tsx', 'utf8')), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

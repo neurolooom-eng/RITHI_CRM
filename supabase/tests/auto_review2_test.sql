@@ -14,7 +14,9 @@
 --     own rule from 0119 and matters more here, not less;
 --   * an answer a person already gave is not overwritten;
 --   * it is idempotent — a second run marks nothing;
---   * `review2_by` says it was automatic, which is what Review 3 reads.
+--   * the answer carries the name of the person who switched auto review on,
+--     and `review2_auto` says it was automatic, which is what Review 3 reads
+--     (0269: it runs only while a named person has switched it on).
 --
 -- The clock is injected through auto_answer_review2_asof(), which no signed-in
 -- caller may execute — test 10 asserts exactly that, because a seam that lets
@@ -37,6 +39,12 @@ on conflict (id) do update set role = excluded.role, full_name = excluded.full_n
 create or replace procedure public.be(p text) language plpgsql as $$
 begin update public.harness set uid = (select id from auth.users where email = p), email = p; end $$;
 grant select on public.harness to authenticated;
+
+-- AUTO REVIEW IS SWITCHED ON, as a person holding review.auto would (0269).
+-- Written directly: this suite is about WHEN the rule answers, and the switch
+-- itself is proved by dccr_auto_review_switch_test.
+insert into public.auto_review_changes (turned_on, changed_by, changed_by_name)
+values (true, 'a2a2a2a2-0000-0000-0000-000000000001', 'AR Admin');
 
 -- "Today" for this suite is 2026-09-10 in Asia/Kolkata.
 delete from public.call_reviews where ucn like 'AR-%';
@@ -83,7 +91,7 @@ select marked, held_first_year, held_unknown_age, ran, note
   from public.auto_answer_review2_asof(timestamptz '2026-09-10 09:15:00+05:30');
 
 \echo '--- 4. what each call now says ---'
-\echo 'expect: Y1 Y2 W1 366 = NO/NO/NO by Auto; T1 365 NOAGE blank; DONE untouched'
+\echo 'expect: Y1 Y2 W1 366 = NO/NO/NO by AR Admin (who switched auto review on); T1 365 NOAGE blank; DONE untouched'
 select c.ucn,
        coalesce(r.risk_to_patient,'-')  as risk,
        coalesce(r.warranty_failure,'-') as warranty,
@@ -146,12 +154,15 @@ begin;
   select ran is not null as answered from public.auto_answer_review2();
 commit;
 
-\echo '--- 13. THE DOCUMENTED UNDO, verbatim from 0124''s header ---'
+\echo '--- 13. THE UNDO: the review2_auto marker (0269) finds every automatic answer ---'
 \echo 'expect: it reverses every automatic answer and NOTHING a person gave'
+-- The answers now carry the switcher's NAME, so the name cannot find them;
+-- the marker can. 0124's own undo (by 'Auto (9:15 am)') still finds the
+-- answers given before 0269, which 0269 also marked.
 update public.call_reviews
    set risk_to_patient = '', warranty_failure = '', frequent_failure = '',
-       review2_by = '', review2_at = null
- where review2_by = 'Auto (9:15 am)';
+       review2_by = '', review2_at = null, review2_auto = false
+ where review2_auto;
 \echo 'expect: only AR-DONE is still answered, still by A Person'
 select ucn, coalesce(review2_done,false) as done, review2_by
   from public.call_reviews where ucn like 'AR-%' order by ucn;

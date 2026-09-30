@@ -65,10 +65,13 @@ export const needsReview = (itemStatus: unknown): boolean => needsCommercial(ite
 // approved and the line reached Stores. Only the two words that mean yes pass;
 // anything else waits at that stage for the approver. The SQL copy is
 // `spare_line_stage` (0256) and `check:ui` holds the two patterns together.
-export const APPROVED_RE = /^\s*(auto[\s-]*)?approved\s*$/i;
-const isApproved = (v: unknown) => APPROVED_RE.test(s(v)); // "Approved" or "Auto-Approved"
+// "CLEARED FOR STORES PROCESSING" IS A YES TOO (the user, 2026-09-30, after
+// 0256 went live; SQL 0270) — the whole phrase, so "Not cleared for stores
+// processing" still waits.
+export const APPROVED_RE = /^\s*((auto[\s-]*)?approved|cleared\s+for\s+stores\s+processing)\s*$/i;
+const isApproved = (v: unknown) => APPROVED_RE.test(s(v)); // Approved, Auto-Approved, Cleared for Stores Processing
 
-/** The two approval words, however a spreadsheet spelled them; anything else
+/** The standard approval words, however a spreadsheet spelled them; anything else
  *  is returned exactly as written. For the Spare Request Lines upload: a
  *  recognised word is tidied, an unrecognised one is KEPT — it holds the line
  *  at that approver, which is the user's decision (2026-09-30) — never guessed
@@ -80,6 +83,9 @@ export function approvalWord(v: string): string {
     if (/^pending$/i.test(t)) return 'Pending';
     return v;
   }
+  // "Cleared for Stores Processing" counts as a yes but is KEPT as written,
+  // as 0270 keeps it in the database: it is the approver's own record.
+  if (/^cleared/i.test(t)) return v;
   return /^auto/i.test(t) ? 'Auto-Approved' : 'Approved';
 }
 

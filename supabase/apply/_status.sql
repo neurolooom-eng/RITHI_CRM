@@ -1421,10 +1421,12 @@ with checks(sort_order, bundle, provides, present) as (
          and exists (select 1 from pg_indexes i where i.schemaname = 'public' and i.indexname = 'product_accessories_main_key')
          and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'product_accessories'
                       and p.policyname = 'pa_update' and p.qual ilike '%select has_perm%'))),
-    (199, 'A refused spare is not an approved one', 'spare_line_stage() lets a stage pass only on the WORDS Approved or Auto-Approved -- any case, surrounding space, optional hyphen (0256, finding 20). It asked whether the value CONTAINED "approv", so "Not Approved", "Approval Pending", "Disapproved" and seven other phrasings a spreadsheet brings in read as approved and the line reached Stores, one click from dispatch. Any other word now holds the line at that approver, kept as written. Asked of the function, not its text. NO means a refused spare can still be dispatched. Restore: Spare_1.sql',
+    (199, 'A refused spare is not an approved one', 'spare_line_stage() lets a stage pass only on the WORDS Approved or Auto-Approved -- any case, surrounding space, optional hyphen -- or the whole phrase "Cleared for Stores Processing" (0256, 0270, finding 20; the phrase added on the user''s word once 0256 was live). It asked whether the value CONTAINED "approv", so "Not Approved", "Approval Pending", "Disapproved" and seven other phrasings a spreadsheet brings in read as approved and the line reached Stores, one click from dispatch. Any other word now holds the line at that approver, kept as written. Asked of the function, not its text. NO means a refused spare can still be dispatched. Restore: Spare_1.sql',
         coalesce((select public.spare_line_stage('Not Approved', 'Auto-Approved', 'Auto-Approved', 'Pending', null, '') = 'RM Approval'
                      and public.spare_line_stage('Approved', 'Approval Pending', 'Approved', 'Pending', null, '') = 'Commercial'
                      and public.spare_line_stage('Auto Approved', 'APPROVED', 'Auto-Approved', 'Pending', null, '') = 'Stores'
+                     and public.spare_line_stage('Cleared for Stores Processing', 'Auto-Approved', 'Auto-Approved', 'Pending', null, '') = 'Stores'
+                     and public.spare_line_stage('Not cleared for stores processing', 'Auto-Approved', 'Auto-Approved', 'Pending', null, '') = 'RM Approval'
                    where to_regprocedure('public.spare_line_stage(text,text,text,text,timestamptz,text)') is not null), false)),
     (200, 'Correcting a manager''s name keeps their team', 'user_directory_carry_rename (0257, finding 23): when a User Master name changes, every row naming the old name as Reporting or Regional Manager follows it in the same save -- matched as the team rule matches, lower case and untrimmed, and not when another row still holds the old name, the old name was blank, or only its case changed. Measured before it: a Reporting Manager saw 3 people before one spelling correction and 1 after. Work filed under the old name (calls, spare requests, consumption, hand stock) keeps it, by decision. NO means a rename still empties a manager''s team. Restore: user_directory.sql',
         exists (select 1 from pg_trigger t
@@ -1491,7 +1493,21 @@ with checks(sort_order, bundle, provides, present) as (
            where t.tgname = 'spare_requests_follow_call' and not t.tgisinternal
              and t.tgrelid in (to_regclass('public.field_calls'), to_regclass('public.installation_calls'), to_regclass('public.pm_calls'))) = 3
          and to_regprocedure('public.refresh_spare_requests_from_call(text[])') is not null
-         and not has_function_privilege('anon', to_regprocedure('public.refresh_spare_requests_from_call(text[])'), 'EXECUTE')))
+         and not has_function_privilege('anon', to_regprocedure('public.refresh_spare_requests_from_call(text[])'), 'EXECUTE'))),
+    (210, 'Auto review is a named person''s switch; old reviews load without raising reports; CAPA starts blank', 'set_auto_review() / auto_review_state() and auto_review_changes, the review2_auto and imported markers on call_reviews guarded by a_call_review_markers, and raise_ffr() (0269, the user 2026-09-30). Review 2''s automatic NO runs only while a person holding review.auto has switched it on, and its answers carry THAT PERSON''S name and the review2_auto marker; the API can set neither marker, except that an administrator''s upload may mark a review imported. An imported review keeps its file''s reviewers and dates and raises no FFR. An FFR raised from a review leaves CAPA responsibility, CAPA No and CAPA status blank, and so do the column defaults. The row checks each part by name. NO means Review 2 is still answered as ''Auto (9:15 am)'' whether or not anybody switched it on, old reviews raise reports as they load, or CAPA is pre-filled. Restore: daily_review.sql',
+        (to_regprocedure('public.set_auto_review(boolean)') is not null
+         and to_regprocedure('public.auto_review_state()') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.set_auto_review(boolean)'), 'EXECUTE')
+         and exists (select 1 from pg_trigger t where t.tgrelid = to_regclass('public.call_reviews')
+                      and t.tgname = 'a_call_review_markers' and not t.tgisinternal)
+         and exists (select 1 from information_schema.columns where table_schema = 'public'
+                      and table_name = 'call_reviews' and column_name = 'imported')
+         and coalesce((select p.prosrc ~ 'p_review\.imported' and position($q$'', '', '', 'Open',$q$ in p.prosrc) > 0
+                         from pg_proc p where p.oid = to_regprocedure('public.raise_ffr(public.call_reviews)')), false)
+         and coalesce((select p.prosrc ~ 'auto_review_state' from pg_proc p
+                        where p.oid = to_regprocedure('public.auto_answer_review2_asof(timestamptz)')), false)
+         and coalesce((select column_default from information_schema.columns where table_schema = 'public'
+                        and table_name = 'field_failure_reports' and column_name = 'capa_status'), '') = '''''::text'))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

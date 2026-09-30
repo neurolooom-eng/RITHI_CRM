@@ -240,9 +240,10 @@ against the call it was fitted to.
    serial and cover, because "is this part plausible for this fault?" is most of
    the decision. Approve, reject or drop many at once; the last two need a reason.
 3. Commercial and NSM approve their own stages where the request needs them.
-   **Only the words Approved or Auto-Approved move a spare on.** A spare loaded
-   from a sheet with anything else in an approval column — "Not Approved",
-   "Approval Pending" — waits at that approver, showing the word as loaded.
+   **Only the words Approved, Auto-Approved or "Cleared for Stores
+   Processing" move a spare on.** A spare loaded from a sheet with anything
+   else in an approval column — "Not Approved", "Approval Pending" — waits at
+   that approver, showing the word as loaded.
 4. **Pending Dispatch** `/spare-dispatch` — Stores issues the part and raises the
    Delivery Challan.
 5. The engineer **acknowledges receipt**.
@@ -302,8 +303,19 @@ against the call it was fitted to.
     auto-save and the bulk answer. A later edit does not reassign it.
   - Answering in bulk refuses a first-year failure or an unknown age — those are
     reviewed one at a time.
-  - A call logged today stays pending all day; from 9:15 the next morning Review 2
-    answers itself *No*, marked as automatic.
+  - **Auto review is a switch, and a person's.** Only somebody given *Switch auto
+    review on or off* (Bagyaraj and Vignesh) can turn it on or off, from the top
+    of the register, which always shows whether it is on and in whose name.
+    While it is on, each morning Review 2 is answered *No* for calls logged
+    before that day that failed outside their first year — **in the name of the
+    person who switched it on**, and marked as an auto-review answer so Review 3
+    can tell it from one given by looking at the call. A call inside its first
+    year, or with no age on record, is always left for a person. It starts off.
+  - **Old reviews can be loaded in bulk** (Bulk Uploads → DCCR Register): they
+    come in as they were — the file's reviewer names and dates, not yours — and
+    loading them raises **no** Field Failure Report. Load the old reports
+    themselves through the Field Failure Register upload. Re-loading a corrected
+    file updates the same calls.
 - **Call Review** `/call-review` — a second look at the **report** on a solved
   call. Book a spare the engineer did not record (a **Reconciliation** line,
   visibly a correction), re-open the call, or mark it Report Reviewed.
@@ -312,7 +324,9 @@ against the call it was fitted to.
   restarting each year.
   - **A report raises itself** when the Daily Complaint Review Register
     answers any of Risk to Patient, Warranty Failure or Frequent Failure
-    as *Yes*.
+    as *Yes*. Its **CAPA fields start blank** — responsibility, CAPA No and
+    CAPA status are filled in by whoever handles the CAPA, and so are they on a
+    report raised with ＋ Raise FFR.
   - **Year and Product, both taking several values.** Tick as many as you like;
     the list stays open while you tick, and nothing ticked means everything.
     Year opens on this year; Product opens on all, so it costs nothing until you
@@ -1025,6 +1039,11 @@ typed into a form that reads it.
   intended use, regulatory basis, requirements and the tests that answer them.
   > Not the servicing process requirements. Software validation does not discharge
   > a process requirement, which is why they are two documents.
+  > **Data Flows** draws how a record moves from screen to screen — a call to
+  > its spares, closure, consumption and feedback; a review to its FFR and the
+  > Objective; hand stock; a sale to installation, cover and PM. Select a box to
+  > see what that step does, where, and the requirements and tests behind it.
+  > The same diagrams are under **How RITHI Functions → Data flows**.
 - **Settings** `/settings` — your preferences, and for an administrator the
   connection settings.
 - **Your Profile** `/profile` — **My Signature** lives here, not in Settings:

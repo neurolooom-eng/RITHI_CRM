@@ -2,6 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { PageHeader } from '../components/ui/ui';
 import { useTheme } from '../theme/ThemeProvider';
 import './howrithifunctions.css';
+import { FlowGallery } from '../components/flow/FlowDiagram';
+
+/** THE DATA FLOWS are not a document here but the validation package's own
+ *  definitions (src/lib/flows.ts), drawn in the page — so what a reader sees
+ *  is exactly what Software Validation shows and `check:ui` verifies. */
+const FLOWS_TAB = 'flows';
 
 // ===========================================================================
 // HOW RITHI FUNCTIONS — the shared diagram, embedded.
@@ -108,9 +114,12 @@ export function HowRithiFunctions() {
   const [docId, setDocId] = useState<string>(() => {
     try { return localStorage.getItem('rithi.hrf.doc') ?? DOCS[0].id; } catch { return DOCS[0].id; }
   });
+  const flowsOpen = docId === FLOWS_TAB;
   const doc = DOCS.find((d) => d.id === docId) ?? DOCS[0];
   const DOC = urlFor(doc.file);
   const pick = (id: string) => {
+    // A document or the flows; anything else stored (a document since
+    // removed) falls back to the first document above.
     setDocId(id);
     try { localStorage.setItem('rithi.hrf.doc', id); } catch { /* private window: it just does not stick */ }
   };
@@ -153,12 +162,13 @@ export function HowRithiFunctions() {
   // is worth naming, since it is always the same one: a deploy that did not
   // carry `public/`.
   useEffect(() => {
+    if (flowsOpen) return;
     let live = true;
     fetch(DOC, { method: 'HEAD' })
       .then((r) => { if (live && !r.ok) setFailed(true); })
       .catch(() => { if (live) setFailed(true); });
     return () => { live = false; };
-  }, [DOC]);
+  }, [DOC, flowsOpen]);
 
   return (
     <div>
@@ -179,17 +189,24 @@ export function HowRithiFunctions() {
               className={`chip ${d.id === doc.id ? 'chip-on' : ''}`}
               onClick={() => pick(d.id)}>{d.label}</button>
           ))}
+          <button role="tab" aria-selected={flowsOpen}
+            className={`chip ${flowsOpen ? 'chip-on' : ''}`}
+            onClick={() => pick(FLOWS_TAB)}>Data flows</button>
         </div>
-        <span className="hf-bar-note">{doc.blurb}</span>
+        <span className="hf-bar-note">{flowsOpen
+          ? 'How a record moves from screen to screen — a call to its spares, closure, consumption and feedback; a review to its FFR and the Objective.'
+          : doc.blurb}</span>
         <span className="hf-bar-spacer" />
         {/* A LONG DOCUMENT IS OFTEN WANTED ON ITS OWN — printed, or beside the
             screen it describes. The same file, without the app around it. */}
-        <a className="btn btn-sm" href={DOC} target="_blank" rel="noreferrer">
-          ⧉ Open on its own
-        </a>
+        {!flowsOpen && (
+          <a className="btn btn-sm" href={DOC} target="_blank" rel="noreferrer">
+            ⧉ Open on its own
+          </a>
+        )}
       </div>
 
-      {failed ? (
+      {flowsOpen ? <FlowGallery /> : failed ? (
         <div className="sheet-banner sheet-banner-error">
           <span>
             The document could not be loaded from <code>{DOC}</code>. It ships with the app in{' '}

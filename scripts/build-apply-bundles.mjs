@@ -432,7 +432,12 @@ const MODULES = {
       '0203_review_view_actual_product.sql',
             // After 0179: it re-keys the same table, and the import needs the
             // pair as its conflict target.
-            '0181_ffr_one_row_per_machine.sql'],
+            '0181_ffr_one_row_per_machine.sql',
+            // Auto review switched on and off by a named person, old reviews
+            // loaded without raising reports, CAPA blank at generation (the
+            // user, 2026-09-30). LAST: it redefines raise_ffr (0173), the
+            // auto answer (0124) and both review stamps (0044, 0173).
+            '0269_dccr_auto_review_switch.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -901,6 +906,9 @@ const MODULES = {
       // test. AFTER 0210, which owns the previous body of spare_line_stage, so
       // a replay of this bundle alone ends on this one.
       '0256_spare_approval_whole_word.sql',
+      // "Cleared for Stores Processing" is a yes too (the user, after 0256
+      // went live). AFTER 0256, which owns the previous body.
+      '0270_cleared_for_stores_is_approved.sql',
       // WHO DISPATCHED IS STAMPED, NOT SENT. A trigger on spare_dispatches, so
       // the (much-revised) dispatch function is not touched at all.
       '0211_dispatched_by_is_stamped.sql',

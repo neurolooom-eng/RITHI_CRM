@@ -12,6 +12,24 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.7',
+    date: '2026-09-30',
+    title: 'Auto review is a named person\'s switch; old reviews load without raising reports; CAPA starts blank; data flow diagrams; "Cleared for Stores Processing" counts as approved',
+    changes: [
+      'A SPARE WHOSE APPROVAL READS "CLEARED FOR STORES PROCESSING" NOW MOVES ON, the same as "Approved" or "Auto-Approved". Since 0.10.2 these were held at the approver. Spares held for that reason move on by themselves when this version reaches the database, to the next approver who still has to decide, or to Stores.',
+      'Only the phrase itself counts, in any capitals. A longer sentence containing it, such as "Not cleared for stores processing", still waits for the approver.',
+      'The phrase is kept exactly as it was written, on the register and when loaded from a sheet.',
+      'DAILY COMPLAINT REVIEW — AUTO REVIEW IS NOW A SWITCH, AND A PERSON\'S. Only somebody given "Switch auto review on or off" (Bagyaraj and Vignesh) can turn it on or off, from the top of the register, which always shows whether it is on and in whose name. While on, Review 2 is answered No each morning for calls logged before that day that failed outside their first year, IN THE NAME OF THE PERSON WHO SWITCHED IT ON, and marked as an auto-review answer. First-year failures and calls with no age are always left for a person.',
+      'AUTO REVIEW STARTS OFF with this version: nobody has switched it on yet, so there is no name to put on its answers. Until Bagyaraj or Vignesh switches it on, Review 2 is answered only by a person. Answers given before this version keep what they said.',
+      'OLD REVIEWS CAN BE LOADED IN BULK (Bulk Uploads → DCCR Register): they keep the file\'s reviewer names and dates, you are not recorded as the reviewer, and loading them raises NO Field Failure Report. Load the old reports themselves through the Field Failure Register upload.',
+      'FIELD FAILURE REPORT: THE CAPA FIELDS START BLANK — responsibility, CAPA No and CAPA status — whether the report was raised from a review or with ＋ Raise FFR. They are filled in by whoever handles the CAPA.',
+      'DATA FLOWS: a new Data Flows tab in Software Validation, and a Data flows chip in How RITHI Functions, draw how a record moves from screen to screen — a call to its spares, closure, consumption and feedback; a review to its Field Failure Report and the Objective; hand stock; a sale to installation, cover and PM. Select a box to see what that step does, the screen it happens on, and the requirements and tests behind it.',
+      'SOFTWARE VALIDATION — EVERY SCREEN READ, ACTION BY ACTION: 1,072 things a person can do (or a screen does by itself) were listed, and every one that no requirement stated now has one, with a test. The package grows to 166 user requirements, 215 system requirements and 216 tests, with the risk assessment and FMEA extended to match. Where the system does not yet do what the requirement says, that is written down as an open defect (53 of them), and its test says it is expected to fail until the defect is fixed — nothing is claimed that is not true.',
+      'Twenty-seven existing requirements that no longer described the system truthfully were corrected.',
+      'SOFTWARE VALIDATION: the Traceability Matrix and Traceability tabs no longer open together, and the summary counts the requirements without a system requirement or test instead of claiming all are covered.',
+    ],
+  },
+  {
     version: '0.10.6',
     date: '2026-09-30',
     title: 'Spare requests follow their call\'s Complaint and Item Status; Technical / Service Notes',
