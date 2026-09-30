@@ -559,6 +559,11 @@ console.log('\n-- which manuals belong on a call --');
   eq("the machine's own manual still does", manualMatchesCall(xtManual, extendXT), true);
   eq('a general manual is on every call', manualMatchesCall(general, extendXT), true);
   eq('another product\'s manual is NOT dragged in', manualMatchesCall(t60Manual, extendXT), false);
+  // A Technical Note naming several products (2026-09-30) reaches a call on any of them, and no other.
+  eq('a note naming several products reaches a call on one of them',
+    manualMatchesCall({ product: 'MONNAL T60, EXTEND-XT', tags: '' }, extendXT), true);
+  eq('...and not a call on a product it does not name',
+    manualMatchesCall({ product: 'MONNAL T60, MONNAL T75', tags: '' }, extendXT), false);
 
   // The tag has to be in the CALL's words, not the other way round — otherwise
   // a one-word tag swallows the shelf.
@@ -3464,7 +3469,7 @@ console.log('\n-- Knowledge Base is a heading, and supporting docs reach a reque
   // match on at all.
   eq('supporting documents say why they are empty rather than disappearing',
     /const empty = !manuals\.length && !articles\.length/.test(assoc)
-    && /No service manual or article is filed/.test(assoc), true);
+    && /No service manual, technical note or article is filed/.test(assoc), true);
 
   // EVERY place a request is looked at, not just two of them. The submitted
   // request drawer was missed the first time.

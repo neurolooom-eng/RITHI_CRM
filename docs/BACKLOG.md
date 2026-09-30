@@ -230,12 +230,25 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.12 — Technical Notes: Drive dates, several products, offered on calls.**
+  The user after loading the notes: the Updated column showed the load time
+  (30-Sep-2026 10:27:25); it must be Drive's. Answers: Added = Drive Created,
+  Added By = Drive Last Modified By, Updated = Drive Last Modified; RITHI's own
+  record kept in the record details. **0299** (documents.source_created_at /
+  source_modified_at / source_modified_by; documents.sql); `_status.sql` row
+  226; suite `document_drive_details_test`; `check:uploads` pins the mapping.
+  Product multi-select on the NOTES shelf only (comma-separated, also in the
+  upload cell). Supporting documents on a call list ACTIVE notes by the
+  manuals' rule, against each product a note names (`docProducts()`, pinned
+  in `check:ui`). FRS-035 amended. **To fill the Drive dates on the 112 notes
+  already loaded, upload the same CSV again** -- matched on the Drive link, it
+  corrects them. 0299 is applied by the migrations workflow on merge.
 - ✅ **0.10.9 — Technical / Service Notes bulk upload; call-view buttons in their sections.**
   The user pasted the Drive listing of the Technical Note folder (115 rows):
   normalised to `Technical_Notes_bulk_upload.csv` (112 notes; 3 index Google
   Sheets left out; product per folder, spelled as the live Product Database
   spells it -- checked with the read-only `_product_names.sql` probe; Osiris
-  (9) and Monnal-root MU_MSM left BLANK for the user to set). **0286**
+  (9) and Monnal-root MU_MSM left BLANK for the user to set). **0272**
   (documents.url_key = the Drive link, service notes only; documents.sql);
   `_status.sql` row 212; `service_note_upload_key_test`. Update Party /
   Product Details moved from the Call View's top row and the actions column

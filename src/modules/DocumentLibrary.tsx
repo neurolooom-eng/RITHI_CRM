@@ -8,6 +8,8 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
 import { fmtLongDate } from '../lib/format';
+import { formatDayTime } from '../lib/dates';
+import { MultiPick } from '../components/ui/MultiPick';
 import { MAX_UPLOAD_BYTES, uploadToDrive, sheetsConfigured } from '../lib/sheets';
 import {
   listDocuments, addDocument, updateDocument, setDocumentActive,
@@ -39,7 +41,21 @@ interface Cfg {
   // QMS documents are controlled — number, revision and effective date are the
   // point of them. A service manual is keyed by product instead.
   controlled: boolean;
+  // TECHNICAL / SERVICE NOTES ONLY (the user, 2026-09-30):
+  //  * a note may cover SEVERAL products ("Product should be Multi Select"),
+  //    kept comma-separated in `product`;
+  //  * Added / Added By / Updated show what DRIVE says about the file (0299),
+  //    with RITHI's own record of the entry kept in the record details.
+  multiProduct?: boolean;
+  driveDetails?: boolean;
 }
+
+// The products on a note, however the cell separated them.
+const splitProducts = (v: string): string[] =>
+  Array.from(new Set(String(v ?? '').split(/[,;|\n]/).map((x) => x.trim()).filter(Boolean)));
+// A row the Drive listing described. A note entered on this screen has none of
+// the three, and shows RITHI's own dates and name instead.
+const fromDrive = (r: DocRow) => !!(r.source_created_at || r.source_modified_at || (r.source_modified_by ?? '').trim());
 
 const MANUALS: Cfg = {
   kind: 'service_manual', title: 'Service Manuals', icon: '📘',
@@ -54,6 +70,7 @@ const NOTES: Cfg = {
   kind: 'service_note', title: 'Technical / Service Notes', icon: '📝',
   subtitle: 'Technical bulletins and service notes, by product — the field fixes and advisories that are not in the manual.',
   perm: 'docs.manage', drivePrefix: 'Service Note', controlled: false,
+  multiProduct: true, driveDetails: true,
 };
 const QMS: Cfg = {
   kind: 'qms', title: 'QMS Documents', icon: '📗',
@@ -163,7 +180,7 @@ function Library({ cfg }: { cfg: Cfg }) {
     const payload = {
       kind: cfg.kind,
       title: draft.title.trim(),
-      product: draft.product.trim(),
+      product: cfg.multiProduct ? splitProducts(draft.product).join(', ') : draft.product.trim(),
       doc_no: draft.doc_no.trim(),
       revision: draft.revision.trim(),
       effective_date: draft.effective_date || null,
@@ -233,7 +250,7 @@ function Library({ cfg }: { cfg: Cfg }) {
       );
     } else {
       cols.push({
-        key: 'product', header: 'Product', width: 180,
+        key: 'product', header: cfg.multiProduct ? 'Products' : 'Product', width: 180,
         render: (r) => (r.product ? r.product : <span className="muted">Every product</span>),
       });
     }
@@ -261,8 +278,23 @@ function Library({ cfg }: { cfg: Cfg }) {
             )
             : <span className="muted">—</span>),
       },
-      { key: 'uploaded_by_name', header: 'Added By', width: 150 },
-      { key: 'updated_at', header: 'Updated', width: 150, wrap: false },
+      ...(cfg.driveDetails
+        // The Drive listing's own facts where the note came from one; RITHI's
+        // where it did not. The entry's own record is in the edit drawer.
+        ? [
+            { key: '_added', header: 'Added', width: 160, wrap: false,
+              accessor: (r: DocRow) => (fromDrive(r) ? r.source_created_at ?? '' : r.created_at),
+              render: (r: DocRow) => formatDayTime(fromDrive(r) ? r.source_created_at ?? '' : r.created_at) },
+            { key: '_added_by', header: 'Added By', width: 150,
+              accessor: (r: DocRow) => (fromDrive(r) ? r.source_modified_by ?? '' : r.uploaded_by_name) },
+            { key: '_updated', header: 'Updated', width: 160, wrap: false,
+              accessor: (r: DocRow) => (fromDrive(r) ? r.source_modified_at ?? '' : r.updated_at),
+              render: (r: DocRow) => formatDayTime(fromDrive(r) ? r.source_modified_at ?? '' : r.updated_at) },
+          ] as Column<DocRow & Record<string, unknown>>[]
+        : [
+            { key: 'uploaded_by_name', header: 'Added By', width: 150 },
+            { key: 'updated_at', header: 'Updated', width: 150, wrap: false },
+          ] as Column<DocRow & Record<string, unknown>>[]),
       {
         key: 'active', header: 'Live', width: 70, wrap: false,
         render: (r) => (r.active ? <span className="badge badge-success">Yes</span> : <span className="badge badge-neutral">No</span>),
@@ -282,7 +314,7 @@ function Library({ cfg }: { cfg: Cfg }) {
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg.controlled, mayEdit]);
+  }, [cfg.controlled, cfg.driveDetails, cfg.multiProduct, mayEdit]);
 
   return (
     <div>
@@ -321,7 +353,7 @@ function Library({ cfg }: { cfg: Cfg }) {
         }
       />
 
-      <Drawer open={!!draft} onClose={() => { setDraft(null); setEditing(null); }} title={editing ? `Edit — ${editing.title}` : `Add ${cfg.controlled ? 'a QMS document' : 'a service manual'}`}>
+      <Drawer open={!!draft} onClose={() => { setDraft(null); setEditing(null); }} title={editing ? `Edit — ${editing.title}` : `Add ${cfg.controlled ? 'a QMS document' : cfg.kind === 'service_note' ? 'a technical note' : 'a service manual'}`}>
         {draft && (
           <div className="rep-form">
             <label className="field">
@@ -344,6 +376,17 @@ function Library({ cfg }: { cfg: Cfg }) {
                   <input className="input" type="date" value={draft.effective_date} onChange={(e) => setDraft({ ...draft, effective_date: e.target.value })} />
                 </label>
               </>
+            ) : cfg.multiProduct ? (
+              <div className="field">
+                <span className="field-label">Products</span>
+                <MultiPick values={splitProducts(draft.product)}
+                  options={Array.from(new Set([...products, ...splitProducts(draft.product)]))}
+                  onChange={(v) => setDraft({ ...draft, product: v.join(', ') })}
+                  noun="products" allLabel="Every product" />
+                <span className="muted" style={{ fontSize: 12 }}>
+                  Tick every product this note applies to. None ticked means it applies to every product.
+                </span>
+              </div>
             ) : (
               <label className="field">
                 <span className="field-label">Product</span>
@@ -420,6 +463,21 @@ function Library({ cfg }: { cfg: Cfg }) {
                 <span className="muted" style={{ fontSize: 12 }}>
                   Each person gets it on their training list (My Profile) and on the Training screen, and completes it by
                   attending a session or confirming they have read and understood it.
+                </span>
+              </div>
+            )}
+
+            {cfg.driveDetails && editing && (
+              <div className="field">
+                <span className="field-label">Record details</span>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  {fromDrive(editing) ? (
+                    <>In Drive: created {formatDayTime(editing.source_created_at ?? '') || '—'}, last
+                      modified {formatDayTime(editing.source_modified_at ?? '') || '—'}
+                      {editing.source_modified_by ? ` by ${editing.source_modified_by}` : ''}.<br /></>
+                  ) : null}
+                  Entered in RITHI {formatDayTime(editing.created_at)}
+                  {editing.uploaded_by_name ? ` by ${editing.uploaded_by_name}` : ''}; last changed here {formatDayTime(editing.updated_at)}.
                 </span>
               </div>
             )}

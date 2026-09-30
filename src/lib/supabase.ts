@@ -5051,6 +5051,9 @@ export interface DocRow {
   tags: string; url: string; file_name: string; notes: string; active: boolean;
   uploaded_by: string | null; uploaded_by_name: string;
   created_at: string; updated_at: string;
+  // What the Drive listing said about the FILE (0299) -- only a note loaded
+  // from one has them. Not the same facts as created_at / updated_at above.
+  source_created_at?: string | null; source_modified_at?: string | null; source_modified_by?: string;
 }
 export type DocInput = Pick<DocRow, 'kind' | 'title' | 'product' | 'doc_no' | 'revision' | 'tags' | 'url' | 'file_name' | 'notes'>
   & { effective_date?: string | null; uploaded_by_name?: string };
@@ -5076,7 +5079,10 @@ export async function serviceManualsForProduct(
 ): Promise<DocRow[]> {
   const c = getSupabase(); if (!c) return [];
   const { data, error } = await c.from('documents')
-    .select('*').eq('kind', 'service_manual').eq('active', true).order('title');
+    // Technical / Service Notes too (the user, 2026-09-30: "Supporting
+    // documents should list Technical Notes as well -- all the active ones"),
+    // by the same rule. Retired ones are never offered.
+    .select('*').in('kind', ['service_manual', 'service_note']).eq('active', true).order('kind').order('title');
   if (error) return [];
   const rows = (data ?? []) as DocRow[];
   if (!(product ?? '').trim() && !complaint && !reported) return rows;

@@ -1570,7 +1570,11 @@ with checks(sort_order, bundle, provides, present) as (
     (225, 'Today''s grants were copied onto the per-screen keys, once', 'permission_copies_done records that each new per-screen key was given, once, to the roles and people holding the key it replaced, and the two ticks that did nothing (dashboard.view and the User Access page) are held by nobody (0298). NO means permissions.sql has not been run. Run it once; it will not copy a second time. Restore: permissions.sql',
         (to_regclass('public.permission_copies_done') is not null
          and exists (select 1 from public.permission_copies_done where name = '0284_per_screen_keys')
-         and not exists (select 1 from public.app_roles where permissions ?| array['dashboard.view', 'mod:/users'])))
+         and not exists (select 1 from public.app_roles where permissions ?| array['dashboard.view', 'mod:/users']))),
+    (226, 'A Technical / Service Note keeps its Drive details', 'documents.source_created_at, source_modified_at and source_modified_by (0299): the Created, Last Modified and Last Modified By the Drive listing gave, shown on the Technical / Service Notes shelf as Added, Updated and Added By, beside RITHI''s own created_at / updated_at. NO means documents.sql has not been re-run since. Restore: documents.sql',
+        (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'source_created_at')
+         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'source_modified_at')
+         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'documents' and column_name = 'source_modified_by')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

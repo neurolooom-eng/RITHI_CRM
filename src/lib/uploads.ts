@@ -1045,7 +1045,7 @@ export const UPLOADS: UploadDef[] = [
   // ---------------------------------------------------------------------------
   { key: 'service_notes', label: 'Technical / Service Notes', group: 'Quality', table: 'documents',
     extraInto: 'extra', conflict: 'url_key', conflictFrom: ['url'], stamp: { kind: 'service_note' },
-    note: 'One row per note: Title, Product (as the Product Database spells it — that is how a note is found for a machine), the Drive Link, and optionally Document No, Revision, Tags and Notes. Matched on the Drive link, so a corrected list updates those notes instead of adding them again. Every other column is kept with the note under its own heading.',
+    note: 'One row per note: Title, Product (as the Product Database spells it; several products comma-separated, e.g. "MONNAL T60, MONNAL T75"), the Drive Link, and optionally Document No, Revision, Tags, Notes and the Drive listing\u2019s Created, Last Modified and Last Modified By — shown on the shelf as Added, Updated and Added By. Matched on the Drive link, so a corrected list updates those notes instead of adding them again. Every other column is kept with the note under its own heading.',
     cols: [
       { to: 'title', from: ['title', 'name', 'document title', 'note title'], required: true },
       TEXT('product', 'product', 'product name', 'model'),
@@ -1056,6 +1056,13 @@ export const UPLOADS: UploadDef[] = [
       TEXT('file_name', 'file name', 'filename'),
       TEXT('tags', 'tags', 'tag'),
       TEXT('notes', 'remarks', 'comments'),
+      // WHAT DRIVE SAYS ABOUT THE FILE (0299, the user: "it has to reflect the
+      // Meta data from Drive"). The shelf shows these as Added, Updated and
+      // Added By; RITHI's own created_at / updated_at stay the audit trail.
+      // A wall clock, read LOCAL like every other upload -- the time Drive showed.
+      TS('source_created_at', 'created', 'created on', 'date created', 'created date'),
+      TS('source_modified_at', 'last modified', 'modified', 'date modified', 'last modified date', 'modified on'),
+      TEXT('source_modified_by', 'last modified by', 'modified by'),
     ] },
   { key: 'qms_master_list', label: 'QMS Documents (Master List)', group: 'Quality', table: 'documents',
     extraInto: 'extra', conflict: 'doc_key', conflictFrom: ['doc_no', 'revision'], stamp: { kind: 'qms' },

@@ -582,6 +582,20 @@ console.log('\n-- a column the register was told it does not want --');
 // Product Database (the machines) — the two are different registers and this
 // number is what catches one being added without a test beside it.
 eq('registers defined', UPLOADS.length, 34);  // + QMS Master List (0265), Technical / Service Notes (0272)
+
+console.log('\n-- Technical / Service Notes carry their Drive details (0299) --');
+{
+  const r = shapeUpload(def('service_notes'), [{
+    'Title': 'TN-X', 'Product': 'MONNAL T60, MONNAL T75', 'Drive Link': 'https://drive.google.com/file/d/abc/view',
+    'Created': '2022-11-19 12:08', 'Last Modified': '2022-11-19 12:05', 'Last Modified By': 'A Person',
+  }]).rows[0] as Record<string, unknown>;
+  eq('Created -> source_created_at, read LOCAL like every upload', r.source_created_at, toTs('2022-11-19 12:08'));
+  eq('Last Modified -> source_modified_at (not swallowed by "Last Modified By")', r.source_modified_at, toTs('2022-11-19 12:05'));
+  eq('Last Modified By -> source_modified_by', r.source_modified_by, 'A Person');
+  eq('...and the listing\'s yyyy-mm-dd hh:mm is READ, not dropped', typeof r.source_created_at === 'string' && new Date(String(r.source_created_at)).getMinutes(), 8);
+  eq('several products are kept as written', r.product, 'MONNAL T60, MONNAL T75');
+  eq('created_at / updated_at are NOT written from the file', ['created_at', 'updated_at'].some((k) => k in r), false);
+}
 // THE TWO ARE NOT THE SAME REGISTER, and the names invite confusing them. One
 // is keyed on the MACHINE (model + serial), the other on the product CODE.
 {

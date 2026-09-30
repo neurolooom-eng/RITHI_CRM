@@ -789,10 +789,18 @@ typed into a form that reads it.
 - **Technical / Service Notes** `/service-manuals/notes` — technical bulletins and
   service notes, by product, kept the same way as the manuals. Whoever can open
   Service Manuals can open these; adding them needs the same permission.
+  > **A note can cover several products** — tick them all. None ticked means it
+  > applies to every product. **A call's 📄 Supporting documents lists every
+  > active note for its product** beside the manuals; a retired note is not offered.
+  > **Added, Added By and Updated are Drive's** for a note loaded from the Drive
+  > listing — its Created, Last Modified By and Last Modified. When and by whom
+  > it was entered in RITHI is under **Record details** when you edit it.
   > **Many at once:** Bulk Uploads → **Technical / Service Notes** — Title,
-  > Product (spelled as the Product Database spells it), the Drive Link, and
-  > optionally Document No, Tags and Notes. Matched on the Drive link, so
-  > loading the list again corrects those notes rather than adding them twice.
+  > Product (spelled as the Product Database spells it; several products
+  > comma-separated), the Drive Link, and optionally Document No, Tags, Notes,
+  > and the listing's Created, Last Modified and Last Modified By. Matched on the
+  > Drive link, so loading the list again corrects those notes rather than
+  > adding them twice.
 - **QMS Documents** `/qms` — with number and revision.
   > **Adding a document asks who must be trained on it** — roles,
   > designations, departments, regions or named people (anyone matching any of
