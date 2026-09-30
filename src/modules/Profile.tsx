@@ -7,7 +7,8 @@ import { useAuth, roleLabel } from '../lib/auth';
 import { permsForRole, DEFAULT_PERMS, FUNCTIONAL_ACTIONS, MODULES, moduleAction, legacyToRbac } from '../lib/rbac';
 import { useTheme } from '../theme/ThemeProvider';
 import { ChangePassword } from './ChangePassword';
-import { MyPeople } from '../components/people/MyPeople';
+import { MyOwn, MyTeam, useMyPeople } from '../components/people/MyPeople';
+import './dccr.css';
 
 // ===========================================================================
 // MY PROFILE — the signed-in user's own page: who they are, changing their
@@ -15,9 +16,34 @@ import { MyPeople } from '../components/people/MyPeople';
 // admin-only and holds the connection / template / data controls).
 // ===========================================================================
 
+// ONE TAB PER SECTION (the user, 2026-09-30: "In My Profile, split the
+// sections into tabs"). The page had grown to eight sections stacked down one
+// scroll -- account, details and R&R, training, team, permissions, signature,
+// password, appearance -- so the one somebody came for was a long way down.
+// My Team appears only for somebody with a team. The tab last opened is
+// remembered on this device; a stored value that is no longer a tab is ignored.
+type TabKey = 'account' | 'details' | 'training' | 'team' | 'access' | 'signature' | 'password' | 'appearance';
+const TAB_STORE = 'rithi.profile.tab';
+
 export function Profile() {
   const { user, rolePerms, viewAs, realUser } = useAuth();
   const { theme, themes, setThemeId } = useTheme();
+  const people = useMyPeople();
+  const tabs: { key: TabKey; icon: string; label: string }[] = [
+    { key: 'account', icon: '🪪', label: 'Account' },
+    { key: 'details', icon: '👤', label: 'Details & R&R' },
+    { key: 'training', icon: '🎓', label: 'Training' },
+    ...(people.team.length ? [{ key: 'team' as TabKey, icon: '👥', label: `My Team (${people.team.length})` }] : []),
+    { key: 'access', icon: '🔑', label: 'What I can do' },
+    { key: 'signature', icon: '✍️', label: 'Signature' },
+    { key: 'password', icon: '🔒', label: 'Password' },
+    { key: 'appearance', icon: '🎨', label: 'Appearance' },
+  ];
+  const [picked, setPicked] = useState<TabKey>(() => {
+    try { return (localStorage.getItem(TAB_STORE) as TabKey) || 'account'; } catch { return 'account'; }
+  });
+  const tab: TabKey = tabs.some((t) => t.key === picked) ? picked : 'account';
+  const choose = (k: TabKey) => { setPicked(k); try { localStorage.setItem(TAB_STORE, k); } catch { /* storage refused */ } };
 
   const rows: [string, string][] = [
     // A DASH MEANS "EMPTY", AND HERE IT MEANT "NOT LOADED" — two different
@@ -36,7 +62,7 @@ export function Profile() {
 
   return (
     <div>
-      <PageHeader title="My Profile" subtitle="Your account, password and appearance" icon="👤" />
+      <PageHeader title="My Profile" subtitle="Your account, details, training, password and appearance" icon="👤" />
 
       {/* THE PROFILE DID NOT LOAD, so say it. Reported 2026-09-16: this page
           showed "—" for the name, "—" for the email and "Engineer" for the
@@ -56,6 +82,16 @@ export function Profile() {
         </div>
       )}
 
+      <div className="dccr-tabs" role="tablist" aria-label="My Profile">
+        {tabs.map((t) => (
+          <button key={t.key} role="tab" aria-selected={tab === t.key}
+            className={`dccr-tab${tab === t.key ? ' is-active' : ''}`} onClick={() => choose(t.key)}>
+            <span aria-hidden>{t.icon}</span> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'account' && (
       <SectionCard title="Account">
         <div className="assoc-scroll">
           <table className="assoc-table" style={{ minWidth: 320, maxWidth: 520 }}>
@@ -70,9 +106,12 @@ export function Profile() {
           Your role and access are managed by an administrator under User Access.
         </div>
       </SectionCard>
+      )}
 
       {/* PROFILE DETAILS, R&R AND TRAINING -- yours, and your team's (0264). */}
-      <MyPeople />
+      {tab === 'details' && <MyOwn data={people} part="details" title="My details and Roles & Responsibilities" />}
+      {tab === 'training' && <MyOwn data={people} part="training" title="My training" />}
+      {tab === 'team' && <MyTeam data={people} />}
 
       {/* ---------------------------------------------------------------
           WHY CAN I NOT DO THIS?
@@ -88,18 +127,13 @@ export function Profile() {
           the distinction this project has been caught by more than once), and
           exactly what is held. One screenshot now answers it.
           --------------------------------------------------------------- */}
-      <PermissionsPanel user={user} rolePerms={rolePerms} previewing={!!viewAs} realName={realUser?.fullName} />
+      {tab === 'access' && <PermissionsPanel user={user} rolePerms={rolePerms} previewing={!!viewAs} realName={realUser?.fullName} />}
 
-      <div style={{ height: 16 }} />
+      {tab === 'signature' && <MySignatureCard />}
 
-      <MySignatureCard />
+      {tab === 'password' && <ChangePassword />}
 
-      <div style={{ height: 16 }} />
-
-      <ChangePassword />
-
-      <div style={{ height: 16 }} />
-
+      {tab === 'appearance' && (
       <SectionCard title="Appearance">
         <div className="muted" style={{ marginBottom: 12 }}>Pick a theme — the whole app re-skins instantly.</div>
         <div className="theme-grid">
@@ -124,6 +158,7 @@ export function Profile() {
           ))}
         </div>
       </SectionCard>
+      )}
     </div>
   );
 }
