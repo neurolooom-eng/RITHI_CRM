@@ -671,7 +671,10 @@ const MODULES = {
             // `extra` for the department's own headings (0265).
             '0265_qms_document_key.sql',
             // The Technical / Service Notes upload's key: the Drive link (0272).
-            '0272_service_note_upload_key.sql'],
+            '0272_service_note_upload_key.sql',
+            // A note's Drive details -- Created, Last Modified, Last Modified By
+            // -- kept beside RITHI's own created_at / updated_at (0299).
+            '0299_document_drive_details.sql'],
   },
   training: {
     title: 'People: profile, Roles & Responsibilities, Training',

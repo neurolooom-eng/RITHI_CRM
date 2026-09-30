@@ -22,7 +22,8 @@ import './fieldcalls.css';
 // call's product, its standard complaint AND what was reported — so an
 // ACCESSORY's manual reaches the call that names the accessory, whatever
 // machine it is fitted to (lib/docmatch.ts). A manual with no product is a
-// general one and is offered on every call.
+// general one and is offered on every call. Active Technical / Service Notes
+// are offered by the same rule, against each product a note names.
 // ===========================================================================
 
 type Row = Record<string, unknown>;
@@ -179,8 +180,8 @@ export function SupportingDocs({ product, complaint, reported }: { product: stri
       </div>
       {empty && (
         <div className="detail-hint">
-          No service manual or article is filed for {product.trim() ? <b>{product}</b> : 'this machine'} yet.
-          Manuals are added under <b>Knowledge Base → Service Manuals</b>; a manual with no
+          No service manual, technical note or article is filed for {product.trim() ? <b>{product}</b> : 'this machine'} yet.
+          Manuals and notes are added under <b>Service Manuals</b> and <b>Technical / Service Notes</b>; one with no
           product set is offered on every call.
         </div>
       )}
@@ -191,7 +192,7 @@ export function SupportingDocs({ product, complaint, reported }: { product: stri
           <tbody>
             {manuals.map((m) => (
               <tr key={`m${m.id}`}>
-                <td>📘 Service manual</td>
+                <td>{m.kind === 'service_note' ? '📝 Technical note' : '📘 Service manual'}</td>
                 <td><a href={m.url} target="_blank" rel="noreferrer">{m.title}</a></td>
                 <td>{m.product || 'Every product'}{m.revision ? ` · Rev ${m.revision}` : ''}</td>
                 <td>{m.tags}</td>

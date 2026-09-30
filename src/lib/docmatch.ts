@@ -43,16 +43,24 @@ export function docTags(tags: unknown): string[] {
 export interface ManualLike { product?: unknown; tags?: unknown }
 export interface CallWords { product?: unknown; complaint?: unknown; reported?: unknown }
 
-/** Does this manual belong on this call? */
+/** The products a document names. A Technical Note may name SEVERAL,
+ *  comma-separated (the user, 2026-09-30: "Product should be Multi Select");
+ *  a manual names one, which is a list of one. */
+export function docProducts(product: unknown): string[] {
+  return String(product ?? '').split(/[,;|\n]/).map((p) => norm(p)).filter(Boolean);
+}
+
+/** Does this manual -- or Technical Note -- belong on this call? */
 export function manualMatchesCall(doc: ManualLike, call: CallWords): boolean {
-  const owns = norm(doc.product);
+  const owns = docProducts(doc.product);
   const want = norm(call.product);
 
-  // A manual with no product is a general one — offered on every call.
-  if (!owns) return true;
-  // The machine's own manual, matched either way round so "EXTEND-XT" finds a
-  // manual filed under "Extend XT INXT" and vice versa.
-  if (want && (owns === want || want.includes(owns) || owns.includes(want))) return true;
+  // A document with no product is a general one — offered on every call.
+  if (!owns.length) return true;
+  // The machine's own document, matched either way round so "EXTEND-XT" finds
+  // a manual filed under "Extend XT INXT" and vice versa -- against EACH
+  // product a note names.
+  if (want && owns.some((o) => o === want || want.includes(o) || o.includes(want))) return true;
 
   // An ACCESSORY's manual, reached through the words on the call. This is the
   // arm that was missing.

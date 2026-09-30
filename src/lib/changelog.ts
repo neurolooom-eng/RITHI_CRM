@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.12',
+    date: '2026-09-30',
+    title: 'Technical Notes: Drive dates, several products, and offered on calls',
+    changes: [
+      'TECHNICAL / SERVICE NOTES SHOW DRIVE\'S DETAILS. For a note loaded from the Drive listing, Added is the file\'s Created date and time, Added By is Drive\'s Last Modified By, and Updated is its Last Modified — not the moment it was loaded into RITHI. When and by whom it was entered in RITHI is still kept, under Record details when you edit the note.',
+      'TO FILL THEM ON THE NOTES ALREADY LOADED, upload the same Technical Notes file again (Bulk Uploads → Technical / Service Notes). It is matched on the Drive link, so it corrects those notes instead of adding them twice.',
+      'A NOTE CAN COVER SEVERAL PRODUCTS: tick them all on the note. In the upload file, write them comma-separated in the Product cell, e.g. "MONNAL T60, MONNAL T75".',
+      'A CALL\'S 📄 SUPPORTING DOCUMENTS NOW LISTS TECHNICAL NOTES beside the service manuals — every active note for the call\'s product, notes with no product, and notes whose tags appear in the complaint. A retired note is not offered.',
+    ],
+  },
+  {
     version: '0.10.11',
     date: '2026-09-30',
     title: 'Roles & Permissions: every button has its tick on its own page; big permissions split into parts',
