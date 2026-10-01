@@ -230,6 +230,23 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.21 — HSN clean-up finished; rename passes the line and return
+  guards.** 0309 on live filled all 29 HSN codes but cleaned only 12
+  descriptions (read back with `_part_hsn.sql`; the workflow does not print a
+  migration's NOTICEs, so the failures were silent there). Reproduced AS
+  NOBODY: `material_returns_immutable` refuses everyone but an admin, and
+  transfers moved before adjustments could read as a shortfall. The line
+  guard's parts rule was NOT the migration's blocker — with no user its test
+  is NULL and lets the line through (a NULL-widening worth knowing) — but it
+  did stop a non-admin renamer. **0310** (two files): the line guard
+  (spare_requests, Spare_1.sql) and the return guard (handstock,
+  HandStock_X.sql) admit a ticketed rename; `rename_part_records()` moves
+  transfers last; the fill re-runs (idempotent). Status row 236; the suite
+  now runs the fill as nobody with the part on another engineer's request, a
+  return and a transfer, proves a non-admin renamer, and that plain edits are
+  still refused — mutation-tested against the old guards. FRS-178.7/.8.
+  validate 124/124, 22/22. **After merge: re-run `_part_hsn.sql` (probe) —
+  row 3 should read 0.**
 - ✅ **0.10.20 — Part Master: HSN Code.** **0309** (handstock module):
   `parts.hsn_code`; `rename_part()` keeps its masters.edit.rename_part check and
   calls the new `rename_part_records()` (revoked from everyone), which now also

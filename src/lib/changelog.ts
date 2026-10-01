@@ -12,12 +12,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.21',
+    date: '2026-10-01',
+    title: 'HSN clean-up finished; renaming a part works for more people',
+    changes: [
+      'THE HSN CLEAN-UP IS FINISHED. All 29 parts now have their HSN Code, and "(HSN:…)" is out of every one of their descriptions. The first run left it in 17 of them, because their spare records could not be moved without an administrator.',
+      'FIXED: whoever is allowed to rename a part on the Part Master can now rename one that is on another engineer\'s spare request or on a material return. Before, only an administrator could.',
+      'FIXED: renaming a part no longer stops with a stock shortfall when the part has both a stock transfer and a hand stock adjustment. Nobody\'s stock changes in a rename.',
+    ],
+  },
+  {
     version: '0.10.20',
     date: '2026-10-01',
     title: 'Part Master: HSN Code',
     changes: [
       'PART MASTER HAS AN HSN CODE COLUMN. Set it when adding a part or in the edit drawer, digits only. The Part Master upload fills it from an "HSN Code" column.',
-      'FILLED ONCE FROM THE DESCRIPTIONS. The 29 parts whose description said "(HSN:…)" now have that number in HSN Code, copied exactly as written. KY429500\'s 7-digit 9033000 is included, so correct it there if it is a typo. "(HSN:…)" has been taken out of those descriptions.',
+      'FILLED ONCE FROM THE DESCRIPTIONS. The 29 parts whose description said "(HSN:…)" now have that number in HSN Code, copied exactly as written. KY429500\'s 7-digit 9033000 is included, so correct it there if it is a typo. "(HSN:…)" was taken out of 12 of those descriptions; the other 17 were finished in 0.10.21.',
       'EVERYTHING THAT NAMES THOSE PARTS MOVED WITH THEM. Spare requests, dispatches, consumption and hand stock all followed, so no balance changed. Parts with a number but no "HSN" in the description, such as LEGRIS 31930813, were left alone.',
       'FIXED: renaming a part now also moves its hand stock adjustments. Before, an adjustment stayed on the old name and the engineer\'s stock for that part split in two.',
     ],
