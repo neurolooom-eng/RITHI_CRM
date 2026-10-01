@@ -3398,7 +3398,7 @@ export async function partCodeExists(code: string): Promise<boolean> {
 // here as well as on the form, so no other caller can add a part without them.
 export async function addPart(
   code: string, description: string,
-  more: { category: string; product: string; purchase_cost?: number | null; common?: boolean } = { category: '', product: '' },
+  more: { category: string; product: string; purchase_cost?: number | null; common?: boolean; hsn_code?: string } = { category: '', product: '' },
 ): Promise<{ ok: boolean; error?: string }> {
   const c = normalisePartCode(code);
   if (!c) return { ok: false, error: 'Give the part code.' };
@@ -3414,6 +3414,7 @@ export async function addPart(
     code: c, description: description.trim(), item_detail: composeItemDetail(c, description), active: true,
     category: more.category.trim(), product: more.common ? '' : more.product.trim(),
     ...(more.purchase_cost != null ? { purchase_cost: more.purchase_cost } : {}),
+    ...(more.hsn_code ? { hsn_code: more.hsn_code } : {}),
   });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
@@ -3428,7 +3429,7 @@ export async function addPart(
  *  foreign key to `parts`. Changing them is `renamePart` below, which carries
  *  the history. */
 export async function updatePart(
-  id: number, patch: { category?: string; product?: string; purchase_cost?: number | null },
+  id: number, patch: { category?: string; product?: string; purchase_cost?: number | null; hsn_code?: string },
 ): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('parts').update(patch).eq('id', id);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };

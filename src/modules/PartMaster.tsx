@@ -47,6 +47,9 @@ const COLUMNS: Column<Row>[] = [
   { key: 'category', header: 'Spare / Consumable', width: 150, wrap: false,
     render: (r) => (String(r.category ?? '').trim() || <span className="muted">— not set —</span>) },
   { key: 'product', header: 'Product', width: 110, wrap: false },
+  // HSN CODE (0309, the user, 2026-10-01). 29 parts carried it inside the
+  // description; it was lifted out once and lives here since.
+  { key: 'hsn_code', header: 'HSN Code', width: 110, wrap: false },
   { key: 'purchase_cost', header: 'Purchase Cost', width: 130, wrap: false, align: 'right' },
   { key: 'active', header: 'Active', width: 90, wrap: false, render: (r) => (r.active === false ? 'No' : 'Yes') },
 ];
@@ -187,7 +190,11 @@ export function PartMaster() {
   // A RENAME moves every record naming the part, so it is its own tick
   // (finding 67, 0289); the other fields are ordinary record edits.
   const mayRename = can('masters.edit.rename_part');
-  const [form, setForm] = useState<{ code: string; description: string; category: string; product: string; cost: string; common: boolean } | null>(null);
+  const [form, setForm] = useState<{ code: string; description: string; category: string; product: string; cost: string; common: boolean; hsn: string } | null>(null);
+  // DIGITS ONLY, ANY LENGTH. No length is imposed: one part's code on file is
+  // 7 digits, kept as written (the user's choice), and a rule here would make
+  // that part unsavable until somebody decided what it should be.
+  const hsnProblem = (v: string) => (v.trim() && !/^[0-9]+$/.test(v.trim()) ? 'The HSN code takes digits only.' : '');
   const [saving, setSaving] = useState(false);
 
   const formProblem = (): string => {
@@ -204,7 +211,7 @@ export function PartMaster() {
     // purpose rather than left blank by accident.
     if (!form.common && !form.product.trim()) return 'Choose the product(s) this part is for, or tick Common to all products.';
     if (form.cost.trim() && !Number.isFinite(Number(form.cost))) return 'Purchase cost must be a number.';
-    return '';
+    return hsnProblem(form.hsn);
   };
 
   const saveNew = async () => {
@@ -215,6 +222,7 @@ export function PartMaster() {
     const res = await addPart(form.code, form.description, {
       category: form.category, product: form.common ? '' : form.product, common: form.common,
       purchase_cost: form.cost.trim() === '' ? null : Number(form.cost),
+      hsn_code: form.hsn.trim(),
     });
     setSaving(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not add the part.' }); return; }
@@ -231,7 +239,7 @@ export function PartMaster() {
   // changing them is a RENAME that carries every one of those records (0196).
   type EditForm = {
     id: number; code: string; description: string;
-    category: string; product: string; cost: string;
+    category: string; product: string; cost: string; hsn: string;
     wasCode: string; wasDescription: string; wasDetail: string;
   };
   // THE FOUR THE ITEM MASTER USES, and they are the importer's own normalisation
@@ -256,6 +264,7 @@ export function PartMaster() {
       code: String(r.code ?? ''), description: String(r.description ?? ''),
       category: String(r.category ?? ''), product: String(r.product ?? ''),
       cost: cost === null || cost === undefined ? '' : String(cost),
+      hsn: String(r.hsn_code ?? ''),
       wasCode: String(r.code ?? ''), wasDescription: String(r.description ?? ''),
       wasDetail: String(r.item_detail ?? ''),
     });
@@ -281,6 +290,7 @@ export function PartMaster() {
     if (!edit.description.trim()) return 'Give the description.';
     if (edit.description.includes('|')) return 'A description cannot contain "|" either.';
     if (edit.cost.trim() && !Number.isFinite(Number(edit.cost))) return 'Purchase cost has to be a number.';
+    if (hsnProblem(edit.hsn)) return hsnProblem(edit.hsn);
     if (renaming && !mayRename) return 'Changing the code or description renames the part everywhere, which needs the “Rename a part” permission.';
     return '';
   };
@@ -311,6 +321,7 @@ export function PartMaster() {
         // BLANK IS NULL, NOT ZERO. A cost nobody has recorded and a cost of
         // nothing are different answers about a part.
         purchase_cost: edit.cost.trim() === '' ? null : Number(edit.cost),
+        hsn_code: edit.hsn.trim(),
       };
       const res2 = await updatePart(edit.id, patch);
       if (!res2.ok) { setMsg({ tone: 'error', text: res2.error ?? 'Could not save the part.' }); return; }
@@ -394,7 +405,7 @@ export function PartMaster() {
         title="Part Master"
         subtitle="Spare parts catalogue (ITEM Master) — cached locally, synced from the database."
         icon="🔩" count={visible.length}
-        actions={mayEdit && <button className="btn btn-primary" onClick={() => setForm({ code: '', description: '', category: '', product: '', cost: '', common: false })}>＋ Add part</button>}
+        actions={mayEdit && <button className="btn btn-primary" onClick={() => setForm({ code: '', description: '', category: '', product: '', cost: '', common: false, hsn: '' })}>＋ Add part</button>}
       />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
@@ -557,6 +568,12 @@ export function PartMaster() {
               <span className="muted" style={{ fontSize: 12 }}>Optional. Blank means nobody has recorded one.</span>
             </div>
             <div className="field">
+              <label className="field-label">HSN Code</label>
+              <input className="input" value={form.hsn} inputMode="numeric"
+                onChange={(e) => setForm((f) => f && ({ ...f, hsn: e.target.value }))} />
+              <span className="muted" style={{ fontSize: 12 }}>Optional. Digits only.</span>
+            </div>
+            <div className="field">
               <label className="field-label">Will be listed as</label>
               <code style={{ fontSize: 13 }}>
                 {form.code || form.description ? composeItemDetail(form.code, form.description) : '—'}
@@ -681,6 +698,12 @@ export function PartMaster() {
               <span className="muted" style={{ fontSize: 12 }}>
                 Blank means nobody has recorded one, which is not the same as zero.
               </span>
+            </div>
+            <div className="field">
+              <label className="field-label">HSN Code</label>
+              <input className="input" value={edit.hsn} inputMode="numeric"
+                onChange={(e) => setEdit((f) => f && ({ ...f, hsn: e.target.value }))} />
+              <span className="muted" style={{ fontSize: 12 }}>Digits only. Changing it is an ordinary edit, not a rename.</span>
             </div>
 
             {!!editProblem() && <div className="sheet-banner sheet-banner-error"><span>{editProblem()}</span></div>}
