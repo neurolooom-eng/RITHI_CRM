@@ -161,6 +161,15 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-10-01 — D-057 accepted as is (no code change)
+- **Your decision:** *"Leave it as it is, it is that way for Ease of Operation."* The User Master keeps proposing one starting password for every new login, and the first sign-in does not force a change.
+- **Recorded rather than left as a defect:**
+  - URS-133, FRS-001, FRS-168 and OQ-161 now describe what the system does. They had claimed a forced change that does not exist, and FRS-001 cited a sheet-era forced change that D-074 removed.
+  - Risk R-80's residual is now **High**. It had read Low on the strength of that missing control.
+  - FM-69 lists no action and keeps its occurrence and detection scores.
+- **The cost, stated so it stays a decision:** until a person changes it, whoever knows the starting password can sign in as them, and what is done under that login is not attributable to them.
+- Handbook updated.
+
 ### 2026-09-30 — The admin-only actions are keys; only the Admin column is greyed (v0.10.16)
 - **Your ask:** *"All Admin Actions that are greyed out now should be editable from the Role & Permissions. Only the Admin Role should be Greyed out not the Actions."* It reverses finding 65's "shown greyed, never tickable".
 - **Ten keys, one per action:**
