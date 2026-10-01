@@ -64,6 +64,9 @@ export const NAV: NavGroup[] = [
       // machines"; this answers "what happened to THIS one". Not under
       // Reports, where it first went: a report is a file you take away.
       { to: '/machine-history', label: 'Machine History', icon: '🔬' },
+      // PART SEARCH (the user, 2026-10-01): a third "look something up"
+      // screen -- read only for everyone, Admin included, and no download.
+      { to: '/part-search', label: 'Part Search', icon: '🧩' },
       // DAILY CALL REVIEW MOVED TO QUALITY & ANALYTICS and CALL REVIEW TO
       // SERVICE CALLS (the user, 2026-09-12). Both sat here because they were
       // built here, not because this is where they belong: the DCCR is the

@@ -9768,5 +9768,19 @@ console.log('\n-- data flows name real screens, requirements and tests --');
   eq('How RITHI Functions shows the same flows', /<FlowGallery \/>/.test(readFileSync('src/modules/HowRithiFunctions.tsx', 'utf8')), true);
 }
 
+console.log('\n-- Part Search is read only, for everyone (2026-10-01) --');
+{
+  const ps = readFileSync('src/modules/PartSearch.tsx', 'utf8');
+  const code = ps.replace(/\/\/[^\n]*/g, '');   // the header comment names what it refuses
+  eq('it imports no write, export or download helper',
+    /\b(add|save|update|upsert|delete|insert|export|download)\w*Part|xlsx|toCsv|downloadFile|exportRows/i.test(code), false);
+  eq('...offers no selection, row click, bulk bar or edit drawer',
+    /selectable|onRowClick|bulkBar|<Drawer|Edit\b|✏️/.test(code), false);
+  eq('...reads ACTIVE parts, four columns only',
+    /select\('id,code,description,category,product'\)\.eq\('active', true\)/.test(readFileSync('src/lib/supabase.ts', 'utf8')), true);
+  eq('...and its Roles & Permissions row carries no action',
+    PERM_TREE.flatMap((h) => h.pages).find((pg) => pg.path === '/part-search')?.actions, []);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

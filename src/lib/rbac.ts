@@ -176,6 +176,10 @@ export const MODULES: ModuleDef[] = [
   // because a DEMO unit has no call to hang off: the register stands alone and
   // the call is an optional link, not the other way round.
   { path: '/machine-history', label: 'Machine History' },
+  // PART SEARCH -- every role (the user, 2026-10-01); 0308 merges the key into
+  // every configured role, since on a project in use a code default reaches
+  // nobody.
+  { path: '/part-search', label: 'Part Search' },
   { path: '/indoor', label: 'Indoor Service Register' },
   // SOLVED WITHOUT A REPORT — administrators only (the user, 2026-09-20:
   // "View only for Admins and Super Admins"). `admin: true` keeps the key out
@@ -626,6 +630,8 @@ export const PERM_TREE: PermHeader[] = [
     // and grants nothing. `check:ui` compares the two now, which is what the
     // comment above claimed and nothing did.
     { path: '/machine-history', label: 'Machine History', actions: ['masters.view'] },
+    // READ ONLY FOR EVERYONE, Admin included: the page has no action to tick.
+    { path: '/part-search', label: 'Part Search', actions: [] },
   ] },
   { title: 'Quality & Analytics', pages: [
     { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', actions: ['review.edit', 'review.auto', 'review.correct_date', 'ffr.manage'] },

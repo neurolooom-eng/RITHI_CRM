@@ -43,6 +43,7 @@ import { FieldFailureReport } from './modules/FieldFailureReport';
 import { KpiAnalytics } from './modules/KpiAnalytics';
 import { Objective } from './modules/Objective';
 import { MachineHistory } from './modules/MachineHistory';
+import { PartSearch } from './modules/PartSearch';
 import { SolvedWithoutReport } from './modules/SolvedWithoutReport';
 import { DeviceCacheStatus } from './modules/DeviceCacheStatus';
 import { HandStockReport } from './modules/HandStockReport';
@@ -184,6 +185,7 @@ function Shell() {
         <Route path="/dccr-insights" element={<Navigate to="/product-failure" replace />} />
         <Route path="/spare-insights" element={<SpareInsights />} />
         <Route path="/machine-history" element={<MachineHistory />} />
+        <Route path="/part-search" element={<PartSearch />} />
         <Route path="/exports" element={<ReportsHub />} />
         {/* One page, one tab per report — so the menu can name each report
             instead of hiding it behind a tab strip. */}

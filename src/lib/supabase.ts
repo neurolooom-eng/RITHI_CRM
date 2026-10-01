@@ -3376,6 +3376,21 @@ export async function queryParts(filter: PartFilter, offset = 0, limit = 1000): 
  *  lacks -- is made on the client by matchesProductFilter(). Paged to the end:
  *  a filter over the first thousand parts would answer about a thousand, not
  *  the catalogue. A named product narrows the read on the server first. */
+// PART SEARCH (Overview, 2026-10-01): ACTIVE parts, four columns, read only.
+// Only what the screen shows is asked for, so Purchase Cost and retired parts
+// never reach a browser that opened a read-only page. Paged and ordered, like
+// every register-sized read.
+export interface PartLookupRow { id: number; code: string; description: string; category: string; product: string }
+export async function listActivePartsReadOnly(): Promise<PartLookupRow[]> {
+  const rows = await allRows<Record<string, unknown>>((a, b) => must().from('parts')
+    .select('id,code,description,category,product').eq('active', true)
+    .order('code').order('id').range(a, b), 50000);
+  return rows.map((r) => ({
+    id: Number(r.id), code: String(r.code ?? ''), description: String(r.description ?? ''),
+    category: String(r.category ?? ''), product: String(r.product ?? ''),
+  }));
+}
+
 export async function queryAllParts(filter: PartFilter, productHint = ''): Promise<Record<string, unknown>[]> {
   return allRows<Record<string, unknown>>((a, b) => {
     let q = must().from('parts').select('*').order('code').order('id').range(a, b);

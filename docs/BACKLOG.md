@@ -230,6 +230,14 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.17 — Part Search (Overview), read only for every role.** Active
+  parts: code, description, Spare / Consumable, products; search, class and
+  product filters; no edit, action, selection or download for anyone, Admin
+  included. `listActivePartsReadOnly()` asks for those columns of active parts
+  only. **0308** merges `mod:/part-search` into every configured role (rbac.sql;
+  `_status.sql` row 234); the PERM_TREE row has no action. URS-167, FRS-217,
+  OQ-211; `check:ui` pins the read-only shape. 0308 is applied by the
+  migrations workflow on merge.
 - ✅ **0.10.14 — My Team: Active / Current and Ex Employees**, by
   `user_directory.validity` (the User Master's Active column). The reporting
   walk (`visible_engineer_names`) does not drop leavers, which is why they were

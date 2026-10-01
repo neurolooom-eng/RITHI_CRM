@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.17',
+    date: '2026-10-01',
+    title: 'Part Search, under Overview',
+    changes: [
+      'NEW: OVERVIEW → PART SEARCH. Every active part with its Part Code, Description, Spare / Consumable and the products it fits. Search by code, description or product, and narrow by Spare / Consumable or by product.',
+      'IT IS READ ONLY FOR EVERYBODY, administrators included: no edit, no action buttons and no download. Parts are still changed on the Part Master.',
+      'EVERY ROLE CAN OPEN IT. An administrator can untick it for a role on Roles & Permissions.',
+    ],
+  },
+  {
     version: '0.10.16',
     date: '2026-09-30',
     title: 'Roles & Permissions: the admin-only actions can now be ticked for any role',

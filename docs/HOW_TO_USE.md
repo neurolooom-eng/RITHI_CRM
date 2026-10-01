@@ -892,6 +892,14 @@ typed into a form that reads it.
 
 - **KPI & Failure Analysis** `/kpi` — failure rate by product, region × cover, and
   spare use by cover, product and region.
+- **Part Search** `/part-search` (Overview) — look a part up: every **active**
+  part with its Part Code, Description, Spare / Consumable and the products it
+  fits (a part with no product reads *Common (all products)*). Search by code,
+  description or product — all the words, in any order — and narrow by Spare /
+  Consumable or by product; a common part stays listed whatever product you
+  pick. **It is read only for everybody, administrators included**: no edit, no
+  buttons, no download. Parts are changed on the **Part Master**. Every role can
+  open it; an administrator can untick it per role on Roles & Permissions.
 - **Machine History** `/machine-history` — one machine, its whole life. Pick the
   **product first, then the serial**: the same serial number belongs to several
   models, so a serial on its own would show you a different hospital's machine.
