@@ -1611,7 +1611,11 @@ with checks(sort_order, bundle, provides, present) as (
          and not has_function_privilege('authenticated', to_regprocedure('public.rename_part_records(bigint,text,text)'), 'EXECUTE')
          and coalesce((select p.prosrc like '%masters.edit.rename_part%' and p.prosrc like '%rename_part_records%' from pg_proc p where p.oid = to_regprocedure('public.rename_part(bigint,text,text)')), false)
          and coalesce((select p.prosrc like '%handstock_adjustments%' from pg_proc p where p.oid = to_regprocedure('public.rename_part_records(bigint,text,text)')), false)
-         and coalesce((select p.prosrc like '%handstock_adjustments%' from pg_proc p where p.oid = to_regprocedure('public.part_rename_impact(text)')), false)))
+         and coalesce((select p.prosrc like '%handstock_adjustments%' from pg_proc p where p.oid = to_regprocedure('public.part_rename_impact(text)')), false))),
+    (236, 'A part rename passes the spare-line and material-return guards', 'spare_request_lines_guard (0310, Spare_1.sql) and material_returns_immutable (0310, HandStock_X.sql) let through the one change a part rename makes, by the ticket only rename_part_records() writes, so a rename no longer needs an administrator for parts on somebody else''s request or on a return; rename_part_records() moves stock transfers last. NO means one of the two bundles has not been re-run since. Restore: Spare_1.sql (0310_rename_passes_the_line_guard) and HandStock_X.sql (0310_rename_passes_the_return_guard)',
+        (coalesce((select p.prosrc like '%part_rename_ticket%' from pg_proc p where p.oid = to_regprocedure('public.spare_request_lines_guard()')), false)
+         and coalesce((select p.prosrc like '%part_rename_ticket%' from pg_proc p where p.oid = to_regprocedure('public.material_returns_immutable()')), false)
+         and coalesce((select position('stock_transfer_lines' in p.prosrc) > position('handstock_adjustments' in p.prosrc) from pg_proc p where p.oid = to_regprocedure('public.rename_part_records(bigint,text,text)')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

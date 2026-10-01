@@ -8,7 +8,8 @@
 -- and whether the Item Master import already kept an HSN column in `extra`.
 --
 -- Rows 1-9 are counts; rows 101+ are real descriptions, with the HSN word;
--- 201+ with an 8-digit run but no HSN word; 301+ any extra key naming HSN.
+-- 201+ with an 8-digit run but no HSN word; 301+ any extra key naming HSN;
+-- row 10 and 401+ the HSN Code column 0309 added and filled.
 -- Nothing to change; paste and run.
 -- ===========================================================================
 with p as (
@@ -25,6 +26,10 @@ select row_no, what, n, sample from (
   union all select 6, 'description has an 8-digit run', count(*)::text, '' from p where d ~ '(^|[^0-9])[0-9]{8}([^0-9]|$)'
   union all select 7, 'description has 8 digits but no HSN word', count(*)::text, '' from p where d ~ '(^|[^0-9])[0-9]{8}([^0-9]|$)' and d !~* 'hsn'
   union all select 8, 'extra keys naming HSN', count(*)::text, string_agg(key, ' | ') from k where key ~* 'hsn'
+  -- AFTER 0309: the column and what the one-time fill put in it. Read through
+  -- to_jsonb so this probe still runs on a project without the column.
+  union all select 10, 'parts with an HSN Code (0309 column)', count(*)::text, '' from public.parts t where btrim(coalesce(to_jsonb(t) ->> 'hsn_code', '')) <> ''
+  union all select * from (select 400 + row_number() over (order by t.id)::int, t.code, to_jsonb(t) ->> 'hsn_code', t.description from public.parts t where btrim(coalesce(to_jsonb(t) ->> 'hsn_code', '')) <> '' order by t.id limit 40) h
   union all select 9, 'parts with an HSN extra value', count(*)::text, '' from p, jsonb_each_text(case when jsonb_typeof(x) = 'object' then x else '{}'::jsonb end) e where e.key ~* 'hsn' and btrim(e.value) <> ''
   union all select * from (select 100 + row_number() over (order by id)::int, code, '', d from p where d ~* 'hsn' order by id limit 60) a
   union all select * from (select 200 + row_number() over (order by id)::int, code, '', d from p where d ~ '(^|[^0-9])[0-9]{8}([^0-9]|$)' and d !~* 'hsn' order by id limit 25) b
