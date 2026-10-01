@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.19',
+    date: '2026-10-01',
+    title: 'Search everything from the top bar',
+    changes: [
+      'THE SEARCH BOX AT THE TOP NOW SEARCHES RECORDS, NOT JUST SCREENS. Type three or more characters to find calls, call requests, spare requests, spares consumed, parties, machines, parts, documents, Field Solutions articles and Field Failure Reports. You get up to five of each, grouped.',
+      'CLICK A RESULT AND THAT RECORD OPENS. A call opens in its view, a spare request in its detail, a machine in Machine History, a part in Part Search, and a document in Drive. ↑ ↓ and Enter work too.',
+      'YOU ONLY SEE WHAT YOU COULD ALREADY OPEN. An engineer\'s search finds their own and their team\'s records, exactly as the registers do.',
+      'NEW: A PARTY OPENS READ-ONLY FOR ANYBODY WHO CANNOT EDIT IT, and a line on Spare Consumption opens with all its details. Before this, clicking either did nothing.',
+    ],
+  },
+  {
     version: '0.10.18',
     date: '2026-10-01',
     title: 'Part Search: a filter on every column',

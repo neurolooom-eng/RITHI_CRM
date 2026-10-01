@@ -183,6 +183,8 @@
   max-width: 380px;
   min-width: 0;
 }
+/* Record hits carry a second line of detail, so the list may be wider than the box. */
+.mod-search-menu { min-width: min(560px, 92vw); }
 .mod-search-icon {
   position: absolute;
   left: 10px; top: 50%;
@@ -214,6 +216,14 @@
   color: var(--text); font-family: inherit; font-size: 13.5px;
 }
 .mod-search-item:hover { background: var(--surface-alt); }
+/* The keyboard's place in the list: CONTRAST, not a tint (the project's rule). */
+.mod-search-item.is-hi { background: var(--text); color: var(--surface); }
+.mod-search-item.is-hi .muted { color: var(--surface); opacity: 0.8; }
+.mod-search-group {
+  padding: 8px 10px 4px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
+}
+.mod-search-group:first-child { padding-top: 2px; }
 .mod-search-item-ic { width: 20px; text-align: center; flex-shrink: 0; }
 .mod-search-item-tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

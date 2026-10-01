@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { PageHeader, Toolbar } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { MultiPick } from '../components/ui/MultiPick';
@@ -66,6 +67,12 @@ export function PartSearch() {
   const [q, setQ] = useState('');
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const setCol = (k: ColKey) => (v: string[]) => setFilters((f) => ({ ...f, [k]: v }));
+  // FROM THE HEADER SEARCH (2026-10-01): open on that one part.
+  const location = useLocation();
+  useEffect(() => {
+    const code = (location.state as { code?: string } | null)?.code;
+    if (code) { setFilters({ ...NO_FILTERS, code: [String(code)] }); setQ(''); window.history.replaceState({}, ''); }
+  }, [location.state]);
   const filtered = Object.values(filters).some((v) => v.length) || !!q.trim();
 
   const load = async () => {

@@ -13,6 +13,7 @@ import { sanitizeHtml, htmlToText } from '../lib/sanitizeHtml';
 import {
   kbList, kbAdd, kbUpdate, kbDelete, supabaseConfigured,
   type KbArticle, type KbAttachment,
+  kbArticleById,
 } from '../lib/supabase';
 import './knowledgebase.css';
 
@@ -75,11 +76,17 @@ export function KnowledgeBase() {
   // Arrived from a call's Supporting Documents panel, which links to one
   // article by id — open it as soon as the list has loaded.
   const wanted = (location.state as { openArticle?: number } | null)?.openArticle;
+  // The list holds the latest thousand; an older one (the header search can
+  // find any) is fetched by its id once the list is in and it is not there.
   useEffect(() => {
-    if (!wanted || !articles.length) return;
+    if (!wanted || busy) return;
     const a = articles.find((x) => x.id === wanted);
-    if (a) { setView(a); navigate('.', { replace: true, state: null }); }
-  }, [wanted, articles, navigate]);
+    if (a) { setView(a); navigate('.', { replace: true, state: null }); return; }
+    if (!articles.length) return;
+    navigate('.', { replace: true, state: null });
+    void kbArticleById(wanted).then((x) => { if (x) setView(x); else setMsg({ tone: 'error', text: 'That article could not be opened.' }); })
+      .catch((e) => setMsg({ tone: 'error', text: `That article could not be opened: ${e instanceof Error ? e.message : String(e)}` }));
+  }, [wanted, articles, busy, navigate]);
 
   const canEdit = (a: KbArticle) => isAdmin || (!!user?.id && a.created_by === user.id);
 
