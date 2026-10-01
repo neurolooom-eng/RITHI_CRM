@@ -30,7 +30,7 @@ import {
   updateFieldCall,
 } from '../lib/sheets';
 import { formatDay } from '../lib/dates';
-import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, refreshCallsParty, refreshCallsProduct, type CallServiceReport } from '../lib/supabase';
+import { supabaseConfigured, searchCalls, callByUcn, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, refreshCallsParty, refreshCallsProduct, type CallServiceReport } from '../lib/supabase';
 import { useAuditMode } from '../lib/auditMode';
 import { useCallFieldMasters } from './callFields';
 import { StateBadge, Ucn } from '../lib/callstate';
@@ -801,7 +801,25 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // Arriving with a prefill (Product Database / pending) opens the create drawer;
   // arriving with editUcn opens the existing call in edit mode.
   useEffect(() => {
-    const st = location.state as { prefill?: Record<string, unknown>; pendingRow?: number; editUcn?: string; search?: Partial<typeof srch> } | null;
+    const st = location.state as { prefill?: Record<string, unknown>; pendingRow?: number; editUcn?: string; viewUcn?: string; search?: Partial<typeof srch> } | null;
+    // FROM THE HEADER SEARCH (2026-10-01): open that one call READ-ONLY -- the
+    // view, with its actions -- whether or not it is among the calls loaded.
+    // One that is not is fetched by its UCN and kept in the cache in the same
+    // shape a search puts there, so an edit from the view saves as usual.
+    if (st?.viewUcn) {
+      const u = String(st.viewUcn);
+      window.history.replaceState({}, '');
+      const have = cached.find((r) => String(r.ucn) === u) as Rec | undefined;
+      if (have) { setDrawer({ mode: 'view', row: have }); return; }
+      if (!configured) return;
+      void callByUcn(u).then((r) => {
+        if (!r) { setBanner({ tone: 'error', text: `Call ${u} could not be opened — it may have moved, or you may not be allowed to see it.` }); return; }
+        const row = { ...r, id: u, _synced: true } as Rec;
+        if (!db.list(config.collection).some((x) => String((x as Rec).ucn) === u)) db.insert(config.collection, row);
+        setDrawer({ mode: 'view', row });
+      }).catch((e) => setBanner({ tone: 'error', text: `Call ${u} could not be opened: ${e instanceof Error ? e.message : String(e)}` }));
+      return;
+    }
     // Arriving from a KPI: the register opens already narrowed to the calls the
     // figure was made of, so the number and the calls behind it are one click
     // apart rather than a question you go and re-ask by hand.

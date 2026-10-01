@@ -31,6 +31,15 @@ means *at least* 90. A number without one is exact.
 nothing commits on a keystroke. Under eight options there is no search box. Where
 a list comes from a master you cannot type a value that is not on it.
 
+**The search box at the top searches everything you can open.** Screen names
+first; then, from three characters, calls (UCN, call number, party, serial,
+product), pending call requests (REQID), spare requests (UID, OR number, UCN,
+part), spares consumed, parties, machines, parts, documents (manuals, technical
+notes, QMS), Field Solutions articles and Field Failure Reports — up to five of
+each. **Click one and that record opens** on its own screen: a call opens in its
+view, a machine in Machine History, a document in Drive. ↑ ↓ and Enter work
+too. It only ever shows records you could already open on that screen.
+
 **Quality records are never deleted.** A wrong spare line is **voided** — the
 quantity goes to zero, the row stays with its original quantity, reason and
 author, and the stock returns. A failure report is cancelled or withdrawn.

@@ -12,7 +12,8 @@ import './layout.css';
 import { RITHI_LOGO } from '../../lib/brand';
 import { watchMachineRegister } from '../../lib/machinestore';
 import { clearMasterCache } from '../../lib/masters';
-import { supabaseConfigured } from '../../lib/supabase';
+import { supabaseConfigured, globalSearchKind } from '../../lib/supabase';
+import { HIT_GROUPS, MIN_CHARS, searchTerm, type HitKind, type SearchHit } from '../../lib/globalSearch';
 
 interface NavItem {
   to: string;
@@ -305,42 +306,143 @@ const navItemVisible = (it: NavItem, can: (a: string) => boolean): boolean =>
     ? (USER_ADMIN_KEYS.some((k) => can(k)) || can('admin.view') || can(it.perm ?? actionForPath(it.to)))
     : can(it.perm ?? actionForPath(it.to)));
 
-// Global search across all modules (nav items). Jump straight to any screen.
+// GLOBAL SEARCH (the user, 2026-10-01: "This has to search Modules / Content /
+// Calls / Spare Request -- basically all Content"). Screen names first, as
+// before; then, from three characters, one group per register -- calls, call
+// requests, spares, consumption, parties, machines, parts, documents, the
+// Knowledge Base and FFRs -- each filled in as its own read returns, so one slow
+// register does not hold the rest. A hit OPENS THAT RECORD on its own screen
+// (their answer), and is offered only where the person may open that screen;
+// the rows themselves are whatever the database's row-level security lets them
+// read. The rules of each hit are src/lib/globalSearch.ts.
 function ModuleSearch() {
   const navigate = useNavigate();
   const { can } = useAuth();
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
+  const [hits, setHits] = useState<Partial<Record<HitKind, SearchHit[]>>>({});
+  const [pending, setPending] = useState<Set<HitKind>>(new Set());
+  const [failed, setFailed] = useState<Set<HitKind>>(new Set());
+  const [hi, setHi] = useState(0);
   const items = useMemo(
     () => NAV.flatMap((g) => g.items.filter((it) => navItemVisible(it, can)).map((it) => ({ ...it, group: g.title }))),
     [can],
   );
-  const results = q.trim()
-    ? items.filter((it) => `${it.label} ${it.group}`.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 8)
+  const modules = q.trim()
+    ? items.filter((it) => `${it.label} ${it.group}`.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 6)
     : [];
-  const go = (to: string) => { navigate(to); setQ(''); setOpen(false); };
+  // Only the registers whose screen this person may open are searched at all.
+  const kinds = useMemo(() => HIT_GROUPS.filter((g) => {
+    const probe: Record<HitKind, string> = {
+      call: '/field-calls', request: '/pending-registrations', spare: '/spare-requests',
+      consumption: '/spare-consumption', party: '/parties', machine: '/machine-history',
+      part: '/part-search', document: '/service-manuals', kb: '', ffr: '/failure-report',
+    };
+    if (g.kind === 'kb') return true;   // Field Solutions is open to everyone
+    if (g.kind === 'call') return ['/field-calls', '/installations', '/pm-calls'].some((r) => can(actionForPath(r)));
+    if (g.kind === 'document') return ['/service-manuals', '/service-manuals/notes', '/qms'].some((r) => can(actionForPath(r)));
+    return can(actionForPath(probe[g.kind]));
+  }), [can]);
+
+  // Debounced: a register read per keystroke would be ten round trips a letter.
+  useEffect(() => {
+    const term = searchTerm(q);
+    if (!supabaseConfigured() || term.length < MIN_CHARS) { setHits({}); setPending(new Set()); setFailed(new Set()); return; }
+    let alive = true;
+    const t = window.setTimeout(() => {
+      setHits({}); setFailed(new Set());
+      setPending(new Set(kinds.map((k) => k.kind)));
+      kinds.forEach(({ kind }) => {
+        void globalSearchKind(kind, term)
+          .then((h) => { if (alive) setHits((m) => ({ ...m, [kind]: h.filter((x) => !x.route || can(actionForPath(x.route))) })); })
+          .catch(() => { if (alive) setFailed((f) => new Set(f).add(kind)); })
+          .finally(() => { if (alive) setPending((p) => { const n = new Set(p); n.delete(kind); return n; }); });
+      });
+    }, 300);
+    return () => { alive = false; window.clearTimeout(t); };
+  }, [q, kinds, can]);
+
+  // One flat list for the keyboard: modules, then each group's hits in order.
+  const flat: ({ t: 'mod'; to: string } | { t: 'hit'; hit: SearchHit })[] = [
+    ...modules.map((m) => ({ t: 'mod' as const, to: m.to })),
+    ...kinds.flatMap((g) => (hits[g.kind] ?? []).map((hit) => ({ t: 'hit' as const, hit }))),
+  ];
+  useEffect(() => { setHi(0); }, [q]);
+
+  const close = () => { setQ(''); setOpen(false); };
+  const goModule = (to: string) => { navigate(to); close(); };
+  const goHit = (h: SearchHit) => {
+    if (h.href) window.open(h.href, '_blank', 'noopener,noreferrer');
+    else if (h.to) navigate(h.to, { state: h.state });
+    close();
+  };
+  const activate = (i: number) => {
+    const f = flat[i]; if (!f) return;
+    if (f.t === 'mod') goModule(f.to); else goHit(f.hit);
+  };
+
+  const term = searchTerm(q);
+  const searching = term.length >= MIN_CHARS && supabaseConfigured();
+  const anyHit = kinds.some((g) => (hits[g.kind] ?? []).length);
+  let idx = modules.length;
+
   return (
     <div className="mod-search">
       <span className="mod-search-icon">🔎</span>
       <input
         className="input mod-search-input"
-        placeholder="Search modules…"
+        placeholder="Search modules, calls, spares, parties, parts, documents…"
         value={q}
         onFocus={() => setOpen(true)}
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-        onKeyDown={(e) => { if (e.key === 'Enter' && results[0]) go(results[0].to); if (e.key === 'Escape') setOpen(false); }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown') { e.preventDefault(); setHi((h) => Math.min(h + 1, Math.max(flat.length - 1, 0))); return; }
+          if (e.key === 'ArrowUp') { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); return; }
+          if (e.key === 'Enter') { activate(hi); return; }
+          if (e.key === 'Escape') setOpen(false);
+        }}
       />
       {open && q.trim() && (
         <>
           <div className="mod-search-backdrop" onClick={() => setOpen(false)} />
-          <div className="mod-search-menu">
-            {results.length === 0 && <div className="muted mod-search-empty">No modules match.</div>}
-            {results.map((it) => (
-              <button key={it.to} className="mod-search-item" onMouseDown={(e) => { e.preventDefault(); go(it.to); }}>
+          <div className="mod-search-menu" role="listbox">
+            {modules.length > 0 && <div className="mod-search-group">Modules</div>}
+            {modules.map((it, i) => (
+              <button key={it.to} className={`mod-search-item${hi === i ? ' is-hi' : ''}`}
+                onMouseEnter={() => setHi(i)} onMouseDown={(e) => { e.preventDefault(); goModule(it.to); }}>
                 <span className="mod-search-item-ic">{it.icon}</span>
                 <span className="mod-search-item-tx"><b>{it.label}</b><span className="muted"> · {it.group}</span></span>
               </button>
             ))}
+            {!searching && modules.length === 0 && (
+              <div className="muted mod-search-empty">
+                {supabaseConfigured() ? `No modules match. Type ${MIN_CHARS} or more characters to search records too.` : 'No modules match.'}
+              </div>
+            )}
+            {searching && kinds.map((g) => {
+              const list = hits[g.kind] ?? [];
+              if (!list.length && !failed.has(g.kind)) return null;
+              return (
+                <div key={g.kind}>
+                  <div className="mod-search-group">{g.icon} {g.label}</div>
+                  {failed.has(g.kind) && <div className="muted mod-search-empty">Could not search {g.label.toLowerCase()} just now.</div>}
+                  {list.map((h) => {
+                    const i = idx++;
+                    return (
+                      <button key={h.key} className={`mod-search-item${hi === i ? ' is-hi' : ''}`}
+                        onMouseEnter={() => setHi(i)} onMouseDown={(e) => { e.preventDefault(); goHit(h); }}>
+                        <span className="mod-search-item-ic">{h.href ? '↗' : g.icon}</span>
+                        <span className="mod-search-item-tx"><b>{h.title || '—'}</b>{h.sub && <span className="muted"> · {h.sub}</span>}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            {searching && pending.size > 0 && <div className="muted mod-search-empty">Searching {pending.size} more {pending.size === 1 ? 'register' : 'registers'}…</div>}
+            {searching && pending.size === 0 && !anyHit && modules.length === 0 && failed.size === 0 && (
+              <div className="muted mod-search-empty">Nothing you can open matches “{term}”.</div>
+            )}
           </div>
         </>
       )}

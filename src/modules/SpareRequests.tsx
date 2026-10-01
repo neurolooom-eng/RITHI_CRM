@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { readUpTo } from '../lib/paging';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PickList } from '../components/ui/PickList';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Modal, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { csvExport, fmtLongDate, makeRequestUID, timeAgo, todayISO } from '../lib/format';
@@ -14,6 +14,7 @@ import {
   searchCalls, supabaseConfigured, receiveSpareShipments,
   sbReassignSpareRequest, sbListEngineerChanges, type EngineerChange,
   decideSpareLines, type SpareDecision, refreshSpareRequestsFromCall,
+  spareRequestLinesByUid,
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import {
@@ -681,6 +682,29 @@ export function SpareRequests() {
       setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
   };
+  // FROM THE HEADER SEARCH (2026-10-01): open that request's first spare.
+  // Waits for any load in progress (a load replaces the list); a request not
+  // among the lines loaded is fetched by its UID and added, then opened.
+  const location = useLocation();
+  const [wantUid, setWantUid] = useState('');
+  useEffect(() => {
+    const u = (location.state as { openSpareUid?: string } | null)?.openSpareUid;
+    if (u) { setWantUid(String(u)); window.history.replaceState({}, ''); }
+  }, [location.state]);
+  useEffect(() => {
+    if (!wantUid || busy || !onDb) return;
+    const have = rows.find((r) => g(r, 'uid') === wantUid);
+    if (have) { setDetail(String(have.id)); setWantUid(''); return; }
+    const u = wantUid; setWantUid('');
+    void spareRequestLinesByUid(u).then((lines) => {
+      if (!lines.length) { setMsg({ tone: 'error', text: `Spare request ${u} could not be opened — you may not be allowed to see it.` }); return; }
+      const add = lines.map((x, i) => ({ ...x, id: `${u}-${g(x as Row, 'part')}-s${i}` } as Row));
+      setRows((rs) => [...add, ...rs]);
+      setDetail(String(add[0].id));
+    }).catch((e) => setMsg({ tone: 'error', text: `Spare request ${u} could not be opened: ${e instanceof Error ? e.message : String(e)}` }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantUid, busy, rows]);
+
   useEffect(() => {
     if (onDb && rows.length && !isStale(lastSync)) { setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` }); }
     else void load();

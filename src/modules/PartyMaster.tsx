@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, Drawer } from '../components/ui/ui';
 import { PickList } from '../components/ui/PickList';
@@ -154,6 +155,23 @@ export function PartyMaster() {
   const maySwap = can('masters.edit.swap_serviceman') && supabaseConfigured();
   const [uploading, setUploading] = useState(false);
   const [edit, setEdit] = useState<Row | null>(null);
+  // READ-ONLY VIEW of one party (2026-10-01) -- for anybody who may open the
+  // Party Master but not change it; until now a click on a row did nothing for
+  // them. And FROM THE HEADER SEARCH: the party is fetched by id and opened in
+  // the editor for an editor, in this view for everybody else.
+  const [view, setView] = useState<Row | null>(null);
+  const location = useLocation();
+  useEffect(() => {
+    const id = (location.state as { openPartyId?: number } | null)?.openPartyId;
+    if (!id || !supabaseConfigured()) return;
+    window.history.replaceState({}, '');
+    void getParty(Number(id)).then((p) => {
+      if (!p) { setMsg({ tone: 'error', text: 'That party could not be opened.' }); return; }
+      const row = { ...p, id: String(p.id) } as Row;
+      if (mayEdit) setEdit(row); else setView(row);
+    }).catch((e) => setMsg({ tone: 'error', text: `That party could not be opened: ${e instanceof Error ? e.message : String(e)}` }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
   const [saving, setSaving] = useState(false);
 
   // ---- Change engineer: one spelling, every customer that names it ---------
@@ -386,7 +404,7 @@ export function PartyMaster() {
         moreAvailable={more}
         loadingMore={busy}
         emptyText={busy ? 'Loading…' : 'No parties match.'}
-        onRowClick={mayEdit ? (r) => setEdit(r) : undefined}
+        onRowClick={mayEdit ? (r) => setEdit(r) : (r) => setView(r)}
         toolbar={
           <Toolbar>
             <div className="call-search">
@@ -492,6 +510,22 @@ export function PartyMaster() {
         );
       })()}
 
+      {view && (
+        <Drawer open title={String(view.party_name ?? 'Party')} onClose={() => setView(null)} width={620}>
+          <div className="assoc-scroll">
+            <table className="assoc-table">
+              <tbody>
+                {COLUMNS.map((c) => {
+                  const v = (view as Record<string, unknown>)[c.key];
+                  const txt = v == null || v === '' ? '—' : typeof v === 'object' ? (Array.isArray(v) ? `${v.length}` : '—') : String(v);
+                  return <tr key={c.key}><td style={{ width: 180, color: 'var(--muted)' }}>{c.header}</td><td>{txt}</td></tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="muted rep-hint" style={{ marginTop: 8 }}>Read only. Changing a party needs the right to edit masters.</div>
+        </Drawer>
+      )}
       {edit && (
         <Drawer open title={String(edit.party_name ?? 'Party')} onClose={() => setEdit(null)} width={620} storeKey="partyEdit">
           <div className="kb-form">
