@@ -31,6 +31,15 @@ means *at least* 90. A number without one is exact.
 nothing commits on a keystroke. Under eight options there is no search box. Where
 a list comes from a master you cannot type a value that is not on it.
 
+**The search box at the top searches everything you can open.** Screen names
+first; then, from three characters, calls (UCN, call number, party, serial,
+product), pending call requests (REQID), spare requests (UID, OR number, UCN,
+part), spares consumed, parties, machines, parts, documents (manuals, technical
+notes, QMS), Field Solutions articles and Field Failure Reports — up to five of
+each. **Click one and that record opens** on its own screen: a call opens in its
+view, a machine in Machine History, a document in Drive. ↑ ↓ and Enter work
+too. It only ever shows records you could already open on that screen.
+
 **Quality records are never deleted.** A wrong spare line is **voided** — the
 quantity goes to zero, the row stays with its original quantity, reason and
 author, and the stock returns. A failure report is cancelled or withdrawn.
@@ -892,6 +901,15 @@ typed into a form that reads it.
 
 - **KPI & Failure Analysis** `/kpi` — failure rate by product, region × cover, and
   spare use by cover, product and region.
+- **Part Search** `/part-search` (Overview) — look a part up: every **active**
+  part with its Part Code, Description, Spare / Consumable and the products it
+  fits (a part with no product reads *Common (all products)*). Search by code,
+  description or product — all the words, in any order — and every column has
+  its own **type-to-search filter** (Part Code, Description, Spare /
+  Consumable, Products), each offering only what the other filters leave on
+  screen; a common part stays listed whatever product you pick. **It is read only for everybody, administrators included**: no edit, no
+  buttons, no download. Parts are changed on the **Part Master**. Every role can
+  open it; an administrator can untick it per role on Roles & Permissions.
 - **Machine History** `/machine-history` — one machine, its whole life. Pick the
   **product first, then the serial**: the same serial number belongs to several
   models, so a serial on its own would show you a different hospital's machine.

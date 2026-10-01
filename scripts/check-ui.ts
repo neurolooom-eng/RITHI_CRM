@@ -9782,5 +9782,54 @@ console.log('\n-- data flows name real screens, requirements and tests --');
   eq('How RITHI Functions shows the same flows', /<FlowGallery \/>/.test(readFileSync('src/modules/HowRithiFunctions.tsx', 'utf8')), true);
 }
 
+console.log('\n-- Part Search is read only, for everyone (2026-10-01) --');
+{
+  const ps = readFileSync('src/modules/PartSearch.tsx', 'utf8');
+  const code = ps.replace(/\/\/[^\n]*/g, '');   // the header comment names what it refuses
+  eq('it imports no write, export or download helper',
+    /\b(add|save|update|upsert|delete|insert|export|download)\w*Part|xlsx|toCsv|downloadFile|exportRows/i.test(code), false);
+  eq('...offers no selection, row click, bulk bar or edit drawer',
+    /selectable|onRowClick|bulkBar|<Drawer|Edit\b|✏️/.test(code), false);
+  eq('...reads ACTIVE parts, four columns only',
+    /select\('id,code,description,category,product'\)\.eq\('active', true\)/.test(readFileSync('src/lib/supabase.ts', 'utf8')), true);
+  eq('...and its Roles & Permissions row carries no action',
+    PERM_TREE.flatMap((h) => h.pages).find((pg) => pg.path === '/part-search')?.actions, []);
+}
+
+console.log('\n-- the header search finds records and opens each on its own screen (2026-10-01) --');
+{
+  const gs = await import('../src/lib/globalSearch');
+  eq('a call opens in its own register, by callFamily()',
+    [gs.callRoute('FIELD'), gs.callRoute('INSTALLATION CALL'), gs.callRoute('P M VISIT'), gs.callRoute('PM VISIT')],
+    ['/field-calls', '/installations', '/pm-calls', '/pm-calls']);
+  eq('...and carries the UCN to open READ-ONLY (view), never the editor',
+    gs.hitFor.call({ ucn: 'U1', call_type: 'FIELD' }).state, { viewUcn: 'U1' });
+  eq('the term cannot break PostgREST\'s or() grammar', gs.searchTerm(' a,b(c)%d* '), 'a b c d');
+  const modulePaths = new Set(MODULES.map((m) => m.path));
+  const probe = {
+    call: gs.hitFor.call({ ucn: 'U', call_type: 'FIELD' }), request: gs.hitFor.request({ reqid: 'R' }),
+    spare: gs.hitFor.spare({ uid: 'S' }), consumption: gs.hitFor.consumption({ id: 1 }),
+    party: gs.hitFor.party({ id: 1 }), machine: gs.hitFor.machine({ item_name: 'P', serial_number: '1' }),
+    part: gs.hitFor.part({ id: 1, code: 'C' }), document: gs.hitFor.document({ id: 1, kind: 'qms', url: 'https://x' }),
+    kb: gs.hitFor.kb({ id: 1 }), ffr: gs.hitFor.ffr({ ffr_no: 'F1' }),
+  };
+  eq('every kind of hit is gated on a page key that exists',
+    Object.entries(probe).filter(([, h]) => h.route && !modulePaths.has(h.route)).map(([k]) => k), []);
+  eq('...and only Field Solutions, open to everyone, has none',
+    Object.entries(probe).filter(([, h]) => !h.route).map(([k]) => k), ['kb']);
+  eq('...every group has a hit-maker, and every hit-maker a group',
+    gs.HIT_GROUPS.map((g) => g.kind).sort(), Object.keys(gs.hitFor).sort());
+  const screens = {
+    viewUcn: 'src/modules/FieldCalls.tsx', openReqId: 'src/modules/PendingRegistrations.tsx',
+    openSpareUid: 'src/modules/SpareRequests.tsx', openConsumptionId: 'src/modules/SpareConsumption.tsx',
+    openPartyId: 'src/modules/PartyMaster.tsx', openArticle: 'src/modules/KnowledgeBase.tsx',
+  };
+  eq('every state a hit carries is read by the screen it opens',
+    Object.entries(screens).filter(([k, f]) => !readFileSync(f, 'utf8').includes(k)).map(([k]) => k), []);
+  eq('...Part Search reads the part code, Machine History the product and serial',
+    /state as \{ code\?: string \}/.test(readFileSync('src/modules/PartSearch.tsx', 'utf8'))
+    && /state as \{ product\?: string; serial\?: string \}/.test(readFileSync('src/modules/MachineHistory.tsx', 'utf8')), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

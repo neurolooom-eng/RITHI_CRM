@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { readUpTo } from '../lib/paging';
 import { PickList } from '../components/ui/PickList';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { listTabRows, sheetsConfigured } from '../lib/sheets';
 import {
   listConsumptionRows, supabaseConfigured, addReconciliationConsumption, searchCalls,
-  listEngineerStock, adjustConsumptionQty, type StockRow,
+  listEngineerStock, adjustConsumptionQty, consumptionRowById, type StockRow,
 } from '../lib/supabase';
 import { Drawer } from '../components/ui/ui';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
@@ -17,6 +17,7 @@ import { useAccessScope } from '../lib/access';
 import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
 import { isSysColumn } from '../lib/syscols';
+import { formatDayTime } from '../lib/dates';
 
 const CACHE_KEY = 'spareConsumption';
 
@@ -277,6 +278,44 @@ export function SpareConsumption() {
     } catch (e) { setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` }); } finally { setBusy(false); }
   };
 
+  // ONE LINE, READ-ONLY (2026-10-01) -- the header search opens a consumption
+  // line here, and a click on a row does the same. Every field the line
+  // carries, including what the engineer's report put in `data`; nothing on it
+  // can be changed from here (the ✎ adjustment keeps its own drawer and right).
+  const [view, setView] = useState<Row | null>(null);
+  const location = useLocation();
+  const [wantId, setWantId] = useState<number | null>(null);
+  useEffect(() => {
+    const id = (location.state as { openConsumptionId?: number } | null)?.openConsumptionId;
+    if (id) { setWantId(Number(id)); window.history.replaceState({}, ''); }
+  }, [location.state]);
+  useEffect(() => {
+    if (wantId == null || busy || !onDb) return;
+    const have = rows.find((r) => Number((r as Record<string, unknown>)._dbId) === wantId);
+    const id = wantId; setWantId(null);
+    if (have) { setView(have); return; }
+    void consumptionRowById(id).then((x) => {
+      if (!x) { setMsg({ tone: 'error', text: 'That consumption line could not be opened — you may not be allowed to see it.' }); return; }
+      setView({ ...x, _dbId: x.id, id: `open-${id}` } as Row);
+    }).catch((e) => setMsg({ tone: 'error', text: `That consumption line could not be opened: ${e instanceof Error ? e.message : String(e)}` }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantId, busy, rows]);
+  const viewFields = (r: Row): [string, string][] => {
+    const rec = r as Record<string, unknown>;
+    const out: [string, string][] = [];
+    const show = (v: unknown, k: string) =>
+      v == null || v === '' ? '—' : /(_at|_on|date)$/i.test(k) ? (formatDayTime(v) || String(v)) : String(v);
+    Object.keys(rec).forEach((k) => {
+      if (k.startsWith('_') || k === 'id' || k === 'data' || isSysColumn(k)) return;
+      out.push([k, show(rec[k], k)]);
+    });
+    const data = rec.data;
+    if (data && typeof data === 'object') {
+      Object.entries(data as Record<string, unknown>).forEach(([k, v]) => out.push([k, show(v, k)]));
+    }
+    return out;
+  };
+
   const headerKeys = useMemo(() => {
     const ks = new Set<string>();
     rows.slice(0, 60).forEach((r) => Object.keys(r).forEach((k) => { if (k && !k.startsWith('_') && k !== 'id' && k !== 'data' && !isSysColumn(k) && !/^Page.*Header$/i.test(k)) ks.add(k); }));
@@ -378,6 +417,7 @@ export function SpareConsumption() {
         moreAvailable={onDb && more}
         loadingMore={busy}
         emptyText="No consumption yet — Refresh to load."
+        onRowClick={onDb ? (r) => setView(r) : undefined}
         toolbar={
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="UCN, part, party, engineer…" />
@@ -393,6 +433,20 @@ export function SpareConsumption() {
           </Toolbar>
         }
       />
+
+      {view && (
+        <Drawer open onClose={() => setView(null)} title={`Consumption — ${g(view, 'part') || g(view, 'ucn') || 'line'}`} width={620}>
+          <div className="assoc-scroll">
+            <table className="assoc-table">
+              <tbody>
+                {viewFields(view).map(([k, v]) => (
+                  <tr key={k}><td style={{ width: 200, color: 'var(--muted)' }}>{k}</td><td>{v}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Drawer>
+      )}
 
       {adjust && (
         <Drawer open onClose={() => setAdjust(null)} title="Adjust quantity (reconciliation)" width={560}>

@@ -230,6 +230,28 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.19 — Global search in the header.** Modules plus ten registers
+  (`globalSearchKind()` per kind, 5 each, ilike, RLS-bound, debounced 300 ms,
+  3+ chars), each hit offered only if its screen's key is held. A hit opens the
+  record: `viewUcn` (FieldCalls, fetched by UCN, read-only view), `openReqId`
+  (Pending Registrations), `openSpareUid` (fetched by UID), `openConsumptionId`
+  (new read-only line drawer), `openPartyId` (editor or new read-only view),
+  Machine History, Part Search `code`, Drive link, `openArticle` (fetched by id
+  when older than the 1,000 listed), `/ffr/<no>`. Rules in
+  `src/lib/globalSearch.ts`, pinned by `check:ui`. URS-168, FRS-218, OQ-212.
+  No migration. **Watch:** the unindexed registers (call_requests,
+  spare_*, parts, documents, kb, FFR) are scanned with `ilike %x%`; if a
+  register reads slowly, it is the one to give a trigram index.
+- ✅ **0.10.18 — Part Search: a type-search filter on every column** (MultiPick
+  per column, cascading on the other filters). FRS-217.3 / OQ-211 updated.
+- ✅ **0.10.17 — Part Search (Overview), read only for every role.** Active
+  parts: code, description, Spare / Consumable, products; search, class and
+  product filters; no edit, action, selection or download for anyone, Admin
+  included. `listActivePartsReadOnly()` asks for those columns of active parts
+  only. **0308** merges `mod:/part-search` into every configured role (rbac.sql;
+  `_status.sql` row 234); the PERM_TREE row has no action. URS-167, FRS-217,
+  OQ-211; `check:ui` pins the read-only shape. 0308 is applied by the
+  migrations workflow on merge.
 - ✅ **0.10.14 — My Team: Active / Current and Ex Employees**, by
   `user_directory.validity` (the User Master's Active column). The reporting
   walk (`visible_engineer_names`) does not drop leavers, which is why they were

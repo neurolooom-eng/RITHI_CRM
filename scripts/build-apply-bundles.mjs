@@ -263,6 +263,9 @@ const MODULES = {
             '0300_unresolved_login_holds_nothing.sql',
             // Resetting a password is users.reset_password. Redefines 0110 above; before the tail.
             '0305_reset_password_key.sql',
+            // Part Search (Overview, read only) merged into every configured
+            // role (0308), the 0195 pattern. Before the tail, which does not touch it.
+            '0308_part_search_key.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it

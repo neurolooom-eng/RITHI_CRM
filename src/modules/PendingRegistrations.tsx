@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
@@ -114,6 +114,21 @@ export function PendingRegistrations() {
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState<Row | null>(null);
+  // FROM THE HEADER SEARCH (2026-10-01): open that request once the list is in.
+  // Every pending request is loaded (no cap), so it is found if it is pending.
+  const location = useLocation();
+  const [wantReq, setWantReq] = useState<string>(() => String((location.state as { openReqId?: string } | null)?.openReqId ?? ''));
+  useEffect(() => {
+    const id = (location.state as { openReqId?: string } | null)?.openReqId;
+    if (id) { setWantReq(String(id)); window.history.replaceState({}, ''); }
+  }, [location.state]);
+  useEffect(() => {
+    if (!wantReq || !rows.length) return;
+    const r = rows.find((x) => String(x['REQID'] ?? '') === wantReq);
+    if (r) setDetail(r);
+    else setMsg({ tone: 'info', text: `Request ${wantReq} is no longer pending — it has been registered or cancelled.` });
+    setWantReq('');
+  }, [wantReq, rows]);
   const [panel, setPanel] = useState<{ row: Row; prefill: FormValues; config: CallSheetConfig } | null>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load pending registrations.' },

@@ -1599,7 +1599,12 @@ with checks(sort_order, bundle, provides, present) as (
          and coalesce((select coalesce(qual, '') || coalesce(with_check, '') like '%export.schedules%' from pg_policies where schemaname = 'public' and tablename = 'export_runs' and policyname = 'export_runs_read'), false))),
     (233, 'Switching Audit Mode is its own key', 'set_audit_mode() asks audit.mode, and its history is readable with it (0307). NO means audit.sql has not been re-run since. Restore: audit.sql (0307)',
         (coalesce((select p.prosrc like '%audit.mode%' from pg_proc p where p.oid = to_regprocedure('public.set_audit_mode(boolean,text)')), false)
-         and coalesce((select coalesce(qual, '') || coalesce(with_check, '') like '%audit.mode%' from pg_policies where schemaname = 'public' and tablename = 'audit_mode_changes' and policyname = 'amc_read'), false)))
+         and coalesce((select coalesce(qual, '') || coalesce(with_check, '') like '%audit.mode%' from pg_policies where schemaname = 'public' and tablename = 'audit_mode_changes' and policyname = 'amc_read'), false))),
+    (234, 'Part Search can be SEEN', 'mod:/part-search merged into every configured role (0308). The user: "Create a Page under Overview - Part Search ... Read only ... for anyone", every role. NO means a configured role still lacks it -- re-run rbac.sql. (A role an administrator later unticked on purpose also reads NO here; tick it again or ignore this row for that role.) Restore: rbac.sql',
+        (to_regclass('public.app_roles') is null
+         or not exists (select 1 from public.app_roles
+                         where jsonb_array_length(permissions) > 0
+                           and not (permissions ? 'mod:/part-search'))))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

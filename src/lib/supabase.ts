@@ -10,6 +10,7 @@
 // to the client.
 // ---------------------------------------------------------------------------
 
+import { hitFor, searchTerm, MIN_CHARS, PER_KIND, type HitKind, type SearchHit } from './globalSearch';
 import { ffrWritable } from './ffr';
 export { machineKey } from './machine';
 import { machineKey } from './machine';
@@ -2519,6 +2520,117 @@ export async function restoreCall(ucn: string): Promise<{ ok: boolean; error?: s
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+// GLOBAL SEARCH (the header box, 2026-10-01): one small read per register,
+// each bounded by the READER'S row-level security, so a person is only shown
+// records they could already open on the register itself. Each kind resolves on
+// its own, so a slow register does not hold the others back. `hitFor` (in
+// globalSearch.ts) decides what each hit is called and where it opens.
+export async function globalSearchKind(kind: HitKind, raw: string): Promise<SearchHit[]> {
+  const c = getSupabase(); if (!c) return [];
+  const t = searchTerm(raw);
+  if (t.length < MIN_CHARS) return [];
+  const like = (cols: string[]) => cols.map((k) => `${k}.ilike.%${t}%`).join(',');
+  const n = PER_KIND;
+  const rows = async (q: PromiseLike<{ data: unknown; error: { message: string } | null }>) => {
+    const { data, error } = await q;
+    if (error) throw new Error(errMsg(error as never));
+    return (data ?? []) as Record<string, unknown>[];
+  };
+  switch (kind) {
+    case 'call':
+      return (await rows(c.from('calls').select('ucn,call_number,call_type,party_name,product_name,serial,status,open_state')
+        .or(like(['ucn', 'call_number', 'party_name', 'serial', 'product_name']))
+        .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(n))).map(hitFor.call);
+    case 'request':
+      // PENDING requests only: a registered one is found as its call, and a
+      // cancelled one is on no screen to open.
+      return (await rows(c.from('call_requests').select('id,reqid,party_name,product,serial_no,call_type')
+        .or('ucn.is.null,ucn.eq.').neq('status', 'Cancelled')
+        .or(like(['reqid', 'party_name', 'serial_no', 'product']))
+        .order('submitted_at', { ascending: false }).order('id', { ascending: false }).limit(n))).map(hitFor.request);
+    case 'spare': {
+      // The request's own fields, and the PART on any of its lines.
+      const [reqs, lines] = await Promise.all([
+        rows(c.from('spare_requests').select('uid,party_name,ucn,engineer,stage,status')
+          .or(like(['uid', 'or_no', 'ucn', 'party_name', 'serial']))
+          .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(n)),
+        rows(c.from('spare_request_lines').select('part, spare_requests!inner(uid,party_name,ucn,engineer,stage,status)')
+          .ilike('part', `%${t}%`).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(n)),
+      ]);
+      const out = new Map<string, SearchHit>();
+      reqs.forEach((r) => out.set(String(r.uid), hitFor.spare(r)));
+      lines.forEach((l) => {
+        const r = (l.spare_requests ?? {}) as Record<string, unknown>;
+        if (!out.has(String(r.uid))) out.set(String(r.uid), hitFor.spare({ ...r, part: l.part }));
+      });
+      return [...out.values()].slice(0, n);
+    }
+    case 'consumption':
+      return (await rows(c.from('spare_consumption').select('id,ucn,call_number,part,qty,engineer')
+        .or(like(['ucn', 'call_number', 'part']))
+        .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(n))).map(hitFor.consumption);
+    case 'party':
+      return (await rows(c.from('parties').select('id,party_name,city,state,party_key')
+        .or(like(['party_name', 'party_key', 'city']))
+        .order('party_name').order('id').limit(n))).map(hitFor.party);
+    case 'machine':
+      return (await rows(c.from('products').select('id,item_name,serial_number,party_name')
+        .or(like(['serial_number', 'item_name', 'party_name']))
+        .order('item_name').order('serial_number').order('id').limit(n))).map(hitFor.machine);
+    case 'part':
+      // ACTIVE parts, the ones Part Search lists.
+      return (await rows(c.from('parts').select('id,code,description,category').eq('active', true)
+        .or(like(['code', 'description']))
+        .order('code').order('id').limit(n))).map(hitFor.part);
+    case 'document':
+      return (await rows(c.from('documents').select('id,kind,title,doc_no,revision,product,url').eq('active', true)
+        .or(like(['title', 'doc_no', 'product', 'tags', 'file_name']))
+        .order('title').order('id').limit(n))).map(hitFor.document);
+    case 'kb':
+      return (await rows(c.from('kb_articles').select('id,title,category,product')
+        .or(like(['title', 'product', 'tags', 'category']))
+        .order('updated_at', { ascending: false }).order('id', { ascending: false }).limit(n))).map(hitFor.kb);
+    case 'ffr':
+      return (await rows(c.from('field_failure_reports').select('ffr_no,customer_name,product_name,product_serial,ucn,ffr_status')
+        .or(like(['ffr_no', 'ucn', 'customer_name', 'product_serial', 'product_name']))
+        .order('ffr_date', { ascending: false }).order('id', { ascending: false }).limit(n))).map(hitFor.ffr);
+  }
+}
+
+/** One spare request's lines, in the same shape as listSpareRequestLines --
+ *  for a request opened from the search that is not among the lines loaded. */
+export async function spareRequestLinesByUid(uid: string): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_request_lines')
+    .select('*, spare_requests!inner(uid, or_no, or_req_date, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, complaint, item_status, handstock_reason, remarks, stage, status, created_at)')
+    .eq('request_uid', uid).order('row_no').order('id');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => {
+    const { spare_requests: req, ...line } = r as Record<string, unknown> & { spare_requests?: Record<string, unknown> };
+    return {
+      ...req, ...line,
+      uid: req?.uid, line_id: line.id,
+      req_engineer: req?.engineer, requested_at: req?.created_at,
+      req_stage: req?.stage, req_status: req?.status,
+    };
+  });
+}
+
+/** One consumption line by id, for a line opened from the search. */
+export async function consumptionRowById(id: number): Promise<Record<string, unknown> | null> {
+  const { data, error } = await must().from('spare_consumption').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return (data as Record<string, unknown>) ?? null;
+}
+
+/** One Knowledge Base article by id, for one older than the thousand listed. */
+export async function kbArticleById(id: number): Promise<KbArticle | null> {
+  const { data, error } = await must().from('kb_articles').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  if (!data) return null;
+  const a = data as KbArticle;
+  return { ...a, attachments: Array.isArray(a.attachments) ? a.attachments : [] };
+}
+
 // Does this UCN exist? (manual mapping is free text, so it is worth checking.)
 export async function callByUcn(ucn: string): Promise<Record<string, unknown> | null> {
   const { data } = await must().from('calls').select('*').eq('ucn', ucn).maybeSingle();
@@ -3376,6 +3488,21 @@ export async function queryParts(filter: PartFilter, offset = 0, limit = 1000): 
  *  lacks -- is made on the client by matchesProductFilter(). Paged to the end:
  *  a filter over the first thousand parts would answer about a thousand, not
  *  the catalogue. A named product narrows the read on the server first. */
+// PART SEARCH (Overview, 2026-10-01): ACTIVE parts, four columns, read only.
+// Only what the screen shows is asked for, so Purchase Cost and retired parts
+// never reach a browser that opened a read-only page. Paged and ordered, like
+// every register-sized read.
+export interface PartLookupRow { id: number; code: string; description: string; category: string; product: string }
+export async function listActivePartsReadOnly(): Promise<PartLookupRow[]> {
+  const rows = await allRows<Record<string, unknown>>((a, b) => must().from('parts')
+    .select('id,code,description,category,product').eq('active', true)
+    .order('code').order('id').range(a, b), 50000);
+  return rows.map((r) => ({
+    id: Number(r.id), code: String(r.code ?? ''), description: String(r.description ?? ''),
+    category: String(r.category ?? ''), product: String(r.product ?? ''),
+  }));
+}
+
 export async function queryAllParts(filter: PartFilter, productHint = ''): Promise<Record<string, unknown>[]> {
   return allRows<Record<string, unknown>>((a, b) => {
     let q = must().from('parts').select('*').order('code').order('id').range(a, b);
