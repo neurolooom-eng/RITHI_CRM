@@ -7899,6 +7899,20 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
 }
 
 {
+  // REVIEW 1 HAS NO DATE OF ITS OWN. The register shows the call's
+  // registration date for it (`c.reg_date as review1_at`) and call_reviews
+  // has no review1_at column, so a patch carrying one fails every save with
+  // "column does not exist". It sat in ReviewPatch, and in the set-date
+  // control's type, inviting exactly that wiring.
+  const dccrSrc = readFileSync('src/lib/dccr.ts', 'utf8');
+  const patch = /export interface ReviewPatch \{[\s\S]*?\n\}/.exec(dccrSrc)?.[0] ?? '';
+  eq('the review patch type was found', patch !== '', true);
+  eq('...and carries no review1_at, which call_reviews cannot store',
+    /review1_at/.test(code(patch)), false);
+  eq('...nor does the set-date control offer it',
+    /adminDate = \(key: 'review2_at' \| 'review3_at'/.test(readFileSync('src/modules/DailyCallReview.tsx', 'utf8')), true);
+}
+{
   // -------------------------------------------------------------------------
   // ONE WAY IN, AND AN UNKNOWN LOGIN HOLDS NOTHING (D-074, FRS-210.2/.5/.9).
   //

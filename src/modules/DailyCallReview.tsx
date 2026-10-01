@@ -1158,7 +1158,9 @@ function ReviewDrawer({
   // right, which is a different act from answering a review, and it belongs to
   // whoever is accountable for the register rather than to everyone who can
   // complete one.
-  const adminDate = (key: 'review1_at' | 'review2_at' | 'review3_at', current: unknown) => (
+  // Reviews 2 and 3 only: Review 1's date is the call's registration date and
+  // is not stored on the review (see ReviewPatch in dccr.ts).
+  const adminDate = (key: 'review2_at' | 'review3_at', current: unknown) => (
     mayCorrectDate ? (
       <label className="dccr-admin-date" title="Correct the date this review was completed">
         <span>set</span>
