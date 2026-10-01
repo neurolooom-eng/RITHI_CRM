@@ -895,9 +895,10 @@ typed into a form that reads it.
 - **Part Search** `/part-search` (Overview) — look a part up: every **active**
   part with its Part Code, Description, Spare / Consumable and the products it
   fits (a part with no product reads *Common (all products)*). Search by code,
-  description or product — all the words, in any order — and narrow by Spare /
-  Consumable or by product; a common part stays listed whatever product you
-  pick. **It is read only for everybody, administrators included**: no edit, no
+  description or product — all the words, in any order — and every column has
+  its own **type-to-search filter** (Part Code, Description, Spare /
+  Consumable, Products), each offering only what the other filters leave on
+  screen; a common part stays listed whatever product you pick. **It is read only for everybody, administrators included**: no edit, no
   buttons, no download. Parts are changed on the **Part Master**. Every role can
   open it; an administrator can untick it per role on Roles & Permissions.
 - **Machine History** `/machine-history` — one machine, its whole life. Pick the

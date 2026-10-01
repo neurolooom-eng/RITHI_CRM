@@ -24,15 +24,36 @@ import { loadFailure } from '../lib/dberror';
 // ===========================================================================
 
 type Row = PartLookupRow & Record<string, unknown>;
-type Kind = 'all' | 'spare' | 'consumable' | 'unset';
 
 const productsOf = (r: PartLookupRow): string[] => complaintProducts({ products: r.product });
+// What a blank class reads as -- in the column and in its filter, the same words.
+const NOT_SET = '— not set —';
+const classOf = (r: PartLookupRow): string => String(r.category ?? '').trim() || NOT_SET;
+
+// A FILTER ON EVERY COLUMN, each a type-search drop-down (the user, 2026-10-01:
+// "Add Filter for all Columns Present, make it Type Search drop-down"). Each
+// list offers only the values the OTHER filters leave on screen, so two
+// filters cannot be combined into an empty page without the list saying so
+// first. A common part (no product) stays under any product chosen -- it fits
+// every product.
+type ColKey = 'code' | 'description' | 'category' | 'product';
+type Filters = Record<ColKey, string[]>;
+const NO_FILTERS: Filters = { code: [], description: [], category: [], product: [] };
+const valuesOf = (r: PartLookupRow, k: ColKey): string[] =>
+  k === 'product' ? productsOf(r) : k === 'category' ? [classOf(r)] : [String(r[k] ?? '').trim()].filter(Boolean);
+const passes = (r: PartLookupRow, f: Filters, skip?: ColKey): boolean =>
+  (Object.keys(f) as ColKey[]).every((k) => {
+    if (k === skip || !f[k].length) return true;
+    const vs = valuesOf(r, k);
+    if (k === 'product' && vs.length === 0) return true;
+    return vs.some((v) => f[k].includes(v));
+  });
 
 const COLUMNS: Column<Row>[] = [
   { key: 'code', header: 'Part Code', width: 150, wrap: false },
   { key: 'description', header: 'Description', width: 420 },
   { key: 'category', header: 'Spare / Consumable', width: 160, wrap: false,
-    render: (r) => (String(r.category ?? '').trim() || <span className="muted">— not set —</span>) },
+    render: (r) => (String(r.category ?? '').trim() || <span className="muted">{NOT_SET}</span>) },
   { key: 'product', header: 'Products', width: 320,
     render: (r) => (productsOf(r).length ? productsOf(r).join(', ') : <span className="muted">Common (all products)</span>) },
 ];
@@ -43,8 +64,9 @@ export function PartSearch() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [q, setQ] = useState('');
-  const [kind, setKind] = useState<Kind>('all');
-  const [products, setProducts] = useState<string[]>([]);
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  const setCol = (k: ColKey) => (v: string[]) => setFilters((f) => ({ ...f, [k]: v }));
+  const filtered = Object.values(filters).some((v) => v.length) || !!q.trim();
 
   const load = async () => {
     if (!live) { setErr('Connect the database in Settings to search parts.'); return; }
@@ -55,43 +77,35 @@ export function PartSearch() {
   };
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  const productOptions = useMemo(
-    () => Array.from(new Set(rows.flatMap(productsOf))).sort((a, b) => a.localeCompare(b)),
-    [rows]);
+  // Every word typed must appear somewhere in the part's code, description or
+  // products -- the same "all the words, any order" rule as the Part Master.
+  const words = useMemo(() => q.trim().toLowerCase().split(/\s+/).filter(Boolean), [q]);
+  const matchesWords = (r: PartLookupRow) => !words.length
+    || words.every((w) => [r.code, r.description, productsOf(r).join(' ')].join(' ').toLowerCase().includes(w));
 
-  const visible = useMemo(() => {
-    // Every word typed must appear somewhere in the part's code, description or
-    // products -- the same "all the words, any order" rule as the Part Master.
-    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const want = new Set(products.map((p) => p.toLowerCase()));
-    return rows.filter((r) => {
-      const cat = String(r.category ?? '').trim().toLowerCase();
-      if (kind === 'spare' && cat !== 'spare') return false;
-      if (kind === 'consumable' && cat !== 'consumable') return false;
-      if (kind === 'unset' && cat) return false;
-      const ps = productsOf(r);
-      // A common part fits every product, so it stays when products are chosen.
-      if (want.size && ps.length && !ps.some((p) => want.has(p.toLowerCase()))) return false;
-      if (!words.length) return true;
-      const hay = [r.code, r.description, ps.join(' ')].join(' ').toLowerCase();
-      return words.every((w) => hay.includes(w));
+  const visible = useMemo(
+    () => rows.filter((r) => passes(r, filters) && matchesWords(r)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, filters, words]);
+
+  // Each column's options: the values on the rows every OTHER filter keeps,
+  // plus whatever is already ticked so a choice never vanishes from its list.
+  const options = useMemo(() => {
+    const out = {} as Record<ColKey, string[]>;
+    (Object.keys(NO_FILTERS) as ColKey[]).forEach((k) => {
+      const set = new Set<string>(filters[k]);
+      rows.forEach((r) => { if (passes(r, filters, k) && matchesWords(r)) valuesOf(r, k).forEach((v) => set.add(v)); });
+      out[k] = Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     });
-  }, [rows, q, kind, products]);
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, filters, words]);
 
-  const counts = useMemo(() => {
-    const c = { all: rows.length, spare: 0, consumable: 0, unset: 0 };
-    rows.forEach((r) => {
-      const cat = String(r.category ?? '').trim().toLowerCase();
-      if (cat === 'spare') c.spare++; else if (cat === 'consumable') c.consumable++; else if (!cat) c.unset++;
-    });
-    return c;
-  }, [rows]);
-
-  const kinds: [Kind, string][] = [
-    ['all', `All (${counts.all.toLocaleString()})`],
-    ['spare', `Spare (${counts.spare.toLocaleString()})`],
-    ['consumable', `Consumable (${counts.consumable.toLocaleString()})`],
-    ['unset', `Not set (${counts.unset.toLocaleString()})`],
+  const PICKS: [ColKey, string, string][] = [
+    ['code', 'Part Code', 'codes'],
+    ['description', 'Description', 'descriptions'],
+    ['category', 'Spare / Consumable', 'classes'],
+    ['product', 'Products', 'products'],
   ];
 
   return (
@@ -115,14 +129,16 @@ export function PartSearch() {
           <Toolbar>
             <input className="input" placeholder="Search part code, description or product…" value={q}
               onChange={(e) => setQ(e.target.value)} style={{ minWidth: 280 }} />
-            <div className="row" style={{ gap: 4 }} role="group" aria-label="Spare / Consumable">
-              {kinds.map(([k, label]) => (
-                <button key={k} className={`btn btn-sm${kind === k ? ' btn-primary' : ''}`} aria-pressed={kind === k}
-                  onClick={() => setKind(k)}>{label}</button>
-              ))}
-            </div>
-            <MultiPick values={products} options={productOptions} onChange={setProducts}
-              noun="products" allLabel="Any product" />
+            {PICKS.map(([k, label, noun]) => (
+              <div key={k} className="field" style={{ minWidth: k === 'description' ? 240 : 170 }}>
+                <span className="field-label">{label}</span>
+                <MultiPick values={filters[k]} options={options[k]} onChange={setCol(k)}
+                  noun={noun} allLabel={`Any ${label.toLowerCase()}`} />
+              </div>
+            ))}
+            {filtered && (
+              <button className="btn btn-sm" onClick={() => { setFilters(NO_FILTERS); setQ(''); }}>✕ Clear filters</button>
+            )}
             <div className="spacer" />
             <span className="muted">{visible.length.toLocaleString()} of {rows.length.toLocaleString()} active parts</span>
           </Toolbar>

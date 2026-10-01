@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.18',
+    date: '2026-10-01',
+    title: 'Part Search: a filter on every column',
+    changes: [
+      'PART SEARCH HAS A TYPE-TO-SEARCH FILTER ON EVERY COLUMN — Part Code, Description, Spare / Consumable and Products. Type to find a value, tick one or several. Each filter offers only what the others leave on screen. ✕ Clear filters puts them all back.',
+    ],
+  },
+  {
     version: '0.10.17',
     date: '2026-10-01',
     title: 'Part Search, under Overview',
