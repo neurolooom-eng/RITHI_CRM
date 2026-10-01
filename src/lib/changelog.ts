@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.20',
+    date: '2026-10-01',
+    title: 'Part Master: HSN Code',
+    changes: [
+      'PART MASTER HAS AN HSN CODE COLUMN. Set it when adding a part or in the edit drawer, digits only. The Part Master upload fills it from an "HSN Code" column.',
+      'FILLED ONCE FROM THE DESCRIPTIONS. The 29 parts whose description said "(HSN:…)" now have that number in HSN Code, copied exactly as written. KY429500\'s 7-digit 9033000 is included, so correct it there if it is a typo. "(HSN:…)" has been taken out of those descriptions.',
+      'EVERYTHING THAT NAMES THOSE PARTS MOVED WITH THEM. Spare requests, dispatches, consumption and hand stock all followed, so no balance changed. Parts with a number but no "HSN" in the description, such as LEGRIS 31930813, were left alone.',
+      'FIXED: renaming a part now also moves its hand stock adjustments. Before, an adjustment stayed on the old name and the engineer\'s stock for that part split in two.',
+    ],
+  },
+  {
     version: '0.10.19',
     date: '2026-10-01',
     title: 'Search everything from the top bar',

@@ -1604,7 +1604,14 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regclass('public.app_roles') is null
          or not exists (select 1 from public.app_roles
                          where jsonb_array_length(permissions) > 0
-                           and not (permissions ? 'mod:/part-search'))))
+                           and not (permissions ? 'mod:/part-search')))),
+    (235, 'A part has an HSN code, and a rename moves stock adjustments', 'parts.hsn_code (0309), filled once from "(HSN:...)" in the description, which was then removed from it; rename_part() keeps its masters.edit.rename_part check and calls rename_part_records(), which nobody signed in may call directly and which now moves stock adjustments with the part; part_rename_impact() counts them. NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql',
+        (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'parts' and column_name = 'hsn_code')
+         and to_regprocedure('public.rename_part_records(bigint,text,text)') is not null
+         and not has_function_privilege('authenticated', to_regprocedure('public.rename_part_records(bigint,text,text)'), 'EXECUTE')
+         and coalesce((select p.prosrc like '%masters.edit.rename_part%' and p.prosrc like '%rename_part_records%' from pg_proc p where p.oid = to_regprocedure('public.rename_part(bigint,text,text)')), false)
+         and coalesce((select p.prosrc like '%handstock_adjustments%' from pg_proc p where p.oid = to_regprocedure('public.rename_part_records(bigint,text,text)')), false)
+         and coalesce((select p.prosrc like '%handstock_adjustments%' from pg_proc p where p.oid = to_regprocedure('public.part_rename_impact(text)')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

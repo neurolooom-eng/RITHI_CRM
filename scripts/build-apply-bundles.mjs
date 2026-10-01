@@ -835,7 +835,12 @@ const MODULES = {
             '0266_handstock_adjustments.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
             // and split keys; see 0286 for the parent rule.
-            '0289_spares_on_a_visit_rename_and_returns.sql'],
+            '0289_spares_on_a_visit_rename_and_returns.sql',
+            // A part's HSN code; rename_part split into the checked call and
+            // rename_part_records() (which now moves stock adjustments too);
+            // the one-time fill from "(HSN:...)" in descriptions (0309).
+            // Redefines 0289's rename_part, so it follows it.
+            '0309_part_hsn_code.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {

@@ -1388,6 +1388,8 @@ export const UPLOADS: UploadDef[] = [
         derive: (o) => (o.code && o.description ? `${o.code}|${o.description}` : '') },
       TEXT('description', 'item name', 'description'),
       { to: 'active', from: ['active/inactive?', 'active inactive', 'active', 'status'], type: 'bool' },
+      // HSN CODE (0309): its own column, so a file carrying it fills it.
+      TEXT('hsn_code', 'hsn', 'hsn code', 'hsn no', 'hsn no.', 'hsn/sac', 'hsn / sac', 'hsn sac code'),
       TS('created_at', 'added on'),
       // THE ITEM MASTER'S OWN FIELDS, as fields (0148/0149). They already
       // arrived — `extraInto: 'extra'` keeps every unmapped column — but a

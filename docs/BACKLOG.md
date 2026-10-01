@@ -230,6 +230,17 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.20 — Part Master: HSN Code.** **0309** (handstock module):
+  `parts.hsn_code`; `rename_part()` keeps its masters.edit.rename_part check and
+  calls the new `rename_part_records()` (revoked from everyone), which now also
+  moves `handstock_adjustments` (a gap since 0266) and is counted by
+  `part_rename_impact()`; one-time fill from "(HSN:…)" / "(HSN NO:…)" in the
+  description — copied as written (KY429500's 9033000 kept, the user's choice)
+  and the bracket removed through the rename. Probe `_part_hsn.sql` on live:
+  29 such parts of 1,345; five 8-digit LEGRIS numbers without "HSN" left alone.
+  Status row 235; suite `part_hsn_code_test`; FRS-219, FRS-178 corrected;
+  validate 124/124 suites, 22/22 checks. Applied by the workflow on merge —
+  read its notice for the counts.
 - ✅ **0.10.19 — Global search in the header.** Modules plus ten registers
   (`globalSearchKind()` per kind, 5 each, ilike, RLS-bound, debounced 300 ms,
   3+ chars), each hit offered only if its screen's key is held. A hit opens the
