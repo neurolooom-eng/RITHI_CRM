@@ -54,7 +54,7 @@ export function ReportMapping() {
         <PageHeader title="Bulk Report Mapping" icon="🧩" />
         <p className="muted" style={{ padding: 24 }}>
           {supabaseConfigured()
-            ? 'You need admin access to load recovered visit history.'
+            ? 'Loading recovered visit history needs a visit-report key for the Field, Installation or PM register.'
             : 'Connect the database in Settings first.'}
         </p>
       </div>

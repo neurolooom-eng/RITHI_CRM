@@ -101,6 +101,13 @@ const DOCS = [
     title: 'How the masters work — what each holds, who may change it, and where it is used',
   },
   {
+    id: 'admin',
+    label: 'Administration',
+    file: 'how-administration-works.html',
+    blurb: 'Roles & Permissions, the Audit Log, Bulk Uploads, Data Export, Admin Config and the rest of the Administration menu: what each does, who may use it, and what it refuses.',
+    title: 'How administration works — access, the trail, loading data in and taking it out',
+  },
+  {
     id: 'quality',
     label: 'Quality & Analytics',
     file: 'how-quality-works.html',

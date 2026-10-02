@@ -1113,7 +1113,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
   },
   {
     route: '/settings',
-    purpose: 'Your preferences, and for an administrator the connection settings.',
+    purpose: 'The database and CallReg sheet connections for this browser; your theme and account are on My Profile.',
     does: [
       'Set the database and CallReg sheet connections for this browser',
       'Test a connection',
