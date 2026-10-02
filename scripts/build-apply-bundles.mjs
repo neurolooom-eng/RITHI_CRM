@@ -844,7 +844,10 @@ const MODULES = {
             // A rename passes the material-return guard, moves transfers last,
             // and 0309's HSN clean-up finishes (0310). After 0309, which it
             // redefines rename_part_records() over.
-            '0310_rename_passes_the_return_guard.sql'],
+            '0310_rename_passes_the_return_guard.sql',
+            // An amended or voided consumption line keeps its original quantity
+            // and adjustment time again (0311, D-082). Redefines 0261's guard.
+            '0311_void_keeps_original_qty.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -999,6 +1002,9 @@ const MODULES = {
       // A part RENAME passes the line guard's parts rule, by rename_part's
       // ticket (0310). Redefines 0217's guard with that one condition added.
       '0310_rename_passes_the_line_guard.sql',
+      // A tick-box RM approval auto-approves Commercial / NSM by the same rule
+      // as the single-spare Approve (0311, D-081). Redefines 0118's function.
+      '0311_tick_box_rm_auto_approves.sql',
       // LAST, and it must stay last: it re-asserts `dispatch_spare_lines()` and
       // `sd_read`, which handstock owns, so a replay of Spare_1.sql alone stops
       // reverting them. Guarded, so a fresh apply skips it.

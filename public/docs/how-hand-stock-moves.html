@@ -507,15 +507,15 @@ footer code{font-size:12.5px}
       <p>
         <b>Consumption lines cannot be deleted</b> from the application, and the database blocks it
         outright. The adjustment reason and the name of who adjusted it stay on the line, and the
-        database's audit trail keeps the line as it was before and after. The line itself no longer
-        records its original quantity or when it was adjusted — a fault, recorded as D-082.
+        database's audit trail keeps the line as it was before and after. The line itself also keeps
+        its <b>original quantity</b> (before the first change) and when it was last adjusted.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
         <li class="mandate"><span class="tag db">Trigger</span>A reason, in these words: <i>"Say why the line is being voided — the reason is kept with it"</i> · <i>"Say why the quantity is being adjusted — the reason is kept with the line"</i>.</li>
-        <li><span class="tag db">Trigger</span><i>"Quantity cannot be negative"</i> — the form adds <i>"use 0 to void the line"</i>. <b>Raising</b> a line is capped at the balance: <i>"Only … left in …'s hand stock for …"</i>.</li>
+        <li><span class="tag db">Trigger</span><i>"Quantity cannot be negative"</i> — the form adds <i>"use 0 to void the line"</i>. <b>Raising</b> a line is capped at the balance: <i>"… has … of … in hand, so the line cannot be raised by …. Ask the Spare Coordinator to correct the hand stock first."</i></li>
         <li><span class="tag db">Trigger</span><i>"A reconciliation can only change the quantity — not the call, part, engineer or source"</i>.</li>
         <li><span class="tag db">Trigger</span>A delete: <i>"RECORD RETENTION: spare_consumption records cannot be deleted …"</i></li>
       </ul>

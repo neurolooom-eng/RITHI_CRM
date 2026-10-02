@@ -567,7 +567,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     rules: [
       'A spare needs a visit report on its call — except a reconciliation line',
       'Consumption is capped at the engineer’s hand stock balance',
-      'A line is never deleted; a wrong one is voided to 0 and keeps its reason',
+      'A line is never deleted; a wrong one is voided to 0 and keeps its original quantity and reason',
     ],
   },
   {

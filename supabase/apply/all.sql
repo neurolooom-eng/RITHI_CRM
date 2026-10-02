@@ -194,6 +194,7 @@
 --   0154_rm_queue_request_fields.sql
 --   0268_spare_request_follows_call.sql
 --   0310_rename_passes_the_line_guard.sql
+--   0311_tick_box_rm_auto_approves.sql
 --   0122_spare_requests_replay_tail.sql
 --   0020_stock_transfer.sql
 --   0123_stock_transfer_update_policy.sql
@@ -232,6 +233,7 @@
 --   0289_spares_on_a_visit_rename_and_returns.sql
 --   0309_part_hsn_code.sql
 --   0310_rename_passes_the_return_guard.sql
+--   0311_void_keeps_original_qty.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
 --   0072_ownership_transfer.sql
@@ -23012,6 +23014,164 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
+-- 0311_tick_box_rm_auto_approves.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0311 -- A TICK-BOX RM APPROVAL AUTO-APPROVES WHAT THE LINE DOES NOT NEED (D-081)
+--
+-- The single-spare Approve (buildPatch() in src/lib/spareflow.ts) writes
+-- Auto-Approved into Commercial unless the item is AMC or OGP, and into NSM
+-- unless AMC, OGP or a HandStock request (0210). decide_spare_lines() -- the
+-- RM Approval page's tick boxes and a selection on Spare Requests -- wrote
+-- rm_approval ALONE, so spare_line_stage() put every such line at Commercial
+-- whatever its cover: a warranty spare waited on a decision the rule says it
+-- does not need, on the path most RM approvals take. Measured on a database
+-- built from every migration before this was written.
+--
+-- ONE CHANGE: the RM approve branch writes the same two auto-approvals, by the
+-- same two functions the line guard (0310) asks, so the guard admits them
+-- (spare.approve_rm, no _by/_at). Everything else is 0118 verbatim, read out
+-- of a database built from every migration rather than out of 0118.
+--
+-- FORWARD ONLY. Lines already approved by tick box and waiting at Commercial
+-- are NOT moved: releasing live records past a stage is the user's decision.
+-- supabase/apply/_spares_waiting_at_commercial_by_mistake.sql lists them.
+-- ===========================================================================
+CREATE OR REPLACE FUNCTION public.decide_spare_lines(p_line_ids bigint[], p_decision text, p_actor text DEFAULT ''::text, p_reason text DEFAULT ''::text)
+ RETURNS TABLE(decided integer, skipped integer, reason text)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_id     bigint;
+  v_stage  text;
+  v_eng    text;
+  v_dec    text := lower(btrim(coalesce(p_decision, '')));
+  v_why    text := btrim(coalesce(p_reason, ''));
+  v_actor  text := nullif(btrim(coalesce(p_actor, '')), '');
+  v_now    timestamptz := now();
+  n_ok     integer := 0;
+  n_skip   integer := 0;
+  why      text[]  := '{}';
+begin
+  if v_dec not in ('approve', 'reject', 'drop') then
+    raise exception 'Unknown decision: %', p_decision;
+  end if;
+  if p_line_ids is null or array_length(p_line_ids, 1) is null then
+    raise exception 'Nothing selected';
+  end if;
+  -- Ending a request without saying why leaves a register nobody can review.
+  if v_dec in ('reject', 'drop') and v_why = '' then
+    raise exception 'A % needs a reason', v_dec;
+  end if;
+  if v_dec = 'drop' then
+    if not public.has_perm('spare.drop') then
+      raise exception 'RBAC: your role cannot drop a spare';
+    end if;
+  elsif not public.can_approve_spares() then
+    raise exception 'RBAC: your role cannot approve or reject spares';
+  end if;
+
+  v_actor := coalesce(v_actor, public.my_dir_name(), auth.email(), '');
+
+  foreach v_id in array p_line_ids loop
+    select public.spare_line_stage(
+             coalesce(l.rm_approval, 'Pending'), coalesce(l.commercial_approval, 'Pending'),
+             coalesce(l.nsm_approval, 'Pending'), coalesce(l.stores_status, 'Pending'),
+             l.received_at, r.item_status),
+           coalesce(r.engineer, '')
+      into v_stage, v_eng
+      from public.spare_request_lines l
+      join public.spare_requests r on r.uid = l.request_uid
+     where l.id = v_id;
+
+    if v_stage is null then
+      n_skip := n_skip + 1; why := array_append(why, 'no such spare'); continue;
+    end if;
+
+    -- ---- DROP: any stage that is still open, and only Stores' own right ----
+    if v_dec = 'drop' then
+      if v_stage not in ('RM Approval', 'Commercial', 'NSM', 'Stores') then
+        n_skip := n_skip + 1; why := array_append(why, 'already at ' || v_stage); continue;
+      end if;
+      update public.spare_request_lines
+         set stores_status = 'Dropped', dispatch_remarks = v_why,
+             dispatched_by = v_actor, dispatched_at = v_now
+       where id = v_id;
+      n_ok := n_ok + 1;
+      continue;
+    end if;
+
+    -- ---- APPROVE / REJECT: at the stage the line is AT --------------------
+    if v_stage not in ('RM Approval', 'Commercial', 'NSM') then
+      n_skip := n_skip + 1; why := array_append(why, 'already at ' || v_stage); continue;
+    end if;
+
+    if v_stage = 'RM Approval' then
+      if not public.has_perm('spare.approve_rm') then
+        n_skip := n_skip + 1; why := array_append(why, 'not yours to decide at RM'); continue;
+      end if;
+      -- The trigger refuses this either way; saying so here is the difference
+      -- between a counted skip and a failed batch.
+      if not public.spare_rm_may_approve(v_eng) then
+        n_skip := n_skip + 1; why := array_append(why, 'your own request, or outside your team'); continue;
+      end if;
+      if v_dec = 'approve' then
+        -- THE SAME RULE AS THE SINGLE-SPARE APPROVE (0311, D-081): each later
+        -- stage the line does not need is written Auto-Approved, with no _by
+        -- or _at, because nobody decided it. Before this a tick-box approval
+        -- wrote rm_approval alone and a warranty line waited at Commercial.
+        update public.spare_request_lines l
+           set rm_approval = 'Approved', rm_by = v_actor, rm_at = v_now,
+               commercial_approval = case when public.spare_needs_commercial(r.item_status)
+                                          then l.commercial_approval else 'Auto-Approved' end,
+               nsm_approval        = case when public.spare_needs_nsm(r.item_status, r.req_type)
+                                          then l.nsm_approval else 'Auto-Approved' end
+          from public.spare_requests r
+         where l.id = v_id and r.uid = l.request_uid;
+      else
+        update public.spare_request_lines
+           set rm_approval = 'Rejected', rm_by = v_actor, rm_at = v_now,
+               rejected_stage = v_stage, reject_reason = v_why where id = v_id;
+      end if;
+
+    elsif v_stage = 'Commercial' then
+      if not public.has_perm('spare.approve_commercial') then
+        n_skip := n_skip + 1; why := array_append(why, 'not yours to decide at Commercial'); continue;
+      end if;
+      if v_dec = 'approve' then
+        update public.spare_request_lines
+           set commercial_approval = 'Approved', commercial_by = v_actor, commercial_at = v_now where id = v_id;
+      else
+        update public.spare_request_lines
+           set commercial_approval = 'Rejected', commercial_by = v_actor, commercial_at = v_now,
+               rejected_stage = v_stage, reject_reason = v_why where id = v_id;
+      end if;
+
+    else  -- NSM
+      if not public.has_perm('spare.approve_nsm') then
+        n_skip := n_skip + 1; why := array_append(why, 'not yours to decide at NSM'); continue;
+      end if;
+      if v_dec = 'approve' then
+        update public.spare_request_lines
+           set nsm_approval = 'Approved', nsm_by = v_actor, nsm_at = v_now where id = v_id;
+      else
+        update public.spare_request_lines
+           set nsm_approval = 'Rejected', nsm_by = v_actor, nsm_at = v_now,
+               rejected_stage = v_stage, reject_reason = v_why where id = v_id;
+      end if;
+    end if;
+
+    n_ok := n_ok + 1;
+  end loop;
+
+  return query select n_ok, n_skip,
+    coalesce((select string_agg(w, '; ') from (select distinct unnest(why) as w) d), '');
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0122_spare_requests_replay_tail.sql
 -- ------------------------------------------------------------------------
 
@@ -28565,6 +28725,111 @@ begin
   raise notice '0310 (the 0309 fill, finished): HSN code filled on % part(s); "(HSN:...)" removed from % description(s).%',
     n_fill, n_ren, case when skipped = '' then '' else ' Left as they were:' || skipped end;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0311_void_keeps_original_qty.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0311 -- A VOIDED OR AMENDED CONSUMPTION LINE KEEPS ITS ORIGINAL QUANTITY (D-082),
+--         AND A RAISED ONE IS CHECKED AGAINST HAND STOCK AGAIN (D-083)
+--
+-- consumption_adjust_guard() stamped original_qty (the quantity before the
+-- first amendment) and adjusted_at (0062, 0063, 0081). 0196 -- the part
+-- rename -- rewrote the function without those two lines and 0261 kept the
+-- omission, so FRS-029 ("the original quantity ... retained on the row") had
+-- stopped being true. Measured on a database built from every migration.
+--
+-- D-083, found by this file's own test: 0196 also replaced the hand-stock
+-- cap on a RAISE with public.handstock_available(), which does not exist, so
+-- raising a line's quantity failed outright. 0081's cap is put back, reading
+-- handstock_balance as it did.
+--
+-- AND: the two lines go back at the end of the quantity path, where
+-- 0081 had them. Everything else is 0261 verbatim, read out of a database
+-- built from every migration (it carries 0259's engineer-rename exemption and
+-- 0261's rename ticket, which 0081 does not). Existing lines are not
+-- rewritten: what they lost is in the database change history (0225), not
+-- here.
+-- ===========================================================================
+CREATE OR REPLACE FUNCTION public.consumption_adjust_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare avail numeric; delta numeric;
+begin
+  if coalesce(new.ucn, '')      is distinct from coalesce(old.ucn, '')
+  or (coalesce(new.engineer, '') is distinct from coalesce(old.engineer, '')
+      -- A USER MASTER RENAME (0259): the same person, spelled correctly. It
+      -- changes no quantity, so nothing below has anything to check.
+      and not public.engineer_rename_in_progress(old.engineer, new.engineer))
+  or coalesce(new.source, '')   is distinct from coalesce(old.source, '') then
+    raise exception 'A reconciliation can only change the quantity — not the call, part, engineer or source';
+  end if;
+
+  if coalesce(new.part, '') is distinct from coalesce(old.part, '') then
+    -- ONLY the substitution rename_part() filed a ticket for, in THIS
+    -- transaction, for this exact row's current value. Anything else is a line
+    -- being re-pointed, which is what this guard is for.
+    if not exists (
+      select 1 from public.part_rename_ticket t
+       where t.txid = txid_current()
+         and t.old_key = lower(btrim(coalesce(old.part, '')))
+         and t.new_detail = coalesce(new.part, '')
+    ) then
+      raise exception 'A reconciliation can only change the quantity — not the call, part, engineer or source';
+    end if;
+    -- A rename changes no quantity, so the stock arithmetic below has nothing
+    -- to check and the cap cannot be affected.
+    if new.qty is not distinct from old.qty then return new; end if;
+  end if;
+
+  if new.qty is not distinct from old.qty then
+    return new;                        -- nothing quantitative changed
+  end if;
+  if coalesce(new.qty, 0) < 0 then
+    raise exception 'Quantity cannot be negative';
+  end if;
+
+  -- The one exemption: the same imported line, re-loaded from its source.
+  if coalesce(btrim(new.source_ref), '') <> ''
+     and btrim(new.source_ref) is not distinct from btrim(old.source_ref) then
+    return new;
+  end if;
+
+  if coalesce(new.qty, 0) <= 0 and coalesce(btrim(new.adjustment_reason), '') = '' then
+    raise exception 'Say why the line is being voided — the reason is kept with it';
+  end if;
+  if coalesce(btrim(new.adjustment_reason), '') = '' then
+    raise exception 'Say why the quantity is being adjusted — the reason is kept with the line';
+  end if;
+
+  -- A RAISE still has to fit in the engineer's hand stock; a reduction never
+  -- does. RESTORED FROM 0081 (0311, D-083): 0196 replaced this with a call to
+  -- public.handstock_available(), a function no migration has ever created, so
+  -- every raise of a consumption quantity failed with "function ... does not
+  -- exist" instead of being checked.
+  delta := coalesce(new.qty, 0) - coalesce(old.qty, 0);
+  if delta > 0 then
+    select coalesce(b.on_hand, 0) into avail
+      from public.handstock_balance b
+     where b.engineer_key = public.handstock_key(new.engineer)
+       and b.part_code = public.part_code(new.part);
+    if coalesce(avail, 0) < delta then
+      raise exception '% has % of % in hand, so the line cannot be raised by %. Ask the Spare Coordinator to correct the hand stock first.',
+        new.engineer, coalesce(avail, 0), public.part_code(new.part), delta;
+    end if;
+  end if;
+
+  -- RESTORED (0311, D-082): the quantity before the FIRST change, and when
+  -- the line was last adjusted. 0081 had both; 0196 rewrote this function
+  -- from an older body and dropped them, and 0261 kept the omission.
+  if old.original_qty is null then new.original_qty := old.qty; end if;
+  new.adjusted_at := now();
+  return new;
+end $function$;
 
 -- ------------------------------------------------------------------------
 -- 0036_sales_contracts.sql
