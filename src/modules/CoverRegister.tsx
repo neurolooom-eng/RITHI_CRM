@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput, LongDateText } from '../components/ui/LongDate';
-import { sbSearchParties, sbPartyInfo } from '../lib/supabase';
+import { sbSearchParties, sbSearchProductParties, sbPartyInfo } from '../lib/supabase';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT,
          // THE VALUE TEST, not the row test. `isPinned` from ./cover takes
@@ -22,7 +22,7 @@ import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
   configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit,
-  raiseInstallCalls,
+  raiseInstallCalls, missingRequired,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
@@ -154,6 +154,18 @@ function FieldInput({
                          // has nothing to fill it from.
                          allowFreeText
                          emptyHint="Customers come from the Party Master. Typing a name the master has not got is allowed — nothing will be filled in for it." />;
+  }
+  // THE PRODUCT DATABASE'S CUSTOMERS, searched as you type (the user,
+  // 2026-10-02, for the Contract Register). NO free text: a contract covers
+  // machines already on record, so a name the Product Database has never
+  // heard of is not a customer this contract can cover -- it is a typo, or a
+  // machine that has to be added there first.
+  if (field.optionsFrom === 'product-party') {
+    return <SelectPicker value={value} onChange={onChange} disabled={disabled}
+                         placeholder="— find the customer —"
+                         options={value ? [value] : []}
+                         onSearch={(term) => sbSearchProductParties(term, 50)}
+                         emptyHint="Customers come from the Product Database — whoever owns a machine on record. Type more of the name to narrow the list." />;
   }
   if (field.type === 'bool') {
     return <SelectPicker value={value} onChange={onChange} disabled={disabled} placeholder="—"
@@ -446,20 +458,19 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
           {/* dd-MMM-yyyy at rest, the native picker while editing (FRS-089.1, D-064). */}
           <LongDateInput value={d.contract_start} onChange={(v) => reperiodMonths(v, d.contract_months)} />
         </label>
+        {/* WORKED OUT, NOT TYPED, as on the contract form itself (the user,
+            2026-10-02): the end is the start plus the months, and the years
+            are the months divided by twelve. */}
         <label className="rep-field">
-          <span className="field-label">End</span>
-          <LongDateInput value={d.contract_end} onChange={(v) => set('contract_end', v)} />
-        </label>
-        {/* Two views of ONE period. Typing in either sets the other, so they
-            cannot disagree and cannot be added together. */}
-        <label className="rep-field">
-          <span className="field-label">Period (Years)</span>
-          <input className="input" type="number" min={0} step="0.5" value={d.contract_years ?? ''}
-                 onChange={(e) => reperiodMonths(d.contract_start,
-                   e.target.value === '' ? null : Number(e.target.value) * 12)} />
+          <span className="field-label">End <span className="muted">· from Start + Period (months)</span></span>
+          <LongDateText value={d.contract_end} />
         </label>
         <label className="rep-field">
-          <span className="field-label">Period (Months)</span>
+          <span className="field-label">Period (Years) <span className="muted">· from the months</span></span>
+          <input className="input" value={d.contract_years ?? ''} readOnly disabled />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Period (Months) *</span>
           <input className="input" type="number" min={0} value={d.contract_months ?? ''}
                  onChange={(e) => reperiodMonths(d.contract_start,
                    e.target.value === '' ? null : Number(e.target.value))} />
@@ -626,7 +637,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     // was installed on another day (the user, 2026-09-22). The ENTRY date is
     // not set here at all: the database stamps it (0230), which is what
     // "automatic" has to mean if it is to be trusted.
-    setDraft(kind === 'sale' ? { warranty_start: todayLocal() } : {});
+    // CONTRACT START DEFAULTS TO TODAY as well (the user, 2026-10-02), typed
+    // over for a contract that starts on another day.
+    setDraft(kind === 'sale' ? { warranty_start: todayLocal() } : { contract_start: todayLocal() });
     try {
       const n = await nextCoverNumber(kind);
       setDraft((d) => (str(d[cfg.key]) ? d : { ...d, [cfg.key]: n }));
@@ -816,6 +829,13 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   };
 
   const saveEntry = async () => {
+    // EVERY BLANK REQUIRED FIELD NAMED AT ONCE, before anything is written --
+    // one at a time would be a round trip per field.
+    const missing = missingRequired(cfg.headerFields, draft);
+    if (missing.length) {
+      setMsg({ tone: 'error', text: `Fill in ${missing.join(', ')} before saving — ${missing.length === 1 ? 'it is' : 'they are'} required.` });
+      return;
+    }
     setSaving(true);
     try {
       // THE ENTRY DATE IS STAMPED ON CREATION, never typed (the user,
@@ -1124,7 +1144,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         {cfg.headerFields.filter((f) => f.section === sec).map((f) => (
           <label key={f.name} className="rep-field">
             <span className="field-label">
-              {f.label}
+              {f.label}{f.required && <span title="Required"> *</span>}
               {f.derived && <span className="muted"> · from {f.derived}</span>}
               {kind === 'sale' && SALE_PARTY_FIELDS.includes(f.name)
                 && <span className="muted"> · from the party</span>}

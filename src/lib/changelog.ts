@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.29',
+    date: '2026-10-02',
+    title: 'Contract entry: party from the Product Database, period in months, required fields',
+    changes: [
+      'PARTY NAME on a contract is now picked from the Product Database: type part of the name and choose. It lists customers who own a machine on record, and a name cannot be typed in — add the machine to the Product Database first if the customer is missing.',
+      'CONTRACT START DATE opens on today for a new contract. Change it if the contract starts on another day.',
+      'TYPE THE PERIOD IN MONTHS and the rest fills in: Period (Years) and Contract End Date are worked out from the start date and the months, and can no longer be typed. PM Visits (Total) is still suggested from the period and can be changed.',
+      'FOUR FIELDS ARE NOW REQUIRED: Period (Months), PM Visits (Total), Payment Schedule and Bill Generate At. They carry a *, and Save entry names every one left blank instead of saving.',
+      'RENEW THIS CONTRACT works the same way: the new End and Years are worked out, and a renewal needs a Period (Months).',
+    ],
+  },
+  {
     version: '0.10.28',
     date: '2026-10-02',
     title: 'Warranty Register: entries open in a pop-up, and By machine is now Register',
