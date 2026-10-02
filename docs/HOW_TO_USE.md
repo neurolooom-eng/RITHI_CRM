@@ -634,7 +634,7 @@ typed into a form that reads it.
   > missing rather than arguing with the decision. It never works the other way
   > round: documents alone do not make a customer verified.
 
-- **Product Database** `/product-database` — every machine by serial, with its
+- **Product Database** `/product-database` — every machine by model and serial, with its
   warranty, contract and current owner. This is where a call reads cover from.
   It keeps **all 32 columns** of the ProdMaster file — Item Code, the address,
   the PO, PM Visits, the installation fields and the rest. Eleven of them are on
@@ -686,8 +686,8 @@ typed into a form that reads it.
   > already searched. A number the machine does not carry is shown as plain
   > text rather than a link that goes nowhere.
   > **Who can see it:** anyone signed in who can open the screen, the same as
-  > the Product Database beside it. **Who can rebuild it:** anyone who may edit
-  > masters or cover.
+  > the Product Database beside it. **Who can rebuild it:** a role holding *Rebuild
+  > Product Database 2.0* (given once to the roles that edited masters or cover).
   > **If the screen is empty it tells you why**, counting the three registers
   > — rows, rows with no serial, rows with no model — and saying which of
   > those it is. It says *every* row is missing something only where every

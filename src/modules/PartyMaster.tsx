@@ -127,7 +127,7 @@ const KYC_STATUSES = ['Pending', 'Verified', 'Rejected'];
 // describe the same customer differently.
 const KycChip = ({ status }: { status: unknown }) => (
   isKycVerified(status)
-    ? <span className="badge badge-ok" title="Cleared for a Sale Entry and an installation call">✓ KYC Verified</span>
+    ? <span className="badge badge-ok" title="KYC verified: status, number and documents checked">✓ KYC Verified</span>
     : <span className="muted">{String(status ?? 'Pending') || 'Pending'}</span>
 );
 

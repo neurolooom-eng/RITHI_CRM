@@ -16,7 +16,7 @@ export const MASTER_LISTS: MasterListDef[] = [
   { key: 'pendingreason', label: 'Call Pending Reason', icon: '⏸️', valueLabel: 'Reason', usedBy: 'Call report — Unsolved branch' },
   { key: 'cancelreason', label: 'Call Cancel Reason', icon: '🚫', valueLabel: 'Reason', usedBy: 'No screen reads this list today: cancelling a request on Pending Registrations takes a typed reason' },
   { key: 'feedbackrating', label: 'Feedback Rating', icon: '⭐', valueLabel: 'Rating', usedBy: 'Customer feedback — ratings' },
-  { key: 'orapproval', label: 'Spare Approval Reason', icon: '✅', valueLabel: 'Reason', usedBy: 'Spare approval — reason for approval / rejection' },
+  { key: 'orapproval', label: 'Spare Approval Reason', icon: '✅', valueLabel: 'Reason', usedBy: 'Nothing at present — the Commercial and NSM forms use a fixed list' },
   // Both tagged PER PRODUCT (masters.extra.product); a value tagged COMM is
   // common to every product. Their own tabs live in the Daily Complaint Review Register.
   { key: 'dccrgrouping', label: 'DCCR Complaint Grouping', icon: '🗂️', valueLabel: 'Complaint Grouping', usedBy: 'Daily Complaint Review Register — Review 3' },

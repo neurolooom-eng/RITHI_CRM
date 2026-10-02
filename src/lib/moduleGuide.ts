@@ -748,7 +748,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
   },
   {
     route: '/product-database',
-    purpose: 'Every machine by serial, with its warranty, contract and current owner — where a call reads cover from.',
+    purpose: 'Every machine by model and serial, with its warranty, contract and current owner — where a call reads cover from.',
     does: [
       'Search by party, product, serial or status',
       'Turn on any of the 32 columns with ⚙ Columns; export all of them',
@@ -834,7 +834,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     records: ['master_lists', 'masters', 'parties', 'products', 'parts', 'user_directory'],
     rules: [
       'Rights are per list',
-      'A value in use is deactivated, not deleted, so old records keep reading correctly',
+      'Deactivate a value to stop it being offered; 🗑 deletes it outright and does not check whether records use it',
     ],
   },
   {
@@ -906,7 +906,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
   },
   {
     route: '/masters/orapproval',
-    purpose: 'The Spare Approval Reason list: reasons for approving or rejecting a spare.',
+    purpose: 'The Spare Approval Reason list. Nothing reads it at present: the Commercial and NSM forms offer a fixed list of reasons.',
     does: [
       'Add, deactivate or reactivate a reason',
       'Export the list',
