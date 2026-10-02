@@ -558,6 +558,11 @@ The entry window shows, under its heading, how many machines and customers are
 on this device and when they were downloaded — Party Name searches that copy
 first, as Call Request does.
 
+**⭳ Export Excel** (both registers, both tabs) gives a workbook whose dates are
+real Excel dates — they sort, filter by month and take your own date format.
+**⭳ Export CSV** is still there, but a CSV holds only text, so its dates are
+written as `dd-MMM-yyyy` text.
+
 **Prev MC Number** is not on the contract form: **Renew this contract** fills it
 in on the new contract with the number it was renewed from.
 

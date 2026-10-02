@@ -34,6 +34,7 @@ import {
 import { itemTaxAmount, totalAfterTax, upliftRate } from '../lib/coverspec';
 import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
+import { xlsxDownload, xlsxCell } from '../lib/xlsx';
 
 // ===========================================================================
 // WARRANTY / CONTRACT REGISTER — one screen, two shapes.
@@ -1342,6 +1343,42 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     </div>
   ) : null;
 
+  // ===========================================================================
+  // EXPORT: THE SAME COLUMNS AS THE TABLE, TWO FILES.
+  //
+  // The user, 2026-10-02: "During Export, it has to be a Excel Compatible Date
+  // Field". A CSV can carry only text, so its dates are dd-MMM-yyyy STRINGS,
+  // and whether Excel turns those back into dates on opening depends on the
+  // reader's regional settings. The .xlsx carries each date as a serial plus a
+  // date format (xlsxCell) -- a real date, sortable and filterable by month --
+  // and leaves a code or a serial as text.
+  //
+  // ONE SOURCE FOR BOTH FILES. A column drawn by `render` and stored nowhere
+  // (the entry's State) used to export EMPTY, because the CSV read the row's
+  // key and the row has no such key. It is worked out here, the way the table
+  // works it out, so a file and the screen say the same thing.
+  // ===========================================================================
+  const exportValue = (r: Row, key: string): unknown => {
+    if (key === 'status_now') return stateOf(str(r[cfg.endColumn]));
+    if (key === 'overridden') return Array.isArray(r.overridden) ? r.overridden.join(', ') : '';
+    return r[key];
+  };
+  const exportCols = (cols: Column<Row>[]) =>
+    cols.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header }));
+  const exportCsv = (name: string, cols: Column<Row>[], data: Row[], more: boolean) => {
+    const ec = exportCols(cols);
+    csvExport(`${name}.csv`, ec,
+      data.map((r) => Object.fromEntries(ec.map((c) => [c.key, exportValue(r, c.key)]))), partial(more));
+  };
+  const exportXlsx = (name: string, sheet: string, cols: Column<Row>[], data: Row[], more: boolean) => {
+    const ec = exportCols(cols);
+    xlsxDownload(`${name}.xlsx`, [{
+      name: sheet,
+      columns: ec.map((c) => c.header),
+      rows: data.map((r) => Object.fromEntries(ec.map((c) => [c.header, xlsxCell(exportValue(r, c.key))]))),
+    }], partial(more));
+  };
+
   const entriesTable = (
         <DataTable<Row>
           columns={headerColumns}
@@ -1367,7 +1404,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 <button className="btn btn-sm btn-primary" onClick={() => void newEntry()}>+ New entry</button>
               )}
               {rows.length > 0 && (
-                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-entries.csv`, headerColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), rows, partial(feeds.entries.more))}>⭳ Export CSV</button>
+                <>
+                  <button className="btn btn-sm" onClick={() => exportXlsx(`${kind}-entries`, 'Entries', headerColumns, rows, feeds.entries.more)}
+                    title="Dates arrive as Excel dates">⭳ Export Excel</button>
+                  <button className="btn btn-sm" onClick={() => exportCsv(`${kind}-entries`, headerColumns, rows, feeds.entries.more)}>⭳ Export CSV</button>
+                </>
               )}
             </Toolbar>
           }
@@ -1429,7 +1470,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
               <SearchBox value={q} onChange={setQ} placeholder="Serial, product, party…" />
               <div className="spacer" />
               {machines.length > 0 && (
-                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-machines.csv`, machineColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), machines, partial(feeds.machines.more))}>⭳ Export CSV</button>
+                <>
+                  <button className="btn btn-sm" onClick={() => exportXlsx(`${kind}-register`, 'Register', machineColumns, machines, feeds.machines.more)}
+                    title="Dates arrive as Excel dates">⭳ Export Excel</button>
+                  <button className="btn btn-sm" onClick={() => exportCsv(`${kind}-register`, machineColumns, machines, feeds.machines.more)}>⭳ Export CSV</button>
+                </>
               )}
             </Toolbar>
           }

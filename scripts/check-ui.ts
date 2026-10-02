@@ -2729,6 +2729,15 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
     eq('...and nothing with no end date', contractStatusText({}), '');
     eq('the years are hidden and still written', configFor('contract').headerFields.find((f) => f.name === 'contract_years')?.hidden, true);
     eq('...and shown under the months', yearsHint({ contract_months: 18 }, 'contract_months'), '= 1.5 years');
+    // AN EXCEL EXPORT CARRIES DATES AS DATES (the user, 2026-10-02): every
+    // cell goes through xlsxCell, and a computed column is worked out rather
+    // than read off a key the row does not have.
+    {
+      const reg = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+      eq('the cover registers export .xlsx', /xlsxDownload\(`\$\{name\}\.xlsx`/.test(reg), true);
+      eq('...every cell through xlsxCell', /xlsxCell\(exportValue\(r, c\.key\)\)/.test(reg), true);
+      eq('...and the entry State is worked out for the file', /if \(key === 'status_now'\) return stateOf/.test(reg), true);
+    }
     eq('the entry window says how old the device copy is',
       /<MachineRegisterNote \/>/.test(readFileSync('src/modules/CoverRegister.tsx', 'utf8')), true);
     eq('...and the form leaves hidden fields out',
