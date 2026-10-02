@@ -12,6 +12,26 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.32',
+    date: '2026-10-02',
+    title: 'Warranty and Contract registers: Export Excel with real dates',
+    changes: [
+      'NEW: ⭳ EXPORT EXCEL on the Warranty and Contract Registers (Entries and Register tabs). Dates arrive as real Excel dates (dd-MMM-yyyy), so they sort, filter by month and take any date format you choose. Serials and contract numbers stay as text, leading zeros included.',
+      'Export CSV is still there. A CSV can only hold text, so its dates are written as dd-MMM-yyyy text. Use Export Excel when you want dates Excel can work with.',
+      'FIXED: the State column on the Entries export was empty. It now carries the same Active / About to expire / Inactive the screen shows, in both files.',
+    ],
+  },
+  {
+    version: '0.10.31',
+    date: '2026-10-02',
+    title: 'Contract entry: Status worked out, years shown under the months, device copy named',
+    changes: [
+      'STATUS on a contract is now worked out and cannot be typed: Active while the end date is more than 30 days away, About to Expire within 30 days (the end date itself included), Contract Expired once it has passed. It follows the same rule as the register\'s Active / About to expire / Inactive tiles. A contract with no end date shows no status.',
+      'CONTRACT PERIOD (YEARS) is no longer a box on the form. The years now appear as a line under Period (Months), e.g. "= 1.5 years", and on the Renew panel too.',
+      'THE ENTRY WINDOW NOW SAYS WHAT THIS DEVICE HOLDS, as Call Request does: how many machines and customers are downloaded and when. Party Name already searched that copy first; now you can see how old it is.',
+    ],
+  },
+  {
     version: '0.10.30',
     date: '2026-10-02',
     title: 'Contract entry: Prev MC Number is filled by Renew',

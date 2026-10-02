@@ -540,9 +540,8 @@ On a warranty machine line, filling in **Already Sold To** sets **Add Call**:
 pins that machine, ↺ hands it back.
 
 **On a new contract** the **Contract Start Date** opens on today — change it if
-the contract starts on another day. Type the **Period (Months)**; the **Period
-(Years)** and the **Contract End Date** are worked out from it and cannot be
-typed, and **PM Visits (Total)** is suggested (you can change it).
+the contract starts on another day. Type the **Period (Months)**; the years appear under it ("= 1.5 years")
+and the **Contract End Date** is worked out from it and cannot be typed, and **PM Visits (Total)** is suggested (you can change it).
 **Party Name** is picked from the **Product Database**: type part of the name
 and choose — it lists customers who own a machine on record, and a name cannot
 be typed in. If the customer is missing, add their machine to the Product
@@ -551,6 +550,19 @@ Database first.
 > **PM Visits (Total)**, **Payment Schedule** and **Bill Generate At**. They carry
 > a **\***, and the message names every one left blank. Contracts loaded from the old system's files are not refused for
 > blanks; the rule is the form's.
+
+**Status** is worked out and cannot be typed: **Active** while the end date is
+more than 30 days away, **About to Expire** within 30 days (the end date itself
+included), **Contract Expired** once it has passed.
+
+The entry window shows, under its heading, how many machines and customers are
+on this device and when they were downloaded — Party Name searches that copy
+first, as Call Request does.
+
+**⭳ Export Excel** (both registers, both tabs) gives a workbook whose dates are
+real Excel dates — they sort, filter by month and take your own date format.
+**⭳ Export CSV** is still there, but a CSV holds only text, so its dates are
+written as `dd-MMM-yyyy` text.
 
 **Prev MC Number** is not on the contract form: **Renew this contract** fills it
 in on the new contract with the number it was renewed from.
