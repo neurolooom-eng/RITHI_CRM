@@ -3209,3 +3209,27 @@ Every GAP and partial above, and the requirement that now states it, as filed wi
 - #11 user chip / menu -> FRS-213.9
 - #12 update banner -> FRS-213.12
 - #13 Clear Cache and Update -> FRS-213.13
+
+
+---
+
+# Rev 3.1 addendum — capabilities added after 2026-09-30
+
+_Added 2026-10-02 for the Software Validation Package Rev 3.1. Same method as above — each row is something a person can do or the screen does by itself — for what shipped from v0.10.8 to v0.10.21. Every row is **Covered**: the requirement named states it, and the test named exercises it. Where a line here supersedes a row above, it says so._
+
+| # | Screen | Capability | Where | Guard | Covered by |
+|---|---|---|---|---|---|
+| 1 | Field / Installation / PM call (view) | Update Party Details (City, State from the Party Master) and Update Product Details (warranty, contract, item status as on the registration date), one call or ticked in bulk; hidden and refused while Audit Mode is ON | FieldCalls.tsx (section headers); 0271 | calls.edit or calls.edit.customer; Audit Mode OFF (DB) | NAR-006 |
+| 2 | Bulk Uploads | Technical / Service Notes upload, matched on the Drive link so a re-load corrects | uploads.ts `service_notes`; 0272 | bulk.upload | FRS-035; OQ-215 |
+| 3 | Technical / Service Notes | Added / Added By / Updated show Drive's Created / Last Modified By / Last Modified for a note loaded from a listing; RITHI's own entry under Record details | DocumentLibrary.tsx; 0299 | docs.manage to edit; read by all signed in | FRS-035; OQ-215 |
+| 4 | Technical / Service Notes | A note names several products (multi-select; comma-separated in the upload) | DocumentLibrary.tsx | docs.manage | FRS-035; OQ-215 |
+| 5 | Call view — Supporting documents | Active Technical Notes offered beside the manuals, against each product a note names | CallAssociations.tsx; docmatch.ts | read by all signed in | FRS-035; OQ-215 |
+| 6 | My Profile | One tab per section; the last tab remembered on the device | Profile.tsx | signed in | FRS-216.5; OQ-214 |
+| 7 | My Profile → My Team | Active / Current and Ex Employees, by the User Master's Active column; an ex employee's profile still opens | MyPeople.tsx | the reporting tree; 0264 may_see_person | FRS-216.6; OQ-214 |
+| 8 | Part Search (new screen, Overview) | Active parts, four columns, a type-search filter on each column; no edit, action, selection or download for anyone | PartSearch.tsx; 0308 | mod:/part-search (every configured role) | URS-167, FRS-217; OQ-211 |
+| 9 | Header search (app-wide) | Screens, then records across ten registers, each opening its own record; supersedes app-wide #5 above | Layout.tsx; globalSearch.ts | RLS per register; the target screen's page key | URS-168, FRS-218, FRS-213.8; OQ-212 |
+| 10 | Party Master | A party opens read-only for a person who may not edit it (before: a click did nothing) | PartyMaster.tsx | mod:/parties | FRS-218.4; OQ-212 |
+| 11 | Spare Consumption | A line opens read-only with every field it carries (before: no line view) | SpareConsumption.tsx | mod:/spare-consumption; cons_read | FRS-218.4; OQ-212 |
+| 12 | Part Master | HSN Code column, on Add part and the edit drawer (digits only), and in the Part Master upload | PartMaster.tsx; uploads.ts; 0309 | masters.edit.records | FRS-219; OQ-213 |
+| 13 | Part Master — rename | A rename moves stock adjustments too, and needs only masters.edit.rename_part even for a part on another engineer's request or on a return | 0309, 0310 | masters.edit.rename_part (DB) | FRS-178.3, FRS-178.7, FRS-178.8; OQ-213 |
+| 14 | Reports | The open tab is highlighted | dccr.css | — | D-080 (fixed) |

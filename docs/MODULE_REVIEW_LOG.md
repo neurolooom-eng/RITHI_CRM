@@ -161,7 +161,7 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-10-02 — The Medium-rated defects, fixed on the branch (v0.10.22, not merged)
+### 2026-10-02 — The Medium-rated defects, fixed on the branch (v0.10.23, not merged)
 - **Your ask:** *"Fix all low impact items, keep it in the branch.. Don't merge till I say so."*
 - **What "low impact" was taken to mean:** no open defect is rated Low, so it was taken as the ones whose requirements are all **Medium** — the lowest any open defect carries. Mostly screens showing a wrong count, date or message.
 - **Fixed** (screens only, no SQL):

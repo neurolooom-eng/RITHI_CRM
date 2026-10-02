@@ -12,9 +12,9 @@ came from, because some are authoritative and one is a floor.
 
 | | |
 | --- | --- |
-| Screens in `MODULES` | **59** |
-| …with a component this script could resolve | 59 |
-| …on the menu | 57 |
+| Screens in `MODULES` | **65** |
+| …with a component this script could resolve | 64 |
+| …on the menu | 64 |
 | …naming a table in their own source | 1 |
 | Redirects (not screens of their own) | 5 |
 
@@ -29,8 +29,7 @@ that guessed would be read as a census.
 
 - **Opened by** `mod:/`
 - **Source** `src/modules/Dashboard.tsx`
-- **Actions an administrator can grant** (from the permission matrix):
-  - `dashboard.view` — View dashboard
+- **Actions an administrator can grant**: none — the screen is opened or it is not.
 
 ### My Workload `/workload`
 
@@ -44,7 +43,6 @@ that guessed would be read as a census.
 - **Opened by** `mod:/lookup`
 - **Source** `src/modules/Lookup.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
-  - `masters.view` — View masters
   - `calls.create` — Create / register calls
 - **Buttons** “By product / serial”, “By party”, “Search”, “＋ Field call”
 
@@ -52,8 +50,14 @@ that guessed would be read as a census.
 
 - **Opened by** `mod:/machine-history`
 - **Source** `src/modules/MachineHistory.tsx`
+- **Actions an administrator can grant** (from the permission matrix):
+  - `masters.view` — View masters
+
+### Part Search `/part-search`
+
+- **Opened by** `mod:/part-search`
+- **Source** `src/modules/PartSearch.tsx`
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
-- **Buttons** “⭳ Export CSV”
 
 ## Quality & Analytics
 
@@ -63,14 +67,17 @@ that guessed would be read as a census.
 - **Source** `src/modules/DailyCallReview.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
   - `review.edit` — Complete the daily call review (Review 2 / 3)
+  - `review.auto` — Switch auto review on or off (Review 2 answered No in your name)
+  - `review.correct_date` — Correct the date a review was completed
+  - `ffr.manage` — Raise and complete a Field Failure Report
 - **Buttons** “Clear”, “Change the filters”, “Cancel”, “All NO”, “Close”
 
 ### Product Failure Analysis `/product-failure`
 
 - **Opened by** `mod:/product-failure`
 - **Source** `src/modules/ProductFailureAnalysis.tsx`
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
-- **Also tested in the screen** (not offered under this page in the matrix): `config.manage`
+- **Actions an administrator can grant** (from the permission matrix):
+  - `charts.share` — Share a chart with a role or with everyone
 - **Buttons** “⭳ Download”, “Clear all”, “＋ New chart”, “Save”, “Cancel”
 
 ### Spare Insights `/spare-insights`
@@ -100,8 +107,10 @@ that guessed would be read as a census.
 
 - **Opened by** `mod:/objective`
 - **Source** `src/modules/Objective.tsx`
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
-- **Also tested in the screen** (not offered under this page in the matrix): `config.manage`
+- **Actions an administrator can grant** (from the permission matrix):
+  - `objective.manage` — Edit, recalculate and cut off the quality objectives
+  - `objective.lock` — Lock or unlock the objective cut-off
+  - `reports.view` — View reports
 - **Buttons** “+ Add an objective”, “⭳”, “Cancel”, “Delete”, “Save”
 
 ## Service Calls
@@ -112,6 +121,10 @@ that guessed would be read as a census.
 - **Source** `src/modules/CallReview.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
   - `callreview.mark` — Review a closed call’s report (mark Report Reviewed)
+  - `consumption.reconcile` — Add consumption against a call (reconciliation)
+  - `calls.reopen` — Re-open, close or close again a Field call
+  - `install.reopen` — Re-open, close or close again an installation call
+  - `pm.reopen` — Re-open, close or close again a PM call
 - **Buttons** “＋ Reco”, “Book it”, “Cancel”, “Re-open”
 
 ### Request Registration `/request-registration`
@@ -120,7 +133,9 @@ that guessed would be read as a census.
 - **Source** `src/modules/RequestCallRegistration.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
   - `request.create` — Raise call requests
-- **Buttons** “＋ New Request”, “⭳ Export CSV”, “＋ Add call”, “Clear”, “Remove”
+  - `calls.create` — Create / register calls
+  - `pending.register` — Register pending (Hotline)
+- **Buttons** “＋ New Request”, “⭳ Export CSV”, “Cancel”, “✎ Correct this request”, “＋ Add call”, “Clear”, “Remove”
 
 ### Pending Registrations `/pending-registrations`
 
@@ -128,7 +143,10 @@ that guessed would be read as a census.
 - **Source** `src/modules/PendingRegistrations.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
   - `pending.register` — Register pending (Hotline)
-- **Also tested in the screen** (not offered under this page in the matrix): `edit`
+  - `calls.create` — Create / register calls
+  - `install.create` — Create installation calls (Commercial)
+  - `calls.edit` — Edit Field calls (all sections)
+  - `install.edit` — Edit installation calls (all sections)
 - **Buttons** “Map this UCN”, “＋ Create new call”, “Back”, “Cancel request”, “✎ Edit”
 
 ### Field Call Register `/field-calls`
@@ -138,15 +156,20 @@ that guessed would be read as a census.
 - **Actions an administrator can grant** (from the permission matrix):
   - `calls.view` — View calls
   - `calls.create` — Create / register calls
-  - `calls.edit` — Edit calls
+  - `calls.edit` — Edit Field calls (all sections)
   - `calls.edit.complaint` —  Edit the complaint (complaint, breakdown date)
   - `calls.edit.customer` —  Edit customer & product (party, city, product, serial)
   - `calls.edit.vigilance` —  Edit the vigilance answers (health threat, death, incident)
   - `calls.edit.contact` —  Edit customer contact details (name, number, designation)
-  - `calls.allot` — Re-allocate a call to another engineer
-  - `calls.report` — Report / update calls
-  - `calls.cancel` — Cancel a call (and restore it)
-- **Also tested in the screen** (not offered under this page in the matrix): `consumption.reconcile`, `pending.register`, `spare.request`
+  - `calls.allot` — Re-allocate a Field call to another engineer
+  - `calls.report` — Report / update Field calls (all of the below)
+  - `calls.report.visit` —  File a visit on a Field call
+  - `visit.spares` —  Book spares used on a visit (any register)
+  - `visit.feedback` —  Record customer feedback on a visit (any register)
+  - `calls.cancel` — Cancel a Field call (and restore it)
+  - `calls.reopen` — Re-open, close or close again a Field call
+  - `spare.request` — Request spares
+  - `consumption.reconcile` — Add consumption against a call (reconciliation)
 - **Buttons** “Clear”, “⭳ Export CSV”
 
 ### Installation Calls `/installations`
@@ -154,24 +177,55 @@ that guessed would be read as a census.
 - **Opened by** `mod:/installations`
 - **Source** `src/modules/FieldCalls.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
+  - `calls.view` — View calls
   - `install.create` — Create installation calls (Commercial)
-- **Also tested in the screen** (not offered under this page in the matrix): `calls.allot`, `calls.cancel`, `calls.create`, `calls.edit`, `calls.report`, `consumption.reconcile`, `pending.register`, `spare.request`
+  - `install.edit` — Edit installation calls (all sections)
+  - `install.edit.complaint` —  Edit the complaint
+  - `install.edit.customer` —  Edit customer & product
+  - `install.edit.vigilance` —  Edit the vigilance answers
+  - `install.edit.contact` —  Edit customer contact details
+  - `install.allot` — Re-allocate an installation call
+  - `install.report` — Report / update installation calls (all of the below)
+  - `install.report.visit` —  File a visit on an installation call
+  - `visit.spares` —  Book spares used on a visit (any register)
+  - `visit.feedback` —  Record customer feedback on a visit (any register)
+  - `install.cancel` — Cancel an installation call (and restore it)
+  - `install.reopen` — Re-open, close or close again an installation call
+  - `spare.request` — Request spares
+  - `consumption.reconcile` — Add consumption against a call (reconciliation)
 - **Buttons** “Clear”, “⭳ Export CSV”
 
 ### Preventive (PM) `/pm-calls`
 
 - **Opened by** `mod:/pm-calls`
 - **Source** `src/modules/FieldCalls.tsx`
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
-- **Also tested in the screen** (not offered under this page in the matrix): `calls.allot`, `calls.cancel`, `calls.create`, `calls.edit`, `calls.report`, `consumption.reconcile`, `pending.register`, `spare.request`
+- **Actions an administrator can grant** (from the permission matrix):
+  - `calls.view` — View calls
+  - `pm.create` — Create PM calls
+  - `pm.edit` — Edit PM calls (all sections)
+  - `pm.edit.complaint` —  Edit the complaint
+  - `pm.edit.customer` —  Edit customer & product
+  - `pm.edit.vigilance` —  Edit the vigilance answers
+  - `pm.edit.contact` —  Edit customer contact details
+  - `pm.allot` — Re-allocate a PM call
+  - `pm.report` — Report / update PM calls (all of the below)
+  - `pm.report.visit` —  File a visit on a PM call
+  - `visit.spares` —  Book spares used on a visit (any register)
+  - `visit.feedback` —  Record customer feedback on a visit (any register)
+  - `pm.cancel` — Cancel a PM call (and restore it)
+  - `pm.reopen` — Re-open, close or close again a PM call
+  - `spare.request` — Request spares
+  - `consumption.reconcile` — Add consumption against a call (reconciliation)
 - **Buttons** “Clear”, “⭳ Export CSV”
 
 ### Pending Calls `/pending-calls`
 
 - **Opened by** `mod:/pending-calls`
 - **Source** `src/modules/PendingCalls.tsx`
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
-- **Also tested in the screen** (not offered under this page in the matrix): `calls.allot`
+- **Actions an administrator can grant** (from the permission matrix):
+  - `calls.allot` — Re-allocate a Field call to another engineer
+  - `install.allot` — Re-allocate an installation call
+  - `pm.allot` — Re-allocate a PM call
 - **Buttons** “Clear”, “⭳ Export CSV”
 
 ### Visit Reports / Service Reports `/reports`
@@ -179,8 +233,8 @@ that guessed would be read as a census.
 - **Opened by** `mod:/reports`
 - **Source** `src/modules/Reports.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
-  - `reports.view` — View reports
-- **Buttons** “⭳ Export CSV”
+  - `calls.view` — View calls
+- **Buttons** “⭳ Excel”, “⭳ CSV”
 
 ### Customer Feedback `/feedback`
 
@@ -197,17 +251,18 @@ that guessed would be read as a census.
 - **Opened by** `mod:/parties`
 - **Source** `src/modules/PartyMaster.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
-  - `masters.view` — View masters
-  - `masters.edit` — Edit masters
-- **Buttons** “✎ Change engineer”, “⭳ Export CSV”, “Cancel”
+  - `masters.edit` — Edit masters (all of the below)
+  - `masters.edit.records` —  Add / edit master records (parties, parts, products, lists)
+  - `masters.edit.kyc` —  Verify a party’s KYC
+  - `masters.edit.swap_serviceman` —  Swap the Serviceman on every party at once
+- **Buttons** “✎ Change engineer”, “⭳ Export CSV”, “Cancel”, “Remove”
 
 ### Product Database `/product-database`
 
 - **Opened by** `mod:/product-database`
 - **Source** `src/modules/ProductMaster.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
-  - `masters.view` — View masters
-  - `calls.create` — Create / register calls
+  - `install.create` — Create installation calls (Commercial)
 - **Buttons** “+ Field”, “+ Install”, “Clear”, “⭳ Export CSV”
 
 ### Product Database 2.0 `/product-database-2`
@@ -216,16 +271,14 @@ that guessed would be read as a census.
 - **Source** `src/modules/ProductDatabase2.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
   - `masters.view` — View masters
-- **Also tested in the screen** (not offered under this page in the matrix): `masters.edit`
+  - `pd2.rebuild` — Rebuild Product Database 2.0
 - **Buttons** “⭳ Export CSV”
 
 ### Product Master (product lines) `/product-master`
 
 - **Opened by** `mod:/product-master`
 - **Source** `src/modules/ProductLines.tsx`
-- **Actions an administrator can grant** (from the permission matrix):
-  - `masters.view` — View masters
-  - `masters.edit` — Edit masters
+- **Actions an administrator can grant**: none — the screen is opened or it is not.
 - **Buttons** “⭳ Export CSV”
 - **Reads directly** `product_master`
 
@@ -234,7 +287,12 @@ that guessed would be read as a census.
 - **Opened by** `mod:/user-master`
 - **Source** `src/modules/UserMasterView.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
-  - `users.manage` — Manage users
+  - `users.manage` — Manage users (all of the below)
+  - `users.manage.details` —  Edit User Master details, profiles and R&R
+  - `users.manage.create` —  Create logins (a new login is an Engineer; any other role needs the tick below)
+  - `users.manage.disable` —  Disable or delete logins
+  - `users.manage.access` —  Assign roles & grant permissions
+  - `users.reset_password` — Reset a person’s password
 - **Buttons** “Cancel”, “✎ Edit”, “+ New User”, “⭳ Export CSV”, “Done”
 
 ### Part Master `/parts`
@@ -242,8 +300,9 @@ that guessed would be read as a census.
 - **Opened by** `mod:/parts`
 - **Source** `src/modules/PartMaster.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
-  - `masters.view` — View masters
-  - `masters.edit` — Edit masters
+  - `masters.edit` — Edit masters (all of the below)
+  - `masters.edit.records` —  Add / edit master records (parties, parts, products, lists)
+  - `masters.edit.rename_part` —  Rename a part (moves every record that names it)
 - **Buttons** “＋ Add part”, “✎ Edit”, “⭳ Export CSV”, “Cancel”
 
 ### All Masters `/masters`
@@ -251,8 +310,8 @@ that guessed would be read as a census.
 - **Opened by** `mod:/masters`
 - **Source** `src/modules/AllMasters.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
-  - `masters.view` — View masters
-  - `masters.edit` — Edit masters
+  - `masters.edit` — Edit masters (all of the below)
+  - `masters.edit.records` —  Add / edit master records (parties, parts, products, lists)
 - **Buttons** “⭳ Export CSV”
 
 ## Knowledge Base
@@ -262,10 +321,19 @@ that guessed would be read as a census.
 - **Opened by** `mod:/knowledge-base/how-it-works` · administrator-only screen
 - **Source** `src/modules/HowRithiFunctions.tsx`
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
+- **Buttons** “Data flows”
 
 ### Service Manuals `/service-manuals`
 
 - **Opened by** `mod:/service-manuals`
+- **Source** `src/modules/DocumentLibrary.tsx`
+- **Actions an administrator can grant** (from the permission matrix):
+  - `docs.manage` — Add / edit service manuals
+- **Buttons** “＋ Add document”, “Cancel”
+
+### Technical / Service Notes `/service-manuals/notes`
+
+- **Opened by** `mod:/service-manuals/notes`
 - **Source** `src/modules/DocumentLibrary.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
   - `docs.manage` — Add / edit service manuals
@@ -281,6 +349,14 @@ that guessed would be read as a census.
   - `qms.manage` — Add / edit QMS documents
 - **Buttons** “＋ Add document”, “Cancel”
 
+### Training `/training`
+
+- **Opened by** `mod:/training` · administrator-only screen
+- **Source** `src/modules/Training.tsx`
+- **Actions an administrator can grant** (from the permission matrix):
+  - `training.manage` — Manage training — assign, record sessions, see everyone's training and R&R
+- **Buttons** “Cancel”, “＋ Assign training”, “＋ Record session”, “⭳ Export CSV”, “Assign”, “＋ Add these people”, “Save session”
+
 ## Contracts & Warranty
 
 ### Warranty Register `/warranties`
@@ -288,16 +364,26 @@ that guessed would be read as a census.
 - **Opened by** `mod:/warranties`
 - **Source** `src/modules/CoverRegister.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
-  - `cover.edit` — Edit sales / warranties / contracts
-- **Buttons** “Remove”, “Apply to rates”, “Clear rates”, “+ Field call”, “Entries”, “By machine”, “+ New entry”, “⭳ Export CSV”, “Delete entry”, “+ Add machine”
+  - `masters.view` — View masters
+  - `cover.edit` — Edit sales / warranties (all of the below)
+  - `cover.edit.entries` —  Add / edit warranty entries and their machines
+  - `cover.edit.delete` —  Delete a whole warranty entry with its machines
+  - `calls.create` — Create / register calls
+  - `install.create` — Create installation calls (Commercial)
+- **Buttons** “Remove”, “Apply to rates”, “Clear rates”, “+ Field call”, “Delete entry”, “+ Add machine”, “+ New entry”, “⭳ Export CSV”, “Entries”, “By machine”
 
 ### Contract Register `/contracts`
 
 - **Opened by** `mod:/contracts`
 - **Source** `src/modules/CoverRegister.tsx`
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
-- **Also tested in the screen** (not offered under this page in the matrix): `cover.edit`
-- **Buttons** “Remove”, “Apply to rates”, “Clear rates”, “+ Field call”, “Entries”, “By machine”, “+ New entry”, “⭳ Export CSV”, “Delete entry”, “+ Add machine”
+- **Actions an administrator can grant** (from the permission matrix):
+  - `masters.view` — View masters
+  - `contract.edit` — Edit contracts (all of the below)
+  - `contract.edit.entries` —  Add / edit contract entries and their machines
+  - `contract.edit.delete` —  Delete a whole contract entry with its machines
+  - `calls.create` — Create / register calls
+- **Also tested in the screen** (not offered under this page in the matrix): `install.create`
+- **Buttons** “Remove”, “Apply to rates”, “Clear rates”, “+ Field call”, “Delete entry”, “+ Add machine”, “+ New entry”, “⭳ Export CSV”, “Entries”, “By machine”
 
 ### Ownership Transfer `/ownership-transfer`
 
@@ -305,7 +391,7 @@ that guessed would be read as a census.
 - **Source** `src/modules/OwnershipTransfer.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
   - `ownership.transfer` — Transfer a machine between customers
-  - `cover.edit` — Edit sales / warranties / contracts
+  - `cover.edit.entries` —  Add / edit warranty entries and their machines
 - **Buttons** “＋ Record a transfer”, “＋ Add entry details”, “Cancel”
 
 ## Administration
@@ -314,20 +400,38 @@ that guessed would be read as a census.
 
 - **Opened by** `mod:/report-mapping` · administrator-only screen
 - **Source** `src/modules/ReportMapping.tsx`
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
-- **Also tested in the screen** (not offered under this page in the matrix): `calls.report`
+- **Actions an administrator can grant** (from the permission matrix):
+  - `calls.report.visit` —  File a visit on a Field call
+  - `install.report.visit` —  File a visit on an installation call
+  - `pm.report.visit` —  File a visit on a PM call
 
 ### PM Bulk Upload `/pm-bulk-upload`
 
 - **Opened by** `mod:/pm-bulk-upload` · administrator-only screen
 - **Source** `src/modules/PmBulkUpload.tsx`
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
+- **Actions an administrator can grant** (from the permission matrix):
+  - `pm.bulk_upload` — Upload PM calls in bulk
 - **Buttons** “⭳ Download template”, “Clear”
 
 ### Bulk Uploads `/bulk-uploads`
 
 - **Opened by** `mod:/bulk-uploads` · administrator-only screen
 - **Source** `src/modules/BulkUploads.tsx`
+- **Actions an administrator can grant** (from the permission matrix):
+  - `bulk.upload` — Load registers in bulk (Bulk Uploads)
+
+### Data Export `/data-export`
+
+- **Opened by** `mod:/data-export` · administrator-only screen
+- **Source** — **not resolved from `App.tsx`**
+- **Actions an administrator can grant** (from the permission matrix):
+  - `export.tables` — Export whole tables (Data Export)
+  - `export.schedules` — Create, pause or delete an export schedule
+
+### Device Cache Status `/device-cache`
+
+- **Opened by** `mod:/device-cache` · administrator-only screen
+- **Source** `src/modules/DeviceCacheStatus.tsx`
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
 
 ### Solved Without a Report `/missing-visit-reports`
@@ -341,7 +445,8 @@ that guessed would be read as a census.
 
 - **Opened by** `mod:/tracker`
 - **Source** `src/modules/Tracker.tsx`
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
+- **Actions an administrator can grant** (from the permission matrix):
+  - `tracker.delete` — Delete a Tracker item
 - **Buttons** “+ Add an item”, “Delete”
 
 ### Roles & Permissions `/roles`
@@ -366,22 +471,24 @@ that guessed would be read as a census.
 - **Opened by** `mod:/admin-config` · administrator-only screen
 - **Source** `src/modules/AdminConfig.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
-  - `config.manage` — Admin config
+  - `config.manage` — Admin config (SLA targets, Call Registration desk, Frequent Failure rule)
+  - `import.panel` — Load data through the Data Import panel
+  - `audit.mode` — Switch Audit Mode on or off, and read its history
 
 ### Software Validation `/software-validation`
 
 - **Opened by** `mod:/software-validation` · administrator-only screen
 - **Source** `src/modules/SoftwareValidation.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
-  - `config.manage` — Admin config
-- **Also tested in the screen** (not offered under this page in the matrix): `manage-users`
+  - `validation.manage` — Record software validation results
 
 ### Settings `/settings`
 
 - **Opened by** `mod:/settings`
 - **Source** `src/modules/Settings.tsx`
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
-- **Also tested in the screen** (not offered under this page in the matrix): `admin.view`, `manage-users`
+- **Actions an administrator can grant** (from the permission matrix):
+  - `users.manage.settings` —  Change the Settings page (connections, templates)
+- **Also tested in the screen** (not offered under this page in the matrix): `admin.view`
 - **Buttons** “Reset Demo Data”
 
 ### Version History `/version-history`
@@ -401,9 +508,10 @@ that guessed would be read as a census.
   - `spare.approve_rm` — Approve spare — RM stage
   - `spare.approve_commercial` — Approve spare — Commercial
   - `spare.approve_nsm` — Approve spare — NSM
+  - `spare.dispatch` — Dispatch / DC (Stores)
   - `spare.drop` — Drop a spare (any stage)
   - `spare.receive` — Acknowledge spare receipt
-- **Also tested in the screen** (not offered under this page in the matrix): `manage-users`, `spare.dispatch`
+  - `spare.reassign` — Change the engineer on a spare request (before dispatch)
 - **Buttons** “＋ Add spare”, “Cancel”, “Change call”, “⊘ Drop”, “＋ New Spare Request”, “Clear”, “⭳ Export CSV”, “✎ Change engineer”
 
 ### RM Approval `/spare-rm-approval`
@@ -420,7 +528,7 @@ that guessed would be read as a census.
 - **Source** `src/modules/SpareDispatch.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
   - `spare.dispatch` — Dispatch / DC (Stores)
-- **Also tested in the screen** (not offered under this page in the matrix): `spare.drop`
+  - `spare.drop` — Drop a spare (any stage)
 - **Buttons** “⭳ Export CSV”, “Clear”, “Cancel”
 
 ### Stock Out `/stock-out`
@@ -442,9 +550,10 @@ that guessed would be read as a census.
 
 - **Opened by** `mod:/handstock`
 - **Source** `src/modules/HandStock.tsx`
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
-- **Also tested in the screen** (not offered under this page in the matrix): `stock.transfer`
-- **Buttons** “⭳ Export CSV”
+- **Actions an administrator can grant** (from the permission matrix):
+  - `consumption.reconcile` — Add consumption against a call (reconciliation)
+  - `stock.transfer` — Transfer hand-stock between engineers
+- **Buttons** “⭳ Export CSV”, “Cancel”
 
 ### Material Returns (MRN) `/mrn`
 
@@ -452,7 +561,7 @@ that guessed would be read as a census.
 - **Source** `src/modules/MaterialReturns.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
   - `stock.return` — Return spares to Stores (MRN)
-- **Also tested in the screen** (not offered under this page in the matrix): `spare.approve_rm`, `spare.dispatch`, `users.manage`
+  - `stock.return.others` — Return stock in another engineer’s name
 - **Buttons** “＋ New MRN”, “⭳ Export CSV”, “＋ Add spare”, “Cancel”
 
 ### Stock Transfer `/stock-transfer`
@@ -472,22 +581,14 @@ that guessed would be read as a census.
 - **Source** `src/modules/ReportsHub.tsx`
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
 
-### User Access `/users`
-
-- **Opened by** `mod:/users` · administrator-only screen
-- **Not on the menu** — reachable by URL or from another screen only.
-- **Source** `src/modules/UserMasterView.tsx` (redirects to `/user-master`)
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
-- **Also tested in the screen** (not offered under this page in the matrix): `users.manage`
-- **Buttons** “Cancel”, “✎ Edit”, “+ New User”, “⭳ Export CSV”, “Done”
-
 ## Reports
 
 ### Reports — Consumption Report `/exports/consumption`
 
 - **Opened by** `mod:/exports/consumption`
 - **Source** `src/modules/ReportsHub.tsx` (served by `/exports/:tab`)
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
+- **Actions an administrator can grant** (from the permission matrix):
+  - `reports.view` — View reports
 
 ### Reports — KPI Export `/exports/kpi`
 
@@ -499,18 +600,35 @@ that guessed would be read as a census.
 
 - **Opened by** `mod:/exports/unused`
 - **Source** `src/modules/ReportsHub.tsx` (served by `/exports/:tab`)
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
+- **Actions an administrator can grant** (from the permission matrix):
+  - `reports.view` — View reports
 
 ### Reports — Call Report `/exports/calls`
 
 - **Opened by** `mod:/exports/calls`
 - **Source** `src/modules/ReportsHub.tsx` (served by `/exports/:tab`)
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
+- **Actions an administrator can grant** (from the permission matrix):
+  - `reports.view` — View reports
 
 ### Reports — Customer Feedback Report `/exports/feedback`
 
 - **Opened by** `mod:/exports/feedback`
 - **Source** `src/modules/ReportsHub.tsx` (served by `/exports/:tab`)
+- **Actions an administrator can grant** (from the permission matrix):
+  - `feedback.view` — View feedback
+  - `visit.feedback` —  Record customer feedback on a visit (any register)
+
+### Feedback Without a Report `/feedback-without-report`
+
+- **Opened by** `mod:/feedback-without-report` · administrator-only screen
+- **Source** `src/modules/FeedbackWithoutReport.tsx`
+- **Actions an administrator can grant**: none — the screen is opened or it is not.
+- **Buttons** “⭳ Excel”, “⭳ CSV”
+
+### Hand Stock Report `/handstock-report`
+
+- **Opened by** `mod:/handstock-report` · administrator-only screen
+- **Source** `src/modules/HandStockReport.tsx`
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
 
 ## Indoor Service
