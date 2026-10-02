@@ -1648,7 +1648,10 @@ with checks(sort_order, bundle, provides, present) as (
     (243, 'A tick-box RM approval auto-approves what the spare does not need', 'decide_spare_lines() writes Auto-Approved into Commercial / NSM by spare_needs_commercial() / spare_needs_nsm() when RM approves, as the single-spare Approve does (0311, D-081). Before it, a warranty spare approved by tick box waited at Commercial; _spares_waiting_at_commercial_by_mistake.sql lists any still waiting. NO means Spare_1.sql has not been re-run since. Restore: Spare_1.sql (0311_tick_box_rm_auto_approves)',
         coalesce((select p.prosrc like '%spare_needs_commercial%' and p.prosrc like '%spare_needs_nsm%' from pg_proc p where p.oid = to_regprocedure('public.decide_spare_lines(bigint[],text,text,text)')), false)),
     (244, 'An amended or voided consumption line keeps its original quantity', 'consumption_adjust_guard() stamps original_qty (the quantity before the first change) and adjusted_at again (0317, D-082); 0196 had dropped both and 0261 / 0316 kept the omission. NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0317_void_keeps_original_qty)',
-        coalesce((select p.prosrc like '%new.original_qty := old.qty%' and p.prosrc like '%new.adjusted_at := now()%' from pg_proc p where p.oid = to_regprocedure('public.consumption_adjust_guard()')), false))
+        coalesce((select p.prosrc like '%new.original_qty := old.qty%' and p.prosrc like '%new.adjusted_at := now()%' from pg_proc p where p.oid = to_regprocedure('public.consumption_adjust_guard()')), false)),
+    (245, 'Every warranty sale was re-read from the Party Master once, and its machines put back on it', 'The one-time update of 2026-10-02 (0318) ran: one_time_fixes_done holds 0318_warranty_party_refresh, whose detail says how many sales and machine lines it changed; the values it replaced are in sale_party_refresh_backup and sale_items_inherit_backup. It never runs twice -- re-running the bundle leaves everything alone. NO means it has not run on this project. Restore: sales_contracts.sql (0318)',
+        (to_regclass('public.one_time_fixes_done') is not null
+         and exists (select 1 from public.one_time_fixes_done where name = '0318_warranty_party_refresh')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

@@ -16,7 +16,7 @@ import { getSupabase, addCall } from './supabase';
 import { dayAfter, addPeriod, todayLocal } from './dates';
 import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears,
          inheritAllPatch, isPinnedValue, installCallFromSale, machinesNeedingInstallCall,
-         coverStatus, type SaleForCall, type SaleItemForCall } from './coverspec';
+         coverStatus, contractPmVisits, periodEnd, type SaleForCall, type SaleItemForCall } from './coverspec';
 
 export type CoverKind = 'sale' | 'contract';
 
@@ -722,6 +722,154 @@ export async function renewContract(
           ? { rate: null, item_tax_amount: null, total_after_tax: null }
           : { rate, item_tax_amount: itemTaxAmount(rate), total_after_tax: totalAfterTax(rate) };
       })(),
+    });
+    machines += 1;
+  }
+  return { mc_number: mc, machines };
+}
+
+// ===========================================================================
+// CONVERT A WARRANTY INTO A CONTRACT (the user, 2026-10-02: "Give a Provision
+// to convert the Warranty into a Contract - Can you map it to the Respective
+// fields + Add the Products to the List").
+//
+// THE SAME SHAPE AS A RENEWAL, from the other register: the facts the sale
+// already holds are carried, the ones a sale cannot know are asked for.
+//
+//   carried   Party Name; each machine's Product Code, Product Name and
+//             Serial Number; the SA Number and that machine's warranty end on
+//             the contract line (sa_number, sa_end_date -- the columns the
+//             AppSheet sheet kept for exactly this history).
+//   proposed  Contract Start = the day after the warranty ends, so cover runs
+//             on without a gap or an overlap (CW-010). Editable.
+//   asked     MC Number (the next in the series offered, not reserved),
+//             Contract Type, Period (Months), PM Visits (Total), Payment
+//             Schedule, Bill Generate At -- the contract form's own required
+//             fields, refused here by the same rule -- and a rate per machine,
+//             optional, never invented: a sale has no service price to carry.
+//
+// End date and years are WORKED OUT, through `deriveHeader`, exactly as the
+// contract form works them out, so a converted contract and a typed one
+// cannot disagree about when the cover ends.
+// ===========================================================================
+export interface ConversionDraft {
+  mc_number: string;
+  contract_type: string;
+  contract_start: string;
+  contract_months: number | null;
+  pm_visits_total: number | null;
+  payment_schedule: string;
+  bill_generate_at: string;
+  serials: string[];
+  rates: Record<string, string>;
+}
+
+/** A machine line's warranty end: its own if pinned, else the sale's. */
+const itemWarrantyEnd = (sale: Row, it: Row): string =>
+  str(it.warranty_end || sale.warranty_end).slice(0, 10);
+
+/** What a conversion of `sale` would look like before anybody edits it. */
+export function proposeConversion(sale: Row, items: Row[]): ConversionDraft {
+  const end = str(sale.warranty_end).slice(0, 10);
+  return {
+    mc_number: '',
+    // NOT GUESSED (CW-008): CMC and AMC are different promises.
+    contract_type: '',
+    contract_start: end ? dayAfter(end) : todayLocal(),
+    contract_months: null,
+    pm_visits_total: null,
+    payment_schedule: '',
+    bill_generate_at: '',
+    // Every machine with a serial, ticked to start with; one without a serial
+    // is not a machine a contract can cover.
+    serials: items.map((i) => str(i.serial_number)).filter(Boolean),
+    rates: {},
+  };
+}
+
+/** The contract this draft would write: the header, with end and years worked out. */
+export function conversionHeader(sale: Row, d: ConversionDraft): Row {
+  const base: Row = {
+    mc_number: d.mc_number.trim(),
+    entry_at: todayLocal(),
+    party_name: sale.party_name ?? null,
+    contract_type: d.contract_type || null,
+    contract_start: d.contract_start,
+    contract_months: d.contract_months,
+    pm_visits_total: d.pm_visits_total,
+    payment_schedule: d.payment_schedule || null,
+    bill_generate_at: d.bill_generate_at || null,
+  };
+  const months = d.contract_months;
+  return {
+    ...base,
+    contract_years: periodYears(months),
+    contract_end: periodEnd(d.contract_start, months) || null,
+  };
+}
+
+/** What a contract machine line carries over from a sale machine line. */
+export function conversionItem(sale: Row, it: Row): Row {
+  return {
+    product_code: it.product_code ?? null,
+    product_name: it.product_name ?? null,
+    serial_number: it.serial_number ?? null,
+    sa_number: str(sale.sa_number) || null,
+    sa_end_date: itemWarrantyEnd(sale, it) || null,
+    // Dates, type and period left EMPTY so the machine follows the contract.
+  };
+}
+
+/** The suggestion for PM Visits (Total), from the months -- the form's rule. */
+export const suggestedContractPmVisits = (months: number | null): number | null =>
+  contractPmVisits(months);
+
+/** Contracts that already carry a machine from this sale, so converting twice
+ *  is a decision rather than an accident. */
+export async function contractsFromSale(sa: string): Promise<string[]> {
+  if (!sa) return [];
+  const { data, error } = await client().from('contract_items')
+    .select('mc_number').eq('sa_number', sa).limit(1000);
+  if (error) throw new Error(error.message);
+  return [...new Set((data ?? []).map((r) => str((r as Row).mc_number)).filter(Boolean))];
+}
+
+export async function convertWarrantyToContract(
+  sale: Row, items: Row[], d: ConversionDraft,
+): Promise<{ mc_number: string; machines: number }> {
+  const mc = d.mc_number.trim();
+  if (!mc) throw new Error('Give the MC Number for the new contract.');
+  if (!d.contract_start) throw new Error('The new contract needs a start date.');
+  // THE CONTRACT FORM'S REQUIRED FIELDS, refused by the same rule and named
+  // together (FRS-220.4).
+  const header = conversionHeader(sale, d);
+  const missing = missingRequired(CONTRACT.headerFields, header);
+  if (missing.length) throw new Error(`Fill in ${missing.join(', ')} — ${missing.length === 1 ? 'it is' : 'they are'} required on a contract.`);
+  if (!d.serials.length) throw new Error('Tick at least one machine to put on the contract.');
+  if (await contractNumberExists(mc)) {
+    throw new Error(`MC Number ${mc} already exists. Converting into it would merge two contracts.`);
+  }
+  // Every rate checked before anything is written, as on a renewal.
+  const rateFor = (serial: string): number | null => {
+    const raw = (d.rates ?? {})[serial];
+    if (raw == null || String(raw).trim() === '') return null;
+    const n = Number(String(raw).trim());
+    if (!Number.isFinite(n)) throw new Error(`Rate for ${serial} is not a number: "${raw}"`);
+    if (n < 0) throw new Error(`Rate for ${serial} cannot be negative.`);
+    return n;
+  };
+  for (const sn of d.serials) rateFor(sn);
+
+  await saveHeader('contract', header);
+  const keep = new Set(d.serials);
+  let machines = 0;
+  for (const it of items.filter((i) => keep.has(str(i.serial_number)))) {
+    const rate = rateFor(str(it.serial_number));
+    await saveItem('contract', mc, {
+      ...conversionItem(sale, it),
+      ...(rate === null
+        ? { rate: null, item_tax_amount: null, total_after_tax: null }
+        : { rate, item_tax_amount: itemTaxAmount(rate), total_after_tax: totalAfterTax(rate) }),
     });
     machines += 1;
   }

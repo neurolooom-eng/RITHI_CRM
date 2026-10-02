@@ -238,9 +238,12 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Raise the installation calls for the machines, or one machine at a time from Register',
       'Click an entry to open it in a pop-up: sale details on the left, its products on the right, every button in the bar at the top',
       'Use ↺ Force update child records to make every machine follow the entry again',
+      'Use ⇢ Convert to Contract to raise a contract from this sale: the customer and machines carry over, you give the MC Number, type, period, PM visits and billing',
     ],
-    records: ['sale_entries', 'sale_items', 'warranty_sale_details', 'parties', 'product_master', 'calls', 'rpc:link_install_call'],
+    records: ['sale_entries', 'sale_items', 'warranty_sale_details', 'parties', 'product_master', 'calls', 'rpc:link_install_call', 'contract_entries', 'contract_items'],
     rules: [
+      'Save entry is greyed out until something on the entry has changed',
+      'Converting needs the right to create contracts; it warns if the sale is already on a contract',
       'Save the entry before raising installation calls; a line needs both a Product and a Serial to get one',
       'Changing the customer replaces all the filled-in details, blanks included',
       'A retired product line takes no new sale',
