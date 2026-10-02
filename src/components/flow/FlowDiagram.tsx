@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { FLOWS, layoutFlow, type Flow, type FlowStep } from '../../lib/flows';
 import { URS, FRS, TESTS } from '../../lib/validation';
@@ -50,15 +50,96 @@ function StepDetail({ step }: { step: FlowStep }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// ▶ PLAY — the flow walked through one step at a time (the user, 2026-10-02:
+// "Create an animated Data Flow diagram for all the workflows", and asked how:
+// "Play step by step"). The order is the order of the process — the layout's
+// columns, left to right, top to bottom within a column — so a step is never
+// shown before the steps that feed it. Played steps stay solid, the current one
+// is lifted (contrast, the project's highlight), the rest wait faded, and the
+// arrows INTO the current step run. Pause, step back or forward, or click a box
+// to stop and read it. With reduced motion asked for, nothing moves by itself:
+// the arrows stay still and Play advances only on Next.
+// ---------------------------------------------------------------------------
+const STEP_MS = 3400;
+const reducedMotion = () => {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
+};
+
 export function FlowDiagram({ flow, printAll = false }: { flow: Flow; printAll?: boolean }) {
   const layout = useMemo(() => layoutFlow(flow), [flow]);
   const [picked, setPicked] = useState<string | null>(null);
-  const step = flow.steps.find((s) => s.id === picked) ?? null;
   const markerId = `fl-arrow-${flow.id}`;
+  const liveMarkerId = `fl-arrow-live-${flow.id}`;
+
+  // The walk order: column, then position down the column.
+  const order = useMemo(() => [...layout.nodes].sort((a, b) => a.rank - b.rank || a.y - b.y).map((n) => n.step.id), [layout]);
+  const [pos, setPos] = useState<number | null>(null);      // index into `order` while walking
+  const [playing, setPlaying] = useState(false);
+  const still = useMemo(reducedMotion, []);
+  const scroller = useRef<HTMLDivElement>(null);
+
+  // A new flow starts at rest.
+  useEffect(() => { setPos(null); setPlaying(false); setPicked(null); }, [flow.id]);
+
+  // Advance on a timer while playing; stop at the last step.
+  useEffect(() => {
+    if (!playing || still) return;
+    const t = window.setTimeout(() => {
+      setPos((p) => {
+        const next = (p ?? -1) + 1;
+        if (next >= order.length - 1) setPlaying(false);
+        return Math.min(next, order.length - 1);
+      });
+    }, pos === null ? 0 : STEP_MS);
+    return () => window.clearTimeout(t);
+  }, [playing, pos, order.length, still]);
+
+  const current = pos === null ? null : order[pos];
+  const shownId = current ?? picked;
+  const step = flow.steps.find((s) => s.id === shownId) ?? null;
+  const doneSet = useMemo(() => new Set(pos === null ? [] : order.slice(0, pos)), [order, pos]);
+
+  // Keep the current step in view in a wide diagram.
+  useEffect(() => {
+    if (!current || !scroller.current) return;
+    const n = layout.nodes.find((x) => x.step.id === current);
+    if (!n) return;
+    const box = scroller.current;
+    const left = Math.max(0, n.x + n.w / 2 - box.clientWidth / 2);
+    box.scrollTo({ left, behavior: still ? 'auto' : 'smooth' });
+  }, [current, layout, still]);
+
+  const play = () => {
+    if (pos !== null && pos >= order.length - 1) setPos(null);   // finished: start again
+    setPicked(null);
+    if (still) setPos((p) => (p === null ? 0 : p));
+    else setPlaying(true);
+  };
+  const goto = (i: number) => { setPlaying(false); setPicked(null); setPos(Math.max(0, Math.min(order.length - 1, i))); };
+  const nodeClass = (id: string) => {
+    if (pos === null) return picked === id ? ' fl-on' : '';
+    if (id === current) return ' fl-on';
+    return doneSet.has(id) ? ' fl-done' : ' fl-later';
+  };
+  const edgeLive = (from: string, to: string) => !!current && to === current && (doneSet.has(from) || from === current);
 
   return (
     <div className="fl-flow">
-      <div className="fl-scroll">
+      {!printAll && (
+        <div className="fl-player" role="group" aria-label="Play the flow step by step">
+          {playing
+            ? <button className="btn btn-sm btn-primary" onClick={() => setPlaying(false)} aria-label="Pause">⏸ Pause</button>
+            : <button className="btn btn-sm btn-primary" onClick={play} aria-label="Play the flow step by step">▶ {pos === null ? 'Play' : pos >= order.length - 1 ? 'Play again' : 'Resume'}</button>}
+          <button className="btn btn-sm" onClick={() => goto((pos ?? 0) - 1)} disabled={pos === null || pos === 0} aria-label="Previous step">⏮ Previous</button>
+          <button className="btn btn-sm" onClick={() => goto(pos === null ? 0 : pos + 1)} disabled={pos !== null && pos >= order.length - 1} aria-label="Next step">Next ⏭</button>
+          {pos !== null && <button className="btn btn-sm btn-ghost" onClick={() => { setPlaying(false); setPos(null); }}>↺ Reset</button>}
+          <span className="fl-muted fl-player-pos" aria-live="polite">
+            {pos === null ? `${order.length} steps` : `Step ${pos + 1} of ${order.length}`}
+          </span>
+        </div>
+      )}
+      <div className={`fl-scroll${pos !== null ? ' fl-walking' : ''}${still ? ' fl-still' : ''}`} ref={scroller}>
         <svg className="fl-svg" width={layout.width} height={layout.height}
           viewBox={`0 0 ${layout.width} ${layout.height}`} role="img"
           aria-label={`${flow.title}: ${flow.steps.map((s) => s.label).join(', then ')}`}>
@@ -66,20 +147,27 @@ export function FlowDiagram({ flow, printAll = false }: { flow: Flow; printAll?:
             <marker id={markerId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M 0 0 L 10 5 L 0 10 z" className="fl-arrowhead" />
             </marker>
+            <marker id={liveMarkerId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" className="fl-arrowhead-live" />
+            </marker>
           </defs>
-          {layout.edges.map((e, i) => (
-            <g key={i}>
-              <path d={e.d} className={`fl-edge${e.edge.optional ? ' fl-edge-opt' : ''}${e.edge.loop ? ' fl-edge-loop' : ''}`}
-                markerEnd={`url(#${markerId})`} />
+          {layout.edges.map((e, i) => {
+            const live = edgeLive(e.edge.from, e.edge.to);
+            const dim = pos !== null && !live && !(doneSet.has(e.edge.from) && (doneSet.has(e.edge.to) || e.edge.to === current));
+            return (
+            <g key={i} className={dim ? 'fl-edge-dim' : undefined}>
+              <path d={e.d} className={`fl-edge${e.edge.optional ? ' fl-edge-opt' : ''}${e.edge.loop ? ' fl-edge-loop' : ''}${live ? ' fl-edge-live' : ''}`}
+                markerEnd={`url(#${live ? liveMarkerId : markerId})`} />
               {e.edge.label && <text x={e.lx} y={e.ly} className="fl-edge-label" textAnchor="middle">{e.edge.label}</text>}
             </g>
-          ))}
+            );
+          })}
           {layout.nodes.map((n) => (
-            <g key={n.step.id} className={`fl-node fl-${n.step.area}${picked === n.step.id ? ' fl-on' : ''}`}
+            <g key={n.step.id} className={`fl-node fl-${n.step.area}${nodeClass(n.step.id)}`}
               transform={`translate(${n.x},${n.y})`} role="button" tabIndex={0}
               aria-label={`${n.step.label}. Show details`}
-              onClick={() => setPicked(picked === n.step.id ? null : n.step.id)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPicked(picked === n.step.id ? null : n.step.id); } }}>
+              onClick={() => { setPlaying(false); setPos(null); setPicked(picked === n.step.id ? null : n.step.id); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPlaying(false); setPos(null); setPicked(picked === n.step.id ? null : n.step.id); } }}>
               <rect width={n.w} height={n.h} rx={8} className="fl-box" />
               <rect width={5} height={n.h} rx={2} className="fl-stripe" />
               {n.lines.map((l, i) => <text key={i} x={14} y={20 + i * 15} className="fl-label">{l}</text>)}
@@ -105,15 +193,17 @@ export function FlowDiagram({ flow, printAll = false }: { flow: Flow; printAll?:
           </tbody>
         </table>
       ) : step ? <StepDetail step={step} /> : (
-        <p className="fl-muted fl-hint">Select a box to see what that step does, where it happens and which requirements state it.</p>
+        <p className="fl-muted fl-hint">Press ▶ Play to walk through the flow one step at a time, or select a box to see what that step does, where it happens and which requirements state it.</p>
       )}
     </div>
   );
 }
 
 /** Every flow, one chosen at a time — or all of them, for printing. */
-export function FlowGallery({ printAll = false }: { printAll?: boolean }) {
-  const [id, setId] = useState<string>(FLOWS[0]?.id ?? '');
+export function FlowGallery({ printAll = false, pick }: { printAll?: boolean; pick?: string }) {
+  const [id, setId] = useState<string>(pick && FLOWS.some((f) => f.id === pick) ? pick : (FLOWS[0]?.id ?? ''));
+  // Opened from elsewhere on a named flow (the module guide's "Part of" chips).
+  useEffect(() => { if (pick && FLOWS.some((f) => f.id === pick)) setId(pick); }, [pick]);
   if (!FLOWS.length) return <p className="fl-muted">No data flows are defined yet.</p>;
   const shown = printAll ? FLOWS : FLOWS.filter((f) => f.id === id).slice(0, 1);
   return (
@@ -137,7 +227,8 @@ export function FlowGallery({ printAll = false }: { printAll?: boolean }) {
         <span className="fl-key fl-call" /> Calls <span className="fl-key fl-spare" /> Spares
         <span className="fl-key fl-stock" /> Hand stock <span className="fl-key fl-quality" /> Quality
         <span className="fl-key fl-cover" /> Cover <span className="fl-key fl-master" /> Masters
-        <span className="fl-key fl-report" /> Reports · a dashed arrow happens only sometimes; an arrow underneath goes back.
+        <span className="fl-key fl-report" /> Reports <span className="fl-key fl-doc" /> Documents &amp; training
+        <span className="fl-key fl-admin" /> Administration · a dashed arrow happens only sometimes; an arrow underneath goes back.
       </p>
     </div>
   );

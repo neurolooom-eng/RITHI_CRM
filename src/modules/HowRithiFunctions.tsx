@@ -3,11 +3,15 @@ import { PageHeader } from '../components/ui/ui';
 import { useTheme } from '../theme/ThemeProvider';
 import './howrithifunctions.css';
 import { FlowGallery } from '../components/flow/FlowDiagram';
+import { ModuleGuide } from '../components/guide/ModuleGuide';
 
 /** THE DATA FLOWS are not a document here but the validation package's own
  *  definitions (src/lib/flows.ts), drawn in the page — so what a reader sees
  *  is exactly what Software Validation shows and `check:ui` verifies. */
 const FLOWS_TAB = 'flows';
+/** EVERY MODULE ON ONE PAGE (the user, 2026-10-02: "Update how RITHI works for
+ *  all modules") -- the menu, screen by screen, from src/lib/moduleGuide.ts. */
+const MODULES_TAB = 'modules';
 
 // ===========================================================================
 // HOW RITHI FUNCTIONS — the shared diagram, embedded.
@@ -112,9 +116,11 @@ export function HowRithiFunctions() {
   // so every read and write is wrapped, and an empty answer is simply the
   // first document.
   const [docId, setDocId] = useState<string>(() => {
-    try { return localStorage.getItem('rithi.hrf.doc') ?? DOCS[0].id; } catch { return DOCS[0].id; }
+    try { return localStorage.getItem('rithi.hrf.doc') ?? MODULES_TAB; } catch { return MODULES_TAB; }
   });
   const flowsOpen = docId === FLOWS_TAB;
+  const modulesOpen = docId === MODULES_TAB;
+  const [flowPick, setFlowPick] = useState<string | undefined>(undefined);
   const doc = DOCS.find((d) => d.id === docId) ?? DOCS[0];
   const DOC = urlFor(doc.file);
   const pick = (id: string) => {
@@ -128,6 +134,8 @@ export function HowRithiFunctions() {
   // the bridge: every theme declares whether it is a light or a dark one, so
   // "Midnight Dark" and "Slate Dark" both hand the document `dark` rather than
   // a name it has never heard of.
+  const openFlow = (id: string) => { setFlowPick(id); pick(FLOWS_TAB); window.scrollTo({ top: 0 }); };
+
   const { theme } = useTheme();
   const scheme = theme.scheme === 'dark' ? 'dark' : 'light';
   const frame = useRef<HTMLIFrameElement>(null);
@@ -162,13 +170,13 @@ export function HowRithiFunctions() {
   // is worth naming, since it is always the same one: a deploy that did not
   // carry `public/`.
   useEffect(() => {
-    if (flowsOpen) return;
+    if (flowsOpen || modulesOpen) return;
     let live = true;
     fetch(DOC, { method: 'HEAD' })
       .then((r) => { if (live && !r.ok) setFailed(true); })
       .catch(() => { if (live) setFailed(true); });
     return () => { live = false; };
-  }, [DOC, flowsOpen]);
+  }, [DOC, flowsOpen, modulesOpen]);
 
   return (
     <div>
@@ -184,29 +192,34 @@ export function HowRithiFunctions() {
             to browse — the reason to open this page is often not knowing which
             document answers the question. They wrap on a narrow screen. */}
         <div className="hf-docs" role="tablist" aria-label="Module">
+          <button role="tab" aria-selected={modulesOpen}
+            className={`chip ${modulesOpen ? 'chip-on' : ''}`}
+            onClick={() => pick(MODULES_TAB)}>All modules</button>
           {DOCS.map((d) => (
-            <button key={d.id} role="tab" aria-selected={d.id === doc.id}
-              className={`chip ${d.id === doc.id ? 'chip-on' : ''}`}
+            <button key={d.id} role="tab" aria-selected={!flowsOpen && !modulesOpen && d.id === doc.id}
+              className={`chip ${!flowsOpen && !modulesOpen && d.id === doc.id ? 'chip-on' : ''}`}
               onClick={() => pick(d.id)}>{d.label}</button>
           ))}
           <button role="tab" aria-selected={flowsOpen}
             className={`chip ${flowsOpen ? 'chip-on' : ''}`}
             onClick={() => pick(FLOWS_TAB)}>Data flows</button>
         </div>
-        <span className="hf-bar-note">{flowsOpen
-          ? 'How a record moves from screen to screen — a call to its spares, closure, consumption and feedback; a review to its FFR and the Objective.'
+        <span className="hf-bar-note">{modulesOpen
+          ? 'Every screen in the menu: what it is for, what you do there, what it refuses, and the flows it is part of.'
+          : flowsOpen
+          ? 'Every workflow, drawn from the validation package — press ▶ Play to walk through one step at a time.'
           : doc.blurb}</span>
         <span className="hf-bar-spacer" />
         {/* A LONG DOCUMENT IS OFTEN WANTED ON ITS OWN — printed, or beside the
             screen it describes. The same file, without the app around it. */}
-        {!flowsOpen && (
+        {!flowsOpen && !modulesOpen && (
           <a className="btn btn-sm" href={DOC} target="_blank" rel="noreferrer">
             ⧉ Open on its own
           </a>
         )}
       </div>
 
-      {flowsOpen ? <FlowGallery /> : failed ? (
+      {modulesOpen ? <ModuleGuide onOpenFlow={openFlow} /> : flowsOpen ? <FlowGallery pick={flowPick} /> : failed ? (
         <div className="sheet-banner sheet-banner-error">
           <span>
             The document could not be loaded from <code>{DOC}</code>. It ships with the app in{' '}

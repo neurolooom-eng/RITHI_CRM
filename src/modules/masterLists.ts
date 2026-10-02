@@ -14,7 +14,7 @@ export const MASTER_LISTS: MasterListDef[] = [
   { key: 'calltype', label: 'Call Type', icon: '📞', valueLabel: 'Call Type', usedBy: 'Request form — Call Type' },
   { key: 'complaint', label: 'Standard Complaint', icon: '🧾', valueLabel: 'Complaint Name', usedBy: 'Call report — Standard Complaint' },
   { key: 'pendingreason', label: 'Call Pending Reason', icon: '⏸️', valueLabel: 'Reason', usedBy: 'Call report — Unsolved branch' },
-  { key: 'cancelreason', label: 'Call Cancel Reason', icon: '🚫', valueLabel: 'Reason', usedBy: "Hotline's Cancel request (Pending Registrations)" },
+  { key: 'cancelreason', label: 'Call Cancel Reason', icon: '🚫', valueLabel: 'Reason', usedBy: 'No screen reads this list today: cancelling a request on Pending Registrations takes a typed reason' },
   { key: 'feedbackrating', label: 'Feedback Rating', icon: '⭐', valueLabel: 'Rating', usedBy: 'Customer feedback — ratings' },
   { key: 'orapproval', label: 'Spare Approval Reason', icon: '✅', valueLabel: 'Reason', usedBy: 'Spare approval — reason for approval / rejection' },
   // Both tagged PER PRODUCT (masters.extra.product); a value tagged COMM is

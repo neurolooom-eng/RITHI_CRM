@@ -9773,6 +9773,19 @@ console.log('\n-- data flows name real screens, requirements and tests --');
     const overlap = lay.nodes.some((a, i) => lay.nodes.some((b, j) => j > i
       && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h));
     eq(`${f.id}: no two boxes overlap`, overlap, false);
+    // ARROW LABELS SIT CLEAR (2026-10-02, seen on screenshots: labels ran
+    // under boxes and onto each other where arrows fan out). A label's box is
+    // its text at 6px a character, 12px high, centred on (lx, ly-4).
+    const lbl = lay.edges.filter((e) => e.edge.label && !e.edge.loop).map((e) => {
+      const w = e.edge.label!.length * 6;
+      return { id: `${e.edge.from}->${e.edge.to}`, x: e.lx - w / 2, y: e.ly - 10, w, h: 12 };
+    });
+    const hit = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) =>
+      a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    eq(`${f.id}: no arrow label lies on a box`,
+      lbl.filter((l) => lay.nodes.some((n) => hit(l, n))).map((l) => l.id), []);
+    eq(`${f.id}: no two arrow labels lie on each other`,
+      lbl.flatMap((a, i) => lbl.slice(i + 1).filter((b) => hit(a, b)).map((b) => `${a.id} / ${b.id}`)), []);
     eq(`${f.id}: every box is inside the drawing`,
       lay.nodes.every((n) => n.x >= 0 && n.y >= 0 && n.x + n.w <= lay.width && n.y + n.h <= lay.height), true);
   }
@@ -9782,7 +9795,8 @@ console.log('\n-- data flows name real screens, requirements and tests --');
     /key: 'flows', label: 'Data Flows'/.test(sv) && /<FlowGallery printAll=\{all\} \/>/.test(sv), true);
   eq('...and no two tabs share a key',
     [...sv.matchAll(/\{ key: '([a-z]+)', label:/g)].map((m) => m[1]).filter((k, i, a) => a.indexOf(k) !== i), []);
-  eq('How RITHI Functions shows the same flows', /<FlowGallery \/>/.test(readFileSync('src/modules/HowRithiFunctions.tsx', 'utf8')), true);
+  // It may open on a named flow (the module guide's chips, 2026-10-02).
+  eq('How RITHI Functions shows the same flows', /<FlowGallery( pick=\{flowPick\})? \/>/.test(readFileSync('src/modules/HowRithiFunctions.tsx', 'utf8')), true);
 }
 
 console.log('\n-- Part Search is read only, for everyone (2026-10-01) --');
@@ -9832,6 +9846,26 @@ console.log('\n-- the header search finds records and opens each on its own scre
   eq('...Part Search reads the part code, Machine History the product and serial',
     /state as \{ code\?: string \}/.test(readFileSync('src/modules/PartSearch.tsx', 'utf8'))
     && /state as \{ product\?: string; serial\?: string \}/.test(readFileSync('src/modules/MachineHistory.tsx', 'utf8')), true);
+}
+
+console.log('\n-- How RITHI Functions explains every screen in the menu (2026-10-02) --');
+{
+  // The menu, read from Layout.tsx's NAV (a .tsx with a stylesheet, so it is
+  // read as text rather than imported) plus the value-list pages it adds.
+  const lay = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+  const navBlock = lay.slice(lay.indexOf('export const NAV'), lay.indexOf('\n];', lay.indexOf('export const NAV')));
+  const { MASTER_LISTS, masterListPath } = await import('../src/modules/masterLists');
+  const menu = [
+    ...[...navBlock.matchAll(/\{ to: '([^']+)'/g)].map((m) => m[1]),
+    ...MASTER_LISTS.map((l) => masterListPath(l.key)),
+  ];
+  const { MODULE_GUIDE } = await import('../src/lib/moduleGuide');
+  const guide = new Set(MODULE_GUIDE.map((e) => e.route));
+  eq('every screen in the menu has a guide entry', menu.filter((r) => !guide.has(r)), []);
+  eq('...and every guide entry is a screen in the menu', [...guide].filter((r) => !menu.includes(r)), []);
+  eq('...each said once', MODULE_GUIDE.length, guide.size);
+  eq('...and each says what the screen is for, what is done there and what it refuses',
+    MODULE_GUIDE.filter((e) => !e.purpose.trim() || !e.does.length || !e.rules.length).map((e) => e.route), []);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

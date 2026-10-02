@@ -321,7 +321,7 @@ that guessed would be read as a census.
 - **Opened by** `mod:/knowledge-base/how-it-works` · administrator-only screen
 - **Source** `src/modules/HowRithiFunctions.tsx`
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
-- **Buttons** “Data flows”
+- **Buttons** “All modules”, “Data flows”
 
 ### Service Manuals `/service-manuals`
 

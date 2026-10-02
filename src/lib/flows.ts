@@ -23,7 +23,10 @@
 // Nothing else is needed — the layout is computed.
 // ---------------------------------------------------------------------------
 
-export type FlowArea = 'call' | 'spare' | 'stock' | 'quality' | 'cover' | 'master' | 'report';
+// 'doc' (documents, training, knowledge) and 'admin' (people, permissions,
+// loads, the audit trail) joined on 2026-10-02 with the flows for every
+// workflow.
+export type FlowArea = 'call' | 'spare' | 'stock' | 'quality' | 'cover' | 'master' | 'report' | 'doc' | 'admin';
 
 export interface FlowStep {
   id: string;
@@ -75,6 +78,8 @@ const GAP_X = 64;
 const GAP_Y = 22;
 const PAD = 16;
 const LINE_H = 15;
+/** Width of one character of an arrow label (10.5px), for sizing the gap. */
+const LABEL_CHAR = 6;
 const CHARS_PER_LINE = 24;
 
 export interface PlacedStep { step: FlowStep; x: number; y: number; w: number; h: number; lines: string[]; rank: number }
@@ -134,17 +139,37 @@ export function layoutFlow(flow: Flow): FlowLayout {
   const loops = flow.edges.filter((e) => e.loop).length;
   const height = PAD * 2 + inner + (loops ? 28 + loops * 18 : 0);
 
+  // EACH GAP IS AS WIDE AS THE LONGEST LABEL THAT SITS IN IT (2026-10-02,
+  // seen on a screenshot: "Commercial auto-approved" ran under the next box in
+  // a fixed 64px gap). An arrow's label sits in the gap just BEFORE its target
+  // -- where arrows fanning out of one box have already separated -- so that
+  // gap is sized for it, even when the arrow skips columns.
+  const gaps = columns.map(() => GAP_X);          // gaps[r] = the gap AFTER column r
+  for (const e of flow.edges) {
+    if (e.loop || !e.label) continue;
+    const need = Math.ceil(e.label.length * LABEL_CHAR) + 22;
+    // Sized at BOTH ends: a label sits before its target, or -- where several
+    // labelled arrows converge on one box -- after its source (below).
+    for (const r of [rank.get(e.to)! - 1, rank.get(e.from)!]) if (r >= 0 && r < gaps.length) gaps[r] = Math.max(gaps[r], need);
+  }
+  // Boxes several labelled arrows converge on.
+  const labelledIn = new Map<string, number>();
+  for (const e of flow.edges) if (!e.loop && e.label) labelledIn.set(e.to, (labelledIn.get(e.to) ?? 0) + 1);
+  const colX: number[] = [];
+  columns.forEach((_, r) => { colX[r] = r === 0 ? PAD : colX[r - 1] + NODE_W + gaps[r - 1]; });
+
   const nodes: PlacedStep[] = [];
   columns.forEach((col, r) => {
     let y = PAD + (inner - colHeight[r]) / 2;
     for (const s of col ?? []) {
       const { lines, h } = sized.get(s.id)!;
-      nodes.push({ step: s, x: PAD + r * (NODE_W + GAP_X), y, w: NODE_W, h, lines, rank: r });
+      nodes.push({ step: s, x: colX[r], y, w: NODE_W, h, lines, rank: r });
       y += h + GAP_Y;
     }
   });
   const at = new Map(nodes.map((n) => [n.step.id, n]));
-  const width = PAD * 2 + columns.length * NODE_W + Math.max(0, columns.length - 1) * GAP_X;
+  const last = columns.length - 1;
+  const width = (last >= 0 ? colX[last] + NODE_W : 0) + PAD;
 
   let loopNo = 0;
   const edges: PlacedEdge[] = flow.edges.map((edge) => {
@@ -161,8 +186,36 @@ export function layoutFlow(flow: Flow): FlowLayout {
     const x1 = a.x + a.w, y1 = a.y + a.h / 2;
     const x2 = b.x, y2 = b.y + b.h / 2;
     const mx = (x1 + x2) / 2;
-    return { edge, d: `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`, lx: mx, ly: (y1 + y2) / 2 - 5 };
+    // The label sits in the gap before the target: the middle of the arrow
+    // when it crosses one gap; when it skips columns, the stretch into its
+    // target, where the middle would be over a box and the start would sit
+    // on its siblings' labels.
+    const oneGap = b.rank - a.rank <= 1;
+    const fanIn = (labelledIn.get(edge.to) ?? 0) > 1;
+    const lx = fanIn ? x1 + gaps[a.rank] / 2 : oneGap ? mx : x2 - gaps[b.rank - 1] / 2;
+    const ly = fanIn ? y1 - 5 : oneGap ? (y1 + y2) / 2 - 5 : y2 - 5;
+    return { edge, d: `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`, lx, ly };
   });
+
+  // A LABEL STILL ON ANOTHER moves down a line at a time, never onto a box.
+  const rectOf = (e: PlacedEdge) => {
+    const w = (e.edge.label ?? '').length * LABEL_CHAR;
+    return { x: e.lx - w / 2, y: e.ly - 10, w, h: 12 };
+  };
+  const hit = (p: { x: number; y: number; w: number; h: number }, q: { x: number; y: number; w: number; h: number }) =>
+    p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h;
+  const placed: PlacedEdge[] = [];
+  for (const e of edges) {
+    if (!e.edge.label || e.edge.loop) continue;
+    for (let tries = 0; tries < 6; tries++) {
+      const r = rectOf(e);
+      if (!placed.some((o) => hit(r, rectOf(o)))) break;
+      const down = { ...r, y: r.y + 13 };
+      if (nodes.some((n) => hit(down, n))) { e.ly -= 26; continue; }
+      e.ly += 13;
+    }
+    placed.push(e);
+  }
   return { nodes, edges, width, height };
 }
 
@@ -343,6 +396,9 @@ export const FLOWS: Flow[] = [
       { id: 'contract', label: 'Contract, and its renewal', route: '/contracts', area: 'cover',
         detail: 'A contract covers machines after warranty; renewal carries the machines forward, not the prices.',
         records: ['contract_entries', 'contract_items'], reqs: ['URS-048', 'FRS-056'] },
+      { id: 'xfer', label: 'Ownership transfer recorded', route: '/ownership-transfer', area: 'cover',
+        detail: 'A change of owner is a dated record, the new owner chosen from the Party Master. Where the previous owner cannot be determined it is left empty rather than guessed.',
+        records: ['ownership_transfers'], reqs: ['FRS-188', 'FRS-073', 'URS-144', 'CW-011'] },
       { id: 'pm', label: 'Preventive maintenance calls', route: '/pm-calls', area: 'call',
         detail: 'PM calls are raised for machines under cover, in batches by due month or by upload.',
         records: ['pm_calls'], reqs: ['URS-005', 'URS-026', 'FRS-032', 'FRS-009'] },
@@ -355,6 +411,389 @@ export const FLOWS: Flow[] = [
       { from: 'pd', to: 'cover' },
       { from: 'contract', to: 'cover', optional: true },
       { from: 'cover', to: 'pm' },
+      { from: 'xfer', to: 'pd', label: 'new owner', optional: true },
+    ],
+  },
+  // ---- every other workflow (the user, 2026-10-02: "Create an animated Data
+  // Flow diagram for all the workflows"). Each step's detail is what its cited
+  // requirement states AND the code does today: where a requirement describes a
+  // target an open defect says is not yet met (D-038, D-039, D-041..043, D-053,
+  // D-056..061, D-065..067, D-075), the step says what happens now.
+
+  {
+    id: 'installation',
+    title: 'An installation — from the sale or the request to the machine record',
+    purpose: 'How a sold machine is installed: the installation call is raised from the sale for each machine, or from an installation request once Commercial has it, only somebody holding install.create can create it, and the Warranty Start Date given on the installation visit is where the machine’s warranty begins.',
+    steps: [
+      { id: 'req', label: 'Installation request raised', route: '/request-registration', area: 'call',
+        detail: 'An installation asks for the customer, because the machine is not on the register yet. It is the only request that accepts a customer not on the Party Master.',
+        records: ['call_requests'], reqs: ['CR-017', 'CR-018', 'URS-066'] },
+      { id: 'comm', label: 'Awaiting Commercial', route: '/workload', area: 'call',
+        detail: 'My Workload counts the installation requests with no call raised yet, split by whether the customer is verified, not verified or absent from the customer register. Each count opens the request register filtered to those rows.',
+        records: ['call_requests', 'parties'], reqs: ['FRS-088', 'URS-094', 'URS-074', 'OQ-105'] },
+      { id: 'fromreq', label: 'Registered from the request', route: '/pending-registrations', area: 'call',
+        detail: 'The registration form opens prefilled from the request, and the request’s call type makes it the Installation form.',
+        records: ['call_requests', 'installation_calls'], reqs: ['FRS-127', 'FRS-078', 'URS-103'] },
+      { id: 'fromsale', label: 'Raised from the sale, per machine', route: '/warranties', area: 'cover',
+        detail: 'One installation call for each machine on the sale that has none, carrying the customer, model, serial and warranty recorded there; a machine with no model or serial gets no call. The By-machine tab raises it for a single machine.',
+        records: ['sale_entries', 'sale_items', 'installation_calls'], reqs: ['FRS-085', 'FRS-186', 'URS-073', 'CW-022'] },
+      { id: 'gate', label: 'Commercial gate — install.create', area: 'call', automatic: true,
+        detail: 'The database refuses an installation call from anybody without install.create, whatever screen it was started from.',
+        records: ['installation_calls'], reqs: ['FRS-008', 'FRS-182', 'URS-006', 'OQ-06'] },
+      { id: 'call', label: 'Installation call — UCN issued, allotted', route: '/installations', area: 'call',
+        detail: 'The database issues the UCN; a call raised from a sale has its number written back onto that machine, never replacing one already recorded there. It is allotted to an engineer within the allotting manager’s team.',
+        records: ['installation_calls', 'sale_items'], reqs: ['FRS-005', 'FRS-186', 'FRS-038', 'URS-032'] },
+      { id: 'visit', label: 'Installation visit report filed', route: '/reports', area: 'call',
+        detail: 'On an installation the Warranty Start Date is required, defaults to today and stays editable, and is stored with the feedback. The visit’s Call Status sets the call’s status.',
+        records: ['reports', 'feedback'], reqs: ['FRS-136', 'FRS-007', 'URS-111', 'OQ-127'] },
+      { id: 'wty', label: 'Warranty runs from installation', area: 'cover', automatic: true,
+        detail: 'The warranty starts on the Warranty Start Date given at installation, failing that the day the installation call was solved, and only then on the other registers. Its end is computed exactly as the application computes it.',
+        records: ['product_database_v2'], reqs: ['FRS-082', 'URS-070', 'CW-006', 'OQ-66'] },
+      { id: 'pd2', label: 'Machine record — Product Database 2.0', route: '/product-database-2', area: 'master', automatic: true,
+        detail: 'One row per machine, keyed on model and serial, assembled from the sale, the contract, the additional entries, the ownership transfers and the installation call, each value naming the register that decided it. It is rebuilt within five minutes of a source register changing.',
+        records: ['product_database_v2', 'product_database_v2_mv'], reqs: ['FRS-080', 'FRS-183', 'URS-068', 'OQ-64'] },
+    ],
+    edges: [
+      { from: 'req', to: 'comm', label: 'no call yet' },
+      { from: 'comm', to: 'fromreq' },
+      { from: 'fromreq', to: 'gate' },
+      { from: 'fromsale', to: 'gate', label: 'per machine' },
+      { from: 'gate', to: 'call', label: 'UCN' },
+      { from: 'call', to: 'visit' },
+      { from: 'visit', to: 'wty', label: 'Warranty Start Date' },
+      { from: 'wty', to: 'pd2' },
+    ],
+  },
+  {
+    id: 'pm',
+    title: 'Preventive maintenance — the monthly batch to a closed PM call',
+    purpose: 'How the month’s preventive maintenance becomes calls: the batch is loaded for a stated due month, each call is numbered by the database, allotted within the team, visited and closed by its visit — the same life as a field call, in the PM register.',
+    steps: [
+      { id: 'cover', label: 'Machines and their cover today', route: '/product-database-2', area: 'cover', automatic: true,
+        detail: 'Each machine’s cover — WGP, OGP, CMC or AMC — is derived from the registers, warranty first, rather than typed.',
+        records: ['product_database_v2'], reqs: ['FRS-081', 'URS-069', 'OQ-65'] },
+      { id: 'file', label: 'Month’s PM file loaded', route: '/pm-bulk-upload', area: 'call',
+        detail: 'A holder of pm.bulk_upload loads the month’s file; headings are matched by alias, every row is forced to the PM type, and cover is normalised to WGP, OGP, CMC or AMC, an unrecognised value kept as written.',
+        records: ['pm_calls'], reqs: ['FRS-009', 'FRS-142', 'URS-005', 'OQ-14'] },
+      { id: 'month', label: 'Dated to the due month, previewed', route: '/pm-bulk-upload', area: 'call',
+        detail: 'Every call is dated the 1st of the chosen due month with the upload date kept beside it, and earlier months may be loaded. The first rows and the count are previewed before import.',
+        records: ['pm_calls'], reqs: ['FRS-032', 'FRS-142', 'URS-026', 'OQ-19'] },
+      { id: 'single', label: 'PM call registered singly', route: '/pm-calls', area: 'call',
+        detail: 'A single PM call may also be registered on the PM register, filled from the Product Database; the PM register is governed by keys of its own.',
+        records: ['pm_calls'], reqs: ['FRS-130', 'FRS-203'] },
+      { id: 'call', label: 'PM call — UCN issued', route: '/pm-calls', area: 'call', automatic: true,
+        detail: 'Calls are written in batches with progress, the database assigning the UCN and Call Number. The batch writer has no key yet, so loading the same file again creates its calls again.',
+        records: ['pm_calls'], reqs: ['FRS-009', 'FRS-005', 'FRS-006', 'OQ-03'] },
+      { id: 'allot', label: 'Allotted to an engineer', route: '/pm-calls', area: 'call',
+        detail: 'PM calls are allotted, singly or several at once, to engineers in the manager’s own team; the database refuses an allotment outside it.',
+        records: ['pm_calls'], reqs: ['FRS-038', 'URS-032', 'OQ-22'] },
+      { id: 'visit', label: 'PM visit report filed', route: '/reports', area: 'call',
+        detail: 'The engineer files the visit; its Call Status — Unsolved, Solved - Report Pending or Solved — sets the call’s status.',
+        records: ['reports', 'pm_calls'], reqs: ['URS-004', 'FRS-007', 'FRS-136'] },
+      { id: 'close', label: 'PM call solved — closed', route: '/pm-calls', area: 'call', automatic: true,
+        detail: 'A visit filed as Solved closes the call, which is then read-only to every role. The way back is Re-open.',
+        records: ['pm_calls'], reqs: ['FRS-007', 'FRS-031', 'URS-025', 'OQ-05'] },
+    ],
+    edges: [
+      { from: 'cover', to: 'file', label: 'machines for the month', optional: true },
+      { from: 'file', to: 'month' },
+      { from: 'month', to: 'call', label: 'batch' },
+      { from: 'single', to: 'call' },
+      { from: 'call', to: 'allot', label: 'UCN' },
+      { from: 'allot', to: 'visit' },
+      { from: 'visit', to: 'close', label: 'Solved' },
+      { from: 'close', to: 'allot', label: 're-open', loop: true, optional: true },
+    ],
+  },
+  {
+    id: 'spare-handstock',
+    title: 'A HandStock spare — a request for the engineer’s own stock',
+    purpose: 'The spare route with no call behind it: the engineer asks for stock to carry, RM approves, NSM always decides because there is no cover for Commercial to weigh, Stores books it out with its challan, and it counts in the engineer’s hand stock from that moment.',
+    steps: [
+      { id: 'raise', label: 'HandStock request raised', route: '/spare-requests', area: 'spare',
+        detail: 'A HandStock request names no call and must give its reason; the whole Part Master is offered, never free text. The database assigns the OR number.',
+        records: ['spare_requests', 'spare_request_lines'], reqs: ['FRS-146', 'URS-118', 'OQ-138'] },
+      { id: 'rm', label: 'RM approval', route: '/spare-rm-approval', area: 'spare',
+        detail: 'An approver with the RM right decides each line for their own team, and their own request routes to their manager. Approval writes Auto-Approved into the Commercial answer unless the line is AMC or OGP.',
+        records: ['spare_request_lines'], reqs: ['FRS-010', 'FRS-011', 'FRS-147', 'URS-119', 'OQ-07'] },
+      { id: 'nsm', label: 'NSM decides — always, for HandStock', route: '/spare-requests', area: 'spare',
+        detail: 'RM approval never auto-approves NSM on a HandStock request. Only Cleared for Stores Processing moves the line on; Put on HOLD keeps it at NSM.',
+        records: ['spare_request_lines'], reqs: ['FRS-147', 'FRS-150', 'URS-122', 'OQ-142'] },
+      { id: 'disp', label: 'Booked out by Stores', route: '/spare-dispatch', area: 'spare',
+        detail: 'Stores books out all or part of the quantity owed, to one engineer per stock out, and the stock out, its numbers and every line are written all or nothing. Dispatch needs spare.dispatch.',
+        records: ['spare_dispatches', 'spare_dispatch_lines'], reqs: ['FRS-153', 'FRS-026', 'URS-124'] },
+      { id: 'dc', label: 'Delivery Challan and Declaration', route: '/stock-out', area: 'spare',
+        detail: 'The challan prints the quantity sent on this stock out, on A4 sheets of 20 rows under the company’s mark. The Declaration lists each part once and names any mandatory field still empty.',
+        records: ['spare_dispatches', 'spare_dispatch_lines'], reqs: ['FRS-154', 'FRS-155', 'URS-125', 'OQ-147'] },
+      { id: 'hs', label: 'Counted in hand stock from booking', route: '/handstock', area: 'stock', automatic: true,
+        detail: 'The parts count in the engineer’s hand stock from the moment the stock out is booked — not from the DC date, and not from the acknowledgement.',
+        records: ['handstock_movements', 'handstock_balance'], reqs: ['FRS-153', 'FRS-013', 'URS-009'] },
+      { id: 'recv', label: 'Engineer acknowledges receipt', route: '/spare-requests', area: 'spare',
+        detail: 'Only the engineer named on the request may acknowledge it, and not before it is dispatched. The acknowledgement does not change hand stock.',
+        records: ['spare_request_lines'], reqs: ['FRS-152', 'FRS-027', 'URS-022'] },
+      { id: 'end', label: 'Rejected or dropped, with a reason', route: '/spare-requests', area: 'spare',
+        detail: 'The Spare Requests screen requires a reason to reject a line. A holder of spare.drop may drop a line before it is dispatched; a dropped line raises no challan and adds nothing to hand stock.',
+        records: ['spare_request_lines'], reqs: ['FRS-148', 'FRS-012', 'URS-120'] },
+    ],
+    edges: [
+      { from: 'raise', to: 'rm', label: 'OR number' },
+      { from: 'rm', to: 'nsm', label: 'Commercial auto-approved' },
+      { from: 'nsm', to: 'disp', label: 'Cleared for Stores' },
+      { from: 'disp', to: 'dc', label: 'stock out' },
+      { from: 'disp', to: 'hs', label: '+ from booking' },
+      { from: 'dc', to: 'recv', label: 'parcel' },
+      { from: 'rm', to: 'end', label: 'rejected', optional: true },
+      { from: 'nsm', to: 'end', label: 'rejected / dropped', optional: true },
+    ],
+  },
+  {
+    id: 'reconciliation',
+    title: 'Reconciliation — the office corrects the stock record',
+    purpose: 'How the office puts the stock record right without rewriting history: a part fitted and never reported is added, a wrong line is adjusted or voided but kept, a balance is adjusted with a reason, a settled period is closed, and the report shows the movements behind every balance.',
+    steps: [
+      { id: 'recon', label: 'Consumption added by reconciliation', route: '/spare-consumption', area: 'stock',
+        detail: 'A holder of consumption.reconcile books a part fitted but never reported against an existing call, the database requiring the engineer, part and reason. It is accepted on a call with no visit, and capped at the named engineer’s balance.',
+        records: ['spare_consumption'], reqs: ['FRS-028', 'FRS-158', 'FRS-030', 'URS-023', 'OQ-16', 'OQ-150'] },
+      { id: 'adj', label: 'Line adjusted or voided — never deleted', route: '/spare-consumption', area: 'stock',
+        detail: 'A line’s quantity may be amended, keeping the original quantity, the reason and who amended it; the call, part, engineer and source cannot change. Zero voids the line and returns the stock, and the row is kept.',
+        records: ['spare_consumption'], reqs: ['FRS-029', 'FRS-158', 'URS-023', 'OQ-17'] },
+      { id: 'hsadj', label: 'Hand stock adjusted ±, with a reason', route: '/handstock', area: 'stock',
+        detail: 'The office adds or removes stock with a mandatory reason; the database refuses an inactive engineer, an unknown part and a minus below zero. A wrong adjustment is reversed by another, never edited or deleted.',
+        records: ['handstock_adjustments'], reqs: ['FRS-094', 'URS-009'] },
+      { id: 'bal', label: 'Balance, derived', route: '/handstock', area: 'stock', automatic: true,
+        detail: 'Opening + stock out − consumed ± transfers − returned ± adjustments, computed every time it is read. The drawer shows that arithmetic with every term.',
+        records: ['handstock_movements', 'handstock_balance'], reqs: ['FRS-013', 'FRS-159', 'URS-009', 'OQ-151'] },
+      { id: 'close', label: 'Stock period closed', area: 'stock',
+        detail: 'close_handstock_period() writes an opening figure per engineer and part equal to every movement up to the date and moves the cut-off, changing no balance; it refuses a period that has not ended. It is run in the database by an administrator or a holder of consumption.reconcile — no screen offers it.',
+        records: ['handstock_opening', 'handstock_period'], reqs: ['FRS-044', 'URS-038', 'OQ-31'] },
+      { id: 'rep', label: 'Hand Stock Report', route: '/handstock-report', area: 'report',
+        detail: 'The same derived balances, loaded whole before they can be exported. Every workbook carries a sheet stating its scope, its row count and when it was taken.',
+        records: ['handstock_balance'], reqs: ['FRS-091', 'FRS-160', 'URS-077'] },
+    ],
+    edges: [
+      { from: 'recon', to: 'bal', label: '−' },
+      { from: 'recon', to: 'adj', label: 'corrected', optional: true },
+      { from: 'adj', to: 'bal', label: '±' },
+      { from: 'hsadj', to: 'bal', label: '±', optional: true },
+      { from: 'bal', to: 'close', label: 'period ended', optional: true },
+      { from: 'close', to: 'bal', label: 'opening figure', loop: true, optional: true },
+      { from: 'bal', to: 'rep' },
+    ],
+  },
+  {
+    id: 'indoor',
+    title: 'The workshop — Indoor Service Register',
+    purpose: 'Equipment taken onto the premises: whose it is and how it arrived, cleaned to a named revision before anything is recovered from it, the job its kind requires, a quality check held as its own record and right, and either dispatch or a condemnation that credits no stock.',
+    steps: [
+      { id: 'recv', label: 'Unit received into the workshop', route: '/indoor', area: 'quality',
+        detail: 'Receive files a job at once with a database-issued number, stamped received by and at, with the condition the unit arrived in. Whose property it is and what is done to it are set independently, and no call is needed.',
+        records: ['indoor_jobs', 'indoor_job_accessories'], reqs: ['FRS-143', 'FRS-057', 'URS-049', 'SR-040', 'OQ-43'] },
+      { id: 'clean', label: 'Cleaned to the work instruction', route: '/indoor', area: 'quality',
+        detail: 'Cleaning is recorded against the work instruction and the revision applied, WI/SER/01 by default, and sets the status Cleaned.',
+        records: ['indoor_jobs'], reqs: ['FRS-058', 'FRS-143', 'URS-050', 'SR-041'] },
+      { id: 'gate', label: 'No parts recovered until decontaminated', area: 'quality', automatic: true,
+        detail: 'A database trigger refuses a recovered part while the job is not marked decontaminated — the one control in the module that blocks rather than records.',
+        records: ['indoor_job_parts'], reqs: ['FRS-058', 'URS-050', 'OQ-44'] },
+      { id: 'job', label: 'The job, by its kind', route: '/indoor', area: 'quality',
+        detail: 'A rework records its nonconformity, instruction and revision and who re-verified it; a pre-delivery inspection its checklist, firmware and result; a demonstration loan where it went and when it is due back. Activity Other is refused without a description.',
+        records: ['indoor_jobs', 'indoor_job_checks'], reqs: ['FRS-144', 'URS-117'] },
+      { id: 'qc', label: 'Quality check — its own record and right', route: '/indoor', area: 'quality',
+        detail: 'The check is recorded on the job and needs indoor.qc, a right separate from indoor.work, enforced by the database. A Fail sends the job back to Under repair, and it cannot reach Ready, Dispatched or Closed while the check reads Fail.',
+        records: ['indoor_jobs'], reqs: ['FRS-059', 'FRS-144', 'URS-051', 'SR-043', 'OQ-45'] },
+      { id: 'disp', label: 'Dispatched or closed', route: '/indoor', area: 'quality',
+        detail: 'Dispatch records a reference and needs indoor.dispatch, warning while accessories are outstanding. A Repair or Rework cannot reach Dispatched with no check result.',
+        records: ['indoor_jobs', 'indoor_job_accessories'], reqs: ['FRS-144', 'FRS-059', 'URS-051'] },
+      { id: 'condemn', label: 'Condemned — parts recovered, no stock credited', route: '/indoor', area: 'quality',
+        detail: 'Condemning needs indoor.condemn, a right of its own, and a reason, the database stamping who and when. Recovered parts are recorded with a condition grade and a destination, and alter no stock balance.',
+        records: ['indoor_jobs', 'indoor_job_parts'], reqs: ['FRS-060', 'URS-052', 'OQ-46'] },
+    ],
+    edges: [
+      { from: 'recv', to: 'clean' },
+      { from: 'clean', to: 'job' },
+      { from: 'clean', to: 'gate', label: 'decontaminated' },
+      { from: 'job', to: 'qc' },
+      { from: 'qc', to: 'disp', label: 'Pass' },
+      { from: 'qc', to: 'job', label: 'Fail', loop: true, optional: true },
+      { from: 'job', to: 'condemn', label: 'unfit', optional: true },
+      { from: 'gate', to: 'condemn', label: 'parts recovered', optional: true },
+    ],
+  },
+  {
+    id: 'documents',
+    title: 'Documents and training — a controlled revision, who is trained on it, and the manuals at the call',
+    purpose: 'How a controlled document reaches people: a QMS revision is entered as its own record, the people who must be trained on it are assigned at upload, completion is recorded and kept on each person’s history — and, beside it, how service manuals and notes reach the engineer on the call.',
+    steps: [
+      { id: 'upload', label: 'QMS document uploaded', route: '/qms', area: 'doc',
+        detail: 'A QMS document needs a title, number, revision, effective date and a file or link, and is maintained only under qms.manage, enforced in the database. A number and revision identify one entry.',
+        records: ['documents'], reqs: ['FRS-189', 'FRS-036', 'URS-030', 'URS-145'] },
+      { id: 'rev', label: 'New revision — the old one retired', route: '/qms', area: 'doc',
+        detail: 'A new revision is added as a new entry, and the screen offers to retire the one it supersedes. A retired entry stops being offered and stays on the shelf.',
+        records: ['documents'], reqs: ['FRS-189', 'FRS-036', 'URS-145', 'OQ-21'] },
+      { id: 'assign', label: 'Training assigned at upload', route: '/qms', area: 'doc',
+        detail: 'Whoever must be trained is chosen when the document is uploaded, one assignment per person, anybody already assigned being skipped. If that fails the document is still saved and the training can be assigned on the Training screen.',
+        records: ['training_assignments'], reqs: ['URS-079', 'FRS-093', 'FRS-190'] },
+      { id: 'done', label: 'Training completed — session or read-and-understood', route: '/training', area: 'doc',
+        detail: 'Completed means attended without a Fail, or the trainee’s own acknowledgement with no Fail recorded, and a trainee acknowledges only their own assignment. Past its due date it reads Overdue, and only training.manage may cancel one, with a reason.',
+        records: ['training_sessions', 'training_attendance', 'training_assignments', 'training_status'], reqs: ['FRS-093', 'FRS-190', 'URS-146', 'URS-079'] },
+      { id: 'hist', label: 'The person’s training history', route: '/training', area: 'doc',
+        detail: 'My Profile’s Training tab lists every training the person received, readable by them, their reporting tree and those who manage users or training.',
+        records: ['training_status', 'training_history'], reqs: ['FRS-093', 'FRS-216', 'URS-079', 'OQ-214'] },
+      { id: 'man', label: 'Service manuals and technical / service notes', route: '/service-manuals', area: 'doc',
+        detail: 'A manual names the product it covers, a blank meaning every product, and a note may name several products. docs.manage maintains them and every signed-in user may read them.',
+        records: ['documents'], reqs: ['FRS-035', 'FRS-189', 'URS-029', 'OQ-215'] },
+      { id: 'supp', label: 'Offered on a call’s Supporting documents', route: '/field-calls', area: 'call',
+        detail: 'Opening a call lists the manuals for its product and those for every product, the active notes that match it and the matching Field Solutions articles. A retired note is never offered.',
+        records: ['documents', 'kb_articles'], reqs: ['FRS-035', 'URS-029', 'CR-029', 'OQ-21'] },
+    ],
+    edges: [
+      { from: 'upload', to: 'rev', label: 'supersedes', optional: true },
+      { from: 'upload', to: 'assign', label: 'who must be trained' },
+      { from: 'assign', to: 'done' },
+      { from: 'done', to: 'hist' },
+      { from: 'man', to: 'supp', label: 'matched by product' },
+    ],
+  },
+  {
+    id: 'masters',
+    title: 'The masters — what every form picks from',
+    purpose: 'Where the values on a call and a spare come from: the customer by its one name, the machine from the install base, the parts that fit it, and the complaints that belong to its product — each kept under control so the forms offer only what is real.',
+    steps: [
+      { id: 'party', label: 'Party Master — the name is the key', route: '/parties', area: 'master',
+        detail: 'Holders of masters.edit maintain a customer’s type, Serviceman, addresses, contacts and KYC, but the name is shown and never offered for editing. Marking KYC Verified stamps who verified it, and leaving Verified clears that.',
+        records: ['parties'], reqs: ['FRS-173', 'FRS-174', 'URS-136', 'OQ-166'] },
+      { id: 'catalogue', label: 'Product Master — the catalogue', route: '/product-master', area: 'master',
+        detail: 'Every product line with its code, type, category and whether it is still sold, read-only here. An Inactive line takes no new sale entry and still takes contracts, calls, visits, spares and feedback.',
+        records: ['product_master'], reqs: ['FRS-182', 'URS-140'] },
+      { id: 'install', label: 'Product Database — the install base', route: '/product-database', area: 'master',
+        detail: 'One row per machine with its customer and cover, and no path on the screen writes one. A call can be started from a machine, already filled.',
+        records: ['products'], reqs: ['FRS-182', 'URS-140', 'OQ-175'] },
+      { id: 'parts', label: 'Part Master — the parts that fit', route: '/parts', area: 'master',
+        detail: 'A new part needs a code in the agreed form, a description, Spare or Consumable and the products it fits or Common; an existing code is refused, a part is deactivated rather than deleted, and its HSN code is digits only. The products a part is mapped to decide which spares a call offers.',
+        records: ['parts', 'product_accessories'], reqs: ['FRS-177', 'FRS-179', 'FRS-219', 'URS-138', 'OQ-170', 'OQ-172'] },
+      { id: 'rename', label: 'Part renamed — its history carried', route: '/parts', area: 'master',
+        detail: 'rename_part() moves the part’s identity in the catalogue and every table carrying it in one transaction, after saying how many records will move. It refuses a rename onto a part that exists, and every hand stock is the same afterwards.',
+        records: ['parts', 'spare_consumption', 'handstock_adjustments'], reqs: ['FRS-178', 'URS-138', 'OQ-213'] },
+      { id: 'lists', label: 'Value lists and Standard Complaints', route: '/masters', area: 'master',
+        detail: 'An entry is added only by a holder of that list’s right, a duplicate is refused, and a deactivated entry stays on the records carrying it. A Standard Complaint applies to the products it is mapped to, or to every product where it names none.',
+        records: ['masters', 'master_lists'], reqs: ['FRS-180', 'FRS-181', 'URS-139', 'OQ-174'] },
+      { id: 'form', label: 'Call form and spare pickers', route: '/field-calls', area: 'call',
+        detail: 'Registration fills product, serial, site and cover from the Product Database and the engineer from the machine or the party’s Serviceman, and the complaint is picked, never typed. The spare picker offers the engineer’s hand stock narrowed to the call’s product, its accessories and common parts.',
+        records: ['field_calls', 'spare_consumption'], reqs: ['FRS-130', 'FRS-053', 'FRS-137', 'URS-045'] },
+    ],
+    edges: [
+      { from: 'party', to: 'form', label: 'customer, Serviceman' },
+      { from: 'install', to: 'form', label: 'machine, cover' },
+      { from: 'catalogue', to: 'parts', label: 'main products, accessories' },
+      { from: 'parts', to: 'form', label: 'parts that fit' },
+      { from: 'parts', to: 'rename', optional: true },
+      { from: 'lists', to: 'form', label: 'complaints for the product' },
+    ],
+  },
+  {
+    id: 'access',
+    title: 'People and access — who may sign in, what they may do, what they see',
+    purpose: 'How a person comes to act in the system: a User Master row, a login issued by an administrator, a role whose permissions are set per screen and per action, a reporting tree that decides whose records they see — and an audit trail of the changes.',
+    steps: [
+      { id: 'um', label: 'User Master row', route: '/user-master', area: 'admin',
+        detail: 'Every person has a row, refused without a name because calls are allotted to it. The Reporting and Regional Manager it names build the reporting tree.',
+        records: ['user_directory'], reqs: ['FRS-171', 'URS-135'] },
+      { id: 'login', label: 'Login issued by an administrator', route: '/user-master', area: 'admin',
+        detail: 'A login is created from the person’s row, refused without a valid e-mail, and the database accepts the profile from an administrator only. A forced replacement of the starting password at first sign-in is specified and not yet in force.',
+        records: ['profiles'], reqs: ['FRS-168', 'FRS-002', 'URS-133', 'OQ-01'] },
+      { id: 'reset', label: 'Password reset, or login disabled', route: '/user-master', area: 'admin',
+        detail: 'A reset generates a password shown once, ends every session the person holds and is recorded by the database without the password. Disabling a login blocks sign-in and keeps every record.',
+        records: ['password_resets', 'profiles'], reqs: ['FRS-169', 'URS-133'] },
+      { id: 'role', label: 'Role and permissions (Roles & Permissions)', route: '/roles', area: 'admin',
+        detail: 'Each screen and each action on it is granted per role, a save writes only the roles changed, and a role left with no permission is refused. An administrator may also give one person individual permissions, shown beside the role’s.',
+        records: ['app_roles', 'perm_parents', 'profiles'], reqs: ['FRS-203', 'FRS-170', 'URS-156', 'OQ-196'] },
+      { id: 'scope', label: 'Reporting tree scopes what each sees', area: 'admin', automatic: true,
+        detail: 'An engineer sees their own records, a manager their reporting team, office roles everything; row-level security in the database enforces it.',
+        records: ['user_directory'], reqs: ['FRS-003', 'URS-002', 'OQ-02'] },
+      { id: 'audit', label: 'Audit trail records the changes', route: '/audit', area: 'admin', automatic: true,
+        detail: 'Login creation and every access save are written to audit_log, and record_audit keeps what a row became, before and after, in triggers nothing can bypass. The record-level trail is readable only by an administrator or a holder of audit.view.',
+        records: ['audit_log', 'record_audit'], reqs: ['FRS-021', 'FRS-204', 'FRS-170', 'URS-016'] },
+    ],
+    edges: [
+      { from: 'um', to: 'login', label: 'e-mail' },
+      { from: 'login', to: 'reset', label: 'forgotten / leaver', optional: true },
+      { from: 'login', to: 'role', label: 'role on the sign-in' },
+      { from: 'um', to: 'scope', label: 'reporting manager' },
+      { from: 'role', to: 'scope' },
+      { from: 'login', to: 'audit', label: 'login created' },
+      { from: 'role', to: 'audit', label: 'access saved' },
+      { from: 'reset', to: 'audit', label: 'password_resets' },
+    ],
+  },
+  {
+    id: 'bulk-load',
+    title: 'Bulk loading — a file into the registers',
+    purpose: 'How records from a file enter the registers: shaped by the same parser everywhere, seen before they are written, keyed so that a corrected file corrects rather than duplicates, and marked as imported where that matters — and how recovered visit reports are resolved before any is written.',
+    steps: [
+      { id: 'pick', label: 'File picked in Bulk Uploads', route: '/bulk-uploads', area: 'admin',
+        detail: 'Bulk Uploads opens only for a holder of bulk.upload, and what each load writes is still decided by that table’s own policies. The header row is found below any letterhead by the register’s own column names.',
+        records: ['audit_log'], reqs: ['FRS-196', 'URS-151', 'OQ-189'] },
+      { id: 'shape', label: 'Shaped — headings, dates, vocabularies', area: 'admin', automatic: true,
+        detail: 'A row missing a required column is held back and named; dates are read day-first; cover, approvals and part category take the controlled words, an unknown value passing through unchanged. A heading the register does not map is kept in the row’s extra data.',
+        reqs: ['FRS-197', 'URS-076', 'URS-045'] },
+      { id: 'preview', label: 'Previewed before it is written', route: '/bulk-uploads', area: 'admin',
+        detail: 'The screen shows the rows ready, each row held back with its reason, the headings kept or ignored and a sample row. The confirmation states the rows, the register and the column a re-run is matched on, or that a re-run adds every row again.',
+        reqs: ['FRS-196', 'URS-151'] },
+      { id: 'write', label: 'Written in batches', route: '/bulk-uploads', area: 'admin',
+        detail: 'Rows are upserted where the register has a natural key and inserted where it has none, in batches with progress. A failure states the database’s error, the row it stopped near and how many rows were written first.',
+        reqs: ['FRS-196', 'FRS-074', 'URS-062'] },
+      { id: 'regs', label: 'Servicing, stock and master registers', area: 'admin', automatic: true,
+        detail: 'Calls are keyed on the UCN, visits on their uid, parties on the name, machines on model and serial and parts on CODE|Description, so a corrected re-load corrects them. Material returns and stock transfer lines have no key yet, and the confirmation warns that a re-run adds them again.',
+        records: ['field_calls', 'reports', 'spare_consumption', 'material_returns', 'stock_transfers', 'parties', 'products', 'parts'], reqs: ['FRS-198', 'FRS-199', 'FRS-200', 'URS-154', 'OQ-193'] },
+      { id: 'imported', label: 'Marked as imported', area: 'admin', automatic: true,
+        detail: 'Migrated returns and transfers are stamped source = import, which exempts them from the shortfall check and from nothing else. Loaded feedback is stamped with where it was imported from.',
+        records: ['material_returns', 'stock_transfers', 'feedback'], reqs: ['FRS-199', 'FRS-198', 'URS-153', 'URS-152', 'OQ-192'] },
+      { id: 'mapres', label: 'Visit reports read and resolved', route: '/report-mapping', area: 'call',
+        detail: 'Bulk Report Mapping, open to an administrator or the visit-report right, reads the sheet, works out which call each row belongs to and resolves its file references into links. The operator sees what each row resolved to before anything is written.',
+        reqs: ['FRS-077', 'FRS-145', 'URS-065', 'OQ-128'] },
+      { id: 'mapw', label: 'Only clean rows written', route: '/report-mapping', area: 'call',
+        detail: 'Only rows that resolved cleanly are written into the visit history; the rest are listed with the reason, and a row with no attachment resolved is skipped.',
+        records: ['reports'], reqs: ['FRS-077', 'FRS-145', 'URS-065'] },
+    ],
+    edges: [
+      { from: 'pick', to: 'shape' },
+      { from: 'shape', to: 'preview' },
+      { from: 'preview', to: 'write', label: 'confirmed' },
+      { from: 'write', to: 'regs' },
+      { from: 'regs', to: 'imported', label: 'migrated rows', optional: true },
+      { from: 'mapres', to: 'mapw', label: 'resolved' },
+      { from: 'mapw', to: 'regs', label: 'visits' },
+    ],
+  },
+  {
+    id: 'reports',
+    title: 'Reports and exports — what leaves the system, and the record of it',
+    purpose: 'How a figure or a file is taken out: each report filters and counts the whole register in the database, its file states what it is, the right to take it is checked, and the taking is recorded — and whole tables leave only through Data Export.',
+    steps: [
+      { id: 'regs', label: 'The registers, through report views', area: 'report',
+        detail: 'Each report reads a view in which one row means one thing — a spare booked, a call, a feedback, a part sent and not accounted for.',
+        records: ['consumption_report', 'call_report', 'feedback_report', 'unused_spare_report'], reqs: ['URS-150', 'FRS-194', 'OQ-187'] },
+      { id: 'hub', label: 'Reports — a tab per report', route: '/exports', area: 'report',
+        detail: 'Each report is offered only to a role holding its own key, filters in the database over the whole register and shows the exact number of matching rows.',
+        records: ['consumption_report', 'call_report', 'feedback_report'], reqs: ['FRS-192', 'URS-148', 'OQ-185'] },
+      { id: 'file', label: 'Columns chosen, file written', route: '/exports', area: 'report',
+        detail: 'Mandatory columns are always included and optional ones chosen; every matching row is read before the file is written. A workbook carries a sheet stating the report, the filter, the rows and when it was taken, with dates as dates and numbers as numbers.',
+        reqs: ['FRS-192', 'URS-148', 'OQ-185'] },
+      { id: 'gate', label: 'The export gate', area: 'report', automatic: true,
+        detail: 'A file needs export.data and the report’s own right, and the report’s download controls are disabled for a role that may not take it. Today the gate is enforced in the CSV writer; the workbook and ZIP writers do not yet consult it.',
+        reqs: ['FRS-193', 'FRS-138', 'URS-149'] },
+      { id: 'dx', label: 'Data Export — whole tables, schedules', route: '/data-export', area: 'report',
+        detail: 'Opens only with export.tables or export.schedules, lists the exportable tables (no audit table) and writes one CSV per table into one ZIP. Only an administrator amends, pauses or deletes a schedule, and the record of its past runs is kept.',
+        records: ['export_schedules', 'export_runs'], reqs: ['FRS-202', 'URS-155'] },
+      { id: 'audit', label: 'Recorded in the audit trail', route: '/audit', area: 'admin', automatic: true,
+        detail: 'A report download is written to audit_log naming the report, the rows, the columns and the filter, and read on the Audit Log by those entitled to it.',
+        records: ['audit_log'], reqs: ['FRS-193', 'FRS-204', 'URS-149'] },
+    ],
+    edges: [
+      { from: 'regs', to: 'hub' },
+      { from: 'hub', to: 'file', label: 'filter + exact count' },
+      { from: 'file', to: 'gate' },
+      { from: 'gate', to: 'audit', label: 'file taken' },
+      { from: 'regs', to: 'dx', label: 'whole tables' },
     ],
   },
 ];
