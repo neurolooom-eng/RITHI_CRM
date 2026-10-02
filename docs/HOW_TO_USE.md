@@ -1158,8 +1158,8 @@ typed into a form that reads it.
   > **A tick with parts.** *Manage users*, *Edit masters*, *Edit sales /
   > warranties*, *Edit contracts* and each register's *Edit* and *Report* are made
   > of smaller ticks listed under them. Ticking the big one gives all its parts
-  > (they show ticked and greyed); to give only some, untick the big one and tick
-  > the parts. So you can let somebody verify KYC without editing parties, or
+  > (they show ticked). Unticking one part unticks the big one and leaves the
+  > other parts ticked, so the role loses only the part you unticked. So you can let somebody verify KYC without editing parties, or
   > create logins without deciding what those logins may do — a login they create
   > is an Engineer until somebody with *Assign roles & grant permissions* changes it.
   > **Only the Admin column is greyed** — Admin holds everything and cannot be

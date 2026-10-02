@@ -161,7 +161,7 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-10-02 — High-rated batch 1: rules the screens kept, now kept by the database (v0.10.34, merged in #483)
+### 2026-10-02 — High-rated batch 1: rules the screens kept, now kept by the database (v0.10.35, merged in #483)
 - **Your ask:** *"Start with the next batch of items, Dont merge till i say so"*. Every open defect left is rated **High**, so this batch takes the ten whose fix needs no decision from you: the rule is already stated (by you, a requirement or the screen), and the fix makes the database or the screen keep it.
 - **Fixed:**
   - **D-036 (0311):** only an Unattended or Unsolved call can be cancelled, by the database as well as the button; the batch cancel inherits it.

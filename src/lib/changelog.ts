@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.34',
+    version: '0.10.35',
     date: '2026-10-02',
     title: 'Rules the screens kept, now kept by the database too',
     changes: [
@@ -26,6 +26,14 @@ export const CHANGELOG: ChangeEntry[] = [
       'PRINTED FIELD FAILURE REPORT: needs access to the Field Failure Register.',
       'DELIVERY CHALLAN AND DECLARATION can be reprinted for any stock out, however old.',
       'SIGN OUT clears the saved lists and the menu counts from the device, so the next person does not see them.',
+    ],
+  },
+  {
+    version: '0.10.34',
+    date: '2026-10-02',
+    title: 'Roles & Permissions: the greyed-out items can be unticked',
+    changes: [
+      'ROLES & PERMISSIONS: an item ticked because its "all of the below" line is ticked (Edit masters, Manage users, Edit sales / warranties, Edit contracts, each register\'s Edit and Report) is no longer greyed out. Unticking it unticks the "all of the below" line and keeps the other items ticked, so the role loses only the item you unticked. Press Save permissions as usual. Only the Admin column stays greyed, because Admin always holds everything.',
     ],
   },
   {
