@@ -516,7 +516,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'The Reporting Manager’s queue of spares waiting for first approval, with the complaint, machine, serial and cover beside each.',
     does: [
       'Read each line against the fault it is for',
-      'Tick your lines and Approve, Reject or Drop them together',
+      'Tick your lines and Approve or Reject them together',
       'Group by engineer, order or cover, and export',
     ],
     records: ['spare_pending_rm', 'spare_request_lines', 'rpc:decide_spare_lines', 'audit_log'],
@@ -567,7 +567,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     rules: [
       'A spare needs a visit report on its call — except a reconciliation line',
       'Consumption is capped at the engineer’s hand stock balance',
-      'A line is never deleted; a wrong one is voided and keeps its original quantity, reason and author',
+      'A line is never deleted; a wrong one is voided to 0 and keeps its reason',
     ],
   },
   {

@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.33',
+    version: '0.10.34',
     date: '2026-10-02',
     title: 'Rules the screens kept, now kept by the database too',
     changes: [
@@ -26,6 +26,17 @@ export const CHANGELOG: ChangeEntry[] = [
       'PRINTED FIELD FAILURE REPORT: needs access to the Field Failure Register.',
       'DELIVERY CHALLAN AND DECLARATION can be reprinted for any stock out, however old.',
       'SIGN OUT clears the saved lists and the menu counts from the device, so the next person does not see them.',
+    ],
+  },
+  {
+    version: '0.10.33',
+    date: '2026-10-02',
+    title: 'How RITHI Functions: the Spares documents brought up to date',
+    changes: [
+      'THE SPARE MODULE AND HAND STOCK & MOVEMENTS DOCUMENTS were checked against how the system works today and corrected. Among the corrections: a request carries up to twenty spares, not five; OR numbers read OR-2609-0041; Commercial and NSM fill in a form rather than just approve; a spare can be dropped at any stage; and hand stock counts from the stock out, not from the acknowledgement.',
+      'THEY NOW COVER ALL EIGHT SPARES SCREENS: Spare Requests, RM Approval, Pending Dispatch, Stock Out with the Delivery Challan, Spare Consumption, Hand Stock, Material Returns and Stock Transfer. Stock adjustments are covered too.',
+      'CORRECTED: the Hand Stock subtitle now gives the whole sum (opening, stock out, consumption, transfers, returns and adjustments). The handbook no longer says a material return adds to the balance, or that RM Approval can drop a spare.',
+      'TWO FAULTS FOUND AND RECORDED (not yet fixed). A warranty spare approved with the tick boxes on RM Approval waits at Commercial, which it should not need. A voided consumption line no longer keeps its original quantity on the line, though the database history still has it.',
     ],
   },
   {

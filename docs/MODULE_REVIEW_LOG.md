@@ -161,7 +161,7 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-10-02 — High-rated batch 1: rules the screens kept, now kept by the database (v0.10.33, merged in #483)
+### 2026-10-02 — High-rated batch 1: rules the screens kept, now kept by the database (v0.10.34, merged in #483)
 - **Your ask:** *"Start with the next batch of items, Dont merge till i say so"*. Every open defect left is rated **High**, so this batch takes the ten whose fix needs no decision from you: the rule is already stated (by you, a requirement or the screen), and the fix makes the database or the screen keep it.
 - **Fixed:**
   - **D-036 (0311):** only an Unattended or Unsolved call can be cancelled, by the database as well as the button; the batch cancel inherits it.
@@ -173,7 +173,7 @@ checked.
   - **D-026:** the printed Field Failure Report needs the register's key.
   - **D-045:** the challan and declaration read their stock out by number.
   - **D-070:** signing out (or a session ending elsewhere) clears the cached lists and menu counts.
-- **Found while proving D-042, and fixed — D-081 (0316):** raising a consumption line's quantity has failed since 0196 with *"function public.handstock_available(text, text) does not exist"* — a function no migration ever defined. Reductions and voids worked, and no suite raised a quantity, which is how it lasted. The guard now reads the same balance the insert cap reads.
+- **Found while proving D-042, and fixed — D-083 (0316):** raising a consumption line's quantity has failed since 0196 with *"function public.handstock_available(text, text) does not exist"* — a function no migration ever defined. Reductions and voids worked, and no suite raised a quantity, which is how it lasted. The guard now reads the same balance the insert cap reads.
 - **Two existing suites changed, because the rules they assumed changed:** `call_cancel_test` section 7 cancelled a re-opened call (now refused — the refusal is asserted and the ranking it was proving is kept); `spare_line_approvals_test` rejected and dropped lines with no reason (they carry one now).
 - **One status row corrected:** row 60 counted every `record_audit` trigger in the database and expected 30; 0314 adds 15 more, so it would have read NO on a fully-applied project. It now counts the ten tables it names.
 - **Left for a decision** (High, but each changes what somebody may do): D-055 and D-059 (deleting cover records and User Master rows), D-061 (overwriting a QMS revision), D-033 (vigilance defaults), D-037 (feedback scope), D-038 (PM batch), D-049 (who may transfer whose stock), D-060 (ownership transfer by serial), and the rest of the list.
