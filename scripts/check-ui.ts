@@ -5739,6 +5739,12 @@ console.log('\n-- the cover registers open an entry in a pop-up --');
     const cov = readFileSync('src/lib/cover.ts', 'utf8');
     eq('the pending-install filter runs on the server', /pendingInstall && cfg\.kind === 'sale' \? PENDING_INSTALL/.test(cov), true);
     eq('...and is offered as a tile on the Warranty Register', /INSTALL CALL PENDING/.test(reg2), true);
+    // ...AND PER SALE ON THE ENTRIES TAB (the user, 2026-10-02), counted by
+    // the database as a filtered embed, and filterable the same way.
+    eq('each sale carries its pending count from the database', /pending:\$\{cfg\.itemTable\}\(count\)/.test(cov), true);
+    eq('...the Entries tab can filter to sales with one pending', /has_pending:\$\{cfg\.itemTable\}!inner\(id\)/.test(cov), true);
+    eq('...and shows the column', /key: 'pending_install', header: 'Install calls pending'/.test(reg2), true);
+    eq('...with a dash, not 0, where it was not counted', /r\.pending_install == null/.test(reg2), true);
   }
 }
 

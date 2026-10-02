@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.46',
+    date: '2026-10-02',
+    title: 'Warranty Entries: installation calls pending per sale',
+    changes: [
+      'WARRANTY → ENTRIES: a new Install calls pending column shows how many of each sale\'s machines are still waiting for their installation call.',
+      'The SALES WITH INSTALL CALLS PENDING tile shows how many sales have at least one, and filters the list to them, across the whole register and together with the search.',
+      'Raising installation calls from a sale updates its count straight away. A sale not counted yet shows a dash until the list refreshes, rather than 0.',
+    ],
+  },
+  {
     version: '0.10.45',
     date: '2026-10-02',
     title: 'Warranty and Contract: a Register line opens its entry, Renew / Convert in a third column, installation call pending',
