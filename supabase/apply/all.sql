@@ -79,6 +79,8 @@
 --   0162_tracker_nl_team.sql
 --   0158_indoor_service.sql
 --   0297_indoor_status_needs_dispatch.sql
+--   0320_indoor_register_and_pdt.sql
+--   0321_indoor_dc.sql
 --   0021_master_lists.sql
 --   0066_master_values_active.sql
 --   0067_master_list_permissions.sql
@@ -94,6 +96,7 @@
 --   0255_product_accessories.sql
 --   0263_user_department.sql
 --   0290_master_keys_split.sql
+--   0319_product_master_imported.sql
 --   0070_documents.sql
 --   0265_qms_document_key.sql
 --   0272_service_note_upload_key.sql
@@ -196,9 +199,11 @@
 --   0154_rm_queue_request_fields.sql
 --   0268_spare_request_follows_call.sql
 --   0310_rename_passes_the_line_guard.sql
+--   0311_tick_box_rm_auto_approves.sql
 --   0122_spare_requests_replay_tail.sql
 --   0020_stock_transfer.sql
 --   0123_stock_transfer_update_policy.sql
+--   0322_stock_transfer_line_reason.sql
 --   0122_stock_transfer_replay_tail.sql
 --   0023_handstock.sql
 --   0038_spare_consumption_scope.sql
@@ -237,6 +242,7 @@
 --   0312_consumption_people_are_stamped.sql
 --   0313_a_reason_is_required.sql
 --   0316_adjust_guard_reads_the_balance.sql
+--   0317_void_keeps_original_qty.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
 --   0072_ownership_transfer.sql
@@ -260,6 +266,8 @@
 --   0247_cover_maintenance_needs_cover_edit.sql
 --   0258_link_install_call.sql
 --   0291_cover_keys_split.sql
+--   0318_warranty_party_refresh_once.sql
+--   0319_install_call_mapping_once.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -7092,6 +7100,978 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
+-- 0320_indoor_register_and_pdt.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0320 — THE INDOOR REGISTER CARRIES R/SER/07, AND A DEMO UNIT OF AN IMPORTED
+--        PRODUCT CARRIES R/SER/QC/007
+--
+-- The user, 2026-10-02, with photographs of the two controlled paper records
+-- the Indoor Service process keeps: "Compare what is there and tell me the
+-- process / conception gap and implement process so that it is in line with
+-- these records."
+--
+-- RECORD 1 -- R/SER/07 INDOOR SERVICE EQUIPMENT FAILURE REGISTER, two sheets
+-- ("CUSTOMER - DEVICE's" and "DEMO"). Its columns the register did not hold:
+--   Field Service Report No   field_report_no
+--   Engineer Name             engineer_name   (DEMO: "Indoor Service")
+--   Customer Place            customer_place
+--   Problem Reported          problem_reported
+--   Status (the COVER)        cover           WGP / OGP / CMC / AMC, read from
+--                                             the machine by the screen and
+--                                             editable (the user's decision 1)
+--   Indoor Service Report No  indoor_report_no
+--   DC No./Date               dispatch_ref (exists) + dc_date
+--   Remarks                   remarks         free text (decision 2)
+--   Verified By               verified_by / verified_at (decision 3)
+-- `status` stays the WORKFLOW stage and `condition_on_arrival` stays what it
+-- is: the paper's "Status" column is the cover, which is why it is a new
+-- column and not a second meaning of an old one.
+--
+-- VERIFIED BY is a supervisor's verification of the COMPLETED row, so it is
+-- its own key, `indoor.verify`, asked by the guard below; it is allowed only
+-- once the job is Dispatched, Closed or Condemned; and who and when are
+-- STAMPED from the session -- whatever the browser sends is discarded, the
+-- rule every other stamp here keeps. The key is GRANTED TO NOBODY by this file
+-- (the user's standing rule: Roles & Permissions is the administrator's). An
+-- administrator passes has_perm() anyway.
+--
+-- RECORD 2 -- R/SER/QC/007 PRE DELIVERY TESTING (Quality Control), structured
+-- in `indoor_pdt`, one row per job. It is OWED only by a DEMO unit whose
+-- product line is IMPORTED (the user: "Pre-delivery check is done only for
+-- Imported products, not for in-house manufactured equipment"):
+--   * indoor_job_is_imported() answers from the Product Master (0319);
+--   * UNKNOWN -- the product matches no line, or the line's `imported` is
+--     blank -- does NOT require the test for dispatch (the user's decision),
+--     and the screen says the answer is unknown so somebody fills the master;
+--   * when it IS owed, the unit cannot move to Dispatched or Closed until the
+--     test is COMPLETE (every field filled, inspector signed) and checks 1-5
+--     all read OK. A NOT OK refuses -- "a machine cannot leave with a failed
+--     check", the rule 0158 already keeps for the quality check.
+-- Customer-property jobs keep the existing quality check unchanged.
+--
+-- The guard is 0297's body WORD FOR WORD with the new rules added after it;
+-- every rule it carried is still here.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1. THE REGISTER'S COLUMNS
+-- ---------------------------------------------------------------------------
+alter table public.indoor_jobs
+  add column if not exists field_report_no  text not null default '',
+  add column if not exists engineer_name    text not null default '',
+  add column if not exists customer_place   text not null default '',
+  add column if not exists problem_reported text not null default '',
+  add column if not exists indoor_report_no text not null default '',
+  add column if not exists dc_date          date,
+  add column if not exists remarks          text not null default '',
+  add column if not exists cover            text not null default '',
+  add column if not exists verified_by      uuid,
+  add column if not exists verified_at      timestamptz;
+
+comment on column public.indoor_jobs.cover is
+  'R/SER/07 "Status": the machine''s COVER (WGP / OGP / CMC / AMC, cover_code()), read from the Product Database when the job is received or its product/serial changes, and editable. Not the workflow stage, which is `status`.';
+comment on column public.indoor_jobs.verified_by is
+  'R/SER/07 "Verified By": stamped from the session by indoor_jobs_guard() (0320) for a holder of indoor.verify, once the job is Dispatched, Closed or Condemned. A value the browser sends is discarded.';
+
+-- ---------------------------------------------------------------------------
+-- 2. IS THIS JOB'S PRODUCT IMPORTED? true / false / NULL (= not known)
+--
+-- THE MAPPING IS THE ONE THIS PROJECT ALREADY USES, in this order:
+--   a. THE MACHINE'S OWN CODE. A job names model and serial; the Product
+--      Database holds one machine per model+serial (`machine_key`, unique,
+--      0079) and that machine's product code (`item_code`, 0194, whose comment
+--      says it "joins this machine to its line on public.product_master").
+--      Exact, and the only way to tell CPX CARE's nine codes apart.
+--   b. THE NAME, as product_line_sellable() (0193) falls back to it:
+--      upper(btrim()) equality on product_master.product_name. A name can have
+--      several codes, so it answers only where EVERY code of that name gives
+--      the same, non-blank answer; codes that disagree, or one left blank, is
+--      UNKNOWN rather than a guess.
+-- NULL means unknown, and the dispatch rule treats unknown as not owing the
+-- test (the user's decision) while the screen says so.
+--
+-- PL/pgSQL and checked at RUN time on purpose: this module runs BEFORE the
+-- masters module in ALL_ORDER, so `product_master.imported` (0319) does not
+-- exist yet when this file is applied to an empty database. A function that
+-- named it at creation would stop the bundle; this one answers NULL until the
+-- column is there.
+--
+-- SECURITY DEFINER so the screen (through indoor_job_list) and the guard read
+-- the same machine whatever the reader's Product Database visibility is -- an
+-- answer that changed with who asked would be a dispatch rule that changed
+-- with who asked. It returns one boolean about a product line, and the
+-- Product Master is readable by every signed-in user anyway (pm_read).
+-- ---------------------------------------------------------------------------
+create or replace function public.indoor_job_is_imported(p_product_name text, p_serial text)
+returns boolean
+language plpgsql stable security definer
+set search_path = public
+as $$
+declare
+  v_code text;
+  v_ans  boolean;
+  v_n    integer;
+  v_set  integer;
+  v_true integer;
+begin
+  if not exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'product_master'
+                    and column_name = 'imported') then
+    return null;
+  end if;
+
+  -- a. the machine's own code
+  if coalesce(btrim(p_product_name), '') <> '' and coalesce(btrim(p_serial), '') <> ''
+     and exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'products'
+                    and column_name = 'item_code') then
+    select nullif(btrim(p.item_code), '') into v_code
+      from public.products p
+     where p.machine_key = lower(btrim(p_product_name)) || '|' || lower(btrim(p_serial))
+     limit 1;
+    if v_code is not null then
+      select count(*) into v_n
+        from public.product_master pm
+       where upper(btrim(pm.product_code)) = upper(v_code);
+      if v_n = 1 then
+        select pm.imported into v_ans from public.product_master pm
+         where upper(btrim(pm.product_code)) = upper(v_code);
+        return v_ans;
+      end if;
+    end if;
+  end if;
+
+  -- b. the name, only where every code of it agrees
+  if coalesce(btrim(p_product_name), '') = '' then return null; end if;
+  select count(*), count(pm.imported), count(*) filter (where pm.imported)
+    into v_n, v_set, v_true
+    from public.product_master pm
+   where upper(btrim(pm.product_name)) = upper(btrim(p_product_name));
+  if v_n = 0 or v_set < v_n then return null; end if;   -- no line, or one left blank
+  if v_true = v_n then return true; end if;
+  if v_true = 0 then return false; end if;
+  return null;                                           -- the codes disagree
+end $$;
+
+comment on function public.indoor_job_is_imported(text, text) is
+  'Is the product of an indoor job IMPORTED? true / false / NULL = unknown. The machine''s own code (Product Database, model+serial -> item_code -> product_master) first; else the product NAME, answering only where every code of that name agrees and none is blank (0320). Decides whether a DEMO unit owes Pre-Delivery Testing R/SER/QC/007; unknown does not.';
+
+revoke all on function public.indoor_job_is_imported(text, text) from public;
+do $$ begin
+  execute 'revoke all on function public.indoor_job_is_imported(text, text) from anon';
+  execute 'grant execute on function public.indoor_job_is_imported(text, text) to authenticated';
+exception when undefined_object then null; end $$;
+
+-- ---------------------------------------------------------------------------
+-- 3. R/SER/QC/007 PRE DELIVERY TESTING -- one row per job.
+--
+-- The form's own fields, in its own words. "HV" and "HT" are kept as the
+-- paper prints them and NOT interpreted: text, because nobody has said what
+-- they measure or in what unit. The two mode tables are the measured values
+-- at FiO2 21 / 60 / 100 %; the SET values (V=500 ml, RR=12 bpm ...) are
+-- printed on the form and are not data.
+--
+-- Check 6 on the paper -- "Only use the Accessories associated with the
+-- respective machine." -- is an instruction, not a check, and has no column.
+-- ---------------------------------------------------------------------------
+create table if not exists public.indoor_pdt (
+  id        bigint generated always as identity primary key,
+  job_id    bigint not null unique references public.indoor_jobs (id) on delete cascade,
+
+  test_date              date,
+  measuring_equipment_id text not null default '',
+  software_version       text not null default '',
+  hv                     text not null default '',
+  ht                     text not null default '',
+
+  check1 text check (check1 in ('OK', 'NOT OK')),
+  check2 text check (check2 in ('OK', 'NOT OK')),
+  check3 text check (check3 in ('OK', 'NOT OK')),
+  check4 text check (check4 in ('OK', 'NOT OK')),
+  check5 text check (check5 in ('OK', 'NOT OK')),
+
+  -- 7. Mode CMV/ACMV -- Volume (Vte), Peep, O2% at FiO2 21 / 60 / 100 %
+  cmv_vte_21  numeric, cmv_vte_60  numeric, cmv_vte_100  numeric,
+  cmv_peep_21 numeric, cmv_peep_60 numeric, cmv_peep_100 numeric,
+  cmv_o2_21   numeric, cmv_o2_60   numeric, cmv_o2_100   numeric,
+  -- 8. Mode PCMV -- PIP, Peep, O2% at FiO2 21 / 60 / 100 %
+  pcmv_pip_21  numeric, pcmv_pip_60  numeric, pcmv_pip_100  numeric,
+  pcmv_peep_21 numeric, pcmv_peep_60 numeric, pcmv_peep_100 numeric,
+  pcmv_o2_21   numeric, pcmv_o2_60   numeric, pcmv_o2_100   numeric,
+
+  -- Inspected by: stamped from the session at signing, with the name and the
+  -- designation the person held THEN (User Master via profiles, 0199).
+  inspected_by          uuid,
+  inspector_name        text not null default '',
+  inspector_designation text not null default '',
+  inspected_at          timestamptz,
+
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  updated_by uuid,
+  updated_at timestamptz not null default now()
+);
+
+comment on table public.indoor_pdt is
+  'R/SER/QC/007 PRE DELIVERY TESTING, one row per indoor job (0320). Owed by a DEMO unit whose product line is imported (indoor_job_is_imported): such a unit is not Dispatched or Closed until every field here is filled, the inspector has signed, and checks 1-5 all read OK.';
+
+-- WHO SIGNED IS THE SESSION'S, like every stamp in this module. Setting
+-- inspected_by (to anything) is the act of signing: the trigger replaces it
+-- with auth.uid() and fills the name, designation and time from the profile.
+-- Clearing it withdraws the signature. Any other change to the four columns is
+-- discarded.
+create or replace function public.indoor_pdt_stamp()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_sign boolean;
+begin
+  new.updated_at := now();
+  if auth.uid() is not null then new.updated_by := auth.uid(); end if;
+
+  if tg_op = 'INSERT' then
+    new.created_at := now();
+    new.created_by := auth.uid();
+    v_sign := new.inspected_by is not null;
+  else
+    new.created_at := old.created_at;
+    new.created_by := old.created_by;
+    new.job_id     := old.job_id;
+    v_sign := new.inspected_by is distinct from old.inspected_by and new.inspected_by is not null;
+    if new.inspected_by is null and old.inspected_by is not null then
+      new.inspector_name := ''; new.inspector_designation := ''; new.inspected_at := null;
+      return new;
+    end if;
+    if not v_sign then
+      new.inspected_by          := old.inspected_by;
+      new.inspector_name        := old.inspector_name;
+      new.inspector_designation := old.inspector_designation;
+      new.inspected_at          := old.inspected_at;
+      return new;
+    end if;
+  end if;
+
+  if v_sign then
+    new.inspected_by := auth.uid();
+    new.inspected_at := case when auth.uid() is null then null else now() end;
+    select coalesce(nullif(btrim(p.full_name), ''), p.email, ''), coalesce(btrim(p.designation), '')
+      into new.inspector_name, new.inspector_designation
+      from public.profiles p where p.id = auth.uid();
+    new.inspector_name        := coalesce(new.inspector_name, '');
+    new.inspector_designation := coalesce(new.inspector_designation, '');
+  else
+    new.inspected_by := null; new.inspected_at := null;
+    new.inspector_name := ''; new.inspector_designation := '';
+  end if;
+  return new;
+end $$;
+drop trigger if exists zz_indoor_pdt_stamp on public.indoor_pdt;
+create trigger zz_indoor_pdt_stamp before insert or update on public.indoor_pdt
+  for each row execute function public.indoor_pdt_stamp();
+
+-- The audience of indoor_job_checks (0158): reading is the module key, writing
+-- indoor.work or indoor.receive. NO DELETE policy and no DELETE grant: this is
+-- a quality record (0049's rule), corrected by a further edit, never removed.
+alter table public.indoor_pdt enable row level security;
+drop policy if exists indoor_pdt_read on public.indoor_pdt;
+create policy indoor_pdt_read on public.indoor_pdt for select
+  using ((select public.has_perm('mod:/indoor')));
+drop policy if exists indoor_pdt_insert on public.indoor_pdt;
+create policy indoor_pdt_insert on public.indoor_pdt for insert
+  with check ((select public.has_perm('indoor.work')) or (select public.has_perm('indoor.receive')));
+drop policy if exists indoor_pdt_update on public.indoor_pdt;
+create policy indoor_pdt_update on public.indoor_pdt for update
+  using ((select public.has_perm('indoor.work')) or (select public.has_perm('indoor.receive')))
+  with check ((select public.has_perm('indoor.work')) or (select public.has_perm('indoor.receive')));
+grant select, insert, update on public.indoor_pdt to authenticated;
+
+-- The five system columns, now where the module that adds them already ran
+-- (on a fresh build sys_columns runs later and attaches it itself).
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.indoor_pdt'::regclass);
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 4. THE GUARD -- 0297 verbatim, then the three new rules.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.indoor_jobs_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_pdt   public.indoor_pdt%rowtype;
+  v_blank text[];
+  v_bad   text[];
+begin
+  -- An administrator is not gated by the stage rights; every other rule below
+  -- still applies to them, because the ones that follow are about the RECORD
+  -- being coherent rather than about who is allowed to act.
+  if not public.is_admin() then
+    if tg_op = 'UPDATE' then
+      if (new.qc_result is distinct from old.qc_result
+       or new.qc_by     is distinct from old.qc_by
+       or new.qc_at     is distinct from old.qc_at
+       or new.qc_notes  is distinct from old.qc_notes)
+         and not public.has_perm('indoor.qc') then
+        raise exception 'indoor.qc is required to record a quality check'
+          using errcode = '42501';
+      end if;
+
+      if (new.dispatched_at is distinct from old.dispatched_at
+       or new.dispatch_ref  is distinct from old.dispatch_ref
+       or new.dispatched_by is distinct from old.dispatched_by)
+         and not public.has_perm('indoor.dispatch') then
+        raise exception 'indoor.dispatch is required to dispatch a unit'
+          using errcode = '42501';
+      end if;
+
+      if new.status in ('Dispatched', 'Closed') and new.status is distinct from old.status
+         and not public.has_perm('indoor.dispatch') then
+        raise exception 'indoor.dispatch is required to mark a unit %', new.status
+          using errcode = '42501';
+      end if;
+    end if;
+
+    -- CONDEMNING IS ITS OWN RIGHT, on insert as well as update. Scrapping
+    -- customer property in particular cannot be an engineer's own decision
+    -- (open question 8 in the plan, settled here the safe way: a separate
+    -- permission granted to nobody by default).
+    if (tg_op = 'INSERT' and (btrim(new.condemned_reason) <> '' or new.status = 'Condemned'))
+    or (tg_op = 'UPDATE' and (new.condemned_reason is distinct from old.condemned_reason
+                           or new.condemned_at     is distinct from old.condemned_at
+                           or (new.status = 'Condemned' and old.status <> 'Condemned'))) then
+      if not public.has_perm('indoor.condemn') then
+        raise exception 'indoor.condemn is required to condemn a unit'
+          using errcode = '42501';
+      end if;
+      if new.condemned_at is null then new.condemned_at := now(); end if;
+      if new.condemned_by is null then new.condemned_by := auth.uid(); end if;
+    end if;
+  end if;
+
+  -- A MACHINE CANNOT LEAVE WITH A FAILED CHECK. 4.5.6 puts the quality check
+  -- before the return, so a failed one sends it back to Under repair rather
+  -- than being noted and stepped over.
+  if new.status in ('Ready', 'Dispatched', 'Closed') and new.qc_result = 'Fail' then
+    raise exception 'the quality check failed -- the unit returns to Under repair, it does not leave'
+      using errcode = '23514';
+  end if;
+
+  -- AND A REPAIR OR REWORK CANNOT LEAVE WITH NO CHECK AT ALL. The other four
+  -- activities are exempt on purpose: a demo going out and a unit stripped for
+  -- parts have no repair to verify, and a pre-delivery inspection records its
+  -- verdict in pdi_result instead.
+  if new.status in ('Dispatched', 'Closed')
+     and new.activity in ('Repair', 'Rework')
+     and new.qc_result is null then
+    raise exception 'a % cannot be dispatched before its quality check is recorded (4.5.6)', lower(new.activity)
+      using errcode = '23514';
+  end if;
+
+  -- A FAILED PRE-DELIVERY INSPECTION DOES NOT SHIP either, and a held one says
+  -- why it is being held.
+  if new.status in ('Dispatched', 'Closed')
+     and new.activity = 'Pre-delivery inspection' and new.pdi_result = 'Fail' then
+    raise exception 'a failed pre-delivery inspection does not leave the workshop'
+      using errcode = '23514';
+  end if;
+
+  -- Timestamps that follow from an action are stamped, not typed: a cleaning
+  -- date somebody can type is a cleaning date somebody can back-date.
+  if new.status <> 'Received' and old is distinct from null then
+    if new.cleaned_by is distinct from coalesce(old.cleaned_by, new.cleaned_by)
+       and new.cleaned_at is null then
+      new.cleaned_at := now();
+    end if;
+  end if;
+  if new.qc_result is not null and new.qc_at is null then
+    new.qc_at := now();
+    if new.qc_by is null then new.qc_by := auth.uid(); end if;
+  end if;
+  if new.dispatch_ref <> '' and new.dispatched_at is null then
+    new.dispatched_at := now();
+    if new.dispatched_by is null then new.dispatched_by := auth.uid(); end if;
+  end if;
+
+  -- ======================== 0320 ========================================
+
+  -- R/SER/QC/007. A DEMO UNIT OF AN IMPORTED PRODUCT DOES NOT LEAVE UNTESTED.
+  -- Asked on the MOVE into Dispatched / Closed (or a job filed or re-kinded
+  -- straight into one), not on every later edit: a unit already out before
+  -- this rule existed can still be verified and remarked. UNKNOWN imported-ness
+  -- does not require the test -- the user's decision; the screen says unknown.
+  if new.kind = 'DEMO unit' and new.status in ('Dispatched', 'Closed')
+     and (tg_op = 'INSERT' or new.status is distinct from old.status
+          or new.kind is distinct from old.kind
+          or new.product_name is distinct from old.product_name
+          or new.serial is distinct from old.serial)
+     and coalesce(public.indoor_job_is_imported(new.product_name, new.serial), false) then
+    select * into v_pdt from public.indoor_pdt where job_id = new.id;
+    if not found then
+      raise exception 'a DEMO unit of an imported product does not leave before its Pre-Delivery Testing (R/SER/QC/007) is recorded'
+        using errcode = '23514';
+    end if;
+    v_bad := array_remove(array[
+      case when v_pdt.check1 = 'NOT OK' then '1' end,
+      case when v_pdt.check2 = 'NOT OK' then '2' end,
+      case when v_pdt.check3 = 'NOT OK' then '3' end,
+      case when v_pdt.check4 = 'NOT OK' then '4' end,
+      case when v_pdt.check5 = 'NOT OK' then '5' end], null);
+    if cardinality(v_bad) > 0 then
+      raise exception 'Pre-Delivery Testing check % reads NOT OK -- a machine cannot leave with a failed check',
+        array_to_string(v_bad, ', ')
+        using errcode = '23514';
+    end if;
+    v_blank := array_remove(array[
+      case when v_pdt.test_date is null then 'Date' end,
+      case when btrim(v_pdt.measuring_equipment_id) = '' then 'Measuring Equipment ID No' end,
+      case when btrim(v_pdt.software_version) = '' then 'Software Version' end,
+      case when btrim(v_pdt.hv) = '' then 'HV' end,
+      case when btrim(v_pdt.ht) = '' then 'HT' end,
+      case when v_pdt.check1 is null or v_pdt.check2 is null or v_pdt.check3 is null
+             or v_pdt.check4 is null or v_pdt.check5 is null then 'checks 1-5' end,
+      case when v_pdt.cmv_vte_21 is null or v_pdt.cmv_vte_60 is null or v_pdt.cmv_vte_100 is null
+             or v_pdt.cmv_peep_21 is null or v_pdt.cmv_peep_60 is null or v_pdt.cmv_peep_100 is null
+             or v_pdt.cmv_o2_21 is null or v_pdt.cmv_o2_60 is null or v_pdt.cmv_o2_100 is null
+           then 'the CMV/ACMV readings' end,
+      case when v_pdt.pcmv_pip_21 is null or v_pdt.pcmv_pip_60 is null or v_pdt.pcmv_pip_100 is null
+             or v_pdt.pcmv_peep_21 is null or v_pdt.pcmv_peep_60 is null or v_pdt.pcmv_peep_100 is null
+             or v_pdt.pcmv_o2_21 is null or v_pdt.pcmv_o2_60 is null or v_pdt.pcmv_o2_100 is null
+           then 'the PCMV readings' end,
+      case when v_pdt.inspected_by is null then 'Inspected by (not signed)' end], null);
+    if cardinality(v_blank) > 0 then
+      raise exception 'Pre-Delivery Testing (R/SER/QC/007) is incomplete -- still blank: %',
+        array_to_string(v_blank, ', ')
+        using errcode = '23514';
+    end if;
+  end if;
+
+  -- R/SER/07 "VERIFIED BY". Its own key; only on a completed row; who and when
+  -- from the session. On insert there is nothing to verify yet, so whatever
+  -- was sent is discarded.
+  if tg_op = 'INSERT' then
+    new.verified_by := null;
+    new.verified_at := null;
+  elsif new.verified_by is distinct from old.verified_by
+     or new.verified_at is distinct from old.verified_at then
+    if not public.has_perm('indoor.verify') then
+      raise exception 'indoor.verify is required to verify an Indoor Service register entry'
+        using errcode = '42501';
+    end if;
+    if new.verified_by is null then
+      new.verified_at := null;               -- a verification withdrawn
+    else
+      if new.status not in ('Dispatched', 'Closed', 'Condemned') then
+        raise exception 'a register entry is verified once the unit is Dispatched, Closed or Condemned -- this one is %', new.status
+          using errcode = '23514';
+      end if;
+      new.verified_by := auth.uid();
+      new.verified_at := now();
+    end if;
+  end if;
+
+  -- R/SER/07 "Status" is the COVER, in the one vocabulary (0208), where that
+  -- rule is installed. Run-time lookup: data_integrity runs after this module.
+  if new.cover is distinct from (case when tg_op = 'UPDATE' then old.cover end)
+     and to_regprocedure('public.cover_code(text)') is not null then
+    execute 'select public.cover_code($1)' into new.cover using new.cover;
+    new.cover := coalesce(new.cover, '');
+  end if;
+
+  return new;
+end $function$;
+
+-- ---------------------------------------------------------------------------
+-- 5. THE LIST -- 0158's view, with the verifier's name, the accessories as the
+--    register writes them, and whether the product is imported. `j.*` picks up
+--    the new columns. MIRRORED WORD FOR WORD in 0245 (check:bundles).
+-- ---------------------------------------------------------------------------
+drop view if exists public.indoor_job_list;
+create view public.indoor_job_list as
+  select j.*,
+         coalesce(rb.name, '') as received_by_name,
+         coalesce(cb.name, '') as cleaned_by_name,
+         coalesce(qb.name, '') as qc_by_name,
+         coalesce(db.name, '') as dispatched_by_name,
+         coalesce(xb.name, '') as condemned_by_name,
+         coalesce(ub.name, '') as updated_by_name,
+         (j.status in ('Closed', 'Dispatched', 'Condemned')) as is_closed,
+         -- A DEMO unit out past its due date, which is the one figure nothing
+         -- else in this system produces. NULL rather than false where there is
+         -- no due date: "not overdue" and "nobody said when" are different facts.
+         (case when j.activity = 'Demo' and j.actual_return is null
+                    and j.expected_return is not null
+               then (j.expected_return < (now() at time zone 'Asia/Kolkata')::date)
+          end) as demo_overdue,
+         (select count(*) from public.indoor_job_accessories a where a.job_id = j.id)
+           as accessory_count,
+         (select count(*) from public.indoor_job_accessories a
+           where a.job_id = j.id and not a.returned) as accessories_outstanding,
+         coalesce(vb.name, '') as verified_by_name,
+         (select string_agg(btrim(a.name), ', ' order by a.id) from public.indoor_job_accessories a
+           where a.job_id = j.id and btrim(a.name) <> '') as accessories_received,
+         public.indoor_job_is_imported(j.product_name, j.serial) as product_imported
+    from public.indoor_jobs j
+    left join public.app_user_names rb on rb.id = j.received_by
+    left join public.app_user_names cb on cb.id = j.cleaned_by
+    left join public.app_user_names qb on qb.id = j.qc_by
+    left join public.app_user_names db on db.id = j.dispatched_by
+    left join public.app_user_names xb on xb.id = j.condemned_by
+    left join public.app_user_names ub on ub.id = j.updated_by
+    left join public.app_user_names vb on vb.id = j.verified_by;
+alter view public.indoor_job_list set (security_invoker = on);
+grant select on public.indoor_job_list to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0321_indoor_dc.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0321 — INDOOR_DC: THE DELIVERY CHALLAN THAT TAKES A UNIT OUT OF THE WORKSHOP
+--
+-- The user, 2026-10-02, with the paper template: a Delivery Challan for the
+-- Indoor Service module ONLY -- "Name it Indoor_DC". It is separate from the
+-- spare DC (spare_dispatches, 0027/0028), which this file does not touch.
+--
+-- THE USER'S DECISIONS, and where each one lives:
+--   * Its own number, IDC-YYMM-NNNN, restarting each month by the DC DATE,
+--     ISSUED BY THE DATABASE -- a number sent by the caller is discarded, the
+--     rule the job number (0158) and the stock-out number (0027) keep.
+--   * One DC may carry SEVERAL jobs going to the SAME consignee ("To"). The
+--     consignee of a job is its party (customer property) or its "going to"
+--     party (a DEMO unit, demo_for_party); jobs whose consignees differ are
+--     refused together.
+--   * Creating the DC stamps each job: dispatch_ref = the IDC number (R/SER/07
+--     "DC No.") and dc_date = the DC date. IT DOES NOT CHANGE THE JOB'S STATUS
+--     -- and the existing guard (0158) stamps dispatched_at / dispatched_by when
+--     dispatch_ref is first set, exactly as it does when the reference is
+--     typed on the job.
+--   * The DC is NOT A WAY ROUND A DISPATCH RULE. Setting dispatch_ref alone
+--     asks none of indoor_jobs_guard()'s leaving rules (a failed quality check,
+--     a repair with no check, a failed PDI, a DEMO unit of an imported product
+--     without its Pre-Delivery Testing -- 0158, 0297, 0320): they are asked on
+--     the move into Dispatched / Closed. So each job is TRIED -- moved to
+--     Dispatched inside a sub-transaction that is always rolled back -- and a
+--     job the guard refuses is refused here with the guard's own words. The
+--     rule is therefore not copied: whatever the guard says today, and
+--     whatever it is changed to say, is what the DC says.
+--   * Only a READY unit goes on a DC, and only one carrying no DC No. yet.
+--   * Lines: per job, the equipment (PART No. = the product code the machine
+--     carries in the Product Database, else the one code its name has on the
+--     Product Master, else blank; DESCRIPTION = product + " Sl.No " + serial)
+--     and then one line per accessory (name + " Sl.No " + serial). QTY 1.
+--     PURPOSE typed once for the DC and editable per line.
+--   * The "To" text, MIRN No. / Customer Ref No. and its date, and Mode of
+--     Despatch are stored on the DC as typed.
+--   * Permission: the existing indoor.dispatch. NO KEY IS ADDED AND NOTHING IS
+--     GRANTED: the page is the Indoor Service Register's (mod:/indoor).
+--
+-- WRITTEN ONLY BY create_indoor_dc(). Both tables are readable with the page
+-- and have NO write policy and no write grant: a DC row written straight
+-- through the API would be a challan whose jobs were never stamped and never
+-- tried against the leaving rules. The function asks indoor.dispatch itself.
+-- A DC IS A RECORD OF A UNIT LEAVING: no delete policy, no delete grant, and
+-- 0049's no_hard_delete trigger.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1. THE NUMBER -- IDC-YYMM-NNNN, one counter row per month.
+--    The 0027 pattern (an upsert that locks the row, so two issuers in the
+--    same instant get 0007 and 0008), seeded PAST whatever the month already
+--    carries as 0158 seeds the job number, so it is safe after an import.
+--    RLS on with no policy: nothing but the definer function touches it.
+-- ---------------------------------------------------------------------------
+create table if not exists public.indoor_dc_counters (
+  period  text    not null primary key,   -- YYMM
+  last_no integer not null default 0
+);
+alter table public.indoor_dc_counters enable row level security;
+revoke all on public.indoor_dc_counters from public;
+do $$ begin
+  execute 'revoke all on public.indoor_dc_counters from anon, authenticated';
+exception when undefined_object then null; end $$;
+
+create or replace function public.next_indoor_dc_no(p_on date)
+returns text language plpgsql volatile security definer set search_path = public as $$
+declare
+  v_on  date := coalesce(p_on, (now() at time zone 'Asia/Kolkata')::date);
+  v_yymm text := to_char(v_on, 'YYMM');
+  v_hi  integer := 0;
+  v_no  integer;
+begin
+  if to_regclass('public.indoor_dcs') is not null then
+    select coalesce(max(right(dc_no, 4)::int), 0) into v_hi
+      from public.indoor_dcs
+     where dc_no ~ ('^IDC-' || v_yymm || '-[0-9]{4}$');
+  end if;
+  insert into public.indoor_dc_counters (period, last_no) values (v_yymm, v_hi + 1)
+  on conflict (period) do update
+     set last_no = greatest(public.indoor_dc_counters.last_no, v_hi) + 1
+  returning last_no into v_no;
+  return 'IDC-' || v_yymm || '-' || lpad(v_no::text, 4, '0');
+end $$;
+comment on function public.next_indoor_dc_no(date) is
+  'Issues the next Indoor DC number, IDC-YYMM-NNNN, restarting each month by the DC date (0321). Called only by the indoor_dcs insert trigger.';
+-- Only the trigger calls it (it runs as the owner), so the API may not.
+revoke all on function public.next_indoor_dc_no(date) from public;
+do $$ begin
+  execute 'revoke all on function public.next_indoor_dc_no(date) from anon, authenticated';
+exception when undefined_object then null; end $$;
+
+-- ---------------------------------------------------------------------------
+-- 2. THE DC AND ITS LINES
+-- ---------------------------------------------------------------------------
+create table if not exists public.indoor_dcs (
+  id                bigint generated always as identity primary key,
+  dc_no             text not null unique,
+  dc_date           date not null default ((now() at time zone 'Asia/Kolkata')::date),
+  consignee         text not null default '',   -- "To", as typed (prefilled from the Party Master)
+  customer_ref      text not null default '',   -- "MIRN No. / CUSTOMER REF No."
+  customer_ref_date date,                       -- its "DATE"
+  mode_of_despatch  text not null default '',
+  purpose           text not null default '',   -- typed once; each line carries its own copy
+  issued_by_name    text not null default '',   -- "ISSUED BY (Stores)": the name RITHI knows for the creator
+  created_by        uuid,
+  created_at        timestamptz not null default now()
+);
+comment on table public.indoor_dcs is
+  'Indoor_DC -- the Delivery Challan that takes Indoor Service units out of the workshop (0321). One DC, one consignee, one or more jobs. Number IDC-YYMM-NNNN issued by the database. Written only by create_indoor_dc(); never deleted.';
+comment on column public.indoor_dcs.issued_by_name is
+  'The creator''s name as the profile gave it when the DC was issued -- printed under ISSUED BY (Stores). Stamped from the session; a value sent is discarded.';
+
+create table if not exists public.indoor_dc_lines (
+  id           bigint generated always as identity primary key,
+  dc_id        bigint not null references public.indoor_dcs (id),
+  line_no      integer not null,
+  job_id       bigint not null references public.indoor_jobs (id),
+  -- NULL for the equipment line. An accessory removed from the job later
+  -- leaves the line, and its description, as printed.
+  accessory_id bigint references public.indoor_job_accessories (id) on delete set null,
+  part_no      text not null default '',
+  description  text not null default '',
+  qty          numeric not null default 1 check (qty > 0),
+  purpose      text not null default '',
+  created_at   timestamptz not null default now(),
+  unique (dc_id, line_no)
+);
+create index if not exists indoor_dc_lines_job_idx on public.indoor_dc_lines (job_id);
+comment on table public.indoor_dc_lines is
+  'The lines of an Indoor DC (0321): per job the equipment, then each accessory, QTY 1, each with its PURPOSE. A snapshot taken when the DC was issued, so a re-print is the same challan.';
+
+-- The number and the issuer are the database's. An edit (only a trusted role
+-- can make one: no write grant) cannot rewrite either.
+create or replace function public.indoor_dcs_stamp()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.dc_date is null then new.dc_date := (now() at time zone 'Asia/Kolkata')::date; end if;
+    new.dc_no      := public.next_indoor_dc_no(new.dc_date);
+    new.created_at := now();
+    new.created_by := auth.uid();
+    select coalesce(nullif(btrim(p.full_name), ''), p.email, '') into new.issued_by_name
+      from public.profiles p where p.id = auth.uid();
+    new.issued_by_name := coalesce(new.issued_by_name, '');
+  else
+    new.dc_no          := old.dc_no;
+    new.created_at     := old.created_at;
+    new.created_by     := old.created_by;
+    new.issued_by_name := old.issued_by_name;
+  end if;
+  return new;
+end $$;
+drop trigger if exists zz_indoor_dcs_stamp on public.indoor_dcs;
+create trigger zz_indoor_dcs_stamp before insert or update on public.indoor_dcs
+  for each row execute function public.indoor_dcs_stamp();
+
+-- ---------------------------------------------------------------------------
+-- 3. THE PRODUCT CODE OF A JOB -- for PART No. on the equipment line.
+--    The mapping 0320's indoor_job_is_imported() uses, in its order:
+--      a. the machine's own code: products.machine_key (model|serial) ->
+--         item_code (0194);
+--      b. the NAME on the Product Master, only where it has exactly ONE code.
+--    Otherwise NULL, and PART No. prints blank: a guessed code on a challan is
+--    worse than none. PL/pgSQL with run-time column tests for 0320's reason:
+--    the masters module runs after this one.
+-- ---------------------------------------------------------------------------
+create or replace function public.indoor_job_product_code(p_product_name text, p_serial text)
+returns text
+language plpgsql stable security definer
+set search_path = public
+as $$
+declare
+  v_code text;
+  v_n    integer;
+begin
+  if coalesce(btrim(p_product_name), '') <> '' and coalesce(btrim(p_serial), '') <> ''
+     and exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'products'
+                    and column_name = 'item_code') then
+    select nullif(btrim(p.item_code), '') into v_code
+      from public.products p
+     where p.machine_key = lower(btrim(p_product_name)) || '|' || lower(btrim(p_serial))
+     limit 1;
+    if v_code is not null then return v_code; end if;
+  end if;
+
+  if coalesce(btrim(p_product_name), '') = ''
+     or to_regclass('public.product_master') is null then
+    return null;
+  end if;
+  select count(distinct upper(btrim(pm.product_code))), min(btrim(pm.product_code))
+    into v_n, v_code
+    from public.product_master pm
+   where upper(btrim(pm.product_name)) = upper(btrim(p_product_name))
+     and btrim(coalesce(pm.product_code, '')) <> '';
+  if v_n = 1 then return v_code; end if;
+  return null;
+end $$;
+comment on function public.indoor_job_product_code(text, text) is
+  'The product code of an indoor job''s equipment, for PART No. on an Indoor DC (0321): the machine''s own item_code (Product Database, model+serial), else the single code its name has on the Product Master; NULL otherwise.';
+revoke all on function public.indoor_job_product_code(text, text) from public;
+do $$ begin
+  execute 'revoke all on function public.indoor_job_product_code(text, text) from anon';
+  execute 'grant execute on function public.indoor_job_product_code(text, text) to authenticated';
+exception when undefined_object then null; end $$;
+
+-- ---------------------------------------------------------------------------
+-- 4. ISSUING A DC -- the only writer.
+--
+--   p_job_ids        the jobs, in the order they are to be printed
+--   p_consignee      "To", as typed
+--   p_dc_date        DATE (NULL = today in India)
+--   p_customer_ref   MIRN No. / CUSTOMER REF No. (optional)
+--   p_customer_ref_date  its DATE (optional)
+--   p_mode           Mode of Despatch
+--   p_purpose        PURPOSE, typed once
+--   p_line_purposes  per-line PURPOSE overrides, [{job_id, accessory_id, purpose}]
+--                    (accessory_id null = the equipment line)
+--
+-- SECURITY DEFINER so the tables can stay closed to direct writes; every
+-- question about the CALLER is still asked of the caller: has_perm() and
+-- is_admin() read the session, and the job updates run indoor_jobs_guard(),
+-- which asks the caller's rights too.
+-- ---------------------------------------------------------------------------
+create or replace function public.create_indoor_dc(
+  p_job_ids           bigint[],
+  p_consignee         text,
+  p_dc_date           date  default null,
+  p_customer_ref      text  default '',
+  p_customer_ref_date date  default null,
+  p_mode              text  default '',
+  p_purpose           text  default '',
+  p_line_purposes     jsonb default '[]'::jsonb
+) returns text
+language plpgsql volatile security definer
+set search_path = public
+as $$
+declare
+  v_ids   bigint[];
+  v_date  date := coalesce(p_dc_date, (now() at time zone 'Asia/Kolkata')::date);
+  v_dc    bigint;
+  v_no    text;
+  v_line  integer := 0;
+  v_state text;
+  v_msg   text;
+  v_keys  text;
+  j       record;
+  a       record;
+  v_ov    jsonb;
+begin
+  if not public.has_perm('indoor.dispatch') then
+    raise exception 'indoor.dispatch is required to issue an Indoor DC'
+      using errcode = '42501';
+  end if;
+
+  select array_agg(x order by o) into v_ids
+    from (select x, min(o) as o from unnest(p_job_ids) with ordinality u(x, o)
+           where x is not null group by x) d;
+  if coalesce(cardinality(v_ids), 0) = 0 then
+    raise exception 'choose at least one Ready unit for the Indoor DC'
+      using errcode = '22023';
+  end if;
+  if coalesce(btrim(p_consignee), '') = '' then
+    raise exception 'an Indoor DC needs its consignee (To)'
+      using errcode = '23514';
+  end if;
+
+  -- Every job must exist, and is locked for the rest of the transaction so two
+  -- people cannot put one unit on two challans at once.
+  perform 1 from public.indoor_jobs where id = any (v_ids) order by id for update;
+  if (select count(*) from public.indoor_jobs where id = any (v_ids)) <> cardinality(v_ids) then
+    raise exception 'an Indoor Service job on this DC was not found'
+      using errcode = '23503';
+  end if;
+
+  -- ONE DC, ONE CONSIGNEE: a customer unit goes to its party, a DEMO unit to
+  -- its "going to" party.
+  select string_agg(distinct coalesce(nullif(btrim(k), ''), '(none)'), ' / ') into v_keys
+    from (select case when kind = 'DEMO unit' then demo_for_party else party_name end as k
+            from public.indoor_jobs where id = any (v_ids)) s;
+  if (select count(distinct upper(btrim(coalesce(case when kind = 'DEMO unit' then demo_for_party
+                                                       else party_name end, ''))))
+        from public.indoor_jobs where id = any (v_ids)) > 1 then
+    raise exception 'one Indoor DC goes to one consignee -- these units go to %', v_keys
+      using errcode = '23514';
+  end if;
+
+  for j in
+    select ij.*, u.o from public.indoor_jobs ij
+      join unnest(v_ids) with ordinality u(x, o) on u.x = ij.id
+     order by u.o
+  loop
+    if j.status <> 'Ready' then
+      raise exception '%: only a Ready unit goes on an Indoor DC -- this one is %', j.job_no, j.status
+        using errcode = '23514';
+    end if;
+    if btrim(j.dispatch_ref) <> '' then
+      raise exception '%: already carries DC No. % -- one unit, one DC', j.job_no, j.dispatch_ref
+        using errcode = '23514';
+    end if;
+
+    -- THE TRIAL. Would the guard let this unit leave? Asked by moving it to
+    -- Dispatched and always rolling the move back.
+    begin
+      update public.indoor_jobs set status = 'Dispatched' where id = j.id;
+      raise exception using errcode = 'P0001', message = 'indoor_dc_trial_passed';
+    exception when others then
+      get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text;
+      if v_msg <> 'indoor_dc_trial_passed' then
+        raise exception '%: %', j.job_no, v_msg using errcode = v_state;
+      end if;
+    end;
+  end loop;
+
+  -- Overrides must name a job on this DC (a purpose for a unit that is not
+  -- here is a mistake, said rather than dropped).
+  for v_ov in select * from jsonb_array_elements(coalesce(p_line_purposes, '[]'::jsonb)) loop
+    if not coalesce((v_ov ->> 'job_id')::bigint = any (v_ids), false) then
+      raise exception 'a line purpose names job %, which is not on this DC', v_ov ->> 'job_id'
+        using errcode = '22023';
+    end if;
+  end loop;
+
+  insert into public.indoor_dcs (dc_no, dc_date, consignee, customer_ref, customer_ref_date,
+                                 mode_of_despatch, purpose)
+  values ('auto', v_date, btrim(p_consignee), btrim(coalesce(p_customer_ref, '')), p_customer_ref_date,
+          btrim(coalesce(p_mode, '')), btrim(coalesce(p_purpose, '')))
+  returning id, dc_no into v_dc, v_no;
+
+  for j in
+    select ij.*, u.o from public.indoor_jobs ij
+      join unnest(v_ids) with ordinality u(x, o) on u.x = ij.id
+     order by u.o
+  loop
+    v_line := v_line + 1;
+    insert into public.indoor_dc_lines (dc_id, line_no, job_id, accessory_id, part_no, description, qty, purpose)
+    values (v_dc, v_line, j.id, null,
+            coalesce(public.indoor_job_product_code(j.product_name, j.serial), ''),
+            btrim(btrim(j.product_name) || case when btrim(j.serial) <> '' then ' Sl.No ' || btrim(j.serial) else '' end),
+            1,
+            coalesce((select e ->> 'purpose' from jsonb_array_elements(coalesce(p_line_purposes, '[]'::jsonb)) e
+                       where (e ->> 'job_id')::bigint = j.id
+                         and nullif(e ->> 'accessory_id', '') is null
+                       limit 1), btrim(coalesce(p_purpose, ''))));
+    for a in
+      select * from public.indoor_job_accessories
+       where job_id = j.id and (btrim(name) <> '' or btrim(serial) <> '')
+       order by id
+    loop
+      v_line := v_line + 1;
+      insert into public.indoor_dc_lines (dc_id, line_no, job_id, accessory_id, part_no, description, qty, purpose)
+      values (v_dc, v_line, j.id, a.id, '',
+              btrim(btrim(a.name) || case when btrim(a.serial) <> '' then ' Sl.No ' || btrim(a.serial) else '' end),
+              1,
+              coalesce((select e ->> 'purpose' from jsonb_array_elements(coalesce(p_line_purposes, '[]'::jsonb)) e
+                         where (e ->> 'job_id')::bigint = j.id
+                           and (e ->> 'accessory_id')::bigint = a.id
+                         limit 1), btrim(coalesce(p_purpose, ''))));
+    end loop;
+  end loop;
+
+  -- THE STAMP ON EACH JOB. Through the guard, as the caller: it asks
+  -- indoor.dispatch for a change of dispatch_ref and stamps dispatched_at /
+  -- dispatched_by, exactly as a reference typed on the job does.
+  update public.indoor_jobs
+     set dispatch_ref = v_no, dc_date = v_date
+   where id = any (v_ids);
+
+  return v_no;
+end $$;
+comment on function public.create_indoor_dc(bigint[], text, date, text, date, text, text, jsonb) is
+  'Issues an Indoor DC (0321): asks indoor.dispatch; one consignee; only Ready units with no DC No.; each unit TRIED against indoor_jobs_guard()''s leaving rules and refused with the guard''s words; lines built from the jobs and their accessories; each job stamped dispatch_ref = IDC number, dc_date = DC date. Returns the IDC number.';
+revoke all on function public.create_indoor_dc(bigint[], text, date, text, date, text, text, jsonb) from public;
+do $$ begin
+  execute 'revoke all on function public.create_indoor_dc(bigint[], text, date, text, date, text, text, jsonb) from anon';
+  execute 'grant execute on function public.create_indoor_dc(bigint[], text, date, text, date, text, text, jsonb) to authenticated';
+exception when undefined_object then null; end $$;
+
+-- ---------------------------------------------------------------------------
+-- 5. WHO MAY READ, AND NOBODY MAY WRITE DIRECTLY
+-- ---------------------------------------------------------------------------
+alter table public.indoor_dcs      enable row level security;
+alter table public.indoor_dc_lines enable row level security;
+
+drop policy if exists indoor_dcs_read on public.indoor_dcs;
+create policy indoor_dcs_read on public.indoor_dcs for select
+  using ((select public.has_perm('mod:/indoor')));
+drop policy if exists indoor_dc_lines_read on public.indoor_dc_lines;
+create policy indoor_dc_lines_read on public.indoor_dc_lines for select
+  using ((select public.has_perm('mod:/indoor')));
+
+revoke all on public.indoor_dcs, public.indoor_dc_lines from public;
+do $$ begin
+  execute 'revoke all on public.indoor_dcs, public.indoor_dc_lines from anon, authenticated';
+  execute 'grant select on public.indoor_dcs, public.indoor_dc_lines to authenticated';
+exception when undefined_object then null; end $$;
+
+-- RECORD RETENTION (0049): not deleted by the application, whatever grant a
+-- project's defaults hand out. block_hard_delete() belongs to the audit
+-- module, which runs before this one; guarded for a bundle replayed alone.
+do $$
+declare t text;
+begin
+  if to_regprocedure('public.block_hard_delete()') is not null then
+    foreach t in array array['indoor_dcs', 'indoor_dc_lines'] loop
+      execute format('drop trigger if exists no_hard_delete on public.%I', t);
+      execute format('create trigger no_hard_delete before delete on public.%I for each row execute function public.block_hard_delete()', t);
+    end loop;
+  end if;
+end $$;
+
+-- The five system columns, now where the module that adds them already ran
+-- (on a fresh build sys_columns runs later and attaches them itself). The
+-- counter is a counter and gets none (0244's list).
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.indoor_dcs'::regclass);
+    perform public.sys_columns_attach('public.indoor_dc_lines'::regclass);
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 6. THE LIST -- one row per DC with its jobs and line count. Columns NAMED,
+--    not d.* (a `*` view is expanded at creation and would need 0245's mirror).
+-- ---------------------------------------------------------------------------
+drop view if exists public.indoor_dc_list;
+create view public.indoor_dc_list as
+  select d.id, d.dc_no, d.dc_date, d.consignee, d.customer_ref, d.customer_ref_date,
+         d.mode_of_despatch, d.purpose, d.issued_by_name, d.created_by, d.created_at,
+         (select count(*) from public.indoor_dc_lines l where l.dc_id = d.id) as line_count,
+         (select string_agg(j.job_no, ', ' order by l.line_no)
+            from public.indoor_dc_lines l join public.indoor_jobs j on j.id = l.job_id
+           where l.dc_id = d.id and l.accessory_id is null) as job_nos
+    from public.indoor_dcs d;
+alter view public.indoor_dc_list set (security_invoker = on);
+grant select on public.indoor_dc_list to authenticated;
+
+-- ------------------------------------------------------------------------
 -- 0021_master_lists.sql
 -- ------------------------------------------------------------------------
 
@@ -9084,6 +10064,36 @@ begin
   end if;
   return new;
 end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0319_product_master_imported.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0319 — THE PRODUCT MASTER SAYS WHETHER A LINE IS IMPORTED
+--
+-- The user, 2026-10-02: "Pre-delivery check is done only for Imported
+-- products, not for in-house manufactured equipment." Pre-Delivery Testing
+-- (R/SER/QC/007) is owed by a DEMO unit in the workshop whose product line is
+-- imported (0320, the indoor module), so the catalogue has to say which lines
+-- are.
+--
+-- NULLABLE, AND BLANK UNTIL SOMEBODY FILLS IT. Nobody has said which of the 53
+-- lines are imported, and a default either way would be a guess written into
+-- the catalogue: TRUE would demand a test of in-house equipment, FALSE would
+-- wave an imported unit out untested. NULL reads as "not known", the indoor
+-- screen SAYS so on the job, and the dispatch rule treats it as not requiring
+-- the test until the Product Master is filled (the user's decision).
+--
+-- WHO MAY SET IT: whoever may write a product line today -- pm_write, which
+-- asks masters.edit.records (0290). No new key and no grant.
+-- ===========================================================================
+
+alter table public.product_master
+  add column if not exists imported boolean;
+
+comment on column public.product_master.imported is
+  'Is this product line IMPORTED (true) or made in-house (false)? NULL = not recorded yet. Decides whether a DEMO unit of the line owes Pre-Delivery Testing R/SER/QC/007 before it leaves the workshop (0320); NULL is treated as not owing it, and the indoor screen says the answer is unknown.';
 
 -- ------------------------------------------------------------------------
 -- 0070_documents.sql
@@ -23099,6 +24109,164 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
+-- 0311_tick_box_rm_auto_approves.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0311 -- A TICK-BOX RM APPROVAL AUTO-APPROVES WHAT THE LINE DOES NOT NEED (D-081)
+--
+-- The single-spare Approve (buildPatch() in src/lib/spareflow.ts) writes
+-- Auto-Approved into Commercial unless the item is AMC or OGP, and into NSM
+-- unless AMC, OGP or a HandStock request (0210). decide_spare_lines() -- the
+-- RM Approval page's tick boxes and a selection on Spare Requests -- wrote
+-- rm_approval ALONE, so spare_line_stage() put every such line at Commercial
+-- whatever its cover: a warranty spare waited on a decision the rule says it
+-- does not need, on the path most RM approvals take. Measured on a database
+-- built from every migration before this was written.
+--
+-- ONE CHANGE: the RM approve branch writes the same two auto-approvals, by the
+-- same two functions the line guard (0310) asks, so the guard admits them
+-- (spare.approve_rm, no _by/_at). Everything else is 0118 verbatim, read out
+-- of a database built from every migration rather than out of 0118.
+--
+-- FORWARD ONLY. Lines already approved by tick box and waiting at Commercial
+-- are NOT moved: releasing live records past a stage is the user's decision.
+-- supabase/apply/_spares_waiting_at_commercial_by_mistake.sql lists them.
+-- ===========================================================================
+CREATE OR REPLACE FUNCTION public.decide_spare_lines(p_line_ids bigint[], p_decision text, p_actor text DEFAULT ''::text, p_reason text DEFAULT ''::text)
+ RETURNS TABLE(decided integer, skipped integer, reason text)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_id     bigint;
+  v_stage  text;
+  v_eng    text;
+  v_dec    text := lower(btrim(coalesce(p_decision, '')));
+  v_why    text := btrim(coalesce(p_reason, ''));
+  v_actor  text := nullif(btrim(coalesce(p_actor, '')), '');
+  v_now    timestamptz := now();
+  n_ok     integer := 0;
+  n_skip   integer := 0;
+  why      text[]  := '{}';
+begin
+  if v_dec not in ('approve', 'reject', 'drop') then
+    raise exception 'Unknown decision: %', p_decision;
+  end if;
+  if p_line_ids is null or array_length(p_line_ids, 1) is null then
+    raise exception 'Nothing selected';
+  end if;
+  -- Ending a request without saying why leaves a register nobody can review.
+  if v_dec in ('reject', 'drop') and v_why = '' then
+    raise exception 'A % needs a reason', v_dec;
+  end if;
+  if v_dec = 'drop' then
+    if not public.has_perm('spare.drop') then
+      raise exception 'RBAC: your role cannot drop a spare';
+    end if;
+  elsif not public.can_approve_spares() then
+    raise exception 'RBAC: your role cannot approve or reject spares';
+  end if;
+
+  v_actor := coalesce(v_actor, public.my_dir_name(), auth.email(), '');
+
+  foreach v_id in array p_line_ids loop
+    select public.spare_line_stage(
+             coalesce(l.rm_approval, 'Pending'), coalesce(l.commercial_approval, 'Pending'),
+             coalesce(l.nsm_approval, 'Pending'), coalesce(l.stores_status, 'Pending'),
+             l.received_at, r.item_status),
+           coalesce(r.engineer, '')
+      into v_stage, v_eng
+      from public.spare_request_lines l
+      join public.spare_requests r on r.uid = l.request_uid
+     where l.id = v_id;
+
+    if v_stage is null then
+      n_skip := n_skip + 1; why := array_append(why, 'no such spare'); continue;
+    end if;
+
+    -- ---- DROP: any stage that is still open, and only Stores' own right ----
+    if v_dec = 'drop' then
+      if v_stage not in ('RM Approval', 'Commercial', 'NSM', 'Stores') then
+        n_skip := n_skip + 1; why := array_append(why, 'already at ' || v_stage); continue;
+      end if;
+      update public.spare_request_lines
+         set stores_status = 'Dropped', dispatch_remarks = v_why,
+             dispatched_by = v_actor, dispatched_at = v_now
+       where id = v_id;
+      n_ok := n_ok + 1;
+      continue;
+    end if;
+
+    -- ---- APPROVE / REJECT: at the stage the line is AT --------------------
+    if v_stage not in ('RM Approval', 'Commercial', 'NSM') then
+      n_skip := n_skip + 1; why := array_append(why, 'already at ' || v_stage); continue;
+    end if;
+
+    if v_stage = 'RM Approval' then
+      if not public.has_perm('spare.approve_rm') then
+        n_skip := n_skip + 1; why := array_append(why, 'not yours to decide at RM'); continue;
+      end if;
+      -- The trigger refuses this either way; saying so here is the difference
+      -- between a counted skip and a failed batch.
+      if not public.spare_rm_may_approve(v_eng) then
+        n_skip := n_skip + 1; why := array_append(why, 'your own request, or outside your team'); continue;
+      end if;
+      if v_dec = 'approve' then
+        -- THE SAME RULE AS THE SINGLE-SPARE APPROVE (0311, D-081): each later
+        -- stage the line does not need is written Auto-Approved, with no _by
+        -- or _at, because nobody decided it. Before this a tick-box approval
+        -- wrote rm_approval alone and a warranty line waited at Commercial.
+        update public.spare_request_lines l
+           set rm_approval = 'Approved', rm_by = v_actor, rm_at = v_now,
+               commercial_approval = case when public.spare_needs_commercial(r.item_status)
+                                          then l.commercial_approval else 'Auto-Approved' end,
+               nsm_approval        = case when public.spare_needs_nsm(r.item_status, r.req_type)
+                                          then l.nsm_approval else 'Auto-Approved' end
+          from public.spare_requests r
+         where l.id = v_id and r.uid = l.request_uid;
+      else
+        update public.spare_request_lines
+           set rm_approval = 'Rejected', rm_by = v_actor, rm_at = v_now,
+               rejected_stage = v_stage, reject_reason = v_why where id = v_id;
+      end if;
+
+    elsif v_stage = 'Commercial' then
+      if not public.has_perm('spare.approve_commercial') then
+        n_skip := n_skip + 1; why := array_append(why, 'not yours to decide at Commercial'); continue;
+      end if;
+      if v_dec = 'approve' then
+        update public.spare_request_lines
+           set commercial_approval = 'Approved', commercial_by = v_actor, commercial_at = v_now where id = v_id;
+      else
+        update public.spare_request_lines
+           set commercial_approval = 'Rejected', commercial_by = v_actor, commercial_at = v_now,
+               rejected_stage = v_stage, reject_reason = v_why where id = v_id;
+      end if;
+
+    else  -- NSM
+      if not public.has_perm('spare.approve_nsm') then
+        n_skip := n_skip + 1; why := array_append(why, 'not yours to decide at NSM'); continue;
+      end if;
+      if v_dec = 'approve' then
+        update public.spare_request_lines
+           set nsm_approval = 'Approved', nsm_by = v_actor, nsm_at = v_now where id = v_id;
+      else
+        update public.spare_request_lines
+           set nsm_approval = 'Rejected', nsm_by = v_actor, nsm_at = v_now,
+               rejected_stage = v_stage, reject_reason = v_why where id = v_id;
+      end if;
+    end if;
+
+    n_ok := n_ok + 1;
+  end loop;
+
+  return query select n_ok, n_skip,
+    coalesce((select string_agg(w, '; ') from (select distinct unnest(why) as w) d), '');
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0122_spare_requests_replay_tail.sql
 -- ------------------------------------------------------------------------
 
@@ -23535,6 +24703,33 @@ drop policy if exists st_update on public.stock_transfers;
 create policy st_update on public.stock_transfers for update
   using      (public.has_perm('stock.transfer'))
   with check (public.has_perm('stock.transfer'));
+
+-- ------------------------------------------------------------------------
+-- 0322_stock_transfer_line_reason.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0322 — A STOCK TRANSFER LINE MAY CARRY ITS OWN REASON
+--
+-- The user, 2026-10-02, on the MATERIAL TRANSFER NOTE (R/SER/STR/003), whose
+-- table has a "Reason for Transfer" column per item: "Optional to keep one
+-- common remark or per item remark."
+--
+-- So the transfer keeps its one common Remarks (stock_transfers.remarks, "Why
+-- the stock is moving…") and each line gains an OPTIONAL reason of its own.
+-- The printed MTN reads the line's reason where one was given and the common
+-- remarks otherwise -- a rule of the PRINT, not of the data: nothing is
+-- copied, so a blank reason stays blank and says "no reason of its own".
+--
+-- Nothing else changes: the stock guard, the policies (stl_insert asks
+-- stock.transfer as before), the balance views (which name their columns) and
+-- the importer (whose file has no such column -- the default fills it).
+-- ===========================================================================
+alter table public.stock_transfer_lines
+  add column if not exists reason text not null default '';
+
+comment on column public.stock_transfer_lines.reason is
+  'Optional reason for moving THIS part (0322). Blank = the transfer''s common remarks apply, which is what the printed MTN shows under Reason for Transfer.';
 
 -- ------------------------------------------------------------------------
 -- 0122_stock_transfer_replay_tail.sql
@@ -28943,6 +30138,106 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
+-- 0317_void_keeps_original_qty.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0317 -- A VOIDED OR AMENDED CONSUMPTION LINE KEEPS ITS ORIGINAL QUANTITY (D-082)
+--
+-- consumption_adjust_guard() stamped original_qty (the quantity before the
+-- first amendment) and adjusted_at (0062, 0063, 0081). 0196 -- the part
+-- rename -- rewrote the function without those two lines; 0261 and 0316 kept
+-- the omission (0316's own comment says the code after its cap "stamps
+-- original_qty and adjusted_at" -- nothing did). FRS-029 ("the original
+-- quantity ... retained on the row") had stopped being true. Measured on a
+-- database built from every migration.
+--
+-- ONE CHANGE: the two lines go back at the end of the quantity path, where
+-- 0081 had them. Everything else is 0316 verbatim. Existing lines are not
+-- rewritten: what they lost is in the database change history (0225).
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.consumption_adjust_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare avail numeric; delta numeric;
+begin
+  if coalesce(new.ucn, '')      is distinct from coalesce(old.ucn, '')
+  or (coalesce(new.engineer, '') is distinct from coalesce(old.engineer, '')
+      -- A USER MASTER RENAME (0259): the same person, spelled correctly. It
+      -- changes no quantity, so nothing below has anything to check.
+      and not public.engineer_rename_in_progress(old.engineer, new.engineer))
+  or coalesce(new.source, '')   is distinct from coalesce(old.source, '') then
+    raise exception 'A reconciliation can only change the quantity — not the call, part, engineer or source';
+  end if;
+
+  if coalesce(new.part, '') is distinct from coalesce(old.part, '') then
+    -- ONLY the substitution rename_part() filed a ticket for, in THIS
+    -- transaction, for this exact row's current value. Anything else is a line
+    -- being re-pointed, which is what this guard is for.
+    if not exists (
+      select 1 from public.part_rename_ticket t
+       where t.txid = txid_current()
+         and t.old_key = lower(btrim(coalesce(old.part, '')))
+         and t.new_detail = coalesce(new.part, '')
+    ) then
+      raise exception 'A reconciliation can only change the quantity — not the call, part, engineer or source';
+    end if;
+    -- A rename changes no quantity, so the stock arithmetic below has nothing
+    -- to check and the cap cannot be affected.
+    if new.qty is not distinct from old.qty then return new; end if;
+  end if;
+
+  if new.qty is not distinct from old.qty then
+    return new;                        -- nothing quantitative changed
+  end if;
+  if coalesce(new.qty, 0) < 0 then
+    raise exception 'Quantity cannot be negative';
+  end if;
+
+  -- The one exemption: the same imported line, re-loaded from its source.
+  if coalesce(btrim(new.source_ref), '') <> ''
+     and btrim(new.source_ref) is not distinct from btrim(old.source_ref) then
+    return new;
+  end if;
+
+  if coalesce(new.qty, 0) <= 0 and coalesce(btrim(new.adjustment_reason), '') = '' then
+    raise exception 'Say why the line is being voided — the reason is kept with it';
+  end if;
+  if coalesce(btrim(new.adjustment_reason), '') = '' then
+    raise exception 'Say why the quantity is being adjusted — the reason is kept with the line';
+  end if;
+
+  delta := coalesce(new.qty, 0) - coalesce(old.qty, 0);
+  if delta > 0 then
+    -- THE BALANCE THE INSERT CAP READS (consumption_reconcile_guard), and the
+    -- same skip for a line naming no engineer or no part. 0196 called a
+    -- helper here that no migration defines (see the header).
+    -- A nested test, not an early return: what follows this block stamps
+    -- original_qty and adjusted_at, and must run for every adjustment.
+    if coalesce(btrim(new.engineer), '') <> '' and coalesce(btrim(new.part), '') <> '' then
+      select coalesce(b.on_hand, 0) into avail
+        from public.handstock_balance b
+       where b.engineer_key = public.handstock_key(new.engineer)
+         and b.part_code    = public.part_code(new.part);
+      if delta > coalesce(avail, 0) then
+        raise exception 'Only % left in %''s hand stock for %', coalesce(avail, 0), new.engineer, new.part;
+      end if;
+    end if;
+  end if;
+
+  -- RESTORED (0317, D-082): the quantity before the FIRST change, and when the
+  -- line was last adjusted. 0081 had both; 0196 rewrote this function from an
+  -- older body and dropped them, 0261 and 0316 kept the omission.
+  if old.original_qty is null then new.original_qty := old.qty; end if;
+  new.adjusted_at := now();
+  return new;
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0036_sales_contracts.sql
 -- ------------------------------------------------------------------------
 
@@ -31684,6 +32979,424 @@ begin
 
   update public.sale_items set inst_call = v_ucn where id = p_item_id;
 end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0318_warranty_party_refresh_once.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0318 — ONE TIME: every Warranty Sale Entry re-read from the Party Master, and
+-- every machine on it put back on its entry.
+--
+-- The user, 2026-10-02: "As a 1 time activity - Update all Records in Warranty
+-- Sale Entry with '↺ Update from Party Master' in one go. Include 'Force Update
+-- Child Records' in Warranty Register as well. Enforce Update as a 1 time
+-- activity." And, asked how: blanks are copied exactly as the button copies
+-- them, and the machines of EVERY sale go back to following their sale.
+--
+-- STEP 1 IS THE BUTTON, FOR EVERY SALE AT ONCE. ↺ Update from Party Master
+-- (partyFillForSale + partyInfoFrom in the client) sets ELEVEN fields from the
+-- Party Master entry whose name matches the sale's Party Name -- the same
+-- trimmed, case-insensitive match (`parties.name_key`) -- BLANKS INCLUDED:
+--   state, city, address (falling back to extra->>'Address' only where the
+--   column is NULL), pincode, tel1 <- phone, tel2 <- phone_2, pan, gst <- gstin,
+--   party_type (CUSTOMER / DEALER, anything else blank), profile (PRIVATE /
+--   GOVERNMENT / DEALER / GENERAL, anything else blank), engineer <-
+--   service_engineer.
+-- A sale whose party the master does not hold is left exactly as it is, as the
+-- button leaves it ("nothing to update from"). Only a sale where at least one
+-- of the eleven actually changes is written.
+--
+-- STEP 2 IS ↺ FORCE UPDATE CHILD RECORDS, FOR EVERY SALE. The thirteen columns
+-- a sale line inherits (inheritAllPatch over SALE.itemFields) are set to NULL,
+-- so each machine follows its entry -- including the values step 1 just
+-- refreshed. Only a line holding at least one pinned value is written.
+--
+-- EVERY VALUE IT CHANGES IS KEPT. Before and after, per row, in two backup
+-- tables nobody signed in can read or write -- so "what did this machine say
+-- before 2 October?" has an answer, and a value somebody needs back can be
+-- restored from it by hand.
+--
+-- ONCE, AND ENFORCED. The migration ledger runs this file once on the live
+-- project; but a bundle is also REPLAYED to rebuild or repair a project, and a
+-- second run would overwrite whatever has been typed since. So the work is
+-- guarded by a row in `one_time_fixes_done`: present, and nothing is touched.
+-- ===========================================================================
+
+create table if not exists public.one_time_fixes_done (
+  name       text primary key,
+  applied_at timestamptz not null default now(),
+  detail     text
+);
+alter table public.one_time_fixes_done enable row level security;
+revoke all on public.one_time_fixes_done from anon, authenticated;
+
+create table if not exists public.sale_party_refresh_backup (
+  id         bigserial primary key,
+  sa_number  text not null,
+  party_name text,
+  before     jsonb not null,
+  after      jsonb not null,
+  saved_at   timestamptz not null default now()
+);
+alter table public.sale_party_refresh_backup enable row level security;
+revoke all on public.sale_party_refresh_backup from anon, authenticated;
+
+create table if not exists public.sale_items_inherit_backup (
+  id            bigserial primary key,
+  item_id       bigint not null,
+  sa_number     text,
+  serial_number text,
+  before        jsonb not null,
+  saved_at      timestamptz not null default now()
+);
+alter table public.sale_items_inherit_backup enable row level security;
+revoke all on public.sale_items_inherit_backup from anon, authenticated;
+
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.one_time_fixes_done'::regclass);
+    perform public.sys_columns_attach('public.sale_party_refresh_backup'::regclass);
+    perform public.sys_columns_attach('public.sale_items_inherit_backup'::regclass);
+  end if;
+end $$;
+
+do $$
+declare
+  n_sales int := 0;
+  n_items int := 0;
+begin
+  if exists (select 1 from public.one_time_fixes_done where name = '0318_warranty_party_refresh') then
+    raise notice '0318: done before -- the warranty sales were not touched again';
+    return;
+  end if;
+  if to_regclass('public.sale_entries') is null or to_regclass('public.sale_items') is null
+     or to_regclass('public.parties') is null then
+    raise notice '0318: sale_entries, sale_items or parties missing -- nothing to do (and not marked done)';
+    return;
+  end if;
+  -- THE PARTY COLUMNS THE BUTTON READS come from the `masters` bundle (0200,
+  -- 0201). This bundle can be replayed on its own, so they are asked for
+  -- rather than assumed; missing, nothing is done and nothing is marked.
+  if (select count(*) from information_schema.columns
+       where table_schema = 'public' and table_name = 'parties'
+         and column_name in ('state', 'city', 'address', 'extra', 'pincode', 'phone', 'phone_2',
+                             'pan', 'gstin', 'party_type', 'profile', 'service_engineer', 'name_key')) < 13 then
+    raise notice '0318: the Party Master lacks columns the update reads -- run masters.sql first (not marked done)';
+    return;
+  end if;
+
+  -- ---- step 1: the Party Master onto every sale ----------------------------
+  create temporary table _fill on commit drop as
+  select s.id, s.sa_number, s.party_name,
+         jsonb_build_object('state', s.state, 'city', s.city, 'address', s.address, 'pincode', s.pincode,
+                            'tel1', s.tel1, 'tel2', s.tel2, 'pan', s.pan, 'gst', s.gst,
+                            'party_type', s.party_type, 'profile', s.profile, 'engineer', s.engineer) as before,
+         btrim(coalesce(p.state, ''))                                as state,
+         btrim(coalesce(p.city, ''))                                 as city,
+         btrim(coalesce(p.address, p.extra->>'Address', ''))         as address,
+         btrim(coalesce(p.pincode, ''))                              as pincode,
+         btrim(coalesce(p.phone, ''))                                as tel1,
+         btrim(coalesce(p.phone_2, ''))                              as tel2,
+         btrim(coalesce(p.pan, ''))                                  as pan,
+         btrim(coalesce(p.gstin, ''))                                as gst,
+         case when upper(btrim(coalesce(p.party_type, ''))) in ('CUSTOMER', 'DEALER')
+              then upper(btrim(p.party_type)) else '' end            as party_type,
+         case when upper(btrim(coalesce(p.profile, ''))) in ('PRIVATE', 'GOVERNMENT', 'DEALER', 'GENERAL')
+              then upper(btrim(p.profile)) else '' end               as profile,
+         btrim(coalesce(p.service_engineer, ''))                     as engineer
+    from public.sale_entries s
+    join public.parties p on p.name_key = lower(btrim(s.party_name))
+   where btrim(coalesce(s.party_name, '')) <> '';
+
+  delete from _fill f
+   where (f.state, f.city, f.address, f.pincode, f.tel1, f.tel2, f.pan, f.gst, f.party_type, f.profile, f.engineer)
+         is not distinct from
+         (f.before->>'state', f.before->>'city', f.before->>'address', f.before->>'pincode',
+          f.before->>'tel1', f.before->>'tel2', f.before->>'pan', f.before->>'gst',
+          f.before->>'party_type', f.before->>'profile', f.before->>'engineer');
+
+  insert into public.sale_party_refresh_backup (sa_number, party_name, before, after)
+  select f.sa_number, f.party_name, f.before,
+         jsonb_build_object('state', f.state, 'city', f.city, 'address', f.address, 'pincode', f.pincode,
+                            'tel1', f.tel1, 'tel2', f.tel2, 'pan', f.pan, 'gst', f.gst,
+                            'party_type', f.party_type, 'profile', f.profile, 'engineer', f.engineer)
+    from _fill f;
+
+  update public.sale_entries s
+     set state = f.state, city = f.city, address = f.address, pincode = f.pincode,
+         tel1 = f.tel1, tel2 = f.tel2, pan = f.pan, gst = f.gst,
+         party_type = f.party_type, profile = f.profile, engineer = f.engineer
+    from _fill f
+   where s.id = f.id;
+  get diagnostics n_sales = row_count;
+
+  -- ---- step 2: every machine back on its sale ------------------------------
+  insert into public.sale_items_inherit_backup (item_id, sa_number, serial_number, before)
+  select i.id, i.sa_number, i.serial_number,
+         jsonb_strip_nulls(jsonb_build_object(
+           'warranty_start', i.warranty_start, 'warranty_end', i.warranty_end,
+           'warranty_years', i.warranty_years, 'warranty_months', i.warranty_months,
+           'pm_visits', i.pm_visits, 'warranty_status', i.warranty_status,
+           'invoice_no', i.invoice_no, 'invoice_date', i.invoice_date,
+           'sold_through', i.sold_through, 'other_details', i.other_details,
+           'state', i.state, 'city', i.city, 'engineer', i.engineer))
+    from public.sale_items i
+   where coalesce(i.warranty_start::text, i.warranty_end::text, i.warranty_years::text, i.warranty_months::text,
+                  i.pm_visits::text, i.warranty_status, i.invoice_no, i.invoice_date::text, i.sold_through,
+                  i.other_details, i.state, i.city, i.engineer) is not null;
+
+  update public.sale_items i
+     set warranty_start = null, warranty_end = null, warranty_years = null, warranty_months = null,
+         pm_visits = null, warranty_status = null, invoice_no = null, invoice_date = null,
+         sold_through = null, other_details = null, state = null, city = null, engineer = null
+   where coalesce(i.warranty_start::text, i.warranty_end::text, i.warranty_years::text, i.warranty_months::text,
+                  i.pm_visits::text, i.warranty_status, i.invoice_no, i.invoice_date::text, i.sold_through,
+                  i.other_details, i.state, i.city, i.engineer) is not null;
+  get diagnostics n_items = row_count;
+
+  insert into public.one_time_fixes_done (name, detail)
+  values ('0318_warranty_party_refresh',
+          format('%s sale(s) updated from the Party Master; %s machine line(s) put back on their sale', n_sales, n_items));
+  raise notice '0318: % sale(s) updated from the Party Master; % machine line(s) put back on their sale', n_sales, n_items;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0319_install_call_mapping_once.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0319 — ONE TIME: every warranty machine mapped to its installation call,
+-- and an administrators' list of the machines that still have none.
+--
+-- The user, 2026-10-02: "As a 1 time activity - look for all installation
+-- calls using this - Product, Serial No, Party Name or WI-<Product>-<SerialNo>.
+-- And map it. If it does not have an installation call give it as a separate
+-- list in reports - view only for Admins."
+--
+-- 0234 already mapped a machine where EXACTLY ONE installation call named its
+-- product and serial. This pass widens the search in the order the evidence is
+-- strongest, and still maps only where the answer is ONE call:
+--
+--   1. WI-<Product>-<Serial>. The call number this application gives an
+--      installation call it raises from a sale (installCallNumber), compared
+--      trimmed and case-insensitive.
+--
+-- ONLY INSTALLATION CALLS, under every rule (the user, 2026-10-02: "Map only
+-- installation call"). A field or PM call carrying a WI- number is not this
+-- machine's installation and is never mapped or offered.
+--   2. Product + Serial + Party Name, on an installation call. Settles a
+--      machine two installation calls name, where only one was for this
+--      customer.
+--   3. Product + Serial alone, on an installation call -- 0234's rule, re-run
+--      for calls raised or imported since.
+--
+-- WHAT IS NEVER DONE:
+--   * a machine whose INST Call already holds a call number is not touched;
+--   * a call already mapped to a machine is not mapped to a second one;
+--   * where two machine lines would take the same call, neither does --
+--     a duplicate line is a question, not an answer;
+--   * where a rule finds several calls, nothing is written: picking one would
+--     be a guess recorded as a fact. Those machines are on the list below,
+--     with the candidate calls named.
+-- Every change is logged in inst_call_repair_log (0234), old value beside new,
+-- with the rule that made it.
+--
+-- ONCE, AND ENFORCED, as 0318: a row in one_time_fixes_done stops any re-run,
+-- so replaying sales_contracts.sql never maps anything a second time.
+--
+-- THE LIST is install_calls_unmapped(): every warranty machine line without a
+-- mapped installation call, why, and the candidates. A definer function with
+-- the check inside, gated on the page's own key `mod:/install-calls-unmapped`,
+-- which 0319 grants to admin (the user: "view only for Admins") and to
+-- technical_support, because that role carries every page key the admin role
+-- holds (0145; _status.sql row 114 holds the property) -- the Hand Stock
+-- Report (0241) and Device Cache Status (0249) do the same. An administrator
+-- can untick it, or tick it for another role, on Roles & Permissions. LIVE, so
+-- it shrinks as calls are raised.
+-- ===========================================================================
+
+create table if not exists public.one_time_fixes_done (
+  name       text primary key,
+  applied_at timestamptz not null default now(),
+  detail     text
+);
+alter table public.one_time_fixes_done enable row level security;
+revoke all on public.one_time_fixes_done from anon, authenticated;
+
+do $$
+declare
+  n1 int := 0; n2 int := 0; n3 int := 0;
+begin
+  if exists (select 1 from public.one_time_fixes_done where name = '0319_install_call_mapping') then
+    raise notice '0319: done before -- no machine was mapped again';
+    return;
+  end if;
+  if to_regclass('public.sale_items') is null or to_regclass('public.sale_entries') is null
+     or to_regclass('public.calls') is null or to_regclass('public.inst_call_repair_log') is null
+     or to_regprocedure('public.is_call_number(text)') is null then
+    raise notice '0319: sale_items, sale_entries, calls, inst_call_repair_log or is_call_number() missing -- nothing mapped (and not marked done)';
+    return;
+  end if;
+
+  -- The machines still waiting, with what identifies them.
+  create temporary table _m on commit drop as
+  select si.id, si.sa_number, si.product_name, si.serial_number, coalesce(si.inst_call, '') as old_value,
+         upper(btrim(si.product_name)) as p, upper(btrim(si.serial_number)) as s,
+         upper(btrim(coalesce(h.party_name, ''))) as party,
+         upper('WI-' || btrim(si.product_name) || '-' || btrim(si.serial_number)) as wi
+    from public.sale_items si
+    left join public.sale_entries h on h.sa_number = si.sa_number
+   where btrim(coalesce(si.product_name, '')) <> '' and btrim(coalesce(si.serial_number, '')) <> ''
+     and not public.is_call_number(si.inst_call);
+
+  -- Calls, once, in the comparable shape. A call already on a machine is out.
+  create temporary table _c on commit drop as
+  select c.ucn, upper(btrim(coalesce(c.call_number, ''))) as cn,
+         upper(btrim(coalesce(c.product_name, ''))) as p, upper(btrim(coalesce(c.serial, ''))) as s,
+         upper(btrim(coalesce(c.party_name, ''))) as party
+    from public.calls c
+   where public.is_call_number(c.ucn)
+     and upper(coalesce(c.call_type, '')) like 'INSTALL%'
+     and not exists (select 1 from public.sale_items x where upper(btrim(x.inst_call)) = upper(btrim(c.ucn)));
+
+  create temporary table _pick (id bigint, ucn text, why text) on commit drop;
+
+  -- One rule: the machines it gives exactly one call, where that call is
+  -- wanted by exactly one machine. Applied in turn, each rule seeing what the
+  -- previous one left.
+  for i in 1..3 loop
+    delete from _pick;
+    insert into _pick (id, ucn, why)
+    select m.id, min(c.ucn),
+           case i when 1 then 'mapped by call number WI-<Product>-<Serial> on an installation call (0319)'
+                  when 2 then 'mapped by product + serial + party on an installation call (0319)'
+                  else        'mapped by product + serial on the only installation call for it (0319)' end
+      from _m m
+      join _c c on case i
+                     when 1 then c.cn = m.wi
+                     when 2 then c.p = m.p and c.s = m.s and c.party = m.party and m.party <> ''
+                     else        c.p = m.p and c.s = m.s end
+     group by m.id
+    having count(distinct c.ucn) = 1;
+    -- A call two machine lines both want goes to neither.
+    delete from _pick where ucn in (select ucn from _pick group by ucn having count(*) > 1);
+
+    insert into public.inst_call_repair_log (sale_item_id, sa_number, product_name, serial_number, old_value, new_value, why)
+    select m.id, coalesce(m.sa_number, ''), coalesce(m.product_name, ''), coalesce(m.serial_number, ''),
+           m.old_value, k.ucn, k.why
+      from _pick k join _m m on m.id = k.id;
+    update public.sale_items si set inst_call = k.ucn from _pick k where si.id = k.id;
+    if i = 1 then get diagnostics n1 = row_count;
+    elsif i = 2 then get diagnostics n2 = row_count;
+    else get diagnostics n3 = row_count; end if;
+
+    delete from _c where ucn in (select ucn from _pick);
+    delete from _m where id in (select id from _pick);
+  end loop;
+
+  insert into public.one_time_fixes_done (name, detail)
+  values ('0319_install_call_mapping',
+          format('%s mapped by WI- number, %s by product + serial + party, %s by product + serial; %s machine line(s) still without one',
+                 n1, n2, n3, (select count(*) from _m)));
+  raise notice '0319: % mapped by WI- number, % by product + serial + party, % by product + serial; % machine line(s) still without one',
+               n1, n2, n3, (select count(*) from _m);
+end $$;
+
+-- ---- the list: machines without an installation call -----------------------
+create or replace function public.install_calls_unmapped()
+returns table (
+  sale_item_id   bigint,
+  sa_number      text,
+  party_name     text,
+  product_code   text,
+  product_name   text,
+  serial_number  text,
+  warranty_start date,
+  warranty_end   date,
+  inst_call      text,
+  reason         text,
+  candidates     text
+)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.has_perm('mod:/install-calls-unmapped') then
+    raise exception 'RBAC: Machines Without an Installation Call needs the mod:/install-calls-unmapped permission.'
+      using errcode = '42501';
+  end if;
+  return query
+  -- EQUALITY JOINS ONLY. The first version matched calls with an OR across
+  -- two keys and tested "already mapped" with NOT IN per row: 2 min 47 s at
+  -- 20,000 machine lines. Both keys are now joined by equality and unioned,
+  -- and "mapped" is a set joined once.
+  with m as (
+    select si.id, si.sa_number, h.party_name, si.product_code, si.product_name, si.serial_number,
+           coalesce(si.warranty_start, h.warranty_start) as ws,
+           coalesce(si.warranty_end, h.warranty_end) as we,
+           coalesce(si.inst_call, '') as ic,
+           upper(btrim(coalesce(si.product_name, ''))) as p, upper(btrim(coalesce(si.serial_number, ''))) as s
+      from public.sale_items si
+      left join public.sale_entries h on h.sa_number = si.sa_number
+     where not public.is_call_number(si.inst_call)
+  ),
+  ic as materialized (
+    -- INSTALLATION CALLS ONLY (the user: "Map only installation call").
+    select c.ucn, upper(btrim(c.ucn)) as u, btrim(c.party_name) as party,
+           upper(btrim(coalesce(c.call_number, ''))) as cn,
+           upper(btrim(coalesce(c.product_name, ''))) as p, upper(btrim(coalesce(c.serial, ''))) as s
+      from public.calls c
+     where public.is_call_number(c.ucn) and upper(coalesce(c.call_type, '')) like 'INSTALL%'
+  ),
+  mapped as materialized (
+    select distinct upper(btrim(x.inst_call)) as u from public.sale_items x where public.is_call_number(x.inst_call)
+  ),
+  hit as (
+    select m.id, ic.ucn, ic.u, ic.party from m join ic on ic.p = m.p and ic.s = m.s where m.p <> '' and m.s <> ''
+    union
+    select m.id, ic.ucn, ic.u, ic.party from m join ic on ic.cn = 'WI-' || m.p || '-' || m.s where m.p <> '' and m.s <> ''
+  ),
+  cand as (
+    select h.id,
+           string_agg(distinct h.ucn || coalesce(' (' || nullif(h.party, '') || ')', ''), ', ') as list,
+           count(distinct h.ucn) as n,
+           count(distinct h.ucn) filter (where mp.u is null) as n_free
+      from hit h left join mapped mp on mp.u = h.u
+     group by h.id
+  )
+  select m.id, m.sa_number, m.party_name, m.product_code, m.product_name, m.serial_number, m.ws, m.we,
+         m.ic,
+         case when m.p = '' or m.s = '' then 'The line has no product or no serial, so no call can be matched to it'
+              when coalesce(cand.n, 0) = 0 then 'No installation call found for this product and serial'
+              when cand.n_free = 0 then 'The installation call for this product and serial is already mapped to another machine line'
+              when cand.n_free = 1 then 'One installation call matches but was not mapped automatically (another line claims it, or it arrived later) -- put its UCN in INST Call'
+              else 'Several installation calls name this machine -- choose one and put its UCN in INST Call' end,
+         coalesce(cand.list, '')
+    from m left join cand on cand.id = m.id;
+end $$;
+revoke execute on function public.install_calls_unmapped() from public, anon;
+grant execute on function public.install_calls_unmapped() to authenticated;
+
+-- ---- the key: administrators to begin with ---------------------------------
+-- MERGED, never overwritten, and a role with an empty set is left alone (its
+-- empty array means "not configured"). Other roles are ticked on Roles &
+-- Permissions.
+do $$
+declare n integer;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (select jsonb_array_elements_text(ar.permissions) as v
+                   union select 'mod:/install-calls-unmapped') u),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and ar.role in ('admin', 'technical_support')
+     and not (ar.permissions ? 'mod:/install-calls-unmapped');
+  get diagnostics n = row_count;
+  raise notice '0319: % of 2 role(s) given mod:/install-calls-unmapped (admin + technical_support -- grant the rest on Roles & Permissions)', n;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql
@@ -42854,7 +44567,7 @@ end $$;
 -- which fires NO triggers, and it leaves exactly the values an UPDATE would
 -- have written. One ALTER per table, so one rewrite per table.
 --
--- NOT TOUCHED: the nine number-counter tables (their rows have no author);
+-- NOT TOUCHED: the ten number-counter tables (their rows have no author);
 -- `harness`, the test stand-in for Supabase's session; `schema_migrations`,
 -- the auto-apply script's own ledger.
 --
@@ -43030,8 +44743,8 @@ begin
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and c.relkind = 'r'
        and c.relname not in (
-         -- the nine number counters: a row there has no author
-         'call_number_seq', 'ffr_counters', 'indoor_job_counters',
+         -- the ten number counters (indoor_dc_counters, 0321): a row there has no author
+         'call_number_seq', 'ffr_counters', 'indoor_dc_counters', 'indoor_job_counters',
          'material_return_counters', 'party_key_seq', 'spare_dispatch_counters',
          'spare_or_counters', 'stock_transfer_counters', 'ucn_counters',
          -- tooling, not application data
@@ -43066,7 +44779,7 @@ end $$;
 --
 --   calls, pending_calls, calls_view_insert/update   <- 0114_call_registrant_split.sql
 --   field_failure_register                           <- 0197_review_actual_product.sql
---   indoor_job_list                                  <- 0158_indoor_service.sql
+--   indoor_job_list                                  <- 0320_indoor_register_and_pdt.sql
 --   tracker_list                                     <- 0143_tracker.sql
 --   export_schedule_state                            <- 0228_export_schedules.sql
 --
@@ -43214,7 +44927,20 @@ left join public.call_reviews r on r.ucn = f.ucn;
 alter view public.field_failure_register set (security_invoker = on);
 grant select on public.field_failure_register to authenticated;
 
--- ---- indoor_job_list (0158, verbatim) --------------------------------------
+-- ---- indoor_job_list (0320, verbatim) --------------------------------------
+-- GUARDED BY 0320's COLUMNS. Applied in FILE order (the test harness, a
+-- rebuild from the migrations folder) this file runs BEFORE 0320, whose
+-- definition it copies, and the columns that definition names do not exist
+-- yet -- 0320 itself then rebuilds the view, sys_* included. Applied in BUNDLE
+-- order (sys_columns is last) 0320 has already run and this rebuilds it with
+-- sys_*.
+do $indoor_list$
+begin
+  if not exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'indoor_jobs'
+                    and column_name = 'verified_by') then
+    return;
+  end if;
 drop view if exists public.indoor_job_list;
 create view public.indoor_job_list as
   select j.*,
@@ -43235,16 +44961,22 @@ create view public.indoor_job_list as
          (select count(*) from public.indoor_job_accessories a where a.job_id = j.id)
            as accessory_count,
          (select count(*) from public.indoor_job_accessories a
-           where a.job_id = j.id and not a.returned) as accessories_outstanding
+           where a.job_id = j.id and not a.returned) as accessories_outstanding,
+         coalesce(vb.name, '') as verified_by_name,
+         (select string_agg(btrim(a.name), ', ' order by a.id) from public.indoor_job_accessories a
+           where a.job_id = j.id and btrim(a.name) <> '') as accessories_received,
+         public.indoor_job_is_imported(j.product_name, j.serial) as product_imported
     from public.indoor_jobs j
     left join public.app_user_names rb on rb.id = j.received_by
     left join public.app_user_names cb on cb.id = j.cleaned_by
     left join public.app_user_names qb on qb.id = j.qc_by
     left join public.app_user_names db on db.id = j.dispatched_by
     left join public.app_user_names xb on xb.id = j.condemned_by
-    left join public.app_user_names ub on ub.id = j.updated_by;
+    left join public.app_user_names ub on ub.id = j.updated_by
+    left join public.app_user_names vb on vb.id = j.verified_by;
 alter view public.indoor_job_list set (security_invoker = on);
 grant select on public.indoor_job_list to authenticated;
+end $indoor_list$;
 
 -- ---- tracker_list (0143, verbatim) -----------------------------------------
 drop view if exists public.tracker_list;

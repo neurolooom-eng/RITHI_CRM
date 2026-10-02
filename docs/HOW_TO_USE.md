@@ -205,7 +205,8 @@ the visit that happened, or cancel a call that should not have been raised.
   > **Those two are not fields on the consumption row.** The Consumption Report
   > reads them from the **visit**, so there is nothing on the spare line to
   > type them into and re-uploading the consumption file cannot fill them.
-  > They are blank for one reason: the call has no visit report.
+  > When the call has no visit report they fall back to other dates (the
+  > booking time last), and only Visit UID stays blank.
   >
   > **If your consumption file carries `Visit Date & Time`, just load it.**
   > The Consumption upload files the visit from that column BEFORE it writes the
@@ -301,9 +302,21 @@ against the call it was fitted to.
   > below zero. This replaces WinMax's *eBizWiz Admin* account, whose opening
   > stock has been removed.
 - **Material Returns (MRN)** `/mrn` — parts back to Stores; the return takes the
-  stock off the engineer's balance.
+  stock off the engineer's balance. Open a return and press **Print MRN** for the
+  **Material Return Note R/SER/STR/002** (landscape A4): the engineer and their
+  place (City on the User Master, else Region), the MRN number and date, each
+  part with Qty. (good + defective), customer, report no, removed from
+  equipment, hand stock, and Good / Damaged. It prints only what the return
+  holds — **Store Dept. Use**, **Authorized By** and **Received By** are left for
+  Stores to write; **Entered By** is whoever keyed the return.
 - **Stock Transfer** `/stock-transfer` — hand stock between engineers. A transfer
-  to the same person is held back and named.
+  to the same person is held back and named. Each part can carry a **reason of
+  its own** besides the common Remarks. **🖨 MTN** on a transfer prints the
+  **Material Transfer Note R/SER/STR/003**: issuer and receiver with their
+  places, the MTN No. (the transfer number) and date, each part with its own
+  reason or else the common remark, Issued By (the sending engineer and the
+  date) and Entered By (who keyed it). **Received By is blank** — RITHI does not
+  record the receipt of a transfer — and Authorised By is signed by hand.
 
 ## Quality
 
@@ -571,6 +584,17 @@ real Excel dates — they sort, filter by month and take your own date format.
 **⭳ Export CSV** is still there, but a CSV holds only text, so its dates are
 written as `dd-MMM-yyyy` text.
 
+**⇢ Convert to Contract** (on a saved sale, in the Warranty Register) raises a
+contract from it. The **customer** and every **machine with a serial** carry
+over, each machine noting its SA Number and warranty end. The contract starts
+**the day after the warranty ends**, so cover has no gap. You give the **MC
+Number** (the next one is offered), **Contract Type**, **Period (Months)**, **PM
+Visits**, **Payment Schedule**, **Bill Generate At** and, if you like, a rate per
+machine. It warns if the sale's machines are already on a contract, and opens
+the Contract Register on the new one.
+
+**Save entry stays grey until something on the entry has changed.**
+
 **Prev MC Number** is not on the contract form: **Renew this contract** fills it
 in on the new contract with the number it was renewed from.
 
@@ -625,7 +649,7 @@ typed into a form that reads it.
   > missing rather than arguing with the decision. It never works the other way
   > round: documents alone do not make a customer verified.
 
-- **Product Database** `/product-database` — every machine by serial, with its
+- **Product Database** `/product-database` — every machine by model and serial, with its
   warranty, contract and current owner. This is where a call reads cover from.
   It keeps **all 32 columns** of the ProdMaster file — Item Code, the address,
   the PO, PM Visits, the installation fields and the rest. Eleven of them are on
@@ -677,8 +701,8 @@ typed into a form that reads it.
   > already searched. A number the machine does not carry is shown as plain
   > text rather than a link that goes nowhere.
   > **Who can see it:** anyone signed in who can open the screen, the same as
-  > the Product Database beside it. **Who can rebuild it:** anyone who may edit
-  > masters or cover.
+  > the Product Database beside it. **Who can rebuild it:** a role holding *Rebuild
+  > Product Database 2.0* (given once to the roles that edited masters or cover).
   > **If the screen is empty it tells you why**, counting the three registers
   > — rows, rows with no serial, rows with no model — and saying which of
   > those it is. It says *every* row is missing something only where every
@@ -691,6 +715,11 @@ typed into a form that reads it.
   > cannot name it. It changes nothing else: machines already sold still take
   > contracts, calls, visits, spares and feedback. A line stops being sold long
   > before it stops being serviced.
+  > **Imported** (Yes / No) says whether the line is imported. It decides
+  > whether a DEMO unit of it needs Pre-Delivery Testing in the workshop. It
+  > starts blank (*not known*); set it on this screen if you may edit master
+  > records, or with an **Imported** column in the upload — a blank cell there
+  > leaves what is set alone.
   Load it under **Bulk Uploads → Product Master (product lines)**.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
@@ -1038,15 +1067,16 @@ typed into a form that reads it.
   dropped lines are excluded.
 - **Reports — KPI Export** `/exports/kpi` — the workbook's Field_INST tab in its
   own column order; cancelled calls excluded entirely.
-- **Hand Stock Report** `/handstock-report` — **administrators to begin with**;
+- **Hand Stock Report** `/handstock-report` — **Admin and Technical Support to begin with**;
   every other role is a tick on Roles & Permissions, and that tick gives the
   role the menu entry as well as the page. One line per engineer and part:
   every engineer's stock for an office role, and for anybody else their own
   stock plus their team's, if they manage one. The file's About sheet says
   which.
   > **It shows the workings, not just the number.** Opening, Stock Out,
-  > Consumed, Transferred In, Transferred Out and Returned sit beside On Hand,
-  > so whoever is reconciling can add it up rather than take it on trust.
+  > Consumed, Transferred In, Transferred Out, Returned and **Other ±** (stock
+  > adjustments) sit beside On Hand, so whoever is reconciling can add it up
+  > rather than take it on trust.
   >
   > **A negative On Hand is a finding, not a rounding error** — it means more
   > was consumed than this system knows was issued. Those figures are picked
@@ -1072,6 +1102,21 @@ typed into a form that reads it.
   >
   > **If your role is only shown its own records**, the subtitle says so. The
   > file is then your stock, not the company's.
+
+- **Machines Without an Installation Call** `/install-calls-unmapped` —
+  **administrators only** (and Technical Support, which holds every page an
+  administrator does; change it on Roles & Permissions).
+  Every warranty machine whose **INST Call** holds no call number, with **why**
+  and the **installation calls that could be its own**.
+  > **Once, on 2 October 2026**, every machine was matched to its installation
+  > call by, in turn, the call number **WI-&lt;Product&gt;-&lt;Serial&gt;**, then
+  > **Product + Serial + Party Name**, then **Product + Serial** — installation
+  > calls only, and only where **exactly one** call fitted. What could not be
+  > settled that way is here, with the reason: no installation call; the call
+  > is already on another machine line; one match not mapped (two lines claim
+  > it); or several calls to choose from. **The list changes nothing** — put the
+  > right UCN in INST Call from the Warranty Register, and the machine leaves
+  > the list.
 
 - **Feedback Without a Report** `/feedback-without-report` — **administrators
   only.** The customer gave feedback on a visit; the visit was never written up.
@@ -1105,6 +1150,51 @@ typed into a form that reads it.
   5. Dispatch
   > A job does not need a call — a demo unit has none. A harvested part cannot go
   > back into stock until decontamination is recorded.
+
+  **The paper register R/SER/07 lives here.** Each job carries its columns:
+  Field Service Report No, Engineer Name (filled from the call's engineer when
+  you enter a UCN; "Indoor Service" for a DEMO unit), Customer Place, Problem
+  Reported, **Status — which on R/SER/07 is the machine's cover** (WGP / OGP /
+  CMC / AMC, read from the Product Database when you type the product or
+  serial, and changeable), Indoor Service Report No, DC No. and DC Date, and
+  Remarks. **R/SER/07 register view** shows the register as the paper keeps it,
+  one sheet at a time — *Customer – Devices* or *Demo* — with S.No running in
+  incoming-date order; from there **Excel** downloads both sheets and **Print**
+  prints the sheet you are on (landscape A4). Both need the export right.
+
+  **Verified by** is a supervisor's step: once the unit is Dispatched, Closed
+  or Condemned, somebody holding *Verify an Indoor Service register entry*
+  presses Verify, and the system records who and when. Nobody holds that right
+  until an administrator ticks it in Roles & Permissions.
+
+  **Pre-Delivery Testing (R/SER/QC/007)** is for a **DEMO unit of an imported
+  product** only — in-house equipment and customer machines do not have it.
+  Whether a product is imported comes from the **Product Master** (the Imported
+  column). Fill the date, measuring equipment, software version, HV, HT, checks
+  1–5 (OK / NOT OK) and the two readings tables, then **Sign as the
+  inspector** — your name and designation are recorded by the system. The unit
+  **cannot be Dispatched or Closed** until every field is filled, it is signed,
+  and every check reads OK. **Print R/SER/QC/007** prints the form; a test that
+  is not finished still prints, with a band saying so.
+  > If the job says it is **not known** whether the product is imported, the
+  > test is not demanded — set Imported on the Product Master for that line and
+  > the job will ask for it.
+
+  **Indoor DC — the delivery challan a unit leaves on.** In the workshop view,
+  someone with the dispatch right ticks the **Ready** units going to **one**
+  consignee (the customer, or for a DEMO unit the party it is going to) and
+  presses **Create Indoor DC**. *To* is filled from the Party Master and can be
+  edited; add the date, MIRN / customer reference and its date, mode of
+  despatch and the purpose (once for the DC, changeable per line). Each unit
+  prints as a line — PART No. is its product code where RITHI knows one — and
+  each accessory as a line after it. The **number (IDC-YYMM-NNNN) is given by
+  the system**; it is written on every unit as its DC No. with the DC date. The
+  units **stay Ready** — mark them Dispatched as they leave.
+  > A unit is refused if it is not Ready, is already on a DC, or would not be
+  > allowed to leave (no quality check on a repair, a failed check, a DEMO unit
+  > of an imported product without its Pre-Delivery Testing) — the message says
+  > which. Units for two consignees cannot share a DC. A DC is never deleted;
+  > **Indoor DCs** lists them all and prints any of them again.
 - **Solved Without a Report** `/missing-visit-reports` — **administrators
   only.** Every call that reads Solved while its visit record is incomplete —
   the list of what to re-upload.
@@ -1181,11 +1271,14 @@ typed into a form that reads it.
   > permission, and it is the one thing that shows no error at all. Tick the
   > page here for the role. The headings and their order match the menu exactly,
   > so look for it under the group it sits in on the left.
-- **Audit Log** `/audit` — what was recorded while audit mode was on. Turning it on
-  or off needs a reason, and that history outlives the log.
+- **Audit Log** `/audit` — what the application recorded: actions, sign-ins, errors
+  and how long they took. It records all the time, whatever Audit Mode says. The
+  history of Audit Mode being turned on and off, each with its reason, is on
+  Admin Config.
 - **Admin Config** `/admin-config` — the settings the rules read: the SLA
   targets, the Call Registration desk, the frequent-failure window and threshold,
-  the objective cut-offs and their lock, audit mode. The SLA targets, the desk
+  and audit mode. (The objective cut-offs and their lock are on the Objective
+  screen.) The SLA targets, the desk
   and the frequent-failure rule are open to anybody given *Admin config*;
   switching Audit Mode and the Data Import panel each have their own tick on
   Roles & Permissions (*audit.mode*, *import.panel*). **While Audit Mode is
@@ -1200,8 +1293,8 @@ typed into a form that reads it.
   > see what that step does, where, and the requirements and tests behind it, or
   > press **▶ Play** to walk through it step by step. The same diagrams are under
   > **How RITHI Functions → Data flows**.
-- **Settings** `/settings` — your preferences, and for an administrator the
-  connection settings.
+- **Settings** `/settings` — the database and CallReg sheet connections for this
+  browser. Your theme and account are on My Profile.
 - **Your Profile** `/profile` — **one tab per section**: Account, Details &
   R&R, Training, **My Team** (only if people report to you — split into
   **Active / Current** and **Ex Employees** by the User Master's *Active*

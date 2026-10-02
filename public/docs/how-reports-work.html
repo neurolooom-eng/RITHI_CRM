@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How the Reports Work</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#131a22;
+  --ink-2:#38434f;
+  --muted:#6a7885;
+  --surface:#ffffff;
+  --page:#f2f4f7;
+  --line:#d9dfe6;
+  --line-soft:#e7ebf0;
+  --rail:#9aa7b4;
+
+  /* THE CALL-STATUS CODE. Literal, and the same in both themes — these are the
+     hexes in src/lib/callstate.tsx. A colour people have learned to read is a
+     code, and a code that means something else in dark mode is not one. */
+  --st-unattended:#d32f2f;
+  --st-unsolved:#1565c0;
+  --st-pending:#c2185b;
+  --st-solved:#2e7d32;
+  --st-reopened:#ef6c00;
+  --st-cancelled:#546e7a;
+
+  --master:#00695c;      /* what flows IN  */
+  --rule:#8e2d8e;        /* what is REFUSED */
+  --mandate:#b25000;     /* what is DEMANDED */
+
+  --shadow:0 1px 2px rgba(19,26,34,.06), 0 8px 20px -12px rgba(19,26,34,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+    --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+    --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+  --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+  --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--page); color:var(--ink);
+  font-family:'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size:16px; line-height:1.55;
+}
+code, .mono{font-family:'IBM Plex Mono', ui-monospace, monospace}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 16px 88px}
+/* FRAMED IN THE APP, the page is already inside a padded shell, so it drops its
+   own bottom gutter and its top rule — the app's header is directly above. */
+body.framed .wrap{padding-bottom:28px}
+body.framed header.top{padding-top:8px}
+
+/* ---- masthead ---------------------------------------------------------- */
+header.top{padding:44px 0 26px; border-bottom:1px solid var(--line)}
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 12px;
+}
+h1{
+  font-size:clamp(30px,5.2vw,46px); line-height:1.08; margin:0 0 14px;
+  letter-spacing:-.021em; font-weight:700; text-wrap:balance; max-width:20ch;
+}
+.standfirst{margin:0; max-width:64ch; color:var(--ink-2); font-size:17px}
+.standfirst b{color:var(--ink)}
+
+/* ---- the three-gutter key --------------------------------------------- */
+.key{
+  display:grid; gap:10px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+}
+.key div{
+  border-left:3px solid var(--k); padding:2px 0 2px 12px;
+  font-size:13.5px; color:var(--ink-2);
+}
+.key strong{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--k); font-weight:600;
+}
+
+/* ---- the spine --------------------------------------------------------- */
+.flow{margin-top:14px}
+.stage{
+  display:grid; gap:0 28px; padding:34px 0 6px;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.32fr) minmax(0,1fr);
+  border-bottom:1px solid var(--line-soft);
+}
+.stage:last-child{border-bottom:0}
+
+/* the centre column carries the rail */
+.step{grid-column:2; position:relative; padding-left:38px}
+.step::before{           /* the rail */
+  content:""; position:absolute; left:11px; top:-34px; bottom:-40px; width:2px;
+  background:var(--line);
+}
+/* THE RAIL STOPS AT EACH FLOW'S EDGE. With two flows on one page it would
+   otherwise run straight through the band announcing the second one and the
+   ledger between them — drawing a line between two things that are not
+   sequential. A rail that lies about continuity is worse than no rail. */
+.stage:first-of-type .step::before{top:14px}
+.stage:last-of-type .step::before{bottom:auto; height:14px}
+.flowhead + .stage .step::before{top:14px}
+.stage:has(+ .flowhead) .step::before,
+.stage:has(+ .ledger) .step::before{bottom:auto; height:14px}
+.step::after{            /* the node */
+  content:""; position:absolute; left:4px; top:7px;
+  width:16px; height:16px; border-radius:50%;
+  background:var(--surface); border:3px solid var(--node,var(--rail));
+}
+.n{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em;
+  color:var(--muted); text-transform:uppercase; margin:0 0 4px;
+}
+h2{font-size:21px; line-height:1.25; margin:0 0 8px; letter-spacing:-.012em; font-weight:600}
+.step p{margin:0 0 10px; color:var(--ink-2); font-size:14.5px; max-width:52ch}
+.step p:last-child{margin-bottom:0}
+.step .who{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+  color:var(--ink); background:var(--line-soft); border-radius:3px;
+  padding:2px 7px; margin:0 6px 8px 0;
+}
+
+/* side columns */
+.side{align-self:start; padding-top:22px}
+.side.in{grid-column:1; text-align:right}
+.side.out{grid-column:3}
+.side h3{
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.13em;
+  text-transform:uppercase; margin:0 0 9px; font-weight:600; color:var(--c);
+}
+.side ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px}
+.side.in ul{align-items:flex-end}
+.side li{font-size:13.2px; line-height:1.45; color:var(--ink-2); max-width:34ch}
+.side li b{color:var(--ink); font-weight:600}
+.side.in li{border-right:2px solid var(--c); padding-right:10px}
+.side.out li{border-left:2px solid var(--c); padding-left:10px}
+.side.in{--c:var(--master)}
+.side.out{--c:var(--rule)}
+.side.out li.mandate{--c:var(--mandate); border-left-color:var(--mandate)}
+.tag{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10px;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--surface);
+  background:var(--mandate); border-radius:2px; padding:1px 5px; margin-right:6px;
+  vertical-align:1px; font-weight:600;
+}
+.tag.db{background:var(--rule)}
+
+/* ---- the status code --------------------------------------------------- */
+.states{
+  margin:38px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.states h2{margin-bottom:6px}
+.states > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+.chips{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px}
+.chip{
+  color:#fff; font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500;
+  padding:5px 11px; border-radius:3px; white-space:nowrap;
+}
+.transitions{width:100%; border-collapse:collapse; font-size:13.5px}
+.transitions th{
+  text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--muted);
+  font-weight:600; padding:0 14px 8px 0; border-bottom:1px solid var(--line);
+}
+.transitions td{padding:11px 14px 11px 0; border-bottom:1px solid var(--line-soft); vertical-align:top; color:var(--ink-2)}
+.transitions tr:last-child td{border-bottom:0}
+.transitions td:first-child{color:var(--ink); font-weight:600; white-space:nowrap}
+.scroll{overflow-x:auto}
+
+/* ---- closing panels ---------------------------------------------------- */
+.panels{display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); margin-top:38px}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:22px; box-shadow:var(--shadow)}
+.panel h3{margin:0 0 10px; font-size:16.5px; font-weight:600; letter-spacing:-.008em}
+.panel p{margin:0 0 10px; font-size:14px; color:var(--ink-2)}
+.panel p:last-child{margin-bottom:0}
+.panel ul{margin:0; padding-left:18px; font-size:14px; color:var(--ink-2)}
+.panel li{margin-bottom:7px}
+.panel li:last-child{margin-bottom:0}
+.panel li b{color:var(--ink)}
+
+footer{margin-top:44px; padding-top:20px; border-top:1px solid var(--line); font-size:13px; color:var(--muted)}
+footer code{font-size:12.5px}
+
+
+/* ---- the two flows ------------------------------------------------------ */
+/* TWO PATHS INTO THE SAME RECORD, and the reader needs to know which one they
+   are in before the first stage rather than after it — so each flow opens with
+   a full-width band, and the contents strip at the top says there are two. */
+.flownav{
+  display:grid; gap:12px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+}
+.flownav a{
+  display:block; text-decoration:none; color:inherit;
+  border:1px solid var(--line); border-radius:8px; padding:14px 16px;
+  background:var(--surface); box-shadow:var(--shadow);
+}
+.flownav a:hover{border-color:var(--rail)}
+.flownav a:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
+.flownav-n{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--muted); margin-bottom:4px;
+}
+.flownav-t{display:block; font-weight:600; font-size:15.5px; line-height:1.3; margin-bottom:4px}
+.flownav-s{display:block; font-size:12.5px; color:var(--muted)}
+
+.flowhead{
+  margin:44px 0 0; padding:24px 0 22px;
+  border-top:3px solid var(--ink); border-bottom:1px solid var(--line);
+}
+.flowhead-n{
+  font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 8px;
+}
+.flowhead-t{font-size:clamp(22px,3.4vw,30px); line-height:1.15; margin:0 0 12px; letter-spacing:-.016em; text-wrap:balance}
+.flowhead-p{margin:0 0 10px; max-width:68ch; color:var(--ink-2); font-size:15px}
+.flowhead-p:last-child{margin-bottom:0}
+
+/* The ledger: which master answers which field. A table rather than prose
+   because that is the question people come back to this page with. */
+.ledger{
+  margin:34px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.ledger h2{margin:0 0 6px}
+.ledger > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+
+/* ---- narrow ------------------------------------------------------------ */
+@media (max-width:900px){
+  .stage{grid-template-columns:1fr; gap:0; padding:28px 0 10px}
+  .step{grid-column:1}
+  .side.in, .side.out{grid-column:1; text-align:left; padding:16px 0 0 38px}
+  .side.in ul{align-items:flex-start}
+  .side.in li{border-right:0; padding-right:0; border-left:2px solid var(--c); padding-left:10px}
+  .side.in{order:2} .step{order:1} .side.out{order:3}
+  .stage{display:flex; flex-direction:column}
+  .step::before{display:none}
+  .step::after{left:0}
+  .step{padding-left:30px}
+}
+</style>
+</head>
+<body>
+<script>
+  // Set before paint, so a framed page never flashes its standalone padding.
+  try { if (window.parent !== window) document.body.className = 'framed'; } catch (e) {}
+</script>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">RITHI CRM · Reports · process reference</p>
+  <h1>How the reports work</h1>
+  <p class="standfirst">
+    <b>What each report counts, where every value comes from, and who may take the file.</b> This page covers the seven
+    screens under <b>Reports</b>: Consumption Report, KPI Export, Not Consumed Against this Call, Call Report, Customer
+    Feedback Report, Feedback Without a Report and Hand Stock Report — what one row of each is, which date its filter
+    reads, the columns it carries, what the download looks like, which permission opens it and whose records it shows.
+    Read the middle column for <b>what happens</b>, the left for <b>what the report reads</b>, and the right for <b>what
+    the system refuses and what it demands</b>.
+  </p>
+
+  <div class="key">
+    <div style="--k:var(--master)"><strong>Reads</strong>The register the report is built from, and what one row of it is.</div>
+    <div style="--k:var(--rule)"><strong>Restrictions</strong>What the system will not allow, and where the refusal comes from.</div>
+    <div style="--k:var(--mandate)"><strong>Mandates</strong>What it will not proceed without.</div>
+  </div>
+</header>
+
+<nav class="flownav" aria-label="The three flows">
+  <a href="#flow1">
+    <span class="flownav-n">Flow 1</span>
+    <span class="flownav-t">Pick the rows, pick the columns, take the file</span>
+    <span class="flownav-s">Consumption Report · Call Report · Customer Feedback Report</span>
+  </a>
+  <a href="#flow2">
+    <span class="flownav-n">Flow 2</span>
+    <span class="flownav-t">Fixed-format exports</span>
+    <span class="flownav-s">KPI Export · Not Consumed Against this Call</span>
+  </a>
+  <a href="#flow3">
+    <span class="flownav-n">Flow 3</span>
+    <span class="flownav-t">Checks that load in full</span>
+    <span class="flownav-s">Feedback Without a Report · Hand Stock Report</span>
+  </a>
+</nav>
+
+<main class="flow">
+
+  <!-- ================= FLOW 1 ================= -->
+  <section class="flowhead" id="flow1">
+    <p class="flowhead-n">Flow 1</p>
+    <h2 class="flowhead-t">Pick the rows, pick the columns, take the file — Consumption, Call and Customer Feedback Reports</h2>
+    <p class="flowhead-p">
+      <b>Five reports share one page.</b> The first five entries under Reports open one screen, <b>Reports</b>, with a
+      tab per report; the menu entry and the tab both lead to the same place, and the tab strip shows only the reports
+      your role may open. The three in this flow are built the same way: a filter, a column picker, and two buttons.
+    </p>
+    <p class="flowhead-p">
+      <b>The filter runs in the database, not on what has loaded.</b> The number beside the buttons is the database's
+      count of every matching row, so it is exact and carries no <b>+</b>. The download then reads every matching row,
+      a thousand at a time, before the file is written.
+    </p>
+    <p class="flowhead-p">
+      <b>Every row is one you may see.</b> Each report reads the registers as you, under the same row rules as the
+      register screens. A short or empty report from a role that sees only its own and its team's records is a
+      statement about that role, not about the register.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Your role's permissions</b> — which report keys it holds</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 1 · Step 01</p>
+      <h2>Reports — a tab per report</h2>
+      <span class="who">Reports (all of them)</span><span class="who">↳ Consumption Report</span><span class="who">↳ KPI Export</span><span class="who">↳ Not Consumed Against this Call</span><span class="who">↳ Call Report</span><span class="who">↳ Customer Feedback Report</span>
+      <p>
+        Each of the five has its own box on Roles &amp; Permissions under <b>Reports</b>. <b>Reports (all of them)</b>
+        grants all five: a role holding it sees every tab, and a role given one report sees only that tab and that menu
+        entry.
+      </p>
+      <p>
+        <b>Feedback Without a Report</b> and <b>Hand Stock Report</b> sit in the same menu group but are pages of their own,
+        each with its own box — <b>Reports (all of them)</b> does not grant either (Flow 3).
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Without a report's key, its address shows <i>"🔒 You don’t have access to this module. Ask an administrator to grant it in Roles &amp; Permissions."</i></li>
+        <li>Without a database connection: <i>"Not connected to the database — a report needs it."</i></li>
+        <li><span class="tag db">Policy</span>The page keys are checked by the application. The rows are decided by the row rules of the registers each report reads — the key adds none.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The spare consumption register</b> — one row per spare line booked</li>
+        <li><b>The call</b> each line names, by UCN</li>
+        <li><b>The call's latest-entered visit</b></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 1 · Step 02</p>
+      <h2>Consumption Report — one row per spare booked</h2>
+      <span class="who">↳ Consumption Report</span><span class="who">View consumption</span><span class="who">View calls</span><span class="who">View reports</span>
+      <p>
+        The tab is headed <b>Spare Consumption</b>: <i>"One row per spare booked, with its call and that call’s latest
+        visit around it."</i> A line that was voided stays in the report with <b>QTY 0</b>.
+      </p>
+      <p>
+        <b>Filter</b>: Call date from / to (the call's <b>registration date</b>, both days included), Product, Customer,
+        City, Engineer, Part (code or name), UCN — each matching any part of the value — and Call type: Field,
+        Installation and PM pick calls whose type contains FIELD, INSTALL and P M. Engineer matches the Visiting Service Engineer; Part matches the code or the description.
+        <b>Clear the filter</b> empties every box, and the line beside it states the filter in words.
+      </p>
+      <p>
+        <b>The two visit dates come from the visit, not from the spare line.</b> They are the call's <b>latest entry</b> —
+        the visit most recently written to the register, the same one the call's status comes from — not the latest visit
+        date. Where the call has no visit they fall back to what the import file said, and then to when a spare was first
+        booked on that call; read those as <i>"no later than"</i>, not <i>"on"</i>. <b>Visit UID</b> is blank on exactly
+        those rows.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Without any of View consumption, View calls or View reports, the buttons are greyed: <i>"You can open this page but not take the file — that needs the right to read consumption, calls or visit reports. Ask an administrator under Roles &amp; Permissions."</i></li>
+        <li><span class="tag db">Policy</span>Lines are those your role may see in Spare Consumption: an office role or View all data sees all; anyone else sees lines they booked, lines in their own email, and lines in their own or their team's name.</li>
+        <li><span class="tag db">Policy</span>The call and visit columns fill only where you may also see the call and its visit. A line on a call you cannot see comes out with its call columns blank — and so drops out of any call-date filter (tested).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The calls</b> — all three registers, cancelled calls included</li>
+        <li><b>The call's visits</b>, counted, and the latest-entered one</li>
+        <li><b>The spare lines</b> booked on the call, voided ones left out</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Flow 1 · Step 03</p>
+      <h2>Call Report — one row per call</h2>
+      <span class="who">↳ Call Report</span><span class="who">View calls</span><span class="who">View reports</span>
+      <p>
+        <i>"One row per CALL — not per visit, so a call attended four times appears once."</i> Field, Installation and PM
+        calls are all here, and so are cancelled ones.
+      </p>
+      <p>
+        <b>Filter</b>: Call date from / to (the <b>registration date</b>, both days included), Product, Customer, City,
+        <b>Allotted to</b>, UCN — each matching any part — then Call type and <b>Call status</b>, which must match exactly.
+      </p>
+      <p>
+        <b>Call Status is worked out, not typed.</b> It reads Unattended (no visit), Unsolved, Report pending, Solved or
+        Cancelled, from the latest-entered visit. <b>Status (as keyed)</b> and <b>Last Visit Status</b> are what somebody
+        typed, and can disagree with it. <b>Last Visit</b> columns are the latest <i>entry</i>, not the latest visit date —
+        a report written up late does not outrank a visit made after it. <b>Spare Lines</b>, <b>Spare Qty</b> and
+        <b>Spares Used</b> leave voided lines (QTY 0) out.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Without View calls or View reports the buttons are greyed: <i>"…that needs the right to read calls or visit reports."</i></li>
+        <li><span class="tag db">Policy</span>The calls are exactly those you see in the call registers: <b>View calls</b>, and then every call for an office role or View all data, otherwise calls registered by you or filed to your desk, calls allotted to you or your team, and calls allotted to nobody. Without View calls the report is empty.</li>
+        <li><span class="tag db">Policy</span>Visits, Spare Lines and Spare Qty count only the visits and lines you may see.</li>
+        <li>The Call status picker offers the five values the column holds: Unattended, Unsolved, Report pending, Solved and Cancelled.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The customer feedback register</b> — one feedback per call</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Flow 1 · Step 04</p>
+      <h2>Customer Feedback Report — one row per feedback</h2>
+      <span class="who">↳ Customer Feedback Report</span><span class="who">View feedback</span><span class="who">Record customer feedback on a visit (any register)</span>
+      <p>
+        <i>"One row per FEEDBACK — one per call, since a second feedback for a call replaces the first."</i> Each question
+        is its own column, named after the export's own heading.
+      </p>
+      <p>
+        <b>Filter</b>: Feedback date from / to — <b>the feedback's own date</b>, never <i>Loaded On</i>: for a migrated row
+        the date the export gave it, for one recorded here the moment it was recorded — then Product, Customer, State,
+        Engineer, UCN (any part), Call type, and <b>Source</b>: <i>Uploaded</i> (it came from the v2Feedback export) or
+        <i>Entered here</i>.
+      </p>
+      <p>
+        <b>A blank on a question is not a missing answer.</b> Operating Feasibility and General Support are asked of every
+        visit; the four PM / field questions of a PM or field visit; the installation questions of an installation. A blank
+        means the question was not put. <b>All Answers</b> carries every answer as given, including any question no column
+        has been made for.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Without View feedback or Record customer feedback on a visit the buttons are greyed: <i>"…that needs the right to read customer feedback."</i></li>
+        <li><span class="tag db">Policy</span>Either key reads <b>every</b> feedback in the register, whoever the call belongs to — feedback is not scoped by call or team (tested; see <b>Not yet in place</b>).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every matching row</b>, read a thousand at a time</li>
+        <li><b>The columns you ticked</b></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--mandate)">
+      <p class="n">Flow 1 · Step 05</p>
+      <h2>Columns, then ⭳ Download Excel or ⭳ CSV</h2>
+      <span class="who">Export / download CSV</span>
+      <p>
+        <b>The locked columns</b> are the report's own format, shown ticked and greyed — <i>"a rule rather than an
+        omission"</i>. The rest are ticked one by one; <b>Add every column</b>, <b>Just the report format</b> and, on the
+        Consumption Report, <b>Back to the default columns</b>. The Consumption Report starts with <b>Line ID</b>,
+        <b>Source Ref Key</b> and <b>Created At</b> ticked; they can be unticked. The file's columns are always in the
+        report's own order, not the order they were ticked.
+      </p>
+      <p>
+        <b>⭳ Download Excel</b> writes <b>consumption-</b>, <b>call-report-</b> or <b>feedback-report-</b> followed by
+        today's date as year-month-day, <b>.xlsx</b>, with two sheets. The first holds the rows: <b>dates are real Excel
+        dates</b> shown dd-mmm-yyyy hh:mm:ss (dd-mmm-yyyy where no time was recorded), in your own time rather than the
+        database's, and <b>numbers stay numbers</b>. The second, <b>Filter</b>, records the report, what one row is, the
+        filter in words, the row count, the columns (<i>N mandatory + N chosen</i>), when it was downloaded, and the
+        report's own notes. <b>⭳ CSV</b> writes the same rows as text, dates spelled dd-MMM-yyyy HH:mm:ss (dd-MMM-yyyy
+        where no time was recorded), with no second sheet.
+      </p>
+      <p>
+        The result reads <i>"Downloaded N rows, N columns."</i> and the download is recorded in the Audit Log.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Both buttons are greyed while the count is 0 (<i>"Nothing matches that filter."</i>) and while a download is running (<i>"Building… N rows"</i>).</li>
+        <li>A failed count says <i>"Could not count the matches — the download will still read them."</i></li>
+        <li class="mandate"><span class="tag">Mandate</span>The CSV needs <b>Export / download CSV</b>: <i>"Exporting / downloading data is not permitted for your role."</i> The Excel file does not ask for it — see <b>Not yet in place</b>.</li>
+        <li><b>Extra (import)</b> and <b>All Answers</b> hold several values each, and come out as their JSON text.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Consumption Report — the columns</h2>
+    <p>Locked columns are always in the file; ticked-to-start columns are in it unless unticked; the rest only when ticked. Where a value comes from is said only where the heading does not say it.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Column</th><th>In the file</th><th>Where the value comes from</th></tr></thead>
+        <tbody>
+          <tr><td>UC Number · Call Number</td><td>Locked</td><td>The spare line's own</td></tr>
+          <tr><td>Call Type</td><td>Locked</td><td>The call</td></tr>
+          <tr><td>Visit Entry Date</td><td>Locked</td><td>When the call's latest-entered visit was written; else the import file's <i>Visit Entry Date</i>; else when a spare was first booked on the call</td></tr>
+          <tr><td>Visit Date &amp; Time</td><td>Locked</td><td>When that visit took place; else the import file's <i>Visit Date &amp; Time</i>; else the first booking</td></tr>
+          <tr><td>Visiting Service Engineer</td><td>Locked</td><td>The spare line's engineer; where blank, the latest visit's</td></tr>
+          <tr><td>Spares Used · Part name</td><td>Locked</td><td>The part split in two: the code, and the description after it</td></tr>
+          <tr><td>QTY</td><td>Locked</td><td>The quantity booked; 0 on a voided line</td></tr>
+          <tr><td>Product · Serial No · Customer · City · Complaint · Item Status</td><td>Locked</td><td>The call (Complaint is its Standard Complaint)</td></tr>
+          <tr><td>Call Date</td><td>Locked</td><td>The call's registration date</td></tr>
+          <tr><td>Line ID</td><td>Ticked to start</td><td>The spare line's own number</td></tr>
+          <tr><td>Source Ref Key</td><td>Ticked to start</td><td>The row id in the file a line was imported from — blank on anything booked here</td></tr>
+          <tr><td>Created At</td><td>Ticked to start</td><td>When the line was written; on an imported row, the date the file gave</td></tr>
+          <tr><td>Part (code|description)</td><td>Optional</td><td>The part as one string, as the Part Master holds it</td></tr>
+          <tr><td>Source · Remarks · Recorded By · Engineer Email · GRIR · Source Ref</td><td>Optional</td><td>The spare line</td></tr>
+          <tr><td>Original Qty · Adjusted By · Adjusted At · Adjustment Reason</td><td>Optional</td><td>The line's correction, where it was amended or voided</td></tr>
+          <tr><td>Created By</td><td>Optional</td><td>The login that wrote the line, as an id rather than a name</td></tr>
+          <tr><td>Extra (import)</td><td>Optional</td><td>The import file's other columns, kept with the line</td></tr>
+          <tr><td>Nature of Complaint · State · Allocated To · Warranty No · Contract No · Contract Type</td><td>Optional</td><td>The call (Nature of Complaint is the complaint as reported)</td></tr>
+          <tr><td>Call Status</td><td>Optional</td><td>The call's worked-out status: Unattended, Unsolved, Report pending, Solved or Cancelled</td></tr>
+          <tr><td>Visit UID</td><td>Optional</td><td>The latest-entered visit's own id — blank where the call has no visit</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Call Report — the columns</h2>
+    <p>Fourteen locked, thirty-seven optional; none ticked to start.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Column</th><th>In the file</th><th>Where the value comes from</th></tr></thead>
+        <tbody>
+          <tr><td>UC Number · Call Number · Call Type · Customer · City · State · Product · Serial No · Allocated To</td><td>Locked</td><td>The call</td></tr>
+          <tr><td>Call Date</td><td>Locked</td><td>The call's registration date</td></tr>
+          <tr><td>Complaint</td><td>Locked</td><td>The call's Standard Complaint</td></tr>
+          <tr><td>Call Status</td><td>Locked</td><td>Worked out from the latest-entered visit: Unattended, Unsolved, Report pending, Solved or Cancelled</td></tr>
+          <tr><td>Last Visit Date</td><td>Locked</td><td>When the latest-entered visit took place</td></tr>
+          <tr><td>Visits</td><td>Locked</td><td>How many visit records the call has (that you may see)</td></tr>
+          <tr><td>Last Visit Entry Date · Last Visit Engineer · Last Visit Status · Last Pending Reason</td><td>Optional</td><td>The latest-entered visit, as written on it</td></tr>
+          <tr><td>Spare Lines · Spare Qty · Spares Used</td><td>Optional</td><td>The spare lines booked on the call, voided ones left out: how many, the total quantity, and the part codes</td></tr>
+          <tr><td>Complaint Date · Nature of Complaint · Item Status · Warranty No / Start / End · Contract No / Start / End / Type</td><td>Optional</td><td>The call</td></tr>
+          <tr><td>Mode of Reporting · Person Calling · Contact Name · Contact Number · Contact Designation · Contact Email · Breakdown Date</td><td>Optional</td><td>The call</td></tr>
+          <tr><td>Public Health Threat · Death · Serious Incident</td><td>Optional</td><td>The call's vigilance answers</td></tr>
+          <tr><td>Engineer Email</td><td>Optional</td><td>The email of the engineer the call is allotted to</td></tr>
+          <tr><td>Status (as keyed) · Last Status</td><td>Optional</td><td>The status text the call holds, as typed or loaded</td></tr>
+          <tr><td>Registered At · Added On · Reopened At · Reopen Count · Cancelled At · Cancel Reason · Created At</td><td>Optional</td><td>The call</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Customer Feedback Report — the columns</h2>
+    <p>Sixteen locked, twelve optional. The PM / field questions are locked together with the every-visit ones, so the file does not change shape between downloads.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Column</th><th>In the file</th><th>Where the value comes from</th></tr></thead>
+        <tbody>
+          <tr><td>UC Number · Call Number · Call Type · Customer · State · Product · Serial No · Visiting Service Engineer · Visit Date</td><td>Locked</td><td>The feedback record</td></tr>
+          <tr><td>Date</td><td>Locked</td><td>The feedback's own date — what the date filter reads</td></tr>
+          <tr><td>Operating Feasibility · General Support</td><td>Locked</td><td>Asked of every visit (<i>INSTALLATION/PM/FIELD-Operating Feasibility of the Equipment</i>; <i>…In general, support of our company for your requirements</i>)</td></tr>
+          <tr><td>Product Meets Requirement · Reliability of Product · Reliability of Service · Promptness for Service Calls</td><td>Locked</td><td>The four PM / field questions</td></tr>
+          <tr><td>Startup, Training and Handover · Packing and Forwarding · Delivery Adherence</td><td>Optional</td><td>The installation questions</td></tr>
+          <tr><td>Complaint · Warranty Start Date? · Advance PM Done? · Remarks · Engineer Email</td><td>Optional</td><td>The feedback record and its answers</td></tr>
+          <tr><td>Source</td><td>Optional</td><td><i>Uploaded</i> where the row came from the v2Feedback export, otherwise <i>Entered here</i></td></tr>
+          <tr><td>Loaded From · Loaded On</td><td>Optional</td><td>The file it was loaded from, and when the row reached this system — up to two years after the feedback's own date on a migrated row</td></tr>
+          <tr><td>All Answers</td><td>Optional</td><td>Every answer as it was given</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= FLOW 2 ================= -->
+  <section class="flowhead" id="flow2">
+    <p class="flowhead-n">Flow 2</p>
+    <h2 class="flowhead-t">Fixed-format exports — KPI Export, Not Consumed Against this Call</h2>
+    <p class="flowhead-p">
+      <b>No column picker.</b> Each of these has one shape. The count on the button is the database's count for the range
+      chosen, so it is exact; the download reads every page before the file is written.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Field and Installation calls</b> — not PM, and not cancelled</li>
+        <li><b>Each call's visits</b> and <b>spare requests</b></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 2 · Step 01</p>
+      <h2>KPI Export — the workbook's Field_INST tab</h2>
+      <span class="who">↳ KPI Export</span>
+      <p>
+        One row per call: the KPI workbook's columns <b>A to AG</b>, in its order and under its own headings (spelling
+        included — <i>Call Registeration Date</i>), plus <b>Pending Days</b>, which the workbook does not have. Field and
+        Installation calls only; <b>cancelled calls are not included at all</b>.
+      </p>
+      <p>
+        <b>Registered from</b> / <b>to</b> read the call's registration date and time; the <i>to</i> day is included to
+        23:59:59 India time. <b>Whole register</b> clears both. The button reads <b>⭳ Excel — N calls</b>.
+      </p>
+      <p>
+        <b>⭳ Excel</b> writes <b>kpi-field-inst-</b>&lt;from or <i>start</i>&gt;_&lt;to or <i>today</i>&gt;<b>.xlsx</b>
+        (or the day's date when no range is set) with one sheet, <b>Field_INST</b>: dates are real Excel dates, numbers
+        stay numbers. <b>⭳ CSV</b> writes dates as dd-MMM-yyyy, and the registration date with its time — which Excel may not
+        read as a date. The result reads <i>"Exported N calls."</i>
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>The page key is the whole right: no further key is asked before the Excel file.</li>
+        <li><span class="tag db">Policy</span>The calls are those you see in the Field Call and Installation registers (needs <b>View calls</b>); the visit columns read only visits you may see.</li>
+        <li>The CSV needs <b>Export / download CSV</b>.</li>
+        <li>The screen says Report Pending counts as Open; the file says Close — see <b>Not yet in place</b>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>KPI Export — the worked-out columns</h2>
+    <p>Columns A to V are the call as registered. These are computed, by the database, for every call in the file.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Column</th><th>What it holds</th></tr></thead>
+        <tbody>
+          <tr><td>Call Registeration Date</td><td>When the call was registered, to the second; the registration date where no time was kept</td></tr>
+          <tr><td>Call Status</td><td>The latest-entered visit's status as written; <i>Unattended</i> where there is no visit</td></tr>
+          <tr><td>Open/Close</td><td><b>Close</b> for any status beginning “Solved” — Solved - Report Pending included (tested); otherwise Open</td></tr>
+          <tr><td>CALL PENDING REASON · Visiting Service Engineer</td><td>The latest-entered visit</td></tr>
+          <tr><td>Call Attended On</td><td>The earlier of the first visit date and the first spare request on the call</td></tr>
+          <tr><td>Call Solved Date &amp; Time</td><td>The visit date (a date, no time) of the latest-entered visit reading Solved - Report Completed</td></tr>
+          <tr><td>Attended in Days · Solved in Days</td><td>Days from the later of the complaint date and the registration date, never negative; blank until attended / solved</td></tr>
+          <tr><td>TTA ( R ) · TTS ( R )</td><td>Those days as a band: 00-03D, 04-07D, 08-30D, 31-60D, 61-90D, 91-180D, &gt;180D, &gt;1 yr, &gt;2 yrs, &gt;3 yrs, &gt;4 yrs, &gt;5 yrs</td></tr>
+          <tr><td>Failure Month</td><td>The registration month, written year then month (2026 Sep)</td></tr>
+          <tr><td>Pending Days</td><td>For a call whose status does not begin “Solved”: days from the later of complaint and registration to today (India date). Blank otherwise — Report Pending included (tested)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Spare request lines</b> that were dispatched or received</li>
+        <li><b>The consumption booked</b> on the same call, by part code</li>
+        <li><b>The call's status</b></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--rule)">
+      <p class="n">Flow 2 · Step 02</p>
+      <h2>Not Consumed Against this Call — parts sent and not booked</h2>
+      <span class="who">↳ Not Consumed Against this Call</span><span class="who">View consumption</span><span class="who">View calls</span><span class="who">View reports</span>
+      <p>
+        <b>One row per call and part.</b> A part sent on two orders for one call is added together, and compared with
+        everything booked of that part code on that call. <b>Finding</b> reads <b>Not used</b> where none was booked and
+        <b>Short</b> where less was booked than sent (2 sent, 1 used). Parts are matched on the <b>part code</b>, not the
+        description.
+      </p>
+      <p>
+        <b>Only calls whose status reads Solved</b> are listed — not Report pending, not open calls, where the part may
+        still be in the van. <b>Dispatched counts as reached</b>: acknowledging a delivery is not mandatory. A line refused
+        by an approver or dropped by Stores is not here — nothing arrived. <b>Stage</b> says Received where any line was
+        acknowledged, otherwise Dispatched.
+      </p>
+      <p>
+        <b>Filter</b>: Dispatched from / to (the date the part was <b>sent</b>, not the call date), Engineer (a list of the
+        engineers this report holds), Product, Part code. <b>Preview</b> shows the first 25 rows with <i>"First 25 of N"</i>.
+        <b>⭳ Download Excel (N)</b> writes <b>not-consumed-against-call-</b>&lt;year-month-day&gt;<b>.xlsx</b> — sheets
+        <b>Not Consumed</b> and <b>About</b> (what it lists and excludes, the filter, rows, the day taken); <b>⭳ CSV</b> the
+        same rows as text. The file's first two headings are spelled <i>ucn</i> and <i>call_number</i>.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>The download buttons are greyed without View consumption, View calls or View reports, and while the count is 0; this report shows no note saying why.</li>
+        <li><span class="tag db">Policy</span>Rows need a call you may see (and so <b>View calls</b>) and a spare request you may see.</li>
+        <li>The CSV needs <b>Export / download CSV</b>.</li>
+        <li>Nothing flagged: <i>"Nothing is flagged for that filter — nothing to download."</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Not Consumed Against this Call — the columns</h2>
+    <p>Twenty-five, always all of them, in this order.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Column</th><th>What it holds</th></tr></thead>
+        <tbody>
+          <tr><td>ucn · call_number · OR No</td><td>The call, and every order the part was sent on, comma-separated</td></tr>
+          <tr><td>Part Code · Part name · Finding</td><td>The part, and Not used / Short</td></tr>
+          <tr><td>Qty Sent · Qty Used · Qty Short</td><td>Dispatched quantity (the requested quantity where none is recorded), the quantity booked, and the difference. A voided consumption line counts as a booking of 0</td></tr>
+          <tr><td>Stage · DC No · Dispatched On · Received On</td><td>Received / Dispatched, the DC numbers, the latest dispatch and receipt dates</td></tr>
+          <tr><td>Engineer · Customer · Product · Serial No · Item Status</td><td>From the spare request; Engineer lists every engineer it was sent to</td></tr>
+          <tr><td>Call Registered · Call Status · Allotted To · State · City</td><td>The call</td></tr>
+          <tr><td>Request UID · Engineer Email</td><td>The spare request</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= FLOW 3 ================= -->
+  <section class="flowhead" id="flow3">
+    <p class="flowhead-n">Flow 3</p>
+    <h2 class="flowhead-t">Checks that load in full — Feedback Without a Report, Hand Stock Report</h2>
+    <p class="flowhead-p">
+      <b>Pages of their own, outside Reports (all of them).</b> Each has its own box on Roles &amp; Permissions under
+      Reports, and was given to administrators to begin with; any other role is a tick. Both load every row onto the
+      screen, then search and download what is shown.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every customer feedback</b></li>
+        <li><b>The call</b> its UCN names, and <b>every visit</b> on it</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Flow 3 · Step 01</p>
+      <h2>Feedback Without a Report — the visit happened, the write-up did not</h2>
+      <span class="who">Open: Feedback Without a Report</span>
+      <p>
+        One row per feedback that has no <b>Solved - Report Completed</b> visit behind it. <b>Missing</b> names which of
+        four: <i>the feedback records no UCN</i> · <i>no call with that UCN</i> · <i>no visit at all</i> · <i>a visit exists
+        but none reads Solved - Report Completed</i>. For the last, <b>Latest visit status</b> says what the latest-entered
+        visit reads instead.
+      </p>
+      <p>
+        <b>Any</b> completed visit on the call clears it, not only the latest. The status is matched on its letters and
+        digits only, so a trailing space, lower case or an en-dash still counts as completed. Chips filter by finding and
+        add up to the row count; search covers UCN, call number, party, product, serial and engineer. <b>⭳ Excel</b>
+        writes <b>feedback-without-a-report-</b>&lt;year-month-day&gt;<b>.xlsx</b> with an <b>About</b> sheet (each
+        finding explained, the chip and search applied, rows, the day taken); <b>⭳ CSV</b> the same 21 columns as text.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Given by migration to Admin, Technical Support and Zoho Migration.</li>
+        <li><span class="tag db">Policy</span>The feedback, the call and the visits are each read under their own row rules. A role that cannot see the call is told <i>no call with that UCN</i> for a call that exists (tested) — see <b>Not yet in place</b>.</li>
+        <li>An empty list says <i>"Every customer feedback has a completed service report behind it."</i> only to a reader who sees every record; anyone else is told <i>"No customer feedback that you can see is missing a completed service report."</i></li>
+        <li>The CSV needs <b>Export / download CSV</b>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The hand stock balances</b> — the same figures the Hand Stock register shows, derived from every movement</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 3 · Step 02</p>
+      <h2>Hand Stock Report — every line, then the file</h2>
+      <span class="who">Open: Hand Stock Report</span>
+      <p>
+        One line per engineer and part. It loads a thousand lines at a time <b>until every line is in</b>; the count carries
+        a <b>+</b> and reads <i>"N loaded…"</i> while pages are arriving, then <i>"N lines, complete"</i>. Nothing is stored:
+        the figures are worked out from the movements, so the report and the Hand Stock register cannot disagree.
+      </p>
+      <p>
+        The screen shows Engineer, Part Code, Part, Opening, Stock Out, Consumed, Trf In, Trf Out, Returned, <b>On Hand</b>
+        and Last Movement; a <b>negative On Hand</b> is shown inverted — more was consumed than this system knows was issued.
+        Search covers engineer, email, part code and part.
+      </p>
+      <p>
+        <b>Three formats</b>, named <b>HandStock_</b>dd-MMM-yyyy_HHmmss: <b>⭳ CSV</b> (text; a searched file adds
+        <i>_SEARCH-</i>&lt;term&gt; to its name), <b>⭳ Excel (.xlsx)</b> (numbers stay numbers, dates stay dates) and
+        <b>⭳ Excel (.xls)</b>, the Excel 2003 format, which Excel may warn about before opening. Both workbooks carry an
+        <b>About</b> sheet: what it is, that every page was loaded, the scope (every engineer, or your own and your team's,
+        and any search), rows, the day taken.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>All three buttons stay greyed until every line has loaded: <i>"Still loading every line — the download opens when the whole report is in."</i></li>
+        <li>Given by migration to Admin and Technical Support; the menu entry asks for the same key as the page.</li>
+        <li><span class="tag db">Policy</span>An office role or View all data sees every engineer; anyone else sees their own stock and their team's. The subtitle says which.</li>
+        <li>The CSV needs <b>Export / download CSV</b>.</li>
+        <li><b>Other ±</b> is On Hand less the named columns — the stock adjustments — so every row adds up.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Hand Stock Report — the file's columns</h2>
+    <p>Seventeen, in this order. The workings sit beside On Hand so whoever is reconciling can add them up.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Column</th><th>What it holds</th></tr></thead>
+        <tbody>
+          <tr><td>Engineer · Engineer Email · Part Code · Part</td><td>Who holds it, and the part</td></tr>
+          <tr><td>Opening</td><td>Opening balances — the stock loaded as opening, and the figure written when a stock period is closed</td></tr>
+          <tr><td>Stock Out</td><td>Parts dispatched to the engineer, including the stock outs imported from before this system</td></tr>
+          <tr><td>Consumed</td><td>Parts booked as used, including the imported consumption history</td></tr>
+          <tr><td>Transferred In · Transferred Out</td><td>Stock transfers between engineers</td></tr>
+          <tr><td>Returned</td><td>Material returns, good and defective together</td></tr>
+          <tr><td>Other ± (adjustments)</td><td>On Hand less the columns before it: the stock adjustments, which have no column of their own</td></tr>
+          <tr><td>On Hand</td><td>Every movement in less every movement out — stock adjustments included</td></tr>
+          <tr><td>From the Old System (net)</td><td>The opening pools plus the imported stock outs, less the imported consumption</td></tr>
+          <tr><td>On Hand (this system only)</td><td>On Hand with those imported figures left out</td></tr>
+          <tr><td>Movements · Last In · Last Out · Last Movement</td><td>How many movements, and when the latest in, out and of either was</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<!-- why counts differ ---------------------------------------------------- -->
+<section class="states">
+  <h2>Why two reports give different counts for the same period</h2>
+  <p>
+    Each report counts a different thing, dates it by a different date, and leaves different records out. Two totals
+    that disagree are usually both right. Before acting on a difference, check the three columns on the right.
+  </p>
+  <div class="scroll">
+    <table class="transitions">
+      <thead><tr><th>Report</th><th>One row is</th><th>Its date filter reads</th><th>Leaves out</th></tr></thead>
+      <tbody>
+        <tr><td>Consumption Report</td><td>A spare line booked (voided lines included, at QTY 0)</td><td>The call's registration date</td><td>Lines on a call you cannot see, once a date is set</td></tr>
+        <tr><td>Call Report</td><td>A call — however many visits</td><td>The call's registration date</td><td>Nothing by type: PM and cancelled calls are in</td></tr>
+        <tr><td>KPI Export</td><td>A call</td><td>The registration date and time</td><td>PM calls and cancelled calls</td></tr>
+        <tr><td>Customer Feedback Report</td><td>A feedback — one per call</td><td>The feedback's own date</td><td>Nothing; it is not scoped by call</td></tr>
+        <tr><td>Not Consumed Against this Call</td><td>A part on a call</td><td>When the part was dispatched</td><td>Every call not reading Solved; parts fully booked</td></tr>
+        <tr><td>Feedback Without a Report</td><td>A feedback with no completed visit</td><td>No date filter</td><td>Feedback whose call has a completed visit you can see</td></tr>
+        <tr><td>Hand Stock Report</td><td>An engineer and a part</td><td>No date filter</td><td>—</td></tr>
+        <tr><td>Visit Reports (the register, for comparison)</td><td>A visit — a call visited three times is three</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="margin:16px 0 0; color:var(--ink-2); font-size:14.5px; max-width:70ch">
+    <b>The Call Report against Visit Reports</b> differs in both directions at once: a call with several visits is one
+    row there and several here; a call with no visit yet is one row there and none here. <b>The Consumption Report against
+    the Call Report's Spare Lines</b>: the first counts voided lines, the second leaves them out. <b>And the same person can
+    be shown different numbers by two reports with nothing missing</b>, because each reads its registers under that
+    register's own row rules — calls by call visibility, consumption by whose lines they are, feedback not scoped at all.
+  </p>
+</section>
+
+<!-- permissions ----------------------------------------------------------- -->
+<section class="states">
+  <h2>Who may do what</h2>
+  <p>
+    Each report opens with its own box under <b>Reports</b> on Roles &amp; Permissions. The five report tabs are also
+    granted by <b>Reports (all of them)</b>; Feedback Without a Report and Hand Stock Report are not. Taking a file is a
+    second question, asked per report. Which rows you get is a third, decided by the database.
+  </p>
+  <div class="scroll">
+    <table class="transitions">
+      <thead><tr><th>To</th><th>Permission</th><th>Granted also by</th></tr></thead>
+      <tbody>
+        <tr><td>Open one report tab</td><td>↳ Consumption Report · ↳ KPI Export · ↳ Not Consumed Against this Call · ↳ Call Report · ↳ Customer Feedback Report</td><td>Reports (all of them)</td></tr>
+        <tr><td>Take the Consumption Report or Not Consumed file</td><td>Any one of View consumption, View calls, View reports</td><td>—</td></tr>
+        <tr><td>Take the Call Report file</td><td>View calls or View reports</td><td>—</td></tr>
+        <tr><td>Take the Customer Feedback Report file</td><td>View feedback, or Record customer feedback on a visit (any register)</td><td>The second by each register's Report / update (all of the below)</td></tr>
+        <tr><td>Take the KPI file</td><td>The page key alone</td><td>Reports (all of them)</td></tr>
+        <tr><td>Feedback Without a Report</td><td>Its own page box — the page key is the whole right</td><td>—</td></tr>
+        <tr><td>Hand Stock Report</td><td>Its own page box — the page key is the whole right</td><td>—</td></tr>
+        <tr><td>Any CSV from these screens</td><td>Export / download CSV (Across the system)</td><td>—</td></tr>
+        <tr><td>Every record rather than your own and your team's</td><td>View all data (every record) (Across the system), or an office role — Hotline Engineer, NSM, Commercial, Spare Coordinator, Stores Incharge, Tally Coordinator</td><td>—</td></tr>
+        <tr><td>Calls at all, in the call-based reports</td><td>View calls</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="margin:16px 0 0; color:var(--ink-2); font-size:14.5px; max-width:70ch">
+    <b>The menu.</b> A report tab's entry shows to a holder of its key or of Reports (all of them); the Hand Stock Report's
+    to a holder of its key. The Feedback Without a Report entry shows to a holder of its key, of any Manage users key, or of
+    Open the administration pages, read-only — but the page itself opens only with its own key.
+  </p>
+</section>
+
+<!-- panels --------------------------------------------------------------- -->
+<div class="panels">
+
+  <div class="panel">
+    <h3>The records kept</h3>
+    <ul>
+      <li><b>Audit Log.</b> Every download from these screens is recorded: <code>report.consumption</code>, <code>report.call-report</code> and <code>report.feedback-report</code> with rows, columns and the filter; <code>kpi.export</code> with the range and format; <code>report.unused_spares</code> with rows, filter and format; <code>report.feedback_without_report</code> and <code>report.handstock</code> with rows, scope and format.</li>
+      <li><b>The file itself.</b> Every workbook except the KPI Export carries a second sheet stating what it is, the filter or scope, the rows and when it was taken.</li>
+      <li><b>Nothing else.</b> The reports change no record; they read.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h3>Not yet in place</h3>
+    <p>Stated here so nobody reads this page as describing them as done.</p>
+    <ul>
+      <li><b>Excel downloads skip Export / download CSV</b> (D-018, D-065). A role refused the CSV takes the same rows as .xlsx or .xls. The KPI Export asks no report right beyond its page key. And on the Consumption, Call and Customer Feedback Reports, a refused CSV is still recorded in the Audit Log and reported as <i>"Downloaded N rows"</i> (D-065).</li>
+      <li><b>Customer feedback is not scoped</b> (D-037). View feedback, or Record customer feedback on a visit, reads every feedback row; the Customer Feedback Report shows a feedback on a call the reader cannot see (tested).</li>
+      <li><b>KPI Export: the screen and the file disagree on Report Pending</b> (D-095). The screen says Close only for Solved - Report Completed and Open for Report Pending; the file writes <b>Close</b> for Report Pending and leaves its Pending Days blank (tested).</li>
+      <li><b>Feedback Without a Report is only right for a reader who sees every call</b> (D-096). A role granted it that cannot see a call, or its completed visit, is shown that feedback as missing — <i>no call with that UCN</i> for a call that exists (tested).</li>
+      <li><b>Consumption Report for a reader who cannot see the call</b> (D-096): the line is listed with its call columns blank and its visit dates falling back to the booking time, although the call has a visit (tested).</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer>
+  <p>
+    Drawn from the running system: <code>src/modules/ReportsHub.tsx</code>, <code>ReportBuilder.tsx</code>,
+    <code>ConsumptionReport.tsx</code>, <code>CallReport.tsx</code>, <code>FeedbackReport.tsx</code>,
+    <code>KpiExport.tsx</code>, <code>UnusedSpareReport.tsx</code>, <code>FeedbackWithoutReport.tsx</code> and
+    <code>HandStockReport.tsx</code>; <code>src/lib/reports.ts</code>, <code>kpi.ts</code>, <code>handstockreport.ts</code>,
+    <code>rbac.ts</code>, <code>xlsx.ts</code>, <code>dates.ts</code> and <code>format.tsx</code>; and the report views
+    they read, at their latest definition (0159, 0147, 0191, 0215, 0229, 0102 with 0266). Statements marked tested were
+    run on a database built from every migration. Where this page and the code disagree, the code is the fact and this
+    page is the bug.
+  </p>
+</footer>
+
+</div>
+
+<script>
+// ===========================================================================
+// THIS FILE IS BOTH THE SHARED DIAGRAM AND THE IN-APP PAGE, and it must behave
+// as either. Standalone it is an ordinary document. Framed by RITHI CRM it has
+// two more jobs, and both fail silently if left to chance:
+//
+//   1. FOLLOW THE HOST'S THEME. The app has its own light/dark toggle, and a
+//      framed document cannot see it — a viewer in dark mode would otherwise
+//      get a white page inside a dark one. The app passes ?theme= and this
+//      stamps it, which is the same attribute the CSS above already honours.
+//      With no parameter nothing is stamped and prefers-color-scheme decides,
+//      exactly as before.
+//   2. SAY HOW TALL IT IS. A fixed-height iframe gives the reader a second
+//      scrollbar inside the first, which on a long document is worse than no
+//      frame at all. The height is posted on load, on resize, and whenever the
+//      content changes.
+//
+// Everything here is guarded: a failure leaves a page that still reads.
+(function () {
+  try {
+    var t = new URLSearchParams(location.search).get('theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { /* no theme is not a broken page */ }
+
+  if (window.parent === window) return;   // standalone: nothing to report to
+  var last = 0;
+  function tell() {
+    var h = Math.ceil(document.documentElement.scrollHeight);
+    if (Math.abs(h - last) < 2) return;
+    last = h;
+    try { window.parent.postMessage({ type: 'rithi-doc-height', height: h }, '*'); } catch (e) { /* ignore */ }
+  }
+  window.addEventListener('load', tell);
+  window.addEventListener('resize', tell);
+  document.addEventListener('DOMContentLoaded', tell);
+  if (window.ResizeObserver) new ResizeObserver(tell).observe(document.documentElement);
+  setTimeout(tell, 60); setTimeout(tell, 400); setTimeout(tell, 1200);
+})();
+</script>
+</body>
+</html>

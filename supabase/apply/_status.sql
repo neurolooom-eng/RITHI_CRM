@@ -1343,12 +1343,12 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.consumption_needs_a_visit()') is null
          or (select p.prosrc ~ 'Reconciliation' and p.prosrc ~ 'No visit has been filed'
                from pg_proc p where p.oid = to_regprocedure('public.consumption_needs_a_visit()')))),
-    (187, 'Every table carries its system columns', 'sys_id, sys_created_by, sys_created_on, sys_updated_by and sys_updated_on, a unique index on sys_id and the zzz_sys_stamp trigger, on EVERY table in public except the nine number counters (0244). The user, 2026-09-26: "I need a key, Timestamp, sys_created_by, sys_updated_by in all the tables" and "sys_created_by, sys_created_on shouldn''t overlap with any of the other fields". THE DATABASE WRITES THEM, never the app: sys_stamp() discards what a signed-in caller sends and stamps the login (auth.uid()) and now(); only a trusted role -- the SQL editor, a migration, a SECURITY DEFINER function -- may supply a value, so a restore can put back what it saved. THEY OVERLAP NOTHING: created_at, created_by and the rest keep their business meaning, which is not always the author -- on a call, created_by is the Hotline DESK. Rows that existed before were filled ONCE from same-meaning fields (created_at; actual_created_by, else created_by, else recorded_by; updated_at; updated_by) by a table rewrite that fires no trigger, and left blank where nothing was recorded. _tables_without_key_time_author.sql NAMES the tables missing it (its sys_columns column). The usual cause of a NO is a table added AFTER 0244 ran: the bundle attaches itself to whatever exists when it runs, so re-running it covers the new table and touches nothing else. NO means a table can be written without saying who or when. Restore: sys_columns.sql',
+    (187, 'Every table carries its system columns', 'sys_id, sys_created_by, sys_created_on, sys_updated_by and sys_updated_on, a unique index on sys_id and the zzz_sys_stamp trigger, on EVERY table in public except the ten number counters (0244; indoor_dc_counters added by 0321). The user, 2026-09-26: "I need a key, Timestamp, sys_created_by, sys_updated_by in all the tables" and "sys_created_by, sys_created_on shouldn''t overlap with any of the other fields". THE DATABASE WRITES THEM, never the app: sys_stamp() discards what a signed-in caller sends and stamps the login (auth.uid()) and now(); only a trusted role -- the SQL editor, a migration, a SECURITY DEFINER function -- may supply a value, so a restore can put back what it saved. THEY OVERLAP NOTHING: created_at, created_by and the rest keep their business meaning, which is not always the author -- on a call, created_by is the Hotline DESK. Rows that existed before were filled ONCE from same-meaning fields (created_at; actual_created_by, else created_by, else recorded_by; updated_at; updated_by) by a table rewrite that fires no trigger, and left blank where nothing was recorded. _tables_without_key_time_author.sql NAMES the tables missing it (its sys_columns column). The usual cause of a NO is a table added AFTER 0244 ran: the bundle attaches itself to whatever exists when it runs, so re-running it covers the new table and touches nothing else. NO means a table can be written without saying who or when. Restore: sys_columns.sql',
         (to_regprocedure('public.sys_stamp()') is not null
          and not exists (
            select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
             where n.nspname = 'public' and c.relkind = 'r'
-              and c.relname not in ('call_number_seq', 'ffr_counters', 'indoor_job_counters',
+              and c.relname not in ('call_number_seq', 'ffr_counters', 'indoor_dc_counters', 'indoor_job_counters',
                                     'material_return_counters', 'party_key_seq', 'spare_dispatch_counters',
                                     'spare_or_counters', 'stock_transfer_counters', 'ucn_counters',
                                     'harness', 'schema_migrations')
@@ -1644,7 +1644,55 @@ with checks(sort_order, bundle, provides, present) as (
     (241, 'The audit log is readable with audit.view', 'audit_read on audit_log admits is_admin() or audit.view, as record_audit_read does -- the Audit Log screen opens for audit.view (0315, D-066). NO means audit.sql has not been re-run since. Restore: audit.sql (0315)',
         coalesce((select coalesce(qual, '') like '%audit.view%' from pg_policies where schemaname = 'public' and tablename = 'audit_log' and policyname = 'audit_read'), false)),
     (242, 'Raising a consumption line''s quantity works', 'consumption_adjust_guard() reads handstock_balance for a quantity going up; since 0196 it called handstock_available(), which does not exist, so every increase failed (0316). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0316)',
-        coalesce((select p.prosrc like '%handstock_balance%' and p.prosrc not like '%handstock_available%' from pg_proc p where p.oid = to_regprocedure('public.consumption_adjust_guard()')), false))
+        coalesce((select p.prosrc like '%handstock_balance%' and p.prosrc not like '%handstock_available%' from pg_proc p where p.oid = to_regprocedure('public.consumption_adjust_guard()')), false)),
+    (243, 'A tick-box RM approval auto-approves what the spare does not need', 'decide_spare_lines() writes Auto-Approved into Commercial / NSM by spare_needs_commercial() / spare_needs_nsm() when RM approves, as the single-spare Approve does (0311, D-081). Before it, a warranty spare approved by tick box waited at Commercial; _spares_waiting_at_commercial_by_mistake.sql lists any still waiting. NO means Spare_1.sql has not been re-run since. Restore: Spare_1.sql (0311_tick_box_rm_auto_approves)',
+        coalesce((select p.prosrc like '%spare_needs_commercial%' and p.prosrc like '%spare_needs_nsm%' from pg_proc p where p.oid = to_regprocedure('public.decide_spare_lines(bigint[],text,text,text)')), false)),
+    (244, 'An amended or voided consumption line keeps its original quantity', 'consumption_adjust_guard() stamps original_qty (the quantity before the first change) and adjusted_at again (0317, D-082); 0196 had dropped both and 0261 / 0316 kept the omission. NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0317_void_keeps_original_qty)',
+        coalesce((select p.prosrc like '%new.original_qty := old.qty%' and p.prosrc like '%new.adjusted_at := now()%' from pg_proc p where p.oid = to_regprocedure('public.consumption_adjust_guard()')), false)),
+    (245, 'Every warranty sale was re-read from the Party Master once, and its machines put back on it', 'The one-time update of 2026-10-02 (0318) ran: one_time_fixes_done holds 0318_warranty_party_refresh, whose detail says how many sales and machine lines it changed; the values it replaced are in sale_party_refresh_backup and sale_items_inherit_backup. It never runs twice -- re-running the bundle leaves everything alone. NO means it has not run on this project. Restore: sales_contracts.sql (0318)',
+        (to_regclass('public.one_time_fixes_done') is not null
+         and exists (select 1 from public.one_time_fixes_done where name = '0318_warranty_party_refresh'))),
+    (246, 'Warranty machines mapped to their installation calls once; the rest listed for administrators', 'The one-time mapping of 2026-10-02 (0319) ran -- one_time_fixes_done holds 0319_install_call_mapping, whose detail gives the counts by rule; every change is in inst_call_repair_log -- and install_calls_unmapped() exists, asks for mod:/install-calls-unmapped, and cannot be called by the public key. NO means it has not run on this project. Restore: sales_contracts.sql (0319)',
+        (to_regclass('public.one_time_fixes_done') is not null
+         and exists (select 1 from public.one_time_fixes_done where name = '0319_install_call_mapping')
+         and coalesce((select p.prosrc like '%mod:/install-calls-unmapped%' from pg_proc p where p.oid = to_regprocedure('public.install_calls_unmapped()')), false)
+         and not has_function_privilege('anon', to_regprocedure('public.install_calls_unmapped()'), 'EXECUTE'))),
+    (247, 'The Product Master says whether a line is imported', 'product_master.imported (0319), boolean, blank until somebody fills it on the Product Master screen or by Bulk Uploads. It decides whether a DEMO unit in the workshop owes Pre-Delivery Testing R/SER/QC/007; blank reads as unknown and does not require it. NO means masters.sql has not been re-run since. Restore: masters.sql (0319)',
+        exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'product_master' and column_name = 'imported' and data_type = 'boolean')),
+    (248, 'The Indoor register carries R/SER/07, and Verified By is its own key', 'indoor_jobs has the register''s columns (field_report_no, engineer_name, customer_place, problem_reported, indoor_report_no, dc_date, remarks, cover, verified_by, verified_at); indoor_job_list gives the verifier''s name, the accessories and whether the product is imported; indoor_jobs_guard() asks indoor.verify, stamps the verifier from the session, and still keeps 0297''s dispatch rule (0320). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0320)',
+        ((select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'indoor_jobs'
+           and column_name in ('field_report_no', 'engineer_name', 'customer_place', 'problem_reported', 'indoor_report_no',
+                               'dc_date', 'remarks', 'cover', 'verified_by', 'verified_at')) = 10
+         and (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'indoor_job_list'
+               and column_name in ('verified_by_name', 'accessories_received', 'product_imported')) = 3
+         and coalesce((select p.prosrc like '%indoor.verify%' and p.prosrc like '%new.verified_by := auth.uid()%'
+                              and p.prosrc like '%indoor.dispatch is required to mark a unit%'
+                         from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false))),
+    (249, 'A DEMO unit of an imported product does not leave without Pre-Delivery Testing', 'indoor_pdt holds R/SER/QC/007 one row per job, its inspector stamped from the session (zz_indoor_pdt_stamp), readable with the page and writable with indoor.work / indoor.receive, with no delete policy; indoor_job_is_imported() reads the Product Master; indoor_jobs_guard() refuses Dispatched / Closed for a DEMO unit of an imported product until the test is complete and checks 1-5 read OK (0320). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0320)',
+        (to_regclass('public.indoor_pdt') is not null
+         and to_regprocedure('public.indoor_job_is_imported(text,text)') is not null
+         and exists (select 1 from pg_trigger where tgname = 'zz_indoor_pdt_stamp' and tgrelid = to_regclass('public.indoor_pdt'))
+         and not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'indoor_pdt' and cmd in ('DELETE', 'ALL'))
+         and coalesce((select p.prosrc like '%indoor_job_is_imported%' and p.prosrc like '%reads NOT OK%'
+                         from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false))),
+    (250, 'Indoor_DC: the workshop''s own delivery challan', 'indoor_dcs + indoor_dc_lines (0321): an IDC-YYMM-NNNN number issued by the database (next_indoor_dc_no() + indoor_dc_counters, monthly by the DC date; a number sent is discarded), readable with the Indoor Service Register''s key, with NO write policy and no write grant -- the only writer is create_indoor_dc(), which asks indoor.dispatch, takes Ready units for one consignee, TRIES each unit against indoor_jobs_guard()''s leaving rules and refuses it in the guard''s words, and stamps each job dispatch_ref = the IDC number and dc_date = the DC date. Never deleted (no_hard_delete). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0321)',
+        (to_regclass('public.indoor_dcs') is not null
+         and to_regclass('public.indoor_dc_lines') is not null
+         and to_regclass('public.indoor_dc_counters') is not null
+         and to_regclass('public.indoor_dc_list') is not null
+         and to_regprocedure('public.next_indoor_dc_no(date)') is not null
+         and to_regprocedure('public.indoor_job_product_code(text,text)') is not null
+         and exists (select 1 from pg_trigger where tgname = 'zz_indoor_dcs_stamp' and tgrelid = to_regclass('public.indoor_dcs'))
+         and exists (select 1 from pg_trigger where tgname = 'no_hard_delete' and tgrelid = to_regclass('public.indoor_dcs'))
+         and not exists (select 1 from pg_policies where schemaname = 'public' and tablename in ('indoor_dcs', 'indoor_dc_lines')
+                           and cmd <> 'SELECT')
+         and not has_function_privilege('anon', to_regprocedure('public.next_indoor_dc_no(date)'), 'EXECUTE')
+         and coalesce((select p.prosrc like '%indoor.dispatch%' and p.prosrc like '%indoor_dc_trial_passed%'
+                              and p.prosrc like '%dispatch_ref = v_no%'
+                         from pg_proc p where p.oid = to_regprocedure('public.create_indoor_dc(bigint[],text,date,text,date,text,text,jsonb)')), false))),
+    (251, 'A stock transfer line may carry its own reason', 'stock_transfer_lines.reason (0322), text, blank by default: the per-item "Reason for Transfer" of the MATERIAL TRANSFER NOTE R/SER/STR/003. The printed MTN shows the line''s reason, else the transfer''s common remarks. NO means the Stock Transfer form''s per-line reason is refused on save. Restore: stock_transfer.sql (0322)',
+        exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stock_transfer_lines'
+                   and column_name = 'reason' and data_type = 'text'))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

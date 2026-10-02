@@ -73,6 +73,7 @@ export const xlsxDate = (serial: number, withTime: boolean): XlsxDate =>
 /** The cell an .xlsx should carry: a real number, a real date, or text. */
 export function xlsxCell(v: unknown): unknown {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (isStructured(v)) return JSON.stringify(v);
   const serial = excelSerial(v ?? '');
   // Not a date -- a part code, a UCN, a remark. Text, untouched.
   if (serial === null) return formatDayTime(v ?? '');
@@ -81,7 +82,16 @@ export function xlsxCell(v: unknown): unknown {
 
 /** The same value for a CSV, which can only carry text. */
 export function xlsxText(v: unknown): string {
+  if (isStructured(v)) return JSON.stringify(v);
   return formatDayTime(v ?? '');
+}
+// A JSON COLUMN (Extra (import), All Answers) arrives as an object or array.
+// Handed to the text formatter it came out as "[object Object]" in every row
+// of both the .xlsx and the CSV (D-093); written as its JSON it is readable
+// and complete. An XlsxDate is the writer's own object and is not this.
+function isStructured(v: unknown): v is object {
+  return typeof v === 'object' && v !== null && !(v instanceof Date)
+    && typeof (v as XlsxDate).__xlsxDate !== 'number';
 }
 const isXlsxDate = (v: unknown): v is XlsxDate =>
   typeof v === 'object' && v !== null && typeof (v as XlsxDate).__xlsxDate === 'number';

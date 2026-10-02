@@ -94,6 +94,27 @@ const DOCS = [
     title: 'How service calls work — the three registers, the visit, and what follows it',
   },
   {
+    id: 'masters',
+    label: 'Masters',
+    file: 'how-masters-work.html',
+    blurb: 'Parties, machines, product lines, parts, people and the value lists: what each holds, who may change it, and where its values are used.',
+    title: 'How the masters work — what each holds, who may change it, and where it is used',
+  },
+  {
+    id: 'admin',
+    label: 'Administration',
+    file: 'how-administration-works.html',
+    blurb: 'Roles & Permissions, the Audit Log, Bulk Uploads, Data Export, Admin Config and the rest of the Administration menu: what each does, who may use it, and what it refuses.',
+    title: 'How administration works — access, the trail, loading data in and taking it out',
+  },
+  {
+    id: 'reports',
+    label: 'Reports',
+    file: 'how-reports-work.html',
+    blurb: 'Every report in the Reports menu: what each row is, which date it filters on, its columns, who may download it, and why two reports can count differently.',
+    title: 'How the reports work — what each counts, its columns, and who may download it',
+  },
+  {
     id: 'quality',
     label: 'Quality & Analytics',
     file: 'how-quality-works.html',

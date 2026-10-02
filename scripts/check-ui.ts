@@ -10,7 +10,7 @@ import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod, todayLocal } from '../src/lib/dates';
-import { configFor, contractStatusText, yearsHint } from '../src/lib/cover';
+import { configFor, contractStatusText, yearsHint, proposeConversion, conversionHeader, conversionItem } from '../src/lib/cover';
 import { localIsoDate, formatDayTime, excelSerial, hasClockTime } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
@@ -2744,6 +2744,31 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
       eq('the cover registers export .xlsx', /xlsxDownload\(`\$\{name\}\.xlsx`/.test(reg), true);
       eq('...every cell through xlsxCell', /xlsxCell\(exportValue\(r, c\.key\)\)/.test(reg), true);
       eq('...and the entry State is worked out for the file', /if \(key === 'status_now'\) return stateOf/.test(reg), true);
+    }
+    // WARRANTY -> CONTRACT (the user, 2026-10-02): what the sale holds is
+    // carried, what it cannot know is asked for, and the end is worked out
+    // the contract form's way.
+    {
+      const sale = { sa_number: 'SA-9', party_name: 'APOLLO', warranty_end: '2026-03-31' };
+      const items = [{ product_code: 'V1', product_name: 'VEGA', serial_number: 'S1', warranty_end: '2027-01-31' },
+                     { product_code: 'V1', product_name: 'VEGA', serial_number: '' }];
+      const d = proposeConversion(sale, items);
+      eq('a conversion starts the day after the warranty ends', d.contract_start, '2026-04-01');
+      eq('...ticks every machine with a serial', d.serials, ['S1']);
+      eq('...and guesses no contract type', d.contract_type, '');
+      const h = conversionHeader(sale, { ...d, contract_months: 12 });
+      eq('the party is carried', h.party_name, 'APOLLO');
+      eq('the end is worked out from start + months', h.contract_end, '2027-03-31');
+      eq('...and the years from the months', h.contract_years, 1);
+      eq('a machine line carries its product, serial and sale',
+        conversionItem(sale, items[0]), { product_code: 'V1', product_name: 'VEGA', serial_number: 'S1', sa_number: 'SA-9', sa_end_date: '2027-01-31' });
+      eq("...and falls back to the sale's warranty end", conversionItem(sale, { serial_number: 'S2' }).sa_end_date, '2026-03-31');
+      const reg = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+      eq('converting is offered to whoever may create a contract',
+        /const canConvert = kind === 'sale' && !!open\?\.id && can\('contract\.edit\.entries'\)/.test(reg), true);
+      // SAVE ONLY WHEN SOMETHING CHANGED (the user, 2026-10-02).
+      eq('Save entry is disabled while nothing has changed',
+        /disabled=\{saving \|\| \(!!open\.id && !entryDirty\)\}/.test(reg), true);
     }
     eq('the entry window says how old the device copy is',
       /<MachineRegisterNote \/>/.test(readFileSync('src/modules/CoverRegister.tsx', 'utf8')), true);
@@ -9942,6 +9967,23 @@ console.log('\n-- High batch 1: what a screen could not read, and what it leaves
   const app = code(readFileSync('src/App.tsx', 'utf8'));
   eq('the /ffr/ print route asks the Field Failure Register\'s module key',
     /startsWith\('\/ffr\/'\) && !can\(actionForPath\('\/failure-report'\)\)/.test(app), true);
+
+  // THE TWO INDOOR SERVICE RECORDS (2026-10-02): R/SER/QC/007 and R/SER/07
+  // print the same way, answer to the Indoor register's key, and the register
+  // print -- the register's rows on paper -- also to export.data.
+  eq('the indoor print routes ask the Indoor Service Register\'s module key',
+    /startsWith\('\/indoor-pdt\/'\) \|\| location\.pathname\.startsWith\('\/indoor-register\/'\)\)\s*&& !can\(actionForPath\('\/indoor'\)\)/.test(app), true);
+  const regPrint = code(readFileSync('src/modules/IndoorRegisterPrint.tsx', 'utf8'));
+  eq('...and the printed register asks export.data, as the Excel download does',
+    /can\('export\.data'\) && canExportData\(\)/.test(regPrint), true);
+  const indoorPage = code(readFileSync('src/modules/IndoorService.tsx', 'utf8'));
+  eq('...and the Excel register refuses without export.data before it builds',
+    /if \(!mayExport \|\| !canExportData\(\)\)[^\n]*return; \}\s*const sheets/.test(indoorPage), true);
+  for (const f of ['IndoorPdtPrint', 'IndoorRegisterPrint']) {
+    const src = code(readFileSync(`src/modules/${f}.tsx`, 'utf8'));
+    eq(`${f} carries the company's mark and reproduces a signature only for its own signer`,
+      /COMPANY_LOGO/.test(src) && /signatureBelongsTo\(/.test(src), true);
+  }
 
   // D-045: A STOCK OUT IS READ BY ITS NUMBER, not looked for in the latest 500.
   for (const f of ['DeliveryChallan', 'Declaration']) {

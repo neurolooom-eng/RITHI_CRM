@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { Drawer, FacetChips, PageHeader, SectionCard } from '../components/ui/ui';
 import {
@@ -6,13 +7,27 @@ import {
   listIndoorAccessories, addIndoorAccessory, saveIndoorAccessory, deleteIndoorAccessory,
   listIndoorParts, addIndoorPart, deleteIndoorPart,
   listIndoorChecks, addIndoorCheck, saveIndoorCheck, deleteIndoorCheck,
+  getIndoorPdt, saveIndoorPdt, signIndoorPdt, verifyIndoorJob, sbProductBySerial, callByUcn,
   INDOOR_KINDS, INDOOR_ACTIVITIES, INDOOR_STATUSES,
-  type IndoorJob, type IndoorAccessory, type IndoorPart, type IndoorCheck,
+  type IndoorJob, type IndoorAccessory, type IndoorPart, type IndoorCheck, type IndoorPdt,
 } from '../lib/supabase';
+import { coverCode } from '../lib/fieldcall';
+import { canExportData } from '../lib/format';
+import { xlsxDownload, xlsxCell } from '../lib/xlsx';
+import { COMPLETE } from '../lib/exportscope';
+import {
+  REGISTER_COLUMNS, REGISTER_DATE_COLUMNS, REGISTER_SHEETS, registerJobs, registerRow,
+  PDT_CHECKS, PDT_FIO2, PDT_MODES, pdtGaps, pdtOwed, type RegisterSheet,
+} from '../lib/indoorforms';
 import { useAuth } from '../lib/auth';
+import { IndoorDcDrawer, IndoorDcList } from './IndoorDcPanel';
+import { consigneeKey, jobConsignee } from '../lib/indoorforms';
 import { logAudit } from '../lib/audit';
 import './indoor.css';
-import { formatDayTime } from '../lib/dates';
+import { formatDay, formatDayTime } from '../lib/dates';
+
+/** R/SER/07's "Status" is the machine's COVER, in the one vocabulary (0208). */
+const COVERS = ['WGP', 'OGP', 'CMC', 'AMC'];
 
 // ===========================================================================
 // INDOOR SERVICE REGISTER — the workshop, procedure §4.5. Phase 1.
@@ -88,6 +103,11 @@ export function IndoorService() {
   const mayQc       = can('indoor.qc');
   const mayDispatch = can('indoor.dispatch');
   const mayCondemn  = can('indoor.condemn');
+  const mayVerify   = can('indoor.verify');
+  // THE SAME GATE AS EVERY OTHER DOWNLOAD (D-018): the Excel file and the
+  // printed register are the register's rows leaving the system.
+  const mayExport   = can('export.data');
+  const navigate = useNavigate();
 
   const [jobs, setJobs] = useState<IndoorJob[]>([]);
   const [busy, setBusy] = useState(false);
@@ -101,6 +121,16 @@ export function IndoorService() {
   const [accessories, setAccessories] = useState<IndoorAccessory[]>([]);
   const [parts, setParts] = useState<IndoorPart[]>([]);
   const [checks, setChecks] = useState<IndoorCheck[]>([]);
+  const [pdt, setPdt] = useState<IndoorPdt | null>(null);
+  // THE R/SER/07 VIEW: the register as the paper keeps it, one sheet at a time.
+  // 'dcs' is the list of Indoor DCs (0321), each re-printable.
+  const [view, setView] = useState<'jobs' | 'register' | 'dcs'>('jobs');
+  // INDOOR_DC: the Ready units ticked for one challan.
+  const [picked, setPicked] = useState<number[]>([]);
+  const [dcOpen, setDcOpen] = useState(false);
+  const [sheet, setSheet] = useState<RegisterSheet>('customer');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
 
   const load = useCallback(() => {
     if (!live) return;
@@ -114,10 +144,19 @@ export function IndoorService() {
 
   const job = jobs.find((j) => j.id === openId) ?? null;
 
+  // A unit can go on an Indoor DC when it is Ready and carries no DC No. yet;
+  // the database asks the dispatch rules besides (create_indoor_dc).
+  const dcEligible = (j: IndoorJob) => j.status === 'Ready' && !(j.dispatch_ref ?? '').trim();
+  const pickedJobs = useMemo(() => picked.map((id) => jobs.find((j) => j.id === id)).filter((j): j is IndoorJob => !!j),
+    [picked, jobs]);
+  const pickedConsignees = new Set(pickedJobs.map((j) => consigneeKey(jobConsignee(j))));
+  const togglePick = (j: IndoorJob) => setPicked((p) => (p.includes(j.id) ? p.filter((x) => x !== j.id) : [...p, j.id]));
+
   const loadChildren = useCallback((id: number) => {
     listIndoorAccessories(id).then(setAccessories).catch(() => setAccessories([]));
     listIndoorParts(id).then(setParts).catch(() => setParts([]));
     listIndoorChecks(id).then(setChecks).catch(() => setChecks([]));
+    getIndoorPdt(id).then(setPdt).catch(() => setPdt(null));
   }, []);
   useEffect(() => { if (openId) loadChildren(openId); }, [openId, loadChildren]);
 
@@ -141,6 +180,50 @@ export function IndoorService() {
     if (!r.ok) { setMsg(r.error ?? 'Could not save'); return; }
     setMsg('');
     setJobs((all) => all.map((j) => (j.id === id ? { ...j, ...p } as IndoorJob : j)));
+    // What the database WORKS OUT from these -- whether the product is
+    // imported, the verifier, the accessories -- comes back with a reload.
+    if ('product_name' in p || 'serial' in p || 'kind' in p || 'status' in p) load();
+  };
+
+  // ---- R/SER/07 -----------------------------------------------------------
+  const sheetRows = useMemo(() => registerJobs(jobs, sheet, from, to), [jobs, sheet, from, to]);
+
+  const downloadRegister = () => {
+    // REFUSED HERE AS csvExport REFUSES: xlsxDownload does not test the export
+    // permission itself (D-018), so the screen must.
+    if (!mayExport || !canExportData()) { setMsg('Exporting / downloading data is not permitted for your role.'); return; }
+    const sheets = (['customer', 'demo'] as RegisterSheet[]).map((k) => ({
+      name: REGISTER_SHEETS[k].xlsxName,
+      columns: [...REGISTER_COLUMNS],
+      rows: registerJobs(jobs, k, from, to).map((j, i) => {
+        const r = registerRow(j, i + 1);
+        // DATES AS DATES: a serial plus a format, through the one shaper.
+        return Object.fromEntries(REGISTER_COLUMNS.map((c) => [c,
+          REGISTER_DATE_COLUMNS.includes(c) || typeof r[c] === 'number' ? xlsxCell(r[c]) : String(r[c] ?? '')]));
+      }),
+    }));
+    const range = from || to ? `${from || '…'}_to_${to || '…'}` : 'all';
+    // EXACT: listIndoorJobs reads every job, a page at a time (D-040).
+    xlsxDownload(`R-SER-07-indoor-register-${range}.xlsx`, [
+      ...sheets,
+      { name: 'About', columns: ['Item', 'Value'], rows: [
+        { Item: 'Record', Value: 'R/SER/07 INDOOR SERVICE EQUIPMENT FAILURE REGISTER' },
+        { Item: 'Sheets', Value: 'Customer – Devices (Customer property) and Demo (DEMO units)' },
+        { Item: 'Incoming dates', Value: from || to ? `${from ? formatDay(from) : '…'} to ${to ? formatDay(to) : '…'}` : 'All' },
+        { Item: 'Status', Value: 'The machine’s cover (WGP / OGP / CMC / AMC), not the workshop stage' },
+        { Item: 'Rows', Value: String(sheets.reduce((n, x) => n + x.rows.length, 0)) },
+        { Item: 'Taken', Value: formatDayTime(new Date().toISOString()) },
+      ] },
+    ], COMPLETE);
+    logAudit({ action: 'indoor.register_download', status: 'ok',
+      meta: { rows: sheets.map((x) => x.rows.length), from, to, format: 'xlsx' } });
+  };
+  const printRegister = () => {
+    if (!mayExport || !canExportData()) { setMsg('Exporting / downloading data is not permitted for your role.'); return; }
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    navigate(`/indoor-register/${sheet}${q.toString() ? `?${q}` : ''}`);
   };
 
   const receive = async () => {
@@ -176,9 +259,23 @@ export function IndoorService() {
         countMore={false}
         onRefresh={load}
         refreshing={busy}
-        actions={mayReceive
-          ? <button className="btn btn-primary" onClick={receive}>Receive equipment</button>
-          : null}
+        actions={<>
+          <button className="btn" onClick={() => setView((v) => (v === 'jobs' ? 'register' : 'jobs'))}>
+            {view === 'jobs' ? 'R/SER/07 register view' : 'Workshop view'}
+          </button>
+          <button className="btn" onClick={() => setView((v) => (v === 'dcs' ? 'jobs' : 'dcs'))}>
+            {view === 'dcs' ? 'Workshop view' : 'Indoor DCs'}
+          </button>
+          {mayDispatch && view === 'jobs' ? (
+            <button className="btn" disabled={pickedJobs.length === 0 || pickedConsignees.size > 1}
+              title={pickedConsignees.size > 1 ? 'One Indoor DC goes to one consignee — tick units going to the same place.'
+                : 'Tick Ready units in the list, then create one DC for them.'}
+              onClick={() => setDcOpen(true)}>
+              Create Indoor DC{pickedJobs.length ? ` (${pickedJobs.length})` : ''}
+            </button>
+          ) : null}
+          {mayReceive ? <button className="btn btn-primary" onClick={receive}>Receive equipment</button> : null}
+        </>}
       />
 
       {msg ? <div className="ind-msg">{msg}</div> : null}
@@ -208,10 +305,67 @@ export function IndoorService() {
         </label>
       </div>
 
+      {view === 'register' ? (
+        <SectionCard title="R/SER/07 — Indoor Service Equipment Failure Register">
+          <div className="ind-filters">
+            <label className="ind-toggle">
+              <input type="radio" checked={sheet === 'customer'} onChange={() => setSheet('customer')} />
+              Customer – Devices
+            </label>
+            <label className="ind-toggle">
+              <input type="radio" checked={sheet === 'demo'} onChange={() => setSheet('demo')} />
+              Demo
+            </label>
+            <label className="ind-toggle">Incoming from <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+            <label className="ind-toggle">to <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+            {mayExport ? <>
+              <button className="btn" onClick={downloadRegister}>⭳ Excel (both sheets)</button>
+              <button className="btn" onClick={printRegister}>🖨 Print this sheet</button>
+            </> : null}
+          </div>
+          <p className="ind-note">
+            The paper register’s columns, in its order. S.No runs within the sheet in incoming-date order;
+            <b> Status</b> is the machine’s cover, not the workshop stage.
+          </p>
+          <div className="table-wrap">
+            <table className="table">
+              <thead><tr>{REGISTER_COLUMNS.map((c) => <th key={c}>{c}</th>)}</tr></thead>
+              <tbody>
+                {sheetRows.map((j, i) => {
+                  const r = registerRow(j, i + 1);
+                  return (
+                    <tr key={j.id} className="row-click" onClick={() => setOpenId(j.id)}>
+                      {REGISTER_COLUMNS.map((c) => (
+                        <td key={c}>{REGISTER_DATE_COLUMNS.includes(c) ? formatDay(r[c]) : String(r[c] ?? '')}</td>
+                      ))}
+                    </tr>
+                  );
+                })}
+                {sheetRows.length === 0 ? (
+                  <tr><td colSpan={REGISTER_COLUMNS.length} className="ind-empty">Nothing on this sheet for these dates.</td></tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
+      ) : null}
+
+      {view === 'dcs' ? (
+        <SectionCard title="Indoor DCs — delivery challans out of the workshop">
+          <IndoorDcList />
+        </SectionCard>
+      ) : null}
+
+      {view === 'jobs' && mayDispatch && pickedConsignees.size > 1 ? (
+        <div className="ind-msg">One Indoor DC goes to one consignee — the ticked units go to {[...new Set(pickedJobs.map((j) => jobConsignee(j) || '(none)'))].join(' / ')}.</div>
+      ) : null}
+
+      {view === 'jobs' ? (
       <div className="table-wrap">
         <table className="table">
           <thead>
             <tr>
+              {mayDispatch ? <th title="Tick Ready units for one Indoor DC">DC</th> : null}
               <th>Job</th><th>Kind</th><th>Activity</th><th>Product</th>
               <th>Serial</th><th>Customer</th><th>Status</th><th>Tag</th><th>Received</th>
             </tr>
@@ -219,6 +373,14 @@ export function IndoorService() {
           <tbody>
             {shown.map((j) => (
               <tr key={j.id} className="row-click" onClick={() => setOpenId(j.id)}>
+                {mayDispatch ? (
+                  <td onClick={(e) => e.stopPropagation()}>
+                    {dcEligible(j)
+                      ? <input type="checkbox" checked={picked.includes(j.id)} onChange={() => togglePick(j)}
+                          aria-label={`Put ${j.job_no} on an Indoor DC`} />
+                      : (j.dispatch_ref ?? '').trim() ? <span className="mono ind-hint">{j.dispatch_ref}</span> : null}
+                  </td>
+                ) : null}
                 <td className="mono">{j.job_no}</td>
                 <td>{j.kind === 'DEMO unit'
                   // A DEMO unit is marked because the custody duties do NOT
@@ -237,24 +399,34 @@ export function IndoorService() {
               </tr>
             ))}
             {shown.length === 0 ? (
-              <tr><td colSpan={9} className="ind-empty">
+              <tr><td colSpan={mayDispatch ? 10 : 9} className="ind-empty">
                 Nothing in the workshop matching this filter.
               </td></tr>
             ) : null}
           </tbody>
         </table>
       </div>
+      ) : null}
+
+      <Drawer open={dcOpen && pickedJobs.length > 0} onClose={() => setDcOpen(false)} storeKey="indoor-dc"
+        title="Create Indoor DC">
+        {dcOpen && pickedJobs.length > 0 ? (
+          <IndoorDcDrawer jobs={pickedJobs} onClose={() => setDcOpen(false)}
+            onIssued={(no) => { setDcOpen(false); setPicked([]); setMsg(`Indoor DC ${no} issued.`); load(); }} />
+        ) : null}
+      </Drawer>
 
       <Drawer open={!!job} onClose={() => setOpenId(null)} storeKey="indoor-job"
         title={job ? `${job.job_no} — ${job.product_name || 'equipment'}` : ''}>
         {job ? (
           <IndoorJobDrawer
             job={job}
-            accessories={accessories} parts={parts} checks={checks}
+            accessories={accessories} parts={parts} checks={checks} pdt={pdt}
             reloadChildren={() => loadChildren(job.id)}
+            reload={load}
             patch={patch}
             uid={user?.id ?? ''}
-            rights={{ mayReceive, mayWork, mayQc, mayDispatch, mayCondemn }}
+            rights={{ mayReceive, mayWork, mayQc, mayDispatch, mayCondemn, mayVerify }}
             setMsg={setMsg}
           />
         ) : null}
@@ -273,22 +445,60 @@ export function IndoorService() {
 // step 3 is ticked teaches people to tick step 3.
 // ---------------------------------------------------------------------------
 function IndoorJobDrawer({
-  job, accessories, parts, checks, reloadChildren, patch, uid, rights, setMsg,
+  job, accessories, parts, checks, pdt, reloadChildren, reload, patch, uid, rights, setMsg,
 }: {
   job: IndoorJob;
   accessories: IndoorAccessory[];
   parts: IndoorPart[];
   checks: IndoorCheck[];
+  pdt: IndoorPdt | null;
   reloadChildren: () => void;
+  reload: () => void;
   patch: (id: number, p: Partial<IndoorJob>) => Promise<void>;
   uid: string;
   rights: { mayReceive: boolean; mayWork: boolean; mayQc: boolean;
-            mayDispatch: boolean; mayCondemn: boolean };
+            mayDispatch: boolean; mayCondemn: boolean; mayVerify: boolean };
   setMsg: (s: string) => void;
 }) {
-  const { mayWork, mayQc, mayDispatch, mayCondemn } = rights;
+  const { mayWork, mayQc, mayDispatch, mayCondemn, mayVerify } = rights;
+  const navigate = useNavigate();
+
+  // THE COVER IS READ FROM THE MACHINE (the user's decision 1): the Product
+  // Database by model + serial, normalised to WGP / OGP / CMC / AMC, whenever
+  // the product or serial changes. Editable afterwards. An ambiguous or absent
+  // machine fills NOTHING and says so -- a wrong cover is worse than none.
+  const lookupCover = async (product: string, serial: string) => {
+    if (!serial.trim()) return;
+    const m = await sbProductBySerial(serial.trim(), product.trim()).catch(() => null);
+    const cover = m ? coverCode(m['Item Status']) : '';
+    if (cover) void patch(job.id, { cover });
+    else setMsg(`No single machine in the Product Database matches ${product || '(no product)'} / ${serial} — Status (cover) left as it is; set it by hand.`);
+  };
+  // A CALL NAMES ITS ENGINEER AND PLACE: prefilled from the call when a UCN is
+  // given, only into fields still blank, and editable.
+  const fromCall = async (ucn: string) => {
+    if (!ucn.trim()) return;
+    const c = await callByUcn(ucn.trim()).catch(() => null);
+    if (!c) { setMsg(`Call ${ucn} was not found, or you cannot view it.`); return; }
+    const p: Partial<IndoorJob> = {};
+    if (!job.engineer_name?.trim() && String(c.allocatedTo ?? '').trim()) p.engineer_name = String(c.allocatedTo).trim();
+    if (!job.customer_place?.trim() && String(c.city ?? '').trim()) p.customer_place = String(c.city).trim();
+    if (!(job.party_name ?? '').trim() && String(c.partyName ?? '').trim()) p.party_name = String(c.partyName).trim();
+    if (Object.keys(p).length) void patch(job.id, p);
+  };
+  const verifiable = ['Dispatched', 'Closed', 'Condemned'].includes(job.status);
+  const owed = pdtOwed(job);
+  const gaps = pdtGaps(pdt);
+  const pdtSet = async (p: Partial<IndoorPdt>) => {
+    const r = await saveIndoorPdt(job.id, p);
+    if (!r.ok) setMsg(r.error ?? 'Could not save the test'); else { setMsg(''); reloadChildren(); }
+  };
+  const numOrNull = (v: string) => (v.trim() === '' || !Number.isFinite(Number(v)) ? null : Number(v));
   const a = job.activity;
-  const set = (p: Partial<IndoorJob>) => void patch(job.id, p);
+  // A job turned into a DEMO unit with no engineer named gets the paper's own
+  // entry: the Demo sheet of R/SER/07 reads "Indoor Service" in Engineer Name.
+  const set = (p: Partial<IndoorJob>) => void patch(job.id,
+    p.kind === 'DEMO unit' && !job.engineer_name?.trim() ? { ...p, engineer_name: 'Indoor Service' } : p);
 
   // THE SEGREGATION WARNING (4.5.6). Not a block — the procedure does not say
   // the check must be somebody else's, so the register records both names and
@@ -318,11 +528,11 @@ function IndoorJobDrawer({
           </Field>
           <Field label="Product">
             <input defaultValue={job.product_name} disabled={!mayWork}
-              onBlur={(e) => set({ product_name: e.target.value })} />
+              onBlur={(e) => { if (e.target.value !== job.product_name) { set({ product_name: e.target.value }); void lookupCover(e.target.value, job.serial); } }} />
           </Field>
           <Field label="Serial number">
             <input defaultValue={job.serial} disabled={!mayWork} className="mono"
-              onBlur={(e) => set({ serial: e.target.value })} />
+              onBlur={(e) => { if (e.target.value !== job.serial) { set({ serial: e.target.value }); void lookupCover(job.product_name, e.target.value); } }} />
           </Field>
           <Field label="Customer" hint="Left blank for a DEMO unit that has no customer.">
             <input defaultValue={job.party_name ?? ''} disabled={!mayWork}
@@ -330,7 +540,7 @@ function IndoorJobDrawer({
           </Field>
           <Field label="Call (UCN)" hint="Optional — a DEMO unit has no call. Phase 2 links it both ways.">
             <input defaultValue={job.ucn ?? ''} disabled={!mayWork} className="mono"
-              onBlur={(e) => set({ ucn: e.target.value })} />
+              onBlur={(e) => { if (e.target.value !== (job.ucn ?? '')) { set({ ucn: e.target.value }); void fromCall(e.target.value); } }} />
           </Field>
           <Field label="Identification tag (4.5.4)">
             <input defaultValue={job.tag_no} disabled={!mayWork} className="mono"
@@ -345,6 +555,29 @@ function IndoorJobDrawer({
               onChange={(v) => set({ status: v })} disabled={!mayWork} />
           </Field>
         </div>
+        {/* THE REGISTER'S OWN COLUMNS (R/SER/07), in its words. */}
+        <div className="ind-grid">
+          <Field label="Field Service Report No">
+            <input defaultValue={job.field_report_no} disabled={!mayWork} className="mono"
+              onBlur={(e) => set({ field_report_no: e.target.value })} />
+          </Field>
+          <Field label="Engineer Name" hint="From the call’s allocated engineer when a UCN is given; “Indoor Service” for a DEMO unit.">
+            <input key={`eng-${job.engineer_name}`} defaultValue={job.engineer_name} disabled={!mayWork}
+              onBlur={(e) => set({ engineer_name: e.target.value })} />
+          </Field>
+          <Field label="Customer Place">
+            <input key={`place-${job.customer_place}`} defaultValue={job.customer_place} disabled={!mayWork}
+              onBlur={(e) => set({ customer_place: e.target.value })} />
+          </Field>
+          <Field label="Status (cover)" hint="Read from the machine in the Product Database when the product or serial changes. Not the workshop stage.">
+            <SelectPicker value={job.cover} options={job.cover && !COVERS.includes(job.cover) ? [...COVERS, job.cover] : COVERS}
+              onChange={(v) => set({ cover: v })} disabled={!mayWork} />
+          </Field>
+        </div>
+        <Field label="Problem Reported">
+          <textarea defaultValue={job.problem_reported} disabled={!mayWork} rows={2}
+            onBlur={(e) => set({ problem_reported: e.target.value })} />
+        </Field>
         <Field label="Condition on arrival"
           hint="The baseline any later damage claim is judged against — so it is worth writing even when nothing is wrong.">
           <textarea defaultValue={job.condition_on_arrival} disabled={!mayWork} rows={2}
@@ -388,6 +621,8 @@ function IndoorJobDrawer({
           onBlur={(e) => set({ findings: e.target.value })} /></Field>
         <Field label="Work done"><textarea defaultValue={job.work_done} disabled={!mayWork} rows={3}
           onBlur={(e) => set({ work_done: e.target.value })} /></Field>
+        <Field label="Indoor Service Report No"><input defaultValue={job.indoor_report_no} disabled={!mayWork} className="mono"
+          onBlur={(e) => set({ indoor_report_no: e.target.value })} /></Field>
         <Field label="Damage to the customer's property"
           hint="§7.5.10 — damage to somebody's machine is theirs to be told about, and this is where that is recorded rather than nowhere.">
           <textarea defaultValue={job.damage_note} disabled={!mayWork} rows={2}
@@ -631,6 +866,108 @@ function IndoorJobDrawer({
         </SectionCard>
       ) : null}
 
+      {/* ---- R/SER/QC/007 (0320) ------------------------------------------
+          OWED BY A DEMO UNIT OF AN IMPORTED PRODUCT, and only by one -- the
+          user: "Pre-delivery check is done only for Imported products, not for
+          in-house manufactured equipment." Unknown is said out loud, because
+          it is a Product Master gap somebody can close. */}
+      {job.kind === 'DEMO unit' && owed !== true ? (
+        <SectionCard title="Pre-Delivery Testing (R/SER/QC/007)">
+          {owed === null ? (
+            <p className="ind-warn">
+              Whether <b>{job.product_name || 'this product'}</b> is imported is <b>not known</b> — no product line in
+              the Product Master matches it, or its <b>Imported</b> is blank. Pre-Delivery Testing is required
+              for a DEMO unit of an imported product only, so it is <b>not</b> required to dispatch this unit
+              until somebody sets Imported on the Product Master.
+            </p>
+          ) : (
+            <p className="ind-note">
+              {job.product_name || 'This product'} is made in-house (Product Master: Imported = No) — Pre-Delivery
+              Testing is done for imported products only.
+            </p>
+          )}
+        </SectionCard>
+      ) : null}
+      {owed === true ? (
+        <SectionCard title="Pre-Delivery Testing (R/SER/QC/007)">
+          <p className="ind-note">
+            A DEMO unit of an imported product. It is <b>not dispatched or closed</b> until every field below is
+            filled, the inspector has signed, and checks 1–5 all read <b>OK</b> — the database refuses it otherwise.
+          </p>
+          <div className="ind-grid">
+            <Field label="Product Name"><input value={job.product_name} disabled /></Field>
+            <Field label="SL. No"><input value={job.serial} disabled className="mono" /></Field>
+            <Field label="Date"><input type="date" key={`d-${pdt?.test_date}`} defaultValue={pdt?.test_date ?? ''} disabled={!mayWork}
+              onBlur={(e) => void pdtSet({ test_date: e.target.value || null })} /></Field>
+            <Field label="Measuring Equipment ID No"><input key={`m-${pdt?.measuring_equipment_id}`} defaultValue={pdt?.measuring_equipment_id ?? ''} disabled={!mayWork}
+              onBlur={(e) => void pdtSet({ measuring_equipment_id: e.target.value })} /></Field>
+            <Field label="Software Version"><input key={`s-${pdt?.software_version}`} defaultValue={pdt?.software_version ?? ''} disabled={!mayWork}
+              onBlur={(e) => void pdtSet({ software_version: e.target.value })} /></Field>
+            <Field label="HV"><input key={`hv-${pdt?.hv}`} defaultValue={pdt?.hv ?? ''} disabled={!mayWork}
+              onBlur={(e) => void pdtSet({ hv: e.target.value })} /></Field>
+            <Field label="HT"><input key={`ht-${pdt?.ht}`} defaultValue={pdt?.ht ?? ''} disabled={!mayWork}
+              onBlur={(e) => void pdtSet({ ht: e.target.value })} /></Field>
+          </div>
+          <table className="table ind-child">
+            <thead><tr><th>S.No</th><th>Description</th><th>OK / NOT OK</th></tr></thead>
+            <tbody>
+              {PDT_CHECKS.map((c) => (
+                <tr key={c.no}>
+                  <td>{c.no}.</td>
+                  <td>{c.text}</td>
+                  <td>{c.key
+                    ? <SelectPicker value={pdt?.[c.key] ?? ''} options={['OK', 'NOT OK']} disabled={!mayWork}
+                        onChange={(v) => void pdtSet({ [c.key!]: v || null } as Partial<IndoorPdt>)} />
+                    : <span className="ind-hint">instruction — not judged</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {PDT_MODES.map((m) => (
+            <table className="table ind-child" key={m.no}>
+              <thead>
+                <tr><th colSpan={4}>{m.no}. {m.settings}</th></tr>
+                <tr><th />{PDT_FIO2.map((f) => <th key={f}>At FiO2 {f}%</th>)}</tr>
+              </thead>
+              <tbody>
+                {m.rows.map((r) => (
+                  <tr key={r.label}>
+                    <td><b>{r.label}</b></td>
+                    {r.keys.map((k) => (
+                      <td key={k}><input type="number" step="any" key={`${k}-${pdt?.[k]}`} defaultValue={pdt?.[k] ?? ''} disabled={!mayWork}
+                        onBlur={(e) => void pdtSet({ [k]: numOrNull(e.target.value) } as Partial<IndoorPdt>)} /></td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ))}
+          <p className="ind-note">
+            <b>Inspected by:</b>{' '}
+            {pdt?.inspected_by
+              ? <>{pdt.inspector_name || '—'}{pdt.inspector_designation ? `, ${pdt.inspector_designation}` : ''} on {formatDayTime(pdt.inspected_at)}</>
+              : 'not signed yet'}
+            {mayWork ? (
+              <> {' '}
+                <button className="btn btn-sm" onClick={async () => {
+                  const r = await signIndoorPdt(job.id, uid, !pdt?.inspected_by);
+                  if (!r.ok) setMsg(r.error ?? 'Could not sign'); else { setMsg(''); reloadChildren(); }
+                }}>{pdt?.inspected_by ? 'Withdraw the signature' : 'Sign as the inspector'}</button>
+              </>
+            ) : null}
+          </p>
+          {gaps.notOk.length ? (
+            <p className="ind-warn">Check {gaps.notOk.join(', ')} reads NOT OK — the unit cannot be dispatched.</p>
+          ) : null}
+          {gaps.blank.length ? (
+            <p className="ind-warn">Still blank: {gaps.blank.join(', ')}. The unit cannot be dispatched until the test is complete.</p>
+          ) : null}
+          <button className="btn" onClick={() => navigate(`/indoor-pdt/${job.id}`)}>
+            🖨 Print R/SER/QC/007{gaps.blank.length || gaps.notOk.length ? ' (not complete — the sheet says so)' : ''}
+          </button>
+        </SectionCard>
+      ) : null}
+
       {/* ---- 4. QC (4.5.6) ------------------------------------------------ */}
       <SectionCard title="4 · Quality check">
         <div className="ind-grid">
@@ -672,10 +1009,40 @@ function IndoorJobDrawer({
             not marked returned. Returning the customer's property means returning all of it.
           </p>
         ) : null}
+        <Field label="DC Date">
+          <input type="date" defaultValue={job.dc_date ?? ''} disabled={!mayDispatch}
+            onBlur={(e) => set({ dc_date: e.target.value || null })} /></Field>
         {job.dispatched_at ? (
           <p className="ind-note">Dispatched by <b>{job.dispatched_by_name || '—'}</b> on {formatDayTime(job.dispatched_at)}.</p>
         ) : null}
+        {/^IDC-/.test(job.dispatch_ref ?? '') ? (
+          // INDOOR_DC (0321): a reference the database issued, so its challan exists.
+          <p className="ind-note">
+            On Indoor DC <b>{job.dispatch_ref}</b>.{' '}
+            <button className="btn btn-sm" onClick={() => navigate(`/indoor-dc/${encodeURIComponent(job.dispatch_ref)}`)}>🖨 Print the DC</button>
+          </p>
+        ) : null}
         {!mayDispatch ? <p className="ind-note">Dispatching needs the <b>dispatch</b> right.</p> : null}
+        <Field label="Remarks">
+          <textarea defaultValue={job.remarks} disabled={!mayWork} rows={2}
+            onBlur={(e) => set({ remarks: e.target.value })} /></Field>
+      </SectionCard>
+
+      {/* ---- 6. VERIFIED BY (R/SER/07) ------------------------------------ */}
+      <SectionCard title="6 · Verified by">
+        {job.verified_at ? (
+          <p className="ind-note">Verified by <b>{job.verified_by_name || '—'}</b> on {formatDayTime(job.verified_at)}.</p>
+        ) : verifiable ? (
+          mayVerify
+            ? <button className="btn" onClick={async () => {
+                const r = await verifyIndoorJob(job.id, uid);
+                if (!r.ok) setMsg(r.error ?? 'Could not verify');
+                else { setMsg(''); reload(); }
+              }}>Verify this register entry</button>
+            : <p className="ind-note">Not verified yet. Verifying needs the <b>Verify an Indoor Service register entry</b> right.</p>
+        ) : (
+          <p className="ind-note">A register entry is verified once the unit is Dispatched, Closed or Condemned.</p>
+        )}
       </SectionCard>
 
       <p className="ind-foot">

@@ -238,9 +238,12 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Raise the installation calls for the machines, or one machine at a time from Register',
       'Click an entry to open it in a pop-up: sale details on the left, its products on the right, every button in the bar at the top',
       'Use ↺ Force update child records to make every machine follow the entry again',
+      'Use ⇢ Convert to Contract to raise a contract from this sale: the customer and machines carry over, you give the MC Number, type, period, PM visits and billing',
     ],
-    records: ['sale_entries', 'sale_items', 'warranty_sale_details', 'parties', 'product_master', 'calls', 'rpc:link_install_call'],
+    records: ['sale_entries', 'sale_items', 'warranty_sale_details', 'parties', 'product_master', 'calls', 'rpc:link_install_call', 'contract_entries', 'contract_items'],
     rules: [
+      'Save entry is greyed out until something on the entry has changed',
+      'Converting needs the right to create contracts; it warns if the sale is already on a contract',
       'Save the entry before raising installation calls; a line needs both a Product and a Serial to get one',
       'Changing the customer replaces all the filled-in details, blanks included',
       'A retired product line takes no new sale',
@@ -567,7 +570,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     rules: [
       'A spare needs a visit report on its call — except a reconciliation line',
       'Consumption is capped at the engineer’s hand stock balance',
-      'A line is never deleted; a wrong one is voided to 0 and keeps its reason',
+      'A line is never deleted; a wrong one is voided to 0 and keeps its original quantity and reason',
     ],
   },
   {
@@ -593,24 +596,29 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Record a new MRN with the number from the paper slip',
       'Pick parts the engineer holds and give good and defective quantities',
       'Open an MRN to see its lines; export to CSV',
+      'Print an MRN as the Material Return Note R/SER/STR/002',
     ],
-    records: ['material_returns', 'engineer_stock', 'handstock_balance', 'user_directory'],
+    records: ['material_returns', 'engineer_stock', 'handstock_balance', 'user_directory', 'audit_log'],
     rules: [
       'Only parts the engineer holds are offered, and good + defective together cannot exceed what they hold',
       'The MRN number is typed, not generated',
+      'The printed MRN shows what the return holds and nothing more: Store Dept. Use, Authorized By and Received By are left for Stores to fill by hand',
     ],
   },
   {
     route: '/stock-transfer',
     purpose: 'Hand stock passed from one engineer to another.',
     does: [
-      'Record a transfer: from, to, date, parts and quantities',
+      'Record a transfer: from, to, date, parts and quantities, a common remark and, if wanted, a reason for each part',
       'Search past transfers; export to CSV',
+      'Print a transfer as the Material Transfer Note (MTN) R/SER/STR/003',
     ],
-    records: ['stock_transfers', 'stock_transfer_lines', 'engineer_stock', 'user_directory'],
+    records: ['stock_transfers', 'stock_transfer_lines', 'engineer_stock', 'user_directory', 'audit_log'],
     rules: [
       'A transfer to the same person is refused',
       'Only parts the From engineer holds are offered, up to what they hold',
+      'On the MTN a part prints its own reason where it has one, and the common remark otherwise',
+      'The MTN leaves Received By blank: a transfer records no receipt',
     ],
   },
 
@@ -623,12 +631,23 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Record whose property it is and what activity is being done',
       'Record cleaning and disinfection, findings, work done and parts harvested',
       'Record the quality check, then dispatch',
+      'Fill the R/SER/07 register columns — Field Service Report No, engineer, place, problem reported, the cover (read from the machine), Indoor Service Report No, DC date, remarks',
+      'Record Pre-Delivery Testing (R/SER/QC/007) on a DEMO unit of an imported product, sign it, and print it',
+      'Verify a completed register entry',
+      'View the register as R/SER/07 (Customer – Devices / Demo), download it to Excel and print it',
+      'Tick Ready units for one consignee and create an Indoor DC (IDC-YYMM-NNNN) for them; list and re-print every Indoor DC',
     ],
-    records: ['indoor_jobs', 'indoor_job_list', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks', 'audit_log'],
+    records: ['indoor_jobs', 'indoor_job_list', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks', 'indoor_pdt', 'product_master', 'indoor_dcs', 'indoor_dc_lines', 'parties', 'audit_log'],
     rules: [
       'A harvested part cannot go back into stock until decontamination is recorded',
       'A job cannot be Dispatched or Closed without a quality check',
       'A job does not need a call — a demo unit has none',
+      'A DEMO unit of an imported product is not Dispatched or Closed until its Pre-Delivery Testing is complete, signed, and every check reads OK; unknown imported-ness does not demand it',
+      'Verifying an entry needs its own right, and only once the unit is Dispatched, Closed or Condemned; who and when are recorded by the system',
+      'The Excel register and the printed register need the export right',
+      'An Indoor DC needs the dispatch right, carries units for one consignee only, and is refused for a unit that is not Ready, already on a DC, or that the dispatch rules would not let leave',
+      'The DC number is issued by the system; issuing it writes the DC No. and date on each unit and does not change their status',
+      'An Indoor DC is never deleted',
     ],
   },
 
@@ -712,6 +731,20 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     ],
   },
   {
+    route: '/install-calls-unmapped',
+    purpose: 'Warranty machines with no installation call mapped to them, why, and the calls that could be theirs.',
+    does: [
+      'See each machine with the reason it has no call and the candidate installation calls',
+      'Filter by reason, search, and export to Excel (dates as dates) or CSV',
+    ],
+    records: ['rpc:install_calls_unmapped', 'sale_items', 'sale_entries', 'calls', 'audit_log'],
+    rules: [
+      'Administrators only, unless the page is ticked for another role on Roles & Permissions',
+      'It changes nothing: map a call from the Warranty Register, where the machine is',
+      'Only installation calls are ever matched or offered',
+    ],
+  },
+  {
     route: '/handstock-report',
     purpose: 'One line per engineer and part, with the workings beside On Hand, as a complete downloadable file.',
     does: [
@@ -745,7 +778,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
   },
   {
     route: '/product-database',
-    purpose: 'Every machine by serial, with its warranty, contract and current owner — where a call reads cover from.',
+    purpose: 'Every machine by model and serial, with its warranty, contract and current owner — where a call reads cover from.',
     does: [
       'Search by party, product, serial or status',
       'Turn on any of the 32 columns with ⚙ Columns; export all of them',
@@ -778,12 +811,14 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'The list of product lines — one row per product code: type, category, short form, and whether it is still sold. Not the machines.',
     does: [
       'Search product lines and filter All / Active / Inactive',
+      'Set whether a line is Imported (Yes / No) — with the right to edit master records',
       'Export to CSV',
     ],
     records: ['product_master'],
     rules: [
       'Inactive stops only a new Sale Entry; machines already sold still take contracts, calls, visits, spares and feedback',
-      'Changed through Bulk Uploads → Product Master, not on this screen',
+      'Imported decides whether a DEMO unit of the line owes Pre-Delivery Testing (R/SER/QC/007); blank means not known, and the test is then not demanded',
+      'Everything else is changed through Bulk Uploads → Product Master, not on this screen',
     ],
   },
   {
@@ -831,7 +866,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     records: ['master_lists', 'masters', 'parties', 'products', 'parts', 'user_directory'],
     rules: [
       'Rights are per list',
-      'A value in use is deactivated, not deleted, so old records keep reading correctly',
+      'Deactivate a value to stop it being offered; 🗑 deletes it outright and does not check whether records use it',
     ],
   },
   {
@@ -903,7 +938,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
   },
   {
     route: '/masters/orapproval',
-    purpose: 'The Spare Approval Reason list: reasons for approving or rejecting a spare.',
+    purpose: 'The Spare Approval Reason list. Nothing reads it at present: the Commercial and NSM forms offer a fixed list of reasons.',
     does: [
       'Add, deactivate or reactivate a reason',
       'Export the list',
@@ -1110,7 +1145,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
   },
   {
     route: '/settings',
-    purpose: 'Your preferences, and for an administrator the connection settings.',
+    purpose: 'The database and CallReg sheet connections for this browser; your theme and account are on My Profile.',
     does: [
       'Set the database and CallReg sheet connections for this browser',
       'Test a connection',

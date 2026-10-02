@@ -168,10 +168,17 @@ export const MODULES: ModuleDef[] = [
   // can open Reports. The user asked for administrators to begin with
   // (2026-09-24) and said they would grant the rest themselves, so
   // `admin: true` keeps the key out of NON_ADMIN_MODULES and 0241 writes it
-  // into `app_roles` for `admin` ALONE -- not for the other two roles in
-  // SEES_EVERY_MODULE, because the standing rule is to leave a role alone
-  // unless it was named.
+  // into `app_roles` for `admin` and `technical_support` (0241's own grant) --
+  // not for the remaining role in SEES_EVERY_MODULE, because the standing rule
+  // is to leave a role alone unless it was named.
   { path: '/handstock-report', label: 'Hand Stock Report', admin: true },
+  // MACHINES WITHOUT AN INSTALLATION CALL (0319) -- "view only for Admins"
+  // (the user, 2026-10-02). In the Reports group and not under `/exports`, for
+  // the Hand Stock Report's reason; `admin: true` keeps it out of every other
+  // role's defaults and 0319 grants the key to `admin` and `technical_support`
+  // (which carries every page key the admin holds, row 114). The same key
+  // gates the ROWS (install_calls_unmapped()).
+  { path: '/install-calls-unmapped', label: 'Machines Without an Installation Call', admin: true },
   // INDOOR SERVICE — the workshop register (procedure §4.5). Its own module,
   // because a DEMO unit has no call to hang off: the register stands alone and
   // the call is an optional link, not the other way round.
@@ -330,6 +337,10 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // property above all — is a decision somebody makes deliberately, not one
   // that arrives with the page.
   { group: 'Indoor Service', key: 'indoor.condemn', label: 'Condemn a unit (scrap it)' },
+  // R/SER/07 "VERIFIED BY" (0320): a supervisor's verification of a completed
+  // register row. Its own key, asked by the database and stamped from the
+  // session; granted to NOBODY by the migration -- an administrator ticks it.
+  { group: 'Indoor Service', key: 'indoor.verify', label: 'Verify an Indoor Service register entry' },
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
   { group: 'Spares', key: 'consumption.reconcile', label: 'Add consumption against a call (reconciliation)' },
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
@@ -704,7 +715,7 @@ export const PERM_TREE: PermHeader[] = [
   // page harder to trust than to use.
   { title: 'Indoor Service', pages: [
     { path: '/indoor', label: 'Indoor Service Register',
-      actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn'] },
+      actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn', 'indoor.verify'] },
   ] },
   { title: 'Reports', pages: [
     // The parent GRANTS ALL THREE below it, so a role that only needs one is
@@ -723,12 +734,14 @@ export const PERM_TREE: PermHeader[] = [
     // ALSO not a child of /exports, and also administrators to begin with. Tick
     // it here for any other role -- that is the whole point of it having a key.
     { path: '/handstock-report', label: 'Hand Stock Report', actions: [] },
+    // Administrators only (0319); tick it here for any other role.
+    { path: '/install-calls-unmapped', label: 'Machines Without an Installation Call', actions: [] },
   ] },
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.edit', 'masters.edit.records', 'masters.edit.kyc', 'masters.edit.swap_serviceman'] },
-    { path: '/product-database', label: 'Product Database', actions: ['install.create'] },
+    { path: '/product-database', label: 'Product Database', actions: ['calls.create', 'install.create'] },
     { path: '/product-database-2', label: 'Product Database 2.0', actions: ['masters.view', 'pd2.rebuild'] },
-    { path: '/product-master', label: 'Product Master (product lines)', actions: [] },
+    { path: '/product-master', label: 'Product Master (product lines)', actions: ['masters.edit', 'masters.edit.records'] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage', 'users.manage.details', 'users.manage.create', 'users.manage.disable', 'users.manage.access', 'users.reset_password'] },
     { path: '/parts', label: 'Part Master', actions: ['masters.edit', 'masters.edit.records', 'masters.edit.rename_part'] },
     // All Masters is just the overview screen; each value list is its own page

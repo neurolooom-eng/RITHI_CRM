@@ -99,7 +99,7 @@ begin;
 -- which fires NO triggers, and it leaves exactly the values an UPDATE would
 -- have written. One ALTER per table, so one rewrite per table.
 --
--- NOT TOUCHED: the nine number-counter tables (their rows have no author);
+-- NOT TOUCHED: the ten number-counter tables (their rows have no author);
 -- `harness`, the test stand-in for Supabase's session; `schema_migrations`,
 -- the auto-apply script's own ledger.
 --
@@ -275,8 +275,8 @@ begin
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and c.relkind = 'r'
        and c.relname not in (
-         -- the nine number counters: a row there has no author
-         'call_number_seq', 'ffr_counters', 'indoor_job_counters',
+         -- the ten number counters (indoor_dc_counters, 0321): a row there has no author
+         'call_number_seq', 'ffr_counters', 'indoor_dc_counters', 'indoor_job_counters',
          'material_return_counters', 'party_key_seq', 'spare_dispatch_counters',
          'spare_or_counters', 'stock_transfer_counters', 'ucn_counters',
          -- tooling, not application data
@@ -311,7 +311,7 @@ end $$;
 --
 --   calls, pending_calls, calls_view_insert/update   <- 0114_call_registrant_split.sql
 --   field_failure_register                           <- 0197_review_actual_product.sql
---   indoor_job_list                                  <- 0158_indoor_service.sql
+--   indoor_job_list                                  <- 0320_indoor_register_and_pdt.sql
 --   tracker_list                                     <- 0143_tracker.sql
 --   export_schedule_state                            <- 0228_export_schedules.sql
 --
@@ -459,7 +459,20 @@ left join public.call_reviews r on r.ucn = f.ucn;
 alter view public.field_failure_register set (security_invoker = on);
 grant select on public.field_failure_register to authenticated;
 
--- ---- indoor_job_list (0158, verbatim) --------------------------------------
+-- ---- indoor_job_list (0320, verbatim) --------------------------------------
+-- GUARDED BY 0320's COLUMNS. Applied in FILE order (the test harness, a
+-- rebuild from the migrations folder) this file runs BEFORE 0320, whose
+-- definition it copies, and the columns that definition names do not exist
+-- yet -- 0320 itself then rebuilds the view, sys_* included. Applied in BUNDLE
+-- order (sys_columns is last) 0320 has already run and this rebuilds it with
+-- sys_*.
+do $indoor_list$
+begin
+  if not exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'indoor_jobs'
+                    and column_name = 'verified_by') then
+    return;
+  end if;
 drop view if exists public.indoor_job_list;
 create view public.indoor_job_list as
   select j.*,
@@ -480,16 +493,22 @@ create view public.indoor_job_list as
          (select count(*) from public.indoor_job_accessories a where a.job_id = j.id)
            as accessory_count,
          (select count(*) from public.indoor_job_accessories a
-           where a.job_id = j.id and not a.returned) as accessories_outstanding
+           where a.job_id = j.id and not a.returned) as accessories_outstanding,
+         coalesce(vb.name, '') as verified_by_name,
+         (select string_agg(btrim(a.name), ', ' order by a.id) from public.indoor_job_accessories a
+           where a.job_id = j.id and btrim(a.name) <> '') as accessories_received,
+         public.indoor_job_is_imported(j.product_name, j.serial) as product_imported
     from public.indoor_jobs j
     left join public.app_user_names rb on rb.id = j.received_by
     left join public.app_user_names cb on cb.id = j.cleaned_by
     left join public.app_user_names qb on qb.id = j.qc_by
     left join public.app_user_names db on db.id = j.dispatched_by
     left join public.app_user_names xb on xb.id = j.condemned_by
-    left join public.app_user_names ub on ub.id = j.updated_by;
+    left join public.app_user_names ub on ub.id = j.updated_by
+    left join public.app_user_names vb on vb.id = j.verified_by;
 alter view public.indoor_job_list set (security_invoker = on);
 grant select on public.indoor_job_list to authenticated;
+end $indoor_list$;
 
 -- ---- tracker_list (0143, verbatim) -----------------------------------------
 drop view if exists public.tracker_list;

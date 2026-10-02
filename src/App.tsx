@@ -29,6 +29,11 @@ import { SpareRmApproval } from './modules/SpareRmApproval';
 import { SpareDispatch } from './modules/SpareDispatch';
 import { StockOut } from './modules/StockOut';
 import { FieldFailureReportPrint } from './modules/FieldFailureReportPrint';
+import { IndoorPdtPrint } from './modules/IndoorPdtPrint';
+import { IndoorRegisterPrint } from './modules/IndoorRegisterPrint';
+import { IndoorDcPrint } from './modules/IndoorDcPrint';
+import { MtnPrint } from './modules/MtnPrint';
+import { MrnPrint } from './modules/MrnPrint';
 import { DeliveryChallan } from './modules/DeliveryChallan';
 import { Declaration } from './modules/Declaration';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -48,6 +53,7 @@ import { SolvedWithoutReport } from './modules/SolvedWithoutReport';
 import { DeviceCacheStatus } from './modules/DeviceCacheStatus';
 import { HandStockReport } from './modules/HandStockReport';
 import { FeedbackWithoutReport } from './modules/FeedbackWithoutReport';
+import { InstallCallsUnmapped } from './modules/InstallCallsUnmapped';
 import { ReportsHub } from './modules/ReportsHub';
 import { SpareInsights } from './modules/SpareInsights';
 import { Workload } from './modules/Workload';
@@ -96,7 +102,10 @@ function Shell() {
   // nothing that would land on the paper. Their rows are RLS-scoped, so a stock
   // out the user may not see simply is not found.
   if (location.pathname.startsWith('/dc/') || location.pathname.startsWith('/declaration/')
-      || location.pathname.startsWith('/ffr/')) {
+      || location.pathname.startsWith('/ffr/')
+      || location.pathname.startsWith('/indoor-pdt/') || location.pathname.startsWith('/indoor-register/')
+      || location.pathname.startsWith('/indoor-dc/')
+      || location.pathname.startsWith('/mtn/') || location.pathname.startsWith('/mrn-print/')) {
     // THE PRINTED REPORT ANSWERS TO THE REGISTER'S OWN KEY (D-026). It used to
     // be reachable by URL by anybody signed in, so a role without the Field
     // Failure Register read every report row-level security let it see. The
@@ -105,6 +114,34 @@ function Shell() {
       return (
         <div style={{ padding: 32 }} className="muted">
           🔒 You don’t have access to the Field Failure Register. Ask an administrator to grant it in <b>Roles &amp; Permissions</b>.
+        </div>
+      );
+    }
+    // THE TWO INDOOR SERVICE RECORDS (R/SER/QC/007, R/SER/07) answer to the
+    // Indoor Service Register's own key, as the FFR answers to its register's
+    // (D-026). The register print also asks export.data, on its own page.
+    if ((location.pathname.startsWith('/indoor-dc/')
+         || location.pathname.startsWith('/indoor-pdt/') || location.pathname.startsWith('/indoor-register/'))
+        && !can(actionForPath('/indoor'))) {
+      return (
+        <div style={{ padding: 32 }} className="muted">
+          🔒 You don’t have access to the Indoor Service Register. Ask an administrator to grant it in <b>Roles &amp; Permissions</b>.
+        </div>
+      );
+    }
+    // THE TWO STORES RECORDS (MTN R/SER/STR/003, MRN R/SER/STR/002) answer to
+    // the key of the screen that prints them, as the indoor records do.
+    if (location.pathname.startsWith('/mtn/') && !can(actionForPath('/stock-transfer'))) {
+      return (
+        <div style={{ padding: 32 }} className="muted">
+          🔒 You don’t have access to Stock Transfer. Ask an administrator to grant it in <b>Roles &amp; Permissions</b>.
+        </div>
+      );
+    }
+    if (location.pathname.startsWith('/mrn-print/') && !can(actionForPath('/mrn'))) {
+      return (
+        <div style={{ padding: 32 }} className="muted">
+          🔒 You don’t have access to Material Returns (MRN). Ask an administrator to grant it in <b>Roles &amp; Permissions</b>.
         </div>
       );
     }
@@ -117,6 +154,12 @@ function Shell() {
               chrome, one Print button. Its row is RLS-scoped, so a report the
               reader may not see is simply not found. */}
           <Route path="/ffr/:ffrNo" element={<FieldFailureReportPrint />} />
+          <Route path="/indoor-pdt/:jobId" element={<IndoorPdtPrint />} />
+          <Route path="/indoor-register/:sheet" element={<IndoorRegisterPrint />} />
+          {/* Indoor_DC (0321), and the two stores records. */}
+          <Route path="/indoor-dc/:dcNo" element={<IndoorDcPrint />} />
+          <Route path="/mtn/:uid" element={<MtnPrint />} />
+          <Route path="/mrn-print/:uid" element={<MrnPrint />} />
         </Routes>
       </ErrorBoundary>
     );
@@ -206,6 +249,7 @@ function Shell() {
         <Route path="/device-cache" element={<DeviceCacheStatus />} />
         <Route path="/handstock-report" element={<HandStockReport />} />
         <Route path="/feedback-without-report" element={<FeedbackWithoutReport />} />
+        <Route path="/install-calls-unmapped" element={<InstallCallsUnmapped />} />
         <Route path="/tracker" element={<Tracker />} />
         <Route path="/users" element={<Navigate to="/user-master" replace />} />
         <Route path="/settings" element={<Settings />} />

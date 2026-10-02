@@ -12,11 +12,95 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.36',
+    version: '0.10.44',
     date: '2026-10-02',
     title: 'Warranty and Contract registers: Load more at the top',
     changes: [
       'LOAD MORE now sits at the top of the Warranty Register and the Contract Register, beside the count, as on Field Calls and Spare Requests. It loads more of the tab that is open (Entries or Register). The button at the foot of the table is gone; the row count there still shows a + while more are waiting.',
+    ],
+  },
+  {
+    version: '0.10.43',
+    date: '2026-10-02',
+    title: 'Indoor_DC, and the MTN and MRN printed',
+    changes: [
+      'NEW: INDOOR_DC. On the Indoor Service register, tick the Ready units going to the same customer and choose Create Indoor DC.',
+      'The DC is numbered IDC-YYMM-NNNN by the system. It lists each machine (product code, name and Sl.No) and its accessories, with a Purpose on each line. "To" is filled from the Party Master and can be edited. It also takes the MIRN / customer reference and date, and the mode of despatch.',
+      'Each unit gets the DC number and date on its register line. A unit that cannot leave (no quality check, or an imported demo device without its Pre-Delivery Testing) is refused, with the reason. The DC prints exactly as the Delivery Challan form, and every issued DC can be printed again from the list.',
+      'PRINT MTN: every Stock Transfer prints as the Material Transfer Note (R/SER/STR/003), with each engineer\'s place from the User Master. A transfer can now carry a reason on each line as well as the common one; a line without its own reason prints the common one.',
+      'PRINT MRN: every Material Return prints as the Material Return Note (R/SER/STR/002), from what the return holds.',
+      'The names RITHI records print in the sign boxes; the rest are left blank for signing by hand.',
+    ],
+  },
+  {
+    version: '0.10.42',
+    date: '2026-10-02',
+    title: 'Indoor Service: the R/SER/07 register and Pre-Delivery Testing (R/SER/QC/007)',
+    changes: [
+      'INDOOR SERVICE KEEPS THE PAPER REGISTER\'S COLUMNS: Field Service Report No, Engineer Name, Customer Place, Problem Reported, Indoor Service Report No, DC date and Remarks. It also records the machine\'s cover (WGP / OGP / CMC / AMC), looked up from the Product Database by model and serial and editable. Engineer, place and customer are filled from the call when a UCN is given; a demo device defaults to "Indoor Service".',
+      'VERIFIED BY: a supervisor verifies a completed register entry once the unit is dispatched. It records their name and the time, and needs the new "Verify an Indoor Service register entry" permission. No role holds that permission yet; tick it on Roles & Permissions for the supervisor.',
+      'PRE-DELIVERY TESTING (R/SER/QC/007) for demo / new devices of IMPORTED products. The form is laid out like the paper one: the five checks, the CMV/ACMV and PCMV readings at FiO2 21/60/100%, measuring equipment, software version, HV and HT. It is signed by whoever is signed in. Such a unit cannot be dispatched until the form is complete with every check OK. In-house manufactured equipment is not asked.',
+      'PRODUCT MASTER: a new Imported (Yes / No) column, editable on the screen and in its bulk upload. It is blank until filled; while it is blank, no demo unit of that product is asked for Pre-Delivery Testing, and the job says so.',
+      'PRINT: the R/SER/07 register (Customer – Devices or Demo, optionally by incoming date) and the R/SER/QC/007 Pre-Delivery Testing form open as printable pages laid out like the paper forms. An Excel download of the register carries both sheets.',
+    ],
+  },
+  {
+    version: '0.10.41',
+    date: '2026-10-02',
+    title: 'Installation calls mapped to their machines, and a list of the machines without one',
+    changes: [
+      'ONE-TIME MAPPING: every warranty machine without an installation call in INST Call was matched to one, using installation calls only. It tried, in order, the call number WI-<Product>-<Serial>, then Product + Serial + Party Name, then Product + Serial. A machine was mapped only where exactly one call fitted. Nothing that was already mapped was changed, and every change is logged with the rule that made it. It ran once and cannot run again.',
+      'NEW (administrators only): REPORTS → MACHINES WITHOUT AN INSTALLATION CALL. Every warranty machine that still has no installation call, with the reason (no call found, the call is on another machine line, one match not mapped, or several to choose from) and the candidate calls with their parties. Filter by reason and export to Excel or CSV. It changes nothing: map the call from the Warranty Register and the machine leaves the list. Give it to other roles on Roles & Permissions.',
+    ],
+  },
+  {
+    version: '0.10.40',
+    date: '2026-10-02',
+    title: 'How RITHI Functions: the Reports document, and three report fixes',
+    changes: [
+      'NEW: HOW RITHI FUNCTIONS → REPORTS. Covers every report in the Reports menu: what one row is, which date it filters on, its columns, who may download it, and why two reports can count differently.',
+      'FIXED: the Hand Stock Report has an "Other ±" column for stock adjustments, so each row adds up to On Hand. It did not add up where an adjustment existed.',
+      'FIXED: "Extra (import)" and "All Answers" download as their contents instead of [object Object], in Excel and CSV alike.',
+      'FIXED: the Call Report\'s status filter offers the values the column holds (Unattended, Unsolved, Report pending, Solved, Cancelled). "Solved - Report Pending" matched nothing, and Cancelled was missing.',
+      'CORRECTED: the Call Report says voided spares are excluded there but listed at QTY 0 on the Consumption Report. Not Consumed Against this Call says it lists Solved calls only, and Short as well as Not used. The handbook gives the Hand Stock Report\'s first roles as Admin and Technical Support.',
+    ],
+  },
+  {
+    version: '0.10.39',
+    date: '2026-10-02',
+    title: 'How RITHI Functions: the Administration document',
+    changes: [
+      'NEW: HOW RITHI FUNCTIONS → ADMINISTRATION. Covers Roles & Permissions, Audit Log, Bulk Uploads, Bulk Report Mapping, PM Bulk Upload, Data Export, Solved Without a Report, Device Cache Status, Admin Config, Settings, Software Validation, Tracker and Version History: what each does, who may use it, what it refuses, and what it records.',
+      'CORRECTED: Bulk Report Mapping now says which permission it needs (a visit-report key) instead of "admin access". The handbook now says the Audit Log records all the time, not only in Audit Mode; that the objective cut-offs are on the Objective screen, not Admin Config; and that Settings holds the connections, not your preferences.',
+    ],
+  },
+  {
+    version: '0.10.38',
+    date: '2026-10-02',
+    title: 'Warranty Register: Convert to Contract, a one-time Party Master update, and Save only when changed',
+    changes: [
+      'NEW: ⇢ CONVERT TO CONTRACT on a saved warranty sale. The customer and every machine with a serial carry over to a new contract, each machine noting its SA Number and warranty end. The contract starts the day after the warranty ends. You give the MC Number (the next one is offered), Contract Type, Period (Months), PM Visits, Payment Schedule, Bill Generate At and, optionally, a rate per machine. It warns if the sale\'s machines are already on a contract, and takes you to the new contract.',
+      'ONE-TIME UPDATE: every warranty sale has been re-read from the Party Master, as if ↺ Update from Party Master had been pressed on each one (blanks included), and every machine has been put back on its sale, as ↺ Force update child records does. It runs once and cannot run again. Every value it replaced is kept, so anything needed can be recovered.',
+      'SAVE ENTRY is greyed out until you change something on the entry, on both the Warranty and Contract Registers.',
+    ],
+  },
+  {
+    version: '0.10.37',
+    date: '2026-10-02',
+    title: 'How RITHI Functions: the Masters document',
+    changes: [
+      'NEW: HOW RITHI FUNCTIONS → MASTERS. Covers Party Master, Product Database, Product Database 2.0, Product Master, User Master, Part Master and All Masters: what each holds, what you do there, what it refuses, who may change it, and where its values are used.',
+      'FIXED: on the Product Database, + Field is shown to roles that may register Field calls. It used to appear only for roles that may raise installation calls, so a Reporting or Regional Manager had no + Field.',
+      'CORRECTED: the Product Database 2.0 rebuild needs "Rebuild Product Database 2.0"; the KYC Verified badge no longer claims it clears a sale; the Spare Approval Reason list says nothing reads it; the Product Database is described as one row per machine by model and serial.',
+    ],
+  },
+  {
+    version: '0.10.36',
+    date: '2026-10-02',
+    title: 'Spares: two faults fixed',
+    changes: [
+      'FIXED: ticking spares and approving them on RM Approval now sends each one where the single Approve button would. A warranty (WGP) spare goes straight to Stores, a HandStock spare to NSM, and an AMC or OGP spare to Commercial. Before this, every ticked spare waited at Commercial. Spares already waiting there are not moved: the read-only check _spares_waiting_at_commercial_by_mistake.sql lists them.',
+      'FIXED: a consumption line that is corrected or voided keeps its original quantity again, and when it was adjusted.',
     ],
   },
   {

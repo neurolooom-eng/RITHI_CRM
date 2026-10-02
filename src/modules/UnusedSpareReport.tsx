@@ -95,7 +95,7 @@ export function UnusedSpareReport() {
             columns: ['Item', 'Value'],
             rows: [
               { Item: 'Report', Value: 'Not Consumed Against this Call' },
-              { Item: 'What it lists', Value: 'Spares DISPATCHED or RECEIVED against a call whose part code never appears in that call’s consumption.' },
+              { Item: 'What it lists', Value: 'On a call that reads Solved: spares DISPATCHED or RECEIVED against it whose part code never appears in its consumption (Not used), or appears in a smaller quantity than was sent (Short).' },
               { Item: 'What it excludes', Value: 'Lines refused by an approver, and lines Stores dropped — nothing arrived, so nothing could be fitted.' },
               { Item: 'Matched on', Value: 'The part CODE, not the description, which drifts.' },
               { Item: 'Filter', Value: describeUnusedFilter(filter) },

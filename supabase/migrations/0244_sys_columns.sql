@@ -52,7 +52,7 @@
 -- which fires NO triggers, and it leaves exactly the values an UPDATE would
 -- have written. One ALTER per table, so one rewrite per table.
 --
--- NOT TOUCHED: the nine number-counter tables (their rows have no author);
+-- NOT TOUCHED: the ten number-counter tables (their rows have no author);
 -- `harness`, the test stand-in for Supabase's session; `schema_migrations`,
 -- the auto-apply script's own ledger.
 --
@@ -228,8 +228,8 @@ begin
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and c.relkind = 'r'
        and c.relname not in (
-         -- the nine number counters: a row there has no author
-         'call_number_seq', 'ffr_counters', 'indoor_job_counters',
+         -- the ten number counters (indoor_dc_counters, 0321): a row there has no author
+         'call_number_seq', 'ffr_counters', 'indoor_dc_counters', 'indoor_job_counters',
          'material_return_counters', 'party_key_seq', 'spare_dispatch_counters',
          'spare_or_counters', 'stock_transfer_counters', 'ucn_counters',
          -- tooling, not application data

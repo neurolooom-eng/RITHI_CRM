@@ -2289,6 +2289,18 @@ export async function listSolvedWithoutReport(): Promise<Record<string, unknown>
 // chasing, and the feedback is what this report is a list OF. A tiebreaker on
 // the id, because a bulk import makes ties certain and a tie puts a row on two
 // pages or neither.
+/** Machines Without an Installation Call (0319). A definer function gated on
+ *  its page's key; paged, because a register this size passes the 1,000-row
+ *  response cap, and ordered with a tiebreaker so no row is doubled or lost. */
+export async function listInstallCallsUnmapped(): Promise<Record<string, unknown>[]> {
+  const c = must();
+  return allRows<Record<string, unknown>>((from, to) =>
+    c.rpc('install_calls_unmapped').select('*')
+      .order('sa_number', { ascending: true })
+      .order('sale_item_id', { ascending: true })
+      .range(from, to));
+}
+
 export async function listFeedbackWithoutReport(): Promise<Record<string, unknown>[]> {
   const c = must();
   return allRows<Record<string, unknown>>((from, to) =>
@@ -3626,7 +3638,7 @@ export async function listAllStock(cap = 5000): Promise<StockRow[]> {
 }
 
 export async function addStockTransfer(
-  from: string, to: string, lines: { part: string; qty: number }[], remarks = '', on?: string,
+  from: string, to: string, lines: { part: string; qty: number; reason?: string }[], remarks = '', on?: string,
 ): Promise<{ ok: boolean; uid?: string; error?: string }> {
   const c = must();
   // uid / row_no are assigned by the database.
@@ -3636,7 +3648,10 @@ export async function addStockTransfer(
   if (error) return { ok: false, error: errMsg(error) };
   const uid = String(data.uid);
   const { error: le } = await c.from('stock_transfer_lines')
-    .insert(lines.map((l, i) => ({ transfer_uid: uid, row_no: i + 1, part: l.part, qty: l.qty })));
+    // The per-line reason is OPTIONAL (0322) and sent only when given, so a
+    // project that has not run 0322 still records a transfer with none.
+    .insert(lines.map((l, i) => ({ transfer_uid: uid, row_no: i + 1, part: l.part, qty: l.qty,
+                                   ...(l.reason?.trim() ? { reason: l.reason.trim() } : {}) })));
   if (le) {
     // The lines are the transfer; a header alone is not a usable record. The
     // stock check rejects the whole insert, so nothing moved.
@@ -3644,6 +3659,68 @@ export async function addStockTransfer(
     return { ok: false, error: errMsg(le) };
   }
   return { ok: true, uid };
+}
+
+/** ONE transfer and its lines, for the printed MATERIAL TRANSFER NOTE. Read BY
+ *  ITS NUMBER and RLS-scoped (st_read / stl_read), so a transfer the reader may
+ *  not see is simply not found. `entered_by_name` is the name RITHI knows for
+ *  the login that keyed it (app_user_names). */
+export interface StockTransferDoc {
+  uid: string; from_engineer: string; to_engineer: string; transfer_date: string | null;
+  remarks: string; status: string; created_by: string | null; entered_by_name: string;
+  lines: { row_no: number | null; part: string; qty: number; reason: string }[];
+}
+export async function stockTransferByUid(uid: string): Promise<StockTransferDoc | null> {
+  const c = must();
+  const { data: h, error } = await c.from('stock_transfers')
+    .select('uid, from_engineer, to_engineer, transfer_date, remarks, status, created_by')
+    .eq('uid', uid).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  if (!h) return null;
+  const { data: ls, error: le } = await c.from('stock_transfer_lines').select('*')
+    .eq('transfer_uid', uid).order('row_no', { ascending: true, nullsFirst: false }).order('id');
+  if (le) throw new Error(errMsg(le));
+  const entered = h.created_by ? await userNameById(String(h.created_by)) : '';
+  return {
+    uid: String(h.uid), from_engineer: String(h.from_engineer ?? ''), to_engineer: String(h.to_engineer ?? ''),
+    transfer_date: (h.transfer_date as string | null) ?? null, remarks: String(h.remarks ?? ''),
+    status: String(h.status ?? ''), created_by: (h.created_by as string | null) ?? null, entered_by_name: entered,
+    lines: (ls ?? []).map((l) => ({
+      row_no: l.row_no == null ? null : Number(l.row_no), part: String(l.part ?? ''), qty: Number(l.qty),
+      // `reason` arrives with 0322; before it the key is absent and reads blank.
+      reason: String((l as Record<string, unknown>).reason ?? ''),
+    })),
+  };
+}
+
+/** The name RITHI knows for a login (app_user_names, 0068): '' when unknown. */
+export async function userNameById(id: string): Promise<string> {
+  if (!id) return '';
+  const { data } = await must().from('app_user_names').select('name').eq('id', id).maybeSingle();
+  return String(data?.name ?? '').trim();
+}
+
+/** THE PLACE OF A PERSON, for the MTN and the MRN: their City on the User
+ *  Master, else their Region (the user's decision, 2026-10-02). Matched on the
+ *  name, case- and space-insensitively. Where the directory holds the name more
+ *  than once and the rows DISAGREE, the place is left blank rather than one of
+ *  them picked -- a wrong place on a stores record is worse than none. */
+export async function placeOfPerson(name: string): Promise<string> {
+  const n = name.trim();
+  if (!n) return '';
+  const pattern = n.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+  const { data, error } = await must().from('user_directory')
+    .select('name, city, region').ilike('name', pattern).order('id').limit(20);
+  if (error || !data) return '';
+  const rows = data.filter((r) => String(r.name ?? '').trim().toLowerCase() === n.toLowerCase());
+  const one = (k: 'city' | 'region') => {
+    const vals = [...new Set(rows.map((r) => String(r[k] ?? '').trim()).filter(Boolean))];
+    return vals.length === 1 ? vals[0]! : vals.length > 1 ? null : '';
+  };
+  const city = one('city');
+  if (city === null) return '';
+  if (city) return city;
+  return one('region') ?? '';
 }
 
 // ---- stores dispatch ------------------------------------------------------
@@ -4046,6 +4123,15 @@ export async function listMaterialReturns(limit = 1000, offset = 0): Promise<Rec
     // tie and a page boundary could double one line and drop another.
     .order('id', { ascending: true })
     .range(offset, offset + limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+
+/** ONE return -- every line sharing its `uid` -- for the printed MATERIAL
+ *  RETURN NOTE. RLS-scoped, so a return the reader may not see is not found. */
+export async function materialReturnByUid(uid: string): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('material_returns').select('*')
+    .eq('uid', uid).order('row_no', { ascending: true, nullsFirst: false }).order('id', { ascending: true });
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
@@ -5569,6 +5655,18 @@ export interface IndoorJob {
   sale_ref: string;
   activity_note: string;
   updated_at: string;
+  // R/SER/07 -- the register's own columns (0320)
+  field_report_no: string;
+  engineer_name: string;
+  customer_place: string;
+  problem_reported: string;
+  indoor_report_no: string;
+  dc_date: string | null;
+  remarks: string;
+  /** The machine's COVER -- the paper's "Status" column. WGP / OGP / CMC / AMC. */
+  cover: string;
+  verified_by: string | null;
+  verified_at: string | null;
   // From the view
   received_by_name: string;
   cleaned_by_name: string;
@@ -5582,6 +5680,35 @@ export interface IndoorJob {
   demo_overdue: boolean | null;
   accessory_count: number;
   accessories_outstanding: number;
+  verified_by_name: string;
+  /** Accessory names joined, NULL where none is listed (the register prints "Nil"). */
+  accessories_received: string | null;
+  /** Is the product line imported? NULL = unknown (no matching line, or the
+   *  Product Master's Imported is blank) -- 0320's indoor_job_is_imported(). */
+  product_imported: boolean | null;
+}
+
+/** R/SER/QC/007 PRE DELIVERY TESTING -- one row per job (0320). */
+export interface IndoorPdt {
+  id: number;
+  job_id: number;
+  test_date: string | null;
+  measuring_equipment_id: string;
+  software_version: string;
+  hv: string;
+  ht: string;
+  check1: string | null; check2: string | null; check3: string | null;
+  check4: string | null; check5: string | null;
+  cmv_vte_21: number | null; cmv_vte_60: number | null; cmv_vte_100: number | null;
+  cmv_peep_21: number | null; cmv_peep_60: number | null; cmv_peep_100: number | null;
+  cmv_o2_21: number | null; cmv_o2_60: number | null; cmv_o2_100: number | null;
+  pcmv_pip_21: number | null; pcmv_pip_60: number | null; pcmv_pip_100: number | null;
+  pcmv_peep_21: number | null; pcmv_peep_60: number | null; pcmv_peep_100: number | null;
+  pcmv_o2_21: number | null; pcmv_o2_60: number | null; pcmv_o2_100: number | null;
+  inspected_by: string | null;
+  inspector_name: string;
+  inspector_designation: string;
+  inspected_at: string | null;
 }
 
 export interface IndoorAccessory {
@@ -5649,6 +5776,10 @@ export async function saveIndoorJob(
     'actual_out', 'actual_return', 'custody_holder', 'condition_out',
     'condition_back', 'consumables_used', 'demo_outcome', 'sale_ref',
     'activity_note',
+    // R/SER/07 (0320). verified_by / verified_at are NOT here: verifying is
+    // verifyIndoorJob(), and the database stamps who and when.
+    'field_report_no', 'engineer_name', 'customer_place', 'problem_reported',
+    'indoor_report_no', 'dc_date', 'remarks', 'cover',
   ] as const;
   const rest = Object.fromEntries(
     Object.entries(patch).filter(([k]) => (WRITABLE as readonly string[]).includes(k)));
@@ -5669,6 +5800,145 @@ export async function markIndoorCleaned(
               cleaning_wi: wi, cleaning_wi_rev: rev, status: 'Cleaned' })
     .eq('id', id);
   if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}
+
+/** One job by id, read through the list view (the printable PDT page). */
+export async function indoorJobById(id: number): Promise<IndoorJob | null> {
+  const { data, error } = await must().from('indoor_job_list').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return (data as IndoorJob | null) ?? null;
+}
+
+/** R/SER/07 "Verified By" (0320). The database asks indoor.verify, refuses a
+ *  job that is not Dispatched / Closed / Condemned, and STAMPS who and when
+ *  from the session -- the id sent here only says "verify", it is replaced.
+ *  The rows are COUNTED: row-level security refuses an update by matching
+ *  nothing, and no error is not "saved" (finding 48). */
+export async function verifyIndoorJob(id: number, uid: string): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await must().from('indoor_jobs')
+    .update({ verified_by: uid || '00000000-0000-0000-0000-000000000000' })
+    .eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not change this job.' };
+  return { ok: true };
+}
+
+// ---- Indoor_DC (0321) --------------------------------------------------------
+/** One Indoor DC as indoor_dc_list gives it. */
+export interface IndoorDc {
+  id: number; dc_no: string; dc_date: string; consignee: string;
+  customer_ref: string; customer_ref_date: string | null; mode_of_despatch: string;
+  purpose: string; issued_by_name: string; created_by: string | null; created_at: string;
+  line_count: number; job_nos: string | null;
+}
+export interface IndoorDcLine {
+  id: number; dc_id: number; line_no: number; job_id: number; accessory_id: number | null;
+  part_no: string; description: string; qty: number; purpose: string;
+}
+
+/** Every Indoor DC, newest first, paged (D-040) with `id` as the tiebreaker. */
+export async function listIndoorDcs(): Promise<IndoorDc[]> {
+  return allRows<IndoorDc>((a, b) => must()
+    .from('indoor_dc_list').select('*')
+    .order('dc_date', { ascending: false }).order('id', { ascending: false })
+    .range(a, b) as never);
+}
+
+/** One DC by its NUMBER, with its lines in print order. RLS-scoped: a reader
+ *  without the Indoor Service Register gets null. */
+export async function indoorDcByNo(dcNo: string): Promise<{ dc: IndoorDc; lines: IndoorDcLine[] } | null> {
+  const c = must();
+  const { data, error } = await c.from('indoor_dc_list').select('*').eq('dc_no', dcNo).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  if (!data) return null;
+  const { data: ls, error: le } = await c.from('indoor_dc_lines').select('*')
+    .eq('dc_id', (data as IndoorDc).id).order('line_no', { ascending: true });
+  if (le) throw new Error(errMsg(le));
+  return { dc: data as IndoorDc, lines: (ls ?? []) as IndoorDcLine[] };
+}
+
+/** The PART No. the DC will print for a job's equipment (0321's
+ *  indoor_job_product_code), for the preview before it is issued. '' = none. */
+export async function indoorJobProductCode(productName: string, serial: string): Promise<string> {
+  const { data, error } = await must().rpc('indoor_job_product_code', { p_product_name: productName, p_serial: serial });
+  if (error) return '';
+  return String(data ?? '');
+}
+
+/** ISSUE an Indoor DC. The DATABASE issues the number, tries every unit
+ *  against the dispatch rules, builds the lines and stamps each job (0321);
+ *  this sends what was typed. `linePurposes` overrides PURPOSE per line
+ *  (accessoryId null = the equipment line). */
+export async function createIndoorDc(input: {
+  jobIds: number[]; consignee: string; dcDate?: string; customerRef?: string; customerRefDate?: string;
+  mode?: string; purpose?: string;
+  linePurposes?: { jobId: number; accessoryId: number | null; purpose: string }[];
+}): Promise<{ ok: boolean; dcNo?: string; error?: string }> {
+  const { data, error } = await must().rpc('create_indoor_dc', {
+    p_job_ids: input.jobIds,
+    p_consignee: input.consignee,
+    p_dc_date: input.dcDate || null,
+    p_customer_ref: input.customerRef ?? '',
+    p_customer_ref_date: input.customerRefDate || null,
+    p_mode: input.mode ?? '',
+    p_purpose: input.purpose ?? '',
+    p_line_purposes: (input.linePurposes ?? []).map((l) => ({ job_id: l.jobId, accessory_id: l.accessoryId, purpose: l.purpose })),
+  });
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true, dcNo: String(data ?? '') };
+}
+
+export async function getIndoorPdt(jobId: number): Promise<IndoorPdt | null> {
+  const { data, error } = await must().from('indoor_pdt').select('*').eq('job_id', jobId).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return (data as IndoorPdt | null) ?? null;
+}
+
+const PDT_WRITABLE = [
+  'test_date', 'measuring_equipment_id', 'software_version', 'hv', 'ht',
+  'check1', 'check2', 'check3', 'check4', 'check5',
+  'cmv_vte_21', 'cmv_vte_60', 'cmv_vte_100', 'cmv_peep_21', 'cmv_peep_60', 'cmv_peep_100',
+  'cmv_o2_21', 'cmv_o2_60', 'cmv_o2_100',
+  'pcmv_pip_21', 'pcmv_pip_60', 'pcmv_pip_100', 'pcmv_peep_21', 'pcmv_peep_60', 'pcmv_peep_100',
+  'pcmv_o2_21', 'pcmv_o2_60', 'pcmv_o2_100',
+] as const;
+
+/** Save part of a job's PDT, creating its row on the first save. The
+ *  inspector's four columns are NOT writable here -- signing is signIndoorPdt.
+ *  Rows counted, for the reason verifyIndoorJob gives. */
+export async function saveIndoorPdt(
+  jobId: number, patch: Partial<IndoorPdt>,
+): Promise<{ ok: boolean; error?: string }> {
+  const rest = Object.fromEntries(
+    Object.entries(patch).filter(([k]) => (PDT_WRITABLE as readonly string[]).includes(k)));
+  const c = must();
+  const { data: existing, error: e1 } = await c.from('indoor_pdt').select('id').eq('job_id', jobId).maybeSingle();
+  if (e1) return { ok: false, error: errMsg(e1) };
+  const q = existing
+    ? c.from('indoor_pdt').update(rest).eq('job_id', jobId).select('id')
+    : c.from('indoor_pdt').insert({ job_id: jobId, ...rest }).select('id');
+  const { data, error } = await q;
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not change this test.' };
+  return { ok: true };
+}
+
+/** Sign the PDT as the inspector -- or withdraw the signature. The database
+ *  writes WHO (the session), the name and designation from the profile, and
+ *  WHEN; the id sent only says "sign". */
+export async function signIndoorPdt(
+  jobId: number, uid: string, sign = true,
+): Promise<{ ok: boolean; error?: string }> {
+  const c = must();
+  const { data: existing } = await c.from('indoor_pdt').select('id').eq('job_id', jobId).maybeSingle();
+  const value = sign ? (uid || '00000000-0000-0000-0000-000000000000') : null;
+  const q = existing
+    ? c.from('indoor_pdt').update({ inspected_by: value }).eq('job_id', jobId).select('id')
+    : c.from('indoor_pdt').insert({ job_id: jobId, inspected_by: value }).select('id');
+  const { data, error } = await q;
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not sign this test.' };
   return { ok: true };
 }
 

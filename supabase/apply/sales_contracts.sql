@@ -41,6 +41,8 @@
 --   0247_cover_maintenance_needs_cover_edit.sql
 --   0258_link_install_call.sql
 --   0291_cover_keys_split.sql
+--   0318_warranty_party_refresh_once.sql
+--   0319_install_call_mapping_once.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -2809,5 +2811,423 @@ begin
 
   update public.sale_items set inst_call = v_ucn where id = p_item_id;
 end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0318_warranty_party_refresh_once.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0318 — ONE TIME: every Warranty Sale Entry re-read from the Party Master, and
+-- every machine on it put back on its entry.
+--
+-- The user, 2026-10-02: "As a 1 time activity - Update all Records in Warranty
+-- Sale Entry with '↺ Update from Party Master' in one go. Include 'Force Update
+-- Child Records' in Warranty Register as well. Enforce Update as a 1 time
+-- activity." And, asked how: blanks are copied exactly as the button copies
+-- them, and the machines of EVERY sale go back to following their sale.
+--
+-- STEP 1 IS THE BUTTON, FOR EVERY SALE AT ONCE. ↺ Update from Party Master
+-- (partyFillForSale + partyInfoFrom in the client) sets ELEVEN fields from the
+-- Party Master entry whose name matches the sale's Party Name -- the same
+-- trimmed, case-insensitive match (`parties.name_key`) -- BLANKS INCLUDED:
+--   state, city, address (falling back to extra->>'Address' only where the
+--   column is NULL), pincode, tel1 <- phone, tel2 <- phone_2, pan, gst <- gstin,
+--   party_type (CUSTOMER / DEALER, anything else blank), profile (PRIVATE /
+--   GOVERNMENT / DEALER / GENERAL, anything else blank), engineer <-
+--   service_engineer.
+-- A sale whose party the master does not hold is left exactly as it is, as the
+-- button leaves it ("nothing to update from"). Only a sale where at least one
+-- of the eleven actually changes is written.
+--
+-- STEP 2 IS ↺ FORCE UPDATE CHILD RECORDS, FOR EVERY SALE. The thirteen columns
+-- a sale line inherits (inheritAllPatch over SALE.itemFields) are set to NULL,
+-- so each machine follows its entry -- including the values step 1 just
+-- refreshed. Only a line holding at least one pinned value is written.
+--
+-- EVERY VALUE IT CHANGES IS KEPT. Before and after, per row, in two backup
+-- tables nobody signed in can read or write -- so "what did this machine say
+-- before 2 October?" has an answer, and a value somebody needs back can be
+-- restored from it by hand.
+--
+-- ONCE, AND ENFORCED. The migration ledger runs this file once on the live
+-- project; but a bundle is also REPLAYED to rebuild or repair a project, and a
+-- second run would overwrite whatever has been typed since. So the work is
+-- guarded by a row in `one_time_fixes_done`: present, and nothing is touched.
+-- ===========================================================================
+
+create table if not exists public.one_time_fixes_done (
+  name       text primary key,
+  applied_at timestamptz not null default now(),
+  detail     text
+);
+alter table public.one_time_fixes_done enable row level security;
+revoke all on public.one_time_fixes_done from anon, authenticated;
+
+create table if not exists public.sale_party_refresh_backup (
+  id         bigserial primary key,
+  sa_number  text not null,
+  party_name text,
+  before     jsonb not null,
+  after      jsonb not null,
+  saved_at   timestamptz not null default now()
+);
+alter table public.sale_party_refresh_backup enable row level security;
+revoke all on public.sale_party_refresh_backup from anon, authenticated;
+
+create table if not exists public.sale_items_inherit_backup (
+  id            bigserial primary key,
+  item_id       bigint not null,
+  sa_number     text,
+  serial_number text,
+  before        jsonb not null,
+  saved_at      timestamptz not null default now()
+);
+alter table public.sale_items_inherit_backup enable row level security;
+revoke all on public.sale_items_inherit_backup from anon, authenticated;
+
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.one_time_fixes_done'::regclass);
+    perform public.sys_columns_attach('public.sale_party_refresh_backup'::regclass);
+    perform public.sys_columns_attach('public.sale_items_inherit_backup'::regclass);
+  end if;
+end $$;
+
+do $$
+declare
+  n_sales int := 0;
+  n_items int := 0;
+begin
+  if exists (select 1 from public.one_time_fixes_done where name = '0318_warranty_party_refresh') then
+    raise notice '0318: done before -- the warranty sales were not touched again';
+    return;
+  end if;
+  if to_regclass('public.sale_entries') is null or to_regclass('public.sale_items') is null
+     or to_regclass('public.parties') is null then
+    raise notice '0318: sale_entries, sale_items or parties missing -- nothing to do (and not marked done)';
+    return;
+  end if;
+  -- THE PARTY COLUMNS THE BUTTON READS come from the `masters` bundle (0200,
+  -- 0201). This bundle can be replayed on its own, so they are asked for
+  -- rather than assumed; missing, nothing is done and nothing is marked.
+  if (select count(*) from information_schema.columns
+       where table_schema = 'public' and table_name = 'parties'
+         and column_name in ('state', 'city', 'address', 'extra', 'pincode', 'phone', 'phone_2',
+                             'pan', 'gstin', 'party_type', 'profile', 'service_engineer', 'name_key')) < 13 then
+    raise notice '0318: the Party Master lacks columns the update reads -- run masters.sql first (not marked done)';
+    return;
+  end if;
+
+  -- ---- step 1: the Party Master onto every sale ----------------------------
+  create temporary table _fill on commit drop as
+  select s.id, s.sa_number, s.party_name,
+         jsonb_build_object('state', s.state, 'city', s.city, 'address', s.address, 'pincode', s.pincode,
+                            'tel1', s.tel1, 'tel2', s.tel2, 'pan', s.pan, 'gst', s.gst,
+                            'party_type', s.party_type, 'profile', s.profile, 'engineer', s.engineer) as before,
+         btrim(coalesce(p.state, ''))                                as state,
+         btrim(coalesce(p.city, ''))                                 as city,
+         btrim(coalesce(p.address, p.extra->>'Address', ''))         as address,
+         btrim(coalesce(p.pincode, ''))                              as pincode,
+         btrim(coalesce(p.phone, ''))                                as tel1,
+         btrim(coalesce(p.phone_2, ''))                              as tel2,
+         btrim(coalesce(p.pan, ''))                                  as pan,
+         btrim(coalesce(p.gstin, ''))                                as gst,
+         case when upper(btrim(coalesce(p.party_type, ''))) in ('CUSTOMER', 'DEALER')
+              then upper(btrim(p.party_type)) else '' end            as party_type,
+         case when upper(btrim(coalesce(p.profile, ''))) in ('PRIVATE', 'GOVERNMENT', 'DEALER', 'GENERAL')
+              then upper(btrim(p.profile)) else '' end               as profile,
+         btrim(coalesce(p.service_engineer, ''))                     as engineer
+    from public.sale_entries s
+    join public.parties p on p.name_key = lower(btrim(s.party_name))
+   where btrim(coalesce(s.party_name, '')) <> '';
+
+  delete from _fill f
+   where (f.state, f.city, f.address, f.pincode, f.tel1, f.tel2, f.pan, f.gst, f.party_type, f.profile, f.engineer)
+         is not distinct from
+         (f.before->>'state', f.before->>'city', f.before->>'address', f.before->>'pincode',
+          f.before->>'tel1', f.before->>'tel2', f.before->>'pan', f.before->>'gst',
+          f.before->>'party_type', f.before->>'profile', f.before->>'engineer');
+
+  insert into public.sale_party_refresh_backup (sa_number, party_name, before, after)
+  select f.sa_number, f.party_name, f.before,
+         jsonb_build_object('state', f.state, 'city', f.city, 'address', f.address, 'pincode', f.pincode,
+                            'tel1', f.tel1, 'tel2', f.tel2, 'pan', f.pan, 'gst', f.gst,
+                            'party_type', f.party_type, 'profile', f.profile, 'engineer', f.engineer)
+    from _fill f;
+
+  update public.sale_entries s
+     set state = f.state, city = f.city, address = f.address, pincode = f.pincode,
+         tel1 = f.tel1, tel2 = f.tel2, pan = f.pan, gst = f.gst,
+         party_type = f.party_type, profile = f.profile, engineer = f.engineer
+    from _fill f
+   where s.id = f.id;
+  get diagnostics n_sales = row_count;
+
+  -- ---- step 2: every machine back on its sale ------------------------------
+  insert into public.sale_items_inherit_backup (item_id, sa_number, serial_number, before)
+  select i.id, i.sa_number, i.serial_number,
+         jsonb_strip_nulls(jsonb_build_object(
+           'warranty_start', i.warranty_start, 'warranty_end', i.warranty_end,
+           'warranty_years', i.warranty_years, 'warranty_months', i.warranty_months,
+           'pm_visits', i.pm_visits, 'warranty_status', i.warranty_status,
+           'invoice_no', i.invoice_no, 'invoice_date', i.invoice_date,
+           'sold_through', i.sold_through, 'other_details', i.other_details,
+           'state', i.state, 'city', i.city, 'engineer', i.engineer))
+    from public.sale_items i
+   where coalesce(i.warranty_start::text, i.warranty_end::text, i.warranty_years::text, i.warranty_months::text,
+                  i.pm_visits::text, i.warranty_status, i.invoice_no, i.invoice_date::text, i.sold_through,
+                  i.other_details, i.state, i.city, i.engineer) is not null;
+
+  update public.sale_items i
+     set warranty_start = null, warranty_end = null, warranty_years = null, warranty_months = null,
+         pm_visits = null, warranty_status = null, invoice_no = null, invoice_date = null,
+         sold_through = null, other_details = null, state = null, city = null, engineer = null
+   where coalesce(i.warranty_start::text, i.warranty_end::text, i.warranty_years::text, i.warranty_months::text,
+                  i.pm_visits::text, i.warranty_status, i.invoice_no, i.invoice_date::text, i.sold_through,
+                  i.other_details, i.state, i.city, i.engineer) is not null;
+  get diagnostics n_items = row_count;
+
+  insert into public.one_time_fixes_done (name, detail)
+  values ('0318_warranty_party_refresh',
+          format('%s sale(s) updated from the Party Master; %s machine line(s) put back on their sale', n_sales, n_items));
+  raise notice '0318: % sale(s) updated from the Party Master; % machine line(s) put back on their sale', n_sales, n_items;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0319_install_call_mapping_once.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0319 — ONE TIME: every warranty machine mapped to its installation call,
+-- and an administrators' list of the machines that still have none.
+--
+-- The user, 2026-10-02: "As a 1 time activity - look for all installation
+-- calls using this - Product, Serial No, Party Name or WI-<Product>-<SerialNo>.
+-- And map it. If it does not have an installation call give it as a separate
+-- list in reports - view only for Admins."
+--
+-- 0234 already mapped a machine where EXACTLY ONE installation call named its
+-- product and serial. This pass widens the search in the order the evidence is
+-- strongest, and still maps only where the answer is ONE call:
+--
+--   1. WI-<Product>-<Serial>. The call number this application gives an
+--      installation call it raises from a sale (installCallNumber), compared
+--      trimmed and case-insensitive.
+--
+-- ONLY INSTALLATION CALLS, under every rule (the user, 2026-10-02: "Map only
+-- installation call"). A field or PM call carrying a WI- number is not this
+-- machine's installation and is never mapped or offered.
+--   2. Product + Serial + Party Name, on an installation call. Settles a
+--      machine two installation calls name, where only one was for this
+--      customer.
+--   3. Product + Serial alone, on an installation call -- 0234's rule, re-run
+--      for calls raised or imported since.
+--
+-- WHAT IS NEVER DONE:
+--   * a machine whose INST Call already holds a call number is not touched;
+--   * a call already mapped to a machine is not mapped to a second one;
+--   * where two machine lines would take the same call, neither does --
+--     a duplicate line is a question, not an answer;
+--   * where a rule finds several calls, nothing is written: picking one would
+--     be a guess recorded as a fact. Those machines are on the list below,
+--     with the candidate calls named.
+-- Every change is logged in inst_call_repair_log (0234), old value beside new,
+-- with the rule that made it.
+--
+-- ONCE, AND ENFORCED, as 0318: a row in one_time_fixes_done stops any re-run,
+-- so replaying sales_contracts.sql never maps anything a second time.
+--
+-- THE LIST is install_calls_unmapped(): every warranty machine line without a
+-- mapped installation call, why, and the candidates. A definer function with
+-- the check inside, gated on the page's own key `mod:/install-calls-unmapped`,
+-- which 0319 grants to admin (the user: "view only for Admins") and to
+-- technical_support, because that role carries every page key the admin role
+-- holds (0145; _status.sql row 114 holds the property) -- the Hand Stock
+-- Report (0241) and Device Cache Status (0249) do the same. An administrator
+-- can untick it, or tick it for another role, on Roles & Permissions. LIVE, so
+-- it shrinks as calls are raised.
+-- ===========================================================================
+
+create table if not exists public.one_time_fixes_done (
+  name       text primary key,
+  applied_at timestamptz not null default now(),
+  detail     text
+);
+alter table public.one_time_fixes_done enable row level security;
+revoke all on public.one_time_fixes_done from anon, authenticated;
+
+do $$
+declare
+  n1 int := 0; n2 int := 0; n3 int := 0;
+begin
+  if exists (select 1 from public.one_time_fixes_done where name = '0319_install_call_mapping') then
+    raise notice '0319: done before -- no machine was mapped again';
+    return;
+  end if;
+  if to_regclass('public.sale_items') is null or to_regclass('public.sale_entries') is null
+     or to_regclass('public.calls') is null or to_regclass('public.inst_call_repair_log') is null
+     or to_regprocedure('public.is_call_number(text)') is null then
+    raise notice '0319: sale_items, sale_entries, calls, inst_call_repair_log or is_call_number() missing -- nothing mapped (and not marked done)';
+    return;
+  end if;
+
+  -- The machines still waiting, with what identifies them.
+  create temporary table _m on commit drop as
+  select si.id, si.sa_number, si.product_name, si.serial_number, coalesce(si.inst_call, '') as old_value,
+         upper(btrim(si.product_name)) as p, upper(btrim(si.serial_number)) as s,
+         upper(btrim(coalesce(h.party_name, ''))) as party,
+         upper('WI-' || btrim(si.product_name) || '-' || btrim(si.serial_number)) as wi
+    from public.sale_items si
+    left join public.sale_entries h on h.sa_number = si.sa_number
+   where btrim(coalesce(si.product_name, '')) <> '' and btrim(coalesce(si.serial_number, '')) <> ''
+     and not public.is_call_number(si.inst_call);
+
+  -- Calls, once, in the comparable shape. A call already on a machine is out.
+  create temporary table _c on commit drop as
+  select c.ucn, upper(btrim(coalesce(c.call_number, ''))) as cn,
+         upper(btrim(coalesce(c.product_name, ''))) as p, upper(btrim(coalesce(c.serial, ''))) as s,
+         upper(btrim(coalesce(c.party_name, ''))) as party
+    from public.calls c
+   where public.is_call_number(c.ucn)
+     and upper(coalesce(c.call_type, '')) like 'INSTALL%'
+     and not exists (select 1 from public.sale_items x where upper(btrim(x.inst_call)) = upper(btrim(c.ucn)));
+
+  create temporary table _pick (id bigint, ucn text, why text) on commit drop;
+
+  -- One rule: the machines it gives exactly one call, where that call is
+  -- wanted by exactly one machine. Applied in turn, each rule seeing what the
+  -- previous one left.
+  for i in 1..3 loop
+    delete from _pick;
+    insert into _pick (id, ucn, why)
+    select m.id, min(c.ucn),
+           case i when 1 then 'mapped by call number WI-<Product>-<Serial> on an installation call (0319)'
+                  when 2 then 'mapped by product + serial + party on an installation call (0319)'
+                  else        'mapped by product + serial on the only installation call for it (0319)' end
+      from _m m
+      join _c c on case i
+                     when 1 then c.cn = m.wi
+                     when 2 then c.p = m.p and c.s = m.s and c.party = m.party and m.party <> ''
+                     else        c.p = m.p and c.s = m.s end
+     group by m.id
+    having count(distinct c.ucn) = 1;
+    -- A call two machine lines both want goes to neither.
+    delete from _pick where ucn in (select ucn from _pick group by ucn having count(*) > 1);
+
+    insert into public.inst_call_repair_log (sale_item_id, sa_number, product_name, serial_number, old_value, new_value, why)
+    select m.id, coalesce(m.sa_number, ''), coalesce(m.product_name, ''), coalesce(m.serial_number, ''),
+           m.old_value, k.ucn, k.why
+      from _pick k join _m m on m.id = k.id;
+    update public.sale_items si set inst_call = k.ucn from _pick k where si.id = k.id;
+    if i = 1 then get diagnostics n1 = row_count;
+    elsif i = 2 then get diagnostics n2 = row_count;
+    else get diagnostics n3 = row_count; end if;
+
+    delete from _c where ucn in (select ucn from _pick);
+    delete from _m where id in (select id from _pick);
+  end loop;
+
+  insert into public.one_time_fixes_done (name, detail)
+  values ('0319_install_call_mapping',
+          format('%s mapped by WI- number, %s by product + serial + party, %s by product + serial; %s machine line(s) still without one',
+                 n1, n2, n3, (select count(*) from _m)));
+  raise notice '0319: % mapped by WI- number, % by product + serial + party, % by product + serial; % machine line(s) still without one',
+               n1, n2, n3, (select count(*) from _m);
+end $$;
+
+-- ---- the list: machines without an installation call -----------------------
+create or replace function public.install_calls_unmapped()
+returns table (
+  sale_item_id   bigint,
+  sa_number      text,
+  party_name     text,
+  product_code   text,
+  product_name   text,
+  serial_number  text,
+  warranty_start date,
+  warranty_end   date,
+  inst_call      text,
+  reason         text,
+  candidates     text
+)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.has_perm('mod:/install-calls-unmapped') then
+    raise exception 'RBAC: Machines Without an Installation Call needs the mod:/install-calls-unmapped permission.'
+      using errcode = '42501';
+  end if;
+  return query
+  -- EQUALITY JOINS ONLY. The first version matched calls with an OR across
+  -- two keys and tested "already mapped" with NOT IN per row: 2 min 47 s at
+  -- 20,000 machine lines. Both keys are now joined by equality and unioned,
+  -- and "mapped" is a set joined once.
+  with m as (
+    select si.id, si.sa_number, h.party_name, si.product_code, si.product_name, si.serial_number,
+           coalesce(si.warranty_start, h.warranty_start) as ws,
+           coalesce(si.warranty_end, h.warranty_end) as we,
+           coalesce(si.inst_call, '') as ic,
+           upper(btrim(coalesce(si.product_name, ''))) as p, upper(btrim(coalesce(si.serial_number, ''))) as s
+      from public.sale_items si
+      left join public.sale_entries h on h.sa_number = si.sa_number
+     where not public.is_call_number(si.inst_call)
+  ),
+  ic as materialized (
+    -- INSTALLATION CALLS ONLY (the user: "Map only installation call").
+    select c.ucn, upper(btrim(c.ucn)) as u, btrim(c.party_name) as party,
+           upper(btrim(coalesce(c.call_number, ''))) as cn,
+           upper(btrim(coalesce(c.product_name, ''))) as p, upper(btrim(coalesce(c.serial, ''))) as s
+      from public.calls c
+     where public.is_call_number(c.ucn) and upper(coalesce(c.call_type, '')) like 'INSTALL%'
+  ),
+  mapped as materialized (
+    select distinct upper(btrim(x.inst_call)) as u from public.sale_items x where public.is_call_number(x.inst_call)
+  ),
+  hit as (
+    select m.id, ic.ucn, ic.u, ic.party from m join ic on ic.p = m.p and ic.s = m.s where m.p <> '' and m.s <> ''
+    union
+    select m.id, ic.ucn, ic.u, ic.party from m join ic on ic.cn = 'WI-' || m.p || '-' || m.s where m.p <> '' and m.s <> ''
+  ),
+  cand as (
+    select h.id,
+           string_agg(distinct h.ucn || coalesce(' (' || nullif(h.party, '') || ')', ''), ', ') as list,
+           count(distinct h.ucn) as n,
+           count(distinct h.ucn) filter (where mp.u is null) as n_free
+      from hit h left join mapped mp on mp.u = h.u
+     group by h.id
+  )
+  select m.id, m.sa_number, m.party_name, m.product_code, m.product_name, m.serial_number, m.ws, m.we,
+         m.ic,
+         case when m.p = '' or m.s = '' then 'The line has no product or no serial, so no call can be matched to it'
+              when coalesce(cand.n, 0) = 0 then 'No installation call found for this product and serial'
+              when cand.n_free = 0 then 'The installation call for this product and serial is already mapped to another machine line'
+              when cand.n_free = 1 then 'One installation call matches but was not mapped automatically (another line claims it, or it arrived later) -- put its UCN in INST Call'
+              else 'Several installation calls name this machine -- choose one and put its UCN in INST Call' end,
+         coalesce(cand.list, '')
+    from m left join cand on cand.id = m.id;
+end $$;
+revoke execute on function public.install_calls_unmapped() from public, anon;
+grant execute on function public.install_calls_unmapped() to authenticated;
+
+-- ---- the key: administrators to begin with ---------------------------------
+-- MERGED, never overwritten, and a role with an empty set is left alone (its
+-- empty array means "not configured"). Other roles are ticked on Roles &
+-- Permissions.
+do $$
+declare n integer;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (select jsonb_array_elements_text(ar.permissions) as v
+                   union select 'mod:/install-calls-unmapped') u),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and ar.role in ('admin', 'technical_support')
+     and not (ar.permissions ? 'mod:/install-calls-unmapped');
+  get diagnostics n = row_count;
+  raise notice '0319: % of 2 role(s) given mod:/install-calls-unmapped (admin + technical_support -- grant the rest on Roles & Permissions)', n;
+end $$;
 
 commit;

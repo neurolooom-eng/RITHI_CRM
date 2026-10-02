@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-10-02 (WARRANTY AND CONTRACT REGISTERS: LOAD MORE AT THE TOP, beside the count, as on Field Calls — v0.10.36, screen only. Before that: HIGH-RATED BATCH 1 MERGED (#483) — D-019, D-026, D-036, D-042, D-043, D-045, D-051, D-062, D-066, D-070 fixed, and D-083 found and fixed (raising a consumption quantity called a function that never existed); migrations 0311–0316, _status.sql rows 237–242, suite high_batch_1_test; v0.10.35. The migration workflow applies 0311–0316 on merge — check its log. Before that: MEDIUM-RATED DEFECTS FIXED, MERGED (#475) — D-022, D-023, D-024, D-040 (7), D-046, D-047 (4), D-048, D-064; screen-only, no SQL; v0.10.24. D-025's remaining part moved to D-035; D-056 left open (a design change, not a small one). Before that: D-057 ACCEPTED AS IS — the user: "Leave it as it is, it is that way for Ease of Operation." The common starting password stays and no change is forced at first sign-in; URS-133, FRS-001, FRS-168, OQ-161, R-80 (residual now High, honestly) and FM-69 say so. Before that: REVIEW 1'S DATE IS THE CALL'S REGISTRATION DATE — it was in the review patch type and the set-date control's type though call_reviews has no such column; removed from both, FRS-106.1 corrected, check:ui holds it. No behaviour changed: the drawer never offered it. Before that: ADMIN-ONLY ACTIONS ARE KEYS — review.correct_date, objective.lock, spare.reassign, users.reset_password, bulk.upload, pm.bulk_upload, import.panel, export.tables, export.schedules, audit.mode; only the Admin COLUMN is greyed on Roles & Permissions; the database asks the same keys (0302–0307), and a non-admin reset never reaches an Admin's or a permission-granter's password. Nobody but Admin holds them until ticked. v0.10.16, _status.sql rows 228–233, suite admin_keys_grantable_test; D-020 partly fixed (the date change is refused; recording it is still open). Before that: D-074 FIXED — one way in: the local demo sign-in and the sheet sign-in removed, the browser's stored demo accounts deleted on load; a login with no profile holds nothing, in the app and in has_perm() (0300) and Field Solutions (0301); one forgotten-password remedy. v0.10.15, _status.sql row 227, suite unresolved_login_test. 0300/0301 are applied by the merge's "Apply database migrations" run — check its log. Before that: FINDINGS 57–67 BUILT — per-screen keys (0286–0297), today's grants copied once (0298, new `permissions` bundle), parent keys in `perm_parents`, admin-only rows, dead ticks gone, a login's role guarded on insert; _status.sql rows 214–225; v0.10.11, NOT merged. Before that: AUTO REVIEW BY ROLE — 0285 gives review.auto to Admin, NSM and Technical Support and takes back 0269's grant by name, _status.sql row 213, v0.10.10. Before that: SOFTWARE VALIDATION REV 3.0 — every page read (docs/CAPABILITY_INVENTORY.md, 1,072 actions), 87 URS / 121 FRS / 126 tests / 61 risks / 61 DFMEA / 58 defects added, 27 corrections; 53 DEFECTS OPEN, each with a test that fails until it is fixed; data flow diagrams; 0269 auto review switch (Bagyaraj, Vignesh), imported reviews raise no FFR, CAPA blank. ⚠️ CHANGE THE PASSWORD of service.almsind@gmail.com — its plaintext was in a comment in src/lib/auth.tsx (removed, still in git history). On the branch, NOT merged. Before that: FINDING 20 FOLLOW-UP — "Cleared for Stores Processing"
+_Last updated: 2026-10-02 (WARRANTY AND CONTRACT REGISTERS: LOAD MORE AT THE TOP, beside the count, as on Field Calls — v0.10.44, screen only. Before that: INSTALLATION CALLS MAPPED ONCE + MACHINES WITHOUT AN INSTALLATION CALL — 0319, v0.10.41: applied by the merge's "Apply database migrations" run; read its log for "0319: N mapped by WI- number, …", then _status.sql row 246 reads yes. Before that: WARRANTY → CONTRACT and the ONE-TIME PARTY MASTER UPDATE — 0318, v0.10.38: applied by the merge's "Apply database migrations" run, NOT by hand; read the run's log for "0318: N sale(s) updated … M machine line(s)", then _status.sql row 245 reads yes. Old values are in sale_party_refresh_backup / sale_items_inherit_backup (service role only). Before that: HIGH-RATED BATCH 1 MERGED (#483) — D-019, D-026, D-036, D-042, D-043, D-045, D-051, D-062, D-066, D-070 fixed, and D-083 found and fixed (raising a consumption quantity called a function that never existed); migrations 0311–0316, _status.sql rows 237–242, suite high_batch_1_test; v0.10.35. The migration workflow applies 0311–0316 on merge — check its log. Before that: MEDIUM-RATED DEFECTS FIXED, MERGED (#475) — D-022, D-023, D-024, D-040 (7), D-046, D-047 (4), D-048, D-064; screen-only, no SQL; v0.10.24. D-025's remaining part moved to D-035; D-056 left open (a design change, not a small one). Before that: D-057 ACCEPTED AS IS — the user: "Leave it as it is, it is that way for Ease of Operation." The common starting password stays and no change is forced at first sign-in; URS-133, FRS-001, FRS-168, OQ-161, R-80 (residual now High, honestly) and FM-69 say so. Before that: REVIEW 1'S DATE IS THE CALL'S REGISTRATION DATE — it was in the review patch type and the set-date control's type though call_reviews has no such column; removed from both, FRS-106.1 corrected, check:ui holds it. No behaviour changed: the drawer never offered it. Before that: ADMIN-ONLY ACTIONS ARE KEYS — review.correct_date, objective.lock, spare.reassign, users.reset_password, bulk.upload, pm.bulk_upload, import.panel, export.tables, export.schedules, audit.mode; only the Admin COLUMN is greyed on Roles & Permissions; the database asks the same keys (0302–0307), and a non-admin reset never reaches an Admin's or a permission-granter's password. Nobody but Admin holds them until ticked. v0.10.16, _status.sql rows 228–233, suite admin_keys_grantable_test; D-020 partly fixed (the date change is refused; recording it is still open). Before that: D-074 FIXED — one way in: the local demo sign-in and the sheet sign-in removed, the browser's stored demo accounts deleted on load; a login with no profile holds nothing, in the app and in has_perm() (0300) and Field Solutions (0301); one forgotten-password remedy. v0.10.15, _status.sql row 227, suite unresolved_login_test. 0300/0301 are applied by the merge's "Apply database migrations" run — check its log. Before that: FINDINGS 57–67 BUILT — per-screen keys (0286–0297), today's grants copied once (0298, new `permissions` bundle), parent keys in `perm_parents`, admin-only rows, dead ticks gone, a login's role guarded on insert; _status.sql rows 214–225; v0.10.11, NOT merged. Before that: AUTO REVIEW BY ROLE — 0285 gives review.auto to Admin, NSM and Technical Support and takes back 0269's grant by name, _status.sql row 213, v0.10.10. Before that: SOFTWARE VALIDATION REV 3.0 — every page read (docs/CAPABILITY_INVENTORY.md, 1,072 actions), 87 URS / 121 FRS / 126 tests / 61 risks / 61 DFMEA / 58 defects added, 27 corrections; 53 DEFECTS OPEN, each with a test that fails until it is fixed; data flow diagrams; 0269 auto review switch (Bagyaraj, Vignesh), imported reviews raise no FFR, CAPA blank. ⚠️ CHANGE THE PASSWORD of service.almsind@gmail.com — its plaintext was in a comment in src/lib/auth.tsx (removed, still in git history). On the branch, NOT merged. Before that: FINDING 20 FOLLOW-UP — "Cleared for Stores Processing"
 counts as approved, 0270, v0.10.7, on the branch, NOT merged; _status.sql row
 199. Before that: MODULE REVIEW BATCH 7 — findings 20, 23, 31, v0.10.2,
 MERGED in #453 on the user's word ("Lets merge"). Migrations 0256 (approval words), 0257 (a rename carries
@@ -73,6 +73,75 @@ _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 up)_
 
 ---
+
+## 2026-10-02 — Indoor_DC, and the MTN and MRN printed (0321, 0322)
+
+The user, with three paper templates: a delivery challan for the Indoor Service
+module only ("Name it Indoor_DC"), the MATERIAL TRANSFER NOTE R/SER/STR/003 and
+the MATERIAL RETURN NOTE R/SER/STR/002.
+
+- **Shipped (on the branch):**
+  - `0321_indoor_dc.sql` (indoor): `indoor_dcs` + `indoor_dc_lines`, numbered
+    IDC-YYMM-NNNN by the database (`next_indoor_dc_no()`, `indoor_dc_counters`
+    -- added to 0244's counter list, row 187 and `sys_columns_test`), written
+    ONLY by `create_indoor_dc()` (indoor.dispatch; Ready units, one consignee,
+    none already on a DC; each unit TRIED against `indoor_jobs_guard()` and
+    refused in its words; stamps dispatch_ref + dc_date, status untouched),
+    `indoor_job_product_code()` for PART No., `indoor_dc_list`. Read with
+    mod:/indoor; no write grant; `no_hard_delete`. No key added, nothing granted.
+  - `0322_stock_transfer_line_reason.sql` (stock_transfer):
+    `stock_transfer_lines.reason`, optional.
+  - Screens: Indoor Service -- tick Ready units, **Create Indoor DC**, **Indoor
+    DCs** list, print `/indoor-dc/<no>`, and the DC's print from a unit's
+    drawer. Stock Transfer -- a reason per part, **🖨 MTN** → `/mtn/<uid>`.
+    Material Returns -- **Print MRN** in a return's detail → `/mrn-print/<uid>`.
+  - Requirements URS-171/172, FRS-228/229/230, FRS-213.4, OQ-223/224; suite
+    `indoor_dc_test`; `_status.sql` rows 250-251.
+- **Pending:** the merge's "Apply database migrations" run applies 0321 and
+  0322 -- read its log; then rows 250 and 251 read yes.
+- **Left open (not settled by the user):** editing or cancelling an issued
+  Indoor DC (none is offered; a wrong one is undone by clearing the unit's DC
+  No. on the job and issuing another); whether a unit's DC No. typed by hand
+  should still be allowed beside the Indoor DC; recording the RECEIPT of a
+  stock transfer (so the MTN's Received By is blank); a place for the customer
+  on the MRN (it prints the customer name only); the Store Dept. Use columns;
+  GSTIN / phone of the consignee on the DC; `_backup_before_reset.sql`,
+  `_reset_for_production.sql` and `_restore_from_backup.sql` do not list the
+  indoor tables at all (0158 onwards), the new counter included.
+
+## 2026-10-02 — Indoor Service in line with R/SER/07 and R/SER/QC/007 (0319, 0320, v0.10.42)
+
+The user photographed the two controlled paper records the workshop keeps and
+asked for the process to be "in line with these records", then added that both
+must be produced in print.
+
+- **Shipped (on the branch):**
+  - `0319_product_master_imported.sql` (masters): `product_master.imported`,
+    blank until set. Product Master screen column (edit with
+    `masters.edit.records`) and an "Imported" column in its bulk upload.
+  - `0320_indoor_register_and_pdt.sql` (indoor): the R/SER/07 columns on
+    `indoor_jobs` (field_report_no, engineer_name, customer_place,
+    problem_reported, indoor_report_no, dc_date, remarks, cover,
+    verified_by/at); **Verified By** asks the new key `indoor.verify` (granted
+    to NOBODY -- an administrator ticks it), only on Dispatched / Closed /
+    Condemned, stamped from the session; `indoor_pdt` (R/SER/QC/007) with the
+    inspector stamped from the session; `indoor_job_is_imported()`; the guard
+    refuses Dispatched / Closed for a DEMO unit of an IMPORTED product until
+    its PDT is complete, signed and all-OK. Unknown imported-ness does not
+    require it (the user's decision) and the job says so.
+    `indoor_job_list` gains verified_by_name, accessories_received,
+    product_imported -- **0245 mirrors it** (guarded by 0320's column, because
+    0245 runs before 0320 in file order).
+  - Screen: R/SER/07 register view (Customer – Devices / Demo, incoming-date
+    range), Excel download of both sheets, print routes `/indoor-register/<sheet>`
+    and `/indoor-pdt/<job>`. Requirements URS-169/170, FRS-225/226/227, OQ-220/
+    221/222; suite `indoor_register_pdt_test`; `_status.sql` rows 247-249.
+- **Pending:** the merge's "Apply database migrations" run applies 0319 and
+  0320 -- read its log. Then an administrator ticks *Verify an Indoor Service
+  register entry* for the supervisor's role, and somebody fills **Imported** on
+  the Product Master (every line reads *not known* until then, so no DEMO unit
+  is asked for the test yet).
+- **Not built, by decision:** the bracketed number in Remarks (decision 2).
 
 ## 2026-09-30 — Module review batch 6: 13 and the sync race (v0.9.398)
 
@@ -230,6 +299,43 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.40 — How RITHI Functions: Reports document** (`how-reports-work.html`).
+  Fixed: D-092 (Hand Stock Report "Other ±"), D-093 (JSON columns exported as
+  [object Object]), D-094 (Call Report status filter). **Open, need the
+  user's decision:** D-095 — KPI Export writes Close for Report Pending while
+  its text says Open; D-096 — a reader who may see feedback / consumption but
+  not the call gets false findings and blank call columns (D-037's root).
+  **Next document: Documents & Knowledge Base**, then Contracts & Warranty,
+  Overview (Indoor skipped by the user).
+- ✅ **0.10.39 — How RITHI Functions: Administration document**
+  (`how-administration-works.html`). **Open, need the user's decision:** D-088 —
+  `app_settings_write` lets a `config.manage` holder set `audit_mode` (no reason,
+  no history) and `audit_retention_days`; D-089 — an empty role is refused by the
+  screen only, and an `rbac.manage` holder can widen their own role; D-090 —
+  Solved Without a Report excludes *Solved - Report Pending* though its text says
+  it lists them; D-091 — `attachReportsToVisits` counts a refused update.
+  **Next document: Reports**, then Documents & Knowledge Base, Contracts &
+  Warranty, Overview (Indoor skipped by the user).
+- ✅ **0.10.37 — How RITHI Functions: Masters document** (`how-masters-work.html`).
+  D-087 fixed (+ Field asks calls.create). **Open, need the user's decision:**
+  D-084 — `user_directory_address_guard` still lets only an administrator change
+  an existing person, whatever `users.manage.details` says; D-085 —
+  `parties_write` asks `masters.edit.records`, so *Verify a party's KYC* alone
+  saves nothing; D-086 — a value list's Add asks `master.<list>.edit` while the
+  database accepts `masters.edit.records`. Also not enforced: KYC before a sale
+  or installation; an Inactive product line can be typed on a new sale.
+  **Next document: Administration**, then Reports, Documents & Knowledge Base,
+  Contracts & Warranty, Overview (Indoor skipped by the user).
+- ✅ **0.10.36 — Spares: D-081 and D-082 fixed.**
+  `0311_tick_box_rm_auto_approves` (spare_requests): `decide_spare_lines()`
+  writes the same auto-approvals as `buildPatch()`. `0317_void_keeps_original_qty`
+  (handstock): `consumption_adjust_guard()` stamps `original_qty` / `adjusted_at`
+  again, on 0316's body (0316, from the other session, fixed D-083 the same
+  day; its comment claimed the stamps and nothing wrote them). Suite
+  `spare_fixes_0311_test`; status rows 243, 244.
+  **FORWARD ONLY:** spares tick-approved before this and waiting at Commercial
+  are not moved — `supabase/apply/_spares_waiting_at_commercial_by_mistake.sql`
+  lists them; releasing them is the user's decision.
 - ✅ **0.10.33 — How RITHI Functions: Spares documents audited and extended**
   (`how-a-spare-moves.html`, `how-hand-stock-moves.html` — no third document;
   the two already were the Spares group). **Two defects found and measured on

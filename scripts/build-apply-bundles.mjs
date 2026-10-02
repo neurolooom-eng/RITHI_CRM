@@ -681,7 +681,17 @@ const MODULES = {
     files: ['0158_indoor_service.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
             // and split keys; see 0286 for the parent rule.
-            '0297_indoor_status_needs_dispatch.sql'],
+            '0297_indoor_status_needs_dispatch.sql',
+            // The R/SER/07 register's columns, Verified By (indoor.verify), and
+            // R/SER/QC/007 Pre-Delivery Testing for a DEMO unit of an imported
+            // product (2026-10-02). Reads product_master.imported (0319, masters)
+            // at RUN time only, so it does not depend on that module's order.
+            '0320_indoor_register_and_pdt.sql',
+            // Indoor_DC (2026-10-02): the workshop's own delivery challan,
+            // IDC-YYMM-NNNN, written only by create_indoor_dc(), which tries
+            // each unit against indoor_jobs_guard() above. Reads products /
+            // product_master (masters) at RUN time only.
+            '0321_indoor_dc.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -759,7 +769,10 @@ const MODULES = {
             '0263_user_department.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
             // and split keys; see 0286 for the parent rule.
-            '0290_master_keys_split.sql'],
+            '0290_master_keys_split.sql',
+            // Is the product line imported? (2026-10-02) -- decides whether a
+            // DEMO unit owes Pre-Delivery Testing R/SER/QC/007 (0320, indoor).
+            '0319_product_master_imported.sql'],
   },
   reports: {
     title: 'Reports',
@@ -863,7 +876,10 @@ const MODULES = {
             '0313_a_reason_is_required.sql',
             // A quantity going UP called handstock_available(), which never
             // existed. Redefines consumption_adjust_guard from 0261, so it follows it.
-            '0316_adjust_guard_reads_the_balance.sql'],
+            '0316_adjust_guard_reads_the_balance.sql',
+            // An amended or voided consumption line keeps its original quantity
+            // and adjustment time again (0317, D-082). Redefines 0316's guard.
+            '0317_void_keeps_original_qty.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -933,7 +949,18 @@ const MODULES = {
             '0258_link_install_call.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
             // and split keys; see 0286 for the parent rule.
-            '0291_cover_keys_split.sql'],
+            '0291_cover_keys_split.sql',
+            // ONE TIME (2026-10-02): every sale re-read from the Party Master
+            // and every machine put back on its sale, guarded by a marker row
+            // so a replay of this bundle never repeats it. Reads `parties`
+            // (masters) and asks for its columns rather than assuming them.
+            '0318_warranty_party_refresh_once.sql',
+            // ONE TIME (2026-10-02): each warranty machine mapped to its
+            // installation call (WI- number, product + serial + party, product
+            // + serial; installation calls only, exactly one or nothing), and
+            // install_calls_unmapped() -- the administrators' list of the rest.
+            // Needs is_call_number() and inst_call_repair_log (0234, above).
+            '0319_install_call_mapping_once.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -945,6 +972,9 @@ const MODULES = {
       // Stock Transfer Register loads once and refuses every re-load at the
       // first repeated transfer number.
       '0123_stock_transfer_update_policy.sql',
+      // An optional reason per line, for the printed MTN (2026-10-02).
+      // BEFORE the replay tail, which must stay last.
+      '0322_stock_transfer_line_reason.sql',
       // LAST: re-asserts `engineer_stock`, `st_read` and the transfer stock
       // guard, all owned by handstock. Without it a replay of this bundle put
       // the SHEET-ERA engineer_stock back, silently.
@@ -1018,6 +1048,9 @@ const MODULES = {
       // A part RENAME passes the line guard's parts rule, by rename_part's
       // ticket (0310). Redefines 0217's guard with that one condition added.
       '0310_rename_passes_the_line_guard.sql',
+      // A tick-box RM approval auto-approves Commercial / NSM by the same rule
+      // as the single-spare Approve (0311, D-081). Redefines 0118's function.
+      '0311_tick_box_rm_auto_approves.sql',
       // LAST, and it must stay last: it re-asserts `dispatch_spare_lines()` and
       // `sd_read`, which handstock owns, so a replay of Spare_1.sql alone stops
       // reverting them. Guarded, so a fresh apply skips it.
