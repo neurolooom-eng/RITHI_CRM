@@ -1652,6 +1652,13 @@ console.log('\n-- the evidence workbook --');
       /more: r\.length >= OPEN_PAGES \* PAGE\[t\]/.test(cov), true);
     eq('...and Load more doubles what it fetches',
       /step: feed\.step \* 2/.test(cov), true);
+    // The user, 2026-10-02: "Move Load More to Top like all other Pages in
+    // both Contract and Warranty Pages". One button, in the heading beside the
+    // count; neither table offers its own.
+    eq('Load more sits in the heading, beside the count',
+      /countMore=\{feed\.more\}[\s\S]{0,600}onLoadMore=\{loadMore\}[\s\S]{0,80}loadingMore=\{busy\} \/>/.test(cov), true);
+    eq('...and neither table carries a second one',
+      (cov.match(/onLoadMore=/g) ?? []).length === 1, true);
     // THE DOUBLING IS IN THE NUMBER OF REQUESTS, not the size of one. PostgREST
     // caps a response (db-max-rows), so asking for 4,000 returns 1,000 and the
     // page would conclude there was nothing more — a register that looks

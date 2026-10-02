@@ -1653,9 +1653,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           rowsBeforeScroll={16}
           dense
           onRowClick={(r) => void openEntry(r)}
-          onLoadMore={loadMore}
           moreAvailable={feeds.entries.more}
-          loadingMore={busy}
           emptyText={busy ? 'Loading…' : 'No entries match.'}
           toolbar={
             <Toolbar>
@@ -1685,7 +1683,13 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         syncedAt={tab === 'machines' ? feeds.machines.at : feeds.entries.at}
         title={cfg.title} subtitle={cfg.subtitle} icon={cfg.icon}
         count={tab === 'machines' ? machines.length : rows.length}
-        countMore={feed.more} />
+        countMore={feed.more}
+        // LOAD MORE SITS BESIDE THE COUNT, as on Field Calls and Spare
+        // Requests (the user, 2026-10-02: "Move Load More to Top like all other
+        // Pages"). The tables keep their "+" and lose the button, so there is
+        // one of them; it loads the open tab, as the footer button did.
+        onLoadMore={loadMore}
+        loadingMore={busy} />
 
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
@@ -1749,9 +1753,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           rowsBeforeScroll={16}
           dense
           onRowClick={(r) => void openFromRegister(r)}
-          onLoadMore={loadMore}
           moreAvailable={feeds.machines.more}
-          loadingMore={busy}
           emptyText={busy ? 'Loading…' : 'No machines match.'}
           toolbar={
             <Toolbar>
