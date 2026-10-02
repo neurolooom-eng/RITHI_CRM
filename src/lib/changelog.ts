@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.26',
+    date: '2026-10-02',
+    title: 'Contract Register: entries open in a pop-up, and By machine is now Register',
+    changes: [
+      'CONTRACT REGISTER → "By machine" is renamed "Register". Same list, one row per machine, same tiles and buttons.',
+      'CLICKING A CONTRACT ENTRY OPENS IT IN A POP-UP WINDOW. The contract\'s details are on the left and its products on the right, and each side scrolls on its own, so the details stay in view while you work down a long product list.',
+      'EVERY BUTTON IS IN THE BAR AT THE TOP, and the bar stays put however far you scroll: Save entry, Delete entry, Renew this contract (and Cancel renewal), + Add machine, Force update child records, and Close. Save machine and Remove stay on each machine, because they act on that one machine. When you renew, the renewal panel opens at the top of the left side.',
+      'THE WINDOW DOES NOT CLOSE IF YOU CLICK OUTSIDE IT, and if you press Close while something is unsaved (the entry, a machine you edited, or a machine you added) it asks first. An "Unsaved" badge next to the contract number shows when the entry itself has unsaved changes.',
+      'The Warranty Register is unchanged: its entries still open beside the list.',
+    ],
+  },
+  {
     version: '0.10.25',
     date: '2026-10-02',
     title: 'How RITHI Functions: the Quality & Analytics document',
