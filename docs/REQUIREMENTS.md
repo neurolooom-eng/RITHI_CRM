@@ -8238,12 +8238,24 @@ questions for a person.
 
 ---
 
-**168** user requirements · **219** system requirements · **31** call-request · **44** servicing · **223** tests · **6** recorded as non-auditable · **495** of 168 user requirements tied to a module.
+**168** user requirements · **219** system requirements · **31** call-request · **44** servicing · **223** tests · **7** recorded as non-auditable · **495** of 168 user requirements tied to a module.
 ---
 
 ## Non-auditable requirements
 
 Recorded here because a feature absent from the specification is the thing an assessor finds. Each is classified by PROVENANCE: it is not derived from a regulatory clause and is not offered as evidence against one. That is a statement about where the requirement came from, NOT a statement that its use goes unrecorded.
+
+### NAR-007 — The Contract Register opens an entry in a pop-up, details beside products, buttons fixed at the top
+
+*Non-Auditable Requirement (user-originated; no regulatory clause claimed)* · risk: **Low**
+
+NAR-007.1 The Contract Register shall display an opened entry in a window over the list of entries. NAR-007.2 The window shall display the entry's details on its left and the list of the entry's machines on its right. NAR-007.3 The window shall display every action on the entry, and on its machines as a whole, in a bar at its top that does not scroll. NAR-007.4 Each of the two halves shall scroll independently of the other. NAR-007.5 The window shall not close on a click outside it. NAR-007.6 The window shall ask for confirmation before closing while the entry or any of its machines holds an unsaved change. NAR-007.7 The window shall display the two halves one above the other where the available width is below 900 pixels. NAR-007.8 The Contract Register shall label its per-machine view Register.
+
+**Why it is classified this way.** Requested by the system owner on 2026-10-02: "Rename "By Machine" to "Register". When I click on the Entry, the Entry should open in a Pop Up Window with 2 Screens - Left Side details of the Entry, Right Side List of Product. Keep all the Action Buttons at the Top [Sticky]." CLASSIFIED NON-AUDITABLE BY WHAT IT TOUCHES, as NAR-005 is: the same fields, the same validation, the same policies and the same writes, arranged differently. Two parts are not cosmetic and are stated for that reason: NAR-007.5 and NAR-007.6, because a window holding a contract's rates that closed on a stray click would lose them without a trace. A button that acts on ONE machine (Save machine, Remove) stays on that machine's card, and the Renew panel's Create the renewal stays inside the panel it confirms; NAR-007.3 covers the actions on the entry and on its machines as a whole. Should this layout ever be used to withhold a field from one of the two halves, that use is NOT covered by this classification.
+
+**No test protocol names this requirement.** That is a gap, not a decision.
+
+**Where it lives:** src/modules/CoverRegister.tsx · src/modules/fieldcalls.css
 
 ### NAR-006 — A call's Party and Product details refreshed from the masters — only while Audit Mode is OFF
 
@@ -8257,13 +8269,13 @@ NAR-006.1 The Call View and the call registers shall offer Update Party Details,
 
 **Where it lives:** 0271_call_refresh_from_masters.sql · supabase/tests/call_refresh_from_masters_test.sql · src/modules/FieldCalls.tsx · src/lib/auditMode.ts
 
-### NAR-005 — The cover registers are worked as two windows
+### NAR-005 — The Warranty Register is worked as two windows
 
 *Non-Auditable Requirement (user-originated; no regulatory clause claimed)* · risk: **Low**
 
-NAR-005.1 The cover registers shall display an opened entry beside the list of entries. NAR-005.2 The cover registers shall display a control that changes the width given to each of the two. NAR-005.3 The cover registers shall retain the width last set, per register. NAR-005.4 The cover registers shall express that width as a proportion of the available width. NAR-005.5 The cover registers shall display the list alone while no entry is open. NAR-005.6 The cover registers shall keep each of the two above a stated minimum width. NAR-005.7 The cover registers shall display the two one above the other where the available width is below 900 pixels. NAR-005.8 The cover registers shall remove the width control where they display the two one above the other.
+NAR-005.1 The Warranty Register shall display an opened entry beside the list of entries. NAR-005.2 The Warranty Register shall display a control that changes the width given to each of the two. NAR-005.3 The Warranty Register shall retain the width last set, per register. NAR-005.4 The Warranty Register shall express that width as a proportion of the available width. NAR-005.5 The Warranty Register shall display the list alone while no entry is open. NAR-005.6 The Warranty Register shall keep each of the two above a stated minimum width. NAR-005.7 The Warranty Register shall display the two one above the other where the available width is below 900 pixels. NAR-005.8 The Warranty Register shall remove the width control where it displays the two one above the other.
 
-**Why it is classified this way.** Requested by the system owner on 2026-09-22: "Make the Warranty Entry and Contract as a 2 window view [Adjustable width]." CLASSIFIED NON-AUDITABLE BY WHAT IT TOUCHES: it changes where a record is DISPLAYED and nothing about what is recorded, what is enforced, or who may do it. The same fields, the same validation, the same policies and the same writes; a drawer over the list and a pane beside it hold identical content. It is recorded here rather than omitted for the reason this section exists — a change to a screen an assessor will open, absent from the specification, is the thing an assessor finds. NAR-005.4 and NAR-005.6 are the two that are not cosmetic and are stated for that reason: a width remembered in PIXELS on a wide monitor is a pane that fills a laptop, and a divider that can be dragged to the edge leaves a reader with a screen that looks broken and nothing left to grab to undo it. NAR-005.8 likewise: a control that does nothing is worse than an absent one. Should this layout ever be used to withhold a field from one of the two panes — to show a reader less than the drawer showed — that use is NOT covered by this classification and is to be raised as an auditable requirement, because what a quality record shows its reader is not a layout decision.
+**Why it is classified this way.** Requested by the system owner on 2026-09-22: "Make the Warranty Entry and Contract as a 2 window view [Adjustable width]." CLASSIFIED NON-AUDITABLE BY WHAT IT TOUCHES: it changes where a record is DISPLAYED and nothing about what is recorded, what is enforced, or who may do it. The same fields, the same validation, the same policies and the same writes; a drawer over the list and a pane beside it hold identical content. It is recorded here rather than omitted for the reason this section exists — a change to a screen an assessor will open, absent from the specification, is the thing an assessor finds. NAR-005.4 and NAR-005.6 are the two that are not cosmetic and are stated for that reason: a width remembered in PIXELS on a wide monitor is a pane that fills a laptop, and a divider that can be dragged to the edge leaves a reader with a screen that looks broken and nothing left to grab to undo it. NAR-005.8 likewise: a control that does nothing is worse than an absent one. Should this layout ever be used to withhold a field from one of the two panes — to show a reader less than the drawer showed — that use is NOT covered by this classification and is to be raised as an auditable requirement, because what a quality record shows its reader is not a layout decision. NARROWED ON 2026-10-02 to the Warranty Register: the Contract Register opens its entry in a pop-up instead (NAR-007).
 
 **No test protocol names this requirement.** That is a gap, not a decision.
 

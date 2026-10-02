@@ -249,7 +249,8 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     route: '/contracts',
     purpose: 'Contract entries (MC) and the machines they cover.',
     does: [
-      'Browse Entries or By machine, with Active / About to expire / Inactive tiles',
+      'Browse Entries or Register (one row per machine), with Active / About to expire / Inactive tiles',
+      'Click an entry to open it in a pop-up: contract details on the left, its products on the right, every button in the bar at the top',
       'Create or edit a contract and its machines; a machine follows its entry unless you type over it',
       'Enter a Rate per machine; 18% tax and the total fill in',
       'Renew this contract: the next MC starts the day after the old one ends, with new rates set here',

@@ -192,12 +192,15 @@ function FieldInput({
 
 // One machine under a header, all its fields, with inheritance made visible.
 function ItemCard({
-  cfg, kind, item, header, canEdit, onSaved, onDeleted, lines,
+  cfg, kind, item, header, canEdit, onSaved, onDeleted, lines, onDirtyChange,
 }: {
   cfg: ReturnType<typeof configFor>; kind: CoverKind; item: Row; header: Row; canEdit: boolean;
   onSaved: (r: Row) => void; onDeleted: (id: number) => void;
   /** The Product Master's lines, loaded once by the screen. */
   lines: ProductLine[];
+  /** Told whenever this card starts or stops holding an unsaved edit, so the
+   *  window can warn before it is closed over one. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [open, setOpen] = useState(!item.id);
   const [draft, setDraft] = useState<Row>(item);
@@ -225,6 +228,11 @@ function ItemCard({
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(item), [draft, item],
   );
+  // Reported up, and withdrawn when the card goes (saved, removed or closed).
+  const dirtyRef = useRef(onDirtyChange);
+  dirtyRef.current = onDirtyChange;
+  useEffect(() => { dirtyRef.current?.(dirty); }, [dirty]);
+  useEffect(() => () => { dirtyRef.current?.(false); }, []);
 
   const save = async () => {
     setBusy(true); setMsg('');
@@ -1061,163 +1069,274 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
 
   const sections = [...new Set(cfg.headerFields.map((f) => f.section))];
 
+  // THE CONTRACT ENTRY OPENS AS A POP-UP (the user, 2026-10-02: "When I click
+  // on the Entry, the Entry should open in a Pop Up Window with 2 Screens -
+  // Left Side details of the Entry, Right Side List of Product. Keep all the
+  // Action Buttons at the Top [Sticky]"). The Warranty Register keeps the
+  // side-by-side split it was given on 2026-09-22 -- the request named the
+  // Contract module, and the two registers are one component, so the choice is
+  // made here and nowhere else.
+  //
+  // THE SAME PIECES, LAID OUT TWICE. The fields, the machine cards, the renewal
+  // and every button are built once below and only ARRANGED differently, so a
+  // rule added to one layout cannot be missing from the other.
+  const popup = kind === 'contract';
+
+  // UNSAVED WORK IS NAMED BEFORE THE WINDOW CLOSES. A pop-up is closed with one
+  // click, and a contract's rates typed into it and lost that way would be lost
+  // without a trace. Each machine card reports whether it holds an edit; a
+  // machine added and never saved counts too.
+  const dirtyCards = useRef(new Set<string>());
+  const entryDirty = !!open && JSON.stringify(draft) !== JSON.stringify(open);
+  const closeEntry = () => {
+    const cards = dirtyCards.current.size + items.filter((i) => !isPinnedValue(i.id)).length;
+    const what = [entryDirty ? 'the entry' : '', cards ? `${cards} machine(s)` : ''].filter(Boolean).join(' and ');
+    if (what && !window.confirm(`Unsaved changes to ${what} will be lost. Close anyway?`)) return;
+    dirtyCards.current.clear();
+    setRenewing(false);
+    setOpen(null);
+  };
+  // A machine added from the TOP of the window lands at the BOTTOM of the
+  // product list, so the list is scrolled to it -- otherwise the button
+  // appears to do nothing on a contract with twenty machines.
+  const productsRef = useRef<HTMLDivElement>(null);
+  const addMachine = () => {
+    setItems((cur) => [...cur, { [cfg.key]: str(draft[cfg.key]) }]);
+    window.requestAnimationFrame(() => {
+      const el = productsRef.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    });
+  };
+
+  const entryTitle = open ? (
+    <h3 style={{ margin: 0, fontSize: 16 }}>
+      {open.id ? `${cfg.keyLabel} ${str(open[cfg.key])}` : `New ${cfg.keyLabel}`}
+    </h3>
+  ) : null;
+
+  const entryNote = (
+    <div className="muted" style={{ marginBottom: 10 }}>
+      This is the parent record. A machine {popup ? 'on the right' : 'below'} leaves a field empty to follow it — change a
+      date or a period here and every machine that follows moves with it.
+    </div>
+  );
+
+  const entryFields = sections.map((sec) => (
+    <div key={sec} style={{ marginBottom: 10 }}>
+      <div className="field-label" style={{ opacity: 0.75 }}>{sec}</div>
+      <div className="rep-grid">
+        {cfg.headerFields.filter((f) => f.section === sec).map((f) => (
+          <label key={f.name} className="rep-field">
+            <span className="field-label">
+              {f.label}
+              {f.derived && <span className="muted"> · from {f.derived}</span>}
+              {kind === 'sale' && SALE_PARTY_FIELDS.includes(f.name)
+                && <span className="muted"> · from the party</span>}
+            </span>
+            <FieldInput field={f} value={fromDb(f, draft[f.name])} disabled={!canEdit}
+              onChange={(v) => {
+                setDraft((d) => {
+                  // The register's own arithmetic, from the AppSheet
+                  // definition (src/lib/coverspec.ts). Derived from the
+                  // field just edited, so an end date somebody typed for
+                  // a part-month contract is not undone by an unrelated
+                  // keystroke.
+                  const next = { ...d, [f.name]: toDb(f, v) };
+                  // `d` IS THE ROW BEFORE THIS EDIT, and passing it is
+                  // what lets PM Visits follow the period until
+                  // somebody types over it. Without it the derivation
+                  // would compare against the period it has just moved
+                  // to and read as overridden every time.
+                  return { ...next, ...deriveHeader(kind, f.name, next, d) };
+                });
+                if (kind === 'sale' && f.name === 'party_name') void fillFromParty(v);
+              }} />
+          </label>
+        ))}
+      </div>
+    </div>
+  ));
+
+  // The entry's own buttons: save, re-read the party, delete.
+  const entryButtons = canEdit && open ? (
+    <>
+      <button className="btn btn-primary" onClick={() => void saveEntry()} disabled={saving}>
+        {saving ? 'Saving…' : 'Save entry'}
+      </button>
+      {/* SALES ONLY: a contract entry carries no address of its own. */}
+      {kind === 'sale' && !!str(draft.party_name).trim() && (
+        <button className="btn" disabled={saving} onClick={() => void refreshFromParty()}
+          title="Re-read the address, contact and tax details from the Party Master">
+          ↺ Update from Party Master
+        </button>
+      )}
+      {!!open.id && canDelete && <button className="btn" onClick={() => void removeEntry()}>Delete entry</button>}
+    </>
+  ) : null;
+
+  // The buttons that act on the machines under the entry.
+  const machineButtons = canEdit && open && !!open.id ? (
+    <>
+      <button className="btn btn-sm" onClick={addMachine}>+ Add machine</button>
+      {/* DISABLED ONCE EVERY MACHINE HAS ITS CALL, by the mapping
+          itself rather than by a flag somebody has to maintain. A line
+          with no product or no serial is not a machine yet and gets no
+          call — the call would be about nothing. */}
+      {kind === 'sale' && (
+        needCalls.length > 0
+          ? canRaiseInstall && <button className="btn btn-sm" disabled={saving} onClick={() => void raiseCalls()}
+              title="Raise an installation call for each machine that has not got one">
+              ＋ Installation calls ({needCalls.length})
+            </button>
+          : <span className="muted" style={{ fontSize: 12 }}>
+              {unsavedMachines
+                ? `Press Save entry first — ${unsavedMachines} machine${unsavedMachines === 1 ? ' is' : 's are'} not saved yet, and a call can only be mapped to a saved machine.`
+                : items.length ? 'Every machine here has its installation call.' : ''}
+            </span>
+      )}
+      {/* OFFERED ONLY WHEN THERE IS SOMETHING TO CLEAR. A button that
+          does nothing is one people press to find out what it does. */}
+      {pinnedNow.total > 0 && (
+        <>
+          <button className="btn btn-sm" disabled={saving} onClick={() => void forceAll()}
+            title="Clear every pinned value so all machines follow this entry again">
+            ↺ Force update child records
+          </button>
+          <span className="muted" style={{ fontSize: 12 }}>
+            {pinnedNow.machines} machine(s) pinned · {pinnedNow.total} value(s)
+            {pinnedNow.differing > 0 && <b> · {pinnedNow.differing} differ from this entry</b>}
+          </span>
+        </>
+      )}
+    </>
+  ) : null;
+
+  /* CONTRACTS ONLY, and only once the entry exists. A sale is not
+     renewed — the warranty runs from the sale and that is the end of
+     it; a contract is the thing with a next one. Offered on ANY
+     contract rather than only an expiring one, because renewals are
+     raised in advance and a register that hides the button until the
+     cover has lapsed is asking people to work around it. */
+  const canRenew = canEdit && kind === 'contract' && !!open?.id;
+  const renewButton = canRenew ? (
+    renewing
+      ? <button className="btn" onClick={() => setRenewing(false)}
+          title="Close the renewal without creating anything">✕ Cancel renewal</button>
+      : <button className="btn" disabled={loadingItems}
+          onClick={() => setRenewing(true)}
+          title={loadingItems ? 'Waiting for this contract’s machines to load' : undefined}>
+          {loadingItems ? 'Loading machines…' : '↻ Renew this contract'}
+        </button>
+  ) : null;
+  const renewPanel = canRenew && renewing ? (
+    <RenewPanel
+      header={draft}
+      items={items}
+      onDone={(mc) => {
+        setRenewing(false);
+        setOpen(null);
+        setMsg({ tone: 'ok', text: `Contract ${mc} created, carrying its machines over. Open it to check the rates, or set any you left blank.` });
+        void refresh();
+      }}
+    />
+  ) : null;
+
+  const machineList = open ? (
+    <>
+      {/* WHY A PRODUCT MAY BE MISSING FROM THE LIST, said here rather than
+          left to be inferred from an absence. A reader who cannot find
+          ORION on a new sale should learn that it is retired, not conclude
+          the master is incomplete and type it in anyway. Sale only: a
+          contract may name a retired line. */}
+      {kind === 'sale' && retiredNames(lines).length > 0 && (
+        <div className="muted" style={{ marginBottom: 8, fontSize: 12.5 }}>
+          {retiredNames(lines).length} product line
+          {retiredNames(lines).length === 1 ? ' is' : 's are'} marked <b>Inactive</b> on the
+          Product Master and {retiredNames(lines).length === 1 ? 'is' : 'are'} not offered
+          here — a retired line takes no new sale. It can still take a contract, a call and
+          everything else.
+        </div>
+      )}
+      {!open.id && <div className="muted" style={{ marginBottom: 8 }}>Save the entry first, then add machines to it.</div>}
+      {open.id && loadingItems && <div className="muted" style={{ marginBottom: 8 }}>Loading machines…</div>}
+      {items.map((it, i) => (
+        <ItemCard key={str(it.id) || `new-${i}`} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines}
+          // A machine with no id is unsaved by definition and is counted
+          // from `items`; only a SAVED machine's edit is tracked here.
+          onDirtyChange={(d) => {
+            const k = str(it.id);
+            if (!k) return;
+            if (d) dirtyCards.current.add(k); else dirtyCards.current.delete(k);
+          }}
+          onSaved={(r) => setItems((cur) => cur.map((x) => (x.id === r.id ? r : x)))}
+          onDeleted={(id) => setItems((cur) => cur.filter((x) => x.id !== id))} />
+      ))}
+    </>
+  ) : null;
+
   // THE ENTRY, AS THE SECOND WINDOW (the user, 2026-09-22: "Make the Warranty
   // Entry and Contract as a 2 window view [Adjustable width]"). It used to open
   // in a drawer OVER the list, which is right when you are looking at one
   // record and wrong when the job is working down a list: every entry meant
-  // open, read, close, find your place again.
-  const entryPane = open ? (
+  // open, read, close, find your place again. The Warranty Register.
+  const entryPane = open && !popup ? (
     <div style={{ padding: 14 }}>
       <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 10 }}>
-        <h3 style={{ margin: 0, fontSize: 16 }}>
-          {open.id ? `${cfg.keyLabel} ${str(open[cfg.key])}` : `New ${cfg.keyLabel}`}
-        </h3>
+        {entryTitle}
         <div className="spacer" />
-        <button className="btn btn-sm" onClick={() => setOpen(null)} title="Close this entry">✕</button>
+        <button className="btn btn-sm" onClick={closeEntry} title="Close this entry">✕</button>
       </div>
-          <div className="muted" style={{ marginBottom: 10 }}>
-            This is the parent record. A machine below leaves a field empty to follow it — change a
-            date or a period here and every machine that follows moves with it.
+      {entryNote}
+      {entryFields}
+      {entryButtons && <div className="row" style={{ gap: 8, marginBottom: 12 }}>{entryButtons}</div>}
+      <h3 style={{ margin: '14px 0 8px' }}>Machines ({items.length})</h3>
+      {machineList}
+      {machineButtons && (
+        <div className="row" style={{ gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>{machineButtons}</div>
+      )}
+      {renewPanel ?? (renewButton && <div style={{ marginTop: 14 }}>{renewButton}</div>)}
+    </div>
+  ) : null;
+
+  // THE CONTRACT ENTRY, AS A POP-UP. Every button sits in the bar at the top,
+  // which does not scroll; the two halves below scroll each on their own, so
+  // the details stay in view while the product list is worked down and the
+  // reverse. It does NOT close on a click outside it: a window holding a form
+  // that closes on a stray click is one that loses work.
+  const entryPopup = open && popup ? (
+    <div className="cover-pop-overlay" role="dialog" aria-modal="true">
+      <div className="cover-pop">
+        <div className="cover-pop-bar">
+          {entryTitle}
+          {entryDirty && <span className="badge badge-warning" title="Press Save entry to keep it">Unsaved</span>}
+          <div className="spacer" />
+          {entryButtons}
+          {renewButton}
+          {machineButtons}
+          <button className="btn btn-sm" onClick={closeEntry} title="Close this entry">✕ Close</button>
+        </div>
+        {msg && (
+          <div className={`sheet-banner sheet-banner-${msg.tone}`} style={{ margin: '8px 14px 0' }}>
+            <span>{msg.text}</span>
+            <button className="btn btn-ghost btn-sm" onClick={() => setMsg(null)}>✕</button>
           </div>
-
-          {sections.map((sec) => (
-            <div key={sec} style={{ marginBottom: 10 }}>
-              <div className="field-label" style={{ opacity: 0.75 }}>{sec}</div>
-              <div className="rep-grid">
-                {cfg.headerFields.filter((f) => f.section === sec).map((f) => (
-                  <label key={f.name} className="rep-field">
-                    <span className="field-label">
-                      {f.label}
-                      {f.derived && <span className="muted"> · from {f.derived}</span>}
-                      {kind === 'sale' && SALE_PARTY_FIELDS.includes(f.name)
-                        && <span className="muted"> · from the party</span>}
-                    </span>
-                    <FieldInput field={f} value={fromDb(f, draft[f.name])} disabled={!canEdit}
-                      onChange={(v) => {
-                        setDraft((d) => {
-                          // The register's own arithmetic, from the AppSheet
-                          // definition (src/lib/coverspec.ts). Derived from the
-                          // field just edited, so an end date somebody typed for
-                          // a part-month contract is not undone by an unrelated
-                          // keystroke.
-                          const next = { ...d, [f.name]: toDb(f, v) };
-                          // `d` IS THE ROW BEFORE THIS EDIT, and passing it is
-                          // what lets PM Visits follow the period until
-                          // somebody types over it. Without it the derivation
-                          // would compare against the period it has just moved
-                          // to and read as overridden every time.
-                          return { ...next, ...deriveHeader(kind, f.name, next, d) };
-                        });
-                        if (kind === 'sale' && f.name === 'party_name') void fillFromParty(v);
-                      }} />
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          {canEdit && (
-            <div className="row" style={{ gap: 8, marginBottom: 12 }}>
-              <button className="btn btn-primary" onClick={() => void saveEntry()} disabled={saving}>
-                {saving ? 'Saving…' : 'Save entry'}
-              </button>
-              {/* SALES ONLY: a contract entry carries no address of its own. */}
-              {kind === 'sale' && !!str(draft.party_name).trim() && (
-                <button className="btn" disabled={saving} onClick={() => void refreshFromParty()}
-                  title="Re-read the address, contact and tax details from the Party Master">
-                  ↺ Update from Party Master
-                </button>
-              )}
-              {!!open.id && canDelete && <button className="btn" onClick={() => void removeEntry()}>Delete entry</button>}
-            </div>
-          )}
-
-          <h3 style={{ margin: '14px 0 8px' }}>Machines ({items.length})</h3>
-          {/* WHY A PRODUCT MAY BE MISSING FROM THE LIST, said here rather than
-              left to be inferred from an absence. A reader who cannot find
-              ORION on a new sale should learn that it is retired, not conclude
-              the master is incomplete and type it in anyway. Sale only: a
-              contract may name a retired line. */}
-          {kind === 'sale' && retiredNames(lines).length > 0 && (
-            <div className="muted" style={{ marginBottom: 8, fontSize: 12.5 }}>
-              {retiredNames(lines).length} product line
-              {retiredNames(lines).length === 1 ? ' is' : 's are'} marked <b>Inactive</b> on the
-              Product Master and {retiredNames(lines).length === 1 ? 'is' : 'are'} not offered
-              here — a retired line takes no new sale. It can still take a contract, a call and
-              everything else.
-            </div>
-          )}
-          {!open.id && <div className="muted" style={{ marginBottom: 8 }}>Save the entry first, then add machines to it.</div>}
-          {items.map((it) => (
-            <ItemCard key={str(it.id)} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines}
-              onSaved={(r) => setItems((cur) => cur.map((x) => (x.id === r.id ? r : x)))}
-              onDeleted={(id) => setItems((cur) => cur.filter((x) => x.id !== id))} />
-          ))}
-          {canEdit && !!open.id && (
-            <div className="row" style={{ gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button className="btn btn-sm"
-                onClick={() => setItems((cur) => [...cur, { [cfg.key]: str(draft[cfg.key]) }])}>
-                + Add machine
-              </button>
-              {/* DISABLED ONCE EVERY MACHINE HAS ITS CALL, by the mapping
-                  itself rather than by a flag somebody has to maintain. A line
-                  with no product or no serial is not a machine yet and gets no
-                  call — the call would be about nothing. */}
-              {kind === 'sale' && (
-                needCalls.length > 0
-                  ? canRaiseInstall && <button className="btn btn-sm" disabled={saving} onClick={() => void raiseCalls()}
-                      title="Raise an installation call for each machine that has not got one">
-                      ＋ Installation calls ({needCalls.length})
-                    </button>
-                  : <span className="muted" style={{ fontSize: 12 }}>
-                      {unsavedMachines
-                        ? `Press Save entry first — ${unsavedMachines} machine${unsavedMachines === 1 ? ' is' : 's are'} not saved yet, and a call can only be mapped to a saved machine.`
-                        : items.length ? 'Every machine here has its installation call.' : ''}
-                    </span>
-              )}
-              {/* OFFERED ONLY WHEN THERE IS SOMETHING TO CLEAR. A button that
-                  does nothing is one people press to find out what it does. */}
-              {pinnedNow.total > 0 && (
-                <>
-                  <button className="btn btn-sm" disabled={saving} onClick={() => void forceAll()}
-                    title="Clear every pinned value so all machines follow this entry again">
-                    ↺ Force update child records
-                  </button>
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    {pinnedNow.machines} machine(s) pinned · {pinnedNow.total} value(s)
-                    {pinnedNow.differing > 0 && <b> · {pinnedNow.differing} differ from this entry</b>}
-                  </span>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* CONTRACTS ONLY, and only once the entry exists. A sale is not
-              renewed — the warranty runs from the sale and that is the end of
-              it; a contract is the thing with a next one. Offered on ANY
-              contract rather than only an expiring one, because renewals are
-              raised in advance and a register that hides the button until the
-              cover has lapsed is asking people to work around it. */}
-          {canEdit && kind === 'contract' && !!open.id && (
-            renewing ? (
-              <RenewPanel
-                header={draft}
-                items={items}
-                onDone={(mc) => {
-                  setRenewing(false);
-                  setOpen(null);
-                  setMsg({ tone: 'ok', text: `Contract ${mc} created, carrying its machines over. Open it to check the rates, or set any you left blank.` });
-                  void refresh();
-                }}
-              />
-            ) : (
-              <button className="btn" style={{ marginTop: 14 }} disabled={loadingItems}
-                onClick={() => setRenewing(true)}
-                title={loadingItems ? 'Waiting for this contract’s machines to load' : undefined}>
-                {loadingItems ? 'Loading machines…' : '↻ Renew this contract'}
-              </button>
-            )
-          )}
+        )}
+        <div className="cover-pop-body">
+          <div className="cover-pop-col">
+            {/* THE RENEWAL GOES FIRST WHEN IT IS OPEN. Pressed from the top
+                bar, it must appear where the eye already is, not below a
+                screen of contract fields. */}
+            {renewPanel && <div style={{ marginBottom: 14 }}>{renewPanel}</div>}
+            <div className="cover-pop-col-head">{cfg.keyLabel} details</div>
+            {entryNote}
+            {entryFields}
+          </div>
+          <div className="cover-pop-col" ref={productsRef}>
+            <div className="cover-pop-col-head">Products ({items.length})</div>
+            {machineList}
+          </div>
+        </div>
+      </div>
     </div>
   ) : null;
 
@@ -1231,7 +1350,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           // own scroller; a table that also wants sixteen rows puts a second
           // scrollbar inside the first, and the reader has to work out which
           // one they are in.
-          rowsBeforeScroll={open ? 10 : 16}
+          rowsBeforeScroll={open && !popup ? 10 : 16}
           dense
           onRowClick={(r) => void openEntry(r)}
           onLoadMore={loadMore}
@@ -1273,7 +1392,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
 
       <div className="row" style={{ gap: 8, marginBottom: 10 }}>
         <button className={`btn btn-sm ${tab === 'entries' ? 'btn-primary' : ''}`} onClick={() => setTab('entries')}>Entries</button>
-        <button className={`btn btn-sm ${tab === 'machines' ? 'btn-primary' : ''}`} onClick={() => setTab('machines')}>By machine</button>
+        <button className={`btn btn-sm ${tab === 'machines' ? 'btn-primary' : ''}`} onClick={() => setTab('machines')}>{kind === 'contract' ? 'Register' : 'By machine'}</button>
       </div>
 
       {tab === 'machines' && (
@@ -1292,7 +1411,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       {tab === 'entries' ? (
         // TWO WINDOWS WHEN AN ENTRY IS OPEN, one when it is not. A split with
         // nothing in its second pane is half a screen given to an empty box.
-        open ? (
+        open && !popup ? (
           <SplitPane storageKey={`cover-${kind}`} left={entriesTable} right={entryPane} />
         ) : entriesTable
       ) : (
@@ -1319,6 +1438,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         />
       )}
 
+      {entryPopup}
     </div>
   );
 }

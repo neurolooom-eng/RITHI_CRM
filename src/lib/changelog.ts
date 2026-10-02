@@ -12,13 +12,25 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.26',
+    version: '0.10.27',
     date: '2026-10-02',
     title: 'How RITHI Functions: the Service Calls document',
     changes: [
       'NEW: HOW RITHI FUNCTIONS → SERVICE CALLS. The Field, Installation and PM registers side by side: how each gets its calls, its own permissions, and cancel, re-open and restore. Then a request becoming a call on Pending Registrations, the visit that sets the call\'s status, and Pending Calls, Call Review and Customer Feedback. Each step shows what it reads, what happens, and what it refuses or demands.',
       'CORRECTED ON SCREEN: the re-allocate note on the Installation and PM registers now names that register\'s own permission. It used to name the Field call one. Call Review names the review permission as Roles & Permissions labels it.',
       'CORRECTED: the handbook no longer offers closing a call without a visit (that option was removed). The data flows put filing a visit on the call\'s own register, not on Visit Reports, which only lists visits.',
+    ],
+  },
+  {
+    version: '0.10.26',
+    date: '2026-10-02',
+    title: 'Contract Register: entries open in a pop-up, and By machine is now Register',
+    changes: [
+      'CONTRACT REGISTER → "By machine" is renamed "Register". Same list, one row per machine, same tiles and buttons.',
+      'CLICKING A CONTRACT ENTRY OPENS IT IN A POP-UP WINDOW. The contract\'s details are on the left and its products on the right, and each side scrolls on its own, so the details stay in view while you work down a long product list.',
+      'EVERY BUTTON IS IN THE BAR AT THE TOP, and the bar stays put however far you scroll: Save entry, Delete entry, Renew this contract (and Cancel renewal), + Add machine, Force update child records, and Close. Save machine and Remove stay on each machine, because they act on that one machine. When you renew, the renewal panel opens at the top of the left side.',
+      'THE WINDOW DOES NOT CLOSE IF YOU CLICK OUTSIDE IT, and if you press Close while something is unsaved (the entry, a machine you edited, or a machine you added) it asks first. An "Unsaved" badge next to the contract number shows when the entry itself has unsaved changes.',
+      'The Warranty Register is unchanged: its entries still open beside the list.',
     ],
   },
   {

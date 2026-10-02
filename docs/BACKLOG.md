@@ -230,7 +230,7 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
-- ✅ **0.10.26 — How RITHI Functions: Service Calls document**
+- ✅ **0.10.27 — How RITHI Functions: Service Calls document**
   (`public/docs/how-service-calls-work.html`). Corrected on the way: re-allocate
   note names the register's own key; Call Review's permission label; handbook
   "closed without a visit" removed; flows' visit step routes to each register.
