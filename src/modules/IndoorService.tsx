@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useArrivingFilter } from '../lib/arriveWith';
 import { SelectPicker } from '../components/ui/SelectPicker';
-import { Drawer, FacetChips, PageHeader, SectionCard } from '../components/ui/ui';
+import { Drawer, FacetChips, Modal, PageHeader, SectionCard } from '../components/ui/ui';
 import {
-  supabaseConfigured, listIndoorJobs, addIndoorJob, saveIndoorJob, markIndoorCleaned,
+  supabaseConfigured, listIndoorJobs, saveIndoorJob, markIndoorCleaned,
   listIndoorAccessories, addIndoorAccessory, saveIndoorAccessory, deleteIndoorAccessory,
   listIndoorParts, addIndoorPart, deleteIndoorPart,
   listIndoorChecks, addIndoorCheck, saveIndoorCheck, deleteIndoorCheck,
   getIndoorPdt, saveIndoorPdt, signIndoorPdt, verifyIndoorJob, sbProductBySerial, callByUcn,
+  listIndoorDcs, saveIndoorReport,
   INDOOR_KINDS, INDOOR_ACTIVITIES, INDOOR_STATUSES,
   type IndoorJob, type IndoorAccessory, type IndoorPart, type IndoorCheck, type IndoorPdt,
 } from '../lib/supabase';
@@ -21,7 +23,11 @@ import {
 } from '../lib/indoorforms';
 import { useAuth } from '../lib/auth';
 import { IndoorDcDrawer, IndoorDcList } from './IndoorDcPanel';
-import { consigneeKey, jobConsignee } from '../lib/indoorforms';
+import { consigneeKey, jobConsignee, jobStage, INDOOR_STAGES, indoorReportFileName, type StageState } from '../lib/indoorforms';
+import { IndoorIntake } from './IndoorIntake';
+import { CallReportDrawer, type VisitDraft } from './CallReporting';
+import { SpareRequestDrawer } from './SpareRequests';
+import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { logAudit } from '../lib/audit';
 import './indoor.css';
 import { formatDay, formatDayTime } from '../lib/dates';
@@ -124,7 +130,14 @@ export function IndoorService() {
   const [pdt, setPdt] = useState<IndoorPdt | null>(null);
   // THE R/SER/07 VIEW: the register as the paper keeps it, one sheet at a time.
   // 'dcs' is the list of Indoor DCs (0321), each re-printable.
-  const [view, setView] = useState<'jobs' | 'register' | 'dcs'>('jobs');
+  // The R/SER/07 register is the DEFAULT view (the user, 2026-10-02).
+  const [view, setView] = useState<'jobs' | 'register' | 'dcs'>('register');
+  // ARRIVING FROM MY WORKLOAD's Indoor DC cards opens the DC list, once.
+  useArrivingFilter<string>('indoorView', (v) => { if (v === 'dcs') setView('dcs'); });
+  const [intakeOpen, setIntakeOpen] = useState(false);
+  const [reportFor, setReportFor] = useState<number | null>(null);
+  // Each IDC number's approval status, for the stage of a job carrying it.
+  const [dcStatus, setDcStatus] = useState<Record<string, string>>({});
   // INDOOR_DC: the Ready units ticked for one challan.
   const [picked, setPicked] = useState<number[]>([]);
   const [dcOpen, setDcOpen] = useState(false);
@@ -139,14 +152,22 @@ export function IndoorService() {
       .then(setJobs)
       .catch((e) => setMsg(`Could not load the register: ${e instanceof Error ? e.message : String(e)}`))
       .finally(() => setBusy(false));
+    listIndoorDcs()
+      .then((d) => setDcStatus(Object.fromEntries(d.map((x) => [x.dc_no, x.approval_status]))))
+      .catch(() => setDcStatus({}));
   }, [live]);
   useEffect(load, [load]);
 
   const job = jobs.find((j) => j.id === openId) ?? null;
 
-  // A unit can go on an Indoor DC when it is Ready and carries no DC No. yet;
-  // the database asks the dispatch rules besides (create_indoor_dc).
-  const dcEligible = (j: IndoorJob) => j.status === 'Ready' && !(j.dispatch_ref ?? '').trim();
+  // A unit can go on an Indoor DC when it is Ready, its Indoor Service Report
+  // is uploaded (0323) and it carries no DC No. yet; the database asks the
+  // dispatch rules besides (create_indoor_dc).
+  const dcEligible = (j: IndoorJob) => j.status === 'Ready' && !(j.dispatch_ref ?? '').trim()
+    && !!(j.report_file_url ?? '').trim();
+  const stageOf = (j: IndoorJob) => jobStage(j, dcStatus[(j.dispatch_ref ?? '').trim()]);
+  const reportJob = jobs.find((j) => j.id === reportFor) ?? null;
+  const [dcFor, setDcFor] = useState<IndoorJob[] | null>(null);
   const pickedJobs = useMemo(() => picked.map((id) => jobs.find((j) => j.id === id)).filter((j): j is IndoorJob => !!j),
     [picked, jobs]);
   const pickedConsignees = new Set(pickedJobs.map((j) => consigneeKey(jobConsignee(j))));
@@ -226,14 +247,8 @@ export function IndoorService() {
     navigate(`/indoor-register/${sheet}${q.toString() ? `?${q}` : ''}`);
   };
 
-  const receive = async () => {
-    const r = await addIndoorJob({ kind: 'Customer property', activity: 'Repair', status: 'Received' });
-    if (!r.ok) { setMsg(r.error ?? 'Could not file the intake'); return; }
-    logAudit({ action: 'indoor.receive', target: r.job_no ?? '' });
-    setMsg(`Filed as ${r.job_no}`);
-    load();
-    if (r.id) setOpenId(r.id);
-  };
+  // STAGE 1: the intake FORM (IndoorIntake), not a blank job.
+  const receive = () => setIntakeOpen(true);
 
   if (!live) {
     return (
@@ -307,7 +322,7 @@ export function IndoorService() {
 
       {view === 'register' ? (
         <SectionCard title="R/SER/07 — Indoor Service Equipment Failure Register">
-          <div className="ind-filters">
+          <div className="ind-filters ind-regbar">
             <label className="ind-toggle">
               <input type="radio" checked={sheet === 'customer'} onChange={() => setSheet('customer')} />
               Customer – Devices
@@ -329,20 +344,32 @@ export function IndoorService() {
           </p>
           <div className="table-wrap">
             <table className="table">
-              <thead><tr>{REGISTER_COLUMNS.map((c) => <th key={c}>{c}</th>)}</tr></thead>
+              <thead><tr><th title="Where the unit is in the workflow — on screen only, the paper has no such column">Stage</th>
+                {REGISTER_COLUMNS.map((c) => <th key={c}>{c}</th>)}</tr></thead>
               <tbody>
                 {sheetRows.map((j, i) => {
                   const r = registerRow(j, i + 1);
+                  const st = stageOf(j);
                   return (
                     <tr key={j.id} className="row-click" onClick={() => setOpenId(j.id)}>
+                      <td><span className={`ind-stagechip ${st.current < 5 && !st.offPath ? 'is-now' : ''}`}>{st.label}</span></td>
                       {REGISTER_COLUMNS.map((c) => (
-                        <td key={c}>{REGISTER_DATE_COLUMNS.includes(c) ? formatDay(r[c]) : String(r[c] ?? '')}</td>
+                        <td key={c}>{c === 'Indoor Service Report No'
+                          // STAGE 4 FROM THE REGISTER: a link once uploaded; an
+                          // Upload button once the unit is cleaned.
+                          ? ((j.report_file_url ?? '').trim()
+                              ? <a href={j.report_file_url} target="_blank" rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()} title={j.report_file_name}>{j.indoor_report_no || 'report'} ↗</a>
+                              : j.cleaned_at && mayWork
+                                ? <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); setReportFor(j.id); }}>⭱ Upload</button>
+                                : <span className="ind-hint">{j.indoor_report_no || (j.cleaned_at ? '' : 'after cleaning')}</span>)
+                          : REGISTER_DATE_COLUMNS.includes(c) ? formatDay(r[c]) : String(r[c] ?? '')}</td>
                       ))}
                     </tr>
                   );
                 })}
                 {sheetRows.length === 0 ? (
-                  <tr><td colSpan={REGISTER_COLUMNS.length} className="ind-empty">Nothing on this sheet for these dates.</td></tr>
+                  <tr><td colSpan={REGISTER_COLUMNS.length + 1} className="ind-empty">Nothing on this sheet for these dates.</td></tr>
                 ) : null}
               </tbody>
             </table>
@@ -352,7 +379,7 @@ export function IndoorService() {
 
       {view === 'dcs' ? (
         <SectionCard title="Indoor DCs — delivery challans out of the workshop">
-          <IndoorDcList />
+          <IndoorDcList onChanged={load} />
         </SectionCard>
       ) : null}
 
@@ -367,7 +394,7 @@ export function IndoorService() {
             <tr>
               {mayDispatch ? <th title="Tick Ready units for one Indoor DC">DC</th> : null}
               <th>Job</th><th>Kind</th><th>Activity</th><th>Product</th>
-              <th>Serial</th><th>Customer</th><th>Status</th><th>Tag</th><th>Received</th>
+              <th>Serial</th><th>Customer</th><th>Stage</th><th>Status</th><th>Tag</th><th>Received</th>
             </tr>
           </thead>
           <tbody>
@@ -392,6 +419,7 @@ export function IndoorService() {
                 <td>{j.product_name}</td>
                 <td className="mono">{j.serial}</td>
                 <td>{j.party_name ?? ''}</td>
+                <td><span className={`ind-stagechip ${stageOf(j).current < 5 && !stageOf(j).offPath ? 'is-now' : ''}`}>{stageOf(j).label}</span></td>
                 <td><span className={`ind-chip ${STATUS_TONE[j.status] ?? ''}`}>{j.status}</span>
                   {j.demo_overdue === true ? <span className="ind-late">overdue</span> : null}</td>
                 <td className="mono">{j.tag_no}</td>
@@ -399,7 +427,7 @@ export function IndoorService() {
               </tr>
             ))}
             {shown.length === 0 ? (
-              <tr><td colSpan={mayDispatch ? 10 : 9} className="ind-empty">
+              <tr><td colSpan={mayDispatch ? 11 : 10} className="ind-empty">
                 Nothing in the workshop matching this filter.
               </td></tr>
             ) : null}
@@ -408,13 +436,25 @@ export function IndoorService() {
       </div>
       ) : null}
 
-      <Drawer open={dcOpen && pickedJobs.length > 0} onClose={() => setDcOpen(false)} storeKey="indoor-dc"
+      <Drawer open={(dcOpen && pickedJobs.length > 0) || !!dcFor} onClose={() => { setDcOpen(false); setDcFor(null); }} storeKey="indoor-dc"
         title="Create Indoor DC">
-        {dcOpen && pickedJobs.length > 0 ? (
-          <IndoorDcDrawer jobs={pickedJobs} onClose={() => setDcOpen(false)}
-            onIssued={(no) => { setDcOpen(false); setPicked([]); setMsg(`Indoor DC ${no} issued.`); load(); }} />
+        {dcFor || (dcOpen && pickedJobs.length > 0) ? (
+          <IndoorDcDrawer jobs={dcFor ?? pickedJobs} onClose={() => { setDcOpen(false); setDcFor(null); }}
+            onIssued={(no) => { setDcOpen(false); setDcFor(null); setPicked([]); setMsg(`Indoor DC ${no} created — pending approval.`); load(); }} />
         ) : null}
       </Drawer>
+
+      <Drawer open={intakeOpen} onClose={() => setIntakeOpen(false)} storeKey="indoor-intake" title="Receive equipment — intake">
+        {intakeOpen ? (
+          <IndoorIntake onCancel={() => setIntakeOpen(false)}
+            onFiled={(id, no) => { setIntakeOpen(false); setMsg(`Filed as ${no}`); load(); setOpenId(id); }} />
+        ) : null}
+      </Drawer>
+
+      {reportJob ? (
+        <ReportUpload job={reportJob} onClose={() => setReportFor(null)}
+          onDone={() => { setReportFor(null); setMsg(`Indoor Service Report saved on ${reportJob.job_no}.`); load(); }} />
+      ) : null}
 
       <Drawer open={!!job} onClose={() => setOpenId(null)} storeKey="indoor-job"
         title={job ? `${job.job_no} — ${job.product_name || 'equipment'}` : ''}>
@@ -428,6 +468,10 @@ export function IndoorService() {
             uid={user?.id ?? ''}
             rights={{ mayReceive, mayWork, mayQc, mayDispatch, mayCondemn, mayVerify }}
             setMsg={setMsg}
+            stage={stageOf(job)}
+            dcStatus={dcStatus[(job.dispatch_ref ?? '').trim()]}
+            onUpload={() => setReportFor(job.id)}
+            onCreateDc={dcEligible(job) && mayDispatch ? () => setDcFor([job]) : undefined}
           />
         ) : null}
       </Drawer>
@@ -436,16 +480,22 @@ export function IndoorService() {
 }
 
 // ---------------------------------------------------------------------------
-// THE JOB DRAWER — the seven steps of §4.5 as a sequence you move through, each
-// one stamping who and when.
+// THE JOB DRAWER — the workflow as STAGES (0323, the user, 2026-10-02):
+// Intake -> Cleaning -> Repair -> Report -> DC (pending approval) ->
+// Dispatched / Approved, with a stepper at the top.
 //
-// The steps are always all visible rather than revealed one at a time: a
-// workshop does not always work in order (a unit arrives already cleaned; a
-// dispatch is arranged before QC is signed), and a form that hides step 4 until
-// step 3 is ticked teaches people to tick step 3.
+// ONLY THE CURRENT AND COMPLETED STAGES ARE SHOWN (the user's rule): at intake
+// there are no DC fields at all; the repair opens once the unit is cleaned;
+// the report can be uploaded once it is cleaned (the database refuses it
+// earlier); the DC appears once the report is uploaded. The ORDER is enforced
+// where it is a rule -- by the database -- and nothing is timed. This
+// replaces the earlier "every step always visible" layout, which the user
+// asked to change. The activity-specific sections (rework, salvage, PDI, demo,
+// PDT, condemn, verify) sit in the stage they belong to.
 // ---------------------------------------------------------------------------
 function IndoorJobDrawer({
   job, accessories, parts, checks, pdt, reloadChildren, reload, patch, uid, rights, setMsg,
+  stage, dcStatus, onUpload, onCreateDc,
 }: {
   job: IndoorJob;
   accessories: IndoorAccessory[];
@@ -459,9 +509,26 @@ function IndoorJobDrawer({
   rights: { mayReceive: boolean; mayWork: boolean; mayQc: boolean;
             mayDispatch: boolean; mayCondemn: boolean; mayVerify: boolean };
   setMsg: (s: string) => void;
+  stage: StageState;
+  dcStatus?: string;
+  onUpload: () => void;
+  onCreateDc?: () => void;
 }) {
   const { mayWork, mayQc, mayDispatch, mayCondemn, mayVerify } = rights;
   const navigate = useNavigate();
+  const cleaned = !!job.cleaned_at;
+  const reported = !!(job.report_file_url ?? '').trim();
+  // REQUEST SPARE: the SAME Spare Request drawer the call view raises, with
+  // this job's call passed in; the requester is the signed-in engineer (the
+  // drawer's own default). The call's status is NOT touched.
+  const [spareCall, setSpareCall] = useState<Record<string, unknown> | null>(null);
+  const requestSpare = async () => {
+    const u = (job.ucn ?? '').trim();
+    if (!u) return;
+    const c = await callByUcn(u).catch(() => null);
+    if (!c) { setMsg(`Call ${u} was not found, or you cannot view it — the spare request needs the call.`); return; }
+    setSpareCall(c);
+  };
 
   // THE COVER IS READ FROM THE MACHINE (the user's decision 1): the Product
   // Database by model + serial, normalised to WGP / OGP / CMC / AMC, whenever
@@ -513,8 +580,19 @@ function IndoorJobDrawer({
 
   return (
     <div className="ind-drawer">
+      {/* ---- THE STAGES (0323) ------------------------------------------- */}
+      <div className="ind-stepper" aria-label="Stage">
+        {INDOOR_STAGES.map((n, i) => (
+          <div key={n} className={`ind-step ${stage.done[i] ? 'is-done' : ''} ${i === stage.current ? 'is-now' : ''}`}>
+            <span className="ind-dot">{stage.done[i] ? '✓' : ''}</span>
+            <span className="ind-step-name">{n === 'DC' ? (dcStatus === 'Pending approval' ? 'DC pending approval' : 'DC / Dispatched') : n}</span>
+          </div>
+        ))}
+      </div>
+      <p className="ind-note"><span className="ind-stage-now">{stage.label}</span></p>
+
       {/* ---- 1. RECEIVE (4.5.2) ------------------------------------------ */}
-      <SectionCard title="1 · Received">
+      <SectionCard title="1 · Intake — received (4.5.2)">
         <div className="ind-grid">
           <Field label="Whose property is it?"
             hint="Customer property carries the duty of care of §7.5.10; a DEMO unit is the company's own stock.">
@@ -546,14 +624,6 @@ function IndoorJobDrawer({
             <input defaultValue={job.tag_no} disabled={!mayWork} className="mono"
               onBlur={(e) => set({ tag_no: e.target.value })} />
           </Field>
-          <Field label="Status">
-            {/* DISPATCHED AND CLOSED ARE THE DISPATCH RIGHT'S (finding 59, 0297):
-                the picker offered them to indoor.work, and the database now
-                refuses that, so the picker does not offer what it will refuse. */}
-            <SelectPicker value={job.status}
-              options={INDOOR_STATUSES.filter((st) => mayDispatch || !['Dispatched', 'Closed'].includes(st) || st === job.status)}
-              onChange={(v) => set({ status: v })} disabled={!mayWork} />
-          </Field>
         </div>
         {/* THE REGISTER'S OWN COLUMNS (R/SER/07), in its words. */}
         <div className="ind-grid">
@@ -574,6 +644,10 @@ function IndoorJobDrawer({
               onChange={(v) => set({ cover: v })} disabled={!mayWork} />
           </Field>
         </div>
+        {(job.standard_complaint ?? '').trim() ? (
+          <Field label="Standard Complaint" hint="As the call records it — read only.">
+            <input value={job.standard_complaint} disabled /></Field>
+        ) : null}
         <Field label="Problem Reported">
           <textarea defaultValue={job.problem_reported} disabled={!mayWork} rows={2}
             onBlur={(e) => set({ problem_reported: e.target.value })} />
@@ -588,8 +662,43 @@ function IndoorJobDrawer({
         </p>
       </SectionCard>
 
+      {/* ---- accessories (4.5.4) ------------------------------------------ */}
+      {SHOWS.accessories(a) ? (
+        <SectionCard title="Accessories received">
+          <p className="ind-note">
+            Tagged to the parent equipment (4.5.4). Returning the customer's accessories is
+            part of returning their property, and a list is what makes that checkable at
+            dispatch — {job.accessories_outstanding} of {job.accessory_count} still to go back.
+          </p>
+          <table className="table ind-child">
+            <thead><tr><th>Item</th><th>Qty</th><th>Serial</th><th>Tag</th>{reported ? <th>Returned</th> : null}<th /></tr></thead>
+            <tbody>
+              {accessories.map((x) => (
+                <tr key={x.id}>
+                  <td><input defaultValue={x.name} disabled={!mayWork}
+                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { name: e.target.value }))} /></td>
+                  <td><input type="number" min={1} step="any" style={{ width: 64 }} defaultValue={x.qty ?? 1} disabled={!mayWork}
+                    onBlur={(e) => { const q = Number(e.target.value); if (q > 0 && q !== Number(x.qty)) void child(() => saveIndoorAccessory(x.id, { qty: q })); }} /></td>
+                  <td><input defaultValue={x.serial} className="mono" disabled={!mayWork}
+                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { serial: e.target.value }))} /></td>
+                  <td><input defaultValue={x.tag_no} className="mono" disabled={!mayWork}
+                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { tag_no: e.target.value }))} /></td>
+                  {reported ? <td><input type="checkbox" checked={x.returned} disabled={!mayWork}
+                    onChange={(e) => child(() => saveIndoorAccessory(x.id, { returned: e.target.checked }))} /></td> : null}
+                  <td>{mayWork ? <button className="btn-link"
+                    onClick={() => child(() => deleteIndoorAccessory(x.id))}>remove</button> : null}</td>
+                </tr>
+              ))}
+              {accessories.length === 0 ? <tr><td colSpan={6} className="ind-empty">Nothing listed.</td></tr> : null}
+            </tbody>
+          </table>
+          {mayWork ? <button className="btn"
+            onClick={() => child(() => addIndoorAccessory(job.id, { name: '', qty: 1 }))}>＋ Add an item</button> : null}
+        </SectionCard>
+      ) : null}
+
       {/* ---- 2. CLEAN (4.5.3) -------------------------------------------- */}
-      <SectionCard title="2 · Cleaned and disinfected">
+      <SectionCard title="2 · Cleaning — as per the work instruction (4.5.3)">
         <div className="ind-grid">
           <Field label="Work instruction"><input defaultValue={job.cleaning_wi} disabled={!mayWork}
             onBlur={(e) => set({ cleaning_wi: e.target.value })} /></Field>
@@ -604,7 +713,7 @@ function IndoorJobDrawer({
                 const r = await markIndoorCleaned(job.id, job.cleaning_wi || 'WI/SER/01', job.cleaning_wi_rev, uid);
                 if (!r.ok) setMsg(r.error ?? 'Could not record the cleaning');
                 else { setMsg(''); void patch(job.id, { status: 'Cleaned' }); }
-              }}>Record cleaning</button>
+              }}>Mark cleaning done</button>
             : <p className="ind-note">Not yet cleaned.</p>}
         {SHOWS.salvage(a) ? (
           <label className="ind-check">
@@ -615,14 +724,31 @@ function IndoorJobDrawer({
         ) : null}
       </SectionCard>
 
+      {cleaned ? (<>
       {/* ---- 3. WORK (4.5.6) --------------------------------------------- */}
-      <SectionCard title="3 · Findings and work done">
+      <SectionCard title="3 · Repair — findings and work done (4.5.6)">
+        <div className="ind-grid">
+          <Field label="Status">
+            {/* DISPATCHED AND CLOSED ARE THE DISPATCH RIGHT'S (finding 59, 0297):
+                the picker offered them to indoor.work, and the database now
+                refuses that, so the picker does not offer what it will refuse. */}
+            <SelectPicker value={job.status}
+              options={INDOOR_STATUSES.filter((st) => mayDispatch || !['Dispatched', 'Closed'].includes(st) || st === job.status)}
+              onChange={(v) => set({ status: v })} disabled={!mayWork} />
+          </Field>
+          {/* Offered to whoever works the job; RAISING it is the Spare Request
+              register's own right, which the database asks on submit -- the
+              key belongs to that page's row on Roles & Permissions, not this one. */}
+          {(job.ucn ?? '').trim() && mayWork ? (
+            <Field label="Spares" hint="The Spare Request form, with this call filled in and you as the requester (it needs the Spare Request right). The call’s status is not changed.">
+              <button className="btn" onClick={() => void requestSpare()}>Request spare</button>
+            </Field>
+          ) : null}
+        </div>
         <Field label="Findings"><textarea defaultValue={job.findings} disabled={!mayWork} rows={3}
           onBlur={(e) => set({ findings: e.target.value })} /></Field>
         <Field label="Work done"><textarea defaultValue={job.work_done} disabled={!mayWork} rows={3}
           onBlur={(e) => set({ work_done: e.target.value })} /></Field>
-        <Field label="Indoor Service Report No"><input defaultValue={job.indoor_report_no} disabled={!mayWork} className="mono"
-          onBlur={(e) => set({ indoor_report_no: e.target.value })} /></Field>
         <Field label="Damage to the customer's property"
           hint="§7.5.10 — damage to somebody's machine is theirs to be told about, and this is where that is recorded rather than nowhere.">
           <textarea defaultValue={job.damage_note} disabled={!mayWork} rows={2}
@@ -794,39 +920,6 @@ function IndoorJobDrawer({
         </SectionCard>
       ) : null}
 
-      {/* ---- accessories (4.5.4) ------------------------------------------ */}
-      {SHOWS.accessories(a) ? (
-        <SectionCard title="Accessories">
-          <p className="ind-note">
-            Tagged to the parent equipment (4.5.4). Returning the customer's accessories is
-            part of returning their property, and a list is what makes that checkable at
-            dispatch — {job.accessories_outstanding} of {job.accessory_count} still to go back.
-          </p>
-          <table className="table ind-child">
-            <thead><tr><th>Item</th><th>Serial</th><th>Tag</th><th>Returned</th><th /></tr></thead>
-            <tbody>
-              {accessories.map((x) => (
-                <tr key={x.id}>
-                  <td><input defaultValue={x.name} disabled={!mayWork}
-                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { name: e.target.value }))} /></td>
-                  <td><input defaultValue={x.serial} className="mono" disabled={!mayWork}
-                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { serial: e.target.value }))} /></td>
-                  <td><input defaultValue={x.tag_no} className="mono" disabled={!mayWork}
-                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { tag_no: e.target.value }))} /></td>
-                  <td><input type="checkbox" checked={x.returned} disabled={!mayWork}
-                    onChange={(e) => child(() => saveIndoorAccessory(x.id, { returned: e.target.checked }))} /></td>
-                  <td>{mayWork ? <button className="btn-link"
-                    onClick={() => child(() => deleteIndoorAccessory(x.id))}>remove</button> : null}</td>
-                </tr>
-              ))}
-              {accessories.length === 0 ? <tr><td colSpan={5} className="ind-empty">Nothing listed.</td></tr> : null}
-            </tbody>
-          </table>
-          {mayWork ? <button className="btn"
-            onClick={() => child(() => addIndoorAccessory(job.id, { name: '' }))}>Add an accessory</button> : null}
-        </SectionCard>
-      ) : null}
-
       {/* ---- the checks (SR-003 / SR-006 / SR-020) ------------------------ */}
       {SHOWS.checks(a) ? (
         <SectionCard title="Checks — expected against measured">
@@ -969,7 +1062,7 @@ function IndoorJobDrawer({
       ) : null}
 
       {/* ---- 4. QC (4.5.6) ------------------------------------------------ */}
-      <SectionCard title="4 · Quality check">
+      <SectionCard title="Quality check (4.5.6) — the last step of the repair">
         <div className="ind-grid">
           <Field label="Result" hint="A Fail sends it back to Under repair. A machine does not leave with a failed check.">
             <SelectPicker value={job.qc_result ?? ''} options={['Pass', 'Fail']} disabled={!mayQc}
@@ -997,9 +1090,48 @@ function IndoorJobDrawer({
           </p>
         ) : null}
       </SectionCard>
+      </>) : null}
 
+      {/* ---- 4. SERVICE REPORT (0323) -------------------------------------
+          Uploaded after cleaning (the database refuses it earlier). For a job
+          with a UCN the same form drafts the Visit Entry; it is filed against
+          the call when the Indoor DC is approved. */}
+      {cleaned ? (
+        <SectionCard title="4 · Indoor Service Report">
+          {reported ? (
+            <p className="ind-note">
+              Report <b className="mono">{job.indoor_report_no}</b> —{' '}
+              <a href={job.report_file_url} target="_blank" rel="noopener noreferrer">{job.report_file_name || 'open'} ↗</a>
+              {job.report_uploaded_at ? <> · uploaded by <b>{job.report_uploaded_by_name || '—'}</b> on {formatDayTime(job.report_uploaded_at)}</> : null}
+            </p>
+          ) : <p className="ind-note">Not uploaded yet.</p>}
+          {(job.ucn ?? '').trim() ? (
+            job.visit_filed_at
+              ? <p className="ind-note">Visit <b className="mono">{job.visit_uid}</b> filed against {job.ucn} on {formatDayTime(job.visit_filed_at)} (at the Indoor DC’s approval).</p>
+              : job.visit_draft
+                ? <p className="ind-note">The visit against <b>{job.ucn}</b> is <b>drafted</b>{job.visit_date ? <> (visit date {formatDay(job.visit_date)})</> : null} — Unsolved, pending Return to Field. It is filed when the Indoor DC is approved.</p>
+                : <p className="ind-warn">The visit against {job.ucn} is not drafted yet — the upload form asks for it.</p>
+          ) : <p className="ind-note">No call — a DEMO / new device files no visit.</p>}
+          {mayWork && !(job.dispatch_ref ?? '').trim()
+            ? <button className="btn" onClick={onUpload}>{reported ? 'Change the report / visit details' : '⭱ Upload the Indoor Service Report'}</button>
+            : null}
+        </SectionCard>
+      ) : null}
+
+      {reported ? (<>
       {/* ---- 5. DISPATCH (4.5.7) ------------------------------------------ */}
-      <SectionCard title="5 · Dispatch">
+      <SectionCard title="5 · Indoor DC and dispatch (4.5.7)">
+        {onCreateDc ? (
+          <p className="ind-note"><button className="btn btn-primary" onClick={onCreateDc}>Create Indoor DC for this unit</button>
+            {' '}or tick it with others going to the same place in the Workshop view.</p>
+        ) : !(job.dispatch_ref ?? '').trim() && job.status !== 'Ready' ? (
+          <p className="ind-note">A unit goes on an Indoor DC once it is <b>Ready</b>.</p>
+        ) : null}
+        {dcStatus === 'Pending approval' ? (
+          <p className="ind-warn">Indoor DC <b>{job.dispatch_ref}</b> is <b>pending approval</b> — the unit is dispatched once it is approved.</p>
+        ) : dcStatus === 'Approved' ? (
+          <p className="ind-note">Indoor DC <b>{job.dispatch_ref}</b> is approved.</p>
+        ) : null}
         <Field label="Dispatch reference (DC number)">
           <input defaultValue={job.dispatch_ref} disabled={!mayDispatch}
             onBlur={(e) => set({ dispatch_ref: e.target.value })} /></Field>
@@ -1009,9 +1141,8 @@ function IndoorJobDrawer({
             not marked returned. Returning the customer's property means returning all of it.
           </p>
         ) : null}
-        <Field label="DC Date">
-          <input type="date" defaultValue={job.dc_date ?? ''} disabled={!mayDispatch}
-            onBlur={(e) => set({ dc_date: e.target.value || null })} /></Field>
+        <Field label="DC Date" hint="Set by the Indoor DC: the date it was entered.">
+          <input value={job.dc_date ? formatDay(job.dc_date) : ''} disabled /></Field>
         {job.dispatched_at ? (
           <p className="ind-note">Dispatched by <b>{job.dispatched_by_name || '—'}</b> on {formatDayTime(job.dispatched_at)}.</p>
         ) : null}
@@ -1027,8 +1158,10 @@ function IndoorJobDrawer({
           <textarea defaultValue={job.remarks} disabled={!mayWork} rows={2}
             onBlur={(e) => set({ remarks: e.target.value })} /></Field>
       </SectionCard>
+      </>) : null}
 
       {/* ---- 6. VERIFIED BY (R/SER/07) ------------------------------------ */}
+      {verifiable || job.verified_at ? (
       <SectionCard title="6 · Verified by">
         {job.verified_at ? (
           <p className="ind-note">Verified by <b>{job.verified_by_name || '—'}</b> on {formatDayTime(job.verified_at)}.</p>
@@ -1044,6 +1177,12 @@ function IndoorJobDrawer({
           <p className="ind-note">A register entry is verified once the unit is Dispatched, Closed or Condemned.</p>
         )}
       </SectionCard>
+      ) : null}
+
+      {spareCall ? (
+        <SpareRequestDrawer call={spareCall} open={!!spareCall} onClose={() => setSpareCall(null)}
+          onSaved={(u) => { setSpareCall(null); setMsg(`Spare request raised for ${u} — track it under Spares → Spare Requests.`); }} />
+      ) : null}
 
       <p className="ind-foot">
         Last changed by {job.updated_by_name || '—'}. Phase 2 links this back to the call:
@@ -1051,5 +1190,122 @@ function IndoorJobDrawer({
         completion report closing it (4.5.7).
       </p>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// STAGE 4 -- THE INDOOR SERVICE REPORT UPLOAD (0323).
+//
+// THE FILE goes to Drive through the bridge every other upload in this app
+// uses (uploadToDrive, apps-script/CallReg.gs), NAMED "<Indoor Service Report
+// No>_<original file name>" (indoorReportFileName) so it traces back to the
+// register. No Drive folder is named: the bridge has none for Indoor Service
+// yet, so it lands in the drive root, as the Document Library's do.
+//
+// A JOB WITH A UCN gets the Visit Entry form itself (CallReportDrawer in its
+// Indoor mode): every field the visit asks, by the visit form's own rules,
+// with Call Status / Pending Reason / Update Visit Work Details? fixed --
+// saved as a DRAFT on the job and filed when the Indoor DC is approved. A
+// DEMO / new device (no UCN) gets the report number and the file only.
+// ---------------------------------------------------------------------------
+async function uploadIndoorReportFile(file: File, reportNo: string): Promise<{ ok: boolean; url?: string; name?: string; error?: string }> {
+  if (!reportNo.trim()) return { ok: false, error: 'Enter the Indoor Service Report No. first — the file is named after it.' };
+  if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: `${file.name} is larger than ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.` };
+  const named = new File([file], indoorReportFileName(reportNo, file.name), { type: file.type || 'application/octet-stream' });
+  const r = await uploadToDrive(named);
+  return r.ok && r.url ? { ok: true, url: r.url, name: named.name } : { ok: false, error: r.error ?? 'Upload failed.' };
+}
+
+function ReportUpload({ job, onClose, onDone }: { job: IndoorJob; onClose: () => void; onDone: () => void }) {
+  const ucn = (job.ucn ?? '').trim();
+  const [call, setCall] = useState<Record<string, unknown> | null | undefined>(ucn ? undefined : null);
+  const [reportNo, setReportNo] = useState(job.indoor_report_no ?? '');
+  const [link, setLink] = useState(job.report_file_url ?? '');
+  const [name, setName] = useState(job.report_file_name ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!ucn) return;
+    let live = true;
+    callByUcn(ucn).then((c) => { if (live) setCall(c); }).catch(() => { if (live) setCall(null); });
+    return () => { live = false; };
+  }, [ucn]);
+
+  if (!job.cleaned_at) {
+    return (
+      <Modal open onClose={onClose} title="Indoor Service Report">
+        <p className="ind-warn">The report is uploaded after the unit is cleaned (WI/SER/01). Mark cleaning done first.</p>
+      </Modal>
+    );
+  }
+
+  if (ucn) {
+    if (call === undefined) return <Modal open onClose={onClose} title="Indoor Service Report"><p className="ind-note">Reading call {ucn}…</p></Modal>;
+    if (call === null) {
+      return (
+        <Modal open onClose={onClose} title="Indoor Service Report">
+          <p className="ind-warn">Call {ucn} was not found, or you cannot view it — the visit details cannot be drafted without the call.
+            Ask an administrator for sight of the call (the Field / Installation / PM register’s view right).</p>
+        </Modal>
+      );
+    }
+    return (
+      <CallReportDrawer call={call} open onClose={onClose}
+        indoor={{
+          initial: (job.visit_draft as unknown as VisitDraft | null) ?? null,
+          reportNo: job.indoor_report_no ?? '',
+          reportLink: job.report_file_url ?? '',
+          upload: async (file, no) => {
+            const r = await uploadIndoorReportFile(file, no);
+            if (r.ok && r.name) setName(r.name);
+            return r;
+          },
+          onSave: async (d, no, url) => {
+            const r = await saveIndoorReport(job.id, {
+              reportNo: no, url, fileName: url === job.report_file_url ? (job.report_file_name || name) : name,
+              visitDraft: d as unknown as Record<string, unknown>, visitDate: d.visitDate,
+            });
+            if (r.ok) { logAudit({ action: 'indoor.report_upload', target: job.job_no, status: 'ok', meta: { ucn, report_no: no } }); onDone(); }
+            return r;
+          },
+        }} />
+    );
+  }
+
+  const pick = async (file?: File) => {
+    if (!file) return;
+    setBusy(true); setErr('');
+    const r = await uploadIndoorReportFile(file, reportNo);
+    setBusy(false);
+    if (!r.ok || !r.url) { setErr(r.error ?? 'Upload failed.'); return; }
+    setLink(r.url); setName(r.name ?? '');
+  };
+  const save = async () => {
+    if (!reportNo.trim()) { setErr('Enter the Indoor Service Report No.'); return; }
+    if (!link) { setErr('Upload the report file.'); return; }
+    setBusy(true);
+    const r = await saveIndoorReport(job.id, { reportNo: reportNo.trim(), url: link, fileName: name });
+    setBusy(false);
+    if (!r.ok) { setErr(r.error ?? 'Could not save.'); return; }
+    logAudit({ action: 'indoor.report_upload', target: job.job_no, status: 'ok', meta: { report_no: reportNo.trim() } });
+    onDone();
+  };
+  return (
+    <Modal open onClose={onClose} title={`Indoor Service Report — ${job.job_no}`}>
+      {err ? <div className="ind-warn">{err}</div> : null}
+      <p className="ind-note">No call — a DEMO / new device files no visit. The report number and the file are all this stage asks.</p>
+      <Field label="Indoor Service Report No *">
+        <input className="mono" value={reportNo} onChange={(e) => setReportNo(e.target.value)} /></Field>
+      <Field label="The report" hint={`Saved in Drive as “${reportNo.trim() || '<report no>'}_<file name>”. PDF or photo, up to 10 MB.`}>
+        {link ? <a href={link} target="_blank" rel="noopener noreferrer">{name || 'uploaded'} ↗</a> : null}
+        <input type="file" accept=".pdf,image/*" disabled={busy || !reportNo.trim()}
+          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void pick(f); }} />
+      </Field>
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
+        <button className="btn btn-primary" onClick={() => void save()} disabled={busy || !link}>{busy ? 'Saving…' : 'Save the report'}</button>
+      </div>
+    </Modal>
   );
 }

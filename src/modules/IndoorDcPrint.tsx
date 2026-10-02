@@ -14,8 +14,13 @@
 //
 // ISSUED BY (Stores) prints the name RITHI knows for the person who issued
 // the DC, stamped by the database; the stored signature beside it only when
-// that person is the one printing (URS-057, signatureBelongsTo). The other
-// three boxes are left empty to be signed by hand.
+// that person is the one printing (URS-057, signatureBelongsTo).
+// AUTHORISED BY (0323): while the DC is PENDING APPROVAL the box stays EMPTY
+// and the sheet carries a "PENDING APPROVAL" band naming who it waits for --
+// a name in that box before anybody approved would read as an authorisation
+// that was never given. Once approved, the approver's name prints there (with
+// their signature under the same rule). A REJECTED DC prints a REJECTED band
+// and its reason. The other two boxes are signed by hand.
 // ===========================================================================
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -63,6 +68,8 @@ export function IndoorDcPrint() {
   const { dc, lines } = doc;
   const F = INDOOR_DC_FORM;
   const signature = signatureBelongsTo(dc.issued_by_name, user) ? (mySig?.signature ?? '') : '';
+  const approved = dc.approval_status === 'Approved';
+  const approverSignature = approved && signatureBelongsTo(dc.approved_by_name, user) ? (mySig?.signature ?? '') : '';
   const blanks = Math.max(0, MIN_ROWS - lines.length);
 
   return (
@@ -94,6 +101,11 @@ export function IndoorDcPrint() {
         </table>
 
         <div className="ip-dc-title">{F.title}</div>
+        {dc.approval_status === 'Pending approval' ? (
+          <div className="ip-band">PENDING APPROVAL — awaiting {dc.authorised_by_name || 'the authoriser'}</div>
+        ) : dc.approval_status === 'Rejected' ? (
+          <div className="ip-band">REJECTED — {dc.rejection_reason}</div>
+        ) : null}
 
         <table className="ip-grid">
           <colgroup><col style={{ width: '55%' }} /><col style={{ width: '45%' }} /></colgroup>
@@ -152,7 +164,11 @@ export function IndoorDcPrint() {
                 {signature ? <img className="ip-sign-ink" style={{ margin: '0 auto' }} src={signature} alt="" /> : null}
                 <div className="ip-sign-name">{dc.issued_by_name}</div>
               </td>
-              <td /><td /><td />
+              <td>
+                {approverSignature ? <img className="ip-sign-ink" style={{ margin: '0 auto' }} src={approverSignature} alt="" /> : null}
+                {approved ? <div className="ip-sign-name">{dc.approved_by_name}</div> : null}
+              </td>
+              <td /><td />
             </tr>
           </tbody>
         </table>

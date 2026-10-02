@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**97 tables · 37 views · 2773 columns · 196 policies · 63 foreign keys.**
+**98 tables · 37 views · 2815 columns · 196 policies · 63 foreign keys.**
 
 ## How to read this
 
@@ -63,6 +63,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [help_screenshots](#help-screenshots)
 - [indoor_dc_counters](#indoor-dc-counters)
 - [indoor_dc_lines](#indoor-dc-lines)
+- [indoor_dc_release_tickets](#indoor-dc-release-tickets)
 - [indoor_dcs](#indoor-dcs)
 - [indoor_job_accessories](#indoor-job-accessories)
 - [indoor_job_checks](#indoor-job-checks)
@@ -1372,6 +1373,30 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ---
 
+## indoor_dc_release_tickets
+
+**Primary key:** `job_id, tx` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `job_id` | bigint | **no** |  |  |
+| 2 | `tx` | bigint | **no** |  |  |
+| 3 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 4 | `sys_created_by` | uuid | yes |  |  |
+| 5 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 6 | `sys_updated_by` | uuid | yes |  |  |
+| 7 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(indoor_dc_release_tickets_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
+
+---
+
 ## indoor_dcs
 
 > Indoor_DC -- the Delivery Challan that takes Indoor Service units out of the workshop (0321). One DC, one consignee, one or more jobs. Number IDC-YYMM-NNNN issued by the database. Written only by create_indoor_dc(); never deleted.
@@ -1396,6 +1421,14 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 14 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 15 | `sys_updated_by` | uuid | yes |  |  |
 | 16 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 17 | `authorised_by_name` | text | **no** | `''::text` | AUTHORISED BY on the Indoor DC: one of indoor_dc_authorisers() for the issuer, named when the DC was created (0323). That person -- by their User Master name -- or an administrator approves or rejects it. |
+| 18 | `approval_status` | text | **no** | `'Pending approval'::text` | Pending approval · Approved · Rejected · Issued before approval · Pending approval (on creation) -> Approved (approve_indoor_dc, which needs every UCN job's visit filed) or Rejected (reject_indoor_dc, which releases the units). Issued before approval = a DC made before 0323 (0323). |
+| 19 | `approved_by` | uuid | yes |  |  |
+| 20 | `approved_by_name` | text | **no** | `''::text` |  |
+| 21 | `approved_at` | timestamp with time zone | yes |  |  |
+| 22 | `rejected_by` | uuid | yes |  |  |
+| 23 | `rejected_at` | timestamp with time zone | yes |  |  |
+| 24 | `rejection_reason` | text | **no** | `''::text` |  |
 
 **Unique:** `dc_no` _(indoor_dcs_dc_no_key)_ · `dc_no` _(indoor_dcs_dc_no_key)_ · `sys_id` _(indoor_dcs_sys_id_key)_
 
@@ -1429,6 +1462,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 10 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 11 | `sys_updated_by` | uuid | yes |  |  |
 | 12 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 13 | `qty` | numeric | **no** | `1` | How many of this accessory were RECEIVED with the unit (0323). Printed on the Indoor DC line. |
 
 **Unique:** `sys_id` _(indoor_job_accessories_sys_id_key)_
 
@@ -1437,6 +1471,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 - `job_id` → **indoor_jobs**(`id`) · on delete cascade _(indoor_job_accessories_job_id_fkey)_
 
 **Referenced by:** `indoor_dc_lines.accessory_id`
+
+**Constraints:**
+
+- `indoor_job_accessories_qty_positive` — `CHECK ((qty > (0)::numeric))`
 
 **Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
@@ -1640,6 +1678,15 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 86 | `cover` | text | **no** | `''::text` | R/SER/07 "Status": the machine's COVER (WGP / OGP / CMC / AMC, cover_code()), read from the Product Database when the job is received or its product/serial changes, and editable. Not the workflow stage, which is `status`. |
 | 87 | `verified_by` | uuid | yes |  | R/SER/07 "Verified By": stamped from the session by indoor_jobs_guard() (0320) for a holder of indoor.verify, once the job is Dispatched, Closed or Condemned. A value the browser sends is discarded. |
 | 88 | `verified_at` | timestamp with time zone | yes |  |  |
+| 89 | `standard_complaint` | text | **no** | `''::text` | The call's Standard Complaint as it read when the unit was received from that call (0323). Shown read-only beside Problem Reported. |
+| 90 | `report_file_url` | text | **no** | `''::text` | The uploaded Indoor Service Report (stage 4), filed in Drive as "<Indoor Service Report No>_<original file name>". Refused until the unit is cleaned and without a report number; who and when are stamped (0323). |
+| 91 | `report_file_name` | text | **no** | `''::text` |  |
+| 92 | `report_uploaded_by` | uuid | yes |  |  |
+| 93 | `report_uploaded_at` | timestamp with time zone | yes |  |  |
+| 94 | `visit_draft` | jsonb | yes |  | For a job with a UCN: the Visit Entry answers captured with the report upload, a DRAFT. Filed against the UCN by the Visit Entry's own save path when the Indoor DC is issued (0323). |
+| 95 | `visit_date` | date | yes |  |  |
+| 96 | `visit_uid` | text | yes |  | The reports row (visit) filed against the UCN from this job's draft (0323). Must name a visit of this job's UCN. |
+| 97 | `visit_filed_at` | timestamp with time zone | yes |  | When the drafted visit was filed in full -- the visit, its spares and its feedback (0323). Stamped; create_indoor_dc() requires it for a job with a UCN. |
 
 **Unique:** `job_no` _(indoor_jobs_job_no_key)_ · `job_no` _(indoor_jobs_job_no_key)_ · `sys_id` _(indoor_jobs_sys_id_key)_
 
@@ -1647,8 +1694,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
 - `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
+- `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
 
 **Triggers:** `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -4197,8 +4244,8 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `field_failure_register` | **on** | 62 |
 | `handstock_balance` | **on** | 20 |
 | `handstock_movements` | **on** | 16 |
-| `indoor_dc_list` | **on** | 13 |
-| `indoor_job_list` | **on** | 101 |
+| `indoor_dc_list` | **on** | 20 |
+| `indoor_job_list` | **on** | 111 |
 | `kpi_field_inst` | **on** | 34 |
 | `machine_cover` | **on** | 19 |
 | `pending_calls` | **on** | 54 |

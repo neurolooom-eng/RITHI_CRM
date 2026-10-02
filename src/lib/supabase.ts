@@ -2918,11 +2918,13 @@ export async function reportHistory(ucn: string): Promise<Record<string, unknown
   return data ?? [];
 }
 // Each Visit Entry is a new VISIT row (reports = history), keyed by a fresh uid.
-export async function saveReport(ucn: string, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+// The visit's `uid` is returned so a caller can record WHICH visit it filed
+// (an Indoor job does, 0323).
+export async function saveReport(ucn: string, patch: Record<string, unknown>): Promise<{ ok: boolean; uid?: string; error?: string }> {
   const uid = `WEB-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`.toUpperCase();
   const row = { uid, ucn, ...patch, updated_at: new Date().toISOString() };
   const { error } = await must().from('reports').insert(row);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, uid };
 }
 // The latest visit row for a UCN (most recent report), for history/context.
 export async function latestReport(ucn: string): Promise<Record<string, unknown> | null> {
@@ -5667,6 +5669,21 @@ export interface IndoorJob {
   cover: string;
   verified_by: string | null;
   verified_at: string | null;
+  // The stages (0323)
+  /** The call's Standard Complaint as it read at intake (read-only on screen). */
+  standard_complaint: string;
+  /** Stage 4: the uploaded Indoor Service Report, "<report no>_<file name>". */
+  report_file_url: string;
+  report_file_name: string;
+  report_uploaded_by: string | null;
+  report_uploaded_at: string | null;
+  /** A job WITH a UCN: the Visit Entry drafted with the report, filed against
+   *  the call when the Indoor DC is approved. */
+  visit_draft: Record<string, unknown> | null;
+  visit_date: string | null;
+  /** The visit filed from the draft (reports.uid), and when it was filed in full. */
+  visit_uid: string | null;
+  visit_filed_at: string | null;
   // From the view
   received_by_name: string;
   cleaned_by_name: string;
@@ -5686,6 +5703,7 @@ export interface IndoorJob {
   /** Is the product line imported? NULL = unknown (no matching line, or the
    *  Product Master's Imported is blank) -- 0320's indoor_job_is_imported(). */
   product_imported: boolean | null;
+  report_uploaded_by_name: string;
 }
 
 /** R/SER/QC/007 PRE DELIVERY TESTING -- one row per job (0320). */
@@ -5714,6 +5732,8 @@ export interface IndoorPdt {
 export interface IndoorAccessory {
   id: number; job_id: number; name: string; serial: string;
   tag_no: string; returned: boolean; note: string;
+  /** How many were RECEIVED (0323), > 0. */
+  qty: number;
 }
 export interface IndoorPart {
   id: number; job_id: number; part_code: string; description: string;
@@ -5780,6 +5800,10 @@ export async function saveIndoorJob(
     // verifyIndoorJob(), and the database stamps who and when.
     'field_report_no', 'engineer_name', 'customer_place', 'problem_reported',
     'indoor_report_no', 'dc_date', 'remarks', 'cover',
+    // The stages (0323). The report FILE and its stamps are not here: the
+    // upload is saveIndoorReport(), and the database stamps who and when.
+    // visit_uid / visit_filed_at are recordIndoorVisit()'s.
+    'standard_complaint',
   ] as const;
   const rest = Object.fromEntries(
     Object.entries(patch).filter(([k]) => (WRITABLE as readonly string[]).includes(k)));
@@ -5831,6 +5855,13 @@ export interface IndoorDc {
   customer_ref: string; customer_ref_date: string | null; mode_of_despatch: string;
   purpose: string; issued_by_name: string; created_by: string | null; created_at: string;
   line_count: number; job_nos: string | null;
+  // The approval (0323)
+  authorised_by_name: string;
+  approval_status: 'Pending approval' | 'Approved' | 'Rejected' | 'Issued before approval' | string;
+  approved_by_name: string; approved_at: string | null;
+  rejected_at: string | null; rejection_reason: string;
+  /** Is the reader the AUTHORISED BY (by User Master name) or an administrator? */
+  i_may_approve: boolean;
 }
 export interface IndoorDcLine {
   id: number; dc_id: number; line_no: number; job_id: number; accessory_id: number | null;
@@ -5871,14 +5902,15 @@ export async function indoorJobProductCode(productName: string, serial: string):
  *  this sends what was typed. `linePurposes` overrides PURPOSE per line
  *  (accessoryId null = the equipment line). */
 export async function createIndoorDc(input: {
-  jobIds: number[]; consignee: string; dcDate?: string; customerRef?: string; customerRefDate?: string;
-  mode?: string; purpose?: string;
+  jobIds: number[]; consignee: string; customerRef?: string; customerRefDate?: string;
+  mode?: string; purpose?: string; authorisedBy: string;
   linePurposes?: { jobId: number; accessoryId: number | null; purpose: string }[];
 }): Promise<{ ok: boolean; dcNo?: string; error?: string }> {
+  // NO DC DATE IS SENT: it is the date of entry, the database's (0323).
   const { data, error } = await must().rpc('create_indoor_dc', {
     p_job_ids: input.jobIds,
     p_consignee: input.consignee,
-    p_dc_date: input.dcDate || null,
+    p_authorised_by: input.authorisedBy,
     p_customer_ref: input.customerRef ?? '',
     p_customer_ref_date: input.customerRefDate || null,
     p_mode: input.mode ?? '',
@@ -5887,6 +5919,67 @@ export async function createIndoorDc(input: {
   });
   if (error) return { ok: false, error: errMsg(error) };
   return { ok: true, dcNo: String(data ?? '') };
+}
+
+/** AUTHORISED BY choices for a DC the signed-in user issues (0323): their
+ *  Reporting Manager and Regional Manager (User Master) and every active NSM. */
+export async function listIndoorDcAuthorisers(): Promise<{ name: string; basis: string }[]> {
+  const { data, error } = await must().rpc('indoor_dc_authorisers');
+  if (error) throw new Error(errMsg(error));
+  return ((data ?? []) as { name: string; basis: string }[]).filter((r) => String(r.name ?? '').trim());
+}
+
+/** APPROVE an Indoor DC (0323). Only its AUTHORISED BY or an administrator;
+ *  the database refuses it until every job with a UCN has its visit filed.
+ *  `checkOnly` asks who and state only, before any visit is filed. */
+export async function approveIndoorDc(dcNo: string, checkOnly = false): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('approve_indoor_dc', { p_dc_no: dcNo, p_check_only: checkOnly });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+/** REJECT an Indoor DC with a reason (0323): the DC is kept and its units released. */
+export async function rejectIndoorDc(dcNo: string, reason: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('reject_indoor_dc', { p_dc_no: dcNo, p_reason: reason });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+/** Record on an Indoor job the visit filed from its draft at approval (0323):
+ *  `complete` once the spares and feedback are in too. The database checks the
+ *  visit is this call's and reads Unsolved / Return to Field / Yes. */
+export async function recordIndoorVisit(jobId: number, visitUid: string, complete: boolean): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('record_indoor_visit', { p_job_id: jobId, p_visit_uid: visitUid, p_complete: complete });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+/** The jobs on one Indoor DC, in print order (the equipment lines). */
+export async function indoorJobsOnDc(dcId: number): Promise<IndoorJob[]> {
+  const c = must();
+  const { data: ls, error: le } = await c.from('indoor_dc_lines').select('job_id,line_no')
+    .eq('dc_id', dcId).is('accessory_id', null).order('line_no', { ascending: true });
+  if (le) throw new Error(errMsg(le));
+  const ids = (ls ?? []).map((l) => Number((l as { job_id: number }).job_id));
+  if (!ids.length) return [];
+  const { data, error } = await c.from('indoor_job_list').select('*').in('id', ids);
+  if (error) throw new Error(errMsg(error));
+  const byId = new Map(((data ?? []) as IndoorJob[]).map((j) => [j.id, j]));
+  return ids.map((id) => byId.get(id)).filter((j): j is IndoorJob => !!j);
+}
+
+/** STAGE 4 (0323): the Indoor Service Report's number and uploaded file, and
+ *  -- for a job with a UCN -- the visit drafted with it. The database refuses
+ *  it before the unit is cleaned or without the number, and stamps who and
+ *  when. Rows counted: no error is not "saved" (finding 48). */
+export async function saveIndoorReport(
+  id: number, p: { reportNo: string; url: string; fileName: string; visitDraft?: Record<string, unknown> | null; visitDate?: string | null },
+): Promise<{ ok: boolean; error?: string }> {
+  const row: Record<string, unknown> = {
+    indoor_report_no: p.reportNo, report_file_url: p.url, report_file_name: p.fileName,
+  };
+  if (p.visitDraft !== undefined) { row.visit_draft = p.visitDraft; row.visit_date = p.visitDate || null; }
+  const { data, error } = await must().from('indoor_jobs').update(row).eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not change this job.' };
+  return { ok: true };
 }
 
 export async function getIndoorPdt(jobId: number): Promise<IndoorPdt | null> {

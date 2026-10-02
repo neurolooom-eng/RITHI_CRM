@@ -36,6 +36,17 @@ import './fieldcalls.css';
 // ===========================================================================
 
 const STATUS_OPTIONS = ['Solved - Report Completed', 'Unsolved', 'Solved - Report Pending'];
+
+// THE VISIT AN INDOOR DC FILES (0323, the user, 2026-10-02): "ALWAYS set the
+// call to Unsolved, pending reason = Return to Field, Update visit work
+// details = Yes". Taken from THIS form's own list, not retyped -- and the
+// database refuses to record a visit for an Indoor job that reads otherwise.
+// 'Return to Field' is on the Call Pending Reason master (0323 adds it).
+export const INDOOR_VISIT_FIXED = {
+  status: STATUS_OPTIONS[1],            // 'Unsolved'
+  pendingReason: 'Return to Field',
+  updateWork: 'Yes',
+} as const;
 const RATINGS_FALLBACK = ['Excellent', 'Good', 'Average', 'Poor'];
 const WARRANTY_Q = 'Warranty Start Date?';
 const YESNO = ['Yes', 'No'];
@@ -105,13 +116,145 @@ function fbApplies(rule: FbRule, callType: string): boolean {
 
 export interface CallLike { ucn?: unknown; [key: string]: unknown }
 
+// ---------------------------------------------------------------------------
+// A VISIT AS DATA, AND THE ONE PATH THAT FILES IT.
+//
+// The Visit Entry below saves through fileVisit(); so does the Indoor DC's
+// approval (IndoorDcPanel.tsx), which files the visit the Indoor engineer
+// DRAFTED with the service report. One writer, so every rule the database
+// keeps on a visit -- the visit guards, the call status sync, the hand-stock
+// cap on consumption, the visit-before-spares rule (0214), feedback on a
+// solved call -- applies to both exactly alike.
+// ---------------------------------------------------------------------------
+export interface VisitSpare { part: string; qty: string; grir: string }
+export interface VisitDraft {
+  visitDate: string;                 // yyyy-mm-dd, "Visit Date & Time"
+  engineer: string;                  // Visiting Service Engineer
+  engineerEmail: string;
+  status: string;
+  pendingReason: string;
+  updateWork: string;
+  work: Record<string, string>;
+  signoff: Record<string, string>;
+  spares: VisitSpare[];
+  feedback: Record<string, string>;
+  manualLink: string;
+}
+/** How far a filing got, so a retry files only what is left. */
+export interface VisitProgress { uid?: string; sparesSaved?: boolean }
+
+const isSolvedStatus = (s: string) => /solved/i.test(s) && /complet/i.test(s);
+
+export async function fileVisit(
+  call: CallLike, d: VisitDraft,
+  opts: { filerEmail: string; visitEntry?: string; extraData?: Record<string, unknown>; progress?: VisitProgress;
+          onProgress?: (p: VisitProgress) => void },
+): Promise<{ ok: true; uid: string } | { ok: false; error: string; progress: VisitProgress }> {
+  const ucn = String(call.ucn ?? '');
+  const callType = String(call.callType ?? call['call_type'] ?? '');
+  const callNumber = String(call.callNumber ?? '');
+  const solved = isSolvedStatus(d.status);
+  const isInstall = /install/i.test(callType);
+  const progress: VisitProgress = { ...(opts.progress ?? {}) };
+  const step = (p: Partial<VisitProgress>) => { Object.assign(progress, p); opts.onProgress?.({ ...progress }); };
+  const t0 = performance.now();
+  try {
+    if (!progress.uid) {
+      const data: Record<string, unknown> = {
+        'Email-ID': opts.filerEmail,
+        'Call Type': callType,
+        // Stamped in the app's long format (dd-mmm-yyyy hh:mm:ss): when the
+        // Visit Entry form was opened, or -- for a drafted visit -- when it is
+        // filed, which is when it is entered against the call.
+        'Visit Entry Date': opts.visitEntry || fmtLongDateTime(new Date()),
+        'Visit Date & Time': d.visitDate,
+        'Update Visit Work Details?': d.updateWork,
+        ...d.work,
+        ...(solved ? d.signoff : {}),
+        'Manual Report': d.manualLink,
+        ...(opts.extraData ?? {}),
+      };
+      const patch = {
+        call_number: callNumber,
+        manual_report: d.manualLink,
+        call_status: d.status,
+        pending_reason: d.pendingReason,
+        engineer: d.engineer,
+        engineer_email: d.engineerEmail,
+        visit_at: d.visitDate ? `${d.visitDate}T00:00:00Z` : null,
+        data,
+      };
+      const res = await saveReport(ucn, patch);
+      if (!res.ok || !res.uid) return { ok: false, error: res.error ?? 'Save failed.', progress };
+      step({ uid: res.uid });
+      // Stamp the call's status so a Solved call becomes read-only in the register.
+      try { await updateCall(ucn, { status: solved ? 'Solved - Report Completed' : d.status }); } catch { /* status stamp is best-effort */ }
+    }
+
+    // Spare consumption → spare_consumption, every part in ONE insert so the
+    // report can never keep some of its spares and drop the rest. A failure
+    // here is shown, not swallowed: the visit is already filed, so a retry
+    // files just this.
+    const cons = progress.sparesSaved ? { ok: true as const } : await addConsumptionRows(d.spares.map((sp) => ({
+      ucn, call_number: callNumber, part: sp.part, qty: Number(sp.qty) || 1,
+      grir: sp.grir ?? '',
+      engineer: d.engineer, engineer_email: d.engineerEmail, data: {},
+    })));
+    if (cons.ok) step({ sparesSaved: true });
+    if (!cons.ok) {
+      logAudit({ action: 'call.report.consumption', target: ucn, status: 'error', error: cons.error, meta: { spares: d.spares.length } });
+      return { ok: false, progress, error: `The visit was saved, but the ${d.spares.length} spare${d.spares.length === 1 ? '' : 's'} could not be recorded: ${cons.error} — fix it and press Save Report again to retry just the spares.` };
+    }
+    // Customer feedback → feedback (structured answers), on a SOLVED call only.
+    // The warranty start date is asked in the Service Report but belongs on
+    // the feedback row.
+    const fbQuestions = FEEDBACK_QUESTIONS.filter((q) => fbApplies(q.rule, callType));
+    if (solved && fbQuestions.length) {
+      const answers: Record<string, unknown> = {};
+      fbQuestions.forEach((q) => { const val = d.feedback[q.col]; if (val != null && String(val).trim() !== '') answers[q.col] = val; });
+      if (isInstall && String(d.work[WARRANTY_Q] ?? '').trim()) answers[WARRANTY_Q] = d.work[WARRANTY_Q];
+      const fb = await addFeedback({
+        ucn, call_number: callNumber, call_type: callType, engineer: d.engineer, engineer_email: d.engineerEmail,
+        party_name: String(call.partyName ?? call['party_name'] ?? ''), state: String(call.state ?? ''), product_name: String(call.productName ?? ''),
+        serial: String(call.serial ?? ''), complaint: String(call.complaintReported ?? ''),
+        answers, visit_at: d.visitDate ? `${d.visitDate}T00:00:00Z` : null,
+      });
+      if (!fb.ok) {
+        logAudit({ action: 'call.report.feedback', target: ucn, status: 'error', error: fb.error });
+        return { ok: false, progress, error: `The visit and the spares were saved, but the customer feedback was not: ${fb.error}` };
+      }
+    }
+    logAudit({ action: 'call.report', target: ucn, status: 'ok', duration_ms: Math.round(performance.now() - t0), meta: { call_status: d.status, spares: d.spares.length } });
+    return { ok: true, uid: progress.uid! };
+  } catch (e) {
+    logAudit({ action: 'call.report', target: ucn, status: 'error', error: e instanceof Error ? e.message : String(e), duration_ms: Math.round(performance.now() - t0) });
+    return { ok: false, progress, error: `Save failed: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
+/** THE INDOOR SERVICE REPORT STAGE (0323): the same form, filled as a DRAFT on
+ *  an Indoor job. Call Status, Pending Reason and Update Visit Work Details?
+ *  are fixed (INDOOR_VISIT_FIXED); the engineer is the signed-in Indoor
+ *  engineer; the Manual Report field becomes the Indoor Service Report No. and
+ *  its upload. Nothing is written to the call -- the draft is filed when the
+ *  Indoor DC is approved. */
+export interface IndoorDraftMode {
+  initial: VisitDraft | null;
+  reportNo: string;
+  reportLink: string;
+  upload: (file: File, reportNo: string) => Promise<{ ok: boolean; url?: string; error?: string }>;
+  onSave: (d: VisitDraft, reportNo: string, link: string) => Promise<{ ok: boolean; error?: string }>;
+}
+
 export function CallReportDrawer({
-  call, open, onClose, onSaved,
+  call, open, onClose, onSaved, indoor,
 }: {
   call: CallLike | null;
   open: boolean;
   onClose: () => void;
   onSaved?: (mode: string, ucn: string) => void;
+  /** Present = the Indoor Service Report stage: a draft, not a visit. */
+  indoor?: IndoorDraftMode;
 }) {
   const { user, isAdmin, can } = useAuth();
   const scope = useAccessScope();
@@ -130,8 +273,8 @@ export function CallReportDrawer({
   // The visit row is written first. If the spares or the feedback then fail,
   // the drawer stays open so the engineer can retry — and this stops the retry
   // filing a second visit.
-  const [visitSaved, setVisitSaved] = useState(false);
-  const [sparesSaved, setSparesSaved] = useState(false);
+  const [progress, setProgress] = useState<VisitProgress>({});
+  const [reportNo, setReportNo] = useState('');
 
   // Visit + status
   // Stamped in the app's long format (dd-mmm-yyyy hh:mm:ss), not the browser
@@ -210,10 +353,22 @@ export function CallReportDrawer({
     let cancelled = false;
     setLoading(true); setErr('');
     // reset to a blank new visit
-    setStatus(''); setPendingReason(''); setUpdateWork('Yes'); setManualLink(''); setUploading(false); setVisitSaved(false); setSparesSaved(false);
+    setStatus(''); setPendingReason(''); setUpdateWork('Yes'); setManualLink(''); setUploading(false); setProgress({});
     setWork({}); setSignoff({});
     setVisitDate(todayISO()); setShowAllStock(false); setSpares([]); setSpareDraft({ part: '', qty: '1', grir: '' }); setFeedback({});
     setEngineer(selfName || String(call?.allocatedTo ?? ''));
+    if (indoor) {
+      // THE INDOOR DRAFT: the fixed three, the signed-in engineer, and what
+      // was drafted before (a re-opened draft starts where it was left).
+      const d = indoor.initial;
+      setStatus(INDOOR_VISIT_FIXED.status); setPendingReason(INDOOR_VISIT_FIXED.pendingReason);
+      setUpdateWork(INDOOR_VISIT_FIXED.updateWork); setEngineer(selfName);
+      setReportNo(indoor.reportNo); setManualLink(indoor.reportLink);
+      if (d) {
+        setVisitDate(d.visitDate || todayISO()); setWork(d.work ?? {}); setSignoff(d.signoff ?? {});
+        setSpares(d.spares ?? []); setFeedback(d.feedback ?? {});
+      }
+    }
     reportsByCall(callNumber || ucn).then((rows) => {
       if (cancelled) return;
       setPriorVisits(rows);
@@ -225,6 +380,7 @@ export function CallReportDrawer({
 
   // Report Pending → the pending reason is the status itself, and locked.
   useEffect(() => { if (reportPending) setPendingReason('Report Pending'); }, [reportPending]);
+  const fixedIndoor = !!indoor;
   // A completed report always carries the work details — the spec locks it.
   useEffect(() => { if (solved) setUpdateWork('Yes'); }, [solved]);
   // Warranty start is asked on installations only; default it to today.
@@ -347,11 +503,16 @@ export function CallReportDrawer({
   const uploadReport = async (file?: File) => {
     if (!file) return;
     if (file.size > MAX_UPLOAD_BYTES) { setErr(`${file.name} is larger than ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.`); return; }
+    if (indoor && !reportNo.trim()) { setErr('Enter the Indoor Service Report No. first — the file is named after it.'); return; }
     setUploading(true); setErr('');
     // The call's type picks the folder — Field / Installation / PM each have
     // their own in the shared drive, so a report is filed by what it is rather
     // than heaped in with every other document the app has ever stored.
-    const res = await uploadToDrive(file, `${ucn || 'Report'} - Manual Report`, driveFolderForCall(callType));
+    // An Indoor report goes through the Indoor module's own upload (its name
+    // carries the report number).
+    const res = indoor
+      ? await indoor.upload(file, reportNo.trim())
+      : await uploadToDrive(file, `${ucn || 'Report'} - Manual Report`, driveFolderForCall(callType));
     setUploading(false);
     if (!res.ok || !res.url) { setErr(res.error ?? 'Upload failed.'); return; }
     setManualLink(res.url);
@@ -389,6 +550,10 @@ export function CallReportDrawer({
       if (wantsConsumption && !can('visit.spares'))
         return 'Booking spares on a visit needs “Book spares used on a visit” — answer None Consumed, or ask an administrator for it.';
     }
+    if (indoor) {
+      if (!reportNo.trim()) return 'Enter the Indoor Service Report No.';
+      if (!manualLink.trim()) return 'Upload the Indoor Service Report.';
+    }
     if (solved) {
       if (!manualLink.trim()) return 'Manual Report is mandatory when the call is Solved - Report Completed — upload the signed report.';
       const missFb = fbQuestions.filter((q) => (q.answer === 'rating' || q.answer === 'yesno') && !String(feedback[q.col] ?? '').trim());
@@ -412,79 +577,25 @@ export function CallReportDrawer({
     if (d && 'error' in d) { setErr(d.error); return; }
     const allSpares = d ? [...spares, d.line] : spares;
     if (d) { setSpares(allSpares); setSpareDraft({ part: '', qty: '1', grir: '' }); }
+    const draft: VisitDraft = {
+      visitDate, engineer, engineerEmail: user?.email ?? '', status, pendingReason, updateWork,
+      work, signoff: solved ? signoff : {}, spares: allSpares, feedback, manualLink,
+    };
     setBusy(true); setErr('');
-    const t0 = performance.now();
-    try {
-      const data: Record<string, unknown> = {
-        'Email-ID': user?.email ?? '',
-        'Call Type': callType,
-        'Visit Entry Date': visitEntry,
-        'Visit Date & Time': visitDate,
-        'Update Visit Work Details?': updateWork,
-        ...work,
-        ...(solved ? signoff : {}),
-        'Manual Report': manualLink,
-      };
-      const patch = {
-        call_number: String(call?.callNumber ?? ''),
-        manual_report: manualLink,
-        call_status: status,
-        pending_reason: pendingReason,
-        engineer,
-        engineer_email: user?.email ?? '',
-        visit_at: visitDate ? `${visitDate}T00:00:00Z` : null,
-        data,
-      };
-      if (!visitSaved) {
-        const res = await saveReport(ucn, patch);
-        if (!res.ok) { setErr(res.error ?? 'Save failed.'); setBusy(false); return; }
-        setVisitSaved(true);
-        // Stamp the call's status so a Solved call becomes read-only in the register.
-        try { await updateCall(ucn, { status: solved ? 'Solved - Report Completed' : status }); } catch { /* status stamp is best-effort */ }
-      }
-
-      // Spare consumption → spare_consumption, every part in ONE insert so the
-      // report can never keep some of its spares and drop the rest. A failure
-      // here is shown, not swallowed: the visit is already filed, so pressing
-      // Save Report again retries just this.
-      const cons = sparesSaved ? { ok: true as const } : await addConsumptionRows(allSpares.map((sp) => ({
-        ucn, call_number: String(call?.callNumber ?? ''), part: sp.part, qty: Number(sp.qty) || 1,
-        grir: sp.grir ?? '',
-        engineer, engineer_email: user?.email ?? '', data: {},
-      })));
-      if (cons.ok) setSparesSaved(true);
-      if (!cons.ok) {
-        logAudit({ action: 'call.report.consumption', target: ucn, status: 'error', error: cons.error, meta: { spares: allSpares.length } });
-        setErr(`The visit was saved, but the ${allSpares.length} spare${allSpares.length === 1 ? '' : 's'} could not be recorded: ${cons.error} — fix it and press Save Report again to retry just the spares.`);
-        setBusy(false);
-        return;
-      }
-      // Customer feedback → feedback (structured answers). The warranty start
-      // date is asked in the Service Report but belongs on the feedback row.
-      if (solved && fbQuestions.length) {
-        const answers: Record<string, unknown> = {};
-        fbQuestions.forEach((q) => { const val = feedback[q.col]; if (val != null && String(val).trim() !== '') answers[q.col] = val; });
-        if (isInstall && String(work[WARRANTY_Q] ?? '').trim()) answers[WARRANTY_Q] = work[WARRANTY_Q];
-        const fb = await addFeedback({
-          ucn, call_number: String(call?.callNumber ?? ''), call_type: callType, engineer, engineer_email: user?.email ?? '',
-          party_name: partyName, state: String(call?.state ?? ''), product_name: String(call?.productName ?? ''),
-          serial: String(call?.serial ?? ''), complaint: String(call?.complaintReported ?? ''),
-          answers, visit_at: visitDate ? `${visitDate}T00:00:00Z` : null,
-        });
-        if (!fb.ok) {
-          logAudit({ action: 'call.report.feedback', target: ucn, status: 'error', error: fb.error });
-          setErr(`The visit and the spares were saved, but the customer feedback was not: ${fb.error}`);
-          setBusy(false);
-          return;
-        }
-      }
-      logAudit({ action: 'call.report', target: ucn, status: 'ok', duration_ms: Math.round(performance.now() - t0), meta: { call_status: status, spares: allSpares.length } });
-      onSaved?.('saved', ucn);
+    if (indoor) {
+      // A DRAFT: kept on the Indoor job, filed when its Indoor DC is approved.
+      const r = await indoor.onSave(draft, reportNo.trim(), manualLink);
+      setBusy(false);
+      if (!r.ok) { setErr(r.error ?? 'Could not save the draft.'); return; }
+      onSaved?.('drafted', ucn);
       onClose();
-    } catch (e) {
-      logAudit({ action: 'call.report', target: ucn, status: 'error', error: e instanceof Error ? e.message : String(e), duration_ms: Math.round(performance.now() - t0) });
-      setErr(`Save failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally { setBusy(false); }
+      return;
+    }
+    const r = await fileVisit(call ?? {}, draft, { filerEmail: user?.email ?? '', visitEntry, progress, onProgress: setProgress });
+    setBusy(false);
+    if (!r.ok) { setErr(r.error); return; }
+    onSaved?.('saved', ucn);
+    onClose();
   };
 
   // One Service Report field, rendered by kind.
@@ -505,7 +616,14 @@ export function CallReportDrawer({
       // pick a file, see the file, remove it.
       return (
         <div className="rep-field rep-span2" key={f.key}>
-          <span className="field-label">Manual Report{solved ? ' *' : ''}</span>
+          {indoor ? (
+            <label className="rep-field" style={{ marginBottom: 6 }}>
+              <span className="field-label">Indoor Service Report No *</span>
+              <input className="input" value={reportNo} onChange={(e) => setReportNo(e.target.value)} />
+              <span className="muted rep-hint">The uploaded file is named “{reportNo.trim() || '<report no>'}_&lt;file name&gt;”, so it traces back to this number. It is the visit’s Manual Report when the visit is filed.</span>
+            </label>
+          ) : null}
+          <span className="field-label">{indoor ? 'Indoor Service Report *' : `Manual Report${solved ? ' *' : ''}`}</span>
           <div className="rep-upload">
             {manualLink ? (
               <>
@@ -582,8 +700,12 @@ export function CallReportDrawer({
   };
 
   return (
-    <Drawer open={open} onClose={onClose} title={ucn ? `Visit Entry — ${ucn}` : 'Visit Entry'} width={820}>
-      <div className="detail-hint">📝 Each save is a new <b>visit</b> in the report history. Spares → <b>spare_consumption</b>, feedback → <b>feedback</b>.</div>
+    <Drawer open={open} onClose={onClose} title={indoor ? `Indoor Service Report — ${ucn}` : ucn ? `Visit Entry — ${ucn}` : 'Visit Entry'} width={820}>
+      {indoor ? (
+        <div className="detail-hint">📝 The Visit Entry for <b>{ucn}</b>, drafted with the Indoor Service Report. <b>Nothing is written to the call now</b> — the visit is filed against the call, as you, when the Indoor DC is approved.</div>
+      ) : (
+        <div className="detail-hint">📝 Each save is a new <b>visit</b> in the report history. Spares → <b>spare_consumption</b>, feedback → <b>feedback</b>.</div>
+      )}
       {priorVisits.length > 0 && (
         <div className="detail-hint" style={{ background: 'var(--surface-2, #f4f6f8)' }}>
           🕓 {priorVisits.length} previous visit{priorVisits.length === 1 ? '' : 's'} — last: {String(priorVisits[0].call_status ?? '—')} by {String(priorVisits[0].engineer ?? '—')} on {fmtLongDate(priorVisits[0].visit_at) || '—'}
@@ -628,8 +750,8 @@ export function CallReportDrawer({
             <div className="rep-grid">
               <label className="rep-field">
                 <span className="field-label">Visit Entry Date</span>
-                <input className="input" value={visitEntry} readOnly />
-                <span className="muted rep-hint">Auto — when this report is entered.</span>
+                <input className="input" value={indoor ? 'When the visit is filed' : visitEntry} readOnly />
+                <span className="muted rep-hint">{indoor ? 'Auto — stamped when the Indoor DC is approved and the visit is filed.' : 'Auto — when this report is entered.'}</span>
               </label>
               <label className="rep-field">
                 <span className="field-label">Visit Date &amp; Time</span>
@@ -647,7 +769,7 @@ export function CallReportDrawer({
               </label>
               <label className="rep-field">
                 <span className="field-label">Visiting Service Engineer *</span>
-                <SelectPicker value={engineer} onChange={setEngineer} options={engineerOptions}
+                <SelectPicker value={engineer} onChange={setEngineer} options={fixedIndoor ? [selfName] : engineerOptions} disabled={fixedIndoor}
                               emptyHint="Only engineers on your team are listed." />
                 <span className="muted rep-hint">
                   {isAdmin || scope.isManager ? 'Defaults to you; you can report for an engineer.' : 'You — the user filing this report.'}
@@ -662,19 +784,19 @@ export function CallReportDrawer({
             <div className="rep-grid">
               <label className="rep-field">
                 <span className="field-label">Call Status *</span>
-                <SelectPicker value={status} onChange={setStatus} placeholder="— Select status —"
+                <SelectPicker value={status} onChange={setStatus} placeholder="— Select status —" disabled={fixedIndoor}
                               options={status && !STATUS_OPTIONS.includes(status)
                                 ? [status, ...STATUS_OPTIONS] : [...STATUS_OPTIONS]} />
               </label>
               <label className="rep-field">
                 <span className="field-label">Update Visit Work Details? *</span>
-                <SelectPicker value={updateWork} onChange={setUpdateWork} disabled={solved} options={[...YESNO]} />
+                <SelectPicker value={updateWork} onChange={setUpdateWork} disabled={solved || fixedIndoor} options={[...YESNO]} />
                 {solved && <span className="muted rep-hint">Always Yes on a completed report.</span>}
               </label>
               {(unsolved || reportPending) && (
                 <label className="rep-field rep-span2">
                   <span className="field-label">Call Pending Reason{unsolved ? ' *' : ''}</span>
-                  {reportPending ? (
+                  {reportPending || fixedIndoor ? (
                     <input className="input" value={pendingReason} readOnly />
                   ) : (
                     <SelectPicker value={pendingReason} onChange={setPendingReason}
@@ -689,6 +811,12 @@ export function CallReportDrawer({
               )}
             </div>
             {!status && <div className="muted rep-hint">Choose a status — the form adapts to it.</div>}
+            {fixedIndoor && (
+              <div className="muted rep-hint">
+                Fixed for a visit filed from Indoor Service: the unit goes back to the field, so the call is
+                <b> {INDOOR_VISIT_FIXED.status}</b>, pending <b>{INDOOR_VISIT_FIXED.pendingReason}</b>, with the work details updated.
+              </div>
+            )}
           </section>
 
           {/* Service Report */}
@@ -829,7 +957,7 @@ export function CallReportDrawer({
 
           <div className="rep-actions">
             <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
-            <button className="btn btn-primary" onClick={() => void save()} disabled={busy || uploading || !status}>{busy ? 'Saving…' : uploading ? 'Uploading…' : 'Save Report'}</button>
+            <button className="btn btn-primary" onClick={() => void save()} disabled={busy || uploading || !status}>{busy ? 'Saving…' : uploading ? 'Uploading…' : indoor ? 'Save the report and the visit draft' : 'Save Report'}</button>
           </div>
         </div>
       )}

@@ -1157,13 +1157,38 @@ typed into a form that reads it.
 - **Indoor Service Register** `/indoor` — work on a unit in the workshop. Two
   things are asked separately: whose **property** the unit is, and what
   **activity** is being done.
-  1. Received
-  2. Cleaned and disinfected — before anyone works on it
-  3. Findings and work done, including parts harvested
-  4. Quality check
-  5. Dispatch
-  > A job does not need a call — a demo unit has none. A harvested part cannot go
-  > back into stock until decontamination is recorded.
+  The work runs in **stages**, shown as a stepper at the top of each job and as
+  a chip on every row of the register — and a job shows only the stages it has
+  reached (no DC fields at intake, for example):
+  1. **Intake** — **Receive equipment** opens the intake form. Either pick the
+     **Product Name** and **Serial Number**, which lists that machine's **open
+     calls** to choose from, or **type the UCN**. The job then fills itself from
+     the call: UC No, customer and place, the engineer the call is allotted to
+     now, the machine, its cover (Item Status) now, and the complaint (Problem
+     Reported); the call's Standard Complaint shows beside it, read only. Fix
+     anything that is wrong. A **DEMO / new device** is received without a call.
+     List the **accessories received**: each item with its **quantity**
+     (and serial / tag where it has one), **＋ Add an item** for more.
+  2. **Cleaning** — **Mark cleaning done** against the work instruction
+     (WI/SER/01) and its revision.
+  3. **Repair** — findings, work done, the status, the parts and checks the
+     activity needs, and the **quality check** (a repair cannot leave without
+     one). **Request spare** opens the usual Spare Request form with the job's
+     call filled in and you as the requester; it does **not** change the call.
+  4. **Indoor Service Report** — once the unit is cleaned (never before),
+     **⭱ Upload** from the job or straight from the register's *Indoor Service
+     Report No* cell: enter the **report number**, then pick the file. It is
+     saved in Drive as **“<report no>_<file name>”** so it traces back here, and
+     the system records who uploaded it and when. **For a unit with a call the
+     same form is that call's Visit Entry** — fill the visit details as you would
+     on the call. *Call Status* (**Unsolved**), *Call Pending Reason*
+     (**Return to Field**) and *Update Visit Work Details?* (**Yes**) are fixed.
+     Nothing is written to the call yet: it is a draft, filed when the DC is
+     approved, so the work is entered once.
+  5. **DC** — once the report is uploaded (see *Indoor DC* below), then
+     **Dispatched** once the DC is approved.
+  > A job does not need a call — a demo unit has none, and files no visit. A
+  > harvested part cannot go back into stock until decontamination is recorded.
 
   **The paper register R/SER/07 lives here.** Each job carries its columns:
   Field Service Report No, Engineer Name (filled from the call's engineer when
@@ -1171,8 +1196,8 @@ typed into a form that reads it.
   Reported, **Status — which on R/SER/07 is the machine's cover** (WGP / OGP /
   CMC / AMC, read from the Product Database when you type the product or
   serial, and changeable), Indoor Service Report No, DC No. and DC Date, and
-  Remarks. **R/SER/07 register view** shows the register as the paper keeps it,
-  one sheet at a time — *Customer – Devices* or *Demo* — with S.No running in
+  Remarks. The **R/SER/07 register view** opens first and shows the register as
+  the paper keeps it (plus a *Stage* chip on screen), one sheet at a time — *Customer – Devices* or *Demo* — with S.No running in
   incoming-date order; from there **Excel** downloads both sheets and **Print**
   prints the sheet you are on (landscape A4). Both need the export right.
 
@@ -1195,20 +1220,38 @@ typed into a form that reads it.
   > the job will ask for it.
 
   **Indoor DC — the delivery challan a unit leaves on.** In the workshop view,
-  someone with the dispatch right ticks the **Ready** units going to **one**
-  consignee (the customer, or for a DEMO unit the party it is going to) and
-  presses **Create Indoor DC**. *To* is filled from the Party Master and can be
-  edited; add the date, MIRN / customer reference and its date, mode of
-  despatch and the purpose (once for the DC, changeable per line). Each unit
-  prints as a line — PART No. is its product code where RITHI knows one — and
-  each accessory as a line after it. The **number (IDC-YYMM-NNNN) is given by
-  the system**; it is written on every unit as its DC No. with the DC date. The
-  units **stay Ready** — mark them Dispatched as they leave.
-  > A unit is refused if it is not Ready, is already on a DC, or would not be
-  > allowed to leave (no quality check on a repair, a failed check, a DEMO unit
-  > of an imported product without its Pre-Delivery Testing) — the message says
-  > which. Units for two consignees cannot share a DC. A DC is never deleted;
-  > **Indoor DCs** lists them all and prints any of them again.
+  someone with the dispatch right ticks the **Ready** units (report uploaded)
+  going to **one** consignee (the customer, or for a DEMO unit the party it is
+  going to) and presses **Create Indoor DC** — or presses **Create Indoor DC
+  for this unit** in a job. *To* is filled from the Party Master and can be
+  typed over; add the MIRN / customer reference and its date, mode of despatch
+  and the purpose (once for the DC, changeable per line). The **DATE is the day
+  you enter it** and cannot be changed. Choose **AUTHORISED BY** — your
+  Reporting Manager, your Regional Manager (from the User Master) or an NSM:
+  that person approves the DC. Each unit prints as a line — PART No. is its
+  product code where RITHI knows one — and each accessory as a line after it
+  **with the quantity received**. The **number (IDC-YYMM-NNNN) is given by the
+  system**; it is written on every unit as its DC No. with the DC date.
+
+  **The Indoor DC needs approval** (only this DC — the spare DC does not). A new
+  DC is **PENDING APPROVAL**: its print carries a band saying so and the
+  AUTHORISED BY box stays empty; its units cannot be marked Dispatched yet. The
+  person named (or an administrator) sees it **first in Indoor DCs**, and on
+  **My Workload** under *Indoor DCs — Awaiting my approval*, and presses
+  **Approve** or **Reject…** (with a reason). **Approving files the visit**: for
+  every unit with a call, the visit drafted with its Indoor Service Report is
+  filed against the call — Unsolved, pending Return to Field, with the work
+  details and the uploaded report — exactly as if it had been entered on the
+  call; then the DC is approved and its print shows the approver's name.
+  > Approving needs you to be able to see the call and file visits on it; if a
+  > visit is refused, the DC stays pending, the message says why, and approving
+  > again files only what is left. **Rejecting** keeps the DC with its reason and
+  > frees its units for a new DC.
+  > A unit is refused if it is not Ready, has no uploaded report, is already on a
+  > DC, or would not be allowed to leave (no quality check on a repair, a failed
+  > check, a DEMO unit of an imported product without its Pre-Delivery Testing)
+  > — the message says which. Units for two consignees cannot share a DC. A DC
+  > is never deleted; **Indoor DCs** lists them all and prints any of them again.
 - **Solved Without a Report** `/missing-visit-reports` — **administrators
   only.** Every call that reads Solved while its visit record is incomplete —
   the list of what to re-upload.

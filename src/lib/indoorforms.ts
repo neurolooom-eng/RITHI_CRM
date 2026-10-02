@@ -206,3 +206,73 @@ export const consigneeKey = (s: string) => s.trim().toUpperCase();
 /** The equipment line's DESCRIPTION, as the database writes it. */
 export const equipmentDescription = (name: string, serial: string) =>
   `${name.trim()}${serial.trim() ? ` Sl.No ${serial.trim()}` : ''}`.trim();
+
+// ---------------------------------------------------------------------------
+// THE STAGES (0323, the user, 2026-10-02): Intake -> Cleaning -> Repair ->
+// Report -> DC (pending approval) -> Dispatched / Approved.
+//
+// DERIVED FROM THE JOB, never stored: a second status column would be a second
+// thing to keep in step with `status`, `cleaned_at`, the uploaded report and
+// the DC. Each step is DONE by a fact the database records:
+//   Intake    -- the job exists;
+//   Cleaning  -- cleaned_at;
+//   Repair    -- status Ready / Dispatched / Closed (the repair, QC included,
+//                is finished);
+//   Report    -- report_file_url (the uploaded Indoor Service Report);
+//   DC        -- a DC No. on the job AND that DC approved (or a unit out:
+//                Dispatched / Closed). A DC No. whose DC is pending approval
+//                is the step IN PROGRESS.
+// The CURRENT step is the first one not done. The order is enforced by the
+// database where it is a rule (no report before cleaning, no DC before the
+// report, no dispatch while the DC is pending); nothing is timed.
+// ---------------------------------------------------------------------------
+export const INDOOR_STAGES = ['Intake', 'Cleaning', 'Repair', 'Report', 'DC'] as const;
+export type IndoorStage = typeof INDOOR_STAGES[number];
+
+export interface StageState {
+  /** Index into INDOOR_STAGES of the step in progress; 5 = all done. */
+  current: number;
+  done: boolean[];
+  /** The one-line state shown on the row and the stepper. */
+  label: string;
+  /** Condemned leaves the path altogether. */
+  offPath: boolean;
+}
+
+type StageJob = Pick<IndoorJob, 'status' | 'cleaned_at' | 'report_file_url' | 'dispatch_ref'>;
+
+/** `dcStatus` is the approval status of the job's Indoor DC, where the job
+ *  carries an IDC number and the DC is known; undefined otherwise. */
+export function jobStage(j: StageJob, dcStatus?: string): StageState {
+  const out = ['Dispatched', 'Closed'].includes(j.status);
+  const dcNo = String(j.dispatch_ref ?? '').trim();
+  const pending = !!dcNo && dcStatus === 'Pending approval';
+  const done = [
+    true,
+    !!j.cleaned_at,
+    ['Ready', 'Dispatched', 'Closed'].includes(j.status),
+    !!String(j.report_file_url ?? '').trim(),
+    out || (!!dcNo && !pending),
+  ];
+  if (j.status === 'Condemned') return { current: 5, done, label: 'Condemned', offPath: true };
+  // A UNIT THAT HAS LEFT HAS LEFT, whatever an older record lacks (a job
+  // dispatched before 0323 has no uploaded report): it is not "awaiting" one.
+  if (out) return { current: 5, done, label: 'Dispatched', offPath: false };
+  const current = done.findIndex((d) => !d);
+  const label = current === -1
+    ? 'DC approved — ready to dispatch'
+    : current === 1 ? 'Awaiting cleaning'
+    : current === 2 ? (j.status === 'Awaiting spares' ? 'Awaiting spares' : j.status === 'QC' ? 'Quality check' : 'Under repair')
+    : current === 3 ? 'Awaiting report'
+    : pending ? 'DC pending approval'
+    : 'Ready for DC';
+  return { current: current === -1 ? 5 : current, done, label, offPath: false };
+}
+
+/** THE FILE NAME of an uploaded Indoor Service Report: "<report no>_<original
+ *  file name>", so the file in Drive traces back to the register. Characters a
+ *  Drive file name or the bridge cannot carry (/ \ : * ? " < > |) become "-". */
+export function indoorReportFileName(reportNo: string, original: string): string {
+  const clean = (v: string) => v.trim().replace(/[\\/:*?"<>|]/g, '-');
+  return `${clean(reportNo)}_${clean(original) || 'report'}`;
+}

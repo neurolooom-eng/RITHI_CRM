@@ -1675,7 +1675,7 @@ with checks(sort_order, bundle, provides, present) as (
          and not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'indoor_pdt' and cmd in ('DELETE', 'ALL'))
          and coalesce((select p.prosrc like '%indoor_job_is_imported%' and p.prosrc like '%reads NOT OK%'
                          from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false))),
-    (250, 'Indoor_DC: the workshop''s own delivery challan', 'indoor_dcs + indoor_dc_lines (0321): an IDC-YYMM-NNNN number issued by the database (next_indoor_dc_no() + indoor_dc_counters, monthly by the DC date; a number sent is discarded), readable with the Indoor Service Register''s key, with NO write policy and no write grant -- the only writer is create_indoor_dc(), which asks indoor.dispatch, takes Ready units for one consignee, TRIES each unit against indoor_jobs_guard()''s leaving rules and refuses it in the guard''s words, and stamps each job dispatch_ref = the IDC number and dc_date = the DC date. Never deleted (no_hard_delete). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0321)',
+    (250, 'Indoor_DC: the workshop''s own delivery challan', 'indoor_dcs + indoor_dc_lines (0321): an IDC-YYMM-NNNN number issued by the database (next_indoor_dc_no() + indoor_dc_counters, monthly by the DC date; a number sent is discarded), readable with the Indoor Service Register''s key, with NO write policy and no write grant -- the only writer is create_indoor_dc(), which asks indoor.dispatch, takes Ready units for one consignee, TRIES each unit against indoor_jobs_guard()''s leaving rules and refuses it in the guard''s words, and stamps each job dispatch_ref = the IDC number and dc_date = the DC date. Never deleted (no_hard_delete). Since 0323 the function takes no DC date (the date of entry) and an AUTHORISED BY, which is why this row names its 0323 signature. NO means indoor.sql has not been re-run since. Restore: indoor.sql (0323)',
         (to_regclass('public.indoor_dcs') is not null
          and to_regclass('public.indoor_dc_lines') is not null
          and to_regclass('public.indoor_dc_counters') is not null
@@ -1689,10 +1689,43 @@ with checks(sort_order, bundle, provides, present) as (
          and not has_function_privilege('anon', to_regprocedure('public.next_indoor_dc_no(date)'), 'EXECUTE')
          and coalesce((select p.prosrc like '%indoor.dispatch%' and p.prosrc like '%indoor_dc_trial_passed%'
                               and p.prosrc like '%dispatch_ref = v_no%'
-                         from pg_proc p where p.oid = to_regprocedure('public.create_indoor_dc(bigint[],text,date,text,date,text,text,jsonb)')), false))),
+                         from pg_proc p where p.oid = to_regprocedure('public.create_indoor_dc(bigint[],text,text,date,text,text,jsonb,text)')), false))),
     (251, 'A stock transfer line may carry its own reason', 'stock_transfer_lines.reason (0322), text, blank by default: the per-item "Reason for Transfer" of the MATERIAL TRANSFER NOTE R/SER/STR/003. The printed MTN shows the line''s reason, else the transfer''s common remarks. NO means the Stock Transfer form''s per-line reason is refused on save. Restore: stock_transfer.sql (0322)',
         exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stock_transfer_lines'
-                   and column_name = 'reason' and data_type = 'text'))
+                   and column_name = 'reason' and data_type = 'text')),
+    (252, 'Indoor Service runs in stages: the report after cleaning, the visit drafted with it', 'indoor_jobs carries standard_complaint, report_file_url / report_file_name / report_uploaded_by / report_uploaded_at, visit_draft / visit_date / visit_uid / visit_filed_at, and indoor_job_accessories a qty > 0 (0323). indoor_jobs_guard() refuses the Indoor Service Report before the unit is cleaned or without its report number, asks indoor.work for it, stamps the uploader from the session, refuses a unit on an Indoor DC pending approval leaving, and accepts a filed visit only if it is a visit of the job''s own call reading Unsolved / Return to Field / Update Visit Work Details? = Yes. NO means indoor.sql has not been re-run since. Restore: indoor.sql (0323)',
+        ((select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'indoor_jobs'
+           and column_name in ('standard_complaint', 'report_file_url', 'report_file_name', 'report_uploaded_by', 'report_uploaded_at',
+                               'visit_draft', 'visit_date', 'visit_uid', 'visit_filed_at')) = 9
+         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'indoor_job_accessories' and column_name = 'qty')
+         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'indoor_job_list' and column_name = 'report_uploaded_by_name')
+         and coalesce((select p.prosrc like '%uploaded after cleaning%' and p.prosrc like '%Return to Field%'
+                              and p.prosrc like '%still pending approval%' and p.prosrc like '%indoor.verify%'
+                              and p.prosrc like '%indoor.dispatch is required to mark a unit%'
+                         from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false))),
+    (253, 'An Indoor DC is approved by its Authorised By, and the visit is filed at approval', 'indoor_dcs carries authorised_by_name and the approval (approval_status, approved_by / approved_by_name / approved_at, rejected_by / rejected_at / rejection_reason) (0323). create_indoor_dc() refuses a unit with no uploaded Indoor Service Report and an AUTHORISED BY that is not the issuer''s Reporting Manager, Regional Manager or an active NSM (indoor_dc_authorisers()), and creates the DC Pending approval. approve_indoor_dc() / reject_indoor_dc() / record_indoor_visit() let only that person (by User Master name) or an administrator decide; approval needs every UCN job''s visit filed; rejection releases the units through a release ticket nobody else can write. None is callable by the public key. NO means indoor.sql has not been re-run since. Restore: indoor.sql (0323)',
+        ((select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'indoor_dcs'
+           and column_name in ('authorised_by_name', 'approval_status', 'approved_by', 'approved_by_name', 'approved_at',
+                               'rejected_by', 'rejected_at', 'rejection_reason')) = 8
+         and to_regprocedure('public.indoor_dc_authorisers()') is not null
+         and to_regprocedure('public.indoor_dc_may_approve(text)') is not null
+         and to_regprocedure('public.record_indoor_visit(bigint,text,boolean)') is not null
+         and to_regprocedure('public.approve_indoor_dc(text,boolean)') is not null
+         and to_regprocedure('public.reject_indoor_dc(text,text)') is not null
+         and to_regclass('public.indoor_dc_release_tickets') is not null
+         and not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'indoor_dc_release_tickets')
+         and not has_function_privilege('anon', to_regprocedure('public.approve_indoor_dc(text,boolean)'), 'EXECUTE')
+         and not has_function_privilege('anon', to_regprocedure('public.reject_indoor_dc(text,text)'), 'EXECUTE')
+         and not has_function_privilege('anon', to_regprocedure('public.record_indoor_visit(bigint,text,boolean)'), 'EXECUTE')
+         and to_regprocedure('public.create_indoor_dc(bigint[],text,date,text,date,text,text,jsonb)') is null
+         and coalesce((select p.prosrc like '%has not been uploaded%' and p.prosrc like '%indoor_dc_authorisers%'
+                              and p.prosrc like '%Pending approval%' and p.prosrc like '%a.qty%'
+                         from pg_proc p where p.oid = to_regprocedure('public.create_indoor_dc(bigint[],text,text,date,text,text,jsonb,text)')), false)
+         and coalesce((select p.prosrc like '%visit is not yet filed%'
+                         from pg_proc p where p.oid = to_regprocedure('public.approve_indoor_dc(text,boolean)')), false))),
+    (254, 'Return to Field is a Call Pending Reason', 'The value Return to Field on the pendingreason master, active (0323) -- the pending reason every visit filed from an Indoor DC''s approval carries. NO means indoor.sql has not been re-run since, or the value was deactivated on the Masters screen. Restore: indoor.sql (0323)',
+        exists (select 1 from public.masters where name = 'pendingreason' and value = 'Return to Field'
+                   and coalesce((to_jsonb(masters) ->> 'active')::boolean, true)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

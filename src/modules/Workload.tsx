@@ -7,7 +7,7 @@ import { useAccessScope } from '../lib/access';
 import { supabaseConfigured } from '../lib/supabase';
 import {
   spareRequestSection, rmApprovalSection, dispatchSection, handStockSection,
-  materialReturnsSection, stockTransferSection, reviewSection, commercialInstallSection,
+  materialReturnsSection, stockTransferSection, reviewSection, commercialInstallSection, indoorDcSection,
   type WorkloadSection,
 } from '../lib/workload';
 import './workload.css';
@@ -70,6 +70,9 @@ export function Workload() {
       { needs: 'mod:/handstock', run: handStockSection },
       { needs: 'mod:/mrn', run: materialReturnsSection },
       { needs: 'mod:/stock-transfer', run: stockTransferSection },
+      // INDOOR DCs AWAITING APPROVAL (0323): shown to whoever can open the
+      // Indoor Service Register, where they are approved.
+      { needs: 'mod:/indoor', run: indoorDcSection },
     ].filter((j) => can(j.needs));
     setSections([]); setErr([]); setBusy(jobs.length); setAt(new Date().toISOString());
     jobs.forEach((j) => {
