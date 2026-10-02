@@ -302,9 +302,21 @@ against the call it was fitted to.
   > below zero. This replaces WinMax's *eBizWiz Admin* account, whose opening
   > stock has been removed.
 - **Material Returns (MRN)** `/mrn` — parts back to Stores; the return takes the
-  stock off the engineer's balance.
+  stock off the engineer's balance. Open a return and press **Print MRN** for the
+  **Material Return Note R/SER/STR/002** (landscape A4): the engineer and their
+  place (City on the User Master, else Region), the MRN number and date, each
+  part with Qty. (good + defective), customer, report no, removed from
+  equipment, hand stock, and Good / Damaged. It prints only what the return
+  holds — **Store Dept. Use**, **Authorized By** and **Received By** are left for
+  Stores to write; **Entered By** is whoever keyed the return.
 - **Stock Transfer** `/stock-transfer` — hand stock between engineers. A transfer
-  to the same person is held back and named.
+  to the same person is held back and named. Each part can carry a **reason of
+  its own** besides the common Remarks. **🖨 MTN** on a transfer prints the
+  **Material Transfer Note R/SER/STR/003**: issuer and receiver with their
+  places, the MTN No. (the transfer number) and date, each part with its own
+  reason or else the common remark, Issued By (the sending engineer and the
+  date) and Entered By (who keyed it). **Received By is blank** — RITHI does not
+  record the receipt of a transfer — and Authorised By is signed by hand.
 
 ## Quality
 
@@ -1165,6 +1177,22 @@ typed into a form that reads it.
   > If the job says it is **not known** whether the product is imported, the
   > test is not demanded — set Imported on the Product Master for that line and
   > the job will ask for it.
+
+  **Indoor DC — the delivery challan a unit leaves on.** In the workshop view,
+  someone with the dispatch right ticks the **Ready** units going to **one**
+  consignee (the customer, or for a DEMO unit the party it is going to) and
+  presses **Create Indoor DC**. *To* is filled from the Party Master and can be
+  edited; add the date, MIRN / customer reference and its date, mode of
+  despatch and the purpose (once for the DC, changeable per line). Each unit
+  prints as a line — PART No. is its product code where RITHI knows one — and
+  each accessory as a line after it. The **number (IDC-YYMM-NNNN) is given by
+  the system**; it is written on every unit as its DC No. with the DC date. The
+  units **stay Ready** — mark them Dispatched as they leave.
+  > A unit is refused if it is not Ready, is already on a DC, or would not be
+  > allowed to leave (no quality check on a repair, a failed check, a DEMO unit
+  > of an imported product without its Pre-Delivery Testing) — the message says
+  > which. Units for two consignees cannot share a DC. A DC is never deleted;
+  > **Indoor DCs** lists them all and prints any of them again.
 - **Solved Without a Report** `/missing-visit-reports` — **administrators
   only.** Every call that reads Solved while its visit record is incomplete —
   the list of what to re-upload.

@@ -1,6 +1,7 @@
 import { logAudit } from '../lib/audit';
 import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
@@ -210,6 +211,7 @@ export function MaterialReturns() {
 // ---------------------------------------------------------------------------
 function MrnDetail({ rows }: { rows: Row[] }) {
   const head = rows[0];
+  const navigate = useNavigate();
   const field = (label: string, value: unknown) => (
     <div className="rep-field"><span className="field-label">{label}</span><span>{String(value ?? '') || '—'}</span></div>
   );
@@ -225,6 +227,12 @@ function MrnDetail({ rows }: { rows: Row[] }) {
           {field('Engineer', g(head, 'engineer'))}
           {field('Good returned', total('good_qty'))}
           {field('Defective returned', total('defective_qty'))}
+        </div>
+        {/* THE MRN, R/SER/STR/002, printed from what this return holds. */}
+        <div style={{ marginTop: 8 }}>
+          <button className="btn btn-sm" onClick={() => navigate(`/mrn-print/${encodeURIComponent(g(head, 'uid'))}`)}>
+            🖨 Print MRN
+          </button>
         </div>
         <p className="muted" style={{ fontSize: 12.5, margin: '8px 0 0' }}>
           Every item below has come off {g(head, 'engineer') || 'the engineer'}&rsquo;s hand stock.

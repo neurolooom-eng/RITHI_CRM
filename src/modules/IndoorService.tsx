@@ -20,6 +20,8 @@ import {
   PDT_CHECKS, PDT_FIO2, PDT_MODES, pdtGaps, pdtOwed, type RegisterSheet,
 } from '../lib/indoorforms';
 import { useAuth } from '../lib/auth';
+import { IndoorDcDrawer, IndoorDcList } from './IndoorDcPanel';
+import { consigneeKey, jobConsignee } from '../lib/indoorforms';
 import { logAudit } from '../lib/audit';
 import './indoor.css';
 import { formatDay, formatDayTime } from '../lib/dates';
@@ -121,7 +123,11 @@ export function IndoorService() {
   const [checks, setChecks] = useState<IndoorCheck[]>([]);
   const [pdt, setPdt] = useState<IndoorPdt | null>(null);
   // THE R/SER/07 VIEW: the register as the paper keeps it, one sheet at a time.
-  const [view, setView] = useState<'jobs' | 'register'>('jobs');
+  // 'dcs' is the list of Indoor DCs (0321), each re-printable.
+  const [view, setView] = useState<'jobs' | 'register' | 'dcs'>('jobs');
+  // INDOOR_DC: the Ready units ticked for one challan.
+  const [picked, setPicked] = useState<number[]>([]);
+  const [dcOpen, setDcOpen] = useState(false);
   const [sheet, setSheet] = useState<RegisterSheet>('customer');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -137,6 +143,14 @@ export function IndoorService() {
   useEffect(load, [load]);
 
   const job = jobs.find((j) => j.id === openId) ?? null;
+
+  // A unit can go on an Indoor DC when it is Ready and carries no DC No. yet;
+  // the database asks the dispatch rules besides (create_indoor_dc).
+  const dcEligible = (j: IndoorJob) => j.status === 'Ready' && !(j.dispatch_ref ?? '').trim();
+  const pickedJobs = useMemo(() => picked.map((id) => jobs.find((j) => j.id === id)).filter((j): j is IndoorJob => !!j),
+    [picked, jobs]);
+  const pickedConsignees = new Set(pickedJobs.map((j) => consigneeKey(jobConsignee(j))));
+  const togglePick = (j: IndoorJob) => setPicked((p) => (p.includes(j.id) ? p.filter((x) => x !== j.id) : [...p, j.id]));
 
   const loadChildren = useCallback((id: number) => {
     listIndoorAccessories(id).then(setAccessories).catch(() => setAccessories([]));
@@ -249,6 +263,17 @@ export function IndoorService() {
           <button className="btn" onClick={() => setView((v) => (v === 'jobs' ? 'register' : 'jobs'))}>
             {view === 'jobs' ? 'R/SER/07 register view' : 'Workshop view'}
           </button>
+          <button className="btn" onClick={() => setView((v) => (v === 'dcs' ? 'jobs' : 'dcs'))}>
+            {view === 'dcs' ? 'Workshop view' : 'Indoor DCs'}
+          </button>
+          {mayDispatch && view === 'jobs' ? (
+            <button className="btn" disabled={pickedJobs.length === 0 || pickedConsignees.size > 1}
+              title={pickedConsignees.size > 1 ? 'One Indoor DC goes to one consignee — tick units going to the same place.'
+                : 'Tick Ready units in the list, then create one DC for them.'}
+              onClick={() => setDcOpen(true)}>
+              Create Indoor DC{pickedJobs.length ? ` (${pickedJobs.length})` : ''}
+            </button>
+          ) : null}
           {mayReceive ? <button className="btn btn-primary" onClick={receive}>Receive equipment</button> : null}
         </>}
       />
@@ -325,11 +350,22 @@ export function IndoorService() {
         </SectionCard>
       ) : null}
 
+      {view === 'dcs' ? (
+        <SectionCard title="Indoor DCs — delivery challans out of the workshop">
+          <IndoorDcList />
+        </SectionCard>
+      ) : null}
+
+      {view === 'jobs' && mayDispatch && pickedConsignees.size > 1 ? (
+        <div className="ind-msg">One Indoor DC goes to one consignee — the ticked units go to {[...new Set(pickedJobs.map((j) => jobConsignee(j) || '(none)'))].join(' / ')}.</div>
+      ) : null}
+
       {view === 'jobs' ? (
       <div className="table-wrap">
         <table className="table">
           <thead>
             <tr>
+              {mayDispatch ? <th title="Tick Ready units for one Indoor DC">DC</th> : null}
               <th>Job</th><th>Kind</th><th>Activity</th><th>Product</th>
               <th>Serial</th><th>Customer</th><th>Status</th><th>Tag</th><th>Received</th>
             </tr>
@@ -337,6 +373,14 @@ export function IndoorService() {
           <tbody>
             {shown.map((j) => (
               <tr key={j.id} className="row-click" onClick={() => setOpenId(j.id)}>
+                {mayDispatch ? (
+                  <td onClick={(e) => e.stopPropagation()}>
+                    {dcEligible(j)
+                      ? <input type="checkbox" checked={picked.includes(j.id)} onChange={() => togglePick(j)}
+                          aria-label={`Put ${j.job_no} on an Indoor DC`} />
+                      : (j.dispatch_ref ?? '').trim() ? <span className="mono ind-hint">{j.dispatch_ref}</span> : null}
+                  </td>
+                ) : null}
                 <td className="mono">{j.job_no}</td>
                 <td>{j.kind === 'DEMO unit'
                   // A DEMO unit is marked because the custody duties do NOT
@@ -355,7 +399,7 @@ export function IndoorService() {
               </tr>
             ))}
             {shown.length === 0 ? (
-              <tr><td colSpan={9} className="ind-empty">
+              <tr><td colSpan={mayDispatch ? 10 : 9} className="ind-empty">
                 Nothing in the workshop matching this filter.
               </td></tr>
             ) : null}
@@ -363,6 +407,14 @@ export function IndoorService() {
         </table>
       </div>
       ) : null}
+
+      <Drawer open={dcOpen && pickedJobs.length > 0} onClose={() => setDcOpen(false)} storeKey="indoor-dc"
+        title="Create Indoor DC">
+        {dcOpen && pickedJobs.length > 0 ? (
+          <IndoorDcDrawer jobs={pickedJobs} onClose={() => setDcOpen(false)}
+            onIssued={(no) => { setDcOpen(false); setPicked([]); setMsg(`Indoor DC ${no} issued.`); load(); }} />
+        ) : null}
+      </Drawer>
 
       <Drawer open={!!job} onClose={() => setOpenId(null)} storeKey="indoor-job"
         title={job ? `${job.job_no} — ${job.product_name || 'equipment'}` : ''}>
@@ -962,6 +1014,13 @@ function IndoorJobDrawer({
             onBlur={(e) => set({ dc_date: e.target.value || null })} /></Field>
         {job.dispatched_at ? (
           <p className="ind-note">Dispatched by <b>{job.dispatched_by_name || '—'}</b> on {formatDayTime(job.dispatched_at)}.</p>
+        ) : null}
+        {/^IDC-/.test(job.dispatch_ref ?? '') ? (
+          // INDOOR_DC (0321): a reference the database issued, so its challan exists.
+          <p className="ind-note">
+            On Indoor DC <b>{job.dispatch_ref}</b>.{' '}
+            <button className="btn btn-sm" onClick={() => navigate(`/indoor-dc/${encodeURIComponent(job.dispatch_ref)}`)}>🖨 Print the DC</button>
+          </p>
         ) : null}
         {!mayDispatch ? <p className="ind-note">Dispatching needs the <b>dispatch</b> right.</p> : null}
         <Field label="Remarks">

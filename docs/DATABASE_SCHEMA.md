@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**94 tables · 36 views · 2726 columns · 194 policies · 60 foreign keys.**
+**97 tables · 37 views · 2773 columns · 196 policies · 63 foreign keys.**
 
 ## How to read this
 
@@ -61,6 +61,9 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [handstock_period](#handstock-period)
 - [harness](#harness)
 - [help_screenshots](#help-screenshots)
+- [indoor_dc_counters](#indoor-dc-counters)
+- [indoor_dc_lines](#indoor-dc-lines)
+- [indoor_dcs](#indoor-dcs)
 - [indoor_job_accessories](#indoor-job-accessories)
 - [indoor_job_checks](#indoor-job-checks)
 - [indoor_job_counters](#indoor-job-counters)
@@ -1308,6 +1311,106 @@ _No policies, RLS off — reachable by anything with table privileges._
 
 ---
 
+## indoor_dc_counters
+
+**Primary key:** `period` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `period` | text | **no** |  |  |
+| 2 | `last_no` | integer | **no** | `0` |  |
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
+
+---
+
+## indoor_dc_lines
+
+> The lines of an Indoor DC (0321): per job the equipment, then each accessory, QTY 1, each with its PURPOSE. A snapshot taken when the DC was issued, so a re-print is the same challan.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `dc_id` | bigint | **no** |  | → indoor_dcs(id) |
+| 3 | `line_no` | integer | **no** |  |  |
+| 4 | `job_id` | bigint | **no** |  | → indoor_jobs(id) |
+| 5 | `accessory_id` | bigint | yes |  | → indoor_job_accessories(id) |
+| 6 | `part_no` | text | **no** | `''::text` |  |
+| 7 | `description` | text | **no** | `''::text` |  |
+| 8 | `qty` | numeric | **no** | `1` |  |
+| 9 | `purpose` | text | **no** | `''::text` |  |
+| 10 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 11 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 12 | `sys_created_by` | uuid | yes |  |  |
+| 13 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 14 | `sys_updated_by` | uuid | yes |  |  |
+| 15 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `dc_id, line_no` _(indoor_dc_lines_dc_id_line_no_key)_ · `dc_id, line_no` _(indoor_dc_lines_dc_id_line_no_key)_ · `sys_id` _(indoor_dc_lines_sys_id_key)_
+
+**References:**
+
+- `accessory_id` → **indoor_job_accessories**(`id`) · on delete set null _(indoor_dc_lines_accessory_id_fkey)_
+- `dc_id` → **indoor_dcs**(`id`) · on delete no action _(indoor_dc_lines_dc_id_fkey)_
+- `job_id` → **indoor_jobs**(`id`) · on delete no action _(indoor_dc_lines_job_id_fkey)_
+
+**Constraints:**
+
+- `indoor_dc_lines_qty_check` — `CHECK ((qty > (0)::numeric))`
+
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| SELECT | `indoor_dc_lines_read` | `( SELECT has_perm('mod:/indoor'::text) AS has_perm)` | — |
+
+---
+
+## indoor_dcs
+
+> Indoor_DC -- the Delivery Challan that takes Indoor Service units out of the workshop (0321). One DC, one consignee, one or more jobs. Number IDC-YYMM-NNNN issued by the database. Written only by create_indoor_dc(); never deleted.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `dc_no` | text | **no** |  |  |
+| 3 | `dc_date` | date | **no** | `((now() AT TIME ZONE 'Asia/Kolkata'::text))::date` |  |
+| 4 | `consignee` | text | **no** | `''::text` |  |
+| 5 | `customer_ref` | text | **no** | `''::text` |  |
+| 6 | `customer_ref_date` | date | yes |  |  |
+| 7 | `mode_of_despatch` | text | **no** | `''::text` |  |
+| 8 | `purpose` | text | **no** | `''::text` |  |
+| 9 | `issued_by_name` | text | **no** | `''::text` | The creator's name as the profile gave it when the DC was issued -- printed under ISSUED BY (Stores). Stamped from the session; a value sent is discarded. |
+| 10 | `created_by` | uuid | yes |  |  |
+| 11 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 12 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 13 | `sys_created_by` | uuid | yes |  |  |
+| 14 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 15 | `sys_updated_by` | uuid | yes |  |  |
+| 16 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `dc_no` _(indoor_dcs_dc_no_key)_ · `dc_no` _(indoor_dcs_dc_no_key)_ · `sys_id` _(indoor_dcs_sys_id_key)_
+
+**Referenced by:** `indoor_dc_lines.dc_id`
+
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `zz_indoor_dcs_stamp` → `indoor_dcs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| SELECT | `indoor_dcs_read` | `( SELECT has_perm('mod:/indoor'::text) AS has_perm)` | — |
+
+---
+
 ## indoor_job_accessories
 
 **Primary key:** `id` · **Row-level security:** **on**
@@ -1332,6 +1435,8 @@ _No policies, RLS off — reachable by anything with table privileges._
 **References:**
 
 - `job_id` → **indoor_jobs**(`id`) · on delete cascade _(indoor_job_accessories_job_id_fkey)_
+
+**Referenced by:** `indoor_dc_lines.accessory_id`
 
 **Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
@@ -1538,7 +1643,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Unique:** `job_no` _(indoor_jobs_job_no_key)_ · `job_no` _(indoor_jobs_job_no_key)_ · `sys_id` _(indoor_jobs_sys_id_key)_
 
-**Referenced by:** `indoor_job_accessories.job_id` · `indoor_job_checks.job_id` · `indoor_job_parts.job_id` · `indoor_pdt.job_id`
+**Referenced by:** `indoor_dc_lines.job_id` · `indoor_job_accessories.job_id` · `indoor_job_checks.job_id` · `indoor_job_parts.job_id` · `indoor_pdt.job_id`
 
 **Constraints:**
 
@@ -3608,6 +3713,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 9 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 10 | `sys_updated_by` | uuid | yes |  |  |
 | 11 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 12 | `reason` | text | **no** | `''::text` | Optional reason for moving THIS part (0322). Blank = the transfer's common remarks apply, which is what the printed MTN shows under Reason for Transfer. |
 
 **Unique:** `sys_id` _(stock_transfer_lines_sys_id_key)_
 
@@ -4091,6 +4197,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `field_failure_register` | **on** | 62 |
 | `handstock_balance` | **on** | 20 |
 | `handstock_movements` | **on** | 16 |
+| `indoor_dc_list` | **on** | 13 |
 | `indoor_job_list` | **on** | 101 |
 | `kpi_field_inst` | **on** | 34 |
 | `machine_cover` | **on** | 19 |

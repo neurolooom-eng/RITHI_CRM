@@ -8,7 +8,7 @@
 --
 -- Every assertion RAISES, so an unmet one is an unexpected error the runner
 -- counts -- a printed grid nothing checks is not an assertion. What it proves:
---   1. COVERAGE: every table but the nine counters carries the five columns,
+--   1. COVERAGE: every table but the ten counters carries the five columns,
 --      a unique sys_id and the stamping trigger -- and the counters do not;
 --   2. THE FILL: existing rows take same-meaning fields only -- on a call the
 --      author is actual_created_by, NOT created_by (the Hotline desk);
@@ -48,7 +48,7 @@ begin
   select string_agg(c.relname, ', ' order by c.relname) into missing
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'public' and c.relkind = 'r'
-     and c.relname not in ('call_number_seq', 'ffr_counters', 'indoor_job_counters',
+     and c.relname not in ('call_number_seq', 'ffr_counters', 'indoor_dc_counters', 'indoor_job_counters',
                            'material_return_counters', 'party_key_seq', 'spare_dispatch_counters',
                            'spare_or_counters', 'stock_transfer_counters', 'ucn_counters',
                            'harness', 'schema_migrations')

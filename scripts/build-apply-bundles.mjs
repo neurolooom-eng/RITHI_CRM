@@ -686,7 +686,12 @@ const MODULES = {
             // R/SER/QC/007 Pre-Delivery Testing for a DEMO unit of an imported
             // product (2026-10-02). Reads product_master.imported (0319, masters)
             // at RUN time only, so it does not depend on that module's order.
-            '0320_indoor_register_and_pdt.sql'],
+            '0320_indoor_register_and_pdt.sql',
+            // Indoor_DC (2026-10-02): the workshop's own delivery challan,
+            // IDC-YYMM-NNNN, written only by create_indoor_dc(), which tries
+            // each unit against indoor_jobs_guard() above. Reads products /
+            // product_master (masters) at RUN time only.
+            '0321_indoor_dc.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -967,6 +972,9 @@ const MODULES = {
       // Stock Transfer Register loads once and refuses every re-load at the
       // first repeated transfer number.
       '0123_stock_transfer_update_policy.sql',
+      // An optional reason per line, for the printed MTN (2026-10-02).
+      // BEFORE the replay tail, which must stay last.
+      '0322_stock_transfer_line_reason.sql',
       // LAST: re-asserts `engineer_stock`, `st_read` and the transfer stock
       // guard, all owned by handstock. Without it a replay of this bundle put
       // the SHEET-ERA engineer_stock back, silently.
