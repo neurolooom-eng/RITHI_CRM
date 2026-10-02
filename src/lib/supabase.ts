@@ -2289,6 +2289,18 @@ export async function listSolvedWithoutReport(): Promise<Record<string, unknown>
 // chasing, and the feedback is what this report is a list OF. A tiebreaker on
 // the id, because a bulk import makes ties certain and a tie puts a row on two
 // pages or neither.
+/** Machines Without an Installation Call (0319). A definer function gated on
+ *  its page's key; paged, because a register this size passes the 1,000-row
+ *  response cap, and ordered with a tiebreaker so no row is doubled or lost. */
+export async function listInstallCallsUnmapped(): Promise<Record<string, unknown>[]> {
+  const c = must();
+  return allRows<Record<string, unknown>>((from, to) =>
+    c.rpc('install_calls_unmapped').select('*')
+      .order('sa_number', { ascending: true })
+      .order('sale_item_id', { ascending: true })
+      .range(from, to));
+}
+
 export async function listFeedbackWithoutReport(): Promise<Record<string, unknown>[]> {
   const c = must();
   return allRows<Record<string, unknown>>((from, to) =>

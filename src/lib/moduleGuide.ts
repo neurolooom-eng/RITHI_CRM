@@ -715,6 +715,20 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     ],
   },
   {
+    route: '/install-calls-unmapped',
+    purpose: 'Warranty machines with no installation call mapped to them, why, and the calls that could be theirs.',
+    does: [
+      'See each machine with the reason it has no call and the candidate installation calls',
+      'Filter by reason, search, and export to Excel (dates as dates) or CSV',
+    ],
+    records: ['rpc:install_calls_unmapped', 'sale_items', 'sale_entries', 'calls', 'audit_log'],
+    rules: [
+      'Administrators only, unless the page is ticked for another role on Roles & Permissions',
+      'It changes nothing: map a call from the Warranty Register, where the machine is',
+      'Only installation calls are ever matched or offered',
+    ],
+  },
+  {
     route: '/handstock-report',
     purpose: 'One line per engineer and part, with the workings beside On Hand, as a complete downloadable file.',
     does: [

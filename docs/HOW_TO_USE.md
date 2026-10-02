@@ -1084,6 +1084,21 @@ typed into a form that reads it.
   > **If your role is only shown its own records**, the subtitle says so. The
   > file is then your stock, not the company's.
 
+- **Machines Without an Installation Call** `/install-calls-unmapped` —
+  **administrators only** (and Technical Support, which holds every page an
+  administrator does; change it on Roles & Permissions).
+  Every warranty machine whose **INST Call** holds no call number, with **why**
+  and the **installation calls that could be its own**.
+  > **Once, on 2 October 2026**, every machine was matched to its installation
+  > call by, in turn, the call number **WI-&lt;Product&gt;-&lt;Serial&gt;**, then
+  > **Product + Serial + Party Name**, then **Product + Serial** — installation
+  > calls only, and only where **exactly one** call fitted. What could not be
+  > settled that way is here, with the reason: no installation call; the call
+  > is already on another machine line; one match not mapped (two lines claim
+  > it); or several calls to choose from. **The list changes nothing** — put the
+  > right UCN in INST Call from the Warranty Register, and the machine leaves
+  > the list.
+
 - **Feedback Without a Report** `/feedback-without-report` — **administrators
   only.** The customer gave feedback on a visit; the visit was never written up.
   > Feedback is collected **after** a visit, so its existence is evidence the
