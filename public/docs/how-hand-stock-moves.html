@@ -265,9 +265,10 @@ footer code{font-size:12.5px}
   <p class="standfirst">
     <b>Hand stock is derived, never stored.</b> There is no balance column anybody can edit — what
     an engineer holds is computed, every time it is read, from the movements that put it there and
-    took it away. So this is one document rather than four: reconciliation, returns and transfers
-    are not separate systems, they are <b>entries in one ledger</b>, and the only way to understand
-    any of them is to see what they do to the same number.
+    took it away. So this is one document rather than five: consumption, reconciliation, returns,
+    transfers and adjustments are not separate systems, they are <b>entries in one ledger</b>, and
+    the only way to understand any of them is to see what they do to the same number. How a spare is
+    asked for, approved and booked out by Stores is the companion document, <b>How a spare moves</b>.
   </p>
 
   <div class="key">
@@ -280,13 +281,13 @@ footer code{font-size:12.5px}
 <nav class="flownav" aria-label="The movements">
   <a href="#stockout">
     <span class="flownav-n">In</span>
-    <span class="flownav-t">Stock Out — Stores issues it on a challan</span>
-    <span class="flownav-s">The batch, the DC, a part-sent balance, and the acknowledgement</span>
+    <span class="flownav-t">Stock Out, and the opening balance</span>
+    <span class="flownav-s">Counted from the moment Stores books it out · the pools loaded once</span>
   </a>
   <a href="#consumption">
     <span class="flownav-n">Out</span>
     <span class="flownav-t">Consumption — the part is fitted</span>
-    <span class="flownav-s">On the report, or booked by the office · and how a wrong line is voided</span>
+    <span class="flownav-s">On the visit, or booked by the office · voids · the Spare Consumption screen</span>
   </a>
   <a href="#transfer">
     <span class="flownav-n">Out and in</span>
@@ -298,32 +299,45 @@ footer code{font-size:12.5px}
     <span class="flownav-t">Material Return — back to Stores</span>
     <span class="flownav-s">Good and defective counted apart</span>
   </a>
+  <a href="#adjust">
+    <span class="flownav-n">In or out</span>
+    <span class="flownav-t">± Adjust stock — the office's correction</span>
+    <span class="flownav-s">With a reason · never edited · never below zero</span>
+  </a>
+  <a href="#screen">
+    <span class="flownav-n">Reading it</span>
+    <span class="flownav-t">The Hand Stock screen</span>
+    <span class="flownav-s">Stock Level and Movements</span>
+  </a>
 </nav>
 
 <section class="ledger" id="formula">
   <h2>The balance, in one line</h2>
   <p>
-    Six movement kinds, and every one of them is a row somebody can point at. Add the two that
-    bring stock in, subtract the three that take it out, and that is what the engineer has:
+    Every movement is a row somebody can point at. Add what came in, subtract what went out, and that
+    is what the engineer has:
   </p>
   <div class="scroll">
     <table class="transitions">
       <thead><tr><th>Movement</th><th>Direction</th><th>Written by</th><th>What it means</th></tr></thead>
       <tbody>
-        <tr><td>Opening</td><td><b>IN</b></td><td>A one-off load</td><td>What they already held the day the system started</td></tr>
-        <tr><td>Stock out</td><td><b>IN</b></td><td>Stores, on a DC</td><td>The approved spare reached them</td></tr>
-        <tr><td>Transfer in</td><td><b>IN</b></td><td>Another engineer</td><td>Moved across from a colleague</td></tr>
-        <tr><td>Consumption</td><td><b>OUT</b></td><td>The visit report, or a reconciliation</td><td>Fitted to a machine, against a call</td></tr>
-        <tr><td>Transfer out</td><td><b>OUT</b></td><td>The engineer</td><td>Moved across to a colleague</td></tr>
-        <tr><td>Return</td><td><b>OUT</b></td><td>An MRN</td><td>Sent back to Stores, good or defective</td></tr>
+        <tr><td>Opening</td><td><b>IN</b></td><td>Bulk Uploads → Opening Stock</td><td>What they already held before the movement history began, one pool at a time</td></tr>
+        <tr><td>Stock out</td><td><b>IN</b></td><td>Stores, on Pending Dispatch</td><td>The approved spare was booked out to them — and the stock outs imported from the sheet era</td></tr>
+        <tr><td>Transfer in</td><td><b>IN</b></td><td>Stock Transfer</td><td>Moved across from a colleague</td></tr>
+        <tr><td>Adjustment +</td><td><b>IN</b></td><td>Hand Stock → ± Adjust stock</td><td>Added by the office, with a reason</td></tr>
+        <tr><td>Consumption</td><td><b>OUT</b></td><td>The visit report, a reconciliation, or a bulk upload</td><td>Fitted to a machine, against a call — and the yearly consumption imported from the sheet era</td></tr>
+        <tr><td>Transfer out</td><td><b>OUT</b></td><td>Stock Transfer</td><td>Moved across to a colleague</td></tr>
+        <tr><td>Return</td><td><b>OUT</b></td><td>Material Returns (MRN)</td><td>Sent back to Stores, good and defective together</td></tr>
+        <tr><td>Adjustment −</td><td><b>OUT</b></td><td>Hand Stock → ± Adjust stock</td><td>Removed by the office, with a reason</td></tr>
       </tbody>
     </table>
   </div>
   <p style="margin-top:18px">
-    <b>Which makes consumption the control point.</b> Stock out, transfers and returns each have a
-    document and a second party behind them. Consumption is the one movement a person enters
-    freely — so it is the one the database guards, and the guard is a hard refusal rather than a
-    warning.
+    <b>Which makes consumption the control point.</b> Every consumption line, however it is written,
+    is capped at the balance by the database — a hard refusal, not a warning — and so are a transfer, a
+    return and an adjustment that removes stock. A <b>period close</b> can carry everything up to a date
+    into one opening figure per engineer and part, after which only later movements are read; no screen
+    offers it.
   </p>
 </section>
 
@@ -332,15 +346,11 @@ footer code{font-size:12.5px}
   <!-- ============ STOCK OUT ============ -->
   <section class="flowhead" id="stockout">
     <p class="flowhead-n">In · the ordinary way</p>
-    <h2 class="flowhead-t">Stock Out — Stores issues it on a challan</h2>
+    <h2 class="flowhead-t">Stock Out — what a booking does to the balance</h2>
     <p class="flowhead-p">
-      The approved spare leaves Stores and lands in an engineer's hand stock. <b>This is the only
-      routine way stock arrives</b> — which is why the balance can be trusted enough to refuse a
-      consumption later.
-    </p>
-    <p class="flowhead-p">
-      The approval chain that gets a spare this far is the <b>Spare module's</b> document. This is
-      what happens at the moment it is booked out.
+      The approved spare leaves Stores and lands in an engineer's hand stock. How it gets that far —
+      the approvals, Pending Dispatch, the Delivery Challan and the receipt — is in
+      <b>How a spare moves</b>. This is what the booking does to the number.
     </p>
   </section>
 
@@ -348,32 +358,29 @@ footer code{font-size:12.5px}
     <div class="side in">
       <h3>Reads</h3>
       <ul>
-        <li><b>The approved lines</b>, grouped by engineer</li>
-        <li><b>The day’s counter</b>, for the stock-out number</li>
-        <li><b>The signed-in session</b> — who is booking it out</li>
+        <li><b>The stock out</b> and the quantity each line sent</li>
+        <li><b>The engineer on the request</b> — whose balance it lands in</li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-solved)">
-      <p class="n">Stock Out · booking it</p>
-      <h2>A batch, a number, and one engineer</h2>
-      <span class="who">spare.dispatch</span>
+      <p class="n">Stock Out · into the balance</p>
+      <h2>Counted from the moment it is booked</h2>
+      <span class="who">Dispatch / DC (Stores)</span>
       <p>
-        A stock out is a <b>batch</b>: many spares, <b>one engineer</b>, one delivery challan. The
-        number is generated by Postgres in the same transaction, so there is one way to book stock
-        out and <b>no way to type a DC number by hand</b> — and <b>the challan IS the stock out</b>,
-        one series rather than two.
+        The parts count in the engineer's hand stock <b>from the time the stock out is booked</b> —
+        not from the DC date typed on the challan, and not from the acknowledgement. A line sent short
+        adds what was sent; the rest adds when it goes.
       </p>
       <p>
-        <b>Who booked it is stamped from the session</b>, not sent by the screen. The name on the
-        challan is the person signed in, and the app cannot influence it.
+        A part issued as <b>♻ Refurbished</b> lands under the refurbished part's own code.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li class="mandate"><span class="tag">Mandate</span><b>One engineer per stock out.</b> Selecting spares for two is refused — a challan is addressed to somebody.</li>
-        <li><span class="tag db">Trigger</span>The number and the DC are minted by the database, in one transaction, so a batch never half-lands.</li>
-        <li>Only lines <b>still waiting at Stores</b> can go. If somebody else booked one out meanwhile, the whole batch is refused and says how many of the selection are still eligible.</li>
+        <li><b>The acknowledgement changes nothing here.</b> Received is a confirmation on the request; the balance moved at booking.</li>
+        <li>A <b>dropped</b> spare adds nothing: it was never booked out.</li>
+        <li>Once any spare on an order has gone out, the engineer on that order cannot be changed — the stock is moved with a <b>Stock Transfer</b> instead.</li>
       </ul>
     </div>
   </section>
@@ -382,58 +389,25 @@ footer code{font-size:12.5px}
     <div class="side in">
       <h3>Reads</h3>
       <ul>
-        <li><b>What was approved</b> against what has been sent</li>
-        <li><b>What was sent</b> against what has been acknowledged</li>
-      </ul>
-    </div>
-    <div class="step" style="--node:var(--st-pending)">
-      <p class="n">Stock Out · part of it, and the receipt</p>
-      <h2>Sending less than was asked for</h2>
-      <span class="who">Stores</span><span class="who">The engineer</span>
-      <p>
-        Stores may send <b>fewer units than were approved</b>. The balance stays open and the line
-        stays at Stores until the rest goes — so a short supply is a partly-filled line rather than
-        a decision.
-      </p>
-      <p>
-        <b>Receipt follows the stock, not the stage.</b> A part-sent line has something for the
-        engineer to acknowledge while it is still sitting at Stores waiting for its balance — and a
-        spare counts as received only when the <b>whole</b> quantity has been.
-      </p>
-      <p>
-        Each stock out can also mark a part <b>refurbished</b>, which travels with the line.
-      </p>
-    </div>
-    <div class="side out">
-      <h3>Restrictions &amp; mandates</h3>
-      <ul>
-        <li><b>Only the person who raised the request may acknowledge it</b>, whatever permission anybody else holds.</li>
-        <li><b>Dispatched is Stores’ claim; Received is the engineer’s.</b> The gap between them is stock that has left the building and not been confirmed as arrived — worth watching for exactly that reason.</li>
-        <li>Or Stores may <b>drop</b> an approved part instead of sending it — terminal, needing a reason, and <b>not</b> a rejection: an approver refuses a request, Stores declines to send an approved part.</li>
-      </ul>
-    </div>
-  </section>
-
-  <section class="stage">
-    <div class="side in">
-      <h3>Reads</h3>
-      <ul>
-        <li><b>The opening file</b>, once</li>
+        <li><b>The opening file</b> — engineer, part, quantity, the date the pool was struck and its <b>Source</b></li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-cancelled)">
-      <p class="n">In · the one-off</p>
+      <p class="n">In · the pools</p>
       <h2>The opening balance</h2>
+      <span class="who">Add consumption against a call (reconciliation)</span><span class="who">Dispatch / DC (Stores)</span>
       <p>
-        What an engineer already held the day the system started. Loaded once, and <b>keyed</b> on
-        the engineer, the part and the source — so the same figure cannot be loaded twice and
-        silently double somebody’s balance.
+        What an engineer already held before the movement history began, loaded on <b>Bulk Uploads →
+        Opening Stock</b> — a pool you have prepared, or the WinMax export as exported. The pools sit
+        <b>alongside</b> one another. One figure is kept per engineer, part and <b>Source</b>, so
+        re-loading a corrected sheet <b>replaces</b> that pool's figure rather than adding a second.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li><b>An engineer cannot put stock into their own hand.</b> Every IN movement has a second party or a controlled load behind it — which is what makes the balance worth enforcing against.</li>
+        <li class="mandate"><span class="tag db">Trigger</span><i>"An opening balance needs the engineer."</i> · <i>"An opening balance needs the part."</i> · <i>"An opening balance needs its source (which pool it is)."</i></li>
+        <li><span class="tag db">Policy</span>Writing one needs <b>Add consumption against a call (reconciliation)</b> or <b>Dispatch / DC (Stores)</b>.</li>
       </ul>
     </div>
   </section>
@@ -443,11 +417,8 @@ footer code{font-size:12.5px}
     <p class="flowhead-n">Out · 1 of 3</p>
     <h2 class="flowhead-t">Consumption — the part is fitted</h2>
     <p class="flowhead-p">
-      Stock leaves the engineer's hands and goes into a machine. It is recorded <b>two ways</b>, and
-      the difference between them is the whole of the next section: the engineer writes it on the
-      visit, or the office books it afterwards as a <b>reconciliation</b>.
-    </p>
-    <p class="flowhead-p">
+      Stock leaves the engineer's hands and goes into a machine. It is recorded <b>two ways</b>: the
+      engineer writes it on the visit, or the office books it afterwards as a <b>reconciliation</b>.
       Both reduce the balance identically. What differs is who wrote it and what it had to justify.
     </p>
   </section>
@@ -456,26 +427,29 @@ footer code{font-size:12.5px}
     <div class="side in">
       <h3>Reads</h3>
       <ul>
-        <li><b>The call</b> — the UCN the part was fitted on</li>
-        <li><b>Hand Stock</b> — this engineer's balance of this part, right now</li>
-        <li><b>Part Master</b> — what was fitted</li>
+        <li><b>The call</b> and its <b>visit</b> — the spare is booked on the visit it was used on</li>
+        <li><b>Hand Stock</b> — this engineer's balance; the picker offers only what they hold</li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-unsolved)">
       <p class="n">Consumption · the ordinary way</p>
       <h2>On the visit report</h2>
-      <span class="who">The engineer</span>
+      <span class="who">Book spares used on a visit (any register)</span>
       <p>
-        Recorded as part of writing up the visit. The line carries the engineer, the part, the
-        quantity and the call — and <code>source</code> reads <b>Report</b>, meaning the person who
-        fitted it is the person who wrote it down.
+        In Call Reporting, <b>Add Consumption?</b> opens a picker of the engineer's hand stock — the
+        call's product, its accessories and the common parts, or everything in hand. The visit is saved
+        first and the spares after it. The line carries the engineer, the part, the quantity and the
+        call, and is marked <b>Report</b>.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li><span class="tag db">Trigger</span><b>You cannot consume more than the engineer holds.</b> The database refuses it and says the balance back: <i>"X has 2 of PART in hand — cannot book 3 against this call"</i>.</li>
-        <li class="mandate"><span class="tag">Mandate</span>A quantity above zero, and a <b>real UCN</b> — checked against the call register, not merely non-empty.</li>
+        <li><span class="tag db">Trigger</span><b>You cannot consume more than the engineer holds:</b> <i>"… has 2 of … in hand, so 3 cannot be consumed. Ask the Spare Coordinator to correct the hand stock first."</i> The fix is the coordinator's, not the engineer's.</li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>A visit on the call:</b> <i>"No visit has been filed on … yet, so a spare cannot be booked against it. File the visit report first — the spare is recorded on the visit it was used on."</i></li>
+        <li class="mandate"><span class="tag db">Trigger</span>A quantity above zero: <i>"Quantity must be more than zero"</i>.</li>
+        <li><span class="tag db">Policy</span>Needs <b>Book spares used on a visit (any register)</b> (or <b>Dispatch / DC (Stores)</b>); the form says so before the visit is saved.</li>
+        <li>A line loaded by a bulk upload, carrying its source reference, is a record of what was used and is not capped.</li>
       </ul>
     </div>
   </section>
@@ -484,32 +458,32 @@ footer code{font-size:12.5px}
     <div class="side in">
       <h3>Reads</h3>
       <ul>
-        <li><b>The call register</b> — the UCN must exist</li>
+        <li><b>The call register</b> — the UCN must exist; it fills the call number and engineer</li>
         <li><b>Hand Stock</b> — of the engineer named, not of whoever is typing</li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-reopened)">
       <p class="n">Consumption · the corrected way</p>
       <h2>Reconciliation — the office books it</h2>
-      <span class="who">consumption.reconcile</span>
+      <span class="who">Add consumption against a call (reconciliation)</span>
       <p>
-        A spare was sent, fitted and never written up. The Spare Coordinator books it against the
-        call directly, without waiting for the report — and the line is <b>flagged</b>:
-        <code>source</code> reads <b>Reconciliation</b> rather than Report.
+        On <b>Spare Consumption</b>, <b>＋ Add consumption</b> (or the <b>Reco</b> action on a call):
+        enter the UCN and tab out to pull the call in, confirm the engineer whose hand stock it comes
+        off, pick the parts from that stock with a quantity and an optional <b>GRIR / traceability</b>
+        reference each, and give the reason. The line is marked <b>Reconciliation</b> rather than
+        Report.
       </p>
       <p>
-        <b>The flag is the point.</b> It corrects the balance exactly as a reported line does, so
-        the stock is right either way; what the flag preserves is that this was a stock adjustment
-        made by the office rather than something the engineer said happened.
+        <b>No visit is needed.</b> A reconciliation exists for a part fitted and never reported, so the
+        missing visit is the reason for it.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li class="mandate"><span class="tag">Mandate</span>Four things, each refused <b>by name</b>: the <b>engineer</b> whose stock it came off, the <b>part</b>, a <b>UCN that exists</b>, and a <b>written reason</b>.</li>
-        <li><b>A stock adjustment with no stated reason is not auditable</b> — which is the whole argument for flagging these apart from the rest.</li>
-        <li><span class="tag db">Trigger</span>Capped at the balance, the same as any other consumption. The office cannot book what the engineer does not have either.</li>
-        <li>Its own permission. An engineer cannot write one.</li>
+        <li class="mandate"><span class="tag db">Trigger</span>Each refused by name: <i>"A reconciliation needs the UCN of the call the spare was used on"</i> · <i>"No call found with UCN … — check the number"</i> · <i>"A reconciliation needs the engineer whose hand stock the spare came off"</i> · <i>"A reconciliation needs the part"</i> · <i>"A reconciliation needs a reason (why the spare is being booked by hand)"</i>.</li>
+        <li><span class="tag db">Trigger</span>Capped at the balance, the same as any other consumption: <i>"… has 2 of … in hand — cannot book 3 against this call"</i>.</li>
+        <li><span class="tag db">Policy</span>A line marked Reconciliation needs <b>Add consumption against a call (reconciliation)</b>, whatever screen or route writes it.</li>
       </ul>
     </div>
   </section>
@@ -518,29 +492,63 @@ footer code{font-size:12.5px}
     <div class="side in">
       <h3>Reads</h3>
       <ul>
-        <li><b>The line as it stands</b> — its original quantity, and who is signed in</li>
+        <li><b>The line as it stands</b>, and the engineer's balance of that part</li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-cancelled)">
       <p class="n">Consumption · correcting one</p>
       <h2>A wrong line is VOIDED, never deleted</h2>
-      <span class="who">The Spare Coordinator</span>
+      <span class="who">Add consumption against a call (reconciliation)</span>
       <p>
-        Set the quantity to <b>0</b>. The row stays — with its original quantity, its reason and its
-        author — and the stock comes back. Reducing it part-way works the same: the balance follows
-        and the original is kept beside it.
+        On <b>Spare Consumption</b>, <b>✎</b> on the line: give the new quantity and <b>Why</b>. Set it
+        to <b>0</b> to void the line — it stays on record, reads <b>Voided</b>, and the spare goes back
+        to the engineer's stock. Only the quantity can change.
       </p>
       <p>
-        <b>Quality records are never deleted here</b>, and the database blocks it outright. A void
-        says both things at once: what was claimed, and that it was withdrawn.
+        <b>Consumption lines cannot be deleted</b> from the application, and the database blocks it
+        outright. The adjustment reason and the name of who adjusted it stay on the line, and the
+        database's audit trail keeps the line as it was before and after. The line itself no longer
+        records its original quantity or when it was adjusted — a fault, recorded as D-082.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li class="mandate"><span class="tag">Mandate</span>A <b>reason</b> for the adjustment. Refused without one, in those words: <i>"the reason is kept with the line"</i>.</li>
-        <li><span class="tag db">Trigger</span>A negative quantity is refused — <i>"set it to 0 to void the line"</i>. And <b>increasing</b> a line is capped at the balance, like any other consumption.</li>
-        <li><span class="tag db">Trigger</span>The original quantity and <b>who adjusted it</b> are stamped from the session, not sent.</li>
+        <li class="mandate"><span class="tag db">Trigger</span>A reason, in these words: <i>"Say why the line is being voided — the reason is kept with it"</i> · <i>"Say why the quantity is being adjusted — the reason is kept with the line"</i>.</li>
+        <li><span class="tag db">Trigger</span><i>"Quantity cannot be negative"</i> — the form adds <i>"use 0 to void the line"</i>. <b>Raising</b> a line is capped at the balance: <i>"Only … left in …'s hand stock for …"</i>.</li>
+        <li><span class="tag db">Trigger</span><i>"A reconciliation can only change the quantity — not the call, part, engineer or source"</i>.</li>
+        <li><span class="tag db">Trigger</span>A delete: <i>"RECORD RETENTION: spare_consumption records cannot be deleted …"</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every consumption line</b> your role may see — an office role every line, everybody else their own and their team's</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Spare Consumption · the screen</p>
+      <h2>Every spare booked against a call</h2>
+      <span class="who">the Spare Consumption page</span>
+      <p>
+        One row per consumption line: UCN, call, part, quantity, engineer, source and when. A
+        <b>Reconciliation</b> badge marks the office's lines and <b>Voided</b> a line set to 0. Search by
+        UCN, part, party or engineer; click a line to read every field it carries; export to CSV. The
+        count carries a <b>+</b> while more lines wait behind <b>Load more</b>.
+      </p>
+      <p>
+        <b>＋ Add consumption</b> and the <b>✎</b> column appear only for a holder of
+        <b>Add consumption against a call (reconciliation)</b>.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Form</span><i>"The UCN is required — a reconciliation is booked against a call."</i> · <i>"Add at least one part."</i> · <i>"Give the reason — every hand-booked line records why."</i></li>
+        <li>A refused save is reported inside the form; a refused policy reads <i>"Your role cannot add a reconciliation line (needs consumption.reconcile)."</i></li>
       </ul>
     </div>
   </section>
@@ -561,26 +569,32 @@ footer code{font-size:12.5px}
     <div class="side in">
       <h3>Reads</h3>
       <ul>
-        <li><b>Hand Stock of the sender</b> — checked as the lines are written</li>
-        <li><b>User Master</b> — who it can go to</li>
+        <li><b>Hand Stock of the sender</b> — only parts they hold are offered</li>
+        <li><b>User Master</b> — names suggested for From and To</li>
         <li><b>Part Master</b> — what is moving</li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-unsolved)">
       <p class="n">Transfer</p>
       <h2>From one engineer to another</h2>
-      <span class="who">stock.transfer</span>
+      <span class="who">Transfer hand-stock between engineers</span>
       <p>
-        A header names the two engineers and the date; the lines name the parts and quantities. The
-        stock moves on the strength of that record alone — there is no despatch and no
-        acknowledgement, because nothing leaves the field.
+        <b>＋ New Transfer</b>: From engineer, To engineer, the <b>Date</b>, the parts and quantities,
+        and remarks. The database numbers it <code>ST-2609-0007</code>. The stock moves on the strength
+        of that record alone — there is no dispatch and no acknowledgement — and it is dated by the
+        Date on the form.
+      </p>
+      <p>
+        The register lists every transfer you may see — searchable, exportable. The From and To boxes
+        suggest User Master names and accept what is typed.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li><span class="tag db">Trigger</span><b>A transfer cannot overdraw the sender.</b> The check runs per line and names the shortfall: <i>"Stock transfer exceeds available stock: X would be left with −2 of PART"</i>.</li>
-        <li>Checked <b>after</b> each line is written rather than before — so several lines of the same part on one transfer are judged together, not one at a time.</li>
+        <li><span class="tag db">Trigger</span><b>A transfer cannot overdraw the sender:</b> <i>"Stock transfer exceeds available stock: … would be left with −2 of …"</i>. Checked <b>after</b> each line is written, so several lines of the same part on one transfer are judged together.</li>
+        <li class="mandate"><span class="tag">Form</span><i>"From and To must be different engineers."</i> — and the database refuses the same.</li>
+        <li><span class="tag db">Policy</span>Needs <b>Transfer hand-stock between engineers</b>; nothing more limits whose stock it moves.</li>
       </ul>
     </div>
   </section>
@@ -590,9 +604,8 @@ footer code{font-size:12.5px}
     <p class="flowhead-n">Out · 3 of 3</p>
     <h2 class="flowhead-t">Material Return — stock goes back to Stores</h2>
     <p class="flowhead-p">
-      The part is not needed, or it came off a machine and is defective. An <b>MRN</b> sends it back
-      — and it counts <b>good and defective separately</b>, because they are not the same thing
-      arriving back at Stores and they do not go to the same place next.
+      An <b>MRN</b> sends parts back — and counts <b>good and defective separately</b>, because they
+      are not the same thing arriving back at Stores. Both come off the engineer's hand stock.
     </p>
   </section>
 
@@ -600,30 +613,149 @@ footer code{font-size:12.5px}
     <div class="side in">
       <h3>Reads</h3>
       <ul>
-        <li><b>Part Master</b> — item code and item name</li>
-        <li><b>The machine</b> it was removed from, where it was removed from one</li>
-        <li><b>The visit report</b> it relates to</li>
+        <li><b>Hand Stock</b> of the engineer — only what they hold is offered</li>
+        <li><b>User Master</b> — names, when returning for someone else</li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-pending)">
       <p class="n">Return</p>
       <h2>What an MRN records</h2>
-      <span class="who">stock.return</span>
+      <span class="who">Return spares to Stores (MRN)</span>
       <p>
-        The MRN number and date, the engineer, the part, and the two quantities — <b>good</b> and
-        <b>defective</b>. Both leave the engineer's hand stock; only the split says what Stores has
-        received.
+        <b>＋ New MRN</b>: the engineer, the <b>MRN No</b> from the paper slip, the MRN Date, each spare
+        with its <b>Good</b> and <b>Defective</b> quantities, and remarks. The database gives the
+        submission its own reference, <code>MRN-2609-0003</code>; the slip number is typed.
       </p>
       <p>
-        A defective part also records <b>which equipment it was removed from</b> and the customer,
-        with the report it relates to.
+        The register shows each returned item with its good and defective counts — and Customer,
+        Report No and Removed-from-equipment columns, which the sheet-era returns carry and the New MRN
+        form does not ask for. Open an MRN to see its lines; export to CSV.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li class="mandate"><span class="tag">Mandate</span>Good and defective are counted <b>apart</b>. A single "returned" number would make a defective part indistinguishable from an unused one.</li>
-        <li><b>A defective part with no origin cannot be investigated</b> — which is why the equipment it came off is recorded with it.</li>
+        <li><span class="tag db">Trigger</span><b>Not more than is held:</b> <i>"Material return exceeds hand stock: … would be left with … of …"</i> — the form caps it first.</li>
+        <li class="mandate"><span class="tag">Form</span><i>"Enter the MRN number from the slip."</i> · at least one returned per line, good or defective.</li>
+        <li><span class="tag db">Policy</span>Your own stock only, unless you hold <b>Return stock in another engineer’s name</b>.</li>
+        <li><span class="tag db">Trigger</span><i>"A material return cannot be edited — raise a correcting entry instead"</i>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ ADJUSTMENT ============ -->
+  <section class="flowhead" id="adjust">
+    <p class="flowhead-n">In or out</p>
+    <h2 class="flowhead-t">± Adjust stock — the office's correction</h2>
+    <p class="flowhead-p">
+      When a balance is wrong, the office corrects the stock — the engineer does not book around it.
+      An adjustment adds to or removes from one engineer's balance of one part, with a reason, and
+      shows on their movements as an <b>Adjustment</b>.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>User Master</b> — active names only</li>
+        <li><b>Part Master</b> — the part</li>
+        <li><b>Hand Stock</b> — for a removal, what they hold</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-reopened)">
+      <p class="n">Adjustment</p>
+      <h2>Add or remove, with a reason</h2>
+      <span class="who">Add consumption against a call (reconciliation)</span>
+      <p>
+        On <b>Hand Stock</b>, <b>± Adjust stock</b>: the engineer, the part, <b>Add</b> or
+        <b>Remove</b>, a quantity, the <b>Reason</b>, and a <b>Reference</b> such as the MTN number. It
+        takes effect when saved — there is no second approval. Who recorded it and when are stamped by
+        the database.
+      </p>
+      <p>
+        <b>It is never edited or deleted.</b> A wrong adjustment is put right by another one the other
+        way, and both stay on the trail with their reasons.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Form</span><i>"Choose the engineer."</i> · <i>"Choose the part."</i> · <i>"Give a quantity of 1 or more."</i> · <i>"Give the reason — it stays on the record."</i></li>
+        <li><span class="tag db">Trigger</span><i>"Hand stock is adjusted only for an ACTIVE person on the User Master -- "…" is not one."</i> · <i>"Choose the part from the Part Master -- "…" is not on it."</i></li>
+        <li><span class="tag db">Trigger</span><b>Never below zero:</b> <i>"… holds … of that part; removing … would take them below zero."</i></li>
+        <li><span class="tag db">Policy</span>Needs <b>Add consumption against a call (reconciliation)</b>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ THE SCREEN ============ -->
+  <section class="flowhead" id="screen">
+    <p class="flowhead-n">Reading it</p>
+    <h2 class="flowhead-t">The Hand Stock screen</h2>
+    <p class="flowhead-p">
+      Nothing is entered on the levels themselves — they are the movements above, added up. Two tabs
+      read the same derivation, as far as your role may see it: an office role every engineer,
+      everybody else their own and their team's.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The balance</b> — one line per engineer and part</li>
+        <li><b>The movements</b> behind one line, newest first</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Hand Stock · Stock Level</p>
+      <h2>What each engineer holds, per part</h2>
+      <span class="who">the Hand Stock page</span>
+      <p>
+        <b>📊 Stock Level</b>: each term beside the level. Filter <b>In hand</b>, <b>⚠️ Short</b> or
+        <b>Settled</b>; choose an engineer; search every line by engineer, part code or description;
+        group by engineer, spare or stock level. <b>🗄️ History included</b> /
+        <b>📅 History ignored</b> switches between everything on record and only what this system has
+        recorded since 2026 — neither number is wrong; they answer different questions.
+      </p>
+      <p>
+        Open a line for its arithmetic — <i>opening + stock out − consumed − out + in − returned</i>,
+        plus any other movements, <i>= on hand</i> — and its latest 500 movements; the Movements tab has
+        the rest. <b>⇄ Transfer stock</b> and <b>± Adjust stock</b> sit at the top for those who hold
+        the rights.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><b>A negative (Short) level is a finding</b>: more consumed or handed on than this system knows was issued.</li>
+        <li>Counts carry a <b>+</b> while more lines wait behind Load more.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every movement</b> — stock out, consumption, transfer in and out, return, adjustment</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Hand Stock · Movements</p>
+      <h2>The ledger the levels are made of</h2>
+      <span class="who">the Hand Stock page</span>
+      <p>
+        <b>🧾 Movements</b>: every movement, newest first, with its reference (DC, call, transfer, MRN
+        or adjustment), the party or other engineer, and remarks. Filter by engineer and kind; search by
+        engineer, spare, DC, call or remarks.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Read only. Each movement is changed only where it was written — Pending Dispatch, Spare Consumption, Stock Transfer, Material Returns or ± Adjust stock.</li>
       </ul>
     </div>
   </section>
@@ -640,8 +772,8 @@ footer code{font-size:12.5px}
       disagree.
     </p>
     <p>
-      The cost is that every movement has to be right, which is why each one is guarded at the
-      database rather than on a screen.
+      The cost is that every movement has to be right, which is why consumption, transfers, returns
+      and removals are each capped at the balance by the database rather than by a screen.
     </p>
   </div>
 
@@ -649,38 +781,41 @@ footer code{font-size:12.5px}
     <h3>Report vs Reconciliation</h3>
     <p>
       Both are consumption and both move the stock identically. <b>Report</b> is the engineer
-      writing up what they fitted; <b>Reconciliation</b> is the office booking a spare that was
-      fitted and never written up.
+      writing up what they fitted, on a visit; <b>Reconciliation</b> is the office booking a spare
+      that was fitted and never written up — which is why it needs no visit, and does need a reason.
     </p>
     <p>
       Keeping them tellable apart is what lets somebody ask how much of the register is the
-      engineers' own record and how much was tidied up afterwards — a question you cannot ask once
-      the flag is gone.
+      engineers' own record and how much was tidied up afterwards.
     </p>
   </div>
 
   <div class="panel">
-    <h3>Void vs delete</h3>
+    <h3>Void, adjustment, delete</h3>
     <p>
-      A wrong consumption line is set to <b>0</b>, not removed. The row keeps its original quantity,
-      its reason and its author, and the stock returns.
+      A wrong consumption line is set to <b>0</b>, not removed: the row keeps its reason and who
+      adjusted it, and the stock returns. A wrong <b>adjustment</b> is answered by another the other
+      way. A material return is corrected by another entry.
     </p>
     <p>
-      Deleting it would leave the balance right and the history wrong — and the history is the part
-      an auditor reads. The database refuses the delete outright.
+      Deleting would leave the balance right and the history wrong — and the history is the part an
+      auditor reads. The database refuses the delete of a consumption line outright.
     </p>
   </div>
 </div>
 <footer>
   <p>
-    Drawn from the running system, not from memory: the balance view and its movement kinds in
-    <code>supabase/migrations/</code>, the consumption guard (0059, 0060), the quantity adjustment
-    and void rules (0062, 0063), the transfer stock check (0020), the returns register, the stock
-    out and its challan (0027, 0028) and the actor stamp (0211) — and the rights in
-    <code>src/lib/rbac.ts</code>.
+    Drawn from the running system, not from memory: the movement and balance views
+    (0096, 0102, 0266), the opening balance (0074), the consumption guards (0059, 0061, 0089), the
+    quantity adjustment and void (0062, 0063, 0196, 0261), the need for a visit and the reconciliation
+    exemption (0214, 0243), the transfer check (0020, 0089), the returns register (0039, 0289), the hand
+    stock adjustments (0266) and the record-retention guard (0049); the screens
+    <code>HandStock.tsx</code>, <code>SpareConsumption.tsx</code>, <code>StockTransfer.tsx</code> and
+    <code>MaterialReturns.tsx</code> — and the rights in <code>src/lib/rbac.ts</code>.
     Where this page and the code disagree, the code is the fact and this page is the bug.
   </p>
 </footer>
+
 
 </div>
 <script>

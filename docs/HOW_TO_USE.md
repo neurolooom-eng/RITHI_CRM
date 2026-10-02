@@ -259,7 +259,8 @@ against the call it was fitted to.
    > approval route they were given; only what the request shows changes.
 2. **RM Approval** `/spare-rm-approval` — the queue shows the complaint, machine,
    serial and cover, because "is this part plausible for this fault?" is most of
-   the decision. Approve, reject or drop many at once; the last two need a reason.
+   the decision. Tick several and approve or reject them at once; a rejection needs a reason.
+   A spare is dropped from Spare Requests or Pending Dispatch, not here.
 3. Commercial and NSM approve their own stages where the request needs them.
    **Only the words Approved, Auto-Approved or "Cleared for Stores
    Processing" move a spare on.** A spare loaded from a sheet with anything
@@ -294,8 +295,8 @@ against the call it was fitted to.
   > correct one, record another the other way — and a removal cannot take them
   > below zero. This replaces WinMax's *eBizWiz Admin* account, whose opening
   > stock has been removed.
-- **Material Returns (MRN)** `/mrn` — parts back to Stores; the return puts the
-  stock back on the balance.
+- **Material Returns (MRN)** `/mrn` — parts back to Stores; the return takes the
+  stock off the engineer's balance.
 - **Stock Transfer** `/stock-transfer` — hand stock between engineers. A transfer
   to the same person is held back and named.
 
