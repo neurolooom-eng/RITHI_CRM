@@ -230,6 +230,16 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.37 — How RITHI Functions: Masters document** (`how-masters-work.html`).
+  D-087 fixed (+ Field asks calls.create). **Open, need the user's decision:**
+  D-084 — `user_directory_address_guard` still lets only an administrator change
+  an existing person, whatever `users.manage.details` says; D-085 —
+  `parties_write` asks `masters.edit.records`, so *Verify a party's KYC* alone
+  saves nothing; D-086 — a value list's Add asks `master.<list>.edit` while the
+  database accepts `masters.edit.records`. Also not enforced: KYC before a sale
+  or installation; an Inactive product line can be typed on a new sale.
+  **Next document: Administration**, then Reports, Documents & Knowledge Base,
+  Contracts & Warranty, Overview (Indoor skipped by the user).
 - ✅ **0.10.36 — Spares: D-081 and D-082 fixed.**
   `0311_tick_box_rm_auto_approves` (spare_requests): `decide_spare_lines()`
   writes the same auto-approvals as `buildPatch()`. `0317_void_keeps_original_qty`

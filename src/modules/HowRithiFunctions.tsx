@@ -94,6 +94,13 @@ const DOCS = [
     title: 'How service calls work — the three registers, the visit, and what follows it',
   },
   {
+    id: 'masters',
+    label: 'Masters',
+    file: 'how-masters-work.html',
+    blurb: 'Parties, machines, product lines, parts, people and the value lists: what each holds, who may change it, and where its values are used.',
+    title: 'How the masters work — what each holds, who may change it, and where it is used',
+  },
+  {
     id: 'quality',
     label: 'Quality & Analytics',
     file: 'how-quality-works.html',

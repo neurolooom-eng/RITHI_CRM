@@ -167,8 +167,11 @@ export function ProductMaster() {
     key: '_actions', header: 'Register Call', width: 170, sortable: false, wrap: false,
     render: (row) => (
       <div className="row" onClick={(e) => e.stopPropagation()}>
-        <button className="btn btn-sm btn-primary" title="Register a field call for this item" onClick={() => register(row, '/field-calls')}>+ Field</button>
-        <button className="btn btn-sm" title="Register an installation call for this item" onClick={() => register(row, '/installations')}>+ Install</button>
+        {/* EACH BUTTON ASKS ITS OWN REGISTER'S KEY -- the column used to be shown
+            only with install.create, so a role that may raise Field calls and
+            not installations got neither button. */}
+        {can('calls.create') && <button className="btn btn-sm btn-primary" title="Register a field call for this item" onClick={() => register(row, '/field-calls')}>+ Field</button>}
+        {can('install.create') && <button className="btn btn-sm" title="Register an installation call for this item" onClick={() => register(row, '/installations')}>+ Install</button>}
       </div>
     ),
   };
@@ -213,8 +216,9 @@ export function ProductMaster() {
 
       <DataTable<Row>
         // "+ Install" raises an INSTALLATION call: install.create, which the
-        // database asks of it (finding 64 -- it tested calls.create).
-        columns={can('install.create') ? [...COLUMNS, actionsColumn] : COLUMNS}
+        // database asks of it (finding 64 -- it tested calls.create); "+ Field"
+        // asks calls.create. The column shows when either is held.
+        columns={can('install.create') || can('calls.create') ? [...COLUMNS, actionsColumn] : COLUMNS}
         allFields={ALL_FIELDS}
         rows={rows}
         getRowId={(r) => r.id}

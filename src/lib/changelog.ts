@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.37',
+    date: '2026-10-02',
+    title: 'How RITHI Functions: the Masters document',
+    changes: [
+      'NEW: HOW RITHI FUNCTIONS → MASTERS. Covers Party Master, Product Database, Product Database 2.0, Product Master, User Master, Part Master and All Masters: what each holds, what you do there, what it refuses, who may change it, and where its values are used.',
+      'FIXED: on the Product Database, + Field is shown to roles that may register Field calls. It used to appear only for roles that may raise installation calls, so a Reporting or Regional Manager had no + Field.',
+      'CORRECTED: the Product Database 2.0 rebuild needs "Rebuild Product Database 2.0"; the KYC Verified badge no longer claims it clears a sale; the Spare Approval Reason list says nothing reads it; the Product Database is described as one row per machine by model and serial.',
+    ],
+  },
+  {
     version: '0.10.36',
     date: '2026-10-02',
     title: 'Spares: two faults fixed',
