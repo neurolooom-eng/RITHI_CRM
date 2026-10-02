@@ -1086,7 +1086,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     ) },
   ];
 
-  const sections = [...new Set(cfg.headerFields.map((f) => f.section))];
+  // A HIDDEN field is written by the code, never shown (Prev MC Number).
+  const shownHeader = cfg.headerFields.filter((f) => !f.hidden);
+  const sections = [...new Set(shownHeader.map((f) => f.section))];
 
   // AN ENTRY OPENS AS A POP-UP (the user, 2026-10-02: "When I click on the
   // Entry, the Entry should open in a Pop Up Window with 2 Screens - Left Side
@@ -1141,7 +1143,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     <div key={sec} style={{ marginBottom: 10 }}>
       <div className="field-label" style={{ opacity: 0.75 }}>{sec}</div>
       <div className="rep-grid">
-        {cfg.headerFields.filter((f) => f.section === sec).map((f) => (
+        {shownHeader.filter((f) => f.section === sec).map((f) => (
           <label key={f.name} className="rep-field">
             <span className="field-label">
               {f.label}{f.required && <span title="Required"> *</span>}

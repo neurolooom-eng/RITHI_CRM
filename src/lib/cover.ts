@@ -52,12 +52,19 @@ export interface CoverField {
    *  loaded from the superseded system's exports, where these columns are
    *  often blank, and a NOT NULL would refuse that history. */
   required?: boolean;
+  /** NOT SHOWN ON THE FORM, but still a column the entry may write -- the
+   *  field list is also the save's whitelist (`writable` below), so removing a
+   *  field would stop it being written at all. Set by the code instead: Prev
+   *  MC Number is written by Renew this contract (the user, 2026-10-02:
+   *  "Prev MC Number - Hide it -> Auto Populate this when I use the Renew
+   *  Contract Button"). */
+  hidden?: boolean;
 }
 
 /** The labels of the required header fields this row leaves blank. */
 export function missingRequired(fields: CoverField[], row: Row): string[] {
   return fields
-    .filter((f) => f.required && !f.derived)
+    .filter((f) => f.required && !f.derived && !f.hidden)
     .filter((f) => { const v = row[f.name]; return v == null || String(v).trim() === ''; })
     .map((f) => f.label);
 }
@@ -187,7 +194,10 @@ export const CONTRACT: CoverConfig = {
     // owns them.
     { name: 'party_name', label: 'Party Name', section: 'Contract', optionsFrom: 'product-party' },
     { name: 'contract_type', label: 'Contract Type', type: 'select', options: ['', 'CMC', 'AMC'], section: 'Contract' },
-    { name: 'prev_mc_number', label: 'Prev MC Number', section: 'Contract' },
+    // HIDDEN, AND FILLED BY RENEW (renewContract sets it to the contract being
+    // renewed). Still read by Machine History ("renewed from …") and still
+    // loaded from the old system's exports.
+    { name: 'prev_mc_number', label: 'Prev MC Number', section: 'Contract', hidden: true },
     { name: 'status', label: 'Status (as keyed)', section: 'Contract' },
     // THE PERIOD IS ENTERED IN MONTHS AND THE REST FOLLOWS, as on the
     // Warranty Register (the user, 2026-10-02: "Contract Start Date can
