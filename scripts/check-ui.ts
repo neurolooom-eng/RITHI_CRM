@@ -5625,36 +5625,33 @@ console.log('\n-- a call request can be corrected until it becomes a call --');
     /col === 'plan_date' \? \(v === '' \? null : v\) : v/.test(sb), true);
 }
 
-console.log('\n-- the cover registers are two windows --');
+console.log('\n-- the cover registers open an entry in a pop-up --');
 {
   const reg2 = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
-  const sp = readFileSync('src/components/ui/SplitPane.tsx', 'utf8');
+  const css = readFileSync('src/modules/fieldcalls.css', 'utf8');
 
-  // The user, 2026-09-22: "Make the Warranty Entry and Contract as a 2 window
-  // view [Adjustable width]". A drawer OVER the list is right for one record
-  // and wrong for working down a list -- open, read, close, find your place.
-  eq('an open entry sits beside the list, not over it',
-    /<SplitPane storageKey=\{`cover-\$\{kind\}`\}/.test(reg2), true);
-  eq('...and the drawer is gone rather than left unused', /<Drawer/.test(reg2), false);
-  // A SPLIT WITH NOTHING IN ITS SECOND PANE is half a screen given to a box.
-  eq('one window when nothing is open', /\) : entriesTable/.test(reg2), true);
-
-  // PERCENTAGES, NOT PIXELS: a width remembered on a wide monitor is a pane
-  // that fills a laptop.
-  eq('the divider stores a percentage', /String\(Math\.round\(cur\)\)/.test(sp), true);
-  // A divider dragged to the edge is indistinguishable from a broken screen,
-  // and there is nothing left to grab to undo it.
-  eq('a pane cannot be dragged out of existence',
-    /Math\.min\(Math\.max\(pct, min\), max\)/.test(sp), true);
-  // A private window throws on the storage accessor itself.
-  eq('...and a layout preference is never worth an error',
-    /catch \{ \/\* a layout is not worth an error \*\/ \}/.test(sp), true);
-  {
-    // ON A PHONE THERE IS NO ROOM FOR TWO, and a divider that does nothing is
-    // worse than no divider.
-    const css = readFileSync('src/components/ui/splitpane.css', 'utf8');
-    eq('it stacks on a narrow screen', /@media \(max-width: 900px\)[\s\S]{0,200}\.split-bar \{ display: none/.test(css), true);
-  }
+  // The user, 2026-10-02, of the Contract Register and then the Warranty
+  // Register: the entry opens in a pop-up, details on the left, products on
+  // the right, every action button at the top and sticky. It replaced the
+  // side-by-side split of 2026-09-22 on both.
+  eq('an open entry is a pop-up, on both registers', /const entryPopup = open \? \(/.test(reg2), true);
+  eq('...and the split pane is gone rather than left unused', /SplitPane/.test(reg2), false);
+  eq('...as is the drawer', /<Drawer/.test(reg2), false);
+  eq('the per-machine tab is called Register', />Register<\/button>/.test(reg2), true);
+  eq('...and By machine is not offered as a tab', />By machine</.test(reg2), false);
+  // EVERY BUTTON IN THE BAR: the entry's, the renewal's, the machines'.
+  eq('the entry, renewal and machine buttons all sit in the top bar',
+    /className="cover-pop-bar">[\s\S]{0,400}\{entryButtons\}[\s\S]{0,60}\{renewButton\}[\s\S]{0,60}\{machineButtons\}/.test(reg2), true);
+  eq('...and the bar does not scroll away', /\.cover-pop-bar \{[^}]*position: sticky/.test(css), true);
+  eq('details on the left, products on the right',
+    /\{entryFields\}[\s\S]{0,200}ref=\{productsRef\}[\s\S]{0,120}\{machineList\}/.test(reg2), true);
+  // A WINDOW HOLDING A FORM MUST NOT CLOSE ON A STRAY CLICK, and closing it
+  // over unsaved work asks first.
+  eq('the pop-up does not close on a click outside it', /cover-pop-overlay"[^>]*onMouseDown/.test(reg2), false);
+  eq('closing over unsaved changes asks first', /will be lost\. Close anyway\?/.test(reg2), true);
+  // ON A PHONE THERE IS NO ROOM FOR TWO.
+  eq('the two halves stack on a narrow screen',
+    /@media \(max-width: 900px\)[\s\S]{0,200}\.cover-pop-body \{ display: block/.test(css), true);
 }
 
 console.log('\n-- KYC: the status and its evidence, both on the row --');

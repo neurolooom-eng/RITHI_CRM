@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.28',
+    version: '0.10.29',
     date: '2026-10-02',
     title: 'Rules the screens kept, now kept by the database too',
     changes: [
@@ -26,6 +26,18 @@ export const CHANGELOG: ChangeEntry[] = [
       'PRINTED FIELD FAILURE REPORT: needs access to the Field Failure Register.',
       'DELIVERY CHALLAN AND DECLARATION can be reprinted for any stock out, however old.',
       'SIGN OUT clears the saved lists and the menu counts from the device, so the next person does not see them.',
+    ],
+  },
+  {
+    version: '0.10.28',
+    date: '2026-10-02',
+    title: 'Warranty Register: entries open in a pop-up, and By machine is now Register',
+    changes: [
+      'WARRANTY REGISTER → "By machine" is renamed "Register", the same as on the Contract Register.',
+      'CLICKING A SALE ENTRY OPENS IT IN A POP-UP WINDOW, the same as a contract: the sale\'s details on the left, its products on the right, each side scrolling on its own.',
+      'EVERY BUTTON IS IN THE BAR AT THE TOP and stays put however far you scroll: Save entry, Update from Party Master, Delete entry, + Add machine, ＋ Installation calls, Force update child records, and Close. Save machine and Remove stay on each machine.',
+      'The window does not close if you click outside it, and Close asks first if anything is unsaved.',
+      'The side-by-side view with the draggable divider is gone from both registers.',
     ],
   },
   {
