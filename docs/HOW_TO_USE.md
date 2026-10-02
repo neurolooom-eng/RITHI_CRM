@@ -800,6 +800,21 @@ typed into a form that reads it.
   > product is chosen, every complaint is offered. A call that already carries a
   > complaint keeps it even if it is not on the product's list. The list is kept
   > on the device, so a Call Request fills it with no signal.
+- **How RITHI Functions** `/knowledge-base/how-it-works` — how the system works,
+  in four parts:
+  > **All modules** — every screen in the menu, in menu order: what it is for,
+  > what you do there, what it refuses, the records it keeps, and the data flows
+  > it is part of (a chip opens that flow). It says whether your role opens the
+  > screen. A screen added to the menu without an entry here fails the build.
+  > **The Call / Spare / Hand Stock documents and the Spare tables** — the long
+  > illustrated explanations.
+  > **Data flows** — fourteen workflows drawn as diagrams: a call's life, quality,
+  > hand stock, a sale, installation, PM, the HandStock spare route,
+  > reconciliation, the workshop, documents and training, the masters, people and
+  > access, bulk loading, and reports. **▶ Play** walks one through a step at a
+  > time — played steps stay, the current one is lifted with its explanation
+  > below, the arrows into it run; **Pause**, **Previous**, **Next** and
+  > **Reset** do what they say, and clicking a box stops and opens it.
 - **Service Manuals** `/service-manuals` — indexed by product, so a call shows the
   right ones.
 - **Technical / Service Notes** `/service-manuals/notes` — technical bulletins and
@@ -1128,11 +1143,11 @@ typed into a form that reads it.
   intended use, regulatory basis, requirements and the tests that answer them.
   > Not the servicing process requirements. Software validation does not discharge
   > a process requirement, which is why they are two documents.
-  > **Data Flows** draws how a record moves from screen to screen — a call to
-  > its spares, closure, consumption and feedback; a review to its FFR and the
-  > Objective; hand stock; a sale to installation, cover and PM. Select a box to
-  > see what that step does, where, and the requirements and tests behind it.
-  > The same diagrams are under **How RITHI Functions → Data flows**.
+  > **Data Flows** draws how a record moves from screen to screen — fourteen
+  > workflows, from a call's life to bulk loading and reports. Select a box to
+  > see what that step does, where, and the requirements and tests behind it, or
+  > press **▶ Play** to walk through it step by step. The same diagrams are under
+  > **How RITHI Functions → Data flows**.
 - **Settings** `/settings` — your preferences, and for an administrator the
   connection settings.
 - **Your Profile** `/profile` — **one tab per section**: Account, Details &

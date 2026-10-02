@@ -230,6 +230,17 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.23 — How RITHI Functions: All modules + every workflow, with ▶ Play.**
+  `src/lib/moduleGuide.ts` (75 menu screens; check:ui holds menu ↔ guide);
+  `ModuleGuide.tsx` is the default tab. `FLOWS` 4 → 14 (+ Ownership Transfer
+  in sale-cover), areas `doc` / `admin`; FlowDiagram plays step by step
+  (reduced-motion safe); layout sizes each gap to its labels, places fan-in
+  labels by their source and nudges clashes; check:ui fails a label on a box or
+  on another label. Steps state what the code does today where an open defect
+  leaves the requirement unmet. FRS-209.8-.10, FRS-191.10; FRS-142.1 and
+  FRS-169.1 corrected to the keys the code asks (pm.bulk_upload,
+  users.reset_password). Handbook gains the How RITHI Functions entry it never
+  had. **Next: the full per-module documents, group by group.**
 - ✅ **0.10.22 — Software Validation Package Rev 3.1.** VAL_META 2.5 → 3.1;
   revision history gains Rev 3.0 (never written into it) and Rev 3.1. New:
   OQ-213 (HSN + rename, auto), OQ-214 (My Profile tabs / My Team), OQ-215

@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.23',
+    date: '2026-10-02',
+    title: 'How RITHI Functions: every module, and every workflow animated',
+    changes: [
+      'NEW: HOW RITHI FUNCTIONS → ALL MODULES. Every screen in the menu, in menu order: what it is for, what you do there, what it refuses, the records it keeps and whether your role opens it. Each screen also shows the workflows it is part of, and clicking one opens that diagram.',
+      'DATA FLOWS NOW COVER EVERY WORKFLOW, fourteen in all. The new ones are installation, PM, the HandStock spare route, reconciliation, the workshop, documents and training, the masters, people and access, bulk loading, and reports and exports. Ownership transfer is added to the sale flow.',
+      '▶ PLAY WALKS THROUGH A FLOW ONE STEP AT A TIME. Each step lights up in order with its explanation underneath, and the arrows into it move. Pause, Previous, Next and Reset work as named, and clicking a box stops and opens it.',
+      'Arrow labels no longer run under the boxes or onto each other.',
+      'FIXED: the Call Cancel Reason list said Pending Registrations uses it. It does not: cancelling a request there takes a typed reason.',
+    ],
+  },
+  {
     version: '0.10.22',
     date: '2026-10-02',
     title: 'Software Validation Package Rev 3.1',

@@ -9771,6 +9771,19 @@ console.log('\n-- data flows name real screens, requirements and tests --');
     const overlap = lay.nodes.some((a, i) => lay.nodes.some((b, j) => j > i
       && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h));
     eq(`${f.id}: no two boxes overlap`, overlap, false);
+    // ARROW LABELS SIT CLEAR (2026-10-02, seen on screenshots: labels ran
+    // under boxes and onto each other where arrows fan out). A label's box is
+    // its text at 6px a character, 12px high, centred on (lx, ly-4).
+    const lbl = lay.edges.filter((e) => e.edge.label && !e.edge.loop).map((e) => {
+      const w = e.edge.label!.length * 6;
+      return { id: `${e.edge.from}->${e.edge.to}`, x: e.lx - w / 2, y: e.ly - 10, w, h: 12 };
+    });
+    const hit = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) =>
+      a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    eq(`${f.id}: no arrow label lies on a box`,
+      lbl.filter((l) => lay.nodes.some((n) => hit(l, n))).map((l) => l.id), []);
+    eq(`${f.id}: no two arrow labels lie on each other`,
+      lbl.flatMap((a, i) => lbl.slice(i + 1).filter((b) => hit(a, b)).map((b) => `${a.id} / ${b.id}`)), []);
     eq(`${f.id}: every box is inside the drawing`,
       lay.nodes.every((n) => n.x >= 0 && n.y >= 0 && n.x + n.w <= lay.width && n.y + n.h <= lay.height), true);
   }
