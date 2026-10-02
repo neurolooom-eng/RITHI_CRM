@@ -23,7 +23,7 @@ import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
   configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit,
-  raiseInstallCalls, missingRequired, yearsHint, getHeader,
+  raiseInstallCalls, missingRequired, yearsHint, getHeader, countPendingSales,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   proposeConversion, conversionHeader, convertWarrantyToContract, contractsFromSale, suggestedContractPmVisits,
   CONTRACT, type ConversionDraft,
@@ -760,6 +760,13 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const countPending = (search: string) => (kind === 'sale'
     ? countMachines(kind, '', { q: search, pendingInstall: true }).then(setPendingCount).catch(() => setPendingCount(null))
     : Promise.resolve());
+  // ...and on the Entries tab, how many SALES have at least one such machine
+  // (the user, 2026-10-02: "Add the pending count to the Entries tab as well").
+  // The same toggle filters both tabs; each counts its own thing.
+  const [pendingSalesCount, setPendingSalesCount] = useState<number | null>(null);
+  const countPendingSalesNow = (search: string) => (kind === 'sale'
+    ? countPendingSales({ q: search }).then(setPendingSalesCount).catch(() => setPendingSalesCount(null))
+    : Promise.resolve());
 
   // ARRIVING FROM SOMEWHERE THAT NAMED A DOCUMENT. Product Database 2.0 shows
   // an SA number and an MC number on every machine it assembles, and those are
@@ -829,7 +836,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const rows = feeds.entries.rows;
   const machines = feeds.machines.rows;
   const setFeed = (t: Tab, patch: Partial<Feed>) => setFeeds((cur) => ({ ...cur, [t]: { ...cur[t], ...patch } }));
-  const filtered = !!q || (tab === 'machines' && (!!state || pendingInstall));
+  const filtered = !!q || pendingInstall || (tab === 'machines' && !!state);
 
   const [open, setOpen] = useState<Row | null>(null);   // header being viewed
   // Closed whenever a different entry is opened: a half-filled renewal must not
@@ -854,7 +861,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // One page of a tab, from the server.
   const fetchPage = (t: Tab, offset: number): Promise<Row[]> =>
     t === 'entries'
-      ? listHeaders(kind, { q }, offset, PAGE.entries)
+      ? listHeaders(kind, { q, pendingInstall }, offset, PAGE.entries)
       : listMachines(kind, { q, state, pendingInstall }, offset, PAGE.machines);
 
   /** `pages` server pages from `offset`, in order, stopping at the first short
@@ -882,6 +889,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       // means the register may well hold a third, and a short answer is the end.
       setFeed(t, { rows: r, offset: r.length, more: r.length >= OPEN_PAGES * PAGE[t],
                    at, step: OPEN_PAGES });
+      if (t === 'entries') void countPendingSalesNow(q);
       if (t === 'machines') {
         // THE TOTALS MUST NOT TAKE THE TABLE DOWN WITH THEM. They used to be
         // awaited inside the same try, so a failing count threw away 1,500
@@ -934,6 +942,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     if (!cached.rows.length || isStale(cached.at)) { void refresh(tab); return; }
     setFeed(tab, cached);
     setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(cached.at)}. ↻ Refresh to update.` });
+    if (tab === 'entries') void countPendingSalesNow('');
     if (tab === 'machines') {
       void countPending('');
       void Promise.all(STATES.map((x) => countMachines(kind, x, {})))
@@ -1110,7 +1119,12 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     setSaving(true);
     try {
       const r = await raiseInstallCalls(draft, items, (d, t) => setMsg({ tone: 'info', text: `Raising ${d} of ${t}…` }));
-      setItems(await listItems(kind, str(draft[cfg.key])));
+      const fresh = await listItems(kind, str(draft[cfg.key]));
+      setItems(fresh);
+      // The sale's count on the Entries list moves with it, rather than
+      // reading the old number until the next sync.
+      const left = machinesNeedingInstallCall(fresh as never).length;
+      setFeed('entries', { rows: feeds.entries.rows.map((x) => (x.id === draft.id ? { ...x, pending_install: left } : x)) });
       if (r.error) {
         // STOPPED, NOT FAILED. What was created is named, because those calls
         // exist whatever the message says.
@@ -1229,6 +1243,16 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     { key: kind === 'sale' ? 'warranty_start' : 'contract_start', header: 'Start', width: 110, wrap: false, render: (r) => fmtDate(r[kind === 'sale' ? 'warranty_start' : 'contract_start']) },
     { key: cfg.endColumn, header: 'End', width: 110, wrap: false, render: (r) => fmtDate(r[cfg.endColumn]) },
     { key: 'item_count', header: 'Machines', width: 90, align: 'right', wrap: false },
+    // HOW MANY OF THIS SALE'S MACHINES STILL WAIT FOR AN INSTALLATION CALL --
+    // counted by the database (listHeaders), the Register tab's rule.
+    ...(kind === 'sale' ? [{ key: 'pending_install', header: 'Install calls pending', width: 120, align: 'right', wrap: false,
+      // NOT COUNTED IS NOT ZERO: a row cached before this column existed has
+      // no count, and reads a dash until the next sync rather than "0".
+      render: (r: Row) => (r.pending_install == null
+        ? <span className="muted" title="Not counted yet — press ↻ Refresh">—</span>
+        : Number(r.pending_install) > 0
+        ? <span className="badge badge-warning" title="Machines on this sale with no installation call mapped">{Number(r.pending_install)}</span>
+        : <span className="muted">0</span>) } as Column<Row>] : []),
     { key: 'status_now', header: 'State', width: 130, wrap: false, render: (r) => statusBadge(stateOf(str(r[cfg.endColumn])), TONES) },
   ];
 
@@ -1674,6 +1698,20 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         <button className={`btn btn-sm ${tab === 'entries' ? 'btn-primary' : ''}`} onClick={() => setTab('entries')}>Entries</button>
         <button className={`btn btn-sm ${tab === 'machines' ? 'btn-primary' : ''}`} onClick={() => setTab('machines')}>Register</button>
       </div>
+
+      {/* THE SAME FILTER ON THE ENTRIES TAB: sales with at least one machine
+          still waiting for its installation call. */}
+      {tab === 'entries' && kind === 'sale' && (
+        <div className="pc-summary">
+          <button className={`pc-tile ${pendingInstall ? 'pc-tile-on' : ''}`} onClick={() => setPendingInstall((v) => !v)}
+            title="Sales with at least one machine whose INST Call holds no call number">
+            <span className="pc-tile-n" title={pendingSalesCount == null ? 'Not counted yet — press ↻ Refresh' : ''}>
+              {pendingSalesCount == null ? '—' : pendingSalesCount.toLocaleString()}
+            </span>
+            <span className="badge badge-warning">SALES WITH INSTALL CALLS PENDING</span>
+          </button>
+        </div>
+      )}
 
       {tab === 'machines' && (
         <div className="pc-summary">

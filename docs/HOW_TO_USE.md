@@ -528,6 +528,9 @@ window, with the machine opened and marked on the right.
 machine still waiting for its call ("To Check" counts as pending) and shows the
 UCN once one is mapped; the **INSTALL CALL PENDING** tile filters to them,
 across the whole register, together with the search and the state tiles.
+On the **Entries** tab, **Install calls pending** shows how many of each sale's
+machines are still waiting, and **SALES WITH INSTALL CALLS PENDING** filters to
+the sales with at least one.
 **Clicking an entry opens it in a pop-up window**: the entry's details on the
 left, its products on the right, each half scrolling on its own. Every button —
 Save entry, Delete entry, Close, + Add machine and Force update child records,
