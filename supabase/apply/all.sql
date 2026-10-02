@@ -193,6 +193,7 @@
 --   0118_spare_bulk_decisions.sql
 --   0154_rm_queue_request_fields.sql
 --   0268_spare_request_follows_call.sql
+--   0310_rename_passes_the_line_guard.sql
 --   0122_spare_requests_replay_tail.sql
 --   0020_stock_transfer.sql
 --   0123_stock_transfer_update_policy.sql
@@ -229,6 +230,8 @@
 --   0261_rename_passes_the_spare_guards.sql
 --   0266_handstock_adjustments.sql
 --   0289_spares_on_a_visit_rename_and_returns.sql
+--   0309_part_hsn_code.sql
+--   0310_rename_passes_the_return_guard.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
 --   0072_ownership_transfer.sql
@@ -22872,6 +22875,143 @@ revoke execute on function public.refresh_spare_requests_from_call(text[]) from 
 grant execute on function public.refresh_spare_requests_from_call(text[]) to authenticated;
 
 -- ------------------------------------------------------------------------
+-- 0310_rename_passes_the_line_guard.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0310 — A PART RENAME PASSES THE SPARE-LINE GUARD.
+--
+-- Found while finding why 0309's one-time HSN fill cleaned only 12 of 29
+-- descriptions on the live project (2026-10-01). spare_request_lines_guard's
+-- parts rule -- "only the engineer who raised the request may change its
+-- parts" -- lets only an administrator or the requester past, so a person who
+-- holds masters.edit.rename_part but is NOT an administrator could not rename
+-- any part on somebody else's spare request. The rename is not somebody
+-- changing a line's part; it is the part's own name changing everywhere at once.
+--
+-- NOT what stopped the migration: with no signed-in user the rule's test
+-- (`created_by = auth.uid()`) is NULL, an IF treats NULL as false, and the
+-- line was let through. Measured on a database before this was written, not
+-- assumed. What stopped the fill is in 0310_rename_passes_the_return_guard.
+--
+-- READ FROM THE DATABASE, NOT FROM A MIGRATION (CLAUDE.md): this is the body
+-- 0217 left, with ONE condition added to the parts rule and nothing else
+-- changed. The exemption is the ticket the consumption guard already trusts
+-- (0196): unforgeable, because only rename_part_records() writes it, and keyed
+-- on this transaction.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.spare_request_lines_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  changed         boolean;
+  auto_commercial boolean;
+  auto_nsm        boolean;
+  req             public.spare_requests;
+begin
+  if public.is_admin() then return new; end if;
+  select * into req from public.spare_requests where uid = new.request_uid;
+
+  -- ---- 0210's rule, unchanged ---------------------------------------------
+  -- The two middle stages do NOT share a test: Commercial judges whether
+  -- somebody is being CHARGED, NSM whether the stock is WARRANTED, and a
+  -- HandStock request has no machine behind it for Commercial to weigh.
+  auto_commercial := not public.spare_needs_commercial(req.item_status)
+                     and public.has_perm('spare.approve_rm');
+  auto_nsm        := not public.spare_needs_nsm(req.item_status, req.req_type)
+                     and public.has_perm('spare.approve_rm');
+
+  changed := new.rm_approval is distinct from old.rm_approval
+          or new.rm_by       is distinct from old.rm_by
+          or new.rm_at       is distinct from old.rm_at;
+  if changed and not public.has_perm('spare.approve_rm') then
+    raise exception 'RBAC: RM approval requires the spare.approve_rm permission';
+  end if;
+
+  changed := new.commercial_approval is distinct from old.commercial_approval
+          or new.commercial_by       is distinct from old.commercial_by
+          or new.commercial_at       is distinct from old.commercial_at;
+  if changed
+     and not public.has_perm('spare.approve_commercial')
+     and not (auto_commercial and new.commercial_approval = 'Auto-Approved'
+              and new.commercial_by is not distinct from old.commercial_by
+              and new.commercial_at is not distinct from old.commercial_at) then
+    raise exception 'RBAC: Commercial approval requires the spare.approve_commercial permission';
+  end if;
+
+  changed := new.nsm_approval is distinct from old.nsm_approval
+          or new.nsm_by       is distinct from old.nsm_by
+          or new.nsm_at       is distinct from old.nsm_at;
+  if changed
+     and not public.has_perm('spare.approve_nsm')
+     and not (auto_nsm and new.nsm_approval = 'Auto-Approved'
+              and new.nsm_by is not distinct from old.nsm_by
+              and new.nsm_at is not distinct from old.nsm_at) then
+    raise exception 'RBAC: NSM approval requires the spare.approve_nsm permission';
+  end if;
+
+  -- ---- RESTORED FROM 0036, verbatim ---------------------------------------
+  changed := new.stores_status    is distinct from old.stores_status
+          or new.dc_number        is distinct from old.dc_number
+          or new.dispatched_by    is distinct from old.dispatched_by
+          or new.dispatched_at    is distinct from old.dispatched_at
+          or new.courier          is distinct from old.courier
+          or new.dispatch_remarks is distinct from old.dispatch_remarks;
+  -- Dispatch needs spare.dispatch; a DROP (Dropped, no DC) needs spare.drop.
+  if changed and not public.has_perm('spare.dispatch')
+     and not (public.has_perm('spare.drop')
+              and coalesce(new.stores_status, '') ~* 'drop'
+              and new.dc_number is not distinct from old.dc_number) then
+    raise exception 'RBAC: dispatch / DC requires the spare.dispatch permission (a drop needs spare.drop)';
+  end if;
+
+  changed := new.reject_reason  is distinct from old.reject_reason
+          or new.rejected_stage is distinct from old.rejected_stage;
+  if changed and not public.can_approve_spares() and not public.has_perm('spare.drop') then
+    raise exception 'RBAC: recording a rejection requires an approval permission';
+  end if;
+
+  changed := new.received_by     is distinct from old.received_by
+          or new.received_at     is distinct from old.received_at
+          or new.receipt_remarks is distinct from old.receipt_remarks;
+  if changed then
+    if not public.has_perm('spare.receive') then
+      raise exception 'RBAC: acknowledging receipt requires the spare.receive permission';
+    end if;
+    if not public.is_spare_requester(req) then
+      raise exception 'RBAC: only the engineer who raised the request may acknowledge it';
+    end if;
+    -- RECEIPT FOLLOWS DISPATCH, never precedes it. Without this a line is
+    -- acknowledged as received while the part is still on the shelf, and the
+    -- stage rolls to Received with nothing having moved.
+    if old.stores_status is null or old.stores_status !~* 'dispatch' then
+      raise exception 'RBAC: a spare can only be acknowledged after it is dispatched';
+    end if;
+  end if;
+
+  if (new.part is distinct from old.part or new.qty is distinct from old.qty)
+     and not public.is_spare_requester(req)
+     -- A PART RENAME IS NOT SOMEBODY CHANGING THE PART (0310). rename_part
+     -- (0196/0309) files a ticket naming this transaction, the old key and the
+     -- new name; only it can write one. A line whose part moves EXACTLY from
+     -- that key to that name, quantity untouched, is the rename carrying the
+     -- record -- refusing it left the part's history split across two names.
+     and not (new.qty is not distinct from old.qty
+              and exists (select 1 from public.part_rename_ticket t
+                           where t.txid = txid_current()
+                             and t.old_key = lower(btrim(old.part))
+                             and t.new_detail = new.part)) then
+    raise exception 'RBAC: only the engineer who raised the request may change its parts';
+  end if;
+
+  return new;
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0122_spare_requests_replay_tail.sql
 -- ------------------------------------------------------------------------
 
@@ -28093,6 +28233,338 @@ begin
 
   return jsonb_build_object('renamed', true, 'from', old_detail, 'to', new_detail, 'moved', moved);
 end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0309_part_hsn_code.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0309 — A PART HAS AN HSN CODE, AND THE 29 THAT CARRIED IT IN THEIR
+-- DESCRIPTION GIVE IT UP TO THE NEW COLUMN.
+--
+-- The user, 2026-10-01: "Add HSN Code Column in Part Master. Identify the HSN
+-- Code that is present as part of the Description and fill it in [one time
+-- activity]." Their answers: copy the code exactly as written (KY429500's
+-- 7-digit 9033000 included -- correct it on the Part Master if it is a typo);
+-- REMOVE "(HSN:...)" from the description; editable on the Part Master and in
+-- its bulk upload.
+--
+-- WHAT THE LIVE DATA SAID (_part_hsn.sql, 2026-10-01): of 1,345 parts, 29
+-- descriptions carry it, written "(HSN:90330000)" and once "(HSN NO:90330000)",
+-- always in brackets. Five more have an 8-digit run with no HSN word -- LEGRIS
+-- part numbers such as 31930813 -- and are NOT touched: a number is an HSN
+-- code here only where the description says so.
+--
+-- REMOVING IT FROM THE DESCRIPTION IS A RENAME. A part's key is CODE|Description
+-- and every spare request, dispatch, consumption and hand-stock line names it
+-- by that key, so editing the description alone would strand all of them on a
+-- name the Part Master no longer has. So it goes through rename_part's own
+-- logic, which moves every record with the part in one transaction.
+--
+-- THAT LOGIC IS SPLIT IN TWO HERE, without changing what anybody may do:
+--   rename_part_records()  the work -- callable by nobody (revoked), used by
+--                          rename_part() and by this file's one-time fill;
+--   rename_part()          the same signature, the same permission check
+--                          (masters.edit.rename_part, 0289), then the work.
+-- A migration runs with no signed-in user, so it cannot pass rename_part()'s
+-- check; the split is how the fill uses the SAME code path a person's rename
+-- does rather than a copy of it.
+--
+-- AND THE RENAME LEARNS A TENTH TABLE. Stock adjustments (0266) name a part
+-- and were never added to the rename -- a part renamed after an adjustment
+-- left the adjustment on the old name, and the engineer's balance split in two.
+-- They move now, and part_rename_impact() counts them before a rename.
+-- ===========================================================================
+
+alter table public.parts add column if not exists hsn_code text not null default '';
+comment on column public.parts.hsn_code is
+  'HSN code of the part (0309). Filled once from "(HSN:...)" in the description, which was then removed from it; maintained on the Part Master and its upload since.';
+
+-- ---- the work of a rename, callable by nobody directly ----------------------
+create or replace function public.rename_part_records(p_id bigint, p_code text, p_description text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  old_detail text; old_key text;
+  new_code text := btrim(coalesce(p_code, ''));
+  new_desc text := btrim(coalesce(p_description, ''));
+  new_detail text; moved jsonb := '{}'::jsonb; n bigint;
+begin
+  if new_code = '' or new_desc = '' then
+    raise exception 'A part needs both a code and a description';
+  end if;
+  if position('|' in new_code) > 0 or position('|' in new_desc) > 0 then
+    -- The separator IS the key's structure, so a value containing one would
+    -- produce a key nothing can parse back.
+    raise exception 'Neither the code nor the description may contain "|"';
+  end if;
+
+  select item_detail into old_detail from parts where id = p_id;
+  if old_detail is null then raise exception 'No such part'; end if;
+  old_key := lower(btrim(old_detail));
+  new_detail := new_code || '|' || new_desc;
+
+  if lower(btrim(new_detail)) = old_key then
+    return jsonb_build_object('renamed', false, 'reason', 'nothing changed',
+                              'from', old_detail, 'to', new_detail);
+  end if;
+  -- A RENAME, NOT A MERGE (0196).
+  if exists (select 1 from parts where item_detail_key = lower(btrim(new_detail)) and id <> p_id) then
+    raise exception 'Another part is already called "%" — a rename cannot merge two parts', new_detail;
+  end if;
+
+  -- FILE THE TICKET, so the consumption guard can tell this rename from a line
+  -- being re-pointed (0196/0261). Keyed on the transaction.
+  insert into public.part_rename_ticket (txid, old_key, new_detail)
+  values (txid_current(), old_key, new_detail)
+  on conflict (txid) do update set old_key = excluded.old_key,
+                                   new_detail = excluded.new_detail, at = now();
+
+  -- THE TEN, then the part itself, each matched on the key the register uses.
+  update spare_consumption         set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Spare consumption', n);
+  update spare_consumption_history set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Consumption (history)', n);
+  update spare_issue_history       set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Issued to engineers', n);
+  update handstock_opening         set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Opening hand stock', n);
+  update spare_request_lines       set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Spare request lines', n);
+  update spare_dispatch_lines      set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Dispatch lines', n);
+  update stock_transfer_lines      set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Stock transfer lines', n);
+  update material_returns          set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Material returns', n);
+  update indoor_job_parts          set part_code = new_detail where lower(btrim(part_code)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Indoor job parts', n);
+  -- NEW (0309): stock adjustments (0266) move with the part too.
+  update handstock_adjustments     set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Stock adjustments', n);
+
+  update parts set code = new_code, description = new_desc, item_detail = new_detail
+   where id = p_id;
+
+  delete from public.part_rename_ticket where txid = txid_current();
+
+  return jsonb_build_object('renamed', true, 'from', old_detail, 'to', new_detail, 'moved', moved);
+end $$;
+revoke execute on function public.rename_part_records(bigint, text, text) from public, anon, authenticated;
+
+-- ---- the rename a person makes: the same check as 0289, then the work ------
+create or replace function public.rename_part(p_id bigint, p_code text, p_description text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_perm('masters.edit.rename_part') then
+    raise exception 'RBAC: only a role that maintains the masters may rename a part';
+  end if;
+  return public.rename_part_records(p_id, p_code, p_description);
+end $$;
+revoke all on function public.rename_part(bigint, text, text) from public, anon;
+grant execute on function public.rename_part(bigint, text, text) to authenticated;
+
+-- ---- what a rename would move, now counting stock adjustments -----------------
+create or replace function public.part_rename_impact(p_item_detail text)
+returns table (relation text, rows bigint)
+language plpgsql stable security definer set search_path = public as $$
+declare k text := lower(btrim(coalesce(p_item_detail, '')));
+begin
+  if k = '' then return; end if;
+  return query
+    select 'Spare consumption'::text,        count(*) from spare_consumption        where lower(btrim(part)) = k
+    union all select 'Consumption (history)', count(*) from spare_consumption_history where lower(btrim(part)) = k
+    union all select 'Issued to engineers',   count(*) from spare_issue_history       where lower(btrim(part)) = k
+    union all select 'Opening hand stock',    count(*) from handstock_opening         where lower(btrim(part)) = k
+    union all select 'Spare request lines',   count(*) from spare_request_lines       where lower(btrim(part)) = k
+    union all select 'Dispatch lines',        count(*) from spare_dispatch_lines      where lower(btrim(part)) = k
+    union all select 'Stock transfer lines',  count(*) from stock_transfer_lines      where lower(btrim(part)) = k
+    union all select 'Material returns',      count(*) from material_returns          where lower(btrim(part)) = k
+    union all select 'Indoor job parts',      count(*) from indoor_job_parts          where lower(btrim(part_code)) = k
+    union all select 'Stock adjustments',     count(*) from handstock_adjustments     where lower(btrim(part)) = k;
+end $$;
+revoke all on function public.part_rename_impact(text) from public, anon;
+grant execute on function public.part_rename_impact(text) to authenticated;
+
+-- ---- THE ONE-TIME FILL ----------------------------------------------------------
+-- "(HSN:90330000)" / "(HSN NO:90330000)", brackets and all, with the space
+-- before it. Idempotent: once removed, the pattern no longer matches, so a
+-- re-run (or the bundle replayed) finds nothing to do. A part whose cleaned
+-- name would collide with another part keeps its description and is named in
+-- a notice; its HSN code is filled either way.
+do $$
+declare
+  r record; hsn text; clean text; n_fill int := 0; n_ren int := 0; skipped text := '';
+  pat constant text := '\s*\(\s*HSN(\s*NO\.?)?\s*:\s*([0-9]+)\s*\)';
+begin
+  for r in select id, code, description from public.parts
+            where description ~* pat order by id loop
+    hsn := (regexp_match(r.description, pat, 'i'))[2];
+    clean := btrim(regexp_replace(r.description, pat, '', 'i'));
+    update public.parts set hsn_code = hsn where id = r.id and btrim(hsn_code) = '';
+    if found then n_fill := n_fill + 1; end if;
+    if clean = '' then skipped := skipped || ' ' || r.code || ' (nothing left)'; continue; end if;
+    begin
+      perform public.rename_part_records(r.id, r.code, clean);
+      n_ren := n_ren + 1;
+    exception when others then
+      skipped := skipped || ' ' || r.code || ' (' || sqlerrm || ')';
+    end;
+  end loop;
+  raise notice '0309: HSN code filled on % part(s); "(HSN:...)" removed from % description(s).%',
+    n_fill, n_ren, case when skipped = '' then '' else ' Left as they were:' || skipped end;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0310_rename_passes_the_return_guard.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0310 — A PART RENAME PASSES THE MATERIAL-RETURN GUARD, MOVES TRANSFERS
+-- LAST, AND THE HSN CLEAN-UP FINISHES.
+--
+-- 0309's one-time fill cleaned 12 of the 29 descriptions on the live project;
+-- 17 renames were refused (2026-10-01, read back with _part_hsn.sql). The
+-- migration's notices are not printed by the workflow, so the reasons were
+-- found by reproducing the rename AS NOBODY on a database:
+--   * material_returns_immutable -- "a material return cannot be edited"
+--     unless is_admin(), and a migration is nobody. It now also lets through
+--     the one change a rename makes: the part, moved exactly as the rename's
+--     ticket names it, every other column unchanged;
+--   * stock_transfer_lines_check_stock re-checks the sender's balance under the
+--     NEW name, and transfers moved before stock adjustments, so a positive
+--     adjustment not yet moved could read as a shortfall. Transfers now move
+--     LAST, once everything else is there and the balance is the true one;
+--   * and, for PEOPLE rather than the migration, spare_request_lines_guard --
+--     0310_rename_passes_the_line_guard (spare_requests, which runs first).
+-- Then the 0309 fill runs again. It is idempotent: the 12 already cleaned do
+-- not match, and the HSN codes already filled are not overwritten.
+-- ===========================================================================
+
+create or replace function public.material_returns_immutable()
+returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_admin() then return new; end if;
+  -- A PART RENAME (0310): only the part changed, exactly as the ticket that
+  -- rename_part_records() filed in this transaction says. Nothing else on a
+  -- return may change, by anybody but an administrator.
+  if (to_jsonb(new) - 'part' - 'sys_updated_by' - 'sys_updated_on')
+       = (to_jsonb(old) - 'part' - 'sys_updated_by' - 'sys_updated_on')
+     and exists (select 1 from public.part_rename_ticket t
+                  where t.txid = txid_current()
+                    and t.old_key = lower(btrim(old.part))
+                    and t.new_detail = new.part) then
+    return new;
+  end if;
+  raise exception 'A material return cannot be edited — raise a correcting entry instead';
+end $$;
+
+create or replace function public.rename_part_records(p_id bigint, p_code text, p_description text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  old_detail text; old_key text;
+  new_code text := btrim(coalesce(p_code, ''));
+  new_desc text := btrim(coalesce(p_description, ''));
+  new_detail text; moved jsonb := '{}'::jsonb; n bigint;
+begin
+  if new_code = '' or new_desc = '' then
+    raise exception 'A part needs both a code and a description';
+  end if;
+  if position('|' in new_code) > 0 or position('|' in new_desc) > 0 then
+    -- The separator IS the key's structure, so a value containing one would
+    -- produce a key nothing can parse back.
+    raise exception 'Neither the code nor the description may contain "|"';
+  end if;
+
+  select item_detail into old_detail from parts where id = p_id;
+  if old_detail is null then raise exception 'No such part'; end if;
+  old_key := lower(btrim(old_detail));
+  new_detail := new_code || '|' || new_desc;
+
+  if lower(btrim(new_detail)) = old_key then
+    return jsonb_build_object('renamed', false, 'reason', 'nothing changed',
+                              'from', old_detail, 'to', new_detail);
+  end if;
+  -- A RENAME, NOT A MERGE (0196).
+  if exists (select 1 from parts where item_detail_key = lower(btrim(new_detail)) and id <> p_id) then
+    raise exception 'Another part is already called "%" — a rename cannot merge two parts', new_detail;
+  end if;
+
+  -- FILE THE TICKET, so the consumption guard can tell this rename from a line
+  -- being re-pointed (0196/0261). Keyed on the transaction.
+  insert into public.part_rename_ticket (txid, old_key, new_detail)
+  values (txid_current(), old_key, new_detail)
+  on conflict (txid) do update set old_key = excluded.old_key,
+                                   new_detail = excluded.new_detail, at = now();
+
+  -- THE TEN, then the part itself, each matched on the key the register uses;
+  -- stock transfers last of the ten (0310).
+  update spare_consumption         set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Spare consumption', n);
+  update spare_consumption_history set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Consumption (history)', n);
+  update spare_issue_history       set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Issued to engineers', n);
+  update handstock_opening         set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Opening hand stock', n);
+  update spare_request_lines       set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Spare request lines', n);
+  update spare_dispatch_lines      set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Dispatch lines', n);
+  update material_returns          set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Material returns', n);
+  update indoor_job_parts          set part_code = new_detail where lower(btrim(part_code)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Indoor job parts', n);
+  -- NEW (0309): stock adjustments (0266) move with the part too.
+  update handstock_adjustments     set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Stock adjustments', n);
+  -- TRANSFERS LAST (0310). Their guard re-checks the sender's stock under the
+  -- NEW name, so it must run once everything else is already there -- or it
+  -- sees a balance missing a positive adjustment and refuses a rename that
+  -- changes nobody's stock.
+  update stock_transfer_lines      set part = new_detail where lower(btrim(part)) = old_key;
+  get diagnostics n = row_count; moved := moved || jsonb_build_object('Stock transfer lines', n);
+
+  update parts set code = new_code, description = new_desc, item_detail = new_detail
+   where id = p_id;
+
+  delete from public.part_rename_ticket where txid = txid_current();
+
+  return jsonb_build_object('renamed', true, 'from', old_detail, 'to', new_detail, 'moved', moved);
+end $$;
+revoke execute on function public.rename_part_records(bigint, text, text) from public, anon, authenticated;
+
+-- ---- THE ONE-TIME FILL ----------------------------------------------------------
+-- "(HSN:90330000)" / "(HSN NO:90330000)", brackets and all, with the space
+-- before it. Idempotent: once removed, the pattern no longer matches, so a
+-- re-run (or the bundle replayed) finds nothing to do. A part whose cleaned
+-- name would collide with another part keeps its description and is named in
+-- a notice; its HSN code is filled either way.
+do $$
+declare
+  r record; hsn text; clean text; n_fill int := 0; n_ren int := 0; skipped text := '';
+  pat constant text := '\s*\(\s*HSN(\s*NO\.?)?\s*:\s*([0-9]+)\s*\)';
+begin
+  for r in select id, code, description from public.parts
+            where description ~* pat order by id loop
+    hsn := (regexp_match(r.description, pat, 'i'))[2];
+    clean := btrim(regexp_replace(r.description, pat, '', 'i'));
+    update public.parts set hsn_code = hsn where id = r.id and btrim(hsn_code) = '';
+    if found then n_fill := n_fill + 1; end if;
+    if clean = '' then skipped := skipped || ' ' || r.code || ' (nothing left)'; continue; end if;
+    begin
+      perform public.rename_part_records(r.id, r.code, clean);
+      n_ren := n_ren + 1;
+    exception when others then
+      skipped := skipped || ' ' || r.code || ' (' || sqlerrm || ')';
+    end;
+  end loop;
+  raise notice '0310 (the 0309 fill, finished): HSN code filled on % part(s); "(HSN:...)" removed from % description(s).%',
+    n_fill, n_ren, case when skipped = '' then '' else ' Left as they were:' || skipped end;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0036_sales_contracts.sql

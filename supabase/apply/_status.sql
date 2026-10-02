@@ -1604,7 +1604,18 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regclass('public.app_roles') is null
          or not exists (select 1 from public.app_roles
                          where jsonb_array_length(permissions) > 0
-                           and not (permissions ? 'mod:/part-search'))))
+                           and not (permissions ? 'mod:/part-search')))),
+    (235, 'A part has an HSN code, and a rename moves stock adjustments', 'parts.hsn_code (0309), filled once from "(HSN:...)" in the description, which was then removed from it; rename_part() keeps its masters.edit.rename_part check and calls rename_part_records(), which nobody signed in may call directly and which now moves stock adjustments with the part; part_rename_impact() counts them. NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql',
+        (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'parts' and column_name = 'hsn_code')
+         and to_regprocedure('public.rename_part_records(bigint,text,text)') is not null
+         and not has_function_privilege('authenticated', to_regprocedure('public.rename_part_records(bigint,text,text)'), 'EXECUTE')
+         and coalesce((select p.prosrc like '%masters.edit.rename_part%' and p.prosrc like '%rename_part_records%' from pg_proc p where p.oid = to_regprocedure('public.rename_part(bigint,text,text)')), false)
+         and coalesce((select p.prosrc like '%handstock_adjustments%' from pg_proc p where p.oid = to_regprocedure('public.rename_part_records(bigint,text,text)')), false)
+         and coalesce((select p.prosrc like '%handstock_adjustments%' from pg_proc p where p.oid = to_regprocedure('public.part_rename_impact(text)')), false))),
+    (236, 'A part rename passes the spare-line and material-return guards', 'spare_request_lines_guard (0310, Spare_1.sql) and material_returns_immutable (0310, HandStock_X.sql) let through the one change a part rename makes, by the ticket only rename_part_records() writes, so a rename no longer needs an administrator for parts on somebody else''s request or on a return; rename_part_records() moves stock transfers last. NO means one of the two bundles has not been re-run since. Restore: Spare_1.sql (0310_rename_passes_the_line_guard) and HandStock_X.sql (0310_rename_passes_the_return_guard)',
+        (coalesce((select p.prosrc like '%part_rename_ticket%' from pg_proc p where p.oid = to_regprocedure('public.spare_request_lines_guard()')), false)
+         and coalesce((select p.prosrc like '%part_rename_ticket%' from pg_proc p where p.oid = to_regprocedure('public.material_returns_immutable()')), false)
+         and coalesce((select position('stock_transfer_lines' in p.prosrc) > position('handstock_adjustments' in p.prosrc) from pg_proc p where p.oid = to_regprocedure('public.rename_part_records(bigint,text,text)')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

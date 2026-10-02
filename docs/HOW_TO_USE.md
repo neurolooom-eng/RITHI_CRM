@@ -652,6 +652,12 @@ typed into a form that reads it.
   Load it under **Bulk Uploads → Product Master (product lines)**.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
+  > **HSN Code** has its own column: set it on *＋ Add part* or the edit drawer
+  > (digits only), or with an **HSN Code** column in the Part Master upload. The
+  > 29 parts that used to carry "(HSN:…)" in their description had it moved
+  > into this column once, on 01-Oct-2026, and taken out of the description —
+  > every spare request, dispatch, consumption and hand-stock line moved with
+  > them, so nothing was lost.
   > **Editing a part.** **Spare / Consumable** is a list of the four the Item
   > Master uses; a value your file brought that is not one of them still shows
   > and still saves. **Product** is a multiple choice of the **Product Database

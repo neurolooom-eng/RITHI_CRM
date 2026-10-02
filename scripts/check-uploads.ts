@@ -583,6 +583,14 @@ console.log('\n-- a column the register was told it does not want --');
 // number is what catches one being added without a test beside it.
 eq('registers defined', UPLOADS.length, 34);  // + QMS Master List (0265), Technical / Service Notes (0272)
 
+console.log('\n-- the Part Master upload fills the HSN code (0309) --');
+{
+  const r = shapeUpload(def('parts'), [{ 'Item Code': 'HS-9', 'Item Name': 'VALVE', 'HSN Code': '90330000' }]).rows[0] as Record<string, unknown>;
+  eq('"HSN Code" lands in hsn_code, not in extra', [r.hsn_code, JSON.stringify(r.extra ?? {}).includes('HSN')], ['90330000', false]);
+  const r2 = shapeUpload(def('parts'), [{ 'Item Code': 'HS-9', 'Item Name': 'VALVE', 'HSN/SAC': '84212190' }]).rows[0] as Record<string, unknown>;
+  eq('...and so does "HSN/SAC"', r2.hsn_code, '84212190');
+}
+
 console.log('\n-- Technical / Service Notes carry their Drive details (0299) --');
 {
   const r = shapeUpload(def('service_notes'), [{
