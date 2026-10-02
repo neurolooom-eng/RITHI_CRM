@@ -12,11 +12,39 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.44',
+    version: '0.10.47',
     date: '2026-10-02',
     title: 'Warranty and Contract registers: Load more at the top',
     changes: [
       'LOAD MORE now sits at the top of the Warranty Register and the Contract Register, beside the count, as on Field Calls and Spare Requests. It loads more of the tab that is open (Entries or Register). The button at the foot of the table is gone; the row count there still shows a + while more are waiting.',
+    ],
+  },
+  {
+    version: '0.10.46',
+    date: '2026-10-02',
+    title: 'Warranty Entries: installation calls pending per sale',
+    changes: [
+      'WARRANTY → ENTRIES: a new Install calls pending column shows how many of each sale\'s machines are still waiting for their installation call.',
+      'The SALES WITH INSTALL CALLS PENDING tile shows how many sales have at least one, and filters the list to them, across the whole register and together with the search.',
+      'Raising installation calls from a sale updates its count straight away. A sale not counted yet shows a dash until the list refreshes, rather than 0.',
+    ],
+  },
+  {
+    version: '0.10.45',
+    date: '2026-10-02',
+    title: 'Warranty and Contract: a Register line opens its entry, Renew / Convert in a third column, installation call pending',
+    changes: [
+      'CLICKING A LINE ON THE REGISTER TAB now opens that machine\'s sale or contract, in the same window as the Entries tab, with the machine opened and marked on the right.',
+      'RENEW THIS CONTRACT and CONVERT TO CONTRACT now open in a third column beside the details and the products, so you can see the machines you are carrying over.',
+      'WARRANTY → REGISTER: a new Installation call column reads Pending for a machine still waiting for its installation call ("To Check" counts as pending) and shows the UCN once one is mapped. The INSTALL CALL PENDING tile shows how many there are and filters to them, across the whole register. It works together with the search and the Active / About to expire / Inactive tiles. Exports carry the same column.',
+    ],
+  },
+  {
+    version: '0.10.44',
+    date: '2026-10-02',
+    title: 'Pending Registrations: filter by Call Type',
+    changes: [
+      'PENDING REGISTRATIONS: clickable Call Type chips at the top, each with its count. Click one to show only that type, or All to show every request. The counts follow the search.',
     ],
   },
   {

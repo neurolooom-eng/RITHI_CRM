@@ -312,24 +312,76 @@ const err = (e: { message?: string; code?: string; details?: string; hint?: stri
 };
 const like = (t: string) => `%${t.replace(/[%,()]/g, ' ').trim()}%`;
 
-export interface HeaderFilter { q?: string; party?: string; number?: string; state?: string }
+export interface HeaderFilter { q?: string; party?: string; number?: string; state?: string; pendingInstall?: boolean }
 
-/** Headers, newest first, with the machine count on each. */
+// PENDING INSTALLATION CALLS PER SALE (the user, 2026-10-02: "Add the pending
+// count to the Entries tab as well"). The Register tab's rule
+// (PENDING_INSTALL) applied to a sale's own lines, as a FILTERED EMBEDDED
+// COUNT -- PostgREST counts only the lines the filters on that alias pass --
+// and, for the filter, an inner-joined embed of the same lines limited to one,
+// which drops a sale with none. Both shapes were run against PostgREST 12
+// before shipping: counts 2 / 0 / 1 on three fixture sales, and the filter
+// returning exactly the two with pending machines.
+const UCN_RE_SQL = '^[0-9]{2}[A-La-l][0-9]{2}[A-Za-z][0-9]{4}$';
+type Filterable = { neq: (c: string, v: string) => Filterable; or: (f: string, o: { referencedTable: string }) => Filterable };
+function pendingLines<T>(q: T, alias: string): T {
+  const b = q as unknown as Filterable;
+  return b.neq(`${alias}.product_name`, '').neq(`${alias}.serial_number`, '')
+    .or(`inst_call.is.null,inst_call.not.imatch."${UCN_RE_SQL}"`, { referencedTable: alias }) as unknown as T;
+}
+
+/** Headers, newest first, with the machine count on each -- and, on a sale,
+ *  how many of its machines still wait for an installation call. */
 export async function listHeaders(kind: CoverKind, f: HeaderFilter, offset = 0, limit = 200): Promise<Row[]> {
   const cfg = configFor(kind);
+  const sale = kind === 'sale';
+  const embeds = [`items:${cfg.itemTable}(count)`,
+    ...(sale ? [`pending:${cfg.itemTable}(count)`] : []),
+    ...(sale && f.pendingInstall ? [`has_pending:${cfg.itemTable}!inner(id)`] : [])];
   let q = client().from(cfg.headerTable)
-    .select(`*, items:${cfg.itemTable}(count)`)
+    .select(`*, ${embeds.join(', ')}`)
     .order('id', { ascending: false })
     .range(offset, offset + limit - 1);
+  if (sale) q = pendingLines(q, 'pending');
+  if (sale && f.pendingInstall) q = pendingLines(q, 'has_pending').limit(1, { referencedTable: 'has_pending' });
   if (f.number) q = q.ilike(cfg.key, like(f.number));
   if (f.party) q = q.ilike('party_name', like(f.party));
   if (f.q) q = q.or(`${cfg.key}.ilike.${like(f.q)},party_name.ilike.${like(f.q)}`);
   const { data, error } = await q;
   if (error) throw err(error);
   return (data ?? []).map((r) => {
-    const items = r.items as { count: number }[] | undefined;
-    return { ...r, item_count: items?.[0]?.count ?? 0 };
+    const { items, pending, has_pending: _hp, ...rest } = r as unknown as Row & { items?: { count: number }[]; pending?: { count: number }[]; has_pending?: unknown };
+    return { ...rest, item_count: items?.[0]?.count ?? 0,
+             ...(sale ? { pending_install: pending?.[0]?.count ?? 0 } : {}) };
   });
+}
+
+/** How many sales have at least one machine waiting for an installation call. */
+export async function countPendingSales(f: { q?: string }): Promise<number> {
+  const cfg = configFor('sale');
+  let q = client().from(cfg.headerTable)
+    .select(`id, has_pending:${cfg.itemTable}!inner(id)`, { count: 'exact', head: true });
+  q = pendingLines(q, 'has_pending');
+  if (f.q) q = q.or(`${cfg.key}.ilike.${like(f.q)},party_name.ilike.${like(f.q)}`);
+  const { count, error } = await q;
+  if (error) throw err(error);
+  return count ?? 0;
+}
+
+/** ONE entry by its number, in the shape `listHeaders` returns it -- so an
+ *  entry opened from a Register line is the same object as one opened from
+ *  the Entries tab, and the window's "unsaved" test compares like with like.
+ *  Null when no such entry exists (a line whose header was never imported). */
+export async function getHeader(kind: CoverKind, key: string): Promise<Row | null> {
+  const cfg = configFor(kind);
+  if (!key.trim()) return null;
+  const { data, error } = await client().from(cfg.headerTable)
+    .select(`*, items:${cfg.itemTable}(count)`)
+    .eq(cfg.key, key).limit(1).maybeSingle();
+  if (error) throw err(error);
+  if (!data) return null;
+  const items = (data as Row).items as { count: number }[] | undefined;
+  return { ...(data as Row), item_count: items?.[0]?.count ?? 0 };
 }
 
 /** The number to offer for a new entry.
@@ -361,30 +413,53 @@ export async function listItems(kind: CoverKind, key: string): Promise<Row[]> {
 }
 
 /** Machines, cover resolved — the register's "by machine" view. */
+// PENDING INSTALLATION CALL (the user, 2026-10-02: "In Warranty, add an
+// Identifier [Should be Filterable as well] for Pending Installation Call
+// Generation"). The rule is machinesNeedingInstallCall's: a machine -- a
+// product AND a serial -- whose INST Call holds no call number. "No call
+// number" is the UCN shape (isCallNumber / is_call_number()) NOT matching, or
+// nothing there at all: the AppSheet "To Check" is pending, not done.
+//
+// ON THE SERVER, because the register is paged: a filter over the rows loaded
+// so far would answer "pending among the first 2,000", which reads as all.
+const UCN_PATTERN = '^[0-9]{2}[A-La-l][0-9]{2}[A-Za-z][0-9]{4}$';
+const PENDING_INSTALL = `and(product_name.neq.,serial_number.neq.,or(inst_call.is.null,inst_call.not.imatch."${UCN_PATTERN}"))`;
+const searchExpr = (cfg: CoverConfig, text: string) => {
+  const t = like(text);
+  return `serial_number.ilike.${t},product_name.ilike.${t},party_name.ilike.${t},${cfg.key}.ilike.${t}`;
+};
+/** The search box and the pending filter as ONE logic tree: two separate
+ *  `or` parameters are not a combination PostgREST documents, a nested
+ *  and(or(...), ...) is. */
+const machineFilter = (cfg: CoverConfig, f: { q?: string; pendingInstall?: boolean }): string | null => {
+  const parts = [f.q ? `or(${searchExpr(cfg, f.q)})` : '', f.pendingInstall && cfg.kind === 'sale' ? PENDING_INSTALL : '']
+    .filter(Boolean);
+  return parts.length ? `and(${parts.join(',')})` : null;
+};
+
 export async function listMachines(
-  kind: CoverKind, f: { q?: string; state?: string }, offset = 0, limit = 500,
+  kind: CoverKind, f: { q?: string; state?: string; pendingInstall?: boolean }, offset = 0, limit = 500,
 ): Promise<Row[]> {
   const cfg = configFor(kind);
   let q = client().from(cfg.detailsView).select('*')
     .order(cfg.endColumn, { ascending: false, nullsFirst: false })
     .range(offset, offset + limit - 1);
-  if (f.q) {
-    const t = like(f.q);
-    q = q.or(`serial_number.ilike.${t},product_name.ilike.${t},party_name.ilike.${t},${cfg.key}.ilike.${t}`);
-  }
+  const tree = machineFilter(cfg, f);
+  if (tree) q = q.or(tree);
   if (f.state) q = q.eq(cfg.stateColumn, f.state);
   const { data, error } = await q;
   if (error) throw err(error);
   return data ?? [];
 }
 
-export async function countMachines(kind: CoverKind, state: string, f: { q?: string }): Promise<number> {
+export async function countMachines(
+  kind: CoverKind, state: string, f: { q?: string; pendingInstall?: boolean },
+): Promise<number> {
   const cfg = configFor(kind);
-  let q = client().from(cfg.detailsView).select('id', { count: 'exact', head: true }).eq(cfg.stateColumn, state);
-  if (f.q) {
-    const t = like(f.q);
-    q = q.or(`serial_number.ilike.${t},product_name.ilike.${t},party_name.ilike.${t},${cfg.key}.ilike.${t}`);
-  }
+  let q = client().from(cfg.detailsView).select('id', { count: 'exact', head: true });
+  if (state) q = q.eq(cfg.stateColumn, state);
+  const tree = machineFilter(cfg, f);
+  if (tree) q = q.or(tree);
   const { count, error } = await q;
   if (error) throw err(error);
   return count ?? 0;

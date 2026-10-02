@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FormValues } from '../components/form/Form';
-import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
+import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { addFieldCall, listPending, productBySerial, setPendingUcn, updateFieldCall, dataConfigured } from '../lib/sheets';
 import { cancelCallRequest, callByUcn, openCallsFor, callsForMachine, machineKey, supabaseConfigured, type OpenCall, type MachineCall } from '../lib/supabase';
 import { FIELD_CALL_FIELDS, VIGILANCE_SECTION } from './FieldCalls';
@@ -118,6 +118,9 @@ export function PendingRegistrations() {
   const [openCalls, setOpenCalls] = useState<Record<string, OpenCall[]>>({});
   const [openCallsFailed, setOpenCallsFailed] = useState(false);
   const [search, setSearch] = useState('');
+  // CALL TYPE AT THE TOP (the user, 2026-10-02: "Add Clickable Filter /
+  // Grouping at the Top based on the Call Type"). '' is every type.
+  const [callType, setCallType] = useState('');
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState<Row | null>(null);
   // FROM THE HEADER SEARCH (2026-10-01): open that request once the list is in.
@@ -300,9 +303,19 @@ export function PendingRegistrations() {
     }
   };
 
-  const visible = search.trim()
+  const typeOf = (r: Row) => g(r, 'CALL TYPE').trim();
+  // THE CHIPS COUNT EVERY ROW THE SEARCH LEAVES, whatever type is picked, so a
+  // count never changes because another chip was clicked. The rows are read in
+  // full (listPending pages to the end), so the counts are exact.
+  const searched = search.trim()
     ? rows.filter((r) => ['PARTY NAME', 'PRODUCT', 'SERIAL NO', 'ENGINEER', 'Reported Problem', 'City', 'REQID'].some((k) => String(r[k] ?? '').toLowerCase().includes(search.toLowerCase())))
     : rows;
+  const typeCounts = (() => {
+    const m = new Map<string, number>();
+    searched.forEach((r) => m.set(typeOf(r), (m.get(typeOf(r)) ?? 0) + 1));
+    return [...m.entries()].map(([key, count]) => ({ key, count }));
+  })();
+  const visible = callType ? searched.filter((r) => typeOf(r) === callType) : searched;
 
   return (
     <div>
@@ -316,6 +329,9 @@ export function PendingRegistrations() {
           <button className="btn btn-ghost btn-sm" onClick={() => setMsg(null)}>✕</button>
         </div>
       )}
+
+      <FacetChips options={typeCounts} value={callType} onChange={setCallType}
+        allLabel="All" title="Call Type" storeKey="pendingRegistrations.callType" more={false} />
 
       <DataTable<Row>
         columns={buildColumns(openCalls, openCallsFailed, canAct, (row, ucn) => void mapToUcn(row, ucn))}

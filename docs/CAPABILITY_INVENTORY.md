@@ -1612,6 +1612,10 @@ Purpose: Sale Entries (warranty) and Contract Entries with the machines under ea
 | 34 | ⇢ Convert to Contract on a saved sale (contract.edit.entries): party and machines carried, start = day after warranty end, MC offered, type/months/PM/billing/rates asked, contract form's required rule, existing MC refused, warning when already on a contract; opens the Contract Register on it | CoverRegister.tsx ConvertPanel; cover.ts proposeConversion / conversionHeader / conversionItem / convertWarrantyToContract | contract.edit.entries; DB contract write policy | FRS-221, OQ-218 | |
 | 35 | Save entry disabled on a saved entry until a field changes | CoverRegister.tsx entryButtons | — | FRS-223 | |
 | 36 | One time (0318): every sale re-read from the Party Master, every machine line put back on its sale, old values backed up, marker row stops a re-run | 0318_warranty_party_refresh_once.sql | migration | FRS-222, OQ-218, _status.sql row 245 | |
+| 37 | Register line click opens its entry with that machine opened, marked and scrolled to | CoverRegister.tsx openFromRegister; cover.ts getHeader | read policy | NAR-007.10, OQ-225 | |
+| 38 | Renew / Convert to Contract open in a third column | CoverRegister.tsx sidePanel; fieldcalls.css .cover-pop-body-3 | — | NAR-007.9, OQ-225 | |
+| 39 | Warranty Register tab: Installation call column (Pending / UCN / —) and INSTALL CALL PENDING tile with count, filtered on the server | cover.ts PENDING_INSTALL / machineFilter; CoverRegister.tsx | read policy | FRS-231, OQ-225 | |
+| 40 | Warranty Entries tab: Install calls pending per sale (filtered embedded count) and SALES WITH INSTALL CALLS PENDING tile with count, filtered on the server | cover.ts listHeaders / countPendingSales; CoverRegister.tsx | read policy | FRS-231.3 | |
 
 ### Ownership Transfer (`/ownership-transfer`) — `src/modules/OwnershipTransfer.tsx`
 Purpose: Records a machine changing hands, and warranty/contract details recovered for machines whose sale paperwork was lost.
