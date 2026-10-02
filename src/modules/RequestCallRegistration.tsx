@@ -277,7 +277,7 @@ export function RequestCallRegistration() {
             <div className="row">
               {STATUSES.map((s) => (
                 <button key={s || 'all'} className={`chip ${status === s ? 'chip-on' : ''}`} onClick={() => setStatus(s)}>
-                  {s || 'All'}{s && counts[s] ? <b>{counts[s]}</b> : null}
+                  {s || 'All'}{s && counts[s] ? <b>{counts[s]}{moreAvailable ? '+' : ''}</b> : null}
                 </button>
               ))}
             </div>

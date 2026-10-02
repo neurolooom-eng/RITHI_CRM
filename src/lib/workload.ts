@@ -294,8 +294,11 @@ export async function commercialInstallSection(): Promise<WorkloadSection> {
 export async function reviewSection(): Promise<WorkloadSection> {
   const c = await countCallReviews({});
   const at = (s: string) => c.byStatus[s] ?? 0;
-  const open = (status: string, opens: string) =>
-    ({ path: '/daily-review', state: { status }, opens });
+  // `effectOnly` travels with every card, so arriving from one card clears what
+  // another set. The Any Potential Effect card used to send an empty stage and
+  // nothing else, and opened the whole register under a count of a few (D-022).
+  const open = (status: string, opens: string, effectOnly = false) =>
+    ({ path: '/daily-review', state: { status, effectOnly }, opens });
   return {
     key: 'review', title: 'Daily Complaint Review Register (R/SER/35)', path: '/daily-review', needs: 'mod:/daily-review',
     more: false,
@@ -311,7 +314,7 @@ export async function reviewSection(): Promise<WorkloadSection> {
         to: open('Review 3 Pending', 'the calls awaiting review 3') },
       { label: 'Any Potential Effect', value: c.effects, sub: 'FFR to be raised', icon: '⚠️',
         tone: c.effects ? 'danger' : 'neutral',
-        to: open('', 'the Daily Complaint Review Register') },
+        to: open('', 'the calls with a potential effect', true) },
       { label: 'Review Completed', value: at('Review Completed'), sub: 'nothing left to answer', icon: '✅',
         tone: 'success', to: open('Review Completed', 'the completed reviews') },
       { label: 'Calls in view', value: c.total, sub: 'on the register', icon: '📋', tone: 'neutral' },

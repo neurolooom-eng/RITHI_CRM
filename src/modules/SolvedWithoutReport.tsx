@@ -7,6 +7,8 @@ import { logAudit } from '../lib/audit';
 import { formatDay, formatDayTime, todayLocal } from '../lib/dates';
 import { listSolvedWithoutReport, supabaseConfigured } from '../lib/supabase';
 import { loadFailure } from '../lib/dberror';
+import { useAuth } from '../lib/auth';
+import { seesEveryRecord } from '../lib/rbac';
 import { Ucn } from '../lib/callstate';
 import { COMPLETE } from '../lib/exportscope';
 
@@ -75,6 +77,7 @@ const EXPORT: { key: string; header: string }[] = [
 ];
 
 export function SolvedWithoutReport() {
+  const { user, can } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -181,7 +184,12 @@ export function SolvedWithoutReport() {
 
       {!err && !busy && rows.length === 0 && (
         <div className="sheet-banner sheet-banner-ok">
-          <span>Every solved call has a dated visit and a service report behind it.</span>
+          {/* THE STRONG CLAIM ONLY TO A READER WHO SEES EVERY RECORD (D-040): the
+              view is security_invoker, so an empty list proves only what this
+              reader was shown. */}
+          <span>{seesEveryRecord(user, can)
+            ? 'Every solved call has a dated visit and a service report behind it.'
+            : 'No solved call that you can see is missing a dated visit or a service report.'}</span>
         </div>
       )}
 

@@ -436,13 +436,12 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
         </label>
         <label className="rep-field">
           <span className="field-label">Start</span>
-          <input className="input" type="date" value={d.contract_start}
-                 onChange={(e) => reperiodMonths(e.target.value, d.contract_months)} />
+          {/* dd-MMM-yyyy at rest, the native picker while editing (FRS-089.1, D-064). */}
+          <LongDateInput value={d.contract_start} onChange={(v) => reperiodMonths(v, d.contract_months)} />
         </label>
         <label className="rep-field">
           <span className="field-label">End</span>
-          <input className="input" type="date" value={d.contract_end}
-                 onChange={(e) => set('contract_end', e.target.value)} />
+          <LongDateInput value={d.contract_end} onChange={(v) => set('contract_end', v)} />
         </label>
         {/* Two views of ONE period. Typing in either sets the other, so they
             cannot disagree and cannot be added together. */}
@@ -1207,7 +1206,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 onDone={(mc) => {
                   setRenewing(false);
                   setOpen(null);
-                  setMsg({ tone: 'ok', text: `Contract ${mc} created, carrying its machines over. Open it to set the rates — they are deliberately blank.` });
+                  setMsg({ tone: 'ok', text: `Contract ${mc} created, carrying its machines over. Open it to check the rates, or set any you left blank.` });
                   void refresh();
                 }}
               />

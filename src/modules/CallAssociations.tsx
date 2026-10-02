@@ -222,6 +222,10 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
   const [consumed, setConsumed] = useState<Row[]>([]);
   const [feedback, setFeedback] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
+  // A READ THAT FAILED IS NOT AN EMPTY LIST (D-040). The four lists used to be
+  // one Promise.all with no catch, so a failure left them empty under "No
+  // visits reported yet" -- a claim about the call, made by an error.
+  const [loadErr, setLoadErr] = useState('');
   const [spareDetail, setSpareDetail] = useState<Row | null>(null);
   const [visitDetail, setVisitDetail] = useState<Row | null>(null);
   // The report of ONE visit, shown in the app. The row is kept rather than the
@@ -232,8 +236,10 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
     if (!callNumber || !supabaseConfigured()) return;
     let alive = true;
     setLoading(true);
+    setLoadErr('');
     Promise.all([reportsByCall(callNumber), spareRequestsByCall(callNumber), spareConsumptionByCall(callNumber), feedbackByCall(callNumber)])
       .then(([v, rq, cs, fb]) => { if (!alive) return; setVisits(v); setRequested(rq); setConsumed(cs); setFeedback(fb); })
+      .catch((e) => { if (alive) setLoadErr(e instanceof Error ? e.message : String(e)); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [callNumber]);
@@ -304,6 +310,12 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
   return (
     <div className="rep-form" style={{ marginTop: 8 }}>
       {loading && <div className="muted" style={{ fontSize: 13 }}>Loading associated records…</div>}
+      {loadErr && (
+        <div className="sheet-banner sheet-banner-error">
+          <span><b>The visits, spares and feedback for this call could not be read</b>, so the lists below are not
+            the call&rsquo;s history — an empty one here does not mean there is none. {loadErr}</span>
+        </div>
+      )}
 
       <SupportingDocs product={product} complaint={complaint} reported={reported} />
 

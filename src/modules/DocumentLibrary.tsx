@@ -293,7 +293,9 @@ function Library({ cfg }: { cfg: Cfg }) {
           ] as Column<DocRow & Record<string, unknown>>[]
         : [
             { key: 'uploaded_by_name', header: 'Added By', width: 150 },
-            { key: 'updated_at', header: 'Updated', width: 150, wrap: false },
+            // dd-MMM-yyyy HH:mm:ss, never the stored UTC string (D-064).
+            { key: 'updated_at', header: 'Updated', width: 160, wrap: false,
+              render: (r: DocRow) => formatDayTime(r.updated_at) },
           ] as Column<DocRow & Record<string, unknown>>[]),
       {
         key: 'active', header: 'Live', width: 70, wrap: false,

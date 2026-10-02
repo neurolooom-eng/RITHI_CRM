@@ -5,6 +5,8 @@ import { PageHeader, SectionCard, Drawer, Toolbar } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { useAuth } from '../lib/auth';
 import { fmtLongDate, todayISO } from '../lib/format';
+// dd-MMM-yyyy at rest, the native picker while editing (FRS-089.1, D-064).
+import { LongDateInput } from '../components/ui/LongDate';
 import {
   listOwnershipTransfers, addOwnershipTransfer, listAdditionalEntries, saveAdditionalEntry,
   supabaseConfigured, type OwnershipTransfer as OT, type AdditionalEntry as AE,
@@ -194,7 +196,7 @@ export function OwnershipTransfer() {
               <input className="input" value={moveForm.from_party ?? ''} onChange={(e) => setMoveForm({ ...moveForm, from_party: e.target.value })} />
             </F>
             <F label="To party *"><input className="input" value={moveForm.to_party ?? ''} onChange={(e) => setMoveForm({ ...moveForm, to_party: e.target.value })} /></F>
-            <F label="Transfer date"><input className="input" type="date" value={moveForm.transfer_date ?? ''} onChange={(e) => setMoveForm({ ...moveForm, transfer_date: e.target.value })} /></F>
+            <F label="Transfer date"><LongDateInput value={moveForm.transfer_date ?? ''} onChange={(v) => setMoveForm({ ...moveForm, transfer_date: v })} /></F>
             <F label="Reference no" hint="The customer's own paperwork for the hand-over.">
               <input className="input" value={moveForm.reference_no ?? ''} onChange={(e) => setMoveForm({ ...moveForm, reference_no: e.target.value })} />
             </F>
@@ -216,12 +218,12 @@ export function OwnershipTransfer() {
               <input className="input" value={entryForm.serial_number ?? ''} onChange={(e) => setEntryForm({ ...entryForm, serial_number: e.target.value })} />
             </F>
             <F label="Warranty / invoice number"><input className="input" value={entryForm.warranty_number ?? ''} onChange={(e) => setEntryForm({ ...entryForm, warranty_number: e.target.value })} /></F>
-            <F label="Warranty start"><input className="input" type="date" value={entryForm.warranty_start ?? ''} onChange={(e) => setEntryForm({ ...entryForm, warranty_start: e.target.value })} /></F>
-            <F label="Warranty end"><input className="input" type="date" value={entryForm.warranty_end ?? ''} onChange={(e) => setEntryForm({ ...entryForm, warranty_end: e.target.value })} /></F>
+            <F label="Warranty start"><LongDateInput value={entryForm.warranty_start ?? ''} onChange={(v) => setEntryForm({ ...entryForm, warranty_start: v })} /></F>
+            <F label="Warranty end"><LongDateInput value={entryForm.warranty_end ?? ''} onChange={(v) => setEntryForm({ ...entryForm, warranty_end: v })} /></F>
             <F label="Contract number"><input className="input" value={entryForm.contract_number ?? ''} onChange={(e) => setEntryForm({ ...entryForm, contract_number: e.target.value })} /></F>
             <F label="Contract type"><input className="input" value={entryForm.contract_type ?? ''} onChange={(e) => setEntryForm({ ...entryForm, contract_type: e.target.value })} /></F>
-            <F label="Contract start"><input className="input" type="date" value={entryForm.contract_start ?? ''} onChange={(e) => setEntryForm({ ...entryForm, contract_start: e.target.value })} /></F>
-            <F label="Contract end"><input className="input" type="date" value={entryForm.contract_end ?? ''} onChange={(e) => setEntryForm({ ...entryForm, contract_end: e.target.value })} /></F>
+            <F label="Contract start"><LongDateInput value={entryForm.contract_start ?? ''} onChange={(v) => setEntryForm({ ...entryForm, contract_start: v })} /></F>
+            <F label="Contract end"><LongDateInput value={entryForm.contract_end ?? ''} onChange={(v) => setEntryForm({ ...entryForm, contract_end: v })} /></F>
             <F label="Where this came from" hint="The customer's invoice copy, an old sale register, an engineer's file…">
               <input className="input" value={entryForm.source_note ?? ''} onChange={(e) => setEntryForm({ ...entryForm, source_note: e.target.value })} />
             </F>

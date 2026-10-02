@@ -540,13 +540,20 @@ export function StockOuts({ onMigrationError, onPrint, onDeclare, onCount }: {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState('');
+  // ANY OTHER FAILURE IS SAID TOO (D-046). Only a missing table was acted on;
+  // a missing grant, a timeout or a column error left the list empty under
+  // "No stock outs yet" -- a register that failed to load reading as one with
+  // nothing in it.
+  const [loadErr, setLoadErr] = useState('');
 
   useEffect(() => {
     setBusy(true);
+    setLoadErr('');
     listStockOutLines(STOCK_OUT_CAP)
       .then(setRows)
       .catch((e) => {
         if (isMissingTable(e, 'spare_stock_out_lines', 'spare_dispatches', 'spare_dispatch_lines')) onMigrationError();
+        else setLoadErr(e instanceof Error ? e.message : String(e));
       })
       .finally(() => setBusy(false));
     // eslint-disable-next-line
@@ -607,6 +614,7 @@ export function StockOuts({ onMigrationError, onPrint, onDeclare, onCount }: {
   ];
 
   if (busy && !rows.length) return <EmptyState title="Loading stock outs…" />;
+  if (loadErr) return <EmptyState title="The stock outs could not be read" hint={`This is not an empty register. ${loadErr}`} />;
   if (!rows.length) return <EmptyState title="No stock outs yet" hint="Book a batch out from the Queue tab and it appears here." />;
 
   return (

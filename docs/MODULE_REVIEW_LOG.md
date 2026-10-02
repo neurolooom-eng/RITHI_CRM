@@ -161,6 +161,32 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-10-02 — The Medium-rated defects, fixed (v0.10.24, merged in #475)
+- **Your ask:** *"Fix all low impact items, keep it in the branch.. Don't merge till I say so."*
+- **What "low impact" was taken to mean:** no open defect is rated Low, so it was taken as the ones whose requirements are all **Medium** — the lowest any open defect carries. Mostly screens showing a wrong count, date or message.
+- **Fixed** (screens only, no SQL):
+  - **D-022:** the potential-effect card opens what it counts.
+  - **D-023:** Spare Insights' year follows the calendar.
+  - **D-024:** the dashboard says when it uses the built-in SLA targets.
+  - **D-040, all 7:** a + on loaded-only counts; Pending Calls tiles counted before their own filter; the Indoor register paged; failed reads stated on an opened call and on the open-call check; an edit link to an unloaded call fetches it; "every … has …" only to a reader who sees every record.
+  - **D-046:** a failed Stock Out read is stated.
+  - **D-047, all 4:** Spare Consumption marks its count and no longer re-filters rows the database scoped; Stock Transfer paged; the Hand Stock drawer says when it stops at 500; a searched .csv names its search.
+  - **D-048:** the Hand Stock drawer's sum adds up.
+  - **D-064:** day-first date boxes on Renew and Ownership Transfer; the stale renewal message corrected; the Document Library's Updated column formatted.
+- **Not fixed, and why:**
+  - **D-025's rest moved to D-035.** `reopen_call()` does not store a reason at all, so demanding one would be discarded, and the Field Call register re-opens without one.
+  - **D-056 left open.** Refusing to delete a master value that is in use means checking every register that can carry it — a design change, not a small fix.
+- **Proved:** `npm run build`, `check:ui` (the card-filter count is now 7, and the register reads the new one) and `check:orders` (171 order columns across 61 relations).
+
+### 2026-10-01 — D-057 accepted as is (no code change)
+- **Your decision:** *"Leave it as it is, it is that way for Ease of Operation."* The User Master keeps proposing one starting password for every new login, and the first sign-in does not force a change.
+- **Recorded rather than left as a defect:**
+  - URS-133, FRS-001, FRS-168 and OQ-161 now describe what the system does. They had claimed a forced change that does not exist, and FRS-001 cited a sheet-era forced change that D-074 removed.
+  - Risk R-80's residual is now **High**. It had read Low on the strength of that missing control.
+  - FM-69 lists no action and keeps its occurrence and detection scores.
+- **The cost, stated so it stays a decision:** until a person changes it, whoever knows the starting password can sign in as them, and what is done under that login is not attributable to them.
+- Handbook updated.
+
 ### 2026-09-30 — The admin-only actions are keys; only the Admin column is greyed (v0.10.16)
 - **Your ask:** *"All Admin Actions that are greyed out now should be editable from the Role & Permissions. Only the Admin Role should be Greyed out not the Actions."* It reverses finding 65's "shown greyed, never tickable".
 - **Ten keys, one per action:**
