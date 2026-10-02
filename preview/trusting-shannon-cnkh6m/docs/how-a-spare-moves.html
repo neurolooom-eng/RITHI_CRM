@@ -263,11 +263,13 @@ footer code{font-size:12.5px}
   <p class="eyebrow">RITHI CRM · Spares · process reference</p>
   <h1>How a spare moves</h1>
   <p class="standfirst">
-    From the moment an engineer needs a part to the moment it is fitted and booked against a call.
-    <b>Two routes in, one approval chain, one stock.</b> Read the middle column for what happens,
+    From the moment a part is asked for to the moment Stores books it out and the request is acknowledged.
+    <b>Two routes in, one approval chain, one Stores queue.</b> Read the middle column for what happens,
     the left for <b>which master or record the step reads</b>, and the right for <b>what the system
-    refuses and what it demands</b>. Every field named is a real column; every refusal is enforced
-    by a form rule, an access policy or a database trigger, and the enforcement is named.
+    refuses and what it demands</b>. Each refusal says where it is enforced — the form on the screen,
+    an access policy, or a rule in the database — and quotes the words it refuses in.
+    What happens to the part after it reaches the engineer — consumption, transfers, returns,
+    adjustments — is the companion document, <b>How hand stock moves</b>.
   </p>
 
   <div class="key">
@@ -288,10 +290,20 @@ footer code{font-size:12.5px}
     <span class="flownav-t">HandStock — replenishing what the engineer carries</span>
     <span class="flownav-s">No call · a stated reason instead · and NSM reviews it</span>
   </a>
+  <a href="#register">
+    <span class="flownav-n">The register</span>
+    <span class="flownav-t">Spare Requests — every spare line, and what you do with it</span>
+    <span class="flownav-s">Needs my action · decide many at once · change the engineer</span>
+  </a>
   <a href="#approvals">
     <span class="flownav-n">Then</span>
     <span class="flownav-t">One approval chain, whichever route it came in by</span>
-    <span class="flownav-s">RM → Commercial → NSM → Stores → acknowledged</span>
+    <span class="flownav-s">RM Approval → Commercial → NSM → Stores</span>
+  </a>
+  <a href="#stores">
+    <span class="flownav-n">Stores</span>
+    <span class="flownav-t">Pending Dispatch, Stock Out, and the receipt</span>
+    <span class="flownav-s">One engineer per stock out · the Delivery Challan · acknowledged</span>
   </a>
 </nav>
 
@@ -302,14 +314,14 @@ footer code{font-size:12.5px}
     <p class="flowhead-n">Route 1</p>
     <h2 class="flowhead-t">Call Based — a part for a machine that has failed</h2>
     <p class="flowhead-p">
-      The engineer is on a call and needs a part for it. The request is raised <b>against the
-      UCN</b>, and the call's own particulars come with it — so the part is traceable to the
-      device it was fitted to, which is the whole reason this route exists separately.
+      The request is raised <b>against the UCN</b>, and the call's own particulars come with it — so
+      the part is traceable to the machine it was asked for.
     </p>
     <p class="flowhead-p">
-      <b>The cover comes with it too, and that is what decides the approval chain.</b> A part for a
-      machine under CMC or WGP goes straight to Stores after the manager; a part for an AMC or OGP
-      machine is somebody's money, and two more people look at it.
+      <b>The cover comes with it too, and that decides the approval chain.</b> A part for an
+      <b>AMC</b> or <b>OGP</b> machine goes to Commercial and then NSM after the manager; a part under
+      any other cover has both of those stages written <i>Auto-Approved</i> when the manager approves it
+      with the single-spare <b>Approve</b> button (see Stage 1 for the one path that does not).
     </p>
   </section>
 
@@ -317,32 +329,42 @@ footer code{font-size:12.5px}
     <div class="side in">
       <h3>Reads</h3>
       <ul>
-        <li><b>The call</b> — UCN, call number, customer, product, serial, complaint and <b>item status</b> (the cover)</li>
-        <li><b>Part Master</b> — the parts that may be asked for</li>
-        <li><b>User Master</b> — the engineer, where a manager is raising it for their team</li>
+        <li><b>The call</b> — UCN, call number, customer, product, serial, the complaint (Complaint Reported, or the Standard Complaint where that is blank) and <b>Item Status</b> (the cover)</li>
+        <li><b>Part Master</b> — the parts mapped to the call's product, its accessories and the common parts; <b>Show all parts</b> opens the whole master</li>
+        <li><b>User Master</b> — who the request may be raised for</li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-unattended)">
       <p class="n">Route 1 · Raise</p>
       <h2>Ask for the part, against the call</h2>
-      <span class="who">Engineer</span><span class="who">RM / RGM</span><span class="who">Spare Coordinator</span>
+      <span class="who">Request spares</span>
       <p>
-        Pick the call, then the parts. <b>One request carries up to five spares</b>, each with its
-        own quantity — and each is decided separately from here on, so a request for five can go
-        forward with three.
+        On <b>Spare Requests</b>, press <b>＋ New Spare Request</b> (or raise it from the call itself),
+        search the call by UCN, call number, party or serial, then pick the parts.
+        <b>One request carries up to twenty spares</b>, each with its own whole-number quantity of at
+        least 1 — and each is decided separately from here on, so a request for five can go forward
+        with three.
       </p>
       <p>
-        A manager raising it for somebody else may only choose from <b>the engineers who report to
-        them</b>. Raising it for yourself fills the name from your login and leaves it read-only.
+        <b>Who it is for.</b> An engineer raises it for themselves: the name comes from the login and is
+        read-only. A manager may pick themselves or the engineers who report to them; a role that sees
+        every record may pick any active name on the User Master.
+      </p>
+      <p>
+        <b>The complaint and the Item Status follow the call.</b> Change either on the call and every
+        spare request on it changes too; <b>↻ Update from call</b> brings an older request in line.
+        A line already past RM approval keeps the route it was given — only what the request shows
+        changes.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li class="mandate"><span class="tag">Mandate</span>A <b>UC Number</b>. A Call-Based request without a call is refused at the form — that is the difference between the two routes.</li>
-        <li class="mandate"><span class="tag">Mandate</span>An engineer, and <b>at least one part</b>; quantity is at least 1 and whole.</li>
-        <li>At most <b>five spares</b> on one request.</li>
-        <li>The part comes from the <b>Part Master</b> — a typed part is a master entry that does not exist.</li>
+        <li class="mandate"><span class="tag">Form</span>A <b>UC Number</b>: <i>"A Call-Based request needs a call (UC Number)."</i></li>
+        <li class="mandate"><span class="tag">Form</span>An engineer and at least one part: <i>"Engineer name is required."</i> · <i>"Add at least one spare."</i></li>
+        <li><span class="tag db">Trigger</span>At most twenty: <i>"A spare request may carry at most 20 parts"</i>; and <i>"Quantity must be at least 1"</i>.</li>
+        <li><span class="tag">Form</span>The part is <b>picked from the Part Master</b>, never typed. An empty list says whether it is still loading or the master has no part for that product.</li>
+        <li><span class="tag db">Policy</span>Saving the request and its lines needs <b>Request spares</b>.</li>
       </ul>
     </div>
   </section>
@@ -351,28 +373,29 @@ footer code{font-size:12.5px}
     <div class="side in">
       <h3>Reads</h3>
       <ul>
-        <li><b>The month's counter</b>, one per YY/MM, written only by the numbering function</li>
+        <li><b>The month's counter</b>, one per month of the OR Req Date, written only by the numbering function</li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-unsolved)">
       <p class="n">Route 1 · On submit</p>
       <h2>The database numbers it</h2>
       <p>
-        The request takes an <b>OR number</b> — <code>OR-26/09/41</code>, the forty-first request of
-        September 2026. The counter is one row per month and the increment is atomic, so two
-        requests submitted in the same instant cannot take the same number.
+        The request takes an <b>OR number</b> — <code>OR-2609-0041</code>, the forty-first request of
+        September 2026. The counter is one row per month and the increment is atomic, so two requests
+        submitted at the same instant cannot take the same number.
       </p>
       <p>
-        <b>OR Req Date</b> is the day it was asked for. It matters more than it looks: the audit
-        trail dates the request by it, and for requests loaded from the old system it is the only
-        honest date — <code>created_at</code> would be the day of the upload.
+        <b>OR Req Date</b> is the day it was asked for, and the approval trail dates the request by it.
+        For a request loaded from the old system it is the honest date: the day the row reached the
+        database may be the day of the upload, and the drawer shows that separately as
+        <i>Entered in the system</i> only when the two differ.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li><span class="tag db">Trigger</span>The OR number is minted by the database. The app cannot supply one, and two cannot collide.</li>
-        <li>Status starts <b>Pending</b>, and the stage is <b>computed</b> from the approval columns rather than typed — so a stage can never disagree with the approvals underneath it.</li>
+        <li><span class="tag db">Trigger</span>The form sends no OR number; the database assigns one when none is given. Once assigned it is fixed: <i>"The OR number is assigned once and cannot be changed"</i>, and the same for the OR request date.</li>
+        <li>The stage of each spare is <b>computed</b> from its approval columns rather than typed — so a stage can never disagree with the approvals underneath it.</li>
       </ul>
     </div>
   </section>
@@ -382,16 +405,13 @@ footer code{font-size:12.5px}
     <p class="flowhead-n">Route 2</p>
     <h2 class="flowhead-t">HandStock — replenishing what the engineer carries</h2>
     <p class="flowhead-p">
-      No call. The engineer is restocking the boot of the car: parts that get used often, so the
-      next call does not wait for a dispatch. Everything about the chain below is the same —
-      <b>what changes is what the request must justify itself with</b>.
+      No call. The engineer is asking for stock to carry. Everything about the chain below is the
+      same — <b>what changes is what the request must justify itself with</b>.
     </p>
     <p class="flowhead-p">
-      A Call-Based request explains itself: there is a machine, it has failed, here is the part.
-      A HandStock request has no such evidence, so it <b>must carry a written reason</b> — and
-      that reason is what the approver is actually approving. It is also why
-      <b>NSM reviews every HandStock request</b>: the chain is manager → NSM → Stores, and
-      Commercial is the only stage skipped.
+      A HandStock request <b>must carry a written reason</b>, and it goes to <b>NSM</b>: approved at
+      the RM stage with the single-spare <b>Approve</b> button, Commercial is written
+      <i>Auto-Approved</i> and NSM is not, so the line stops at NSM rather than at Stores.
     </p>
   </section>
 
@@ -399,31 +419,114 @@ footer code{font-size:12.5px}
     <div class="side in">
       <h3>Reads</h3>
       <ul>
-        <li><b>Part Master</b> — the parts that may be asked for</li>
-        <li><b>Hand Stock</b> — what this engineer already holds, which is what makes a reason checkable</li>
+        <li><b>Part Master</b> — the whole list: with no machine there is no product to narrow it by</li>
+        <li><b>User Master</b> — who the request may be raised for, as on Route 1</li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-unattended)">
       <p class="n">Route 2 · Raise</p>
       <h2>Ask for the part, with a reason</h2>
-      <span class="who">Engineer</span><span class="who">RM / RGM</span><span class="who">Spare Coordinator</span>
+      <span class="who">Request spares</span>
       <p>
-        Same form, request type <b>HandStock</b>. The call section disappears and a single field
+        Same form, Request Type <b>HandStock</b>. The call section disappears and a single field
         takes its place: <b>Reason for HandStock Request</b>.
       </p>
       <p>
-        The call's fields are left <b>empty</b> rather than filled with something plausible — no
-        UCN, no customer, no cover. A HandStock part fitted later is booked to its call at
-        consumption, which is where that link genuinely exists.
+        The call's fields are saved <b>empty</b> — no UCN, no customer, no cover. A HandStock part
+        fitted later is booked to its call when it is consumed.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li class="mandate"><span class="tag">Mandate</span>The <b>reason</b>. The form refuses a HandStock request without one — it is the only thing an approver has to go on.</li>
-        <li class="mandate"><span class="tag">Mandate</span><b>NSM approves every HandStock request</b>, whatever the parts. Replenishment has no machine behind it to justify it, so the reason above is the case — and somebody senior reads it.</li>
-        <li><b>Commercial still auto-approves.</b> With no machine there is no cover, so nothing here is chargeable to a customer — which is the question Commercial answers. The chain is manager → NSM → Stores.</li>
-        <li>The customer and machine fields stay empty. A HandStock request is not evidence about any device.</li>
+        <li class="mandate"><span class="tag">Form</span>The <b>reason</b>: <i>"Enter the reason for the HandStock request."</i></li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>NSM reviews every HandStock line.</b> Only a holder of <b>Approve spare — NSM</b> may write the NSM column on one; the RM's right to write <i>Auto-Approved</i> there does not extend to HandStock: <i>"RBAC: NSM approval requires the spare.approve_nsm permission"</i>.</li>
+        <li>Commercial is auto-approved — with no machine there is no cover for Commercial to weigh.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== THE REGISTER ===================== -->
+  <section class="flowhead" id="register">
+    <p class="flowhead-n">The register · Spare Requests</p>
+    <h2 class="flowhead-t">One row per spare, and the action it is waiting for</h2>
+    <p class="flowhead-p">
+      <b>Spare Requests</b> lists every spare line you may see — one row per part, not per order —
+      with its stage, its approvals, how much has been sent and its DC. It is where a request is
+      raised, where Commercial and NSM decide, where a spare is dropped, and where the receipt is
+      acknowledged.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every spare line</b> and its order, as far as your role may see: an office role sees every request, everybody else their own and their team's</li>
+        <li><b>The call's status</b>, to colour each UCN</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Spare Requests · the screen</p>
+      <h2>Find it, then act on it</h2>
+      <span class="who">the Spare Requests page</span>
+      <p>
+        The chips across the top filter by stage — <b>⚡ Needs my action</b> first, then each of the
+        eight stages — and a second strip by engineer; each strip's counts are taken after the other
+        is applied. Search covers the Spare ID, UID, OR number, UCN, party, product, part, engineer,
+        stage, status and DC. Rows group by region, engineer or stage, and export to CSV.
+      </p>
+      <p>
+        Click a row for the <b>detail drawer</b>: that spare and its stage, where every other spare on
+        the same order stands (<i>"1 at Stores · 2 at RM Approval"</i>), the call it was raised
+        against, and the <b>approval trail</b> — who decided each stage and when, with what Commercial
+        and NSM answered on their forms.
+      </p>
+      <p>
+        <b>Tick boxes</b> appear for a holder of an approval right or <b>Drop a spare (any stage)</b>.
+        A selection is decided <b>each spare at the stage it is at</b>: Approve moves every one on by
+        one step, Reject closes each at its stage, Drop marks each not sent. Anything you may not
+        decide is skipped and counted — <i>"12 spares approved — 2 skipped (…)"</i> — rather than
+        failing the batch. <b>↻ Update from call</b> works on a selection too.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Function</span>A selection rejected or dropped needs a reason: <i>"A reject needs a reason"</i> · <i>"A drop needs a reason"</i>. The confirmation names the decision and the count before anything happens.</li>
+        <li><span class="tag">Function</span>A selection is refused outright to a role holding no approval right (<i>"RBAC: your role cannot approve or reject spares"</i>) or, for a drop, no drop right (<i>"RBAC: your role cannot drop a spare"</i>).</li>
+        <li>The count carries a <b>+</b> while more lines are waiting behind <b>Load more</b>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The order's spares</b> — whether any has been dispatched</li>
+        <li><b>User Master</b> — the names offered, as when raising</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-cancelled)">
+      <p class="n">Spare Requests · before dispatch</p>
+      <h2>Change the engineer on an order</h2>
+      <span class="who">Change the engineer on a spare request (before dispatch)</span>
+      <p>
+        In the drawer, <b>✎ Change engineer</b> moves the whole order to another name, with a
+        <b>Why</b>. Every change is listed under <b>Engineer on this order</b> — from, to, who and when.
+      </p>
+      <p>
+        Once any spare on the order has gone out the name is fixed: the parts are counted in that
+        engineer's hand stock, so moving them is a <b>Stock Transfer</b>.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag">Function</span>After dispatch: <i>"OR … has already been dispatched — the parts are in …'s hands, so the engineer cannot be changed. Use a stock transfer instead."</i></li>
+        <li><span class="tag">Function</span>Without the right: <i>"Changing the engineer on a spare request needs "Change the engineer on a spare request""</i>.</li>
+        <li>The <b>Why</b> box is optional on the screen and in the database.</li>
       </ul>
     </div>
   </section>
@@ -435,12 +538,13 @@ footer code{font-size:12.5px}
     <p class="flowhead-p">
       <b>The state belongs to ONE SPARE, not to the request.</b> The manager approves or rejects
       each part separately, so a request for five parts can go forward with three; the later stages
-      read the same per-line state, which is what lets them be actioned either part by part or for
-      a whole OR at once.
+      read the same per-line state.
     </p>
     <p class="flowhead-p">
-      <b>The stage is computed, never typed</b> — it is derived from the approval columns, so it
-      cannot disagree with them. Reject at any stage and the whole line is Rejected; there is no
+      <b>The stage is computed, never typed</b> — and only three words in an approval column move a
+      spare on: <i>Approved</i>, <i>Auto-Approved</i> and <i>Cleared for Stores Processing</i>. Any
+      other word — <i>Not Approved</i>, <i>Approval Pending</i> — keeps the spare waiting at that
+      approver, showing the word as written. Reject at any stage and the line is Rejected; there is no
       route onward from a refusal.
     </p>
   </section>
@@ -450,30 +554,41 @@ footer code{font-size:12.5px}
       <h3>Reads</h3>
       <ul>
         <li><b>The reporting tree</b> — which engineers this manager may approve for</li>
-        <li><b>Item status</b> — whether Commercial and NSM will be needed</li>
+        <li><b>Item Status</b> and <b>Request Type</b> — which of Commercial and NSM will be needed</li>
+        <li>On the <b>RM Approval</b> screen: the complaint, machine, serial and cover beside each spare</li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-unsolved)">
       <p class="n">Stage 1 of 4</p>
       <h2>RM Approval</h2>
-      <span class="who">spare.approve_rm</span>
+      <span class="who">Approve spare — RM stage</span>
       <p>
-        The manager decides <b>each spare on its own</b> — never in bulk across a whole OR. That is
-        deliberate: the later stages allow a whole-OR action, this one does not, because this is
-        where the judgement about whether a part is needed actually happens.
+        <b>Two places to decide it.</b> On <b>Spare Requests</b>, the row's <b>✔ Approve</b> /
+        <b>✖ Reject</b> decides that one spare. The <b>RM Approval</b> page lists every spare waiting
+        for a Reporting Manager — grouped by engineer to start with, or by OR number or cover — with
+        <b>Select all N of mine</b>, and <b>✔ Approve</b> / <b>✕ Reject</b> for the ticked spares.
+        Spares that are not yours to decide are shown greyed as <b>Not yours</b> and cannot be ticked.
       </p>
       <p>
-        Approving here is also where the chain is decided: <b>if the item is not AMC or OGP, the
-        Commercial and NSM columns are stamped Auto-Approved in the same write</b> and the line
-        goes straight to Stores.
+        <b>The whole-order "all N" button is never offered at this stage</b> — it is offered at
+        Commercial, NSM and receipt only. A ticked selection is still decided spare by spare.
+      </p>
+      <p>
+        <b>What approving writes depends on the path.</b> The single-spare <b>✔ Approve</b> on Spare
+        Requests writes the RM approval and, in the same write, <i>Auto-Approved</i> into Commercial
+        unless the item is AMC or OGP, and into NSM unless it is AMC, OGP <b>or a HandStock request</b>.
+        <b>Approving by tick box</b> — on the RM Approval page, or a selection on Spare Requests —
+        writes the RM approval only, so as the code stands that spare next waits at <b>Commercial</b>
+        whatever its cover. <b>That is a fault</b>, recorded as D-081: a warranty spare should not need Commercial.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li><b>A manager approves their own team's requests, and never their own.</b> Their request goes to <i>their</i> manager. Enforced in the database as well as the screen.</li>
-        <li>No bulk approval at this stage.</li>
-        <li class="mandate"><span class="tag">Mandate</span>A rejection carries a <b>reason</b>, and the stage it was rejected at is recorded with it.</li>
+        <li><span class="tag db">Trigger</span><b>Never your own request:</b> <i>"You cannot approve your own spare request — it goes to your reporting manager"</i>.</li>
+        <li><span class="tag db">Trigger</span><b>A manager only within their own tree:</b> <i>"… does not report to you, so their spare is not yours to approve"</i>. A role that manages nobody (an office desk holding this right) keeps the wider remit, its own request apart.</li>
+        <li class="mandate"><span class="tag">Form</span>A rejection carries a <b>reason</b>; the stage it was rejected at is recorded with it.</li>
+        <li><span class="tag db">Trigger</span>Writing the RM column needs the right: <i>"RBAC: RM approval requires the spare.approve_rm permission"</i>.</li>
       </ul>
     </div>
   </section>
@@ -482,73 +597,95 @@ footer code{font-size:12.5px}
     <div class="side in">
       <h3>Reads</h3>
       <ul>
-        <li><b>Item status</b> — <code>AMC</code> or <code>OGP</code> only</li>
+        <li><b>The line's Commercial and NSM columns</b> — whether each was written <i>Auto-Approved</i> at the RM stage</li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-unsolved)">
       <p class="n">Stages 2 and 3 of 4 · conditional</p>
       <h2>Commercial, then NSM</h2>
-      <span class="who">spare.approve_commercial</span><span class="who">spare.approve_nsm</span>
+      <span class="who">Approve spare — Commercial</span><span class="who">Approve spare — NSM</span>
       <p>
-        <b>Commercial runs only when the item is AMC or OGP</b> — the covers where the part is
-        chargeable to somebody. On WGP and CMC it is stamped Auto-Approved at the RM stage and
-        nobody waits.
+        Both are decided on <b>Spare Requests</b>, and <b>Approve</b> there opens a form rather than a
+        yes/no.
       </p>
       <p>
-        <b>NSM runs on those too — and on every HandStock request.</b> The two stages stopped
-        sharing a rule when replenishment started needing a second signature: a HandStock line has
-        no cover for Commercial to judge, and no machine to justify it, so it is NSM who reads the
-        reason.
+        <b>Commercial</b> answers an <b>Admin Status</b>. <i>Cleared for Stores Processing</i> approves
+        the stage and asks the <b>Reason for Clearing</b> — Under CMC, Under Warranty, Under AMC, OGP or
+        Direct PO; the first three ask for the <b>MC / SA number</b>, Direct PO asks the four PO steps
+        (Estimated Approved? · PO Received from Party? · Invoice? · Payment Received?).
+        <i>Admin Process in Progress</i> records a <b>Pending Reason</b> and leaves the spare at Commercial.
       </p>
       <p>
-        Both may be actioned <b>for a whole OR at once</b>: by this point the question is
-        commercial rather than technical, and it is the same answer for every line on the order.
+        <b>NSM</b> answers a <b>Status</b> — <i>Cleared for Stores Processing</i> approves the stage,
+        <i>Put on HOLD</i> keeps the spare at NSM — with any of the reasons KOL CUSTOMER, LONG PENDING,
+        ENGINEER ASSURANCE, PAYMENT RECEIVED, APPROVED FOR TESTING PURPOSE, an Other, and remarks.
+      </p>
+      <p>
+        Both may also be actioned <b>for a whole order at once</b> (<b>⇉ all N</b>, when more than one
+        line of the order is at that stage), or by tick box, which approves without the form.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li>Each is its own permission. Holding one does not imply the other, and neither implies the RM stage.</li>
-        <li><b>"Auto-Approved" is recorded, not blank.</b> A skipped stage says it was skipped — an empty column would read as "not yet done" for ever.</li>
-        <li class="mandate"><span class="tag">Mandate</span>A rejection carries a reason here too.</li>
+        <li><span class="tag db">Trigger</span>Each is its own right: <i>"RBAC: Commercial approval requires the spare.approve_commercial permission"</i> · <i>"RBAC: NSM approval requires the spare.approve_nsm permission"</i>. Holding one implies neither the other nor the RM stage.</li>
+        <li class="mandate"><span class="tag">Form</span>Commercial: <i>"Choose an Admin Status."</i> · <i>"Choose a Reason for Clearing."</i> · <i>"Choose a Pending Reason."</i> · <i>"Enter the MC / SA number."</i> · <i>"MC / SA number must start with MC or SA and contain no spaces."</i> · <i>"Answer every Direct PO step (N left)."</i> NSM: <i>"Choose a Status."</i></li>
+        <li><b>"Auto-Approved" is recorded, not blank</b>, and carries no name or time — nobody decided it.</li>
+        <li class="mandate"><span class="tag">Form</span>A rejection carries a reason here too.</li>
       </ul>
     </div>
+  </section>
+
+  <!-- ===================== STORES ===================== -->
+  <section class="flowhead" id="stores">
+    <p class="flowhead-n">Stage 4 · Stores</p>
+    <h2 class="flowhead-t">Pending Dispatch, Stock Out and the receipt</h2>
+    <p class="flowhead-p">
+      A spare appears on <b>Pending Dispatch</b> once it has cleared every approval it needs, and stays
+      there while any of its quantity is still owed. Stores books it out there; <b>Stock Out</b> is the
+      list of what has gone.
+    </p>
   </section>
 
   <section class="stage">
     <div class="side in">
       <h3>Reads</h3>
       <ul>
-        <li><b>The approved lines</b>, grouped by engineer</li>
-        <li><b>The day's counter</b> for the stock-out number</li>
+        <li><b>Every approved line with a quantity still owed</b>, as far as your role may see — up to 2,000 lines</li>
+        <li><b>The month's counter</b> of the DC date, for the stock-out number</li>
+        <li><b>The signed-in session</b> — who is booking it out</li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-pending)">
-      <p class="n">Stage 4 of 4</p>
+      <p class="n">Stage 4 of 4 · Pending Dispatch</p>
       <h2>Stores books it out</h2>
-      <span class="who">spare.dispatch</span>
+      <span class="who">Dispatch / DC (Stores)</span>
       <p>
-        A stock out is a <b>batch</b>: many spares, one engineer, one delivery challan. The number
-        is generated by Postgres, so there is one way to book stock out and <b>no way to type a DC
-        number by hand</b>.
+        The queue is <b>one card per engineer</b>, longest-waiting first, each showing its spares,
+        units, orders and days waiting (amber from 7 days, red from 14). Search by engineer, order,
+        Spare ID, part, UCN, call or party; <b>🚚 Dispatch…</b> on a Spare Requests row opens the queue
+        already filtered to that engineer.
       </p>
       <p>
-        <b>The challan IS the stock out</b> — one series, not two. Stores may also send <b>fewer
-        than were approved</b>; the balance stays open and the line stays at Stores until the rest
-        goes.
+        Tick the spares for <b>one engineer</b>, set a quantity per line between one and what is still
+        owed, and mark any line <b>♻ Refurb</b> to issue the recycled equivalent. <b>🚚 Dispatch</b>
+        asks the <b>DC date</b> (today by default), <b>Courier / carried by</b> and <b>Dispatch
+        remarks</b>, then writes the stock out, its number and every line together — all or nothing —
+        and opens the <b>Delivery Challan</b>.
       </p>
       <p>
-        Or Stores may <b>drop</b> a part instead of sending it — short supply, no longer needed,
-        superseded. That is terminal but it is <b>not a rejection</b>: an approver refuses a
-        request, Stores drops an approved part, and the two must not read alike.
+        <b>The challan IS the stock out</b> — one number, <code>SO-2609-0012</code>, not two series.
+        A line sent short stays in the queue as <i>"N of M sent"</i> until the rest goes.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li><span class="tag db">Trigger</span>The stock-out number and the DC are minted by the database, in one transaction, so a batch never half-lands.</li>
-        <li class="mandate"><span class="tag">Mandate</span>A drop carries a <b>reason</b>. Stock that went nowhere with no reason stated is not auditable.</li>
-        <li>Dropping is its own permission, separate from dispatching.</li>
+        <li class="mandate"><span class="tag">Function</span><b>One engineer per stock out:</b> <i>"A stock out goes to one engineer — select spares for a single engineer"</i>. The screen says so before the database has to.</li>
+        <li><span class="tag">Function</span>Only lines still waiting: <i>"Only … of the … selected spares are still waiting at Stores — refresh and try again"</i>; and never more than is owed: <i>"Only … left to send on that spare (you asked for …) — refresh and try again"</i>.</li>
+        <li><span class="tag">Function</span>A refurbished issue needs its part on the Part Master and active: <i>"Refurbished part … is not in Part Master, or is not active — add it before issuing it"</i>.</li>
+        <li><span class="tag db">Trigger</span><b>Booked by</b> on the stock out is stamped from the signed-in session; whatever the screen sends is replaced.</li>
+        <li><span class="tag">Function</span>Without the right: <i>"RBAC: dispatch requires the spare.dispatch permission"</i>; the button is disabled too.</li>
       </ul>
     </div>
   </section>
@@ -557,28 +694,102 @@ footer code{font-size:12.5px}
     <div class="side in">
       <h3>Reads</h3>
       <ul>
-        <li><b>What was dispatched against what has been acknowledged</b> — the difference is what is outstanding</li>
+        <li><b>The spare's current stage</b> — dropping is offered only while it is still open</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-reopened)">
+      <p class="n">Any open stage · Drop</p>
+      <h2>Not sent: the spare is dropped</h2>
+      <span class="who">Drop a spare (any stage)</span>
+      <p>
+        A spare at RM Approval, Commercial, NSM or Stores may be <b>dropped</b> instead of sent —
+        short supply, no longer needed, superseded. On <b>Spare Requests</b> it is the row's
+        <b>⊘ Drop</b> or a ticked selection; on <b>Pending Dispatch</b>, <b>⊘ Drop</b> on the ticked
+        spares.
+      </p>
+      <p>
+        That is terminal but it is <b>not a rejection</b>: an approver refuses a request, a drop records
+        that an approved or pending part was not sent. A dropped line raises no challan.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span>A drop needs <b>Drop a spare (any stage)</b>, and may not touch the DC: <i>"RBAC: dispatch / DC requires the spare.dispatch permission (a drop needs spare.drop)"</i>.</li>
+        <li class="mandate"><span class="tag">Form</span>The reason is required on Spare Requests. <b>Pending Dispatch asks for it in a prompt and does not refuse an empty one.</b></li>
+        <li>Already dispatched, received, rejected or dropped: a ticked selection skips it — <i>"already at …"</i>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every spare issued</b>, one row per part, as far as your role may see — up to 5,000 lines</li>
+        <li><b>The engineer's address</b> on the User Master, for the Declaration</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Stock Out · and its documents</p>
+      <h2>What went out, to whom, against which call</h2>
+      <span class="who">the Stock Out page</span>
+      <p>
+        <b>Stock Out</b> — and the <b>📄 Stock outs</b> tab on Pending Dispatch, which is the same list —
+        shows every spare issued: stock out, DC, date, engineer, part (with <b>♻ Refurbished</b> where it
+        was), quantity, <b>Days to dispatch</b> from the last approval (green under 3, amber from 3, red
+        from 7), OR, call, party, courier and <b>Booked by</b>. Search it; export it to CSV.
+      </p>
+      <p>
+        Each row prints its <b>🖨 Delivery Challan</b> — A4, twenty rows a sheet, under the company's
+        mark, identified by Stock Out No. and Stock Out Date — or opens its <b>📜 Declaration</b>, the
+        sheet that travels with the parcel, which asks for the address, value and purpose before it
+        prints.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Read only. The page is granted on its own on Roles &amp; Permissions and carries no action of its own.</li>
+        <li>A failed read says so — <i>"The stock outs could not be read"</i> — rather than showing an empty list.</li>
+        <li>The challan and the declaration look the stock out up among the <b>latest 500</b>; an older one reads <i>"Stock out … was not found, or you cannot view it."</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>What was dispatched against what has been acknowledged</b> — the difference is what is waiting to be confirmed</li>
       </ul>
     </div>
     <div class="step" style="--node:var(--st-solved)">
       <p class="n">Closing</p>
-      <h2>The engineer acknowledges receipt</h2>
-      <span class="who">spare.receive</span>
+      <h2>The receipt is acknowledged</h2>
+      <span class="who">Acknowledge spare receipt</span>
       <p>
-        The parts reached the field. <b>Only the person who raised the request may acknowledge
-        it</b> — so an approver's queue does not fill with other people's receipts.
+        <b>📥 Mark received</b> on Spare Requests, with optional receipt remarks, for one spare or
+        <b>⇉ all N</b> of the order. <b>Only the person who raised the request</b> — or whose e-mail the
+        request carries — may acknowledge it, so an approver's queue does not fill with other people's
+        receipts.
       </p>
       <p>
-        <b>Receipt follows the stock, not the stage.</b> A partly-sent line has something to
-        acknowledge while it is still sitting at Stores waiting for its balance, and a spare counts
-        as received only when the <b>whole</b> quantity has been.
+        <b>Receipt follows the stock, not the stage.</b> Each delivery is acknowledged as it lands, so a
+        part-sent line has something to confirm while it still waits at Stores for its balance; the
+        spare turns <b>Received</b> only when the <b>whole</b> quantity has been acknowledged.
+      </p>
+      <p>
+        <b>The acknowledgement does not move hand stock.</b> The parts were counted in the engineer's
+        hand stock the moment Stores booked them out.
       </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
-        <li><b>Somebody else's request cannot be acknowledged</b>, whatever permission the reader holds.</li>
-        <li>Acknowledging closes the request — and puts the part into that engineer's <b>hand stock</b>, which is where the next section starts.</li>
+        <li><span class="tag db">Trigger</span>Somebody else's: <i>"RBAC: only the engineer who raised the request may acknowledge it"</i>.</li>
+        <li><span class="tag db">Trigger</span>Before it is sent: <i>"RBAC: a spare can only be acknowledged after it is dispatched"</i>.</li>
+        <li><span class="tag">Function</span>Without the right: <i>"RBAC: acknowledging a receipt requires the spare.receive permission"</i>.</li>
       </ul>
     </div>
   </section>
@@ -586,30 +797,32 @@ footer code{font-size:12.5px}
   <section class="ledger">
     <h2>What every approval cycle writes</h2>
     <p>
-      Three columns per stage — the outcome, <b>who</b>, and <b>when</b> — and the audit trail in
-      the detail drawer is built from exactly these. A stage with no outcome has not happened;
-      a stage that was skipped says <i>Auto-Approved</i> rather than staying blank.
+      Three columns per stage — the outcome, <b>who</b>, and <b>when</b> — and the approval trail in
+      the detail drawer is built from exactly these. A stage with no outcome has not happened; a stage
+      that was skipped says <i>Auto-Approved</i> rather than staying blank. The <b>who</b> on the
+      approval, drop and receipt columns is the name the screen sends; the stock out's
+      <b>Booked by</b> is stamped by the database.
     </p>
     <div class="scroll">
       <table class="transitions">
         <thead>
-          <tr><th>Stage</th><th>Permission</th><th>Outcome · who · when</th><th>Also written</th></tr>
+          <tr><th>Stage</th><th>Right needed</th><th>Outcome · who · when</th><th>Also written</th></tr>
         </thead>
         <tbody>
           <tr>
-            <td>RM Approval</td><td><code>spare.approve_rm</code></td>
+            <td>RM Approval</td><td>Approve spare — RM stage</td>
             <td><code>rm_approval</code> · <code>rm_by</code> · <code>rm_at</code></td>
-            <td>Each stage that is not required is set to <i>Auto-Approved</i> in the same write — <code>commercial_approval</code> unless the item is AMC/OGP, and <code>nsm_approval</code> unless it is AMC/OGP <b>or a HandStock request</b>. No <code>_by</code> or <code>_at</code> is written with an auto-approval: nobody decided it</td>
+            <td>Single-spare Approve only: <code>commercial_approval</code> = <i>Auto-Approved</i> unless AMC/OGP, and <code>nsm_approval</code> = <i>Auto-Approved</i> unless AMC/OGP <b>or HandStock</b> — with no <code>_by</code> or <code>_at</code>. A tick-box approval writes neither.</td>
           </tr>
           <tr>
-            <td>Commercial</td><td><code>spare.approve_commercial</code></td>
+            <td>Commercial</td><td>Approve spare — Commercial</td>
             <td><code>commercial_approval</code> · <code>commercial_by</code> · <code>commercial_at</code></td>
-            <td>—</td>
+            <td>The form's answers, kept in <code>approval_data</code> — written for <i>Admin Process in Progress</i> too, which leaves the stage open</td>
           </tr>
           <tr>
-            <td>NSM</td><td><code>spare.approve_nsm</code></td>
+            <td>NSM</td><td>Approve spare — NSM</td>
             <td><code>nsm_approval</code> · <code>nsm_by</code> · <code>nsm_at</code></td>
-            <td>—</td>
+            <td>The form's answers in <code>approval_data</code> — written for <i>Put on HOLD</i> too</td>
           </tr>
           <tr>
             <td>Any rejection</td><td>the stage's own</td>
@@ -617,104 +830,41 @@ footer code{font-size:12.5px}
             <td><code>rejected_stage</code> and <code>reject_reason</code> — which stage refused it, and why</td>
           </tr>
           <tr>
-            <td>Stores — dispatch</td><td><code>spare.dispatch</code></td>
-            <td><code>stores_status</code> · <code>dispatched_by</code> · <code>dispatched_at</code></td>
-            <td><code>stock_out_no</code>, <code>dc_number</code>, <code>courier</code>, <code>dispatched_qty</code>, <code>dispatch_remarks</code></td>
+            <td>Stores — dispatch</td><td>Dispatch / DC (Stores)</td>
+            <td><code>stores_status</code> = <i>Dispatched</i> once the whole quantity has gone · <code>dispatched_by</code> · <code>dispatched_at</code></td>
+            <td><code>dispatched_qty</code> (adds up across stock outs), <code>courier</code>, <code>dispatch_remarks</code>; <code>stock_out_no</code> and <code>dc_number</code> when the last of it goes. The stock out itself and one line per part sent, with <i>Refurbished</i></td>
           </tr>
           <tr>
-            <td>Stores — drop</td><td><code>spare.drop</code></td>
+            <td>Drop</td><td>Drop a spare (any stage)</td>
             <td><code>stores_status</code> = <i>Dropped</i> · <code>dispatched_by</code> · <code>dispatched_at</code></td>
-            <td><code>dispatch_remarks</code> carries the required reason</td>
+            <td><code>dispatch_remarks</code> carries the reason</td>
           </tr>
           <tr>
-            <td>Receipt</td><td><code>spare.receive</code></td>
-            <td><code>received_by</code> · <code>received_at</code></td>
-            <td><code>received_qty</code> and <code>receipt_remarks</code></td>
+            <td>Receipt</td><td>Acknowledge spare receipt</td>
+            <td><code>received_by</code> · <code>received_at</code> — once the whole quantity is acknowledged</td>
+            <td><code>received_qty</code> after every acknowledgement; each delivery stamped with who and when; <code>receipt_remarks</code></td>
+          </tr>
+          <tr>
+            <td>Change of engineer</td><td>Change the engineer on a spare request (before dispatch)</td>
+            <td>a row in the engineer log — from, to, who, when</td>
+            <td>the reason, where one was given</td>
           </tr>
         </tbody>
       </table>
     </div>
   </section>
 
-  <!-- ===================== STOCK ===================== -->
+  <!-- ===================== AFTER IT LANDS ===================== -->
   <section class="flowhead" id="stock">
     <p class="flowhead-n">After it lands</p>
     <h2 class="flowhead-t">Hand stock, and booking the part to a call</h2>
     <p class="flowhead-p">
-      <b>Hand stock is derived, never stored.</b> There is no balance column anybody can edit — it
-      is computed every time it is read:
+      From the moment the stock out is booked, the part counts in that engineer's <b>hand stock</b>.
+      Booking it against the call it was fitted to, reconciliation, voiding a wrong line, transfers,
+      material returns, the opening balance and ± adjustments — and the <b>Spare Consumption</b> and
+      <b>Hand Stock</b> screens themselves — are in the companion document,
+      <b>How hand stock moves</b>.
     </p>
-    <p class="flowhead-p">
-      <code>on hand = stock out + transfers in − consumed − transfers out − returns</code>
-    </p>
-    <p class="flowhead-p">
-      Which makes <b>consumption the control point</b>. It is the only movement a person enters
-      freely, so it is the one the database guards.
-    </p>
-  </section>
-
-  <section class="stage">
-    <div class="side in">
-      <h3>Reads</h3>
-      <ul>
-        <li><b>Hand Stock</b> — this engineer's balance of this part, at this moment</li>
-        <li><b>The call</b> — the UCN the part was fitted on</li>
-      </ul>
-    </div>
-    <div class="step" style="--node:var(--st-solved)">
-      <p class="n">Stock · out</p>
-      <h2>The part is fitted, and booked against the call</h2>
-      <span class="who">Engineer, on the visit</span><span class="who">Spare Coordinator, reconciling</span>
-      <p>
-        Recorded on the visit as part of the report, or booked by hand afterwards by the Spare
-        Coordinator where something was missed. Either way the line names the <b>engineer whose
-        stock it came off</b>, the part, the quantity and the <b>call</b>.
-      </p>
-      <p>
-        A wrong line is <b>voided, never deleted</b>: the quantity goes to zero, the row is kept
-        with its original quantity, reason and author, and the stock comes back.
-      </p>
-    </div>
-    <div class="side out">
-      <h3>Restrictions &amp; mandates</h3>
-      <ul>
-        <li><span class="tag db">Trigger</span><b>You cannot consume more than the engineer holds.</b> The database refuses it and says the balance: <i>"X has 2 of PART in hand — cannot book 3 against this call"</i>.</li>
-        <li><span class="tag db">Trigger</span>A hand-booked reconciliation needs the <b>engineer</b>, the <b>part</b>, a <b>real UCN</b> and a <b>written reason</b> — each refused separately by name. A stock adjustment with no stated reason is not auditable, which is the point of flagging these apart.</li>
-        <li><b>Quality records are never deleted.</b> The correction is a void, and it keeps what was originally claimed.</li>
-      </ul>
-    </div>
-  </section>
-
-  <section class="stage">
-    <div class="side in">
-      <h3>Reads</h3>
-      <ul>
-        <li><b>Hand Stock</b> of both engineers, for a transfer</li>
-        <li><b>Part Master</b> — item code and name on a return</li>
-      </ul>
-    </div>
-    <div class="step" style="--node:var(--st-reopened)">
-      <p class="n">Stock · the other three movements</p>
-      <h2>Transfers, returns, and the opening balance</h2>
-      <span class="who">stock.transfer</span><span class="who">stock.return</span>
-      <p>
-        <b>Transfer</b> moves stock engineer to engineer — out of one balance and into the other,
-        one movement seen from both sides. <b>Material Return (MRN)</b> sends it back to Stores,
-        and it counts <b>good and defective separately</b>, because they are not the same thing
-        arriving back.
-      </p>
-      <p>
-        <b>Opening stock</b> is what an engineer already held when the system started, keyed so the
-        same figure cannot be loaded twice for one engineer and part.
-      </p>
-    </div>
-    <div class="side out">
-      <h3>Restrictions &amp; mandates</h3>
-      <ul>
-        <li>A return records <b>which equipment it was removed from</b> and the report it relates to, where there is one — a defective part with no origin cannot be investigated.</li>
-        <li>The engineer corrects nothing about the stock itself: <b>the Spare Coordinator corrects the stock, not the engineer</b>. A reported line is capped the same way as any other.</li>
-      </ul>
-    </div>
   </section>
 
 </main>
@@ -724,8 +874,8 @@ footer code{font-size:12.5px}
   <p>
     Computed from the approval columns, never typed. The first four are open; the last four are
     terminal, and the difference between the last three matters — <b>Rejected</b> is an approver
-    refusing, <b>Dropped</b> is Stores not sending an approved part, and <b>Received</b> is the
-    only one that means the engineer has it.
+    refusing, <b>Dropped</b> is a spare recorded as not sent, and <b>Received</b> is the only one that
+    means the whole quantity has been acknowledged.
   </p>
   <div class="chips">
     <span class="chip" style="background:var(--st-cancelled)">RM Approval</span>
@@ -743,14 +893,17 @@ footer code{font-size:12.5px}
       <tbody>
         <tr><td>—</td><td>The request is submitted</td><td>RM Approval</td><td>Whoever raised it</td></tr>
         <tr><td>RM Approval</td><td>Approved, item is AMC or OGP</td><td>Commercial</td><td>The engineer's own manager</td></tr>
-        <tr><td>RM Approval</td><td>Approved, any other cover</td><td>Stores <span class="muted">(Commercial and NSM auto-approve)</span></td><td>The engineer's own manager</td></tr>
-        <tr><td>RM Approval</td><td>Approved, and the request is <b>HandStock</b></td><td>NSM <span class="muted">(Commercial auto-approves; NSM does not)</span></td><td>The engineer's own manager</td></tr>
-        <tr><td>Commercial</td><td>Approved</td><td>NSM</td><td>Commercial</td></tr>
-        <tr><td>NSM</td><td>Approved</td><td>Stores</td><td>NSM</td></tr>
-        <tr><td>Stores</td><td>Booked out on a stock out / DC</td><td>Dispatched</td><td>Stores · Spare Coordinator</td></tr>
-        <tr><td>Stores</td><td>Part sent short</td><td>stays at Stores, with a balance outstanding</td><td>Stores · Spare Coordinator</td></tr>
-        <tr><td>Stores</td><td>Not sent at all, with a reason</td><td>Dropped <span class="muted">— terminal, and not a rejection</span></td><td>Holders of <code>spare.drop</code></td></tr>
-        <tr><td>Dispatched</td><td>The whole quantity acknowledged</td><td>Received</td><td><b>Only the person who raised it</b></td></tr>
+        <tr><td>RM Approval</td><td>Approved with the single-spare button, any other cover</td><td>Stores <span class="muted">(Commercial and NSM auto-approve)</span></td><td>The engineer's own manager</td></tr>
+        <tr><td>RM Approval</td><td>Approved with the single-spare button, and the request is <b>HandStock</b></td><td>NSM <span class="muted">(Commercial auto-approves; NSM does not)</span></td><td>The engineer's own manager</td></tr>
+        <tr><td>RM Approval</td><td>Approved by tick box, any cover <span class="muted">(a fault, D-081)</span></td><td>Commercial</td><td>The engineer's own manager</td></tr>
+        <tr><td>Commercial</td><td>Cleared for Stores Processing, or Approved</td><td>NSM</td><td>Commercial</td></tr>
+        <tr><td>Commercial</td><td>Admin Process in Progress</td><td>stays at Commercial, with the pending reason</td><td>Commercial</td></tr>
+        <tr><td>NSM</td><td>Cleared for Stores Processing, or Approved</td><td>Stores</td><td>NSM</td></tr>
+        <tr><td>NSM</td><td>Put on HOLD</td><td>stays at NSM</td><td>NSM</td></tr>
+        <tr><td>Stores</td><td>The whole quantity booked out</td><td>Dispatched</td><td>Holders of Dispatch / DC (Stores)</td></tr>
+        <tr><td>Stores</td><td>Part of it booked out</td><td>stays at Stores, with the balance owed</td><td>Holders of Dispatch / DC (Stores)</td></tr>
+        <tr><td>RM Approval, Commercial, NSM or Stores</td><td>Not sent, with a reason</td><td>Dropped <span class="muted">— terminal, and not a rejection</span></td><td>Holders of Drop a spare (any stage)</td></tr>
+        <tr><td>Dispatched</td><td>The whole quantity acknowledged</td><td>Received</td><td><b>Only the person who raised it</b>, or whose e-mail it carries</td></tr>
         <tr><td>Any approval stage</td><td>Refused, with a reason</td><td>Rejected <span class="muted">— terminal</span></td><td>That stage's approver</td></tr>
       </tbody>
     </table>
@@ -761,67 +914,69 @@ footer code{font-size:12.5px}
   <div class="panel">
     <h3>Why the cover decides the chain</h3>
     <p>
-      <b>WGP</b> and <b>CMC</b> — the part is covered, so the only question is whether it is needed,
-      and the manager answers that. Commercial and NSM are stamped Auto-Approved and nobody waits.
+      <b>AMC</b> and <b>OGP</b> — Commercial and NSM each decide the spare before it reaches Stores.
     </p>
     <p>
-      <b>AMC</b> and <b>OGP</b> — the part is chargeable to somebody, so two more people look at it
-      before it leaves the building. That is why the cover on the call is worth getting right
-      upstream.
+      <b>Any other cover</b> — the single-spare RM approval writes both of those stages
+      <i>Auto-Approved</i> and the spare goes straight to Stores.
     </p>
     <p>
-      <b>And HandStock, which has no cover at all, goes to NSM.</b> The two middle stages stopped
-      sharing a rule for that reason: Commercial judges whether somebody is being charged, NSM
-      judges whether the stock is warranted — and replenishment is the case where only the second
-      question has an answer.
+      <b>HandStock, which has no cover at all, goes to NSM.</b> The two middle stages do not share a
+      rule: Commercial is required for AMC or OGP, NSM for AMC, OGP or a HandStock request. That is why
+      the cover on the call is worth getting right upstream — and why the Item Status follows the call.
     </p>
   </div>
 
   <div class="panel">
     <h3>Who can do what</h3>
     <p>
-      Every stage is its own permission, and holding one implies none of the others:
+      Each is a tick on <b>Roles &amp; Permissions</b>, under the Spares pages, and holding one implies
+      none of the others:
     </p>
     <ul>
-      <li><code>spare.request</code> — raise one</li>
-      <li><code>spare.approve_rm</code> — the manager stage, bounded by the reporting tree</li>
-      <li><code>spare.approve_commercial</code> · <code>spare.approve_nsm</code></li>
-      <li><code>spare.dispatch</code> — book stock out and raise the DC</li>
-      <li><code>spare.drop</code> — decline to send an approved part</li>
-      <li><code>spare.receive</code> — acknowledge, and only your own</li>
-      <li><code>stock.transfer</code> · <code>stock.return</code> · <code>consumption.reconcile</code></li>
+      <li><b>Request spares</b> — raise one</li>
+      <li><b>Approve spare — RM stage</b> — bounded by the reporting tree</li>
+      <li><b>Approve spare — Commercial</b> · <b>Approve spare — NSM</b></li>
+      <li><b>Dispatch / DC (Stores)</b> — book stock out and raise the DC</li>
+      <li><b>Drop a spare (any stage)</b></li>
+      <li><b>Acknowledge spare receipt</b> — and only your own</li>
+      <li><b>Change the engineer on a spare request (before dispatch)</b></li>
     </ul>
     <p>
-      <b>Who actually holds each one is set in Roles &amp; Permissions</b>, not here — this page
-      names the rights, and that screen is where they live.
+      Each screen — Spare Requests, RM Approval, Pending Dispatch, Stock Out — is also a page of its own
+      to grant. <b>Who actually holds each one is set on Roles &amp; Permissions</b>, not here.
     </p>
   </div>
 
   <div class="panel">
     <h3>Two pairs that are easy to confuse</h3>
     <p>
-      <b>Rejected vs Dropped.</b> An approver refuses a request; Stores drops an approved part.
-      Both are terminal, both need a reason, and they answer different questions — one is about
-      whether the part was warranted, the other about whether it was available.
+      <b>Rejected vs Dropped.</b> An approver refuses a request; a drop records a spare that was not
+      sent. Both are terminal, and they answer different questions — one is about whether the part was
+      warranted, the other about whether it went.
     </p>
     <p>
-      <b>Dispatched vs Received.</b> Dispatched is Stores' claim; Received is the engineer's. The
-      gap between them is stock that has left the building and not been confirmed as arrived, and
-      it is worth watching for exactly that reason.
+      <b>Dispatched vs Received.</b> Dispatched is Stores' record; Received is the acknowledgement. The
+      gap between them is stock that has left Stores and not been confirmed as arrived. It is already
+      in the engineer's hand stock either way.
     </p>
   </div>
 </div>
 <footer>
   <p>
     Drawn from the running system, not from memory: the state machine in
-    <code>src/lib/spareflow.ts</code>, the request form in
-    <code>src/modules/SpareRequests.tsx</code>, the columns and triggers in
-    <code>supabase/migrations/</code> — the OR numbering (0017), the stock out and its challan
-    (0027, 0028), the hand-stock balance view, and the consumption guard (0059, 0060) — and the
-    rights in <code>src/lib/rbac.ts</code>.
+    <code>src/lib/spareflow.ts</code> and the forms in <code>src/lib/spareapproval.ts</code>; the screens
+    <code>SpareRequests.tsx</code>, <code>SpareRmApproval.tsx</code>, <code>SpareDispatch.tsx</code> and
+    <code>StockOut.tsx</code>; and the rules in <code>supabase/migrations/</code> — the intake and OR
+    number (0011, 0019), per-line approvals (0016), the manager's tree (0033), the stock out, its single
+    number and partial dispatch (0027, 0028, 0055, 0064), receipt per shipment (0056), the reassignment
+    (0100, 0304), decisions in bulk (0116, 0118), the Commercial and NSM rules (0210), the stamped
+    dispatcher (0211), the restored line guard (0217, 0310), the approval words (0256, 0270) and the
+    request following its call (0268) — and the rights in <code>src/lib/rbac.ts</code>.
     Where this page and the code disagree, the code is the fact and this page is the bug.
   </p>
 </footer>
+
 
 </div>
 <script>
