@@ -16,7 +16,7 @@ import { getSupabase, addCall } from './supabase';
 import { dayAfter, addPeriod, todayLocal } from './dates';
 import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears,
          inheritAllPatch, isPinnedValue, installCallFromSale, machinesNeedingInstallCall,
-         type SaleForCall, type SaleItemForCall } from './coverspec';
+         coverStatus, type SaleForCall, type SaleItemForCall } from './coverspec';
 
 export type CoverKind = 'sale' | 'contract';
 
@@ -59,6 +59,37 @@ export interface CoverField {
    *  "Prev MC Number - Hide it -> Auto Populate this when I use the Renew
    *  Contract Button"). */
   hidden?: boolean;
+  /** WORKED OUT ON THE SCREEN FROM THE REST OF THE ROW, never stored by the
+   *  form -- for a value that depends on TODAY, which a stored copy would get
+   *  wrong by tomorrow. Shown read-only in place of the stored column. */
+  compute?: (row: Row) => string;
+  /** A short line under the field, worked out from the row (e.g. the years a
+   *  number of months comes to), for a value not worth a box of its own. */
+  hint?: (row: Row) => string;
+}
+
+/** A contract's status in the user's words (2026-10-02): "Active" more than
+ *  30 days before the end date, "About to Expire" within 30 days of it
+ *  (the end date itself included), "Contract Expired" once today is past it.
+ *  THE RULE IS coverStatus -- the one the register's tiles and the SQL's
+ *  cover_state() use -- so the form cannot disagree with the list; only the
+ *  words are this field's. No end date is no status, never "Active". */
+export function contractStatusText(row: Row): string {
+  const s = coverStatus(row.contract_end);
+  return s === 'ACTIVE' ? 'Active'
+    : s === 'ABOUT TO EXPIRE' ? 'About to Expire'
+    : s === 'INACTIVE' ? 'Contract Expired'
+    : '';
+}
+
+/** "= 2 years" under a period typed in months. */
+export function yearsHint(row: Row, field: string): string {
+  const y = periodYears(row[field]);
+  if (y == null) return '';
+  // 7 months is 0.58 years on screen, not 0.5833333333 -- the stored value
+  // keeps its precision; only the reading is rounded.
+  const r = Math.round(y * 100) / 100;
+  return `= ${r} year${r === 1 ? '' : 's'}`;
 }
 
 /** The labels of the required header fields this row leaves blank. */
@@ -198,7 +229,12 @@ export const CONTRACT: CoverConfig = {
     // renewed). Still read by Machine History ("renewed from …") and still
     // loaded from the old system's exports.
     { name: 'prev_mc_number', label: 'Prev MC Number', section: 'Contract', hidden: true },
-    { name: 'status', label: 'Status (as keyed)', section: 'Contract' },
+    // WORKED OUT FROM THE END DATE AND TODAY (the user, 2026-10-02), not typed.
+    // The stored column keeps whatever the old system's export carried; the
+    // form shows the computed status in its place and never writes it, since a
+    // status stored today is wrong the day the 30-day line is crossed.
+    { name: 'status', label: 'Status', section: 'Contract',
+      derived: 'the Contract End Date and today', compute: contractStatusText },
     // THE PERIOD IS ENTERED IN MONTHS AND THE REST FOLLOWS, as on the
     // Warranty Register (the user, 2026-10-02: "Contract Start Date can
     // Default to Today, Contract Period (Months) is Mandatory. Contract Period
@@ -206,9 +242,13 @@ export const CONTRACT: CoverConfig = {
     // on the Contract Start Date + Period in Months"). `deriveHeader` already
     // computed both; the form now stops inviting anybody to type over them.
     { name: 'contract_start', label: 'Contract Start Date', type: 'date', section: 'Period' },
-    { name: 'contract_months', label: 'Contract Period (Months)', type: 'number', section: 'Period', required: true },
+    { name: 'contract_months', label: 'Contract Period (Months)', type: 'number', section: 'Period', required: true,
+      hint: (r) => yearsHint(r, 'contract_months') },
+    // HIDDEN, AND STILL WRITTEN (the user, 2026-10-02: "hide this ... since it
+    // is a Calculated Field"). `deriveHeader` keeps it equal to months / 12 and
+    // the save writes it; the years show as a line under the months instead.
     { name: 'contract_years', label: 'Contract Period (Years)', type: 'number', section: 'Period',
-      derived: 'the months' },
+      derived: 'the months', hidden: true },
     { name: 'contract_end', label: 'Contract End Date', type: 'date', section: 'Period',
       derived: 'Contract Start + Period (months)' },
     // Suggested from the period and still typeable (FRS-090), now required.
