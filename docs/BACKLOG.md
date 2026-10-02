@@ -230,6 +230,14 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.40 — How RITHI Functions: Reports document** (`how-reports-work.html`).
+  Fixed: D-092 (Hand Stock Report "Other ±"), D-093 (JSON columns exported as
+  [object Object]), D-094 (Call Report status filter). **Open, need the
+  user's decision:** D-095 — KPI Export writes Close for Report Pending while
+  its text says Open; D-096 — a reader who may see feedback / consumption but
+  not the call gets false findings and blank call columns (D-037's root).
+  **Next document: Documents & Knowledge Base**, then Contracts & Warranty,
+  Overview (Indoor skipped by the user).
 - ✅ **0.10.39 — How RITHI Functions: Administration document**
   (`how-administration-works.html`). **Open, need the user's decision:** D-088 —
   `app_settings_write` lets a `config.manage` holder set `audit_mode` (no reason,
