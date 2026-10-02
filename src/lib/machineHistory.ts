@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase';
+import { allRows } from './paging';
 import { machineKey, withEventKeys } from './machine';
 
 // ===========================================================================
@@ -145,12 +146,39 @@ const squashed = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]+/g, '');
 export const partyDiffers = (n: MachineNow | null): boolean =>
   !!n && !!n.party && !!n.coverParty && squashed(n.party) !== squashed(n.coverParty);
 
+/** What one look-up found, AND WHAT IT COULD NOT READ (D-019). A register
+ *  that refused -- a policy, a timeout, a missing view -- used to come back as
+ *  an empty list, so a history missing a whole register read as complete. */
+export interface MachineHistory {
+  events: MachineEvent[];
+  /** The registers that could not be read, each with the database's reason. */
+  unread: { source: MachineEvent['source']; reason: string }[];
+}
+
+type Res<T> = { data: T[] | null; error: { message?: string } | null };
+type Page<T> = (from: number, to: number) => PromiseLike<Res<T>>;
+
+/** EVERY row of one register for this machine, PAGED -- never a fixed limit
+ *  (D-019: 50, 200 or 500 rows, while the screen said every count was exact).
+ *  A refusal becomes an entry in `unread` rather than an empty register. */
+async function readAll<T>(
+  source: MachineEvent['source'], page: Page<T>, unread: MachineHistory['unread'],
+): Promise<T[]> {
+  try {
+    return await allRows<T>(page);
+  } catch (e) {
+    unread.push({ source, reason: e instanceof Error ? e.message : String(e) });
+    return [];
+  }
+}
+
 /** Every transaction, newest first. One request per register, in parallel —
  *  a machine's life is a handful of rows in each, so this is one round trip's
  *  latency rather than ten. */
-export async function machineHistory(product: string, serial: string): Promise<MachineEvent[]> {
+export async function machineHistory(product: string, serial: string): Promise<MachineHistory> {
   const ser = s(serial);
-  if (!ser || !s(product)) return [];
+  if (!ser || !s(product)) return { events: [], unread: [] };
+  const unread: MachineHistory['unread'] = [];
   const c = client();
   // UNKEYED WHILE IT IS BEING BUILT, so no register can hand-write a key and
   // no two can agree on one by accident. `withEventKeys` is the only thing
@@ -158,11 +186,13 @@ export async function machineHistory(product: string, serial: string): Promise<M
   const out: Omit<MachineEvent, 'key'>[] = [];
 
   // ---- the calls, which also give us the UCNs the visit and spare rows hang off
-  const calls = await c.from('calls')
+  // The calls are the one register that THROWS on a refusal: the visits and
+  // spares are found through their UCNs, so without the calls two more
+  // registers would be silently empty as well.
+  const calls = await allRows<Record<string, unknown>>((f, t) => c.from('calls')
     .select('ucn,call_number,call_type,party_name,product_name,serial,reg_date,standard_complaint,complaint_reported,allocated_to,open_state,cancelled_at')
-    .eq('serial', ser).limit(500);
-  if (calls.error) throw new Error(calls.error.message);
-  const mine = sameMachineRows(calls.data ?? [], 'product_name', product, ser);
+    .eq('serial', ser).order('ucn').range(f, t));
+  const mine = sameMachineRows(calls, 'product_name', product, ser);
   const ucns = [...new Set(mine.map((r) => s(r.ucn)).filter(Boolean))];
 
   for (const r of mine) {
@@ -175,30 +205,41 @@ export async function machineHistory(product: string, serial: string): Promise<M
     });
   }
 
+  type R = Record<string, unknown>;
+  const none = Promise.resolve([] as R[]);
+  // EVERY REGISTER IS READ WHOLE, paged, and ordered by its own key so no row
+  // falls between two pages. The visits and spares go by UCN, in chunks, so a
+  // machine with hundreds of calls does not build a URL too long to send.
+  const byUcn = async (source: MachineEvent['source'], table: string, cols: string, order: string) => {
+    const out: R[] = [];
+    for (let i = 0; i < ucns.length; i += 100) {
+      const chunk = ucns.slice(i, i + 100);
+      out.push(...await readAll<R>(source, (f, t) => c.from(table).select(cols).in('ucn', chunk).order(order).range(f, t) as unknown as PromiseLike<Res<R>>, unread));
+    }
+    return out;
+  };
+  const bySerial = (source: MachineEvent['source'], table: string, cols: string, col: string, order: string) =>
+    readAll<R>(source, (f, t) => c.from(table).select(cols).eq(col, ser).order(order).range(f, t) as unknown as PromiseLike<Res<R>>, unread);
+
   const [master, visits, spares, ffrs, feedback, sale, contract, owner, extra, indoor] = await Promise.all([
     // THE MASTER IS A ROW IN THE LIST TOO (the user, 2026-09-14: "in the list
     // add Product Database also"), not only the heading. It is a register like
     // the others — somebody put the machine on it, and what it says about the
     // party can disagree with every other row, which is exactly why it belongs
     // where it can be read beside them rather than only above them.
-    c.from('products').select('item_name,serial_number,party_name,item_status,warranty_number,contract_number,contract_type,active,created_at').eq('serial_number', ser).limit(50),
-    ucns.length ? c.from('reports').select('uid,ucn,call_status,engineer,visit_at,updated_at,pending_reason').in('ucn', ucns).limit(500)
-      : Promise.resolve({ data: [], error: null }),
-    ucns.length ? c.from('spare_consumption').select('ucn,part,qty,engineer,created_at,remarks').in('ucn', ucns).limit(500)
-      : Promise.resolve({ data: [], error: null }),
-    c.from('field_failure_reports').select('ffr_no,ucn,ffr_date,customer_name,product_name,product_serial,problem_reported,ffr_status,capa_no,imported_from').eq('product_serial', ser).limit(200),
-    c.from('feedback').select('ucn,call_number,party_name,product_name,serial,complaint,entry_at,imported_from').eq('serial', ser).limit(200),
-    c.from('warranty_sale_details').select('sa_number,product_name,serial_number,party_name,sale_entry_date,invoice_no,warranty_start,warranty_end,warranty_state,already_sold_to').eq('serial_number', ser).limit(200),
-    c.from('contract_details').select('mc_number,product_name,serial_number,party_name,contract_type,contract_start,contract_end,contract_state,prev_mc_number').eq('serial_number', ser).limit(200),
-    c.from('ownership_transfers').select('reference_no,item_name,serial_number,from_party,to_party,transfer_date,reason,remarks').eq('serial_number', ser).limit(200),
-    c.from('product_additional_entries').select('item_name,serial_number,party_name,warranty_number,contract_number,source_note,remarks,created_at').eq('serial_number', ser).limit(200),
-    c.from('indoor_jobs').select('job_no,ucn,product_name,serial,party_name,received_at,status,activity,work_done,disposition').eq('serial', ser).limit(200),
+    bySerial('Product Database', 'products', 'id,item_name,serial_number,party_name,item_status,warranty_number,contract_number,contract_type,active,created_at', 'serial_number', 'id'),
+    ucns.length ? byUcn('Visit', 'reports', 'id,uid,ucn,call_status,engineer,visit_at,updated_at,pending_reason', 'id') : none,
+    ucns.length ? byUcn('Spare', 'spare_consumption', 'id,ucn,part,qty,engineer,created_at,remarks', 'id') : none,
+    bySerial('Field Failure', 'field_failure_reports', 'id,ffr_no,ucn,ffr_date,customer_name,product_name,product_serial,problem_reported,ffr_status,capa_no,imported_from', 'product_serial', 'id'),
+    bySerial('Feedback', 'feedback', 'id,ucn,call_number,party_name,product_name,serial,complaint,entry_at,imported_from', 'serial', 'id'),
+    bySerial('Sale / warranty', 'warranty_sale_details', 'id,sa_number,product_name,serial_number,party_name,sale_entry_date,invoice_no,warranty_start,warranty_end,warranty_state,already_sold_to', 'serial_number', 'id'),
+    bySerial('Contract', 'contract_details', 'id,mc_number,product_name,serial_number,party_name,contract_type,contract_start,contract_end,contract_state,prev_mc_number', 'serial_number', 'id'),
+    bySerial('Ownership', 'ownership_transfers', 'id,reference_no,item_name,serial_number,from_party,to_party,transfer_date,reason,remarks', 'serial_number', 'id'),
+    bySerial('Additional entry', 'product_additional_entries', 'id,item_name,serial_number,party_name,warranty_number,contract_number,source_note,remarks,created_at', 'serial_number', 'id'),
+    bySerial('Workshop', 'indoor_jobs', 'id,job_no,ucn,product_name,serial,party_name,received_at,status,activity,work_done,disposition', 'serial', 'id'),
   ]);
 
-  const rows = <T extends Record<string, unknown>>(r: { data: T[] | null; error: unknown }) =>
-    (r.error ? [] : (r.data ?? []));   // one register refusing must not lose the other nine
-
-  for (const r of sameMachineRows(rows(master), 'item_name', product, ser)) out.push({
+  for (const r of sameMachineRows(master, 'item_name', product, ser)) out.push({
     on: day(r.created_at), source: 'Product Database', what: s(r.item_status) || 'On the master',
     ref: s(r.serial_number), ucn: '', party: s(r.party_name),
     detail: [s(r.warranty_number) && `warranty ${s(r.warranty_number)}`,
@@ -206,7 +247,7 @@ export async function machineHistory(product: string, serial: string): Promise<M
              r.active === false && 'MARKED INACTIVE'].filter(Boolean).join(' · '),
   });
 
-  for (const r of rows(visits)) out.push({
+  for (const r of visits) out.push({
     on: day(r.visit_at) || day(r.updated_at), source: 'Visit',
     what: s(r.call_status) || 'Visit', ref: s(r.ucn), ucn: s(r.ucn), party: s(r.engineer),
     // THE VISIT'S OWN ID, LAST. Two visits on one call on one day with the same
@@ -217,7 +258,7 @@ export async function machineHistory(product: string, serial: string): Promise<M
              s(r.pending_reason), s(r.uid) && `visit ${s(r.uid)}`].filter(Boolean).join(' · '),
   });
 
-  for (const r of rows(spares)) {
+  for (const r of spares) {
     const part = s(r.part);
     const code = part.split('|')[0].trim();
     out.push({
@@ -230,20 +271,20 @@ export async function machineHistory(product: string, serial: string): Promise<M
     });
   }
 
-  for (const r of sameMachineRows(rows(ffrs), 'product_name', product, ser)) out.push({
+  for (const r of sameMachineRows(ffrs, 'product_name', product, ser)) out.push({
     on: day(r.ffr_date), source: 'Field Failure', what: s(r.ffr_status) || 'Report',
     ref: s(r.ffr_no), ucn: s(r.ucn), party: s(r.customer_name),
     detail: [s(r.problem_reported), s(r.capa_no) && `CAPA ${s(r.capa_no)}`,
              s(r.imported_from) && 'migrated'].filter(Boolean).join(' · '),
   });
 
-  for (const r of sameMachineRows(rows(feedback), 'product_name', product, ser)) out.push({
+  for (const r of sameMachineRows(feedback, 'product_name', product, ser)) out.push({
     on: day(r.entry_at), source: 'Feedback', what: 'Feedback',
     ref: s(r.call_number) || s(r.ucn), ucn: s(r.ucn), party: s(r.party_name),
     detail: [s(r.complaint), s(r.imported_from) ? 'uploaded' : 'entered here'].filter(Boolean).join(' · '),
   });
 
-  for (const r of sameMachineRows(rows(sale), 'product_name', product, ser)) out.push({
+  for (const r of sameMachineRows(sale, 'product_name', product, ser)) out.push({
     on: day(r.sale_entry_date), source: 'Sale / warranty', what: s(r.warranty_state) || 'Sold',
     ref: s(r.sa_number), ucn: '', party: s(r.party_name),
     detail: [`warranty ${day(r.warranty_start) || '—'} to ${day(r.warranty_end) || '—'}`,
@@ -251,7 +292,7 @@ export async function machineHistory(product: string, serial: string): Promise<M
              s(r.already_sold_to) && `already sold to ${s(r.already_sold_to)}`].filter(Boolean).join(' · '),
   });
 
-  for (const r of sameMachineRows(rows(contract), 'product_name', product, ser)) out.push({
+  for (const r of sameMachineRows(contract, 'product_name', product, ser)) out.push({
     on: day(r.contract_start), source: 'Contract', what: s(r.contract_type) || 'Contract',
     ref: s(r.mc_number), ucn: '', party: s(r.party_name),
     detail: [`${day(r.contract_start) || '—'} to ${day(r.contract_end) || '—'}`,
@@ -259,20 +300,20 @@ export async function machineHistory(product: string, serial: string): Promise<M
       .filter(Boolean).join(' · '),
   });
 
-  for (const r of sameMachineRows(rows(owner), 'item_name', product, ser)) out.push({
+  for (const r of sameMachineRows(owner, 'item_name', product, ser)) out.push({
     on: day(r.transfer_date), source: 'Ownership', what: 'Transferred',
     ref: s(r.reference_no), ucn: '', party: s(r.to_party),
     detail: [`${s(r.from_party) || '(not stated)'} → ${s(r.to_party)}`,
              s(r.reason), s(r.remarks)].filter(Boolean).join(' · '),
   });
 
-  for (const r of sameMachineRows(rows(extra), 'item_name', product, ser)) out.push({
+  for (const r of sameMachineRows(extra, 'item_name', product, ser)) out.push({
     on: day(r.created_at), source: 'Additional entry', what: 'Entry',
     ref: s(r.warranty_number) || s(r.contract_number), ucn: '', party: s(r.party_name),
     detail: [s(r.source_note), s(r.remarks)].filter(Boolean).join(' · '),
   });
 
-  for (const r of sameMachineRows(rows(indoor), 'product_name', product, ser)) out.push({
+  for (const r of sameMachineRows(indoor, 'product_name', product, ser)) out.push({
     on: day(r.received_at), source: 'Workshop', what: s(r.status) || 'Job',
     ref: s(r.job_no), ucn: s(r.ucn), party: s(r.party_name),
     detail: [s(r.activity), s(r.work_done), s(r.disposition) && `disposition: ${s(r.disposition)}`]
@@ -284,6 +325,9 @@ export async function machineHistory(product: string, serial: string): Promise<M
   // would read as the most recent thing that happened.
   // KEYED LAST, once the order is settled, so a row's key never depends on
   // which register happened to be read first.
-  return withEventKeys(out.sort((a, b) => (b.on || '').localeCompare(a.on || '')
-    || a.source.localeCompare(b.source)));
+  return {
+    events: withEventKeys(out.sort((a, b) => (b.on || '').localeCompare(a.on || '')
+      || a.source.localeCompare(b.source))),
+    unread,
+  };
 }

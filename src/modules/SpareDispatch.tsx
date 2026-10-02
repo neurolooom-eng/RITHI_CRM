@@ -220,6 +220,10 @@ export function SpareDispatch() {
   const runDrop = async () => {
     const reason = prompt(`Reason for dropping ${selected.length} spare${selected.length === 1 ? '' : 's'}? (short supply, no longer needed, superseded…)`);
     if (reason == null) return;
+    // A DROP IS RECORDED WITH ITS REASON (D-043). OK on an empty box used to
+    // send '' and the spares were dropped with none; the database refuses
+    // that now too (0313).
+    if (!reason.trim()) { setMsg({ tone: 'error', text: 'Nothing was dropped — a drop needs a reason.' }); return; }
     setBusy(true);
     // `fullName`, NOT `name`. The User type has no `name` — it only
     // type-checked because BaseRecord carries an index signature, so this was

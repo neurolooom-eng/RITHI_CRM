@@ -97,6 +97,17 @@ function Shell() {
   // out the user may not see simply is not found.
   if (location.pathname.startsWith('/dc/') || location.pathname.startsWith('/declaration/')
       || location.pathname.startsWith('/ffr/')) {
+    // THE PRINTED REPORT ANSWERS TO THE REGISTER'S OWN KEY (D-026). It used to
+    // be reachable by URL by anybody signed in, so a role without the Field
+    // Failure Register read every report row-level security let it see. The
+    // register and the desk inside it are the only places that link here.
+    if (location.pathname.startsWith('/ffr/') && !can(actionForPath('/failure-report'))) {
+      return (
+        <div style={{ padding: 32 }} className="muted">
+          🔒 You don’t have access to the Field Failure Register. Ask an administrator to grant it in <b>Roles &amp; Permissions</b>.
+        </div>
+      );
+    }
     return (
       <ErrorBoundary where="printable document">
         <Routes>

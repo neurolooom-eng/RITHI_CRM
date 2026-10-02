@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '../ui/ui';
 import { MachineHistoryView } from './MachineHistoryView';
-import { machineHistory, machineNow, type MachineEvent, type MachineNow } from '../../lib/machineHistory';
+import { machineHistory, machineNow, type MachineEvent, type MachineHistory, type MachineNow } from '../../lib/machineHistory';
 import { supabaseConfigured } from '../../lib/supabase';
 import { logAudit } from '../../lib/audit';
 
@@ -40,13 +40,14 @@ export function MachineHistoryDialog({
   const [events, setEvents] = useState<MachineEvent[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [unread, setUnread] = useState<MachineHistory['unread']>([]);
 
   const p = String(product ?? '').trim();
   const s = String(serial ?? '').trim();
 
   useEffect(() => {
     if (!open) return;
-    setNow(null); setEvents(null); setMsg('');
+    setNow(null); setEvents(null); setMsg(''); setUnread([]);
     if (!supabaseConfigured()) { setMsg('Not connected to the database — this reads the registers directly.'); return; }
     if (!p || !s) return;                       // the banner below says which is missing
     let live = true;
@@ -54,10 +55,10 @@ export function MachineHistoryDialog({
     void Promise.all([machineNow(p, s), machineHistory(p, s)])
       .then(([n, e]) => {
         if (!live) return;
-        setNow(n); setEvents(e);
-        if (!n && !e.length) setMsg('Nothing anywhere mentions this machine.');
+        setNow(n); setEvents(e.events); setUnread(e.unread);
+        if (!n && !e.events.length && !e.unread.length) setMsg('Nothing anywhere mentions this machine.');
         logAudit({ action: 'machine.history', target: `${p} ${s}`,
-                   meta: { events: e.length, onMaster: !!n?.onMaster, from: 'dccr' } });
+                   meta: { events: e.events.length, onMaster: !!n?.onMaster, from: 'dccr', unread: e.unread.map((u) => u.source) } });
       })
       .catch((err) => { if (live) setMsg(err instanceof Error ? err.message : String(err)); })
       .finally(() => { if (live) setBusy(false); });
@@ -83,7 +84,7 @@ export function MachineHistoryDialog({
       {msg && <div className="sheet-banner sheet-banner-info"><span>{msg}</span></div>}
       {busy && <p className="muted">Reading every register for this machine…</p>}
 
-      <MachineHistoryView product={p} serial={s} now={now} events={events} rowsBeforeScroll={10} />
+      <MachineHistoryView product={p} serial={s} now={now} events={events} unread={unread} rowsBeforeScroll={10} />
 
       {/* THE CLOSE BUTTON THE USER ASKED FOR, as well as the ✕ in the corner.
           They are not the same affordance: after scrolling through forty

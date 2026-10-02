@@ -14,6 +14,7 @@
 --   0047_audit_retention_compliance.sql
 --   0114_audit_mode.sql
 --   0307_audit_mode_key.sql
+--   0315_audit_log_read_admits_audit_view.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -27,6 +28,9 @@ begin
   end if;
   if to_regprocedure('public.is_admin()') is null then
     missing := array_append(missing, 'is_admin() — 0008_rbac_enforcement.sql (apply bundle: rbac)');
+  end if;
+  if to_regprocedure('public.has_perm(text)') is null then
+    missing := array_append(missing, 'has_perm() — 0008_rbac_enforcement.sql (apply bundle: rbac)');
   end if;
   if array_length(missing, 1) is not null then
     raise exception E'Apply these first, then re-run this bundle:\n  - %',
@@ -352,5 +356,30 @@ end $function$;
 drop policy if exists amc_read on public.audit_mode_changes;
 create policy amc_read on public.audit_mode_changes for select
   using (public.is_admin() or public.has_perm('audit.view') or public.has_perm('audit.mode'));
+
+-- ------------------------------------------------------------------------
+-- 0315_audit_log_read_admits_audit_view.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE AUDIT LOG ADMITS WHOEVER THE AUDIT LOG SCREEN ADMITS (D-066, FRS-204).
+--
+-- The Audit Log screen opens for a holder of `audit.view`; its trail,
+-- audit_log, was readable by administrators only (0009: `using (is_admin())`).
+-- So a non-administrator granted audit.view opened a page that was always
+-- empty -- which reads as "nothing happened", not as "you may not see". The
+-- record-level trail beside it, record_audit, already admits
+-- `is_admin() or has_perm('audit.view')` (0048); the two trails disagreed
+-- about their own audience.
+--
+-- Now both say the same thing. Writing to the log is unchanged (audit_insert),
+-- and nothing can update or delete it.
+-- Each half wrapped in a sub-select so it is asked once per query, not once
+-- per row (0250 -- the audit log is the largest table this app reads).
+-- ===========================================================================
+
+drop policy if exists audit_read on public.audit_log;
+create policy audit_read on public.audit_log for select
+  using ((select public.is_admin()) or (select public.has_perm('audit.view')));
 
 commit;

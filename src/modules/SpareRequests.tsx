@@ -1218,6 +1218,9 @@ function EngineerOnOrder({ row, lines, onDone }: { row: Row; lines: Row[]; onDon
 
   const save = async () => {
     if (!to.trim()) { setErr('Choose the engineer this order is moving to.'); return; }
+    // REQUIRED (D-043, URS-035): the change is kept with its reason, and the
+    // database refuses one without (0313).
+    if (!why.trim()) { setErr('Say why the order is moving — the reason is kept with the record.'); return; }
     setBusy(true); setErr('');
     const t0 = performance.now();
     try {
@@ -1264,8 +1267,8 @@ function EngineerOnOrder({ row, lines, onDone }: { row: Row; lines: Row[]; onDon
                           emptyHint="Only engineers on your team are listed." />
           </label>
           <label className="rep-field">
-            <span className="field-label">Why</span>
-            <input className="input" value={why} placeholder="Kept with the record" onChange={(e) => setWhy(e.target.value)} />
+            <span className="field-label">Why <span className="field-req">*</span></span>
+            <input className="input" value={why} placeholder="Required — kept with the record" onChange={(e) => setWhy(e.target.value)} />
           </label>
           <div className="rep-actions" style={{ position: 'static' }}>
             <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save'}</button>

@@ -4,8 +4,8 @@ import { DataTable, type Column } from '../table/DataTable';
 import { Ucn } from '../../lib/callstate';
 import { useCallStates, callStateFor } from '../../lib/callstates';
 import { csvExport, fmtLongDate } from '../../lib/format';
-import { partyDiffers, type MachineEvent, type MachineNow } from '../../lib/machineHistory';
-import { COMPLETE } from '../../lib/exportscope';
+import { partyDiffers, type MachineEvent, type MachineHistory, type MachineNow } from '../../lib/machineHistory';
+import { partial } from '../../lib/exportscope';
 
 // ===========================================================================
 // ONE MACHINE'S LIFE, RENDERED ONCE.
@@ -43,16 +43,19 @@ const Fact = ({ label, value }: { label: string; value: string }) => (
 );
 
 export function MachineHistoryView({
-  product, serial, now, events, rowsBeforeScroll,
+  product, serial, now, events, unread = [], rowsBeforeScroll,
 }: {
   product: string;
   serial: string;
   now: MachineNow | null;
   events: MachineEvent[] | null;
+  /** Registers that refused to be read. Each is NAMED, never shown as empty. */
+  unread?: MachineHistory['unread'];
   /** The dialog shows fewer rows before it scrolls than the full screen does. */
   rowsBeforeScroll?: number;
 }) {
   const [only, setOnly] = useState<MachineEvent['source'] | ''>('');
+  const more = unread.length > 0;
 
   const shown = useMemo(
     () => (events ?? []).filter((e) => !only || e.source === only),
@@ -133,10 +136,24 @@ export function MachineHistoryView({
       {events && (
         <>
           <div style={{ height: 12 }} />
-          <SectionCard title={`Everything recorded against it — ${events.length} entr${events.length === 1 ? 'y' : 'ies'}`}>
+          <SectionCard title={`Everything recorded against it — ${events.length}${more ? '+' : ''} entr${events.length === 1 && !more ? 'y' : 'ies'}`}>
+            {/* A REGISTER THAT REFUSED IS NAMED, NOT SHOWN AS EMPTY (D-019).
+                Before, a failed read came back as a register with nothing in
+                it, and the history read as complete without it. */}
+            {more && (
+              <div className="sheet-banner sheet-banner-error">
+                <span>
+                  <b>Not complete.</b> {unread.length === 1 ? 'One register' : `${unread.length} registers`} could
+                  not be read, so anything recorded there is missing below:{' '}
+                  {unread.map((u, i) => (
+                    <span key={u.source}>{i > 0 && '; '}<b>{u.source}</b> ({u.reason})</span>
+                  ))}.
+                </span>
+              </div>
+            )}
             <Toolbar>
               <button className={`chip ${only === '' ? 'chip-on' : ''}`} onClick={() => setOnly('')}>
-                All <b>{events.length}</b>
+                All <b>{events.length}{more ? '+' : ''}</b>
               </button>
               {SOURCES.filter((x) => counts.get(x)).map((x) => (
                 <button key={x} className={`chip ${only === x ? 'chip-on' : ''}`}
@@ -151,15 +168,16 @@ export function MachineHistoryView({
                           `machine-${product}-${serial}.csv`.replace(/[^a-z0-9.-]+/gi, '-'),
                           columns.filter((c) => c.key !== 'ucn').map((c) => ({ key: c.key, header: String(c.header) })),
                           shown as unknown as Record<string, unknown>[],
-                          // Every register was read WHOLE for this one machine,
-                          // not paged -- see the note on the counts below.
-                          COMPLETE)}>
+                          // Every register is read WHOLE for this one machine;
+                          // the file is partial only when one of them refused.
+                          partial(more))}>
                   ⭳ Export CSV
                 </button>
               )}
             </Toolbar>
-            {/* EVERY COUNT HERE IS EXACT — each register was read whole for this
-                one machine, not paged — so none of them carries a "+". */}
+            {/* EACH REGISTER IS READ WHOLE for this one machine, page after page,
+                so its count is exact. The All count takes a "+" only when a
+                register refused -- and that register is named above. */}
             <DataTable<Record<string, unknown>>
               columns={columns}
               rows={shown as unknown as Record<string, unknown>[]}
