@@ -7165,9 +7165,11 @@ console.log('\n-- My Workload: the queues left the registers, and open what they
       .map((key) => ({ path: m[1], key })));
   const pairs = new Set(sent.map((x) => `${x.path}|${x.key}`));
   // A COUNT RATHER THAN A LIST, so a card that stops sending a filter is
-  // noticed as well as one that starts. Six today: three registers with one
-  // filter each, and the Commercial installation card's three.
-  eq('every register a card filters is covered here', pairs.size, 6);
+  // noticed as well as one that starts. Seven today: three registers with one
+  // filter each, the Commercial installation card's three, and the Daily
+  // Review's `effectOnly` (D-040's sibling D-022: the Any Potential Effect card
+  // opened the whole register under a count of a few).
+  eq('every register a card filters is covered here', pairs.size, 7);
   sent.forEach(({ path, key }) => {
     const mod = routeOf.get(path);
     const src = mod && existsSync(`src/modules/${mod}.tsx`)

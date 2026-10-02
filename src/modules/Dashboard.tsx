@@ -60,10 +60,17 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [slaRules, setSlaRules] = useState<SlaRule[]>(DEFAULT_SLA_RULES);
+  // WHICH TARGETS THE SLA COUNTS USE, said on the screen (D-024). The built-in
+  // targets stay as the fallback -- an SLA section with nothing in it is no
+  // better -- but a breach count computed against targets nobody configured
+  // must not read as one computed against the configured ones.
+  const [slaSource, setSlaSource] = useState<'configured' | 'none-configured' | 'unreadable' | 'loading'>('loading');
 
   useEffect(() => {
-    if (!supabaseConfigured()) return;
-    listSlaRules().then((r) => { if (r.length) setSlaRules(r as SlaRule[]); }).catch(() => { /* keep defaults */ });
+    if (!supabaseConfigured()) { setSlaSource('unreadable'); return; }
+    listSlaRules()
+      .then((r) => { if (r.length) { setSlaRules(r as SlaRule[]); setSlaSource('configured'); } else setSlaSource('none-configured'); })
+      .catch(() => setSlaSource('unreadable'));
   }, []);
 
   useEffect(() => {
@@ -151,6 +158,16 @@ export function Dashboard() {
 
       {slaCalls.length > 0 && (
         <SectionCard title={`⏱️ SLA — needs attention (${slaCalls.length})`}>
+          {(slaSource === 'none-configured' || slaSource === 'unreadable') && (
+            <div className="sheet-banner sheet-banner-warn" style={{ marginBottom: 8 }}>
+              <span>
+                {slaSource === 'unreadable'
+                  ? 'The configured SLA targets could not be read, so these are judged against the built-in default targets.'
+                  : 'No SLA targets are configured yet, so these are judged against the built-in default targets.'}
+                {' '}Set them under Admin Config → SLA Targets.
+              </span>
+            </div>
+          )}
           <div className="assoc-scroll">
             <table className="assoc-table" style={{ minWidth: 620 }}>
               <thead><tr><th>SLA</th><th>UCN</th><th>Call No</th><th>Party</th><th>Status</th><th>Registered</th><th>Which rule</th></tr></thead>

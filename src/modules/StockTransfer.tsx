@@ -246,7 +246,7 @@ export function StockTransfer() {
     if (!onDb) return;
     setBusy(true);
     try {
-      const t = await listStockTransfers(1000);
+      const t = await listStockTransfers();
       const tRows = t.map((x, i) => ({ ...x, id: `${g(x as Row, 'uid')}-${i}` } as Row));
       setTransfers(tRows); setLastSync(saveCache(CACHE_KEY, tRows));
       setMsg(null);
@@ -311,7 +311,7 @@ export function StockTransfer() {
             <SearchBox value={search} onChange={setSearch} placeholder="Transfer no, engineer, part…" />
             <div className="spacer" />
             {visible.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('stock-transfers.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], cappedAt(allTransfers.length, 1000))}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('stock-transfers.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], cappedAt(allTransfers.length, 100000))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

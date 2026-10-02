@@ -3893,12 +3893,14 @@ export async function listDispatchLines(stockOutNo: string): Promise<Record<stri
   });
 }
 
-export async function listStockTransfers(limit = 1000): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('stock_transfer_lines')
+// PAGED, up to `limit` (D-047): it was one request capped at 1,000, so older
+// transfers could not be reached on screen at all. Ordered by time and then id,
+// so the pages cannot overlap or skip a line created in the same instant.
+export async function listStockTransfers(limit = 100000): Promise<Record<string, unknown>[]> {
+  const data = await allRows<Record<string, unknown>>((a, b) => must().from('stock_transfer_lines')
     .select('*, stock_transfers!inner(uid, from_engineer, to_engineer, transfer_date, remarks, status, created_at)')
-    .order('created_at', { ascending: false }).limit(limit);
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []).map((r) => {
+    .order('created_at', { ascending: false }).order('id', { ascending: false }).range(a, b) as never, limit);
+  return data.map((r) => {
     const { stock_transfers: h, ...line } = r as Record<string, unknown> & { stock_transfers?: Record<string, unknown> };
     return { ...h, ...line, uid: h?.uid, transferred_at: h?.created_at };
   });
@@ -5584,14 +5586,15 @@ export interface IndoorCheck {
   instrument: string; instrument_serial: string; calibration_due: string | null;
 }
 
-export async function listIndoorJobs(limit = 500): Promise<IndoorJob[]> {
-  const { data, error } = await must()
+// EVERY JOB, paged (D-040): it read the latest 500 and the screen called the
+// count exact, so the 501st job would have vanished under a number that looked
+// complete. `id` is unique, so the pages cannot overlap.
+export async function listIndoorJobs(): Promise<IndoorJob[]> {
+  return allRows<IndoorJob>((a, b) => must()
     .from('indoor_job_list')
     .select('*')
     .order('id', { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []) as IndoorJob[];
+    .range(a, b) as never);
 }
 
 /** A new intake. `job_no` is NOT sent: the database issues it (0158), because a

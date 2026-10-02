@@ -12,6 +12,24 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.22',
+    date: '2026-10-02',
+    title: 'Screens that showed less, or more, than they said',
+    changes: [
+      'MY WORKLOAD: the Any Potential Effect card now opens the calls it counts, not the whole review register.',
+      'SPARE INSIGHTS opens on 1 January of the current year (it was fixed to 2026), and This year follows the year.',
+      'DASHBOARD: when no SLA targets are configured, or they cannot be read, the SLA section says it is using the built-in targets.',
+      'COUNTS THAT ARE ONLY THE LOADED ROWS SHOW +: Request Registration status chips, Pending Calls tiles and Spare Consumption. Pending Calls tiles no longer drop to 0 when you pick one.',
+      'NOTHING STOPS AT A HIDDEN LIMIT: the Indoor register shows every job and Stock Transfer shows every transfer (both stopped at 500 / 1,000). The Hand Stock drawer says when it is showing only the latest 500 movements.',
+      'A FAILED READ IS SAID, NOT SHOWN AS EMPTY: an opened call\'s visits/spares/feedback, the Open Calls check on Pending Registrations, and the Stock Out list.',
+      'AN EDIT LINK FROM PENDING CALLS opens the call even when it is older than the loaded rows.',
+      'SPARE CONSUMPTION no longer hides rows the database already allowed you to see (it filtered them a second time by name).',
+      'HAND STOCK: the drawer\'s sum now includes the opening balance and adds up to the stock shown.',
+      'DATES read dd-MMM-yyyy on the contract Renew panel and the Ownership Transfer forms; the Document Library\'s Updated column is formatted; a searched Hand Stock .csv says the search in its file name.',
+      'SOLVED / FEEDBACK WITHOUT A REPORT only say "every … has …" to someone who sees every record.',
+    ],
+  },
+  {
     version: '0.10.21',
     date: '2026-10-01',
     title: 'HSN clean-up finished; renaming a part works for more people',

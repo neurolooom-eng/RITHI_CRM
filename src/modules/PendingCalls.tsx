@@ -178,11 +178,23 @@ export function PendingCalls() {
     return [...c.entries()].map(([key, count]) => ({ key, count }));
   }, [rows, type, state, q, scope]);
 
+  // Counted with every filter EXCEPT the state itself (D-040): counted after
+  // it, choosing one tile set every other tile to 0, so the tiles stopped
+  // saying what clicking them would give. Over the rows LOADED, so a `+` when
+  // more exist.
   const counts = useMemo(() => {
+    const needle = q.trim().toLowerCase();
     const c: Record<string, number> = {};
-    visible.forEach((r) => { const s = String(r.state ?? ''); c[s] = (c[s] ?? 0) + 1; });
+    rows.forEach((r) => {
+      if (!(scope.all || allowsAllottee(scope, r.allocatedTo))) return;
+      if (type && callFamily(r.callType) !== type) return;
+      if (engineerFilter && String(r.allocatedTo ?? '').trim() !== engineerFilter) return;
+      if (needle && !['ucn', 'partyName', 'city', 'productName', 'serial', 'complaintReported', 'allocatedTo']
+        .some((k) => String(r[k] ?? '').toLowerCase().includes(needle))) return;
+      const s = String(r.state ?? ''); c[s] = (c[s] ?? 0) + 1;
+    });
     return c;
-  }, [visible]);
+  }, [rows, type, engineerFilter, q, scope]);
 
   return (
     <div>
@@ -227,7 +239,7 @@ export function PendingCalls() {
             onClick={() => setState(state === s ? '' : s)}
             title={`Show only ${s.toLowerCase()} calls`}
           >
-            <span className="pc-tile-n">{counts[s] ?? 0}</span>
+            <span className="pc-tile-n">{counts[s] ?? 0}{moreAvailable ? '+' : ''}</span>
             <StateBadge state={s} />
           </button>
         ))}

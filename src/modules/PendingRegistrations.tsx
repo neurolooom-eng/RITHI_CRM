@@ -47,6 +47,7 @@ const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
 
 function buildColumns(
   openCalls: Record<string, OpenCall[]>,
+  openCallsFailed: boolean,
   canAct: boolean,
   onMapUcn: (row: Row, ucn: string) => void,
 ): Column<Row>[] {
@@ -56,7 +57,11 @@ function buildColumns(
       key: '_open', header: 'Open Calls', width: 130, sortable: false,
       render: (row) => {
         const list = openCalls[row.id] ?? [];
-        if (!list.length) return <span className="muted">—</span>;
+        // A FAILED LOOKUP IS NOT "NO OPEN CALL" (D-040): "—" there reads as
+        // "nothing pending on this machine", which is what decides a new call.
+        if (!list.length) return openCallsFailed
+          ? <span className="muted" title="The check for open calls failed — Refresh to try again">not checked</span>
+          : <span className="muted">—</span>;
         const worst = list.find((c) => c.state !== 'Report pending') ?? list[0];
         return (
           <span
@@ -111,6 +116,7 @@ export function PendingRegistrations() {
   const mayCreateFor = (row: Row) => can(/install/i.test(g(row, 'CALL TYPE')) ? 'install.create' : 'calls.create');
   const [rows, setRows] = useState<Row[]>([]);
   const [openCalls, setOpenCalls] = useState<Record<string, OpenCall[]>>({});
+  const [openCallsFailed, setOpenCallsFailed] = useState(false);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState<Row | null>(null);
@@ -157,6 +163,7 @@ export function PendingRegistrations() {
   // Open calls for the machines on this list — one lookup for the whole page.
   const loadOpenCalls = async (list: Row[]) => {
     if (!supabaseConfigured() || !list.length) return;
+    setOpenCallsFailed(false);
     try {
       const found = await openCallsFor(
         list.map((r) => ({ product: g(r, 'PRODUCT', 'Product'), serial: g(r, 'SERIAL NO', 'Serial') })),
@@ -182,7 +189,7 @@ export function PendingRegistrations() {
         if (hit?.length) out[r.id] = hit;
       });
       setOpenCalls(out);
-    } catch { /* the column just stays empty */ }
+    } catch { setOpenCallsFailed(true); }
   };
 
   // Map the request to a call that already exists (picked from the list or
@@ -311,7 +318,7 @@ export function PendingRegistrations() {
       )}
 
       <DataTable<Row>
-        columns={buildColumns(openCalls, canAct, (row, ucn) => void mapToUcn(row, ucn))}
+        columns={buildColumns(openCalls, openCallsFailed, canAct, (row, ucn) => void mapToUcn(row, ucn))}
         rows={visible}
         getRowId={(r) => r.id}
         storageKey="pendingRegistrations"
@@ -330,6 +337,7 @@ export function PendingRegistrations() {
         <RequestActions
           row={detail}
           openCalls={openCalls[detail.id] ?? []}
+          openCallsFailed={openCallsFailed}
           canAct={canAct}
           busy={busy}
           onClose={() => setDetail(null)}
@@ -359,10 +367,11 @@ export function PendingRegistrations() {
 // create a new one, or cancel.
 // ---------------------------------------------------------------------------
 function RequestActions({
-  row, openCalls, canAct, canCreate, busy, onClose, onMap, onCreate, onCancel, onOpenCall,
+  row, openCalls, openCallsFailed, canAct, canCreate, busy, onClose, onMap, onCreate, onCancel, onOpenCall,
 }: {
   row: Row;
   openCalls: OpenCall[];
+  openCallsFailed?: boolean;
   canAct: boolean;
   canCreate: boolean;
   busy: boolean;
@@ -551,7 +560,9 @@ function RequestActions({
               <>
                 <div className="req-act-sec">
                   <div className="rep-sec-title">Open calls for this machine</div>
-                  {openCalls.length === 0 ? (
+                  {openCalls.length === 0 && openCallsFailed ? (
+                    <div className="field-err">The check for open calls failed, so it is not known whether one is pending on this serial/party. Refresh the list before registering a new call.</div>
+                  ) : openCalls.length === 0 ? (
                     <div className="detail-hint">No open call found — nothing is pending on this serial/party.</div>
                   ) : (
                     <div className="req-open-list">

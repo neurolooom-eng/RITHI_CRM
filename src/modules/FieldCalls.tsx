@@ -829,8 +829,19 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       return;
     }
     if (st?.editUcn) {
-      setEditUcnTarget(String(st.editUcn));
+      const u = String(st.editUcn);
       window.history.replaceState({}, '');
+      // A CALL OUTSIDE THE LOADED PAGE IS FETCHED, not silently ignored
+      // (D-040): an edit link from Pending Calls to a call older than the
+      // loaded rows used to open nothing and say nothing. Same path as the
+      // header search's view link above.
+      if (cached.some((r) => String(r.ucn) === u) || !configured) { setEditUcnTarget(u); return; }
+      void callByUcn(u).then((r) => {
+        if (!r) { setBanner({ tone: 'error', text: `Call ${u} could not be opened — it may have moved, or you may not be allowed to see it.` }); return; }
+        const row = { ...r, id: u, _synced: true } as Rec;
+        if (!db.list(config.collection).some((x) => String((x as Rec).ucn) === u)) db.insert(config.collection, row);
+        setDrawer({ mode: 'edit', row });
+      }).catch((e) => setBanner({ tone: 'error', text: `Call ${u} could not be opened: ${e instanceof Error ? e.message : String(e)}` }));
       return;
     }
     if (st?.prefill) {

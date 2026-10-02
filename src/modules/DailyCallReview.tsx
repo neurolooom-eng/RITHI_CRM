@@ -200,6 +200,8 @@ export function DailyCallReview() {
   const [product, setProduct] = useState('');
   const [engineer, setEngineer] = useState('');
   const [effectOnly, setEffectOnly] = useState(false);
+  // ...and with Any Potential Effect, so that card opens the calls it counts (D-022).
+  useArrivingFilter<boolean>('effectOnly', (v) => setEffectOnly(!!v));
   const [search, setSearch] = useState('');
   // What the loaded page set was actually read with, so Load more keeps asking
   // for the same thing while the boxes are being typed in.

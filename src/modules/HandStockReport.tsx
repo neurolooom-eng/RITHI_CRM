@@ -158,12 +158,18 @@ export function HandStockReport() {
     // disabled button is a UI fact and this is a correctness one.
     if (!complete || !visible.length) return;
     const name = handStockFileName(kind);
+    const term = q.trim().replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+    const csvName = term ? name.replace(/\.csv$/, `_SEARCH-${term}.csv`) : name;
     const cols = HANDSTOCK_REPORT_COLUMNS;
 
     if (kind === 'csv') {
       // A CSV CAN ONLY CARRY TEXT, so the timestamps go out as
       // dd-MMM-yyyy HH:mm:ss rather than the ISO string the API sent.
-      csvExport(name, cols,
+      //
+      // AND IT HAS NO "About" SHEET, so a searched register says so in its
+      // NAME (D-047): a .csv of one engineer's lines otherwise reads as the
+      // whole register to whoever opens it later.
+      csvExport(csvName, cols,
         visible.map((r) => Object.fromEntries(cols.map((c) => [c.key, xlsxText(r[c.key])]))), COMPLETE);
     } else {
       // THE CELL SHAPING BELONGS TO THE WRITER. `xlsxCell` turns a timestamp
@@ -195,7 +201,7 @@ export function HandStockReport() {
       if (kind === 'xlsx') xlsxDownload(name, [sheet(xlsxCell), about], COMPLETE);
       else xlsDownload(name, [sheet((v) => v), about], COMPLETE);
     }
-    logAudit({ action: 'report.handstock', meta: { rows: visible.length, scope, kind, file: name } });
+    logAudit({ action: 'report.handstock', meta: { rows: visible.length, scope, kind, file: kind === 'csv' ? csvName : name } });
   };
 
   const btn = (kind: 'csv' | 'xlsx' | 'xls', label: string, title: string) => (

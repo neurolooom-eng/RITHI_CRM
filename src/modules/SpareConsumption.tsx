@@ -328,13 +328,20 @@ export function SpareConsumption() {
 
   // Role scope: engineers/RMs see their own consumption when an engineer column
   // exists; otherwise (no such column) the view is unfiltered.
+  //
+  // NOT A SECOND TIME OVER THE DATABASE'S ANSWER (D-047). From the database the
+  // rows are already exactly what `cons_read` lets this person see -- their
+  // own, their team's, or everyone's for an office role -- and filtering them
+  // again by a name or e-mail column hid rows the policy allowed (a team
+  // member's, a line the office booked for them). Only rows that did NOT come
+  // through the policy are narrowed here.
   const scoped = useMemo(() => {
-    if (scope.all || (!engineerKey && !emailKey)) return rows;
+    if (onDb || scope.all || (!engineerKey && !emailKey)) return rows;
     return rows.filter((r) =>
       (engineerKey && scope.names.has(g(r, engineerKey).trim().toLowerCase())) ||
       (emailKey && g(r, emailKey).toLowerCase() === email),
     );
-  }, [rows, scope, engineerKey, emailKey, email]);
+  }, [rows, scope, engineerKey, emailKey, email, onDb]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -396,7 +403,9 @@ export function SpareConsumption() {
       <PageHeader
         onRefresh={() => void load()}
         refreshing={busy}
-        syncedAt={lastSync} title="Spare Consumption" subtitle="Spares consumed against every call report (v2Consumption), traceable by UCN." icon="🧾" count={visible.length} />
+        syncedAt={lastSync} title="Spare Consumption" subtitle="Spares consumed against every call report (v2Consumption), traceable by UCN." icon="🧾" count={visible.length}
+        // A LOWER BOUND while more pages exist (D-047): the count read exact.
+        countMore={onDb && more} />
 
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
