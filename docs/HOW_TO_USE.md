@@ -1190,11 +1190,14 @@ typed into a form that reads it.
   > permission, and it is the one thing that shows no error at all. Tick the
   > page here for the role. The headings and their order match the menu exactly,
   > so look for it under the group it sits in on the left.
-- **Audit Log** `/audit` — what was recorded while audit mode was on. Turning it on
-  or off needs a reason, and that history outlives the log.
+- **Audit Log** `/audit` — what the application recorded: actions, sign-ins, errors
+  and how long they took. It records all the time, whatever Audit Mode says. The
+  history of Audit Mode being turned on and off, each with its reason, is on
+  Admin Config.
 - **Admin Config** `/admin-config` — the settings the rules read: the SLA
   targets, the Call Registration desk, the frequent-failure window and threshold,
-  the objective cut-offs and their lock, audit mode. The SLA targets, the desk
+  and audit mode. (The objective cut-offs and their lock are on the Objective
+  screen.) The SLA targets, the desk
   and the frequent-failure rule are open to anybody given *Admin config*;
   switching Audit Mode and the Data Import panel each have their own tick on
   Roles & Permissions (*audit.mode*, *import.panel*). **While Audit Mode is
@@ -1209,8 +1212,8 @@ typed into a form that reads it.
   > see what that step does, where, and the requirements and tests behind it, or
   > press **▶ Play** to walk through it step by step. The same diagrams are under
   > **How RITHI Functions → Data flows**.
-- **Settings** `/settings` — your preferences, and for an administrator the
-  connection settings.
+- **Settings** `/settings` — the database and CallReg sheet connections for this
+  browser. Your theme and account are on My Profile.
 - **Your Profile** `/profile` — **one tab per section**: Account, Details &
   R&R, Training, **My Team** (only if people report to you — split into
   **Active / Current** and **Ex Employees** by the User Master's *Active*

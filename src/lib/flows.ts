@@ -782,7 +782,7 @@ export const FLOWS: Flow[] = [
         detail: 'A file needs export.data and the report’s own right, and the report’s download controls are disabled for a role that may not take it. Today the gate is enforced in the CSV writer; the workbook and ZIP writers do not yet consult it.',
         reqs: ['FRS-193', 'FRS-138', 'URS-149'] },
       { id: 'dx', label: 'Data Export — whole tables, schedules', route: '/data-export', area: 'report',
-        detail: 'Opens only with export.tables or export.schedules, lists the exportable tables (no audit table) and writes one CSV per table into one ZIP. Only an administrator amends, pauses or deletes a schedule, and the record of its past runs is kept.',
+        detail: 'Opens only with export.tables or export.schedules, lists the exportable tables (no audit table) and writes one CSV per table into one ZIP. A holder of export.schedules amends, pauses or deletes a schedule, and the record of its past runs is kept.',
         records: ['export_schedules', 'export_runs'], reqs: ['FRS-202', 'URS-155'] },
       { id: 'audit', label: 'Recorded in the audit trail', route: '/audit', area: 'admin', automatic: true,
         detail: 'A report download is written to audit_log naming the report, the rows, the columns and the filter, and read on the Audit Log by those entitled to it.',
