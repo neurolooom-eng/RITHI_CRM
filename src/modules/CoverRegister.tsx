@@ -12,6 +12,7 @@ import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          partyFillChanges } from '../lib/coverspec';
 import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
+import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
 import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
 import { listProductLines, sellableNames, sellableCodes, retiredNames, type ProductLine } from '../lib/productLines';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
@@ -22,7 +23,7 @@ import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
   configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit,
-  raiseInstallCalls, missingRequired,
+  raiseInstallCalls, missingRequired, yearsHint,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
@@ -466,14 +467,14 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
           <LongDateText value={d.contract_end} />
         </label>
         <label className="rep-field">
-          <span className="field-label">Period (Years) <span className="muted">· from the months</span></span>
-          <input className="input" value={d.contract_years ?? ''} readOnly disabled />
-        </label>
-        <label className="rep-field">
           <span className="field-label">Period (Months) *</span>
           <input className="input" type="number" min={0} value={d.contract_months ?? ''}
                  onChange={(e) => reperiodMonths(d.contract_start,
                    e.target.value === '' ? null : Number(e.target.value))} />
+          {/* The years, as a line rather than a box (2026-10-02). */}
+          {yearsHint(d as unknown as Row, 'contract_months') && (
+            <span className="muted rep-hint">{yearsHint(d as unknown as Row, 'contract_months')}</span>
+          )}
         </label>
       </div>
 
@@ -1151,7 +1152,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
               {kind === 'sale' && SALE_PARTY_FIELDS.includes(f.name)
                 && <span className="muted"> · from the party</span>}
             </span>
-            <FieldInput field={f} value={fromDb(f, draft[f.name])} disabled={!canEdit}
+            <FieldInput field={f} value={f.compute ? f.compute(draft) : fromDb(f, draft[f.name])} disabled={!canEdit}
               onChange={(v) => {
                 setDraft((d) => {
                   // The register's own arithmetic, from the AppSheet
@@ -1169,6 +1170,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 });
                 if (kind === 'sale' && f.name === 'party_name') void fillFromParty(v);
               }} />
+            {f.hint && f.hint(draft) && <span className="muted rep-hint">{f.hint(draft)}</span>}
           </label>
         ))}
       </div>
@@ -1322,6 +1324,12 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 screen of contract fields. */}
             {renewPanel && <div style={{ marginBottom: 14 }}>{renewPanel}</div>}
             <div className="cover-pop-col-head">{cfg.keyLabel} details</div>
+            {/* WHAT THIS DEVICE HOLDS, as on Call Request (the user,
+                2026-10-02). Party Name searches the copy on the device first --
+                the machine register for a contract, the Party Master for a
+                sale -- both downloaded at sign-in by Layout and refreshed every
+                six hours; this line says how old that copy is. */}
+            <MachineRegisterNote />
             {entryNote}
             {entryFields}
           </div>

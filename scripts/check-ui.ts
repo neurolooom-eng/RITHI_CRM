@@ -10,7 +10,7 @@ import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod, todayLocal } from '../src/lib/dates';
-import { configFor } from '../src/lib/cover';
+import { configFor, contractStatusText, yearsHint } from '../src/lib/cover';
 import { localIsoDate, formatDayTime, excelSerial, hasClockTime } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
@@ -2713,6 +2713,24 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
     const prev = configFor('contract').headerFields.find((f) => f.name === 'prev_mc_number');
     eq('Prev MC Number is still a writable header column', !!prev, true);
     eq('...but is not shown on the contract form', prev?.hidden, true);
+    // STATUS IS WORKED OUT, AND YEARS IS A LINE, NOT A BOX (2026-10-02).
+    const status = configFor('contract').headerFields.find((f) => f.name === 'status');
+    eq('a contract status is computed, never typed', !!status?.compute && !!status?.derived, true);
+    // A LOCAL yyyy-MM-dd, `days` from today -- built by hand, because
+    // localIsoDate reads a value from the wire and answers nothing for a Date.
+    const dayFromToday = (days: number) => {
+      const t = new Date(); t.setDate(t.getDate() + days);
+      return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    };
+    eq('...Active more than 30 days out', contractStatusText({ contract_end: dayFromToday(31) }), 'Active');
+    eq('...About to Expire at exactly 30 days', contractStatusText({ contract_end: dayFromToday(30) }), 'About to Expire');
+    eq('...About to Expire on the end date itself', contractStatusText({ contract_end: dayFromToday(0) }), 'About to Expire');
+    eq('...Contract Expired the day after', contractStatusText({ contract_end: dayFromToday(-1) }), 'Contract Expired');
+    eq('...and nothing with no end date', contractStatusText({}), '');
+    eq('the years are hidden and still written', configFor('contract').headerFields.find((f) => f.name === 'contract_years')?.hidden, true);
+    eq('...and shown under the months', yearsHint({ contract_months: 18 }, 'contract_months'), '= 1.5 years');
+    eq('the entry window says how old the device copy is',
+      /<MachineRegisterNote \/>/.test(readFileSync('src/modules/CoverRegister.tsx', 'utf8')), true);
     eq('...and the form leaves hidden fields out',
       /const shownHeader = cfg\.headerFields\.filter\(\(f\) => !f\.hidden\)/.test(readFileSync('src/modules/CoverRegister.tsx', 'utf8')), true);
   }
