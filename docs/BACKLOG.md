@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-10-02 (INSTALLATION CALLS MAPPED ONCE + MACHINES WITHOUT AN INSTALLATION CALL — 0319, v0.10.41: applied by the merge's "Apply database migrations" run; read its log for "0319: N mapped by WI- number, …", then _status.sql row 246 reads yes. Before that: WARRANTY → CONTRACT and the ONE-TIME PARTY MASTER UPDATE — 0318, v0.10.38: applied by the merge's "Apply database migrations" run, NOT by hand; read the run's log for "0318: N sale(s) updated … M machine line(s)", then _status.sql row 245 reads yes. Old values are in sale_party_refresh_backup / sale_items_inherit_backup (service role only). Before that: HIGH-RATED BATCH 1 MERGED (#483) — D-019, D-026, D-036, D-042, D-043, D-045, D-051, D-062, D-066, D-070 fixed, and D-083 found and fixed (raising a consumption quantity called a function that never existed); migrations 0311–0316, _status.sql rows 237–242, suite high_batch_1_test; v0.10.35. The migration workflow applies 0311–0316 on merge — check its log. Before that: MEDIUM-RATED DEFECTS FIXED, MERGED (#475) — D-022, D-023, D-024, D-040 (7), D-046, D-047 (4), D-048, D-064; screen-only, no SQL; v0.10.24. D-025's remaining part moved to D-035; D-056 left open (a design change, not a small one). Before that: D-057 ACCEPTED AS IS — the user: "Leave it as it is, it is that way for Ease of Operation." The common starting password stays and no change is forced at first sign-in; URS-133, FRS-001, FRS-168, OQ-161, R-80 (residual now High, honestly) and FM-69 say so. Before that: REVIEW 1'S DATE IS THE CALL'S REGISTRATION DATE — it was in the review patch type and the set-date control's type though call_reviews has no such column; removed from both, FRS-106.1 corrected, check:ui holds it. No behaviour changed: the drawer never offered it. Before that: ADMIN-ONLY ACTIONS ARE KEYS — review.correct_date, objective.lock, spare.reassign, users.reset_password, bulk.upload, pm.bulk_upload, import.panel, export.tables, export.schedules, audit.mode; only the Admin COLUMN is greyed on Roles & Permissions; the database asks the same keys (0302–0307), and a non-admin reset never reaches an Admin's or a permission-granter's password. Nobody but Admin holds them until ticked. v0.10.16, _status.sql rows 228–233, suite admin_keys_grantable_test; D-020 partly fixed (the date change is refused; recording it is still open). Before that: D-074 FIXED — one way in: the local demo sign-in and the sheet sign-in removed, the browser's stored demo accounts deleted on load; a login with no profile holds nothing, in the app and in has_perm() (0300) and Field Solutions (0301); one forgotten-password remedy. v0.10.15, _status.sql row 227, suite unresolved_login_test. 0300/0301 are applied by the merge's "Apply database migrations" run — check its log. Before that: FINDINGS 57–67 BUILT — per-screen keys (0286–0297), today's grants copied once (0298, new `permissions` bundle), parent keys in `perm_parents`, admin-only rows, dead ticks gone, a login's role guarded on insert; _status.sql rows 214–225; v0.10.11, NOT merged. Before that: AUTO REVIEW BY ROLE — 0285 gives review.auto to Admin, NSM and Technical Support and takes back 0269's grant by name, _status.sql row 213, v0.10.10. Before that: SOFTWARE VALIDATION REV 3.0 — every page read (docs/CAPABILITY_INVENTORY.md, 1,072 actions), 87 URS / 121 FRS / 126 tests / 61 risks / 61 DFMEA / 58 defects added, 27 corrections; 53 DEFECTS OPEN, each with a test that fails until it is fixed; data flow diagrams; 0269 auto review switch (Bagyaraj, Vignesh), imported reviews raise no FFR, CAPA blank. ⚠️ CHANGE THE PASSWORD of service.almsind@gmail.com — its plaintext was in a comment in src/lib/auth.tsx (removed, still in git history). On the branch, NOT merged. Before that: FINDING 20 FOLLOW-UP — "Cleared for Stores Processing"
+_Last updated: 2026-10-02 (INDOOR SERVICE IN STAGES + INDOOR DC APPROVAL FILING THE VISIT — 0323: applied by the merge's "Apply database migrations" run; then _status.sql rows 250, 252–254 read yes. Before that: INSTALLATION CALLS MAPPED ONCE + MACHINES WITHOUT AN INSTALLATION CALL — 0319, v0.10.41: applied by the merge's "Apply database migrations" run; read its log for "0319: N mapped by WI- number, …", then _status.sql row 246 reads yes. Before that: WARRANTY → CONTRACT and the ONE-TIME PARTY MASTER UPDATE — 0318, v0.10.38: applied by the merge's "Apply database migrations" run, NOT by hand; read the run's log for "0318: N sale(s) updated … M machine line(s)", then _status.sql row 245 reads yes. Old values are in sale_party_refresh_backup / sale_items_inherit_backup (service role only). Before that: HIGH-RATED BATCH 1 MERGED (#483) — D-019, D-026, D-036, D-042, D-043, D-045, D-051, D-062, D-066, D-070 fixed, and D-083 found and fixed (raising a consumption quantity called a function that never existed); migrations 0311–0316, _status.sql rows 237–242, suite high_batch_1_test; v0.10.35. The migration workflow applies 0311–0316 on merge — check its log. Before that: MEDIUM-RATED DEFECTS FIXED, MERGED (#475) — D-022, D-023, D-024, D-040 (7), D-046, D-047 (4), D-048, D-064; screen-only, no SQL; v0.10.24. D-025's remaining part moved to D-035; D-056 left open (a design change, not a small one). Before that: D-057 ACCEPTED AS IS — the user: "Leave it as it is, it is that way for Ease of Operation." The common starting password stays and no change is forced at first sign-in; URS-133, FRS-001, FRS-168, OQ-161, R-80 (residual now High, honestly) and FM-69 say so. Before that: REVIEW 1'S DATE IS THE CALL'S REGISTRATION DATE — it was in the review patch type and the set-date control's type though call_reviews has no such column; removed from both, FRS-106.1 corrected, check:ui holds it. No behaviour changed: the drawer never offered it. Before that: ADMIN-ONLY ACTIONS ARE KEYS — review.correct_date, objective.lock, spare.reassign, users.reset_password, bulk.upload, pm.bulk_upload, import.panel, export.tables, export.schedules, audit.mode; only the Admin COLUMN is greyed on Roles & Permissions; the database asks the same keys (0302–0307), and a non-admin reset never reaches an Admin's or a permission-granter's password. Nobody but Admin holds them until ticked. v0.10.16, _status.sql rows 228–233, suite admin_keys_grantable_test; D-020 partly fixed (the date change is refused; recording it is still open). Before that: D-074 FIXED — one way in: the local demo sign-in and the sheet sign-in removed, the browser's stored demo accounts deleted on load; a login with no profile holds nothing, in the app and in has_perm() (0300) and Field Solutions (0301); one forgotten-password remedy. v0.10.15, _status.sql row 227, suite unresolved_login_test. 0300/0301 are applied by the merge's "Apply database migrations" run — check its log. Before that: FINDINGS 57–67 BUILT — per-screen keys (0286–0297), today's grants copied once (0298, new `permissions` bundle), parent keys in `perm_parents`, admin-only rows, dead ticks gone, a login's role guarded on insert; _status.sql rows 214–225; v0.10.11, NOT merged. Before that: AUTO REVIEW BY ROLE — 0285 gives review.auto to Admin, NSM and Technical Support and takes back 0269's grant by name, _status.sql row 213, v0.10.10. Before that: SOFTWARE VALIDATION REV 3.0 — every page read (docs/CAPABILITY_INVENTORY.md, 1,072 actions), 87 URS / 121 FRS / 126 tests / 61 risks / 61 DFMEA / 58 defects added, 27 corrections; 53 DEFECTS OPEN, each with a test that fails until it is fixed; data flow diagrams; 0269 auto review switch (Bagyaraj, Vignesh), imported reviews raise no FFR, CAPA blank. ⚠️ CHANGE THE PASSWORD of service.almsind@gmail.com — its plaintext was in a comment in src/lib/auth.tsx (removed, still in git history). On the branch, NOT merged. Before that: FINDING 20 FOLLOW-UP — "Cleared for Stores Processing"
 counts as approved, 0270, v0.10.7, on the branch, NOT merged; _status.sql row
 199. Before that: MODULE REVIEW BATCH 7 — findings 20, 23, 31, v0.10.2,
 MERGED in #453 on the user's word ("Lets merge"). Migrations 0256 (approval words), 0257 (a rename carries
@@ -73,6 +73,51 @@ _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 up)_
 
 ---
+
+## 2026-10-02 — Indoor Service in stages; the Indoor DC approved by its Authorised By, filing the visit (0323)
+
+The user described the workshop's WORKFLOW as stages and asked for the screen to
+be rebuilt around them; then that the report upload captures the call's Visit
+Entry ("why should they do the same work twice"), that the visit filed always
+reads Unsolved / Return to Field / work details Yes, and that "Only the INDOOR
+DC needs an approval".
+
+- **Shipped (on the branch):**
+  - `0323_indoor_stages.sql` (indoor): `indoor_job_accessories.qty`;
+    `indoor_jobs` standard_complaint, report_file_url / _name, report_uploaded_by
+    / _at (stamped), visit_draft / visit_date, visit_uid / visit_filed_at;
+    `indoor_dcs` authorised_by_name + the approval columns; the guard (0320's
+    body + rules: report after cleaning with its number and indoor.work; no
+    dispatch while the DC is pending; a recorded visit must be this call's and
+    read Unsolved / Return to Field / Yes; the release-ticket exemption);
+    `create_indoor_dc()` re-signed (no DC date -- the date of entry; AUTHORISED
+    BY required; report required; accessory quantities; Pending approval);
+    `indoor_dc_authorisers()`, `indoor_dc_may_approve()`,
+    `record_indoor_visit()`, `approve_indoor_dc()`, `reject_indoor_dc()`, the
+    release ticket table; "Return to Field" added to the Call Pending Reason
+    master; `indoor_job_list` / `indoor_dc_list` rebuilt (0245 mirror moved).
+    No key added, nothing granted.
+  - Screens: the intake form (IndoorIntake.tsx), the stepper and stage-gated
+    drawer, R/SER/07 as the default view with a Stage chip and an Upload cell,
+    the report upload (CallReportDrawer's Indoor mode for a UCN job; number +
+    file for a DEMO), Request spare, Authorised By on the DC, approval in the
+    Indoor DC list and on My Workload, the PENDING APPROVAL band on the print.
+    The Visit Entry now saves through `fileVisit()`, shared with the approval.
+  - Requirements URS-173/174, FRS-232-236 (FRS-225/228 amended), OQ-226
+    (`indoor_stages_test`), OQ-227 (manual), OQ-223 amended; `_status.sql` rows
+    252-254 (row 250 moved to 0323's signature).
+- **Pending:** the merge's "Apply database migrations" run applies 0323 -- read
+  its log; then rows 250 and 252-254 read yes.
+- **Left open:** the Authorised By and the approver must be able to open the
+  Indoor Service page (mod:/indoor) and, to file the visits, see the calls and
+  hold the visit rights (calls.report.visit / install / pm, visit.spares where
+  spares were drafted) -- granted by an administrator, nothing was granted;
+  the Indoor engineer must be able to see the call to draft its visit; a Drive
+  folder for Indoor reports (they land in the drive root -- needs a CallReg.gs
+  folder and a redeploy); whether a DC No. typed by hand on a job should still
+  be allowed beside the Indoor DC (it bypasses the approval); replacing the
+  uploaded report after a DC exists (the screen stops offering it; the
+  database does not refuse it).
 
 ## 2026-10-02 — Indoor_DC, and the MTN and MRN printed (0321, 0322)
 

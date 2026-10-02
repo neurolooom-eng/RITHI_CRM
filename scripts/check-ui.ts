@@ -3750,17 +3750,21 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   const cr = readFileSync('src/modules/CallReporting.tsx', 'utf8');
 
   // What is handed to addConsumptionRows must not be the committed-only list.
-  const insert = /addConsumptionRows\(([A-Za-z]+)\.map/.exec(cr)?.[1] ?? '';
-  eq('the consumption insert carries more than the added lines', insert !== 'spares' && insert !== '', true);
+  // Since 0323 the write is fileVisit()'s (the one visit save path, shared
+  // with the Indoor DC's approval): it inserts the DRAFT's spares, and Save
+  // builds that draft's spares from the added lines plus the picker.
+  const insert = /addConsumptionRows\(([A-Za-z]+)\.spares\.map/.exec(cr) ? 'd.spares' : '';
+  const handed = /spares: ([A-Za-z]+),/.exec(/const draft: VisitDraft = \{[\s\S]*?\};/.exec(cr)?.[0] ?? '')?.[1] ?? '';
+  eq('the consumption insert carries more than the added lines', insert !== '' && handed !== 'spares' && handed !== '', true);
 
   // …and that list must actually be the committed lines PLUS the draft.
-  const built = new RegExp(`const ${insert} = [^;]*spares[^;]*\\.line`).test(cr)
-             || new RegExp(`const ${insert} = [^;]*\\.\\.\\.spares`).test(cr);
+  const built = new RegExp(`const ${handed} = [^;]*spares[^;]*\\.line`).test(cr)
+             || new RegExp(`const ${handed} = [^;]*\\.\\.\\.spares`).test(cr);
   eq('and it is the added lines plus the draft', built, true);
 
   // One rule set, not two: Save must refuse a draft Add would refuse rather
   // than saving it on easier terms or dropping it.
-  const save = /const save = async \(\) => \{[\s\S]*?const t0 = performance\.now\(\);/.exec(cr)?.[0] ?? '';
+  const save = /const save = async \(\) => \{[\s\S]*?const draft: VisitDraft/.exec(cr)?.[0] ?? '';
   eq('Save validates the draft before writing', /draftLine\(\)/.test(save), true);
   eq('and a draft it refuses stops the save instead of being dropped',
     /'error' in d\) \{ setErr\(d\.error\); return; \}/.test(save), true);
@@ -7252,11 +7256,12 @@ console.log('\n-- My Workload: the queues left the registers, and open what they
       .map((key) => ({ path: m[1], key })));
   const pairs = new Set(sent.map((x) => `${x.path}|${x.key}`));
   // A COUNT RATHER THAN A LIST, so a card that stops sending a filter is
-  // noticed as well as one that starts. Seven today: three registers with one
-  // filter each, the Commercial installation card's three, and the Daily
+  // noticed as well as one that starts. Eight today: three registers with one
+  // filter each, the Commercial installation card's three, the Daily
   // Review's `effectOnly` (D-040's sibling D-022: the Any Potential Effect card
-  // opened the whole register under a count of a few).
-  eq('every register a card filters is covered here', pairs.size, 7);
+  // opened the whole register under a count of a few), and the Indoor DC
+  // cards' `indoorView` (0323), which opens the DC list.
+  eq('every register a card filters is covered here', pairs.size, 8);
   sent.forEach(({ path, key }) => {
     const mod = routeOf.get(path);
     const src = mod && existsSync(`src/modules/${mod}.tsx`)

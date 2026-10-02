@@ -18,7 +18,7 @@
 --
 --   calls, pending_calls, calls_view_insert/update   <- 0114_call_registrant_split.sql
 --   field_failure_register                           <- 0197_review_actual_product.sql
---   indoor_job_list                                  <- 0320_indoor_register_and_pdt.sql
+--   indoor_job_list                                  <- 0323_indoor_stages.sql
 --   tracker_list                                     <- 0143_tracker.sql
 --   export_schedule_state                            <- 0228_export_schedules.sql
 --
@@ -166,18 +166,18 @@ left join public.call_reviews r on r.ucn = f.ucn;
 alter view public.field_failure_register set (security_invoker = on);
 grant select on public.field_failure_register to authenticated;
 
--- ---- indoor_job_list (0320, verbatim) --------------------------------------
--- GUARDED BY 0320's COLUMNS. Applied in FILE order (the test harness, a
--- rebuild from the migrations folder) this file runs BEFORE 0320, whose
+-- ---- indoor_job_list (0323, verbatim) --------------------------------------
+-- GUARDED BY 0323's COLUMNS. Applied in FILE order (the test harness, a
+-- rebuild from the migrations folder) this file runs BEFORE 0323, whose
 -- definition it copies, and the columns that definition names do not exist
--- yet -- 0320 itself then rebuilds the view, sys_* included. Applied in BUNDLE
--- order (sys_columns is last) 0320 has already run and this rebuilds it with
+-- yet -- 0323 itself then rebuilds the view, sys_* included. Applied in BUNDLE
+-- order (sys_columns is last) 0323 has already run and this rebuilds it with
 -- sys_*.
 do $indoor_list$
 begin
   if not exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'indoor_jobs'
-                    and column_name = 'verified_by') then
+                    and column_name = 'report_uploaded_by') then
     return;
   end if;
 drop view if exists public.indoor_job_list;
@@ -202,9 +202,11 @@ create view public.indoor_job_list as
          (select count(*) from public.indoor_job_accessories a
            where a.job_id = j.id and not a.returned) as accessories_outstanding,
          coalesce(vb.name, '') as verified_by_name,
-         (select string_agg(btrim(a.name), ', ' order by a.id) from public.indoor_job_accessories a
+         (select string_agg(btrim(a.name) || case when a.qty <> 1 then ' x' || trim_scale(a.qty)::text else '' end,
+                            ', ' order by a.id) from public.indoor_job_accessories a
            where a.job_id = j.id and btrim(a.name) <> '') as accessories_received,
-         public.indoor_job_is_imported(j.product_name, j.serial) as product_imported
+         public.indoor_job_is_imported(j.product_name, j.serial) as product_imported,
+         coalesce(rpb.name, '') as report_uploaded_by_name
     from public.indoor_jobs j
     left join public.app_user_names rb on rb.id = j.received_by
     left join public.app_user_names cb on cb.id = j.cleaned_by
@@ -212,7 +214,8 @@ create view public.indoor_job_list as
     left join public.app_user_names db on db.id = j.dispatched_by
     left join public.app_user_names xb on xb.id = j.condemned_by
     left join public.app_user_names ub on ub.id = j.updated_by
-    left join public.app_user_names vb on vb.id = j.verified_by;
+    left join public.app_user_names vb on vb.id = j.verified_by
+    left join public.app_user_names rpb on rpb.id = j.report_uploaded_by;
 alter view public.indoor_job_list set (security_invoker = on);
 grant select on public.indoor_job_list to authenticated;
 end $indoor_list$;

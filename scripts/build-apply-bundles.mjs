@@ -691,7 +691,14 @@ const MODULES = {
             // IDC-YYMM-NNNN, written only by create_indoor_dc(), which tries
             // each unit against indoor_jobs_guard() above. Reads products /
             // product_master (masters) at RUN time only.
-            '0321_indoor_dc.sql'],
+            '0321_indoor_dc.sql',
+            // The workflow as STAGES (2026-10-02): accessory quantities, the
+            // Indoor Service Report upload (after cleaning), the visit drafted
+            // with it and filed at the Indoor DC's APPROVAL (Authorised By:
+            // RM / RgM / NSM; approve_indoor_dc / reject_indoor_dc), and
+            // "Return to Field" on the Call Pending Reason master. Reads
+            // reports (base) and my_dir_name() (0004) -- both earlier.
+            '0323_indoor_stages.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',

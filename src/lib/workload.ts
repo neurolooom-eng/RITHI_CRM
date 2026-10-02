@@ -69,7 +69,7 @@ export interface WorkloadSection {
 import {
   listSpareRequestLines, listPendingRmApproval, listPendingDispatch,
   listMaterialReturns, listStockTransfers, listHandstockBalance, countCallReviews,
-  pendingInstallRequests,
+  pendingInstallRequests, listIndoorDcs,
 } from './supabase';
 import { deriveStage, actionable, type Stage } from './spareflow';
 import { isKycVerified } from './kyc';
@@ -318,6 +318,27 @@ export async function reviewSection(): Promise<WorkloadSection> {
       { label: 'Review Completed', value: at('Review Completed'), sub: 'nothing left to answer', icon: '✅',
         tone: 'success', to: open('Review Completed', 'the completed reviews') },
       { label: 'Calls in view', value: c.total, sub: 'on the register', icon: '📋', tone: 'neutral' },
+    ],
+  };
+}
+
+/** Indoor DCs (0323) -- "Only the INDOOR DC needs an approval". Awaiting the
+ *  reader is the list's own test (`i_may_approve`: they are its AUTHORISED BY,
+ *  or an administrator), so this counts what the Indoor DC list puts first. */
+export async function indoorDcSection(): Promise<WorkloadSection> {
+  const dcs = await listIndoorDcs();
+  const pending = dcs.filter((d) => d.approval_status === 'Pending approval');
+  const mine = pending.filter((d) => d.i_may_approve).length;
+  const open = (opens: string) => ({ path: '/indoor', state: { indoorView: 'dcs' }, opens });
+  return {
+    key: 'indoor-dc', title: 'Indoor DCs', path: '/indoor', needs: 'mod:/indoor',
+    // EXACT: listIndoorDcs reads every DC, a page at a time.
+    more: false,
+    cards: [
+      { label: 'Awaiting my approval', value: mine, sub: 'Indoor DCs naming you', icon: '⚡',
+        tone: mine ? 'primary' : 'neutral', to: open('the Indoor DCs, yours first') },
+      { label: 'Pending approval', value: pending.length, sub: 'units held until approved', icon: '🕒',
+        tone: pending.length ? 'warning' : 'neutral', to: open('the Indoor DCs') },
     ],
   };
 }
