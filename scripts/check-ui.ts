@@ -5581,8 +5581,21 @@ console.log('\n-- the Product Database and the Product Master are two registers 
     /optionsFrom: 'sellable-code'/.test(saleBlock) && /optionsFrom: 'sellable-name'/.test(saleBlock), true);
   // A CONTRACT MAY NAME A RETIRED LINE — the machine it covers was sold when
   // the line was current, and refusing it would refuse the work, not the sale.
+  // (The contract's PARTY is a picker -- the Product Database's customers,
+  // 2026-10-02 -- so the test is for the PRODUCT-LINE lists, not any list.)
   eq('...and a contract may still name a retired one',
-    /optionsFrom/.test(contractBlock), false);
+    /optionsFrom: 'sellable-/.test(contractBlock), false);
+  eq("a contract's party is picked from the Product Database",
+    /name: 'party_name'[^}]*optionsFrom: 'product-party'/.test(contractBlock), true);
+  // The user, 2026-10-02: start defaults to today; months, Payment Schedule,
+  // Bill Generate At and PM Visits (Total) are required; years and end are
+  // worked out, never typed.
+  for (const f of ['contract_months', 'pm_visits_total', 'payment_schedule', 'bill_generate_at']) {
+    eq(`a contract requires ${f}`, new RegExp(`name: '${f}'[^}]*required: true`).test(contractBlock), true);
+  }
+  for (const f of ['contract_years', 'contract_end']) {
+    eq(`a contract's ${f} is worked out, not typed`, new RegExp(`name: '${f}'[^}]*derived:`).test(contractBlock), true);
+  }
   // Free text stays ON: the catalogue is hand-maintained and may be incomplete
   // or unreadable to this reader, and a Sale Entry that could not be typed at
   // all would be a worse fault than the one this prevents.

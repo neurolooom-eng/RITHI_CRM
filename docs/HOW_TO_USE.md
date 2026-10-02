@@ -537,8 +537,19 @@ On a warranty machine line, filling in **Already Sold To** sets **Add Call**:
 
 **A machine follows its entry**: a field left empty follows the header, typing
 pins that machine, ↺ hands it back.
-> The end date stays typeable and editing it changes nothing else, so a contract
-> that does not run a whole number of months still works.
+
+**On a new contract** the **Contract Start Date** opens on today — change it if
+the contract starts on another day. Type the **Period (Months)**; the **Period
+(Years)** and the **Contract End Date** are worked out from it and cannot be
+typed, and **PM Visits (Total)** is suggested (you can change it).
+**Party Name** is picked from the **Product Database**: type part of the name
+and choose — it lists customers who own a machine on record, and a name cannot
+be typed in. If the customer is missing, add their machine to the Product
+Database first.
+> **Four fields must be filled before a contract saves**: **Period (Months)**,
+> **PM Visits (Total)**, **Payment Schedule** and **Bill Generate At**. They carry
+> a **\***, and the message names every one left blank. Contracts loaded from the old system's files are not refused for
+> blanks; the rule is the form's.
 
 **Renew this contract** raises the next MC from an expiring one. It starts the
 day after the old one ends, so cover has no gap and no overlap, and the
