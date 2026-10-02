@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Service Calls Work</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#131a22;
+  --ink-2:#38434f;
+  --muted:#6a7885;
+  --surface:#ffffff;
+  --page:#f2f4f7;
+  --line:#d9dfe6;
+  --line-soft:#e7ebf0;
+  --rail:#9aa7b4;
+
+  /* THE CALL-STATUS CODE. Literal, and the same in both themes — these are the
+     hexes in src/lib/callstate.tsx. A colour people have learned to read is a
+     code, and a code that means something else in dark mode is not one. */
+  --st-unattended:#d32f2f;
+  --st-unsolved:#1565c0;
+  --st-pending:#c2185b;
+  --st-solved:#2e7d32;
+  --st-reopened:#ef6c00;
+  --st-cancelled:#546e7a;
+
+  --master:#00695c;      /* what flows IN  */
+  --rule:#8e2d8e;        /* what is REFUSED */
+  --mandate:#b25000;     /* what is DEMANDED */
+
+  --shadow:0 1px 2px rgba(19,26,34,.06), 0 8px 20px -12px rgba(19,26,34,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+    --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+    --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+  --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+  --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--page); color:var(--ink);
+  font-family:'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size:16px; line-height:1.55;
+}
+code, .mono{font-family:'IBM Plex Mono', ui-monospace, monospace}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 16px 88px}
+/* FRAMED IN THE APP, the page is already inside a padded shell, so it drops its
+   own bottom gutter and its top rule — the app's header is directly above. */
+body.framed .wrap{padding-bottom:28px}
+body.framed header.top{padding-top:8px}
+
+/* ---- masthead ---------------------------------------------------------- */
+header.top{padding:44px 0 26px; border-bottom:1px solid var(--line)}
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 12px;
+}
+h1{
+  font-size:clamp(30px,5.2vw,46px); line-height:1.08; margin:0 0 14px;
+  letter-spacing:-.021em; font-weight:700; text-wrap:balance; max-width:20ch;
+}
+.standfirst{margin:0; max-width:64ch; color:var(--ink-2); font-size:17px}
+.standfirst b{color:var(--ink)}
+
+/* ---- the three-gutter key --------------------------------------------- */
+.key{
+  display:grid; gap:10px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+}
+.key div{
+  border-left:3px solid var(--k); padding:2px 0 2px 12px;
+  font-size:13.5px; color:var(--ink-2);
+}
+.key strong{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--k); font-weight:600;
+}
+
+/* ---- the spine --------------------------------------------------------- */
+.flow{margin-top:14px}
+.stage{
+  display:grid; gap:0 28px; padding:34px 0 6px;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.32fr) minmax(0,1fr);
+  border-bottom:1px solid var(--line-soft);
+}
+.stage:last-child{border-bottom:0}
+
+/* the centre column carries the rail */
+.step{grid-column:2; position:relative; padding-left:38px}
+.step::before{           /* the rail */
+  content:""; position:absolute; left:11px; top:-34px; bottom:-40px; width:2px;
+  background:var(--line);
+}
+/* THE RAIL STOPS AT EACH FLOW'S EDGE. With two flows on one page it would
+   otherwise run straight through the band announcing the second one and the
+   ledger between them — drawing a line between two things that are not
+   sequential. A rail that lies about continuity is worse than no rail. */
+.stage:first-of-type .step::before{top:14px}
+.stage:last-of-type .step::before{bottom:auto; height:14px}
+.flowhead + .stage .step::before{top:14px}
+.stage:has(+ .flowhead) .step::before,
+.stage:has(+ .ledger) .step::before{bottom:auto; height:14px}
+.step::after{            /* the node */
+  content:""; position:absolute; left:4px; top:7px;
+  width:16px; height:16px; border-radius:50%;
+  background:var(--surface); border:3px solid var(--node,var(--rail));
+}
+.n{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em;
+  color:var(--muted); text-transform:uppercase; margin:0 0 4px;
+}
+h2{font-size:21px; line-height:1.25; margin:0 0 8px; letter-spacing:-.012em; font-weight:600}
+.step p{margin:0 0 10px; color:var(--ink-2); font-size:14.5px; max-width:52ch}
+.step p:last-child{margin-bottom:0}
+.step .who{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+  color:var(--ink); background:var(--line-soft); border-radius:3px;
+  padding:2px 7px; margin:0 6px 8px 0;
+}
+
+/* side columns */
+.side{align-self:start; padding-top:22px}
+.side.in{grid-column:1; text-align:right}
+.side.out{grid-column:3}
+.side h3{
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.13em;
+  text-transform:uppercase; margin:0 0 9px; font-weight:600; color:var(--c);
+}
+.side ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px}
+.side.in ul{align-items:flex-end}
+.side li{font-size:13.2px; line-height:1.45; color:var(--ink-2); max-width:34ch}
+.side li b{color:var(--ink); font-weight:600}
+.side.in li{border-right:2px solid var(--c); padding-right:10px}
+.side.out li{border-left:2px solid var(--c); padding-left:10px}
+.side.in{--c:var(--master)}
+.side.out{--c:var(--rule)}
+.side.out li.mandate{--c:var(--mandate); border-left-color:var(--mandate)}
+.tag{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10px;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--surface);
+  background:var(--mandate); border-radius:2px; padding:1px 5px; margin-right:6px;
+  vertical-align:1px; font-weight:600;
+}
+.tag.db{background:var(--rule)}
+
+/* ---- the status code --------------------------------------------------- */
+.states{
+  margin:38px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.states h2{margin-bottom:6px}
+.states > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+.chips{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px}
+.chip{
+  color:#fff; font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500;
+  padding:5px 11px; border-radius:3px; white-space:nowrap;
+}
+.transitions{width:100%; border-collapse:collapse; font-size:13.5px}
+.transitions th{
+  text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--muted);
+  font-weight:600; padding:0 14px 8px 0; border-bottom:1px solid var(--line);
+}
+.transitions td{padding:11px 14px 11px 0; border-bottom:1px solid var(--line-soft); vertical-align:top; color:var(--ink-2)}
+.transitions tr:last-child td{border-bottom:0}
+.transitions td:first-child{color:var(--ink); font-weight:600; white-space:nowrap}
+.scroll{overflow-x:auto}
+
+/* ---- closing panels ---------------------------------------------------- */
+.panels{display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); margin-top:38px}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:22px; box-shadow:var(--shadow)}
+.panel h3{margin:0 0 10px; font-size:16.5px; font-weight:600; letter-spacing:-.008em}
+.panel p{margin:0 0 10px; font-size:14px; color:var(--ink-2)}
+.panel p:last-child{margin-bottom:0}
+.panel ul{margin:0; padding-left:18px; font-size:14px; color:var(--ink-2)}
+.panel li{margin-bottom:7px}
+.panel li:last-child{margin-bottom:0}
+.panel li b{color:var(--ink)}
+
+footer{margin-top:44px; padding-top:20px; border-top:1px solid var(--line); font-size:13px; color:var(--muted)}
+footer code{font-size:12.5px}
+
+
+/* ---- the two flows ------------------------------------------------------ */
+/* TWO PATHS INTO THE SAME RECORD, and the reader needs to know which one they
+   are in before the first stage rather than after it — so each flow opens with
+   a full-width band, and the contents strip at the top says there are two. */
+.flownav{
+  display:grid; gap:12px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+}
+.flownav a{
+  display:block; text-decoration:none; color:inherit;
+  border:1px solid var(--line); border-radius:8px; padding:14px 16px;
+  background:var(--surface); box-shadow:var(--shadow);
+}
+.flownav a:hover{border-color:var(--rail)}
+.flownav a:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
+.flownav-n{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--muted); margin-bottom:4px;
+}
+.flownav-t{display:block; font-weight:600; font-size:15.5px; line-height:1.3; margin-bottom:4px}
+.flownav-s{display:block; font-size:12.5px; color:var(--muted)}
+
+.flowhead{
+  margin:44px 0 0; padding:24px 0 22px;
+  border-top:3px solid var(--ink); border-bottom:1px solid var(--line);
+}
+.flowhead-n{
+  font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 8px;
+}
+.flowhead-t{font-size:clamp(22px,3.4vw,30px); line-height:1.15; margin:0 0 12px; letter-spacing:-.016em; text-wrap:balance}
+.flowhead-p{margin:0 0 10px; max-width:68ch; color:var(--ink-2); font-size:15px}
+.flowhead-p:last-child{margin-bottom:0}
+
+/* The ledger: which master answers which field. A table rather than prose
+   because that is the question people come back to this page with. */
+.ledger{
+  margin:34px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.ledger h2{margin:0 0 6px}
+.ledger > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+
+/* ---- narrow ------------------------------------------------------------ */
+@media (max-width:900px){
+  .stage{grid-template-columns:1fr; gap:0; padding:28px 0 10px}
+  .step{grid-column:1}
+  .side.in, .side.out{grid-column:1; text-align:left; padding:16px 0 0 38px}
+  .side.in ul{align-items:flex-start}
+  .side.in li{border-right:0; padding-right:0; border-left:2px solid var(--c); padding-left:10px}
+  .side.in{order:2} .step{order:1} .side.out{order:3}
+  .stage{display:flex; flex-direction:column}
+  .step::before{display:none}
+  .step::after{left:0}
+  .step{padding-left:30px}
+}
+</style>
+</head>
+<body>
+<script>
+  // Set before paint, so a framed page never flashes its standalone padding.
+  try { if (window.parent !== window) document.body.className = 'framed'; } catch (e) {}
+</script>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">RITHI CRM · Service Calls · process reference</p>
+  <h1>How service calls work</h1>
+  <p class="standfirst">
+    <b>Three registers, one way of working them.</b> Field, Installation and Preventive (PM) calls are
+    raised in different ways and answer to permissions of their own, but each is numbered the same way,
+    visited the same way, and takes its status from its latest visit entry. This page covers the nine
+    screens under <b>Service Calls</b>: how each register is fed, how a request becomes a call, what a
+    visit records and refuses, and what Pending Calls, Call Review and Customer Feedback do afterwards.
+    Registering a direct customer call field by field is described in <b>The Call module</b> and is only
+    summarised here. Read the middle column for <b>what happens</b>, the left for <b>what the step
+    reads</b>, and the right for <b>what the system refuses and what it demands</b>.
+  </p>
+
+  <div class="key">
+    <div style="--k:var(--master)"><strong>Reads</strong>The record, master or rule the step draws on.</div>
+    <div style="--k:var(--rule)"><strong>Restrictions</strong>What the system will not allow, and where the refusal comes from.</div>
+    <div style="--k:var(--mandate)"><strong>Mandates</strong>What it will not proceed without.</div>
+  </div>
+</header>
+
+<nav class="flownav" aria-label="The four flows">
+  <a href="#flow1">
+    <span class="flownav-n">Flow 1</span>
+    <span class="flownav-t">Three call registers, side by side</span>
+    <span class="flownav-s">Field Call Register · Installation Calls · Preventive (PM)</span>
+  </a>
+  <a href="#flow2">
+    <span class="flownav-n">Flow 2</span>
+    <span class="flownav-t">From a request to a call</span>
+    <span class="flownav-s">Request Registration · Pending Registrations</span>
+  </a>
+  <a href="#flow3">
+    <span class="flownav-n">Flow 3</span>
+    <span class="flownav-t">The visit</span>
+    <span class="flownav-s">Visit Entry · spares · documents · Visit Reports / Service Reports</span>
+  </a>
+  <a href="#flow4">
+    <span class="flownav-n">Flow 4</span>
+    <span class="flownav-t">After the visit</span>
+    <span class="flownav-s">Pending Calls · Call Review · Customer Feedback</span>
+  </a>
+</nav>
+
+<main class="flow">
+
+  <!-- ================= FLOW 1 ================= -->
+  <section class="flowhead" id="flow1">
+    <p class="flowhead-n">Flow 1</p>
+    <h2 class="flowhead-t">Three call registers, side by side</h2>
+    <p class="flowhead-p">
+      The <b>Field Call Register</b>, <b>Installation Calls</b> and <b>Preventive (PM)</b> are one screen
+      with three settings. Each call is stored in its own register — field, installation or PM — and the
+      register is decided by the <b>Call Type</b>: a type beginning <i>INSTALL</i> is an installation, a
+      type beginning <i>PM</i> (spaces ignored, so <i>P M VISIT</i> counts) is a PM call, anything else is
+      a field call.
+    </p>
+    <p class="flowhead-p">
+      <b>Each register answers to its own permissions.</b> Since 30-Sep-2026 an installation call is edited,
+      re-allocated, visited, cancelled and re-opened with the Installation Calls permissions, a PM call with
+      the PM Calls permissions, and a field call with the Calls permissions. The database works out which
+      register a call is on from its UCN and asks that register's permission.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Product Database</b> — the machine, its customer and its cover</li>
+        <li><b>Party Master</b> — the customer and their Serviceman</li>
+        <li><b>Standard Complaint</b> master</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unattended)">
+      <p class="n">Flow 1 · Step 01</p>
+      <h2>A field call — raised by the desk or from a request</h2>
+      <span class="who">Create / register calls</span>
+      <p>
+        A field call is registered with <b>+ New Field Call</b> on the Field Call Register, from a request on
+        Pending Registrations (Flow 2), or with <b>+ Field call</b> on the Warranty Register, which opens the
+        Field Call form. The form is filled from the masters — customer, then machine, then the cover the machine
+        brings with it — and the Standard Complaint is picked, never typed.
+      </p>
+      <p>
+        This path is described step by step in <b>The Call module</b>. On a field call the customer must be
+        one who owns a machine on record; a new customer can be typed only on an installation.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>The database refuses a new field call from anybody without <b>Create / register calls</b>.</li>
+        <li>Engineers open the register showing <b>open calls only</b>; a switch shows the closed ones. Every other role opens on all calls.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Warranty Register</b> — the sale entry and each machine on it</li>
+        <li><b>INST Call</b> on each machine line</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 1 · Step 02</p>
+      <h2>An installation call — from the register, a request or the sale</h2>
+      <span class="who">Create installation calls (Commercial)</span>
+      <p>
+        Three ways in: <b>+ New Installation Call</b> on Installation Calls; an installation request registered on Pending
+        Registrations; or the Warranty Register, where <b>＋ Installation calls (n)</b> raises one for every
+        machine on a sale entry that has none, and <b>+ Installation call</b> raises one for a single machine.
+      </p>
+      <p>
+        A call raised from the sale says so before it is made: the Standard Complaint and Complaint Reported
+        read <i>INSTALLATION CALL</i>, the three vigilance questions are answered NO, and the customer contact
+        is left blank — <i>"nobody reported this"</i>. The new UCN is then written back onto that machine's
+        <b>INST Call</b>. Machines are raised one at a time, and a failure stops the run and names what was
+        already created.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>The database refuses an installation call from anybody without <b>Create installation calls (Commercial)</b>, whichever screen it was started from.</li>
+        <li><span class="tag db">Function</span>Writing the UCN back refuses <i>"… already has installation call …, which is not replaced here"</i> and <i>"Call … is not an installation call for …"</i> — the call must be this machine's, same product and serial.</li>
+        <li>A machine typed on a sale entry but not yet saved gets no call: there is no line to write the UCN back to.</li>
+        <li>A new customer may be typed on an installation only, because the machine does not exist yet.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The month's PM file</b>, loaded on PM Bulk Upload</li>
+        <li><b>The latest PM call already in that month</b>, for the default start time</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Flow 1 · Step 03</p>
+      <h2>A PM call — singly, or the monthly batch</h2>
+      <span class="who">Create PM calls</span><span class="who">Upload PM calls in bulk</span>
+      <p>
+        A single PM call is registered with <b>+ New PM Call</b> on Preventive (PM). The month's batch is loaded
+        on <b>PM Bulk Upload</b>, which sits under Administration: every row becomes a PM call of type
+        <i>P M VISIT</i>, and the database assigns each one its UCN and Call Number.
+      </p>
+      <p>
+        You choose the <b>due month</b>, which defaults to this one; an earlier month can be chosen to
+        back-fill. Every call in the batch is dated the 1st of that month. The registration time starts at
+        00:30 with a 5-second gap between calls for a fresh month, or 10 seconds after the latest call that
+        month already holds — and both can be changed before loading.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>The database refuses a new PM call from anybody without <b>Create PM calls</b> — including each row of a bulk upload.</li>
+        <li>PM Bulk Upload opens only for a holder of <b>Upload PM calls in bulk</b>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The day, in India time</b></li>
+        <li><b>The highest number already issued that day</b> for that type</li>
+        <li><b>The Call Type</b>, for the type letter</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 1 · Step 04 · automatic</p>
+      <h2>The database numbers the call</h2>
+      <span class="who">The database</span>
+      <p>
+        <b>UCN</b> is year, month letter, day, type letter and a four-digit number:
+        <code>26I12F0002</code> is the second <b>F</b>ield call of 12-Sep-2026. Installation calls take
+        <b>I</b> and PM calls <b>P</b>. The month letter runs A for January to L for December.
+      </p>
+      <p>
+        <b>The number restarts at 0001 every day, for each type separately</b>, and the day is India's —
+        a call registered just after midnight carries that day's date. The day's counter starts past the
+        highest number that day already carries, so a number once issued is never issued again.
+      </p>
+      <p>
+        <b>Call Number</b>: a call raised from a request carries the request's own key; a call with none is
+        given the next <code>CL</code> number for its year, such as <code>CL2600001</code>.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>The screens never send a UCN; the database writes one whenever a new call arrives without one.</li>
+        <li>Two calls registered in the same instant cannot take the same number — the day's counter is locked while it moves.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Roles &amp; Permissions</b> — the role's ticks, and any extra permissions on the person</li>
+        <li><b>Which register the call is on</b></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Flow 1 · Step 05</p>
+      <h2>What you may change on a call is four rights, not one</h2>
+      <span class="who">Edit … (all sections)</span><span class="who">Edit the complaint</span><span class="who">Edit customer &amp; product</span><span class="who">Edit the vigilance answers</span><span class="who">Edit customer contact details</span>
+      <p>
+        The edit permission of each register is the <b>parent</b> of four section permissions — the
+        complaint, the customer and machine, the vigilance answers and the contact details. Holding the
+        parent gives all four; a manager can be given only the parts they need.
+      </p>
+      <p>
+        A field you may not change is shown <b>read-only with the reason</b> — <i>Needs the "Edit the
+        complaint" permission</i> — never hidden. <b>Re-allocating</b> to another engineer is a permission of
+        its own on each register, and the engineers offered are the ones you may allot to: everyone active on
+        the User Master for a role that sees every call, otherwise yourself and whoever reports to you.
+      </p>
+      <p>
+        <b>Every change to a vigilance answer is recorded</b> — which answer, from what, to what, and who —
+        whoever made it, administrators included.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span><i>"RBAC: changing the complaint needs the "Edit the complaint" permission"</i> — and the same for the customer or machine, the contact and the vigilance answers.</li>
+        <li><span class="tag db">Trigger</span><i>"RBAC: moving a call to another engineer needs the "Re-allocate a call to another engineer" permission"</i>.</li>
+        <li>The register offers no <b>Edit</b> on a <b>Solved</b> or <b>Cancelled</b> call, administrators included. The way back is Re-open or Restore.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The call's state</b> — open, solved, re-opened or cancelled</li>
+        <li><b>Party Master</b> and the <b>warranty and contract registers</b>, for the two Update buttons</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-reopened)">
+      <p class="n">Flow 1 · Step 06</p>
+      <h2>What can be done to a call, and when</h2>
+      <span class="who">Each register's own permission</span>
+      <p>
+        <b>Visit Entry</b> and <b>Request Spares</b> are offered while a call is open. <b>Reco</b> opens Spare
+        Consumption to book a reconciliation against this exact call. <b>Re-open call</b> puts a closed call back on the open list and counts it;
+        <b>Close again</b> withdraws a re-open made only to correct the call, returning it to what its last
+        visit said without inventing a visit.
+      </p>
+      <p>
+        <b>Cancel call</b> is for a call that should not exist, and is offered only while the call is
+        <b>Unattended</b> or <b>Unsolved</b>. It keeps the UCN and everything recorded against it, and asks
+        why; a call that has been visited is warned that cancelling does not remove the visit or anything
+        consumed on it. <b>Restore call</b> undoes it, and the cancellation stays on the record.
+      </p>
+      <p>
+        <b>🏢 Update Party Details</b> sets City and State from the Party Master; <b>🛡️ Update Product
+        Details</b> sets warranty, contract and item status as on the call's registration date. Both work on a
+        call of any status, singly or on ticked calls.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>A cancellation needs a reason: <i>"A cancellation needs a reason"</i>.</li>
+        <li><span class="tag db">Function</span>Re-open refuses <i>"Call … is not closed, so there is nothing to re-open"</i> and <i>"Call … is already re-opened"</i>; Close again refuses <i>"Call … is not re-opened — close it by entering the visit that solved it"</i>.</li>
+        <li><span class="tag db">Function</span>Update Party / Product Details are hidden while Audit Mode is ON and refused by the database then too.</li>
+        <li>There is no way to close an open call without a visit from these screens: enter the visit, or cancel the call.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 1, as a ledger</h2>
+    <p>
+      Which permission each act asks for, register by register — as labelled on Roles &amp; Permissions.
+      Spares and feedback on a visit are one permission for all three registers.
+    </p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Act</th><th>Field Call Register</th><th>Installation Calls</th><th>Preventive (PM)</th></tr></thead>
+        <tbody>
+          <tr><td>Open the register</td><td colspan="3">View calls, and the screen's own tick</td></tr>
+          <tr><td>Register a call</td><td>Create / register calls</td><td>Create installation calls (Commercial)</td><td>Create PM calls</td></tr>
+          <tr><td>Edit</td><td>Edit Field calls (all sections)</td><td>Edit installation calls (all sections)</td><td>Edit PM calls (all sections)</td></tr>
+          <tr><td>Re-allocate</td><td>Re-allocate a Field call to another engineer</td><td>Re-allocate an installation call</td><td>Re-allocate a PM call</td></tr>
+          <tr><td>Visit Entry</td><td>File a visit on a Field call</td><td>File a visit on an installation call</td><td>File a visit on a PM call</td></tr>
+          <tr><td>Spares on a visit</td><td colspan="3">Book spares used on a visit (any register)</td></tr>
+          <tr><td>Feedback on a visit</td><td colspan="3">Record customer feedback on a visit (any register)</td></tr>
+          <tr><td>Cancel · Restore</td><td>Cancel a Field call (and restore it)</td><td>Cancel an installation call (and restore it)</td><td>Cancel a PM call (and restore it)</td></tr>
+          <tr><td>Re-open · Close again</td><td>Re-open, close or close again a Field call</td><td>… an installation call</td><td>… a PM call</td></tr>
+          <tr><td>Request Spares</td><td colspan="3">Request spares</td></tr>
+          <tr><td>Reco</td><td colspan="3">Add consumption against a call (reconciliation)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= FLOW 2 ================= -->
+  <section class="flowhead" id="flow2">
+    <p class="flowhead-n">Flow 2</p>
+    <h2 class="flowhead-t">From a request to a call</h2>
+    <p class="flowhead-p">
+      An engineer in the field raises a <b>request</b> on <b>Request Registration</b>; the Hotline turns it
+      into a call on <b>Pending Registrations</b>. How the request form is filled — the machine names the
+      customer — is in <b>The Call module</b>. This flow is what happens to a request once it is raised.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Product Database</b> — the machine, by serial; its customer follows</li>
+        <li><b>Call Type</b> master</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unattended)">
+      <p class="n">Flow 2 · Step 01</p>
+      <h2>The request is raised and given a REQID</h2>
+      <span class="who">Raise call requests</span>
+      <p>
+        <b>＋ New Request</b> takes one to five calls — each a product, serial, Standard Complaint and
+        reported problem — and every call becomes its own row sharing the <b>REQID</b>, which the database
+        assigns. The register shows every request and what became of it: <b>Pending</b>, <b>Registered</b>,
+        <b>Mapped</b> or <b>Cancelled</b>.
+      </p>
+      <p>
+        A request can be corrected while it is still Pending. Once it is answered — registered, mapped or
+        cancelled — its details are frozen, because the call now carries them.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>Product, Serial No and Reported Problem on every call, and an answer to <b>Call Attended?</b> — with the Attended Date when it is Yes.</li>
+        <li>The same product and serial cannot appear twice on one request.</li>
+        <li><span class="tag db">Trigger</span><i>"This request is already … — … cannot be changed here. The call carries these details now, so correct them on the call itself; changing the request would leave the two disagreeing about one machine."</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Requests</b> with no UCN that are not cancelled — all of them, not a first page</li>
+        <li><b>Open calls</b> on the same machine (model and serial), or on the same party when the request has no serial</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 2 · Step 02</p>
+      <h2>Pending Registrations — the Hotline's queue</h2>
+      <span class="who">Register pending (Hotline)</span>
+      <p>
+        Every request still without a UCN, newest first, with the count in the title. The <b>Open Calls</b>
+        column says how many calls are still open on that machine — Unattended, Unsolved, Report pending or
+        re-opened — so the desk sees a repeat before raising a second call for it.
+      </p>
+      <p>
+        Clicking a request opens three panes, each resizable: the request; the open calls with the actions;
+        and <b>every call ever registered on this machine</b>, whatever its status, because a call solved last
+        month is often what says this is the same fault coming back.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>A check that failed reads <i>not checked</i>, never "—": <i>"The check for open calls failed, so it is not known whether one is pending on this serial/party. Refresh the list before registering a new call."</i></li>
+        <li>A call on a different product that merely shares the serial is not offered.</li>
+        <li>Without <b>Register pending (Hotline)</b> the queue can be read but not actioned: <i>"Your role can view requests but not action them."</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The open call</b> chosen, or a UCN typed in</li>
+        <li><b>Your section permissions</b>, if you edit the call first</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Flow 2 · Step 03</p>
+      <h2>Map it to a call that already exists</h2>
+      <span class="who">Register pending (Hotline)</span>
+      <p>
+        <b>Map</b> beside an open call, <b>Map this UCN</b> for one typed in, or the <b>UCN Number (Mapped)</b>
+        cell on the list. The UCN is written onto the request, it reads <b>Mapped</b>, and it leaves the
+        queue.
+      </p>
+      <p>
+        A call on this machine may need its failure details filled in before the request is closed against
+        it, so <b>✎ Edit</b> opens that call in the third pane with the same section locks as the call
+        registers.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>A typed UCN that matches no call asks first: <i>"No call found with UCN …. Map the request to it anyway?"</i></li>
+        <li>Editing a call here is refused where your role cannot edit that register: <i>"Your role cannot edit this … call."</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The request</b> — party, product, serial, complaint, engineer, contact, dates</li>
+        <li><b>Product Database</b> — the machine with exactly that model and serial, for its cover only</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Flow 2 · Step 04</p>
+      <h2>Or create the new call from it</h2>
+      <span class="who">The register's create permission</span>
+      <p>
+        <b>＋ Create new call</b> opens the registration form beside the request, already filled. Party,
+        product and serial come from the <b>request</b>; the Product Database fills only the cover — item
+        status, warranty and contract — and only where one machine has exactly that model and serial. The call
+        is <b>allotted to the engineer who raised the request</b>, and Person Calling reads <i>DIRECT
+        ENGINEER</i>.
+      </p>
+      <p>
+        The complaint and breakdown dates are the day the request is about — the attended date if the call was
+        attended, else the day it was logged — and the form says which. An installation request opens the
+        Installation form; any other opens the Field form. On save the UCN is written back onto the request,
+        which reads <b>Registered</b>.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><b>＋ Create new call</b> asks the register's own create permission — <i>"Creating this kind of call needs its register's Create permission"</i>.</li>
+        <li>No match fills no cover: <i>"No machine in Product Database is … with serial … — warranty/contract not auto-filled."</i> An ambiguous serial is not guessed at either.</li>
+        <li>Picking a machine on the form does not replace the requester as the engineer while the request names one.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The reason you type</b> — free text, not a master list</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-cancelled)">
+      <p class="n">Flow 2 · Step 05</p>
+      <h2>Or cancel the request</h2>
+      <span class="who">Register pending (Hotline)</span>
+      <p>
+        <b>✕ Cancel request</b> asks for a <b>Cancel reason</b> and an optional <b>Note</b>; the two are kept
+        together as the request's cancel reason, with who did it and when. The request reads
+        <b>Cancelled</b> and leaves the queue without ever becoming a call.
+      </p>
+      <p>
+        The reason is typed, not chosen from the call cancel reasons: withdrawing a request and cancelling a
+        call are different acts.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span><b>Cancel reason *</b> — the button stays disabled until one is typed.</li>
+        <li>Every request leaves the queue by one of three stated routes — mapped, registered or cancelled.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 2, as a ledger</h2>
+    <p>Where a request ends up, and what it carries afterwards.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Request status</th><th>How it got there</th><th>Carries</th></tr></thead>
+        <tbody>
+          <tr><td>Pending</td><td>Raised on Request Registration</td><td>No UCN. Correctable</td></tr>
+          <tr><td>Mapped</td><td>Map / Map this UCN on Pending Registrations</td><td>The existing call's UCN, who mapped it and when. Frozen</td></tr>
+          <tr><td>Registered</td><td>＋ Create new call, or any request given a UCN</td><td>The new call's UCN. Frozen</td></tr>
+          <tr><td>Cancelled</td><td>✕ Cancel request</td><td>The typed reason and note, who and when. Frozen</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= FLOW 3 ================= -->
+  <section class="flowhead" id="flow3">
+    <p class="flowhead-n">Flow 3</p>
+    <h2 class="flowhead-t">The visit</h2>
+    <p class="flowhead-p">
+      A visit is filed with <b>📝 Visit Entry</b> on the call, in whichever register it sits. <b>Each visit is
+      its own row</b> — a call visited three times keeps three — and the call's status is read from the
+      latest one entered. <b>Visit Reports / Service Reports</b> is the list of all of them.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The call</b> — UCN, Call Number, Call Type, complaint date</li>
+        <li><b>Call Pending Reason</b> and <b>Standard Complaint</b> masters</li>
+        <li><b>The customer's CPX / ASU accessories</b>, for the accessory serial</li>
+        <li><b>The previous visit's</b> service report, to look at</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unattended)">
+      <p class="n">Flow 3 · Step 01</p>
+      <h2>Visit Entry — what the engineer records</h2>
+      <span class="who">File a visit on … call</span>
+      <p>
+        UCN, Call Number, Call Type, your e-mail and the <b>Visit Entry Date</b> are filled in by the app.
+        The engineer gives the <b>Visit Date</b>, the <b>Visiting Service Engineer</b> (yourself by default) and
+        the <b>Call Status</b>: <i>Solved - Report Completed</i>, <i>Unsolved</i> or <i>Solved - Report
+        Pending</i>.
+      </p>
+      <p>
+        The <b>Service Report</b> section: Standard Complaint, Complaint Observation, Job Done, Hour Meter
+        Reading, Software Version, Manual Report, Add Consumption?, Accessory Serial No (CPX/ASU), Maintenance
+        Done? and Recomended Filter Changed? — and on an <b>installation</b> call, <b>Warranty Start Date?</b>,
+        which starts at today and can be changed.
+      </p>
+      <p>
+        On <i>Solved - Report Completed</i> the signed <b>Manual Report</b> is uploaded (PDF or photo, up to
+        10 MB, to the CallReg Drive folder), an optional <b>Customer sign-off</b> is offered, and the
+        <b>Customer feedback</b> questions for that kind of call appear.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span><i>"Visiting Service Engineer is required — say who attended."</i> and <i>"Choose a Call Status."</i></li>
+        <li class="mandate"><span class="tag">Mandate</span><i>"Call Pending Reason is mandatory for an unsolved call."</i> On Solved - Report Pending it reads <i>Report Pending</i>.</li>
+        <li><i>"A visit cannot be dated in the future"</i>, nor <i>"before the complaint"</i>.</li>
+        <li class="mandate"><span class="tag">Mandate</span>Complaint Observation, Job Done, Hour Meter Reading, Software Version, Add Consumption?, Recomended Filter Changed? — and Warranty Start Date? on an installation — whenever <b>Update Visit Work Details?</b> is Yes, which it always is on Solved - Report Completed.</li>
+        <li class="mandate"><span class="tag">Mandate</span><i>"Manual Report is mandatory when the call is Solved - Report Completed — upload the signed report."</i></li>
+        <li class="mandate"><span class="tag">Mandate</span><i>"Customer feedback is mandatory for a solved call."</i> Every rating and yes/no question is answered.</li>
+        <li>A Solved or Cancelled call takes no Visit Entry until it is re-opened or restored.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every visit row on the call</b>, by when it was entered</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 3 · Step 02 · automatic</p>
+      <h2>The call takes its status from its latest entry</h2>
+      <span class="who">The database</span>
+      <p>
+        Whenever a visit is added or changed, the database reads the call's visits, takes the <b>latest one
+        entered</b> — by Visit Entry Date, not Visit Date — and copies its Call Status and Visit Date onto the
+        call. A visit dated 30-May-2026 but written up on 03-Jun-2026 therefore counts as the latest entry on
+        03-Jun-2026.
+      </p>
+      <p>
+        A call is <b>Unattended</b> only while it has no visit. After that the status text decides, tested in
+        this order: anything mentioning <i>cancel</i> is Cancelled; <i>unsolved</i> is Unsolved; <i>report
+        pending</i> is Report pending; anything beginning <i>solved</i> is Solved; anything else is Report
+        pending.
+      </p>
+      <p>
+        <b>A new visit on a re-opened call ends the re-open</b>: the call then reads whatever that visit said.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span>The status is worked out by the database and whatever a screen sends for it is discarded.</li>
+        <li>Unsolved is tested before Report pending, so <i>Solved - Report Pending</i> never reads as Solved.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The visiting engineer's hand stock</b> — only what they hold is offered</li>
+        <li><b>Part Master</b> — the list is narrowed to parts that fit the call's product, with a switch to show all</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 3 · Step 03</p>
+      <h2>Spares used on the visit</h2>
+      <span class="who">Book spares used on a visit (any register)</span>
+      <p>
+        <b>Add Consumption?</b> is <i>Yes</i> or <i>None Consumed</i> — a stated answer either way. Yes opens
+        the spare picker over the engineer's hand stock, with quantity and the batch, goods-receipt or serial
+        number of what was fitted. A spare left in the picker when <b>Save Report</b> is pressed is booked too.
+      </p>
+      <p>
+        <b>The visit is saved first, then the spares, then the feedback.</b> If the spares fail the visit
+        stays filed and the screen says so: pressing Save Report again retries just the spares.
+      </p>
+      <p>
+        A <b>reconciliation</b> — a part fitted but never reported, booked by hand with <b>Reco</b> or on Call
+        Review — is the one booking that does not need a visit, because the missing visit is why it exists.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span><i>"Add Consumption? is Yes — add the spare that was used, or set it to None Consumed."</i></li>
+        <li><span class="tag db">Trigger</span><i>"No visit has been filed on … yet, so a spare cannot be booked against it. File the visit report first — the spare is recorded on the visit it was used on."</i></li>
+        <li><span class="tag db">Trigger</span>Never beyond the engineer's balance: <i>"… has … of … in hand, so … cannot be consumed. Ask the Spare Coordinator to correct the hand stock first."</i></li>
+        <li><span class="tag db">Policy</span>A reconciliation needs <b>Add consumption against a call (reconciliation)</b>; any other booking needs <b>Book spares used on a visit</b>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Service Manuals</b> and <b>Technical / Service Notes</b> — active ones only</li>
+        <li><b>Knowledge Base</b> articles</li>
+        <li><b>The call's product, Standard Complaint and reported problem</b></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Flow 3 · Step 04</p>
+      <h2>The documents offered on the call</h2>
+      <span class="who">Anyone who can open the call</span>
+      <p>
+        The call's view lists <b>📄 Supporting documents</b>: the service manuals and the active technical
+        notes that match the call's product, complaint or reported problem — so an accessory's manual reaches
+        a call that names the accessory — and the Knowledge Base articles for it. A manual or note with no
+        product set is offered on every call. The same list appears on a request while it is being raised.
+      </p>
+      <p>
+        Below it: the <b>visit history</b>, the spares requested (refused and dropped lines are not listed),
+        the spares consumed and the customer feedback. On a solved call, a part sent and not fully booked is
+        flagged by quantity.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>A retired manual or note is never offered.</li>
+        <li>Where nothing matches, the panel says so rather than disappearing.</li>
+        <li>A read that failed says so: <i>"an empty one here does not mean there is none"</i>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every visit</b>, newest visit first</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Flow 3 · Step 05</p>
+      <h2>Visit Reports / Service Reports — one row per visit</h2>
+      <span class="who">View calls</span>
+      <p>
+        The visit history of every call you may see, <b>one row per visit, not per call</b>, filtered by UCN,
+        Call Number, Engineer or Status. Clicking a visit shows every field and its service report; <b>📄
+        Show</b> opens the signed report in the app. Any field the engineers filled can be turned on as a
+        column, and <b>⭳ Excel</b> / <b>⭳ CSV</b> download what is loaded.
+      </p>
+      <p>
+        <b>Two dates, on purpose.</b> <b>Visit Date</b> is when the engineer was there; <b>Visit Entry
+        Date</b> is when the register was told. This screen lists by Visit Date; the call's status follows the
+        Entry Date.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Read-only: a visit is filed and corrected from its call, not here.</li>
+        <li><span class="tag db">Trigger</span>No visit can be deleted through the application.</li>
+        <li><span class="tag db">Policy</span>You see the visits on calls you may see — your own, your team's, unallotted ones, or every call for an office role.</li>
+        <li>A download over a partly loaded list says so, and its About sheet says what the file covers.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 3, as a ledger</h2>
+    <p>Where each part of a visit goes.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Part of the visit</th><th>Kept in</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Status, pending reason, engineer, Visit Date, Manual Report, the Service Report answers</td><td>The visit row</td><td>One per visit. Visit Entry Date is when it was saved</td></tr>
+          <tr><td>The call's status</td><td>The call</td><td>Copied from the latest entry by the database</td></tr>
+          <tr><td>Spares used</td><td>Spare consumption</td><td>Off the engineer's hand stock; needs a visit unless it is a reconciliation</td></tr>
+          <tr><td>Customer feedback</td><td>Customer Feedback</td><td>Only on Solved - Report Completed. One per call</td></tr>
+          <tr><td>Warranty Start Date?</td><td>The feedback row</td><td>Installation calls only</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= FLOW 4 ================= -->
+  <section class="flowhead" id="flow4">
+    <p class="flowhead-n">Flow 4</p>
+    <h2 class="flowhead-t">After the visit</h2>
+    <p class="flowhead-p">
+      Three screens read the calls and visits back: <b>Pending Calls</b> for what is still open,
+      <b>Call Review</b> for whether a solved call's report can stand, and <b>Customer Feedback</b> for what
+      customers said.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every call not cancelled</b> that is not Solved, plus every re-opened call — all three registers</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unattended)">
+      <p class="n">Flow 4 · Step 01</p>
+      <h2>Pending Calls — everything still open</h2>
+      <span class="who">Opened by its module tick</span>
+      <p>
+        Four tiles count <b>Unattended</b>, <b>Unsolved</b>, <b>Report pending</b> and <b>Reopened</b>; click
+        one to show only those. <b>All · Field · Installation · PM</b> chips, a chip per engineer with what
+        they are carrying, and a search narrow it further. Clicking a call opens it in its own register.
+      </p>
+      <p>
+        The line under the title says whose calls you are looking at — <i>🌐 All calls</i>, <i>👥 Your
+        team</i> or <i>🙋 Your calls</i>. Calls are read 2,000 at a time; while more remain, every count
+        carries a <b>+</b>. <b>⭳ Export CSV</b> downloads what is shown.
+      </p>
+      <p>
+        Tick calls and <b>Allot to</b> an engineer to re-allocate several at once, across registers.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Each ticked call needs its own register's re-allocate permission; if any does not, nothing is moved and the screen names the calls.</li>
+        <li>Where the database moves fewer than were ticked: <i>"… The other … were not changed — your role may not re-allot them."</i></li>
+        <li>An empty list means everything is closed only for a role that sees every call; anyone else is told <i>"Nothing is pending that you can see"</i>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Solved calls</b>, not cancelled and not re-opened, whose status is not Report Pending</li>
+        <li><b>The call's visits and spares consumed</b></li>
+        <li><b>The attending engineer's hand stock</b>, for Reco</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 4 · Step 02</p>
+      <h2>Call Review — can the report stand?</h2>
+      <span class="who">Review a closed call's report (mark Report Reviewed)</span>
+      <p>
+        A different question from the Daily Complaint Review Register: not what the failure was, but whether
+        the engineer's report closes the call. Three panes — calls, the call, and what happened on it — with
+        <b>Awaiting review</b>, <b>Reviewed</b> and <b>All solved</b>.
+      </p>
+      <p>
+        Three things can be done. <b>Report Reviewed</b>, with optional <b>Review remarks</b>, records that
+        somebody has looked; there is one review per call, re-marking it overwrites, and the database stamps
+        who and when. <b>Reconciliation</b> books a spare the engineer did not, off the attending engineer's
+        hand stock, with a reason. <b>Re-open</b> sends the call back to the open list.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>Marking a review needs <b>Review a closed call's report</b>, and the call must be one you may see. Without it the screen is read-only and says so.</li>
+        <li class="mandate"><span class="tag">Mandate</span>A Reconciliation needs the part, a quantity of at least 1 and <i>"a reason — why it is being booked by hand"</i>; it needs <b>Add consumption against a call (reconciliation)</b>.</li>
+        <li>Re-open is offered only with the call's own register's re-open permission, and asks why.</li>
+        <li>A review cannot be deleted.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Customer feedback</b> — taken on solved visits, or loaded from the old export</li>
+        <li><b>The calls' states</b>, to colour each UCN</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Flow 4 · Step 03</p>
+      <h2>Customer Feedback — what customers told us</h2>
+      <span class="who">View feedback</span><span class="who">Record customer feedback on a visit</span>
+      <p>
+        One row per feedback, one column per question. <b>Date</b> is the feedback's own date — for a loaded
+        row the date its export gave it, for one taken here when it was taken — and <b>Loaded on</b> is when the
+        row arrived, a separate fact. <b>Source</b> tells <b>Uploaded</b> from <b>Entered here</b>, with a
+        count on each chip.
+      </p>
+      <p>
+        Feedback is taken on the Visit Entry of a call reported <i>Solved - Report Completed</i>. The
+        questions depend on the call: installation calls are asked about start-up, packing and delivery; field
+        and PM calls about the product's reliability, the service and its promptness; field calls also whether
+        an advance PM was done; and every call about operating feasibility, support and remarks.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>Reading feedback needs <b>View feedback</b> or <b>Record customer feedback on a visit</b>; on this screen, a role that does not see every record sees the feedback of its own engineers.</li>
+        <li><span class="tag db">Index</span><b>One feedback per call</b>, keyed on its UCN.</li>
+        <li><span class="tag db">Trigger</span>No feedback can be deleted through the application.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 4, as a ledger</h2>
+    <p>What each screen lists, and whose rows.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Screen</th><th>Lists</th><th>Over whose rows</th></tr></thead>
+        <tbody>
+          <tr><td>Pending Calls</td><td>Open and re-opened calls, not cancelled, all three registers</td><td>The calls you may see, narrowed again to your own or your team's unless you see every call</td></tr>
+          <tr><td>Visit Reports</td><td>Every visit, one row each</td><td>Visits on calls you may see</td></tr>
+          <tr><td>Call Review</td><td>Solved calls, not re-opened or cancelled, not Report Pending</td><td>The calls you may see</td></tr>
+          <tr><td>Customer Feedback</td><td>One feedback per call</td><td>Holders of View feedback or Record customer feedback; narrowed to your engineers unless you see every record</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<!-- the states ----------------------------------------------------------- -->
+<section class="states">
+  <h2>The status colour code</h2>
+  <p>
+    These colours are fixed and the same in light and dark. A UCN carries its call's colour wherever it
+    appears; where a screen does not know the call's state, the UCN is drawn plain rather than in a colour
+    that might be wrong.
+  </p>
+  <div class="chips">
+    <span class="chip" style="background:var(--st-unattended)">Unattended</span>
+    <span class="chip" style="background:var(--st-unsolved)">Unsolved</span>
+    <span class="chip" style="background:var(--st-pending)">Report pending</span>
+    <span class="chip" style="background:var(--st-solved)">Solved</span>
+    <span class="chip" style="background:var(--st-reopened)">Reopened</span>
+    <span class="chip" style="background:var(--st-cancelled)">Cancelled</span>
+  </div>
+  <div class="scroll">
+    <table class="transitions">
+      <thead>
+        <tr><th>State</th><th>Means</th><th>Moves on when</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Unattended</td><td>Registered — no visit reported yet</td><td>The first visit is entered</td></tr>
+        <tr><td>Unsolved</td><td>Last visit came back unsolved</td><td>A later entry says otherwise</td></tr>
+        <tr><td>Report pending</td><td>Visited — report not completed</td><td>An entry reads Solved - Report Completed</td></tr>
+        <tr><td>Solved</td><td>Last visit closed the call. Read-only to every role</td><td>Re-open call</td></tr>
+        <tr><td>Reopened</td><td>Closed, then re-opened — it needs another visit</td><td>A new visit is entered, or Close again</td></tr>
+        <tr><td>Cancelled</td><td>Stands as a record, but nobody is going to it</td><td>Restore call — back to what its visits say</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- panels --------------------------------------------------------------- -->
+<div class="panels">
+
+  <div class="panel">
+    <h3>Who may see what</h3>
+    <p>
+      The screen's tick opens the page; the database decides the rows. A call is visible to a holder of
+      <b>View calls</b> when any of these is true:
+    </p>
+    <ul>
+      <li>The role sees every call — <b>Hotline, NSM, Commercial, Spare Coordinator, Stores Incharge, Tally Coordinator</b>, an administrator, or anyone holding <b>View all data (every record)</b>.</li>
+      <li>You registered it, or it was filed to your desk.</li>
+      <li>It is allotted to you, or to somebody below you on the User Master — by reporting manager or regional manager.</li>
+      <li>It is allotted to nobody.</li>
+    </ul>
+    <p>
+      Requests follow the same rule: those you raised, those carrying your e-mail, your team's, or all of them
+      for a role that sees every call.
+    </p>
+  </div>
+
+  <div class="panel">
+    <h3>The records kept</h3>
+    <ul>
+      <li><b>Two registrant columns.</b> A call is filed to the <b>Hotline desk</b> whoever typed it in, and the database separately stamps <b>the person who actually typed it</b> from the sign-in. The two differing is a finding, not an error.</li>
+      <li><b>System columns.</b> Every table except the number counters also records which login created and last changed each row, and when, written by the database.</li>
+      <li><b>Never deleted.</b> Calls, visits, spare requests, consumption and feedback cannot be deleted through the application: <i>"RECORD RETENTION: … records cannot be deleted … Use the defined status / cancel / drop workflow."</i></li>
+      <li><b>Two counts that both are right.</b> Visit Reports counts <b>visits</b>; the Call Report counts <b>calls</b>, each with its latest visit. A call visited three times is three rows here and one there; an open call with no visit is none here and one there.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h3>Not yet in place</h3>
+    <p>Stated here so nobody reads this page as describing them as done.</p>
+    <ul>
+      <li><b>The re-open reason is asked and not kept.</b> Call Review requires a reason before Re-open, but the database's re-open does not store it; the call keeps only when it was re-opened and how many times.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer>
+  <p>
+    Drawn from the running system: <code>src/modules/FieldCalls.tsx</code>, <code>PendingRegistrations.tsx</code>,
+    <code>RequestCallRegistration.tsx</code>, <code>CallReporting.tsx</code>, <code>CallAssociations.tsx</code>,
+    <code>Reports.tsx</code>, <code>PendingCalls.tsx</code>, <code>CallReview.tsx</code> and
+    <code>CustomerFeedback.tsx</code>; <code>src/lib/rbac.ts</code> and <code>src/lib/callstate.tsx</code>; and the
+    migrations they rest on, read at their latest definition. Where this page and the code disagree, the code
+    is the fact and this page is the bug.
+  </p>
+</footer>
+
+</div>
+
+<script>
+// ===========================================================================
+// THIS FILE IS BOTH THE SHARED DIAGRAM AND THE IN-APP PAGE, and it must behave
+// as either. Standalone it is an ordinary document. Framed by RITHI CRM it has
+// two more jobs, and both fail silently if left to chance:
+//
+//   1. FOLLOW THE HOST'S THEME. The app has its own light/dark toggle, and a
+//      framed document cannot see it — a viewer in dark mode would otherwise
+//      get a white page inside a dark one. The app passes ?theme= and this
+//      stamps it, which is the same attribute the CSS above already honours.
+//      With no parameter nothing is stamped and prefers-color-scheme decides,
+//      exactly as before.
+//   2. SAY HOW TALL IT IS. A fixed-height iframe gives the reader a second
+//      scrollbar inside the first, which on a long document is worse than no
+//      frame at all. The height is posted on load, on resize, and whenever the
+//      content changes.
+//
+// Everything here is guarded: a failure leaves a page that still reads.
+(function () {
+  try {
+    var t = new URLSearchParams(location.search).get('theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { /* no theme is not a broken page */ }
+
+  if (window.parent === window) return;   // standalone: nothing to report to
+  var last = 0;
+  function tell() {
+    var h = Math.ceil(document.documentElement.scrollHeight);
+    if (Math.abs(h - last) < 2) return;
+    last = h;
+    try { window.parent.postMessage({ type: 'rithi-doc-height', height: h }, '*'); } catch (e) { /* ignore */ }
+  }
+  window.addEventListener('load', tell);
+  window.addEventListener('resize', tell);
+  document.addEventListener('DOMContentLoaded', tell);
+  if (window.ResizeObserver) new ResizeObserver(tell).observe(document.documentElement);
+  setTimeout(tell, 60); setTimeout(tell, 400); setTimeout(tell, 1200);
+})();
+</script>
+</body>
+</html>

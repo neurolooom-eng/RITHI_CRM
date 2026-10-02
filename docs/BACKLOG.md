@@ -230,6 +230,16 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.27 — How RITHI Functions: Service Calls document**
+  (`public/docs/how-service-calls-work.html`). Corrected on the way: re-allocate
+  note names the register's own key; Call Review's permission label; handbook
+  "closed without a visit" removed; flows' visit step routes to each register.
+  **Open, found while writing it (not fixed — need a decision):** the re-open
+  reason Call Review demands is NOT stored (`reopen_call` 0287 ignores
+  `p_reason`); `update` of Party / Product Details accepts any register's key
+  (0294); Pending Registrations files every non-installation request as Field;
+  a second solved visit on a re-opened call may collide with the one-per-call
+  feedback index (0186) — unverified. **Next document: Spares**, then the rest.
 - ✅ **0.10.25 — How RITHI Functions: Quality & Analytics document**
   (`public/docs/how-quality-works.html`, the call document's shell; three
   flows, 17 steps; open defects D-018/020/021/023/026/027/067 named as not yet

@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.27',
+    date: '2026-10-02',
+    title: 'How RITHI Functions: the Service Calls document',
+    changes: [
+      'NEW: HOW RITHI FUNCTIONS → SERVICE CALLS. The Field, Installation and PM registers side by side: how each gets its calls, its own permissions, and cancel, re-open and restore. Then a request becoming a call on Pending Registrations, the visit that sets the call\'s status, and Pending Calls, Call Review and Customer Feedback. Each step shows what it reads, what happens, and what it refuses or demands.',
+      'CORRECTED ON SCREEN: the re-allocate note on the Installation and PM registers now names that register\'s own permission. It used to name the Field call one. Call Review names the review permission as Roles & Permissions labels it.',
+      'CORRECTED: the handbook no longer offers closing a call without a visit (that option was removed). The data flows put filing a visit on the call\'s own register, not on Visit Reports, which only lists visits.',
+    ],
+  },
+  {
     version: '0.10.26',
     date: '2026-10-02',
     title: 'Contract Register: entries open in a pop-up, and By machine is now Register',
