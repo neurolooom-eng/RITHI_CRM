@@ -1,0 +1,55 @@
+/* ---------------------------------------------------------------------------
+   R/SER/QC/007 PRE DELIVERY TESTING and R/SER/07 INDOOR SERVICE EQUIPMENT
+   FAILURE REGISTER -- the printable pages.
+
+   The Field Failure Report's pattern (ffr.css): a white sheet on a grey desk on
+   screen, nothing but the sheet on paper, the toolbar screen-only. The PDT is
+   A4 portrait; the register is A4 LANDSCAPE, eighteen columns, its header row
+   repeated on every printed page (a <thead> does that by itself in print).
+   --------------------------------------------------------------------------- */
+.ip-page { background: #6b7280; min-height: 100vh; padding: 16px 0 40px; }
+.ip-toolbar {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  max-width: 297mm; margin: 0 auto 12px; padding: 10px 12px;
+  background: var(--surface); border-radius: 8px;
+}
+.ip-sheet {
+  margin: 0 auto 16px; background: #fff; color: #000;
+  font-family: 'Times New Roman', Times, serif; font-size: 11pt; line-height: 1.25;
+  box-shadow: 0 2px 12px rgba(0,0,0,.35); box-sizing: border-box;
+}
+.ip-portrait  { width: 210mm; min-height: 297mm; padding: 12.7mm 15mm 20mm; }
+.ip-landscape { width: 297mm; min-height: 210mm; padding: 10mm 8mm 14mm; font-size: 8.5pt; }
+
+.ip-head { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.ip-head td { border: 1px solid #000; padding: 3px 6px; vertical-align: middle; text-align: center; font-weight: 700; }
+.ip-head .ip-logo { width: 21%; }
+.ip-head .ip-mid  { width: 62%; }
+.ip-head .ip-pg   { width: 17%; }
+.ip-head .ip-logo img { max-width: 100%; max-height: 12mm; object-fit: contain; }
+
+.ip-grid { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 6px; }
+.ip-grid th, .ip-grid td { border: 1px solid #000; padding: 3px 5px; vertical-align: top; text-align: left; }
+.ip-grid th { font-weight: 700; }
+.ip-grid .ip-c { text-align: center; }
+.ip-label { font-weight: 700; }
+.ip-box { display: inline-block; width: 11px; height: 11px; border: 1px solid #000; text-align: center; line-height: 10px; font-size: 9pt; }
+.ip-sign-ink { display: block; max-height: 14mm; max-width: 50mm; object-fit: contain; }
+.ip-sign-cell { height: 16mm; }
+.ip-reg td, .ip-reg th { overflow-wrap: anywhere; }
+.ip-reg .ip-sign-ink { max-height: 8mm; max-width: 28mm; }
+.ip-note { font-size: 9pt; font-style: italic; margin: 4px 0 0; }
+.ip-draft { border: 2px solid #b91c1c; color: #b91c1c; padding: 3px 8px; margin-top: 6px; font-weight: 700; text-align: center; }
+
+.ip-foot { margin-top: 8px; text-align: center; }
+.ip-foot-notice { font-size: 8pt; }
+.ip-foot-tmpl { font-size: 10pt; }
+.ip-missing { max-width: 210mm; margin: 0 auto; background: #fff; padding: 20mm; border-radius: 4px; color: #000; }
+
+@media print {
+  .ip-page { background: #fff; padding: 0; }
+  .ip-toolbar { display: none !important; }
+  .ip-sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+  .ip-reg thead { display: table-header-group; }
+  .ip-reg tr { page-break-inside: avoid; }
+}

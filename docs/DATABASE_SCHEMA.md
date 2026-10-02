@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**90 tables · 36 views · 2629 columns · 191 policies · 59 foreign keys.**
+**94 tables · 36 views · 2726 columns · 194 policies · 60 foreign keys.**
 
 ## How to read this
 
@@ -66,6 +66,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [indoor_job_counters](#indoor-job-counters)
 - [indoor_job_parts](#indoor-job-parts)
 - [indoor_jobs](#indoor-jobs)
+- [indoor_pdt](#indoor-pdt)
 - [inst_call_repair_log](#inst-call-repair-log)
 - [installation_calls](#installation-calls)
 - [kb_articles](#kb-articles)
@@ -75,6 +76,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [material_returns](#material-returns)
 - [notifications](#notifications)
 - [objective_cutoffs](#objective-cutoffs)
+- [one_time_fixes_done](#one-time-fixes-done)
 - [ownership_transfers](#ownership-transfers)
 - [part_rename_ticket](#part-rename-ticket)
 - [parties](#parties)
@@ -97,6 +99,8 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [role_table_views](#role-table-views)
 - [sale_entries](#sale-entries)
 - [sale_items](#sale-items)
+- [sale_items_inherit_backup](#sale-items-inherit-backup)
+- [sale_party_refresh_backup](#sale-party-refresh-backup)
 - [saved_charts](#saved-charts)
 - [sla_rules](#sla-rules)
 - [spare_consumption](#spare-consumption)
@@ -1521,15 +1525,25 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 76 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 77 | `sys_updated_by` | uuid | yes |  |  |
 | 78 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 79 | `field_report_no` | text | **no** | `''::text` |  |
+| 80 | `engineer_name` | text | **no** | `''::text` |  |
+| 81 | `customer_place` | text | **no** | `''::text` |  |
+| 82 | `problem_reported` | text | **no** | `''::text` |  |
+| 83 | `indoor_report_no` | text | **no** | `''::text` |  |
+| 84 | `dc_date` | date | yes |  |  |
+| 85 | `remarks` | text | **no** | `''::text` |  |
+| 86 | `cover` | text | **no** | `''::text` | R/SER/07 "Status": the machine's COVER (WGP / OGP / CMC / AMC, cover_code()), read from the Product Database when the job is received or its product/serial changes, and editable. Not the workflow stage, which is `status`. |
+| 87 | `verified_by` | uuid | yes |  | R/SER/07 "Verified By": stamped from the session by indoor_jobs_guard() (0320) for a holder of indoor.verify, once the job is Dispatched, Closed or Condemned. A value the browser sends is discarded. |
+| 88 | `verified_at` | timestamp with time zone | yes |  |  |
 
 **Unique:** `job_no` _(indoor_jobs_job_no_key)_ · `job_no` _(indoor_jobs_job_no_key)_ · `sys_id` _(indoor_jobs_sys_id_key)_
 
-**Referenced by:** `indoor_job_accessories.job_id` · `indoor_job_checks.job_id` · `indoor_job_parts.job_id`
+**Referenced by:** `indoor_job_accessories.job_id` · `indoor_job_checks.job_id` · `indoor_job_parts.job_id` · `indoor_pdt.job_id`
 
 **Constraints:**
 
-- `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 - `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
+- `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 
 **Triggers:** `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -1540,6 +1554,76 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | INSERT | `indoor_insert` | — | `has_perm('indoor.receive'::text)` |
 | SELECT | `indoor_read` | `has_perm('mod:/indoor'::text)` | — |
 | UPDATE | `indoor_update` | `(has_perm('indoor.receive'::text) OR has_perm('indoor.work'::text) OR has_perm('indoor.qc'::text) OR has_perm('indoor.dispatch'::text) OR has_perm('indoor.condemn'::text))` | `(has_perm('indoor.receive'::text) OR has_perm('indoor.work'::text) OR has_perm('indoor.qc'::text) OR has_perm('indoor.dispatch'::text) OR has_perm('indoor.condemn'::text))` |
+
+---
+
+## indoor_pdt
+
+> R/SER/QC/007 PRE DELIVERY TESTING, one row per indoor job (0320). Owed by a DEMO unit whose product line is imported (indoor_job_is_imported): such a unit is not Dispatched or Closed until every field here is filled, the inspector has signed, and checks 1-5 all read OK.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `job_id` | bigint | **no** |  | → indoor_jobs(id) |
+| 3 | `test_date` | date | yes |  |  |
+| 4 | `measuring_equipment_id` | text | **no** | `''::text` |  |
+| 5 | `software_version` | text | **no** | `''::text` |  |
+| 6 | `hv` | text | **no** | `''::text` |  |
+| 7 | `ht` | text | **no** | `''::text` |  |
+| 8 | `check1` | text | yes |  | OK · NOT OK |
+| 9 | `check2` | text | yes |  | OK · NOT OK |
+| 10 | `check3` | text | yes |  | OK · NOT OK |
+| 11 | `check4` | text | yes |  | OK · NOT OK |
+| 12 | `check5` | text | yes |  | OK · NOT OK |
+| 13 | `cmv_vte_21` | numeric | yes |  |  |
+| 14 | `cmv_vte_60` | numeric | yes |  |  |
+| 15 | `cmv_vte_100` | numeric | yes |  |  |
+| 16 | `cmv_peep_21` | numeric | yes |  |  |
+| 17 | `cmv_peep_60` | numeric | yes |  |  |
+| 18 | `cmv_peep_100` | numeric | yes |  |  |
+| 19 | `cmv_o2_21` | numeric | yes |  |  |
+| 20 | `cmv_o2_60` | numeric | yes |  |  |
+| 21 | `cmv_o2_100` | numeric | yes |  |  |
+| 22 | `pcmv_pip_21` | numeric | yes |  |  |
+| 23 | `pcmv_pip_60` | numeric | yes |  |  |
+| 24 | `pcmv_pip_100` | numeric | yes |  |  |
+| 25 | `pcmv_peep_21` | numeric | yes |  |  |
+| 26 | `pcmv_peep_60` | numeric | yes |  |  |
+| 27 | `pcmv_peep_100` | numeric | yes |  |  |
+| 28 | `pcmv_o2_21` | numeric | yes |  |  |
+| 29 | `pcmv_o2_60` | numeric | yes |  |  |
+| 30 | `pcmv_o2_100` | numeric | yes |  |  |
+| 31 | `inspected_by` | uuid | yes |  |  |
+| 32 | `inspector_name` | text | **no** | `''::text` |  |
+| 33 | `inspector_designation` | text | **no** | `''::text` |  |
+| 34 | `inspected_at` | timestamp with time zone | yes |  |  |
+| 35 | `created_by` | uuid | yes |  |  |
+| 36 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 37 | `updated_by` | uuid | yes |  |  |
+| 38 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 39 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 40 | `sys_created_by` | uuid | yes |  |  |
+| 41 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 42 | `sys_updated_by` | uuid | yes |  |  |
+| 43 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `job_id` _(indoor_pdt_job_id_key)_ · `job_id` _(indoor_pdt_job_id_key)_ · `sys_id` _(indoor_pdt_sys_id_key)_
+
+**References:**
+
+- `job_id` → **indoor_jobs**(`id`) · on delete cascade _(indoor_pdt_job_id_fkey)_
+
+**Triggers:** `zz_indoor_pdt_stamp` → `indoor_pdt_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `indoor_pdt_insert` | — | `(( SELECT has_perm('indoor.work'::text) AS has_perm) OR ( SELECT has_perm('indoor.receive'::text) AS has_perm))` |
+| SELECT | `indoor_pdt_read` | `( SELECT has_perm('mod:/indoor'::text) AS has_perm)` | — |
+| UPDATE | `indoor_pdt_update` | `(( SELECT has_perm('indoor.work'::text) AS has_perm) OR ( SELECT has_perm('indoor.receive'::text) AS has_perm))` | `(( SELECT has_perm('indoor.work'::text) AS has_perm) OR ( SELECT has_perm('indoor.receive'::text) AS has_perm))` |
 
 ---
 
@@ -1914,6 +1998,31 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | SELECT | `oc_read` | `(has_perm('calls.view'::text) OR has_perm('reports.view'::text))` | — |
+
+---
+
+## one_time_fixes_done
+
+**Primary key:** `name` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `name` | text | **no** |  |  |
+| 2 | `applied_at` | timestamp with time zone | **no** | `now()` |  |
+| 3 | `detail` | text | yes |  |  |
+| 4 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 5 | `sys_created_by` | uuid | yes |  |  |
+| 6 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 7 | `sys_updated_by` | uuid | yes |  |  |
+| 8 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(one_time_fixes_done_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
 
 ---
 
@@ -2466,6 +2575,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 16 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 17 | `sys_updated_by` | uuid | yes |  |  |
 | 18 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 19 | `imported` | boolean | yes |  | Is this product line IMPORTED (true) or made in-house (false)? NULL = not recorded yet. Decides whether a DEMO unit of the line owes Pre-Delivery Testing R/SER/QC/007 before it leaves the workshop (0320); NULL is treated as not owing it, and the indoor screen says the answer is unknown. |
 
 **Unique:** `sys_id` _(product_master_sys_id_key)_
 
@@ -2886,6 +2996,62 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | INSERT | `sale_items_insert` | — | `( SELECT has_perm('cover.edit.entries'::text) AS has_perm)` |
 | SELECT | `sale_items_read` | `(( SELECT has_perm('masters.view'::text) AS has_perm) OR ( SELECT has_perm('cover.edit.entries'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
 | UPDATE | `sale_items_update` | `( SELECT has_perm('cover.edit.entries'::text) AS has_perm)` | `( SELECT has_perm('cover.edit.entries'::text) AS has_perm)` |
+
+---
+
+## sale_items_inherit_backup
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('sale_items_inherit_backup_id_seq'::regclass)` |  |
+| 2 | `item_id` | bigint | **no** |  |  |
+| 3 | `sa_number` | text | yes |  |  |
+| 4 | `serial_number` | text | yes |  |  |
+| 5 | `before` | jsonb | **no** |  |  |
+| 6 | `saved_at` | timestamp with time zone | **no** | `now()` |  |
+| 7 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 8 | `sys_created_by` | uuid | yes |  |  |
+| 9 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 10 | `sys_updated_by` | uuid | yes |  |  |
+| 11 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(sale_items_inherit_backup_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
+
+---
+
+## sale_party_refresh_backup
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('sale_party_refresh_backup_id_seq'::regclass)` |  |
+| 2 | `sa_number` | text | **no** |  |  |
+| 3 | `party_name` | text | yes |  |  |
+| 4 | `before` | jsonb | **no** |  |  |
+| 5 | `after` | jsonb | **no** |  |  |
+| 6 | `saved_at` | timestamp with time zone | **no** | `now()` |  |
+| 7 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 8 | `sys_created_by` | uuid | yes |  |  |
+| 9 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 10 | `sys_updated_by` | uuid | yes |  |  |
+| 11 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(sale_party_refresh_backup_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
 
 ---
 
@@ -3925,7 +4091,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `field_failure_register` | **on** | 62 |
 | `handstock_balance` | **on** | 20 |
 | `handstock_movements` | **on** | 16 |
-| `indoor_job_list` | **on** | 88 |
+| `indoor_job_list` | **on** | 101 |
 | `kpi_field_inst` | **on** | 34 |
 | `machine_cover` | **on** | 19 |
 | `pending_calls` | **on** | 54 |

@@ -9961,6 +9961,23 @@ console.log('\n-- High batch 1: what a screen could not read, and what it leaves
   eq('the /ffr/ print route asks the Field Failure Register\'s module key',
     /startsWith\('\/ffr\/'\) && !can\(actionForPath\('\/failure-report'\)\)/.test(app), true);
 
+  // THE TWO INDOOR SERVICE RECORDS (2026-10-02): R/SER/QC/007 and R/SER/07
+  // print the same way, answer to the Indoor register's key, and the register
+  // print -- the register's rows on paper -- also to export.data.
+  eq('the indoor print routes ask the Indoor Service Register\'s module key',
+    /startsWith\('\/indoor-pdt\/'\) \|\| location\.pathname\.startsWith\('\/indoor-register\/'\)\)\s*&& !can\(actionForPath\('\/indoor'\)\)/.test(app), true);
+  const regPrint = code(readFileSync('src/modules/IndoorRegisterPrint.tsx', 'utf8'));
+  eq('...and the printed register asks export.data, as the Excel download does',
+    /can\('export\.data'\) && canExportData\(\)/.test(regPrint), true);
+  const indoorPage = code(readFileSync('src/modules/IndoorService.tsx', 'utf8'));
+  eq('...and the Excel register refuses without export.data before it builds',
+    /if \(!mayExport \|\| !canExportData\(\)\)[^\n]*return; \}\s*const sheets/.test(indoorPage), true);
+  for (const f of ['IndoorPdtPrint', 'IndoorRegisterPrint']) {
+    const src = code(readFileSync(`src/modules/${f}.tsx`, 'utf8'));
+    eq(`${f} carries the company's mark and reproduces a signature only for its own signer`,
+      /COMPANY_LOGO/.test(src) && /signatureBelongsTo\(/.test(src), true);
+  }
+
   // D-045: A STOCK OUT IS READ BY ITS NUMBER, not looked for in the latest 500.
   for (const f of ['DeliveryChallan', 'Declaration']) {
     const src = code(readFileSync(`src/modules/${f}.tsx`, 'utf8'));

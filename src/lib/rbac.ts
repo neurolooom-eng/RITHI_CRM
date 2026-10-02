@@ -337,6 +337,10 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // property above all — is a decision somebody makes deliberately, not one
   // that arrives with the page.
   { group: 'Indoor Service', key: 'indoor.condemn', label: 'Condemn a unit (scrap it)' },
+  // R/SER/07 "VERIFIED BY" (0320): a supervisor's verification of a completed
+  // register row. Its own key, asked by the database and stamped from the
+  // session; granted to NOBODY by the migration -- an administrator ticks it.
+  { group: 'Indoor Service', key: 'indoor.verify', label: 'Verify an Indoor Service register entry' },
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
   { group: 'Spares', key: 'consumption.reconcile', label: 'Add consumption against a call (reconciliation)' },
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
@@ -711,7 +715,7 @@ export const PERM_TREE: PermHeader[] = [
   // page harder to trust than to use.
   { title: 'Indoor Service', pages: [
     { path: '/indoor', label: 'Indoor Service Register',
-      actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn'] },
+      actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn', 'indoor.verify'] },
   ] },
   { title: 'Reports', pages: [
     // The parent GRANTS ALL THREE below it, so a role that only needs one is
@@ -737,7 +741,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/parties', label: 'Party Master', actions: ['masters.edit', 'masters.edit.records', 'masters.edit.kyc', 'masters.edit.swap_serviceman'] },
     { path: '/product-database', label: 'Product Database', actions: ['calls.create', 'install.create'] },
     { path: '/product-database-2', label: 'Product Database 2.0', actions: ['masters.view', 'pd2.rebuild'] },
-    { path: '/product-master', label: 'Product Master (product lines)', actions: [] },
+    { path: '/product-master', label: 'Product Master (product lines)', actions: ['masters.edit', 'masters.edit.records'] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage', 'users.manage.details', 'users.manage.create', 'users.manage.disable', 'users.manage.access', 'users.reset_password'] },
     { path: '/parts', label: 'Part Master', actions: ['masters.edit', 'masters.edit.records', 'masters.edit.rename_part'] },
     // All Masters is just the overview screen; each value list is its own page

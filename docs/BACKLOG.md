@@ -74,6 +74,40 @@ up)_
 
 ---
 
+## 2026-10-02 — Indoor Service in line with R/SER/07 and R/SER/QC/007 (0319, 0320, v0.10.42)
+
+The user photographed the two controlled paper records the workshop keeps and
+asked for the process to be "in line with these records", then added that both
+must be produced in print.
+
+- **Shipped (on the branch):**
+  - `0319_product_master_imported.sql` (masters): `product_master.imported`,
+    blank until set. Product Master screen column (edit with
+    `masters.edit.records`) and an "Imported" column in its bulk upload.
+  - `0320_indoor_register_and_pdt.sql` (indoor): the R/SER/07 columns on
+    `indoor_jobs` (field_report_no, engineer_name, customer_place,
+    problem_reported, indoor_report_no, dc_date, remarks, cover,
+    verified_by/at); **Verified By** asks the new key `indoor.verify` (granted
+    to NOBODY -- an administrator ticks it), only on Dispatched / Closed /
+    Condemned, stamped from the session; `indoor_pdt` (R/SER/QC/007) with the
+    inspector stamped from the session; `indoor_job_is_imported()`; the guard
+    refuses Dispatched / Closed for a DEMO unit of an IMPORTED product until
+    its PDT is complete, signed and all-OK. Unknown imported-ness does not
+    require it (the user's decision) and the job says so.
+    `indoor_job_list` gains verified_by_name, accessories_received,
+    product_imported -- **0245 mirrors it** (guarded by 0320's column, because
+    0245 runs before 0320 in file order).
+  - Screen: R/SER/07 register view (Customer – Devices / Demo, incoming-date
+    range), Excel download of both sheets, print routes `/indoor-register/<sheet>`
+    and `/indoor-pdt/<job>`. Requirements URS-169/170, FRS-225/226/227, OQ-220/
+    221/222; suite `indoor_register_pdt_test`; `_status.sql` rows 247-249.
+- **Pending:** the merge's "Apply database migrations" run applies 0319 and
+  0320 -- read its log. Then an administrator ticks *Verify an Indoor Service
+  register entry* for the supervisor's role, and somebody fills **Imported** on
+  the Product Master (every line reads *not known* until then, so no DEMO unit
+  is asked for the test yet).
+- **Not built, by decision:** the bracketed number in Remarks (decision 2).
+
 ## 2026-09-30 — Module review batch 6: 13 and the sync race (v0.9.398)
 
 - **0254**: `spare_insights()` counts India's days (finding 13); `_status.sql`

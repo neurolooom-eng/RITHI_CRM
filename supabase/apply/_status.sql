@@ -1656,7 +1656,25 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regclass('public.one_time_fixes_done') is not null
          and exists (select 1 from public.one_time_fixes_done where name = '0319_install_call_mapping')
          and coalesce((select p.prosrc like '%mod:/install-calls-unmapped%' from pg_proc p where p.oid = to_regprocedure('public.install_calls_unmapped()')), false)
-         and not has_function_privilege('anon', to_regprocedure('public.install_calls_unmapped()'), 'EXECUTE')))
+         and not has_function_privilege('anon', to_regprocedure('public.install_calls_unmapped()'), 'EXECUTE'))),
+    (247, 'The Product Master says whether a line is imported', 'product_master.imported (0319), boolean, blank until somebody fills it on the Product Master screen or by Bulk Uploads. It decides whether a DEMO unit in the workshop owes Pre-Delivery Testing R/SER/QC/007; blank reads as unknown and does not require it. NO means masters.sql has not been re-run since. Restore: masters.sql (0319)',
+        exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'product_master' and column_name = 'imported' and data_type = 'boolean')),
+    (248, 'The Indoor register carries R/SER/07, and Verified By is its own key', 'indoor_jobs has the register''s columns (field_report_no, engineer_name, customer_place, problem_reported, indoor_report_no, dc_date, remarks, cover, verified_by, verified_at); indoor_job_list gives the verifier''s name, the accessories and whether the product is imported; indoor_jobs_guard() asks indoor.verify, stamps the verifier from the session, and still keeps 0297''s dispatch rule (0320). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0320)',
+        ((select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'indoor_jobs'
+           and column_name in ('field_report_no', 'engineer_name', 'customer_place', 'problem_reported', 'indoor_report_no',
+                               'dc_date', 'remarks', 'cover', 'verified_by', 'verified_at')) = 10
+         and (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'indoor_job_list'
+               and column_name in ('verified_by_name', 'accessories_received', 'product_imported')) = 3
+         and coalesce((select p.prosrc like '%indoor.verify%' and p.prosrc like '%new.verified_by := auth.uid()%'
+                              and p.prosrc like '%indoor.dispatch is required to mark a unit%'
+                         from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false))),
+    (249, 'A DEMO unit of an imported product does not leave without Pre-Delivery Testing', 'indoor_pdt holds R/SER/QC/007 one row per job, its inspector stamped from the session (zz_indoor_pdt_stamp), readable with the page and writable with indoor.work / indoor.receive, with no delete policy; indoor_job_is_imported() reads the Product Master; indoor_jobs_guard() refuses Dispatched / Closed for a DEMO unit of an imported product until the test is complete and checks 1-5 read OK (0320). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0320)',
+        (to_regclass('public.indoor_pdt') is not null
+         and to_regprocedure('public.indoor_job_is_imported(text,text)') is not null
+         and exists (select 1 from pg_trigger where tgname = 'zz_indoor_pdt_stamp' and tgrelid = to_regclass('public.indoor_pdt'))
+         and not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'indoor_pdt' and cmd in ('DELETE', 'ALL'))
+         and coalesce((select p.prosrc like '%indoor_job_is_imported%' and p.prosrc like '%reads NOT OK%'
+                         from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

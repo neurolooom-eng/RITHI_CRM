@@ -626,12 +626,19 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Record whose property it is and what activity is being done',
       'Record cleaning and disinfection, findings, work done and parts harvested',
       'Record the quality check, then dispatch',
+      'Fill the R/SER/07 register columns — Field Service Report No, engineer, place, problem reported, the cover (read from the machine), Indoor Service Report No, DC date, remarks',
+      'Record Pre-Delivery Testing (R/SER/QC/007) on a DEMO unit of an imported product, sign it, and print it',
+      'Verify a completed register entry',
+      'View the register as R/SER/07 (Customer – Devices / Demo), download it to Excel and print it',
     ],
-    records: ['indoor_jobs', 'indoor_job_list', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks', 'audit_log'],
+    records: ['indoor_jobs', 'indoor_job_list', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks', 'indoor_pdt', 'product_master', 'audit_log'],
     rules: [
       'A harvested part cannot go back into stock until decontamination is recorded',
       'A job cannot be Dispatched or Closed without a quality check',
       'A job does not need a call — a demo unit has none',
+      'A DEMO unit of an imported product is not Dispatched or Closed until its Pre-Delivery Testing is complete, signed, and every check reads OK; unknown imported-ness does not demand it',
+      'Verifying an entry needs its own right, and only once the unit is Dispatched, Closed or Condemned; who and when are recorded by the system',
+      'The Excel register and the printed register need the export right',
     ],
   },
 
@@ -795,12 +802,14 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'The list of product lines — one row per product code: type, category, short form, and whether it is still sold. Not the machines.',
     does: [
       'Search product lines and filter All / Active / Inactive',
+      'Set whether a line is Imported (Yes / No) — with the right to edit master records',
       'Export to CSV',
     ],
     records: ['product_master'],
     rules: [
       'Inactive stops only a new Sale Entry; machines already sold still take contracts, calls, visits, spares and feedback',
-      'Changed through Bulk Uploads → Product Master, not on this screen',
+      'Imported decides whether a DEMO unit of the line owes Pre-Delivery Testing (R/SER/QC/007); blank means not known, and the test is then not demanded',
+      'Everything else is changed through Bulk Uploads → Product Master, not on this screen',
     ],
   },
   {
