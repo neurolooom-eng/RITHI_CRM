@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.32',
+    date: '2026-10-02',
+    title: 'Warranty and Contract registers: Export Excel with real dates',
+    changes: [
+      'NEW: ⭳ EXPORT EXCEL on the Warranty and Contract Registers (Entries and Register tabs). Dates arrive as real Excel dates (dd-MMM-yyyy), so they sort, filter by month and take any date format you choose. Serials and contract numbers stay as text, leading zeros included.',
+      'Export CSV is still there. A CSV can only hold text, so its dates are written as dd-MMM-yyyy text. Use Export Excel when you want dates Excel can work with.',
+      'FIXED: the State column on the Entries export was empty. It now carries the same Active / About to expire / Inactive the screen shows, in both files.',
+    ],
+  },
+  {
     version: '0.10.31',
     date: '2026-10-02',
     title: 'Contract entry: Status worked out, years shown under the months, device copy named',
