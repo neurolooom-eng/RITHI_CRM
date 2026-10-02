@@ -77,7 +77,8 @@ different totals. An empty register usually means access, not emptiness.
   > your device first, and from the server only for something the device does
   > not have yet — so the form works on a weak signal.
 - **Pending Registrations** `/pending-registrations` — the Hotline queue.
-  Registering one issues the UCN and files the call.
+  Registering one issues the UCN and files the call. The chips at the top filter
+  it by Call Type, each with its count.
   > The call is filed to the Hotline desk, but the system separately records *who
   > actually typed it in*. The two differing is a finding, not an error.
 
