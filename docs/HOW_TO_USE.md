@@ -518,6 +518,8 @@ and if you close it over unsaved changes it asks first. On a phone the two
 halves stack. Each register
 opens on **2,000 rows** — two full requests of the 1,000 the database hands over
 at once — and every **Load more** fetches twice as much as the one before.
+**Load more** sits at the top, beside the count, as on Field Calls; it loads
+more of the tab that is open (Entries or Register).
 **"+ New entry" arrives with its number already in it** — offered, not reserved,
 so two people starting at once get the same number and the second is refused on
 saving.

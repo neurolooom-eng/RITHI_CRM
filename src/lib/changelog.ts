@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.36',
+    date: '2026-10-02',
+    title: 'Warranty and Contract registers: Load more at the top',
+    changes: [
+      'LOAD MORE now sits at the top of the Warranty Register and the Contract Register, beside the count, as on Field Calls and Spare Requests. It loads more of the tab that is open (Entries or Register). The button at the foot of the table is gone; the row count there still shows a + while more are waiting.',
+    ],
+  },
+  {
     version: '0.10.35',
     date: '2026-10-02',
     title: 'Rules the screens kept, now kept by the database too',
