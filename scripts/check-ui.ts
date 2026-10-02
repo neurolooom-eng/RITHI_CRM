@@ -10,7 +10,7 @@ import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod, todayLocal } from '../src/lib/dates';
-import { configFor, contractStatusText, yearsHint } from '../src/lib/cover';
+import { configFor, contractStatusText, yearsHint, proposeConversion, conversionHeader, conversionItem } from '../src/lib/cover';
 import { localIsoDate, formatDayTime, excelSerial, hasClockTime } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
@@ -2737,6 +2737,31 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
       eq('the cover registers export .xlsx', /xlsxDownload\(`\$\{name\}\.xlsx`/.test(reg), true);
       eq('...every cell through xlsxCell', /xlsxCell\(exportValue\(r, c\.key\)\)/.test(reg), true);
       eq('...and the entry State is worked out for the file', /if \(key === 'status_now'\) return stateOf/.test(reg), true);
+    }
+    // WARRANTY -> CONTRACT (the user, 2026-10-02): what the sale holds is
+    // carried, what it cannot know is asked for, and the end is worked out
+    // the contract form's way.
+    {
+      const sale = { sa_number: 'SA-9', party_name: 'APOLLO', warranty_end: '2026-03-31' };
+      const items = [{ product_code: 'V1', product_name: 'VEGA', serial_number: 'S1', warranty_end: '2027-01-31' },
+                     { product_code: 'V1', product_name: 'VEGA', serial_number: '' }];
+      const d = proposeConversion(sale, items);
+      eq('a conversion starts the day after the warranty ends', d.contract_start, '2026-04-01');
+      eq('...ticks every machine with a serial', d.serials, ['S1']);
+      eq('...and guesses no contract type', d.contract_type, '');
+      const h = conversionHeader(sale, { ...d, contract_months: 12 });
+      eq('the party is carried', h.party_name, 'APOLLO');
+      eq('the end is worked out from start + months', h.contract_end, '2027-03-31');
+      eq('...and the years from the months', h.contract_years, 1);
+      eq('a machine line carries its product, serial and sale',
+        conversionItem(sale, items[0]), { product_code: 'V1', product_name: 'VEGA', serial_number: 'S1', sa_number: 'SA-9', sa_end_date: '2027-01-31' });
+      eq("...and falls back to the sale's warranty end", conversionItem(sale, { serial_number: 'S2' }).sa_end_date, '2026-03-31');
+      const reg = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+      eq('converting is offered to whoever may create a contract',
+        /const canConvert = kind === 'sale' && !!open\?\.id && can\('contract\.edit\.entries'\)/.test(reg), true);
+      // SAVE ONLY WHEN SOMETHING CHANGED (the user, 2026-10-02).
+      eq('Save entry is disabled while nothing has changed',
+        /disabled=\{saving \|\| \(!!open\.id && !entryDirty\)\}/.test(reg), true);
     }
     eq('the entry window says how old the device copy is',
       /<MachineRegisterNote \/>/.test(readFileSync('src/modules/CoverRegister.tsx', 'utf8')), true);

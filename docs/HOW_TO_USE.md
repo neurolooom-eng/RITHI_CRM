@@ -569,6 +569,17 @@ real Excel dates — they sort, filter by month and take your own date format.
 **⭳ Export CSV** is still there, but a CSV holds only text, so its dates are
 written as `dd-MMM-yyyy` text.
 
+**⇢ Convert to Contract** (on a saved sale, in the Warranty Register) raises a
+contract from it. The **customer** and every **machine with a serial** carry
+over, each machine noting its SA Number and warranty end. The contract starts
+**the day after the warranty ends**, so cover has no gap. You give the **MC
+Number** (the next one is offered), **Contract Type**, **Period (Months)**, **PM
+Visits**, **Payment Schedule**, **Bill Generate At** and, if you like, a rate per
+machine. It warns if the sale's machines are already on a contract, and opens
+the Contract Register on the new one.
+
+**Save entry stays grey until something on the entry has changed.**
+
 **Prev MC Number** is not on the contract form: **Renew this contract** fills it
 in on the new contract with the number it was renewed from.
 

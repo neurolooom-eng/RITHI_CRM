@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.36',
+    date: '2026-10-02',
+    title: 'Warranty Register: Convert to Contract, a one-time Party Master update, and Save only when changed',
+    changes: [
+      'NEW: ⇢ CONVERT TO CONTRACT on a saved warranty sale. The customer and every machine with a serial carry over to a new contract, each machine noting its SA Number and warranty end. The contract starts the day after the warranty ends. You give the MC Number (the next one is offered), Contract Type, Period (Months), PM Visits, Payment Schedule, Bill Generate At and, optionally, a rate per machine. It warns if the sale\'s machines are already on a contract, and takes you to the new contract.',
+      'ONE-TIME UPDATE: every warranty sale has been re-read from the Party Master, as if ↺ Update from Party Master had been pressed on each one (blanks included), and every machine has been put back on its sale, as ↺ Force update child records does. It runs once and cannot run again. Every value it replaced is kept, so anything needed can be recovered.',
+      'SAVE ENTRY is greyed out until you change something on the entry, on both the Warranty and Contract Registers.',
+    ],
+  },
+  {
     version: '0.10.35',
     date: '2026-10-02',
     title: 'Rules the screens kept, now kept by the database too',

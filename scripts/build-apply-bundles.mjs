@@ -933,7 +933,12 @@ const MODULES = {
             '0258_link_install_call.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
             // and split keys; see 0286 for the parent rule.
-            '0291_cover_keys_split.sql'],
+            '0291_cover_keys_split.sql',
+            // ONE TIME (2026-10-02): every sale re-read from the Party Master
+            // and every machine put back on its sale, guarded by a marker row
+            // so a replay of this bundle never repeats it. Reads `parties`
+            // (masters) and asks for its columns rather than assuming them.
+            '0317_warranty_party_refresh_once.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

@@ -25,6 +25,8 @@ import {
   configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit,
   raiseInstallCalls, missingRequired, yearsHint,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
+  proposeConversion, conversionHeader, convertWarrantyToContract, contractsFromSale, suggestedContractPmVisits,
+  CONTRACT, type ConversionDraft,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
 // THE PRICING RULE COMES FROM ONE PLACE. GST and "total = rate + tax" are the
@@ -567,6 +569,159 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
   );
 }
 
+// ===========================================================================
+// CONVERT THIS WARRANTY INTO A CONTRACT (the user, 2026-10-02). Shown on a
+// sale entry. What the sale holds is carried and shown as carried; what a
+// sale cannot know is asked for, with the contract form's own rules. The
+// mapping itself is in cover.ts (proposeConversion / conversionHeader /
+// conversionItem), so this panel only collects and shows.
+// ===========================================================================
+function ConvertPanel({ sale, items, onDone, onCancel }: {
+  sale: Row; items: Row[]; onDone: (mc: string, machines: number) => void; onCancel: () => void;
+}) {
+  const [d, setD] = useState<ConversionDraft>(() => proposeConversion(sale, items));
+  const [pmTyped, setPmTyped] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [already, setAlready] = useState<string[]>([]);
+  const set = <K extends keyof ConversionDraft>(k: K, v: ConversionDraft[K]) => setD((x) => ({ ...x, [k]: v }));
+
+  // The next MC in the series, OFFERED (editable, not reserved), and the
+  // contracts that already carry a machine from this sale.
+  useEffect(() => {
+    void nextCoverNumber('contract').then((n) => setD((x) => (x.mc_number ? x : { ...x, mc_number: n }))).catch(() => {});
+    void contractsFromSale(str(sale.sa_number)).then(setAlready).catch(() => {});
+  }, [sale.sa_number]);
+
+  // PM VISITS FOLLOW THE MONTHS until somebody types over them -- the
+  // contract form's rule (FRS-090), not a second one.
+  const setMonths = (raw: string) => {
+    const m = raw === '' ? null : Number(raw);
+    setD((x) => ({ ...x, contract_months: m,
+      pm_visits_total: pmTyped ? x.pm_visits_total : suggestedContractPmVisits(m) }));
+  };
+
+  const header = conversionHeader(sale, d);
+  const opt = (name: string) => CONTRACT.headerFields.find((f) => f.name === name)?.options?.filter(Boolean) ?? [];
+  const machines = items.filter((i) => str(i.serial_number));
+  const toggle = (sn: string) => setD((x) => ({
+    ...x, serials: x.serials.includes(sn) ? x.serials.filter((s) => s !== sn) : [...x.serials, sn],
+  }));
+
+  const go = async () => {
+    setBusy(true); setMsg('');
+    try {
+      const r = await convertWarrantyToContract(sale, items, d);
+      onDone(r.mc_number, r.machines);
+    } catch (e) { setMsg(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="rep-sec" style={{ marginTop: 0 }}>
+      <div className="rep-sec-title">
+        Convert to a contract <span className="muted">· from {str(sale.sa_number)}</span>
+      </div>
+      <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
+        <b>Carried from the sale:</b> Party Name, and each machine's Product Code, Product Name and Serial
+        Number, with the SA Number and its warranty end recorded on the contract line.
+        The contract starts the day after the warranty ends, so cover has no gap. Fill in the rest below.
+      </p>
+      {already.length > 0 && (
+        <div className="sheet-banner sheet-banner-info" style={{ marginBottom: 8 }}>
+          <span>Machines from {str(sale.sa_number)} are already on {already.join(', ')}. Converting again adds another contract.</span>
+        </div>
+      )}
+
+      <div className="rep-grid">
+        <label className="rep-field">
+          <span className="field-label">Party Name <span className="muted">· from the sale</span></span>
+          <input className="input" value={str(sale.party_name)} readOnly disabled />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">MC Number *</span>
+          <input className="input" value={d.mc_number} onChange={(e) => set('mc_number', e.target.value)} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Contract Type</span>
+          <SelectPicker value={d.contract_type} onChange={(v) => set('contract_type', v)}
+            placeholder="— choose —" options={opt('contract_type')} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Contract Start Date</span>
+          <LongDateInput value={d.contract_start} onChange={(v) => set('contract_start', v)} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Contract Period (Months) *</span>
+          <input className="input" type="number" min={1} value={d.contract_months ?? ''}
+                 onChange={(e) => setMonths(e.target.value)} />
+          {yearsHint(header, 'contract_months') && <span className="muted rep-hint">{yearsHint(header, 'contract_months')}</span>}
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Contract End Date <span className="muted">· from Start + Period (months)</span></span>
+          <LongDateText value={str(header.contract_end)} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">PM Visits (Total) *</span>
+          <input className="input" type="number" min={0} value={d.pm_visits_total ?? ''}
+                 onChange={(e) => { setPmTyped(true); set('pm_visits_total', e.target.value === '' ? null : Number(e.target.value)); }} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Payment Schedule *</span>
+          <SelectPicker value={d.payment_schedule} onChange={(v) => set('payment_schedule', v)}
+            placeholder="—" options={opt('payment_schedule')} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Bill Generate At *</span>
+          <SelectPicker value={d.bill_generate_at} onChange={(v) => set('bill_generate_at', v)}
+            placeholder="—" options={opt('bill_generate_at')} />
+        </label>
+      </div>
+
+      <div className="field-label" style={{ marginTop: 10 }}>
+        Products ({d.serials.length} of {machines.length} going onto the contract)
+      </div>
+      <div className="muted" style={{ fontSize: 12.5 }}>
+        Untick a machine that is not being covered. A rate is optional — leave it blank to price the contract later.
+      </div>
+      <div style={{ maxHeight: 260, overflowY: 'auto', marginTop: 8 }}>
+        {machines.map((it) => {
+          const sn = str(it.serial_number);
+          const on = d.serials.includes(sn);
+          const raw = (d.rates[sn] ?? '').trim();
+          const n = raw === '' ? null : Number(raw);
+          return (
+            <div key={sn} className="renew-row" style={{ opacity: on ? 1 : 0.5 }}>
+              <input type="checkbox" checked={on} onChange={() => toggle(sn)} />
+              <span className="renew-name">
+                <b>{sn}</b> <span className="muted">{str(it.product_name)}{str(it.product_code) && ` · ${str(it.product_code)}`}</span>
+              </span>
+              <span className="renew-money">
+                <span className="muted renew-was">warranty to {fmtDate(it.warranty_end || sale.warranty_end) || '—'}</span>
+                <input className="input renew-rate" type="number" min={0} step="0.01" placeholder="rate" disabled={!on}
+                       value={d.rates[sn] ?? ''} onChange={(e) => setD((x) => ({ ...x, rates: { ...x.rates, [sn]: e.target.value } }))} />
+                <span className="muted renew-tot">
+                  {!on ? '' : n !== null && Number.isFinite(n) && n >= 0 ? `+GST = ${(totalAfterTax(n) ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+                    : raw === '' ? 'price later' : 'not a rate'}
+                </span>
+              </span>
+            </div>
+          );
+        })}
+        {!machines.length && <div className="muted" style={{ fontSize: 12.5 }}>This sale has no machine with a serial number, so there is nothing to put on a contract.</div>}
+      </div>
+
+      {msg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{msg}</span></div>}
+      <div className="row" style={{ gap: 8, marginTop: 10 }}>
+        <button className="btn btn-primary" disabled={busy || !machines.length} onClick={() => void go()}>
+          {busy ? 'Creating…' : 'Create the contract'}
+        </button>
+        <button className="btn" disabled={busy} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 export function CoverRegister({ kind }: { kind: CoverKind }) {
   const cfg = configFor(kind);
   const { can } = useAuth();
@@ -665,6 +820,8 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // Closed whenever a different entry is opened: a half-filled renewal must not
   // follow the reader onto another contract.
   const [renewing, setRenewing] = useState(false);
+  // The warranty-to-contract panel, closed the same way a renewal is.
+  const [converting, setConverting] = useState(false);
   const [items, setItems] = useState<Row[]>([]);
   // TRUE WHILE AN ENTRY'S MACHINES ARE BEING READ. The Renew panel seeds its
   // draft ONCE, from `items`, when it opens -- so pressed before the read
@@ -791,7 +948,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const openSeq = useRef(0);
   const openEntry = async (h: Row) => {
     const seq = ++openSeq.current;
-    setRenewing(false);
+    setRenewing(false); setConverting(false);
     setOpen(h); setDraft(h); setItems([]);
     setLoadingItems(true);
     try {
@@ -1113,7 +1270,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     const what = [entryDirty ? 'the entry' : '', cards ? `${cards} machine(s)` : ''].filter(Boolean).join(' and ');
     if (what && !window.confirm(`Unsaved changes to ${what} will be lost. Close anyway?`)) return;
     dirtyCards.current.clear();
-    setRenewing(false);
+    setRenewing(false); setConverting(false);
     setOpen(null);
   };
   // A machine added from the TOP of the window lands at the BOTTOM of the
@@ -1181,7 +1338,12 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // The entry's own buttons: save, re-read the party, delete.
   const entryButtons = canEdit && open ? (
     <>
-      <button className="btn btn-primary" onClick={() => void saveEntry()} disabled={saving}>
+      {/* ENABLED ONLY WHEN SOMETHING CHANGED (the user, 2026-10-02: "Enable
+          Save only if the Data has changed. It is confusing at the Moment").
+          A new entry always counts as changed -- it has not been saved yet. */}
+      <button className="btn btn-primary" onClick={() => void saveEntry()}
+        disabled={saving || (!!open.id && !entryDirty)}
+        title={open.id && !entryDirty ? 'Nothing has changed since it was saved' : undefined}>
         {saving ? 'Saving…' : 'Save entry'}
       </button>
       {/* SALES ONLY: a contract entry carries no address of its own. */}
@@ -1249,6 +1411,28 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           {loadingItems ? 'Loading machines…' : '↻ Renew this contract'}
         </button>
   ) : null;
+  // CONVERT TO CONTRACT: a saved sale, by whoever may create a contract.
+  const canConvert = kind === 'sale' && !!open?.id && can('contract.edit.entries');
+  const convertButton = canConvert ? (
+    converting
+      ? <button className="btn" onClick={() => setConverting(false)}
+          title="Close without creating anything">✕ Cancel conversion</button>
+      : <button className="btn" disabled={loadingItems} onClick={() => setConverting(true)}
+          title={loadingItems ? 'Waiting for this sale’s machines to load' : 'Raise a contract from this warranty, carrying its customer and machines'}>
+          {loadingItems ? 'Loading machines…' : '⇢ Convert to Contract'}
+        </button>
+  ) : null;
+  const convertPanel = canConvert && converting && open ? (
+    <ConvertPanel sale={draft} items={items}
+      onCancel={() => setConverting(false)}
+      onDone={(mc, n) => {
+        setConverting(false);
+        setOpen(null);
+        setMsg({ tone: 'ok', text: `Contract ${mc} created with ${n} machine(s) from ${str(draft.sa_number)}. Opening the Contract Register…` });
+        // TO THE NEW CONTRACT, already searched, so it is one click away.
+        navigate('/contracts', { state: { search: mc, tab: 'entries' } });
+      }} />
+  ) : null;
   const renewPanel = canRenew && renewing ? (
     <RenewPanel
       header={draft}
@@ -1309,6 +1493,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           <div className="spacer" />
           {entryButtons}
           {renewButton}
+          {convertButton}
           {machineButtons}
           <button className="btn btn-sm" onClick={closeEntry} title="Close this entry">✕ Close</button>
         </div>
@@ -1324,6 +1509,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 bar, it must appear where the eye already is, not below a
                 screen of contract fields. */}
             {renewPanel && <div style={{ marginBottom: 14 }}>{renewPanel}</div>}
+            {convertPanel && <div style={{ marginBottom: 14 }}>{convertPanel}</div>}
             <div className="cover-pop-col-head">{cfg.keyLabel} details</div>
             {/* WHAT THIS DEVICE HOLDS, as on Call Request (the user,
                 2026-10-02). Party Name searches the copy on the device first --

@@ -1609,6 +1609,9 @@ Purpose: Sale Entries (warranty) and Contract Entries with the machines under ea
 | 31 | ⭳ Export Excel (.xlsx, dates as Excel date cells, identifiers as text) and ⭳ Export CSV of entries or machines; the computed State is exported as shown (FRS-220.9) | 1241-1243, 1307-1309 | export.data | partial: FRS-018 | |
 | 32 | Error text never blank (code kept); a failure to count tiles is reported as information without dropping the table | cover.ts:220-231; 685-701, 742-745 | — | GAP | Low |
 | 33 | Contract type pick list CMC / AMC; sale party type and profile pick lists | cover.ts field defs (options) | cover.edit | partial: CW-008 — the family rule applies to derived status; the entry form's list is not stated | |
+| 34 | ⇢ Convert to Contract on a saved sale (contract.edit.entries): party and machines carried, start = day after warranty end, MC offered, type/months/PM/billing/rates asked, contract form's required rule, existing MC refused, warning when already on a contract; opens the Contract Register on it | CoverRegister.tsx ConvertPanel; cover.ts proposeConversion / conversionHeader / conversionItem / convertWarrantyToContract | contract.edit.entries; DB contract write policy | FRS-221, OQ-217 | |
+| 35 | Save entry disabled on a saved entry until a field changes | CoverRegister.tsx entryButtons | — | FRS-223 | |
+| 36 | One time (0317): every sale re-read from the Party Master, every machine line put back on its sale, old values backed up, marker row stops a re-run | 0317_warranty_party_refresh_once.sql | migration | FRS-222, OQ-217, _status.sql row 243 | |
 
 ### Ownership Transfer (`/ownership-transfer`) — `src/modules/OwnershipTransfer.tsx`
 Purpose: Records a machine changing hands, and warranty/contract details recovered for machines whose sale paperwork was lost.

@@ -1644,7 +1644,10 @@ with checks(sort_order, bundle, provides, present) as (
     (241, 'The audit log is readable with audit.view', 'audit_read on audit_log admits is_admin() or audit.view, as record_audit_read does -- the Audit Log screen opens for audit.view (0315, D-066). NO means audit.sql has not been re-run since. Restore: audit.sql (0315)',
         coalesce((select coalesce(qual, '') like '%audit.view%' from pg_policies where schemaname = 'public' and tablename = 'audit_log' and policyname = 'audit_read'), false)),
     (242, 'Raising a consumption line''s quantity works', 'consumption_adjust_guard() reads handstock_balance for a quantity going up; since 0196 it called handstock_available(), which does not exist, so every increase failed (0316). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0316)',
-        coalesce((select p.prosrc like '%handstock_balance%' and p.prosrc not like '%handstock_available%' from pg_proc p where p.oid = to_regprocedure('public.consumption_adjust_guard()')), false))
+        coalesce((select p.prosrc like '%handstock_balance%' and p.prosrc not like '%handstock_available%' from pg_proc p where p.oid = to_regprocedure('public.consumption_adjust_guard()')), false)),
+    (243, 'Every warranty sale was re-read from the Party Master once, and its machines put back on it', 'The one-time update of 2026-10-02 (0317) ran: one_time_fixes_done holds 0317_warranty_party_refresh, whose detail says how many sales and machine lines it changed; the values it replaced are in sale_party_refresh_backup and sale_items_inherit_backup. It never runs twice -- re-running the bundle leaves everything alone. NO means it has not run on this project. Restore: sales_contracts.sql (0317)',
+        (to_regclass('public.one_time_fixes_done') is not null
+         and exists (select 1 from public.one_time_fixes_done where name = '0317_warranty_party_refresh')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
