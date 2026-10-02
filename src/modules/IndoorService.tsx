@@ -322,7 +322,7 @@ export function IndoorService() {
 
       {view === 'register' ? (
         <SectionCard title="R/SER/07 — Indoor Service Equipment Failure Register">
-          <div className="ind-filters">
+          <div className="ind-filters ind-regbar">
             <label className="ind-toggle">
               <input type="radio" checked={sheet === 'customer'} onChange={() => setSheet('customer')} />
               Customer – Devices

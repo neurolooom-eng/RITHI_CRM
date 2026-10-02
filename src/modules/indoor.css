@@ -41,6 +41,15 @@
   gap: 6px;
   margin: 8px 0 10px;
 }
+/* The register's own controls sit on ONE row (sheet, dates, downloads), wrapping
+   on a narrow screen -- stacked, they pushed the register a screen down. */
+.ind-filters.ind-regbar {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.ind-regbar .btn { width: auto; }
 .ind-toggle {
   display: flex;
   align-items: center;
