@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput, LongDateText } from '../components/ui/LongDate';
-import { SplitPane } from '../components/ui/SplitPane';
 import { sbSearchParties, sbPartyInfo } from '../lib/supabase';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT,
@@ -1069,18 +1068,15 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
 
   const sections = [...new Set(cfg.headerFields.map((f) => f.section))];
 
-  // THE CONTRACT ENTRY OPENS AS A POP-UP (the user, 2026-10-02: "When I click
-  // on the Entry, the Entry should open in a Pop Up Window with 2 Screens -
-  // Left Side details of the Entry, Right Side List of Product. Keep all the
-  // Action Buttons at the Top [Sticky]"). The Warranty Register keeps the
-  // side-by-side split it was given on 2026-09-22 -- the request named the
-  // Contract module, and the two registers are one component, so the choice is
-  // made here and nowhere else.
+  // AN ENTRY OPENS AS A POP-UP (the user, 2026-10-02: "When I click on the
+  // Entry, the Entry should open in a Pop Up Window with 2 Screens - Left Side
+  // details of the Entry, Right Side List of Product. Keep all the Action
+  // Buttons at the Top [Sticky]" -- asked of the Contract Register, then "Do
+  // the same for the Warranty Register"). It replaces the side-by-side split
+  // of 2026-09-22 on both registers.
   //
-  // THE SAME PIECES, LAID OUT TWICE. The fields, the machine cards, the renewal
-  // and every button are built once below and only ARRANGED differently, so a
-  // rule added to one layout cannot be missing from the other.
-  const popup = kind === 'contract';
+  // THE PIECES ARE BUILT ONCE AND ARRANGED IN ONE PLACE, so a rule added to
+  // the window cannot be missing from one of the two registers.
 
   // UNSAVED WORK IS NAMED BEFORE THE WINDOW CLOSES. A pop-up is closed with one
   // click, and a contract's rates typed into it and lost that way would be lost
@@ -1116,7 +1112,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
 
   const entryNote = (
     <div className="muted" style={{ marginBottom: 10 }}>
-      This is the parent record. A machine {popup ? 'on the right' : 'below'} leaves a field empty to follow it — change a
+      This is the parent record. A machine on the right leaves a field empty to follow it — change a
       date or a period here and every machine that follows moves with it.
     </div>
   );
@@ -1274,36 +1270,12 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     </>
   ) : null;
 
-  // THE ENTRY, AS THE SECOND WINDOW (the user, 2026-09-22: "Make the Warranty
-  // Entry and Contract as a 2 window view [Adjustable width]"). It used to open
-  // in a drawer OVER the list, which is right when you are looking at one
-  // record and wrong when the job is working down a list: every entry meant
-  // open, read, close, find your place again. The Warranty Register.
-  const entryPane = open && !popup ? (
-    <div style={{ padding: 14 }}>
-      <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 10 }}>
-        {entryTitle}
-        <div className="spacer" />
-        <button className="btn btn-sm" onClick={closeEntry} title="Close this entry">✕</button>
-      </div>
-      {entryNote}
-      {entryFields}
-      {entryButtons && <div className="row" style={{ gap: 8, marginBottom: 12 }}>{entryButtons}</div>}
-      <h3 style={{ margin: '14px 0 8px' }}>Machines ({items.length})</h3>
-      {machineList}
-      {machineButtons && (
-        <div className="row" style={{ gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>{machineButtons}</div>
-      )}
-      {renewPanel ?? (renewButton && <div style={{ marginTop: 14 }}>{renewButton}</div>)}
-    </div>
-  ) : null;
-
-  // THE CONTRACT ENTRY, AS A POP-UP. Every button sits in the bar at the top,
+  // THE ENTRY, AS A POP-UP. Every button sits in the bar at the top,
   // which does not scroll; the two halves below scroll each on their own, so
   // the details stay in view while the product list is worked down and the
   // reverse. It does NOT close on a click outside it: a window holding a form
   // that closes on a stray click is one that loses work.
-  const entryPopup = open && popup ? (
+  const entryPopup = open ? (
     <div className="cover-pop-overlay" role="dialog" aria-modal="true">
       <div className="cover-pop">
         <div className="cover-pop-bar">
@@ -1350,7 +1322,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           // own scroller; a table that also wants sixteen rows puts a second
           // scrollbar inside the first, and the reader has to work out which
           // one they are in.
-          rowsBeforeScroll={open && !popup ? 10 : 16}
+          rowsBeforeScroll={16}
           dense
           onRowClick={(r) => void openEntry(r)}
           onLoadMore={loadMore}
@@ -1392,7 +1364,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
 
       <div className="row" style={{ gap: 8, marginBottom: 10 }}>
         <button className={`btn btn-sm ${tab === 'entries' ? 'btn-primary' : ''}`} onClick={() => setTab('entries')}>Entries</button>
-        <button className={`btn btn-sm ${tab === 'machines' ? 'btn-primary' : ''}`} onClick={() => setTab('machines')}>{kind === 'contract' ? 'Register' : 'By machine'}</button>
+        <button className={`btn btn-sm ${tab === 'machines' ? 'btn-primary' : ''}`} onClick={() => setTab('machines')}>Register</button>
       </div>
 
       {tab === 'machines' && (
@@ -1409,11 +1381,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       )}
 
       {tab === 'entries' ? (
-        // TWO WINDOWS WHEN AN ENTRY IS OPEN, one when it is not. A split with
-        // nothing in its second pane is half a screen given to an empty box.
-        open && !popup ? (
-          <SplitPane storageKey={`cover-${kind}`} left={entriesTable} right={entryPane} />
-        ) : entriesTable
+        entriesTable
       ) : (
         <DataTable<Row>
           columns={machineColumns}
@@ -1444,7 +1412,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
 }
 
 // The state a header is in, from its own end date (the machines under it can
-// each differ — the by-machine tab is where that shows).
+// each differ — the Register tab is where that shows).
 //
 // ONE RULE, NOT A SECOND COPY OF IT. This used to carry its own arithmetic and
 // its own threshold, which meant the ENTRIES tab and the MACHINES tab — the

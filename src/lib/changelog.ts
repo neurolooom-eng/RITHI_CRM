@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.28',
+    date: '2026-10-02',
+    title: 'Warranty Register: entries open in a pop-up, and By machine is now Register',
+    changes: [
+      'WARRANTY REGISTER → "By machine" is renamed "Register", the same as on the Contract Register.',
+      'CLICKING A SALE ENTRY OPENS IT IN A POP-UP WINDOW, the same as a contract: the sale\'s details on the left, its products on the right, each side scrolling on its own.',
+      'EVERY BUTTON IS IN THE BAR AT THE TOP and stays put however far you scroll: Save entry, Update from Party Master, Delete entry, + Add machine, ＋ Installation calls, Force update child records, and Close. Save machine and Remove stay on each machine.',
+      'The window does not close if you click outside it, and Close asks first if anything is unsaved.',
+      'The side-by-side view with the draggable divider is gone from both registers.',
+    ],
+  },
+  {
     version: '0.10.27',
     date: '2026-10-02',
     title: 'How RITHI Functions: the Service Calls document',

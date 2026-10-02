@@ -464,7 +464,7 @@ against the call it was fitted to.
   >
   > ### Or one machine at a time
   >
-  > **By machine → Register call → ＋ Installation call** does the same thing for
+  > **Register → Register call → ＋ Installation call** does the same thing for
   > the single machine in front of you, which is what you want when you are
   > working down the list rather than opening an entry. Same rules, same
   > function — once it is raised the button is replaced by the **UCN**, which is
@@ -500,16 +500,14 @@ against the call it was fitted to.
   covered.
 
 Both work the same way. Two views: **Entries** (the deal and its machines) and
-**By machine** — called **Register** on the Contract Register — (per serial,
-with Active / About to expire / Inactive tiles).
-**On the Warranty Register an entry opens beside the list, not over it** — drag
-the divider to give either side more room, and it is remembered. On a narrow
-screen the two stack.
-**On the Contract Register an entry opens in a pop-up window**: the contract's
-details on the left, its products on the right, each half scrolling on its own.
-Every button — Save entry, Delete entry, Renew this contract, + Add machine,
-Force update child records and Close — sits in the bar at the top, which stays
-put however far you scroll. The window does not close on a click outside it,
+**Register** (one row per machine, with Active / About to expire / Inactive
+tiles — it used to be called *By machine*).
+**Clicking an entry opens it in a pop-up window**: the entry's details on the
+left, its products on the right, each half scrolling on its own. Every button —
+Save entry, Delete entry, Close, + Add machine and Force update child records,
+plus Update from Party Master and ＋ Installation calls on a sale and Renew this
+contract on a contract — sits in the bar at the top, which stays put however
+far you scroll. The window does not close on a click outside it,
 and if you close it over unsaved changes it asks first. On a phone the two
 halves stack. Each register
 opens on **2,000 rows** — two full requests of the 1,000 the database hands over
