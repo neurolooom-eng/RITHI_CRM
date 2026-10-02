@@ -146,6 +146,30 @@ export function RolePermissions() {
       return next;
     });
   };
+  // A CHILD HELD THROUGH ITS PARENT CAN BE UNTICKED (the user, 2026-10-02:
+  // "I need these to be editable as well, the greyed out items"). The database
+  // grants a child to whoever holds its parent (0286), so the only way to stop
+  // holding the child is to stop holding the parent: the parent is unticked and
+  // every OTHER child it was granting is ticked in its own right, so the role
+  // loses exactly the one box that was clicked. Policies and screens test the
+  // children, never the parent, so nothing else changes. A child with several
+  // parents (visit.spares) is released from each one the role holds.
+  const releaseChild = (role: string, action: string) => {
+    if (role === 'admin') return;
+    setTouched((cur) => new Set(cur).add(role));
+    setPerms((cur) => {
+      const set = new Set(cur[role]);
+      for (const parent of PERM_PARENTS[action] ?? []) {
+        if (!set.has(parent)) continue;
+        set.delete(parent);
+        for (const [child, parents] of Object.entries(PERM_PARENTS)) {
+          if (child !== action && parents.includes(parent)) set.add(child);
+        }
+      }
+      set.delete(action);
+      return { ...cur, [role]: set };
+    });
+  };
   // Tick every action on a page for one role in one go.
   const setPage = (role: string, keys: string[], on: boolean) => {
     if (role === 'admin') return;
@@ -364,10 +388,10 @@ export function RolePermissions() {
     } finally { setBusy(false); }
   };
 
-  // A CHILD HELD THROUGH ITS PARENT (0286) reads as held -- ticked and locked,
-  // saying which tick grants it -- because that is what the database does with
-  // it. Unticking the child alone would change nothing, so the box does not
-  // pretend it could; untick the parent and pick the children instead.
+  // A CHILD HELD THROUGH ITS PARENT (0286) reads as held -- ticked, and marked
+  // as coming from the parent -- because that is what the database does with
+  // it. Unticking it releases it from the parent (releaseChild above) rather
+  // than pretending the child alone could be removed.
   const viaParent = (role: string, action: string) =>
     !has(role, action) ? (PERM_PARENTS[action] ?? []).find((p) => has(role, p)) : undefined;
   const cells = (action: string, kind: '' | 'view' = '') => roles.map((r) => {
@@ -375,9 +399,9 @@ export function RolePermissions() {
     return (
       <td key={r.key} className={`rbac-cell${r.key === 'admin' ? ' rbac-col-admin' : ''}`}>
         <input type="checkbox" className={kind === 'view' ? 'rbac-view-box' : parent ? 'rbac-inherited' : undefined}
-          checked={has(r.key, action) || !!parent} disabled={!mayEdit || r.key === 'admin' || !!parent}
-          title={parent ? `Granted by “${label(parent)}” — untick that to choose this one separately` : undefined}
-          onChange={() => toggle(r.key, action)} />
+          checked={has(r.key, action) || !!parent} disabled={!mayEdit || r.key === 'admin'}
+          title={parent ? `Granted by “${label(parent)}”. Unticking this unticks “${label(parent)}” and keeps its other items ticked.` : undefined}
+          onChange={() => (parent ? releaseChild(r.key, action) : toggle(r.key, action))} />
       </td>
     );
   });
