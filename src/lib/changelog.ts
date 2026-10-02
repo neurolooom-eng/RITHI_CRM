@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.34',
+    date: '2026-10-02',
+    title: 'Roles & Permissions: the greyed-out items can be unticked',
+    changes: [
+      'ROLES & PERMISSIONS: an item ticked because its "all of the below" line is ticked (Edit masters, Manage users, Edit sales / warranties, Edit contracts, each register\'s Edit and Report) is no longer greyed out. Unticking it unticks the "all of the below" line and keeps the other items ticked, so the role loses only the item you unticked. Press Save permissions as usual. Only the Admin column stays greyed, because Admin always holds everything.',
+    ],
+  },
+  {
     version: '0.10.33',
     date: '2026-10-02',
     title: 'How RITHI Functions: the Spares documents brought up to date',

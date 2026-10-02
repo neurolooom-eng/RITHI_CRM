@@ -990,6 +990,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     records: ['app_roles', 'master_lists', 'audit_log'],
     rules: [
       'Only the Admin column is greyed — Admin holds everything',
+      'Unticking an item granted by an “all of the below” tick unticks that tick and keeps the other items ticked',
       'A role with some permissions but not “View calls” sees an empty register; a missing menu entry is the page tick',
       'A role cannot be saved with nothing ticked, and roles are not deleted here',
     ],
