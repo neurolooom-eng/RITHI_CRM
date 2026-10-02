@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.43',
+    date: '2026-10-02',
+    title: 'Indoor_DC, and the MTN and MRN printed',
+    changes: [
+      'NEW: INDOOR_DC. On the Indoor Service register, tick the Ready units going to the same customer and choose Create Indoor DC.',
+      'The DC is numbered IDC-YYMM-NNNN by the system. It lists each machine (product code, name and Sl.No) and its accessories, with a Purpose on each line. "To" is filled from the Party Master and can be edited. It also takes the MIRN / customer reference and date, and the mode of despatch.',
+      'Each unit gets the DC number and date on its register line. A unit that cannot leave (no quality check, or an imported demo device without its Pre-Delivery Testing) is refused, with the reason. The DC prints exactly as the Delivery Challan form, and every issued DC can be printed again from the list.',
+      'PRINT MTN: every Stock Transfer prints as the Material Transfer Note (R/SER/STR/003), with each engineer\'s place from the User Master. A transfer can now carry a reason on each line as well as the common one; a line without its own reason prints the common one.',
+      'PRINT MRN: every Material Return prints as the Material Return Note (R/SER/STR/002), from what the return holds.',
+      'The names RITHI records print in the sign boxes; the rest are left blank for signing by hand.',
+    ],
+  },
+  {
     version: '0.10.42',
     date: '2026-10-02',
     title: 'Indoor Service: the R/SER/07 register and Pre-Delivery Testing (R/SER/QC/007)',
