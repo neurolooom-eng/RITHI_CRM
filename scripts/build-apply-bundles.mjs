@@ -863,7 +863,10 @@ const MODULES = {
             '0313_a_reason_is_required.sql',
             // A quantity going UP called handstock_available(), which never
             // existed. Redefines consumption_adjust_guard from 0261, so it follows it.
-            '0316_adjust_guard_reads_the_balance.sql'],
+            '0316_adjust_guard_reads_the_balance.sql',
+            // An amended or voided consumption line keeps its original quantity
+            // and adjustment time again (0317, D-082). Redefines 0316's guard.
+            '0317_void_keeps_original_qty.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -1018,6 +1021,9 @@ const MODULES = {
       // A part RENAME passes the line guard's parts rule, by rename_part's
       // ticket (0310). Redefines 0217's guard with that one condition added.
       '0310_rename_passes_the_line_guard.sql',
+      // A tick-box RM approval auto-approves Commercial / NSM by the same rule
+      // as the single-spare Approve (0311, D-081). Redefines 0118's function.
+      '0311_tick_box_rm_auto_approves.sql',
       // LAST, and it must stay last: it re-asserts `dispatch_spare_lines()` and
       // `sd_read`, which handstock owns, so a replay of Spare_1.sql alone stops
       // reverting them. Guarded, so a fresh apply skips it.

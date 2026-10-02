@@ -320,8 +320,7 @@ footer code{font-size:12.5px}
     <p class="flowhead-p">
       <b>The cover comes with it too, and that decides the approval chain.</b> A part for an
       <b>AMC</b> or <b>OGP</b> machine goes to Commercial and then NSM after the manager; a part under
-      any other cover has both of those stages written <i>Auto-Approved</i> when the manager approves it
-      with the single-spare <b>Approve</b> button (see Stage 1 for the one path that does not).
+      any other cover has both of those stages written <i>Auto-Approved</i> when the manager approves it.
     </p>
   </section>
 
@@ -410,7 +409,7 @@ footer code{font-size:12.5px}
     </p>
     <p class="flowhead-p">
       A HandStock request <b>must carry a written reason</b>, and it goes to <b>NSM</b>: approved at
-      the RM stage with the single-spare <b>Approve</b> button, Commercial is written
+      the RM stage, Commercial is written
       <i>Auto-Approved</i> and NSM is not, so the line stops at NSM rather than at Stores.
     </p>
   </section>
@@ -574,12 +573,13 @@ footer code{font-size:12.5px}
         Commercial, NSM and receipt only. A ticked selection is still decided spare by spare.
       </p>
       <p>
-        <b>What approving writes depends on the path.</b> The single-spare <b>✔ Approve</b> on Spare
+        <b>Both ways of approving write the same.</b> The single-spare <b>✔ Approve</b> on Spare
         Requests writes the RM approval and, in the same write, <i>Auto-Approved</i> into Commercial
         unless the item is AMC or OGP, and into NSM unless it is AMC, OGP <b>or a HandStock request</b>.
         <b>Approving by tick box</b> — on the RM Approval page, or a selection on Spare Requests —
-        writes the RM approval only, so as the code stands that spare next waits at <b>Commercial</b>
-        whatever its cover. <b>That is a fault</b>, recorded as D-081: a warranty spare should not need Commercial.
+        writes the same: the RM approval, and <i>Auto-Approved</i> into whichever later stage the spare
+        does not need. (Before 02-Oct-2026 it wrote the RM approval only, so a warranty spare approved
+        this way waited at Commercial — D-081.)
       </p>
     </div>
     <div class="side out">
@@ -893,9 +893,9 @@ footer code{font-size:12.5px}
       <tbody>
         <tr><td>—</td><td>The request is submitted</td><td>RM Approval</td><td>Whoever raised it</td></tr>
         <tr><td>RM Approval</td><td>Approved, item is AMC or OGP</td><td>Commercial</td><td>The engineer's own manager</td></tr>
-        <tr><td>RM Approval</td><td>Approved with the single-spare button, any other cover</td><td>Stores <span class="muted">(Commercial and NSM auto-approve)</span></td><td>The engineer's own manager</td></tr>
-        <tr><td>RM Approval</td><td>Approved with the single-spare button, and the request is <b>HandStock</b></td><td>NSM <span class="muted">(Commercial auto-approves; NSM does not)</span></td><td>The engineer's own manager</td></tr>
-        <tr><td>RM Approval</td><td>Approved by tick box, any cover <span class="muted">(a fault, D-081)</span></td><td>Commercial</td><td>The engineer's own manager</td></tr>
+        <tr><td>RM Approval</td><td>Approved, any other cover</td><td>Stores <span class="muted">(Commercial and NSM auto-approve)</span></td><td>The engineer's own manager</td></tr>
+        <tr><td>RM Approval</td><td>Approved, and the request is <b>HandStock</b></td><td>NSM <span class="muted">(Commercial auto-approves; NSM does not)</span></td><td>The engineer's own manager</td></tr>
+        
         <tr><td>Commercial</td><td>Cleared for Stores Processing, or Approved</td><td>NSM</td><td>Commercial</td></tr>
         <tr><td>Commercial</td><td>Admin Process in Progress</td><td>stays at Commercial, with the pending reason</td><td>Commercial</td></tr>
         <tr><td>NSM</td><td>Cleared for Stores Processing, or Approved</td><td>Stores</td><td>NSM</td></tr>
@@ -917,7 +917,7 @@ footer code{font-size:12.5px}
       <b>AMC</b> and <b>OGP</b> — Commercial and NSM each decide the spare before it reaches Stores.
     </p>
     <p>
-      <b>Any other cover</b> — the single-spare RM approval writes both of those stages
+      <b>Any other cover</b> — the RM approval writes both of those stages
       <i>Auto-Approved</i> and the spare goes straight to Stores.
     </p>
     <p>

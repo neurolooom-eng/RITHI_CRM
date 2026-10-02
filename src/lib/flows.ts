@@ -252,7 +252,7 @@ export const FLOWS: Flow[] = [
         detail: 'An approver with the RM right approves or rejects each line, for the engineers who report to them. Only Approved, Auto-Approved or “Cleared for Stores Processing” lets a line move on.',
         records: ['spare_request_lines'], reqs: ['FRS-010', 'FRS-011'] },
       { id: 'cn', label: 'Commercial and NSM, where needed', route: '/spare-requests', area: 'spare',
-        detail: 'Commercial decides AMC and OGP lines; NSM decides those and every HandStock request. Anything else is auto-approved when RM approves the spare on its own; a tick-box approval does not do this yet (D-081).',
+        detail: 'Commercial decides AMC and OGP lines; NSM decides those and every HandStock request. Anything else is auto-approved at RM approval, by the single button and the tick boxes alike.',
         records: ['spare_request_lines'], reqs: ['FRS-010'] },
       { id: 'disp', label: 'Dispatched — Stock Out and DC', route: '/spare-dispatch', area: 'spare',
         detail: 'Stores books the part out, all or part of the quantity, and raises the Delivery Challan. Who dispatched is stamped by the database, and the part enters the engineer’s hand stock now.',

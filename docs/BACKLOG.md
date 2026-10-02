@@ -230,6 +230,16 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.36 — Spares: D-081 and D-082 fixed.**
+  `0311_tick_box_rm_auto_approves` (spare_requests): `decide_spare_lines()`
+  writes the same auto-approvals as `buildPatch()`. `0317_void_keeps_original_qty`
+  (handstock): `consumption_adjust_guard()` stamps `original_qty` / `adjusted_at`
+  again, on 0316's body (0316, from the other session, fixed D-083 the same
+  day; its comment claimed the stamps and nothing wrote them). Suite
+  `spare_fixes_0311_test`; status rows 243, 244.
+  **FORWARD ONLY:** spares tick-approved before this and waiting at Commercial
+  are not moved — `supabase/apply/_spares_waiting_at_commercial_by_mistake.sql`
+  lists them; releasing them is the user's decision.
 - ✅ **0.10.33 — How RITHI Functions: Spares documents audited and extended**
   (`how-a-spare-moves.html`, `how-hand-stock-moves.html` — no third document;
   the two already were the Spares group). **Two defects found and measured on

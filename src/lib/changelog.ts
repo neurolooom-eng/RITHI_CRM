@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.36',
+    date: '2026-10-02',
+    title: 'Spares: two faults fixed',
+    changes: [
+      'FIXED: ticking spares and approving them on RM Approval now sends each one where the single Approve button would. A warranty (WGP) spare goes straight to Stores, a HandStock spare to NSM, and an AMC or OGP spare to Commercial. Before this, every ticked spare waited at Commercial. Spares already waiting there are not moved: the read-only check _spares_waiting_at_commercial_by_mistake.sql lists them.',
+      'FIXED: a consumption line that is corrected or voided keeps its original quantity again, and when it was adjusted.',
+    ],
+  },
+  {
     version: '0.10.35',
     date: '2026-10-02',
     title: 'Rules the screens kept, now kept by the database too',
