@@ -1,5 +1,6 @@
 import { logAudit } from '../lib/audit';
 import { useEffect, useMemo, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
@@ -51,14 +52,16 @@ function TransferDrawer({
   const [remarks, setRemarks] = useState('');
   const [stock, setStock] = useState<StockRow[]>([]);
   const [loadingStock, setLoadingStock] = useState(false);
-  const [picks, setPicks] = useState<{ part: string; qty: string }[]>([{ part: '', qty: '1' }]);
+  // `reason` is OPTIONAL per line (0322): the user's "one common remark or per
+  // item remark". Blank means the common Remarks below apply.
+  const [picks, setPicks] = useState<{ part: string; qty: string; reason: string }[]>([{ part: '', qty: '1', reason: '' }]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   useEffect(() => {
     if (!open) return;
     setFrom(defaultFrom); setTo(''); setOn(todayISO()); setRemarks('');
-    setPicks([{ part: '', qty: '1' }]); setErr('');
+    setPicks([{ part: '', qty: '1', reason: '' }]); setErr('');
   }, [open, defaultFrom]);
 
   // What the sender is holding right now. Re-read whenever the sender changes,
@@ -82,20 +85,21 @@ function TransferDrawer({
   const takenParts = (i: number) =>
     new Set(picks.filter((_, j) => j !== i).map((p) => p.part.trim().toLowerCase()).filter(Boolean));
 
-  const setPick = (i: number, field: 'part' | 'qty', v: string) =>
+  const setPick = (i: number, field: 'part' | 'qty' | 'reason', v: string) =>
     setPicks((p) => p.map((x, j) => {
       if (j !== i) return x;
-      if (field === 'part') return { part: v, qty: '1' };   // reset qty to a value the new part allows
+      if (field === 'reason') return { ...x, reason: v };
+      if (field === 'part') return { part: v, qty: '1', reason: x.reason };   // reset qty to a value the new part allows
       const max = availableOf(x.part);
       const n = Math.floor(Number(v) || 0);
       return { ...x, qty: String(max > 0 ? Math.min(Math.max(n, 1), max) : n) };
     }));
-  const addRow = () => setPicks((p) => [...p, { part: '', qty: '1' }]);
+  const addRow = () => setPicks((p) => [...p, { part: '', qty: '1', reason: '' }]);
   const removeRow = (i: number) => setPicks((p) => (p.length > 1 ? p.filter((_, j) => j !== i) : p));
 
   const submit = async () => {
     const lines = picks
-      .map((p) => ({ part: p.part.trim(), qty: Math.floor(Number(p.qty) || 0) }))
+      .map((p) => ({ part: p.part.trim(), qty: Math.floor(Number(p.qty) || 0), reason: p.reason.trim() }))
       .filter((p) => p.part !== '');
     if (!from.trim()) { setErr('Choose the engineer transferring the stock.'); return; }
     if (!to.trim()) { setErr('Choose the engineer receiving the stock.'); return; }
@@ -181,6 +185,12 @@ function TransferDrawer({
                 <span className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
                   {p.part ? `of ${have}` : ''}
                 </span>
+                <input
+                  className="input" style={{ flex: 1, minWidth: 140 }} value={p.reason} disabled={!p.part}
+                  placeholder="Reason for this part (optional)"
+                  title="Printed under Reason for Transfer on the MTN. Leave blank to use the common Remarks."
+                  onChange={(e) => setPick(i, 'reason', e.target.value)}
+                />
                 <button className="btn btn-ghost btn-sm" title="Remove" onClick={() => removeRow(i)} disabled={picks.length === 1}>✕</button>
               </div>
             );
@@ -193,6 +203,9 @@ function TransferDrawer({
         <section className="rep-sec">
           <div className="rep-sec-title">Remarks</div>
           <textarea className="input" rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Why the stock is moving…" />
+          <div className="muted" style={{ fontSize: 12 }}>
+            The common reason. A part with a reason of its own prints that one under Reason for Transfer on the MTN; every other part prints this.
+          </div>
         </section>
 
         <div className="rep-actions">
@@ -219,6 +232,7 @@ const TRANSFER_COLUMNS: Column<Row>[] = [
   { key: 'row_no', header: '#', width: 45, align: 'right', wrap: false },
   { key: 'part', header: 'Part', width: 220 },
   { key: 'qty', header: 'Qty', width: 60, align: 'right', wrap: false },
+  { key: 'reason', header: 'Reason (this part)', width: 170 },
   { key: 'remarks', header: 'Remarks', width: 200 },
 ];
 
@@ -272,7 +286,17 @@ export function StockTransfer() {
     // eslint-disable-next-line
   }, []);
 
-  const columns = TRANSFER_COLUMNS;
+  const navigate = useNavigate();
+  // THE MTN, R/SER/STR/003 -- one per transfer, printed from its own route
+  // (/mtn/<transfer no>), so every line of a transfer offers the same note.
+  const columns = useMemo<Column<Row>[]>(() => [
+    ...TRANSFER_COLUMNS,
+    { key: 'mtn', header: 'MTN', width: 80, wrap: false, sortable: false, render: (r) => (g(r, 'uid') ? (
+      <button className="btn btn-sm" title="Print the Material Transfer Note"
+        onClick={(e) => { e.stopPropagation(); navigate(`/mtn/${encodeURIComponent(g(r, 'uid'))}`); }}>🖨 MTN</button>
+    ) : null) },
+  ], [navigate]);
+  const exportColumns = TRANSFER_COLUMNS;
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return transfers;
@@ -317,7 +341,7 @@ export function StockTransfer() {
             <SearchBox value={search} onChange={setSearch} placeholder="Transfer no, engineer, part…" />
             <div className="spacer" />
             {visible.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('stock-transfers.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], cappedAt(allTransfers.length, 100000))}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('stock-transfers.csv', exportColumns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], cappedAt(allTransfers.length, 100000))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

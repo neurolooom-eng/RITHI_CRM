@@ -596,24 +596,29 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Record a new MRN with the number from the paper slip',
       'Pick parts the engineer holds and give good and defective quantities',
       'Open an MRN to see its lines; export to CSV',
+      'Print an MRN as the Material Return Note R/SER/STR/002',
     ],
-    records: ['material_returns', 'engineer_stock', 'handstock_balance', 'user_directory'],
+    records: ['material_returns', 'engineer_stock', 'handstock_balance', 'user_directory', 'audit_log'],
     rules: [
       'Only parts the engineer holds are offered, and good + defective together cannot exceed what they hold',
       'The MRN number is typed, not generated',
+      'The printed MRN shows what the return holds and nothing more: Store Dept. Use, Authorized By and Received By are left for Stores to fill by hand',
     ],
   },
   {
     route: '/stock-transfer',
     purpose: 'Hand stock passed from one engineer to another.',
     does: [
-      'Record a transfer: from, to, date, parts and quantities',
+      'Record a transfer: from, to, date, parts and quantities, a common remark and, if wanted, a reason for each part',
       'Search past transfers; export to CSV',
+      'Print a transfer as the Material Transfer Note (MTN) R/SER/STR/003',
     ],
-    records: ['stock_transfers', 'stock_transfer_lines', 'engineer_stock', 'user_directory'],
+    records: ['stock_transfers', 'stock_transfer_lines', 'engineer_stock', 'user_directory', 'audit_log'],
     rules: [
       'A transfer to the same person is refused',
       'Only parts the From engineer holds are offered, up to what they hold',
+      'On the MTN a part prints its own reason where it has one, and the common remark otherwise',
+      'The MTN leaves Received By blank: a transfer records no receipt',
     ],
   },
 
@@ -630,8 +635,9 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Record Pre-Delivery Testing (R/SER/QC/007) on a DEMO unit of an imported product, sign it, and print it',
       'Verify a completed register entry',
       'View the register as R/SER/07 (Customer – Devices / Demo), download it to Excel and print it',
+      'Tick Ready units for one consignee and create an Indoor DC (IDC-YYMM-NNNN) for them; list and re-print every Indoor DC',
     ],
-    records: ['indoor_jobs', 'indoor_job_list', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks', 'indoor_pdt', 'product_master', 'audit_log'],
+    records: ['indoor_jobs', 'indoor_job_list', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks', 'indoor_pdt', 'product_master', 'indoor_dcs', 'indoor_dc_lines', 'parties', 'audit_log'],
     rules: [
       'A harvested part cannot go back into stock until decontamination is recorded',
       'A job cannot be Dispatched or Closed without a quality check',
@@ -639,6 +645,9 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'A DEMO unit of an imported product is not Dispatched or Closed until its Pre-Delivery Testing is complete, signed, and every check reads OK; unknown imported-ness does not demand it',
       'Verifying an entry needs its own right, and only once the unit is Dispatched, Closed or Condemned; who and when are recorded by the system',
       'The Excel register and the printed register need the export right',
+      'An Indoor DC needs the dispatch right, carries units for one consignee only, and is refused for a unit that is not Ready, already on a DC, or that the dispatch rules would not let leave',
+      'The DC number is issued by the system; issuing it writes the DC No. and date on each unit and does not change their status',
+      'An Indoor DC is never deleted',
     ],
   },
 

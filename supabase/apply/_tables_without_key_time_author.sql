@@ -28,7 +28,7 @@
 --                                who typed it in (0114). A column being
 --                                present does not mean it means "author".
 --   sys_columns   'yes' when the table carries all five system columns and
---                 the stamping trigger (0244); 'counter' for the nine number
+--                 the stamping trigger (0244); 'counter' for the ten number
 --                 counters, which deliberately have none; 'NO' otherwise --
 --                 usually a table added after 0244 ran: re-run sys_columns.sql.
 --   text_dates    text columns whose NAME suggests a date. A date stored as
@@ -76,7 +76,7 @@ select
              where oid = t.oid and attname in ('updated_by', 'sys_updated_by')),
            'NO')                                                         as updated_by,
   case
-    when t.relname in ('call_number_seq', 'ffr_counters', 'indoor_job_counters',
+    when t.relname in ('call_number_seq', 'ffr_counters', 'indoor_dc_counters', 'indoor_job_counters',
                        'material_return_counters', 'party_key_seq', 'spare_dispatch_counters',
                        'spare_or_counters', 'stock_transfer_counters', 'ucn_counters') then 'counter'
     when (select count(*) from cols where oid = t.oid
