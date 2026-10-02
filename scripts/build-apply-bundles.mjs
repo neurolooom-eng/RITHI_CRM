@@ -681,7 +681,12 @@ const MODULES = {
     files: ['0158_indoor_service.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
             // and split keys; see 0286 for the parent rule.
-            '0297_indoor_status_needs_dispatch.sql'],
+            '0297_indoor_status_needs_dispatch.sql',
+            // The R/SER/07 register's columns, Verified By (indoor.verify), and
+            // R/SER/QC/007 Pre-Delivery Testing for a DEMO unit of an imported
+            // product (2026-10-02). Reads product_master.imported (0319, masters)
+            // at RUN time only, so it does not depend on that module's order.
+            '0320_indoor_register_and_pdt.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -759,7 +764,10 @@ const MODULES = {
             '0263_user_department.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
             // and split keys; see 0286 for the parent rule.
-            '0290_master_keys_split.sql'],
+            '0290_master_keys_split.sql',
+            // Is the product line imported? (2026-10-02) -- decides whether a
+            // DEMO unit owes Pre-Delivery Testing R/SER/QC/007 (0320, indoor).
+            '0319_product_master_imported.sql'],
   },
   reports: {
     title: 'Reports',

@@ -5569,6 +5569,18 @@ export interface IndoorJob {
   sale_ref: string;
   activity_note: string;
   updated_at: string;
+  // R/SER/07 -- the register's own columns (0320)
+  field_report_no: string;
+  engineer_name: string;
+  customer_place: string;
+  problem_reported: string;
+  indoor_report_no: string;
+  dc_date: string | null;
+  remarks: string;
+  /** The machine's COVER -- the paper's "Status" column. WGP / OGP / CMC / AMC. */
+  cover: string;
+  verified_by: string | null;
+  verified_at: string | null;
   // From the view
   received_by_name: string;
   cleaned_by_name: string;
@@ -5582,6 +5594,35 @@ export interface IndoorJob {
   demo_overdue: boolean | null;
   accessory_count: number;
   accessories_outstanding: number;
+  verified_by_name: string;
+  /** Accessory names joined, NULL where none is listed (the register prints "Nil"). */
+  accessories_received: string | null;
+  /** Is the product line imported? NULL = unknown (no matching line, or the
+   *  Product Master's Imported is blank) -- 0320's indoor_job_is_imported(). */
+  product_imported: boolean | null;
+}
+
+/** R/SER/QC/007 PRE DELIVERY TESTING -- one row per job (0320). */
+export interface IndoorPdt {
+  id: number;
+  job_id: number;
+  test_date: string | null;
+  measuring_equipment_id: string;
+  software_version: string;
+  hv: string;
+  ht: string;
+  check1: string | null; check2: string | null; check3: string | null;
+  check4: string | null; check5: string | null;
+  cmv_vte_21: number | null; cmv_vte_60: number | null; cmv_vte_100: number | null;
+  cmv_peep_21: number | null; cmv_peep_60: number | null; cmv_peep_100: number | null;
+  cmv_o2_21: number | null; cmv_o2_60: number | null; cmv_o2_100: number | null;
+  pcmv_pip_21: number | null; pcmv_pip_60: number | null; pcmv_pip_100: number | null;
+  pcmv_peep_21: number | null; pcmv_peep_60: number | null; pcmv_peep_100: number | null;
+  pcmv_o2_21: number | null; pcmv_o2_60: number | null; pcmv_o2_100: number | null;
+  inspected_by: string | null;
+  inspector_name: string;
+  inspector_designation: string;
+  inspected_at: string | null;
 }
 
 export interface IndoorAccessory {
@@ -5649,6 +5690,10 @@ export async function saveIndoorJob(
     'actual_out', 'actual_return', 'custody_holder', 'condition_out',
     'condition_back', 'consumables_used', 'demo_outcome', 'sale_ref',
     'activity_note',
+    // R/SER/07 (0320). verified_by / verified_at are NOT here: verifying is
+    // verifyIndoorJob(), and the database stamps who and when.
+    'field_report_no', 'engineer_name', 'customer_place', 'problem_reported',
+    'indoor_report_no', 'dc_date', 'remarks', 'cover',
   ] as const;
   const rest = Object.fromEntries(
     Object.entries(patch).filter(([k]) => (WRITABLE as readonly string[]).includes(k)));
@@ -5669,6 +5714,80 @@ export async function markIndoorCleaned(
               cleaning_wi: wi, cleaning_wi_rev: rev, status: 'Cleaned' })
     .eq('id', id);
   if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}
+
+/** One job by id, read through the list view (the printable PDT page). */
+export async function indoorJobById(id: number): Promise<IndoorJob | null> {
+  const { data, error } = await must().from('indoor_job_list').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return (data as IndoorJob | null) ?? null;
+}
+
+/** R/SER/07 "Verified By" (0320). The database asks indoor.verify, refuses a
+ *  job that is not Dispatched / Closed / Condemned, and STAMPS who and when
+ *  from the session -- the id sent here only says "verify", it is replaced.
+ *  The rows are COUNTED: row-level security refuses an update by matching
+ *  nothing, and no error is not "saved" (finding 48). */
+export async function verifyIndoorJob(id: number, uid: string): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await must().from('indoor_jobs')
+    .update({ verified_by: uid || '00000000-0000-0000-0000-000000000000' })
+    .eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not change this job.' };
+  return { ok: true };
+}
+
+export async function getIndoorPdt(jobId: number): Promise<IndoorPdt | null> {
+  const { data, error } = await must().from('indoor_pdt').select('*').eq('job_id', jobId).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return (data as IndoorPdt | null) ?? null;
+}
+
+const PDT_WRITABLE = [
+  'test_date', 'measuring_equipment_id', 'software_version', 'hv', 'ht',
+  'check1', 'check2', 'check3', 'check4', 'check5',
+  'cmv_vte_21', 'cmv_vte_60', 'cmv_vte_100', 'cmv_peep_21', 'cmv_peep_60', 'cmv_peep_100',
+  'cmv_o2_21', 'cmv_o2_60', 'cmv_o2_100',
+  'pcmv_pip_21', 'pcmv_pip_60', 'pcmv_pip_100', 'pcmv_peep_21', 'pcmv_peep_60', 'pcmv_peep_100',
+  'pcmv_o2_21', 'pcmv_o2_60', 'pcmv_o2_100',
+] as const;
+
+/** Save part of a job's PDT, creating its row on the first save. The
+ *  inspector's four columns are NOT writable here -- signing is signIndoorPdt.
+ *  Rows counted, for the reason verifyIndoorJob gives. */
+export async function saveIndoorPdt(
+  jobId: number, patch: Partial<IndoorPdt>,
+): Promise<{ ok: boolean; error?: string }> {
+  const rest = Object.fromEntries(
+    Object.entries(patch).filter(([k]) => (PDT_WRITABLE as readonly string[]).includes(k)));
+  const c = must();
+  const { data: existing, error: e1 } = await c.from('indoor_pdt').select('id').eq('job_id', jobId).maybeSingle();
+  if (e1) return { ok: false, error: errMsg(e1) };
+  const q = existing
+    ? c.from('indoor_pdt').update(rest).eq('job_id', jobId).select('id')
+    : c.from('indoor_pdt').insert({ job_id: jobId, ...rest }).select('id');
+  const { data, error } = await q;
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not change this test.' };
+  return { ok: true };
+}
+
+/** Sign the PDT as the inspector -- or withdraw the signature. The database
+ *  writes WHO (the session), the name and designation from the profile, and
+ *  WHEN; the id sent only says "sign". */
+export async function signIndoorPdt(
+  jobId: number, uid: string, sign = true,
+): Promise<{ ok: boolean; error?: string }> {
+  const c = must();
+  const { data: existing } = await c.from('indoor_pdt').select('id').eq('job_id', jobId).maybeSingle();
+  const value = sign ? (uid || '00000000-0000-0000-0000-000000000000') : null;
+  const q = existing
+    ? c.from('indoor_pdt').update({ inspected_by: value }).eq('job_id', jobId).select('id')
+    : c.from('indoor_pdt').insert({ job_id: jobId, inspected_by: value }).select('id');
+  const { data, error } = await q;
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not sign this test.' };
   return { ok: true };
 }
 
