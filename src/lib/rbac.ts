@@ -172,6 +172,13 @@ export const MODULES: ModuleDef[] = [
   // not for the remaining role in SEES_EVERY_MODULE, because the standing rule
   // is to leave a role alone unless it was named.
   { path: '/handstock-report', label: 'Hand Stock Report', admin: true },
+  // MACHINES WITHOUT AN INSTALLATION CALL (0319) -- "view only for Admins"
+  // (the user, 2026-10-02). In the Reports group and not under `/exports`, for
+  // the Hand Stock Report's reason; `admin: true` keeps it out of every other
+  // role's defaults and 0319 grants the key to `admin` and `technical_support`
+  // (which carries every page key the admin holds, row 114). The same key
+  // gates the ROWS (install_calls_unmapped()).
+  { path: '/install-calls-unmapped', label: 'Machines Without an Installation Call', admin: true },
   // INDOOR SERVICE — the workshop register (procedure §4.5). Its own module,
   // because a DEMO unit has no call to hang off: the register stands alone and
   // the call is an optional link, not the other way round.
@@ -727,6 +734,8 @@ export const PERM_TREE: PermHeader[] = [
     // ALSO not a child of /exports, and also administrators to begin with. Tick
     // it here for any other role -- that is the whole point of it having a key.
     { path: '/handstock-report', label: 'Hand Stock Report', actions: [] },
+    // Administrators only (0319); tick it here for any other role.
+    { path: '/install-calls-unmapped', label: 'Machines Without an Installation Call', actions: [] },
   ] },
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.edit', 'masters.edit.records', 'masters.edit.kyc', 'masters.edit.swap_serviceman'] },

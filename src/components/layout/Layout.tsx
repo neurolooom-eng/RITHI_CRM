@@ -241,6 +241,9 @@ export const NAV: NavGroup[] = [
       // entry that opened the lock screen. The entry asks for the same key the
       // page does, which is the per-role grant the user said they would make.
       { to: '/handstock-report', label: 'Hand Stock Report', icon: '📦' },
+      // Administrators only to begin with (0319); the entry asks for the same
+      // key the page and its data do.
+      { to: '/install-calls-unmapped', label: 'Machines Without an Installation Call', icon: '🧰' },
     ],
   },
   {

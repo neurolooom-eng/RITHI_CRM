@@ -12,6 +12,27 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.42',
+    date: '2026-10-02',
+    title: 'Indoor Service: the R/SER/07 register and Pre-Delivery Testing (R/SER/QC/007)',
+    changes: [
+      'INDOOR SERVICE KEEPS THE PAPER REGISTER\'S COLUMNS: Field Service Report No, Engineer Name, Customer Place, Problem Reported, Indoor Service Report No, DC date and Remarks. It also records the machine\'s cover (WGP / OGP / CMC / AMC), looked up from the Product Database by model and serial and editable. Engineer, place and customer are filled from the call when a UCN is given; a demo device defaults to "Indoor Service".',
+      'VERIFIED BY: a supervisor verifies a completed register entry once the unit is dispatched. It records their name and the time, and needs the new "Verify an Indoor Service register entry" permission. No role holds that permission yet; tick it on Roles & Permissions for the supervisor.',
+      'PRE-DELIVERY TESTING (R/SER/QC/007) for demo / new devices of IMPORTED products. The form is laid out like the paper one: the five checks, the CMV/ACMV and PCMV readings at FiO2 21/60/100%, measuring equipment, software version, HV and HT. It is signed by whoever is signed in. Such a unit cannot be dispatched until the form is complete with every check OK. In-house manufactured equipment is not asked.',
+      'PRODUCT MASTER: a new Imported (Yes / No) column, editable on the screen and in its bulk upload. It is blank until filled; while it is blank, no demo unit of that product is asked for Pre-Delivery Testing, and the job says so.',
+      'PRINT: the R/SER/07 register (Customer – Devices or Demo, optionally by incoming date) and the R/SER/QC/007 Pre-Delivery Testing form open as printable pages laid out like the paper forms. An Excel download of the register carries both sheets.',
+    ],
+  },
+  {
+    version: '0.10.41',
+    date: '2026-10-02',
+    title: 'Installation calls mapped to their machines, and a list of the machines without one',
+    changes: [
+      'ONE-TIME MAPPING: every warranty machine without an installation call in INST Call was matched to one, using installation calls only. It tried, in order, the call number WI-<Product>-<Serial>, then Product + Serial + Party Name, then Product + Serial. A machine was mapped only where exactly one call fitted. Nothing that was already mapped was changed, and every change is logged with the rule that made it. It ran once and cannot run again.',
+      'NEW (administrators only): REPORTS → MACHINES WITHOUT AN INSTALLATION CALL. Every warranty machine that still has no installation call, with the reason (no call found, the call is on another machine line, one match not mapped, or several to choose from) and the candidate calls with their parties. Filter by reason and export to Excel or CSV. It changes nothing: map the call from the Warranty Register and the machine leaves the list. Give it to other roles on Roles & Permissions.',
+    ],
+  },
+  {
     version: '0.10.40',
     date: '2026-10-02',
     title: 'How RITHI Functions: the Reports document, and three report fixes',
