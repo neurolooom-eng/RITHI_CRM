@@ -501,6 +501,7 @@ export const lockCallFields = (fields: FieldDef[], P: string, can: (k: string) =
   });
 };
 export { callPermPrefix } from '../lib/rbac';
+import { ACTIONS } from '../lib/rbac';
 /** May this person edit any part of a call on that register? */
 export const mayEditCallOn = (P: string, can: (k: string) => boolean): boolean =>
   ['edit', 'edit.complaint', 'edit.customer', 'edit.vigilance', 'edit.contact'].some((k) => can(`${P}.${k}`));
@@ -1316,8 +1317,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
 
       {allotBlocked && (
         <p className="muted" style={{ margin: '4px 2px 0', fontSize: 12.5 }}>
-          Re-allocating a call needs the <b>Re-allocate a call to another engineer</b> permission,
-          which your role does not have — an administrator can grant it under Roles &amp; Permissions → Calls.
+          Re-allocating a call needs the <b>{ACTIONS.find((a) => a.key === `${P}.allot`)?.label ?? `${P}.allot`}</b> permission,
+          which your role does not have — an administrator can grant it under Roles &amp; Permissions.
         </p>
       )}
 

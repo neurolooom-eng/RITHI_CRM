@@ -248,7 +248,7 @@ export function CallReview() {
       {note && <div className="msg msg-ok">{note}</div>}
       {!mayMark && (
         <div className="msg msg-info">
-          You can read this review but not record one — <b>Mark a report reviewed</b> is not on your role.
+          You can read this review but not record one — <b>Review a closed call’s report (mark Report Reviewed)</b> is not on your role.
         </div>
       )}
 
