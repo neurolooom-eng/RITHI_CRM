@@ -321,7 +321,7 @@ export function HandStock() {
         onRefresh={() => void load()}
         refreshing={busy}
         title="Hand Stock"
-        subtitle="Stock level per engineer and spare: stock out from Stores − consumption − transfers out + transfers in."
+        subtitle="Stock level per engineer and spare: opening + stock out from Stores − consumption − transfers out + transfers in − returns ± adjustments."
         icon="🎒"
         count={visible.length}
         // A SEARCH THAT FILLED ITS ONE REQUEST IS A LOWER BOUND TOO. Load more
