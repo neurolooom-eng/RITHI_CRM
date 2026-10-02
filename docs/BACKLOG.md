@@ -230,6 +230,14 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.33 — How RITHI Functions: Spares documents audited and extended**
+  (`how-a-spare-moves.html`, `how-hand-stock-moves.html` — no third document;
+  the two already were the Spares group). **Two defects found and measured on
+  a database, OPEN, need the user's decision:** D-081 — `decide_spare_lines()`
+  (0118, the RM Approval tick boxes) writes `rm_approval` only, so a WGP/CMC
+  line waits at Commercial (the single-spare Approve auto-approves it);
+  D-082 — `consumption_adjust_guard()` lost the `original_qty` / `adjusted_at`
+  stamp in 0196 (kept by 0261). **Next document: Indoor Service**, then the rest.
 - ✅ **0.10.27 — How RITHI Functions: Service Calls document**
   (`public/docs/how-service-calls-work.html`). Corrected on the way: re-allocate
   note names the register's own key; Call Review's permission label; handbook
