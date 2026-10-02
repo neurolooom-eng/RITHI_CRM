@@ -23,7 +23,7 @@ import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
   configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit,
-  raiseInstallCalls, missingRequired, yearsHint,
+  raiseInstallCalls, missingRequired, yearsHint, getHeader,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   proposeConversion, conversionHeader, convertWarrantyToContract, contractsFromSale, suggestedContractPmVisits,
   CONTRACT, type ConversionDraft,
@@ -207,7 +207,7 @@ function FieldInput({
 
 // One machine under a header, all its fields, with inheritance made visible.
 function ItemCard({
-  cfg, kind, item, header, canEdit, onSaved, onDeleted, lines, onDirtyChange,
+  cfg, kind, item, header, canEdit, onSaved, onDeleted, lines, onDirtyChange, focus,
 }: {
   cfg: ReturnType<typeof configFor>; kind: CoverKind; item: Row; header: Row; canEdit: boolean;
   onSaved: (r: Row) => void; onDeleted: (id: number) => void;
@@ -216,8 +216,16 @@ function ItemCard({
   /** Told whenever this card starts or stops holding an unsaved edit, so the
    *  window can warn before it is closed over one. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** THE MACHINE THE READER CLICKED ON THE REGISTER TAB: opened, marked and
+   *  scrolled into view, so arriving at a twenty-machine contract does not
+   *  leave them hunting for the one line they came for. */
+  focus?: boolean;
 }) {
-  const [open, setOpen] = useState(!item.id);
+  const [open, setOpen] = useState(!item.id || !!focus);
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focus) cardRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [focus]);
   const [draft, setDraft] = useState<Row>(item);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -266,7 +274,7 @@ function ItemCard({
   const pinned = cfg.itemFields.filter((f) => f.inherits && isPinned(draft, f.name)).length;
 
   return (
-    <div className="req-act-sec">
+    <div ref={cardRef} className={`req-act-sec${focus ? ' cover-card-focus' : ''}`}>
       <div className="row" style={{ justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
         <button className="linklike" onClick={() => setOpen((o) => !o)}>
           {open ? '▾' : '▸'} {str(draft.product_name) || 'New machine'}
@@ -745,6 +753,13 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const [tab, setTab] = useState<Tab>('entries');
   const [q, setQ] = useState('');
   const [state, setState] = useState('');
+  // PENDING INSTALLATION CALL -- a Warranty filter, on the server (cover.ts).
+  // Combines with a state tile and the search; its own count beside them.
+  const [pendingInstall, setPendingInstall] = useState(false);
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const countPending = (search: string) => (kind === 'sale'
+    ? countMachines(kind, '', { q: search, pendingInstall: true }).then(setPendingCount).catch(() => setPendingCount(null))
+    : Promise.resolve());
 
   // ARRIVING FROM SOMEWHERE THAT NAMED A DOCUMENT. Product Database 2.0 shows
   // an SA number and an MC number on every machine it assembles, and those are
@@ -814,7 +829,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const rows = feeds.entries.rows;
   const machines = feeds.machines.rows;
   const setFeed = (t: Tab, patch: Partial<Feed>) => setFeeds((cur) => ({ ...cur, [t]: { ...cur[t], ...patch } }));
-  const filtered = !!q || (tab === 'machines' && !!state);
+  const filtered = !!q || (tab === 'machines' && (!!state || pendingInstall));
 
   const [open, setOpen] = useState<Row | null>(null);   // header being viewed
   // Closed whenever a different entry is opened: a half-filled renewal must not
@@ -840,7 +855,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const fetchPage = (t: Tab, offset: number): Promise<Row[]> =>
     t === 'entries'
       ? listHeaders(kind, { q }, offset, PAGE.entries)
-      : listMachines(kind, { q, state }, offset, PAGE.machines);
+      : listMachines(kind, { q, state, pendingInstall }, offset, PAGE.machines);
 
   /** `pages` server pages from `offset`, in order, stopping at the first short
    *  one — a page that comes back smaller than asked for IS the end, and going
@@ -875,6 +890,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         try {
           const cs = await Promise.all(STATES.map((x) => countMachines(kind, x, { q })));
           setCounts(Object.fromEntries(STATES.map((x, i) => [x, cs[i]])));
+          void countPending(q);
         } catch (ce) {
           setCounts(Object.fromEntries(STATES.map((x) => [x, null])));
           countErr = ce instanceof Error ? ce.message : String(ce);
@@ -919,6 +935,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     setFeed(tab, cached);
     setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(cached.at)}. ↻ Refresh to update.` });
     if (tab === 'machines') {
+      void countPending('');
       void Promise.all(STATES.map((x) => countMachines(kind, x, {})))
         .then((cs) => setCounts(Object.fromEntries(STATES.map((x, i) => [x, cs[i]]))))
         // THE TABLE HAS ALREADY LOADED, so this does not fail the page -- but
@@ -931,7 +948,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, q, state]);
+  }, [tab, q, state, pendingInstall]);
 
   // 30-minute background force-sync of whichever tab is open, unfiltered.
   useEffect(() => {
@@ -946,8 +963,12 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // with A's machines, and B's own reply could not correct a panel that seeds
   // once. A reply for an entry no longer open is dropped.
   const openSeq = useRef(0);
-  const openEntry = async (h: Row) => {
+  // The machine line to open, mark and scroll to -- set when the entry was
+  // opened from the Register tab, cleared when it was opened as a whole.
+  const [focusId, setFocusId] = useState<number | null>(null);
+  const openEntry = async (h: Row, focus: number | null = null) => {
     const seq = ++openSeq.current;
+    setFocusId(focus);
     setRenewing(false); setConverting(false);
     setOpen(h); setDraft(h); setItems([]);
     setLoadingItems(true);
@@ -959,6 +980,21 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     } finally {
       if (seq === openSeq.current) setLoadingItems(false);
     }
+  };
+
+  // A LINE ON THE REGISTER TAB OPENS ITS ENTRY (the user, 2026-10-02: "Nothing
+  // happens when I click the Line in the Register View", and chose this of the
+  // three offered). The same window as the Entries tab -- same buttons, same
+  // rules, nothing to keep in step -- with the clicked machine opened, marked
+  // and scrolled into view on the right.
+  const openFromRegister = async (r: Row) => {
+    const key = str(r[cfg.key]).trim();
+    if (!key) { setMsg({ tone: 'error', text: `This machine line carries no ${cfg.keyLabel}, so there is no entry to open.` }); return; }
+    try {
+      const h = await getHeader(kind, key);
+      if (!h) { setMsg({ tone: 'error', text: `${cfg.keyLabel} ${key} was not found — the machine line names an entry the register does not hold.` }); return; }
+      await openEntry(h, Number(r.id) || null);
+    } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
   };
 
   // THE PARTY FILLS THE ENTRY IN (the user, 2026-09-22). Only on a SALE, and
@@ -1209,6 +1245,13 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       const o = r.overridden as string[] | null;
       return o?.length ? <span className="badge badge-warning" title={o.join(', ')}>{o.length} pinned</span> : <span className="muted">follows entry</span>;
     } },
+    // THE IDENTIFIER: one word a reader can scan down and the export can carry.
+    ...(kind === 'sale' ? [{ key: 'install_pending', header: 'Installation call', width: 130, sortable: false, wrap: false,
+      render: (r: Row) => (installPending(r)
+        ? <span className="badge badge-warning" title="No installation call is mapped to this machine yet">Pending</span>
+        : isCallNumber(r.inst_call)
+          ? <span className="badge badge-success" title="Installation call mapped">{str(r.inst_call)}</span>
+          : <span className="muted" title="No product or no serial on this line, so no call can be raised for it">—</span>) } as Column<Row>] : []),
     { key: '_call', header: 'Register call', width: 230, sortable: false, wrap: false, render: (r) => (
       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
         {canRaiseField && <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); navigate('/field-calls', { state: { prefill: prefillFrom(r, kind) } }); }}>+ Field call</button>}
@@ -1270,7 +1313,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     const what = [entryDirty ? 'the entry' : '', cards ? `${cards} machine(s)` : ''].filter(Boolean).join(' and ');
     if (what && !window.confirm(`Unsaved changes to ${what} will be lost. Close anyway?`)) return;
     dirtyCards.current.clear();
-    setRenewing(false); setConverting(false);
+    setRenewing(false); setConverting(false); setFocusId(null);
     setOpen(null);
   };
   // A machine added from the TOP of the window lands at the BOTTOM of the
@@ -1466,6 +1509,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       {open.id && loadingItems && <div className="muted" style={{ marginBottom: 8 }}>Loading machines…</div>}
       {items.map((it, i) => (
         <ItemCard key={str(it.id) || `new-${i}`} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines}
+          focus={focusId !== null && Number(it.id) === focusId}
           // A machine with no id is unsaved by definition and is counted
           // from `items`; only a SAVED machine's edit is tracked here.
           onDirtyChange={(d) => {
@@ -1484,9 +1528,15 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // the details stay in view while the product list is worked down and the
   // reverse. It does NOT close on a click outside it: a window holding a form
   // that closes on a stray click is one that loses work.
+  // THE RENEWAL OR THE CONVERSION OPENS A THIRD COLUMN (the user, 2026-10-02:
+  // "Initiate with 2 Screens, but when I click Renew Contract / Convert into
+  // Contract -- Open this in the Third Column"). The entry and its products
+  // stay in view beside it, so the machines being carried over can be read
+  // against the panel ticking them.
+  const sidePanel = renewPanel ?? convertPanel;
   const entryPopup = open ? (
     <div className="cover-pop-overlay" role="dialog" aria-modal="true">
-      <div className="cover-pop">
+      <div className={`cover-pop${sidePanel ? ' cover-pop-wide' : ''}`}>
         <div className="cover-pop-bar">
           {entryTitle}
           {entryDirty && <span className="badge badge-warning" title="Press Save entry to keep it">Unsaved</span>}
@@ -1503,13 +1553,8 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
             <button className="btn btn-ghost btn-sm" onClick={() => setMsg(null)}>✕</button>
           </div>
         )}
-        <div className="cover-pop-body">
+        <div className={`cover-pop-body${sidePanel ? ' cover-pop-body-3' : ''}`}>
           <div className="cover-pop-col">
-            {/* THE RENEWAL GOES FIRST WHEN IT IS OPEN. Pressed from the top
-                bar, it must appear where the eye already is, not below a
-                screen of contract fields. */}
-            {renewPanel && <div style={{ marginBottom: 14 }}>{renewPanel}</div>}
-            {convertPanel && <div style={{ marginBottom: 14 }}>{convertPanel}</div>}
             <div className="cover-pop-col-head">{cfg.keyLabel} details</div>
             {/* WHAT THIS DEVICE HOLDS, as on Call Request (the user,
                 2026-10-02). Party Name searches the copy on the device first --
@@ -1524,6 +1569,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
             <div className="cover-pop-col-head">Products ({items.length})</div>
             {machineList}
           </div>
+          {sidePanel && (
+            <div className="cover-pop-col cover-pop-col-side">
+              {sidePanel}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1547,6 +1597,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const exportValue = (r: Row, key: string): unknown => {
     if (key === 'status_now') return stateOf(str(r[cfg.endColumn]));
     if (key === 'overridden') return Array.isArray(r.overridden) ? r.overridden.join(', ') : '';
+    if (key === 'install_pending') return installPending(r) ? 'Pending' : isCallNumber(r.inst_call) ? str(r.inst_call) : '';
     return r[key];
   };
   const exportCols = (cols: Column<Row>[]) =>
@@ -1634,6 +1685,18 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
               {statusBadge(s, TONES)}
             </button>
           ))}
+          {/* INSTALLATION CALL PENDING -- Warranty only: a machine reaches a
+              contract already installed. A filter like the state tiles, and
+              it combines with them and with the search. */}
+          {kind === 'sale' && (
+            <button className={`pc-tile ${pendingInstall ? 'pc-tile-on' : ''}`} onClick={() => setPendingInstall((v) => !v)}
+              title="Machines with a product and a serial whose INST Call holds no call number">
+              <span className="pc-tile-n" title={pendingCount == null ? 'Not counted yet — press ↻ Refresh' : ''}>
+                {pendingCount == null ? '—' : pendingCount.toLocaleString()}
+              </span>
+              <span className="badge badge-warning">INSTALL CALL PENDING</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -1647,6 +1710,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           storageKey={`cover-${kind}-machines`}
           rowsBeforeScroll={16}
           dense
+          onRowClick={(r) => void openFromRegister(r)}
           onLoadMore={loadMore}
           moreAvailable={feeds.machines.more}
           loadingMore={busy}
@@ -1681,6 +1745,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
 // contract differently the moment either number moved. It calls coverStatus
 // now; the SQL is the same rule where a view can reach it (0187).
 const stateOf = (end: string): string => coverStatus(end);
+
+// PENDING = machinesNeedingInstallCall's rule for one line: a product and a
+// serial, and no call number in INST Call. The server filter is the same rule.
+const installPending = (r: Row): boolean =>
+  isPinnedValue(r.product_name) && isPinnedValue(r.serial_number) && !isCallNumber(r.inst_call);
 
 // A machine row, in the shape the call form's prefill reads.
 function prefillFrom(r: Row, kind: CoverKind): Record<string, unknown> {

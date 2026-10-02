@@ -716,6 +716,15 @@ th.rbac-col-admin { color: var(--text-muted); }
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 .cover-pop-col { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 14px 14px; }
+/* THE THIRD COLUMN: Renew / Convert to Contract open beside the entry and its
+   products, and the window widens to make room rather than squeezing the two
+   it already had. */
+.cover-pop.cover-pop-wide { width: min(1800px, 98vw); }
+.cover-pop-body.cover-pop-body-3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr); }
+.cover-pop-col-side { padding-top: 12px; background: var(--surface-alt); }
+/* The machine clicked on the Register tab: marked by contrast, not a tint
+   (the project's rule for "highlight"). */
+.cover-card-focus { outline: 2px solid var(--text); outline-offset: 2px; border-radius: var(--radius-sm); }
 .cover-pop-col + .cover-pop-col { border-left: 1px solid var(--border); }
 /* Each half keeps its own heading in view while it scrolls. */
 .cover-pop-col-head {
@@ -727,7 +736,7 @@ th.rbac-col-admin { color: var(--text-muted); }
    bar stays at the top. */
 @media (max-width: 900px) {
   .cover-pop { width: 100vw; height: 100vh; border-radius: 0; }
-  .cover-pop-body { display: block; overflow: auto; }
+  .cover-pop-body, .cover-pop-body.cover-pop-body-3 { display: block; overflow: auto; }
   .cover-pop-col { overflow: visible; }
   .cover-pop-col + .cover-pop-col { border-left: 0; border-top: 1px solid var(--border); }
 }

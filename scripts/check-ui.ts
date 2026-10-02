@@ -5725,8 +5725,21 @@ console.log('\n-- the cover registers open an entry in a pop-up --');
   eq('the pop-up does not close on a click outside it', /cover-pop-overlay"[^>]*onMouseDown/.test(reg2), false);
   eq('closing over unsaved changes asks first', /will be lost\. Close anyway\?/.test(reg2), true);
   // ON A PHONE THERE IS NO ROOM FOR TWO.
-  eq('the two halves stack on a narrow screen',
-    /@media \(max-width: 900px\)[\s\S]{0,200}\.cover-pop-body \{ display: block/.test(css), true);
+  eq('the halves stack on a narrow screen, the third column too',
+    /@media \(max-width: 900px\)[\s\S]{0,200}\.cover-pop-body, \.cover-pop-body\.cover-pop-body-3 \{ display: block/.test(css), true);
+  // RENEW / CONVERT OPEN A THIRD COLUMN (the user, 2026-10-02), not a panel
+  // pushed into the details column.
+  eq('Renew and Convert open in a third column',
+    /const sidePanel = renewPanel \?\? convertPanel;[\s\S]{0,3000}cover-pop-col-side/.test(reg2), true);
+  // A REGISTER LINE OPENS ITS ENTRY, with that machine marked (2026-10-02).
+  eq('a Register line opens its entry', /onRowClick=\{\(r\) => void openFromRegister\(r\)\}/.test(reg2), true);
+  eq('...with the clicked machine focused', /focus=\{focusId !== null && Number\(it\.id\) === focusId\}/.test(reg2), true);
+  // PENDING INSTALLATION CALL is filtered ON THE SERVER, with the same rule.
+  {
+    const cov = readFileSync('src/lib/cover.ts', 'utf8');
+    eq('the pending-install filter runs on the server', /pendingInstall && cfg\.kind === 'sale' \? PENDING_INSTALL/.test(cov), true);
+    eq('...and is offered as a tile on the Warranty Register', /INSTALL CALL PENDING/.test(reg2), true);
+  }
 }
 
 console.log('\n-- KYC: the status and its evidence, both on the row --');

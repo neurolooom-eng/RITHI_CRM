@@ -332,6 +332,22 @@ export async function listHeaders(kind: CoverKind, f: HeaderFilter, offset = 0, 
   });
 }
 
+/** ONE entry by its number, in the shape `listHeaders` returns it -- so an
+ *  entry opened from a Register line is the same object as one opened from
+ *  the Entries tab, and the window's "unsaved" test compares like with like.
+ *  Null when no such entry exists (a line whose header was never imported). */
+export async function getHeader(kind: CoverKind, key: string): Promise<Row | null> {
+  const cfg = configFor(kind);
+  if (!key.trim()) return null;
+  const { data, error } = await client().from(cfg.headerTable)
+    .select(`*, items:${cfg.itemTable}(count)`)
+    .eq(cfg.key, key).limit(1).maybeSingle();
+  if (error) throw err(error);
+  if (!data) return null;
+  const items = (data as Row).items as { count: number }[] | undefined;
+  return { ...(data as Row), item_count: items?.[0]?.count ?? 0 };
+}
+
 /** The number to offer for a new entry.
  *
  *  Reads the most recent 500 numbers and continues the series from the highest
@@ -361,30 +377,53 @@ export async function listItems(kind: CoverKind, key: string): Promise<Row[]> {
 }
 
 /** Machines, cover resolved — the register's "by machine" view. */
+// PENDING INSTALLATION CALL (the user, 2026-10-02: "In Warranty, add an
+// Identifier [Should be Filterable as well] for Pending Installation Call
+// Generation"). The rule is machinesNeedingInstallCall's: a machine -- a
+// product AND a serial -- whose INST Call holds no call number. "No call
+// number" is the UCN shape (isCallNumber / is_call_number()) NOT matching, or
+// nothing there at all: the AppSheet "To Check" is pending, not done.
+//
+// ON THE SERVER, because the register is paged: a filter over the rows loaded
+// so far would answer "pending among the first 2,000", which reads as all.
+const UCN_PATTERN = '^[0-9]{2}[A-La-l][0-9]{2}[A-Za-z][0-9]{4}$';
+const PENDING_INSTALL = `and(product_name.neq.,serial_number.neq.,or(inst_call.is.null,inst_call.not.imatch."${UCN_PATTERN}"))`;
+const searchExpr = (cfg: CoverConfig, text: string) => {
+  const t = like(text);
+  return `serial_number.ilike.${t},product_name.ilike.${t},party_name.ilike.${t},${cfg.key}.ilike.${t}`;
+};
+/** The search box and the pending filter as ONE logic tree: two separate
+ *  `or` parameters are not a combination PostgREST documents, a nested
+ *  and(or(...), ...) is. */
+const machineFilter = (cfg: CoverConfig, f: { q?: string; pendingInstall?: boolean }): string | null => {
+  const parts = [f.q ? `or(${searchExpr(cfg, f.q)})` : '', f.pendingInstall && cfg.kind === 'sale' ? PENDING_INSTALL : '']
+    .filter(Boolean);
+  return parts.length ? `and(${parts.join(',')})` : null;
+};
+
 export async function listMachines(
-  kind: CoverKind, f: { q?: string; state?: string }, offset = 0, limit = 500,
+  kind: CoverKind, f: { q?: string; state?: string; pendingInstall?: boolean }, offset = 0, limit = 500,
 ): Promise<Row[]> {
   const cfg = configFor(kind);
   let q = client().from(cfg.detailsView).select('*')
     .order(cfg.endColumn, { ascending: false, nullsFirst: false })
     .range(offset, offset + limit - 1);
-  if (f.q) {
-    const t = like(f.q);
-    q = q.or(`serial_number.ilike.${t},product_name.ilike.${t},party_name.ilike.${t},${cfg.key}.ilike.${t}`);
-  }
+  const tree = machineFilter(cfg, f);
+  if (tree) q = q.or(tree);
   if (f.state) q = q.eq(cfg.stateColumn, f.state);
   const { data, error } = await q;
   if (error) throw err(error);
   return data ?? [];
 }
 
-export async function countMachines(kind: CoverKind, state: string, f: { q?: string }): Promise<number> {
+export async function countMachines(
+  kind: CoverKind, state: string, f: { q?: string; pendingInstall?: boolean },
+): Promise<number> {
   const cfg = configFor(kind);
-  let q = client().from(cfg.detailsView).select('id', { count: 'exact', head: true }).eq(cfg.stateColumn, state);
-  if (f.q) {
-    const t = like(f.q);
-    q = q.or(`serial_number.ilike.${t},product_name.ilike.${t},party_name.ilike.${t},${cfg.key}.ilike.${t}`);
-  }
+  let q = client().from(cfg.detailsView).select('id', { count: 'exact', head: true });
+  if (state) q = q.eq(cfg.stateColumn, state);
+  const tree = machineFilter(cfg, f);
+  if (tree) q = q.or(tree);
   const { count, error } = await q;
   if (error) throw err(error);
   return count ?? 0;
