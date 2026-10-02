@@ -1838,7 +1838,12 @@ function ReviewDrawer({
         )}
         {autoSave && (
           <span className="muted" style={{ fontSize: 12.5 }}>
-            — auto save records the ANSWERS; <b>Save review</b> is what completes the stage.
+            {/* THE DATABASE COMPLETES A STAGE, NOT THE BUTTON (0269 call_review_stamp):
+                once all its answers are in, the stage is dated and the reviewer
+                stamped from the session, however the answers were saved. The
+                hint used to say Save review completes it -- found 2026-10-02
+                writing How RITHI Functions → Quality & Analytics. */}
+            — a stage is complete, dated and signed with your name, as soon as all its answers are in, whether auto save or <b>Save review</b> stored them.
           </span>
         )}
         {layout === 'drawer' && <button className="btn" onClick={onClose}>Close</button>}

@@ -806,8 +806,9 @@ typed into a form that reads it.
   > what you do there, what it refuses, the records it keeps, and the data flows
   > it is part of (a chip opens that flow). It says whether your role opens the
   > screen. A screen added to the menu without an entry here fails the build.
-  > **The Call / Spare / Hand Stock documents and the Spare tables** — the long
-  > illustrated explanations.
+  > **The Call, Spare, Hand Stock and Quality & Analytics documents, and the
+  > Spare tables** — the long illustrated explanations, step by step: what each
+  > step reads, what happens, and what it refuses or demands.
   > **Data flows** — fourteen workflows drawn as diagrams: a call's life, quality,
   > hand stock, a sale, installation, PM, the HandStock spare route,
   > reconciliation, the workshop, documents and training, the masters, people and
@@ -873,7 +874,8 @@ typed into a form that reads it.
   > early or late in a machine's life is the point of that one.
   > **Build your own chart** with ＋ New chart — count the failures by any of the
   > review's answers, as a Pareto, a share, or in its own order. It is kept for
-  > you; sharing it with a role or with everyone needs *Manage configuration*.
+  > you; sharing it with a role or with everyone needs *Share a chart* (part of
+  > *Manage configuration*).
   > **Sharing a chart never shares data**: what is saved is the question, not the
   > answer, so each reader still sees only the failures their own role may see.
 - **My Workload** `/workload` — everything waiting on you, across the registers

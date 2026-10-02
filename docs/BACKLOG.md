@@ -230,6 +230,16 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.24 — How RITHI Functions: Quality & Analytics document**
+  (`public/docs/how-quality-works.html`, the call document's shell; three
+  flows, 17 steps; open defects D-018/020/021/023/026/027/067 named as not yet
+  in place). Writing it found and fixed: the DCCR auto-save hint (the database
+  completes a stage when its answers are in — 0269 call_review_stamp); the
+  Objective lock tooltip/message and the Admin Config subtitle (own keys, not
+  admin-only); FRS-206.4 (config.manage may save the frequent-failure rule);
+  FRS-113.8 and the handbook (charts.share); the quality flow's frequent-
+  failure step (rule 2, and rule 1's complaint setting). **Next document:
+  Service Calls**, then the remaining groups.
 - ✅ **0.10.23 — How RITHI Functions: All modules + every workflow, with ▶ Play.**
   `src/lib/moduleGuide.ts` (75 menu screens; check:ui holds menu ↔ guide);
   `ModuleGuide.tsx` is the default tab. `FLOWS` 4 → 14 (+ Ownership Transfer
