@@ -12,6 +12,37 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.48',
+    date: '2026-10-02',
+    title: 'Indoor Service in stages, and the Indoor DC approved',
+    changes: [
+      'INDOOR SERVICE WORKS IN STAGES: Intake → Cleaning → Repair → Report → DC. A marker at the top of each job shows where it is, and only that stage\'s fields (and those already done) are shown. Cleaning comes before the report upload, and the upload before the DC.',
+      'INTAKE: "Receive equipment" opens an intake form. Pick the product and serial to see that machine\'s open calls, or type the UCN. RITHI fills in the UCN, customer, place, the allotted engineer, the machine\'s item status, product, serial and the complaint. The received accessories are an add-item list with quantities.',
+      'REQUEST SPARE from an Indoor job opens the usual spare request with the call already filled in, raised by the Indoor engineer.',
+      'SERVICE REPORT: an Upload button in the register\'s Indoor Service Report No column. The engineer enters the report number (added to the file name) and fills in the visit work details, as on the call\'s Visit Entry, so nothing is typed twice. Call Status is fixed at Unsolved, Pending Reason at Return to Field (added to the list), and Update Visit Work Details at Yes.',
+      'INDOOR DC NEEDS APPROVAL: the engineer creates it and picks who approves it, from their Reporting Manager, Regional Manager or an NSM. Until it is approved it reads PENDING APPROVAL. On approval, RITHI files the visit on each call with the report attached. The approver can also reject it with a reason, which frees the units. DCs waiting for you are listed first, and on My Workload.',
+      'THE REGISTER is now the R/SER/07 table, as on paper, with a stage chip on each row.',
+    ],
+  },
+  {
+    version: '0.10.47',
+    date: '2026-10-02',
+    title: 'Warranty and Contract registers: Load more at the top',
+    changes: [
+      'LOAD MORE now sits at the top of the Warranty Register and the Contract Register, beside the count, as on Field Calls and Spare Requests. It loads more of the tab that is open (Entries or Register). The button at the foot of the table is gone; the row count there still shows a + while more are waiting.',
+    ],
+  },
+  {
+    version: '0.10.46',
+    date: '2026-10-02',
+    title: 'Warranty Entries: installation calls pending per sale',
+    changes: [
+      'WARRANTY → ENTRIES: a new Install calls pending column shows how many of each sale\'s machines are still waiting for their installation call.',
+      'The SALES WITH INSTALL CALLS PENDING tile shows how many sales have at least one, and filters the list to them, across the whole register and together with the search.',
+      'Raising installation calls from a sale updates its count straight away. A sale not counted yet shows a dash until the list refreshes, rather than 0.',
+    ],
+  },
+  {
     version: '0.10.45',
     date: '2026-10-02',
     title: 'Warranty and Contract: a Register line opens its entry, Renew / Convert in a third column, installation call pending',

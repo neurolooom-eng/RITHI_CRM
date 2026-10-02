@@ -528,6 +528,9 @@ window, with the machine opened and marked on the right.
 machine still waiting for its call ("To Check" counts as pending) and shows the
 UCN once one is mapped; the **INSTALL CALL PENDING** tile filters to them,
 across the whole register, together with the search and the state tiles.
+On the **Entries** tab, **Install calls pending** shows how many of each sale's
+machines are still waiting, and **SALES WITH INSTALL CALLS PENDING** filters to
+the sales with at least one.
 **Clicking an entry opens it in a pop-up window**: the entry's details on the
 left, its products on the right, each half scrolling on its own. Every button —
 Save entry, Delete entry, Close, + Add machine and Force update child records,
@@ -538,6 +541,8 @@ and if you close it over unsaved changes it asks first. On a phone the two
 halves stack. Each register
 opens on **2,000 rows** — two full requests of the 1,000 the database hands over
 at once — and every **Load more** fetches twice as much as the one before.
+**Load more** sits at the top, beside the count, as on Field Calls; it loads
+more of the tab that is open (Entries or Register).
 **"+ New entry" arrives with its number already in it** — offered, not reserved,
 so two people starting at once get the same number and the second is refused on
 saving.
