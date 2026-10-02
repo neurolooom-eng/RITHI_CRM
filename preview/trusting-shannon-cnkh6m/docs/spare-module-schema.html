@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spare Module Schema</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#131a22;
+  --ink-2:#38434f;
+  --muted:#6a7885;
+  --surface:#ffffff;
+  --page:#f2f4f7;
+  --line:#d9dfe6;
+  --line-soft:#e7ebf0;
+  --rail:#9aa7b4;
+
+  /* THE CALL-STATUS CODE. Literal, and the same in both themes — these are the
+     hexes in src/lib/callstate.tsx. A colour people have learned to read is a
+     code, and a code that means something else in dark mode is not one. */
+  --st-unattended:#d32f2f;
+  --st-unsolved:#1565c0;
+  --st-pending:#c2185b;
+  --st-solved:#2e7d32;
+  --st-reopened:#ef6c00;
+  --st-cancelled:#546e7a;
+
+  --master:#00695c;      /* what flows IN  */
+  --rule:#8e2d8e;        /* what is REFUSED */
+  --mandate:#b25000;     /* what is DEMANDED */
+
+  --shadow:0 1px 2px rgba(19,26,34,.06), 0 8px 20px -12px rgba(19,26,34,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+    --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+    --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+  --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+  --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--page); color:var(--ink);
+  font-family:'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size:16px; line-height:1.55;
+}
+code, .mono{font-family:'IBM Plex Mono', ui-monospace, monospace}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 16px 88px}
+body.framed .wrap{padding-bottom:28px}
+body.framed header.top{padding-top:8px}
+
+/* ---- masthead ---------------------------------------------------------- */
+header.top{padding:44px 0 26px; border-bottom:1px solid var(--line)}
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 12px;
+}
+h1{
+  font-size:clamp(30px,5.2vw,46px); line-height:1.08; margin:0 0 14px;
+  letter-spacing:-.021em; font-weight:700; text-wrap:balance; max-width:22ch;
+}
+.standfirst{margin:0; max-width:66ch; color:var(--ink-2); font-size:17px}
+.standfirst b{color:var(--ink)}
+
+/* ---- the key ----------------------------------------------------------- */
+.key{
+  display:grid; gap:10px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+}
+.key div{border-left:3px solid var(--k); padding:2px 0 2px 12px; font-size:13.5px; color:var(--ink-2)}
+.key strong{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--k); font-weight:600;
+}
+
+/* ---- a caution panel --------------------------------------------------- */
+.note{
+  margin:26px 0 0; padding:16px 18px; border:1px solid var(--line);
+  border-left:3px solid var(--mandate); background:var(--surface);
+  border-radius:0 6px 6px 0; font-size:14.5px; color:var(--ink-2);
+  box-shadow:var(--shadow);
+}
+.note h4{
+  margin:0 0 8px; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--mandate); font-weight:600;
+}
+.note p{margin:0 0 9px} .note p:last-child{margin:0}
+.note b{color:var(--ink)}
+
+/* ---- the contents map -------------------------------------------------- */
+.map{margin:40px 0 0}
+.map h2{
+  font-size:13px; font-family:'IBM Plex Mono',monospace; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted); font-weight:600; margin:0 0 16px;
+}
+.mapgrid{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.mapcol{
+  border:1px solid var(--line); border-top:3px solid var(--c,var(--rail));
+  background:var(--surface); border-radius:0 0 6px 6px; padding:13px 15px 15px;
+}
+.mapcol h3{
+  margin:0 0 3px; font-size:13.5px; font-weight:600; color:var(--ink);
+}
+.mapcol .sub{
+  margin:0 0 10px; font-size:12px; color:var(--muted);
+}
+.mapcol a{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:12.5px;
+  color:var(--ink-2); text-decoration:none; padding:3px 0;
+  border-bottom:1px solid var(--line-soft);
+}
+.mapcol a:last-child{border-bottom:0}
+.mapcol a:hover{color:var(--ink)}
+.mapcol a span{color:var(--muted); font-size:11px}
+
+/* ---- section band ------------------------------------------------------ */
+.band{
+  margin:54px 0 0; padding:0 0 6px; border-bottom:2px solid var(--ink);
+  display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+}
+.band h2{margin:0; font-size:22px; font-weight:700; letter-spacing:-.012em}
+.band .n{
+  font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted);
+  letter-spacing:.08em;
+}
+.bandnote{margin:12px 0 0; font-size:14.5px; color:var(--ink-2); max-width:72ch}
+
+/* ---- a table card ------------------------------------------------------ */
+.t{
+  margin:26px 0 0; border:1px solid var(--line); background:var(--surface);
+  border-radius:7px; box-shadow:var(--shadow); overflow:hidden;
+}
+.t-head{padding:17px 20px 15px; border-bottom:1px solid var(--line)}
+.t-name{
+  font-family:'IBM Plex Mono',monospace; font-size:17px; font-weight:600;
+  color:var(--ink); margin:0 0 5px; word-break:break-word;
+}
+.t-grain{margin:0; font-size:14.5px; color:var(--ink-2)}
+.t-grain b{color:var(--ink)}
+.chips{display:flex; flex-wrap:wrap; gap:6px; margin:12px 0 0}
+.chip{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.04em;
+  padding:3px 8px; border-radius:3px; border:1px solid var(--line);
+  color:var(--muted); background:var(--page); white-space:nowrap;
+}
+.chip b{color:var(--ink-2); font-weight:600}
+
+/* ---- the field list ---------------------------------------------------- */
+.fields{padding:4px 0 0}
+.f{
+  display:grid; gap:2px 22px; padding:11px 20px;
+  grid-template-columns:minmax(0,290px) minmax(0,1fr);
+  border-bottom:1px solid var(--line-soft);
+}
+.f:last-child{border-bottom:0}
+.f-n{display:flex; flex-wrap:wrap; align-items:baseline; gap:7px}
+.f-n code{font-size:13.5px; font-weight:600; color:var(--ink); word-break:break-word}
+.ty{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted)}
+.f-r{font-size:14px; color:var(--ink-2)}
+.f-r b{color:var(--ink)}
+.f-r em{font-style:normal; color:var(--rule)}
+/* a field that is the KEY of the table */
+.f.k{background:color-mix(in srgb, var(--master) 7%, transparent)}
+
+/* the required / optional / stamped badge */
+.b{
+  font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.06em;
+  text-transform:uppercase; font-weight:600; padding:2px 6px; border-radius:3px;
+  white-space:nowrap;
+}
+.b-req{background:var(--mandate); color:var(--surface)}
+.b-set{background:var(--master); color:var(--surface)}
+.b-opt{border:1px solid var(--line); color:var(--muted)}
+.b-no{background:var(--rule); color:var(--surface)}
+
+/* ---- the flow strip ---------------------------------------------------- */
+.flow{
+  display:grid; gap:0; grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  border-top:1px solid var(--line); background:var(--page);
+}
+.flow div{padding:13px 20px; border-right:1px solid var(--line); font-size:13.5px; color:var(--ink-2)}
+.flow div:last-child{border-right:0}
+.flow strong{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--muted);
+  font-weight:600; margin:0 0 5px;
+}
+.flow code{font-size:12.5px; color:var(--ink)}
+
+/* ---- a ladder (the stage rule) ----------------------------------------- */
+.ladder{
+  margin:0; padding:16px 20px; background:var(--page);
+  border-top:1px solid var(--line); overflow-x:auto;
+}
+.ladder table{border-collapse:collapse; font-size:13px; min-width:420px; width:100%}
+.ladder td{padding:5px 14px 5px 0; vertical-align:top; border-bottom:1px solid var(--line-soft)}
+.ladder tr:last-child td{border-bottom:0}
+.ladder td.c{font-family:'IBM Plex Mono',monospace; color:var(--ink-2); white-space:nowrap}
+.ladder td.r{font-weight:600; color:var(--ink); white-space:nowrap}
+.ladder caption{
+  text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--muted);
+  font-weight:600; padding:0 0 9px;
+}
+
+/* ---- closing ----------------------------------------------------------- */
+.close{margin:56px 0 0; padding:24px 0 0; border-top:2px solid var(--ink)}
+.close p{max-width:72ch; color:var(--ink-2); font-size:15px}
+.close p b{color:var(--ink)}
+.stamp{
+  margin:30px 0 0; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+  color:var(--muted); line-height:1.7;
+}
+
+@media (max-width:720px){
+  .f{grid-template-columns:minmax(0,1fr); gap:5px}
+  .flow div{border-right:0; border-bottom:1px solid var(--line)}
+  .flow div:last-child{border-bottom:0}
+}
+</style>
+</head>
+<body>
+<script>
+  try { if (window.parent !== window) document.body.className = 'framed'; } catch (e) {}
+</script>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">RITHI CRM · How it functions · Schema</p>
+  <h1>The Spare module, table by table</h1>
+  <p class="standfirst">
+    Every table the eight Spare screens read and write &mdash; what each important field
+    holds, whether you supply it or the database does, what it refuses, and where the
+    value goes next. <b>Read out of the database, not written by hand:</b> the columns,
+    types, keys, constraints, triggers and row-level policies below were introspected
+    from a Postgres with <b>every</b> migration applied, and each refusal quoted below is
+    the message the system actually raises.
+  </p>
+
+  <div class="key">
+    <div style="--k:var(--mandate)">
+      <strong>You supply it</strong>
+      Refused, or wrong, without a value from you.
+    </div>
+    <div style="--k:var(--master)">
+      <strong>Set for you</strong>
+      The database fills it. Some are merely defaulted; where a value you send is
+      <em>discarded</em>, the field says so.
+    </div>
+    <div style="--k:var(--rule)">
+      <strong>Refused</strong>
+      A guard rejects the write outright, in those words.
+    </div>
+  </div>
+
+  <div class="note">
+    <h4>Why this does not just say NOT NULL</h4>
+    <p>
+      Reading &ldquo;mandatory&rdquo; off the column definition would be wrong in
+      <b>both</b> directions here, so it is not what the middle column means.
+    </p>
+    <p>
+      Most <code>NOT NULL</code> columns in this module carry a <b>default</b>, so you
+      never supply them &mdash; <code>created_at</code>, <code>stage</code>,
+      <code>total_qty</code>. And several of the genuinely mandatory fields are
+      <b>nullable</b> in the schema and demanded by a trigger instead: a reconciliation
+      needs a UCN, a part, an engineer and a reason, and every one of those four columns
+      accepts <code>NULL</code> as far as the table definition is concerned.
+    </p>
+    <p>
+      So the badge answers the question somebody actually has &mdash; <b>must I put
+      something here?</b> &mdash; and the rule beside it says what enforces the answer.
+    </p>
+  </div>
+</header>
+
+<section class="map">
+  <h2>The module, in six movements</h2>
+  <div class="mapgrid">
+    <div class="mapcol" style="--c:var(--mandate)">
+      <h3>The request</h3>
+      <p class="sub">An engineer asks for a part.</p>
+      <a href="#spare_requests">spare_requests <span>41 cols</span></a>
+      <a href="#spare_request_lines">spare_request_lines <span>36 cols</span></a>
+      <a href="#spare_request_engineer_log">spare_request_engineer_log <span>11 cols</span></a>
+    </div>
+    <div class="mapcol" style="--c:var(--master)">
+      <h3>Stock out</h3>
+      <p class="sub">Stores send it. One DC, one engineer.</p>
+      <a href="#spare_dispatches">spare_dispatches <span>14 cols</span></a>
+      <a href="#spare_dispatch_lines">spare_dispatch_lines <span>11 cols</span></a>
+    </div>
+    <div class="mapcol" style="--c:var(--st-solved)">
+      <h3>Consumption</h3>
+      <p class="sub">It goes into a machine. The control point.</p>
+      <a href="#spare_consumption">spare_consumption <span>20 cols</span></a>
+    </div>
+    <div class="mapcol" style="--c:var(--st-unsolved)">
+      <h3>Out again</h3>
+      <p class="sub">Transferred to a colleague, or returned.</p>
+      <a href="#stock_transfers">stock_transfers <span>11 cols</span></a>
+      <a href="#stock_transfer_lines">stock_transfer_lines <span>6 cols</span></a>
+      <a href="#material_returns">material_returns <span>22 cols</span></a>
+    </div>
+    <div class="mapcol" style="--c:var(--rail)">
+      <h3>Where the balance starts</h3>
+      <p class="sub">The opening figure and the pre-RITHI record.</p>
+      <a href="#handstock_opening">handstock_opening <span>15 cols</span></a>
+      <a href="#spare_issue_history">spare_issue_history <span>17 cols</span></a>
+      <a href="#spare_consumption_history">spare_consumption_history <span>18 cols</span></a>
+      <a href="#handstock_period">handstock_period <span>5 cols</span></a>
+    </div>
+    <div class="mapcol" style="--c:var(--rule)">
+      <h3>Not written by anybody</h3>
+      <p class="sub">Numbering, and the derived balance.</p>
+      <a href="#counters">the four counters <span>sealed</span></a>
+      <a href="#views">the derived views <span>10</span></a>
+      <a href="#parts">parts &mdash; the master <span>17 cols</span></a>
+    </div>
+  </div>
+</section>
+
+<div class="band"><h2>1 &nbsp;The request</h2><span class="n">spare_requests · spare_request_lines · spare_request_engineer_log</span></div>
+<p class="bandnote">
+  Two tables and a log. The header holds <b>who and what for</b>; the lines hold
+  <b>which parts</b> &mdash; and every approval, because approvals are recorded per
+  spare, never on the request.
+</p>
+
+<article class="t" id="spare_requests">
+  <div class="t-head">
+    <p class="t-name">spare_requests</p>
+    <p class="t-grain">One row per <b>request</b> &mdash; one OR number. Raised on the
+      Spare Requests screen by either route: against a call, or as HandStock.</p>
+    <div class="chips">
+      <span class="chip"><b>41</b> columns</span>
+      <span class="chip">PK <b>id</b></span>
+      <span class="chip">UNIQUE <b>uid</b>, <b>or_no</b></span>
+      <span class="chip">RLS <b>on</b> · 4 policies</span>
+      <span class="chip">5 triggers</span>
+    </div>
+  </div>
+
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>uid</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">The key everything else points at. Both child tables reference it
+        <code>on delete cascade</code>, so it is the handle for the whole request.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>or_no</code><span class="ty">text</span><span class="b b-set">set for you</span></div>
+      <div class="f-r"><code>OR-YYMM-NNNN</code>, drawn from <code>spare_or_counters</code> on a
+        monthly series. Unique across the table. <em>Immutable</em> once assigned:
+        &ldquo;The OR number is assigned once and cannot be changed.&rdquo;</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>or_req_date</code><span class="ty">date</span><span class="b b-set">set for you</span></div>
+      <div class="f-r">Stamped with the OR number and <em>immutable</em> by the same guard.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>req_type</code><span class="ty">text</span><span class="b b-opt">optional</span></div>
+      <div class="f-r"><b>The route.</b> <code>Call Based</code> (the default) or
+        <code>HandStock</code>. Matched by squashing every non-letter and lowercasing, so
+        <code>Hand Stock</code>, <code>hand-stock</code> and <code>HANDSTOCK</code> all count;
+        anything else is treated as Call Based. <b>HandStock now requires NSM approval</b>
+        whatever the cover.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>item_status</code><span class="ty">text</span><span class="b b-opt">optional</span></div>
+      <div class="f-r"><b>The cover, and it decides the approval chain.</b> Normalised to one of
+        <code>WGP</code> · <code>OGP</code> · <code>CMC</code> · <code>AMC</code> by a trigger on
+        insert and on any update of this column &mdash; &ldquo;WARRANTY&rdquo; is written as WGP.
+        An unrecognised value is left <em>unchanged</em> rather than guessed at. Empty on a
+        HandStock request, which has no machine behind it.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>engineer</code> <code>engineer_email</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">Who the parts are for. The email is what row-level security matches on,
+        so a blank one costs the engineer sight of their own request.
+        <em>Cannot be changed once the parts have gone out</em> &mdash; &ldquo;OR &hellip; has
+        already been dispatched.&rdquo; Every permitted change is written to the log below.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>ucn</code> <code>call_number</code><span class="ty">text</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">The call this is against, on the Call Based route. Empty for HandStock.
+        There is <b>no foreign key</b> to the call &mdash; the UCN is carried as text and joined
+        on by the reports.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>party_name</code> <code>product_name</code> <code>serial</code><span class="ty">text</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">Copied off the call when the request is raised, so the request still reads
+        correctly if the machine is later transferred. Also text, also no foreign key.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>handstock_reason</code><span class="ty">text</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">Why the replenishment is being asked for. The only justification a
+        HandStock request carries, since there is no complaint behind it.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>stage</code> <code>status</code><span class="ty">text</span><span class="b b-set">set for you</span></div>
+      <div class="f-r"><b>A rollup of the lines, not a field.</b> The request sits at the
+        <b>earliest</b> stage among its lines that is not Rejected or Dropped &mdash; so a request
+        whose five parts are at Stores and whose sixth is still at Commercial reads
+        <b>Commercial</b>. <code>status</code> mirrors <code>stage</code>, except that
+        <code>Stores</code> is shown as <b>Awaiting Dispatch</b>. A value you write is
+        <em>refused</em>.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>rm_approval</code> <code>commercial_approval</code> <code>nsm_approval</code> <code>stores_status</code> <code>received_at</code><span class="ty">text / timestamptz</span><span class="b b-no">refused here</span></div>
+      <div class="f-r"><b>These columns exist but you may not write them.</b> Any update raises
+        &ldquo;<em>Spare approvals are recorded per spare &mdash; update
+        spare_request_lines, not the request</em>&rdquo;. They are kept in step by the rollup when
+        a line changes. The reason is the whole design: a request is approved part by part, so a
+        decision written at the header would be a decision nobody made about any particular
+        part &mdash; and would skip the per-line permission checks entirely.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>dc_number</code> <code>dispatched_by</code> <code>dispatched_at</code> <code>received_by</code> <code>courier</code><span class="ty">text / timestamptz</span><span class="b b-set">set for you</span></div>
+      <div class="f-r">Carried up from the lines when Stores send the parts. Read them here for a
+        summary; the line rows are the record.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>created_by</code><span class="ty">uuid</span><span class="b b-set">set for you</span></div>
+      <div class="f-r">Defaults to the signed-in user and references <code>auth.users</code>. One
+        of the two things that make somebody &ldquo;the requester&rdquo; for permission purposes;
+        the other is a matching <code>engineer_email</code>.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>extra</code><span class="ty">jsonb</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">Whatever an import carried that has no column of its own. Never read by the
+        approval logic.</div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <div><strong>Upstream &mdash; what feeds it</strong>
+      The call (by <code>ucn</code>, no FK) · <code>parties</code> and the product database for
+      the customer and machine · <code>parts</code> for the lines · Part Master for the cover
+      vocabulary.</div>
+    <div><strong>Downstream &mdash; where it goes</strong>
+      <code>spare_request_lines</code> (cascade) · <code>spare_request_engineer_log</code>
+      (cascade) · the RM Approval and Pending Dispatch registers.</div>
+    <div><strong>Deleting</strong>
+      Only an admin or the requester, and only while the request is still at RM Approval,
+      unapproved and never received. Anything else is <em>blocked outright</em> &mdash; this is a
+      quality record.</div>
+  </div>
+</article>
+
+<article class="t" id="spare_request_lines">
+  <div class="t-head">
+    <p class="t-name">spare_request_lines</p>
+    <p class="t-grain">One row per <b>part</b> on a request. <b>This is where the approval chain
+      lives</b> &mdash; twelve triggers, more than any other table in the module.</p>
+    <div class="chips">
+      <span class="chip"><b>36</b> columns</span>
+      <span class="chip">PK <b>id</b></span>
+      <span class="chip">UNIQUE <b>line_uid</b></span>
+      <span class="chip">RLS <b>on</b> · 3 policies</span>
+      <span class="chip"><b>12</b> triggers</span>
+    </div>
+  </div>
+
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>request_uid</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">The parent, <code>on delete cascade</code>. You may only insert a line
+        against a request you are allowed to raise one on.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>part</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">The catalogue string, <code>CODE|Description</code>. <b>There is no foreign
+        key to Part Master</b> &mdash; see the note at the foot of this page, because it is the
+        single most consequential fact about this schema.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>qty</code><span class="ty">numeric</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">Defaults to 1. <em>Must be at least 1</em>, and a request may carry
+        <em>at most 20 parts</em> &mdash; the twenty-first line is refused, not truncated.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>row_no</code> <code>line_uid</code><span class="ty">int / text</span><span class="b b-set">set for you</span></div>
+      <div class="f-r">Assigned on insert and <em>immutable</em> thereafter: &ldquo;The spare ID is
+        assigned once and cannot be changed.&rdquo; <code>line_uid</code> is unique and is what the
+        stock-out and balance views join on.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>rm_approval</code> <code>rm_by</code> <code>rm_at</code><span class="ty">text / text / timestamptz</span><span class="b b-req">the RM supplies</span></div>
+      <div class="f-r">Needs <code>spare.approve_rm</code>. Two further refusals, and they are the
+        ones people meet: <em>&ldquo;You cannot approve your own spare request &mdash; it goes to
+        your reporting manager&rdquo;</em>, and <em>&ldquo;&hellip; does not report to you, so
+        their spare is not yours to approve&rdquo;</em>.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>commercial_approval</code> <code>commercial_by</code> <code>commercial_at</code><span class="ty">text / text / timestamptz</span><span class="b b-req">Commercial supplies</span></div>
+      <div class="f-r">Needs <code>spare.approve_commercial</code>. <b>Commercial judges whether
+        somebody is being charged</b>, so the stage applies when the cover is
+        <code>AMC</code> or <code>OGP</code>. Where it does not apply, the RM's own approval may
+        write the literal value <code>Auto-Approved</code> &mdash; and <b>only</b> that value,
+        with <code>_by</code> and <code>_at</code> left empty, because nobody decided it.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>nsm_approval</code> <code>nsm_by</code> <code>nsm_at</code><span class="ty">text / text / timestamptz</span><span class="b b-req">the NSM supplies</span></div>
+      <div class="f-r">Needs <code>spare.approve_nsm</code>. <b>The NSM judges whether the stock is
+        warranted</b>, which is a different question &mdash; so this stage applies to
+        <code>AMC</code>, <code>OGP</code> <b>or any HandStock request</b>. A HandStock request has
+        no machine and therefore no cover for Commercial to weigh, but it is still stock leaving
+        the building, and it is the one route where nobody else is watching.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>stores_status</code> <code>dc_number</code> <code>stock_out_no</code> <code>dispatch_uid</code> <code>courier</code> <code>dispatched_by</code> <code>dispatched_at</code> <code>dispatched_qty</code><span class="ty">text / numeric</span><span class="b b-req">Stores supply</span></div>
+      <div class="f-r">Needs <code>spare.dispatch</code>. <code>dispatched_qty</code> exists because
+        <b>a stock out may be partial</b>: Stores can send three of five and the line stays open
+        for the balance.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>received_by</code> <code>received_at</code> <code>received_qty</code> <code>receipt_remarks</code><span class="ty">text / timestamptz / numeric</span><span class="b b-opt">the engineer confirms</span></div>
+      <div class="f-r">The engineer's acknowledgement that the parts arrived. <code>received_at</code>
+        is what moves the line to <b>Received</b>, and it outranks every other column in the
+        ladder below except a rejection.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>stage</code> <code>status</code><span class="ty">text</span><span class="b b-set">set for you</span></div>
+      <div class="f-r">Recomputed on <b>every</b> insert and update from the columns above, by the
+        ladder below. A value you send is <em>overwritten</em>, not refused &mdash; the stage is a
+        reading of the record, never an independent fact.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>approval_data</code><span class="ty">jsonb</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">The answers to the per-stage approval form, kept with the decision that
+        used them. Writing an answer needs the permission for <b>that</b> stage.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>reject_reason</code> <code>rejected_stage</code><span class="ty">text</span><span class="b b-req">on a rejection</span></div>
+      <div class="f-r">A rejection or a drop <em>needs a reason</em> &mdash; the bulk decision
+        routine refuses without one. <code>rejected_stage</code> records where it died, which the
+        stage alone cannot tell you afterwards.</div>
+    </div>
+  </div>
+
+  <div class="ladder">
+    <table>
+      <caption>The stage, exactly as the database computes it &mdash; first match wins</caption>
+      <tr><td class="c">any of RM / Commercial / NSM reads <i>reject</i></td><td class="r">&rarr; Rejected</td></tr>
+      <tr><td class="c">received_at is set</td><td class="r">&rarr; Received</td></tr>
+      <tr><td class="c">stores_status reads <i>drop</i></td><td class="r">&rarr; Dropped</td></tr>
+      <tr><td class="c">stores_status reads <i>dispatch</i></td><td class="r">&rarr; Dispatched</td></tr>
+      <tr><td class="c">rm_approval is not approved or auto</td><td class="r">&rarr; RM Approval</td></tr>
+      <tr><td class="c">commercial_approval is not approved or auto</td><td class="r">&rarr; Commercial</td></tr>
+      <tr><td class="c">nsm_approval is not approved or auto</td><td class="r">&rarr; NSM</td></tr>
+      <tr><td class="c">otherwise</td><td class="r">&rarr; Stores</td></tr>
+    </table>
+  </div>
+
+  <div class="flow">
+    <div><strong>Upstream</strong>
+      <code>spare_requests</code> (the cover and route decide which stages apply) ·
+      <code>parts</code> · the reporting hierarchy, which decides which RM may approve.</div>
+    <div><strong>Downstream</strong>
+      <code>spare_dispatch_lines</code> (FK, cascade) · the <b>Stock out</b> arm of the hand-stock
+      balance · the rollup back onto <code>spare_requests</code> · Pending Dispatch and the
+      Not-Consumed report.</div>
+    <div><strong>Not allowed</strong>
+      Deleting (quality record) · changing the spare ID or row number · writing an approval you
+      lack the permission for · writing <code>Auto-Approved</code> where the stage genuinely
+      applies.</div>
+  </div>
+</article>
+
+<article class="t" id="spare_request_engineer_log">
+  <div class="t-head">
+    <p class="t-name">spare_request_engineer_log</p>
+    <p class="t-grain">One row per <b>reassignment</b> &mdash; each time a request changes hands
+      before dispatch.</p>
+    <div class="chips">
+      <span class="chip"><b>11</b> columns</span>
+      <span class="chip">PK <b>id</b></span>
+      <span class="chip">RLS <b>on</b> · 1 policy (read)</span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>request_uid</code><span class="ty">text</span><span class="b b-set">set for you</span></div>
+      <div class="f-r">The request, <code>on delete cascade</code>. Written by the reassignment
+        routine, not by the form.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>from_engineer</code> <code>from_email</code> <code>to_engineer</code> <code>to_email</code><span class="ty">text</span><span class="b b-set">set for you</span></div>
+      <div class="f-r">Both sides of the move, names and emails, captured as they were at the time
+        rather than looked up later.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>reason</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">Why it moved. The point of the log &mdash; a reassignment with no reason
+        answers the question a reader is actually asking.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>changed_by</code> <code>changed_by_name</code> <code>changed_at</code><span class="ty">uuid / text / timestamptz</span><span class="b b-set">set for you</span></div>
+      <div class="f-r">Who moved it, stamped from the session.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>Upstream</strong> <code>spare_requests</code> &mdash; and only before dispatch;
+      afterwards the engineer cannot change at all.</div>
+    <div><strong>Downstream</strong> Nothing reads it but a human. It is an audit trail, not an
+      input to anything.</div>
+  </div>
+</article>
+
+<div class="band"><h2>2 &nbsp;Stock out</h2><span class="n">spare_dispatches · spare_dispatch_lines</span></div>
+<p class="bandnote">
+  Stores send the approved parts. A stock out is <b>one batch to one engineer</b>, it produces
+  the Delivery Challan, and it is the <b>IN</b> side of that engineer's hand stock.
+</p>
+
+<article class="t" id="spare_dispatches">
+  <div class="t-head">
+    <p class="t-name">spare_dispatches</p>
+    <p class="t-grain">One row per <b>stock out</b> &mdash; one DC number, one engineer,
+      whatever parts went in that batch.</p>
+    <div class="chips">
+      <span class="chip"><b>14</b> columns</span>
+      <span class="chip">PK <b>id</b></span>
+      <span class="chip">UNIQUE <b>uid</b></span>
+      <span class="chip">RLS <b>on</b> · 3 policies</span>
+      <span class="chip">2 triggers</span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>uid</code><span class="ty">text</span><span class="b b-set">set for you</span></div>
+      <div class="f-r">Unique. What the line rows carry as <code>dispatch_uid</code> &mdash; there
+        is no foreign key between them, the join is on this string.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>dc_number</code><span class="ty">text</span><span class="b b-set">set for you</span></div>
+      <div class="f-r"><code>SO-YYMM-NNNN</code>, from <code>spare_dispatch_counters</code> on a
+        series-and-month key. This is the number printed on the challan.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>engineer</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r"><em>One stock out goes to one engineer.</em> Selecting parts for two at
+        once is refused rather than split, because the challan is a document about a single
+        handover.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>dispatched_by</code><span class="ty">text</span><span class="b b-set">stamped</span></div>
+      <div class="f-r"><b>Stamped from the signed-in session, and what you send is discarded.</b>
+        This name is printed on a document that leaves the building with the company's mark on
+        it, so it is not the client's to assert. Where there is no session at all &mdash; an
+        administrative connection &mdash; a supplied value is kept, since blanking it would lose
+        the only record of who booked the stock out.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>dc_date</code> <code>dispatched_at</code><span class="ty">date / timestamptz</span><span class="b b-set">set for you</span></div>
+      <div class="f-r">Today and now by default. <code>dc_date</code> is the document's date;
+        <code>dispatched_at</code> is when the record was made.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>line_count</code> <code>total_qty</code><span class="ty">int / numeric</span><span class="b b-set">set for you</span></div>
+      <div class="f-r">Totals for the batch, written when it is created. A summary, not the
+        record &mdash; the line rows are.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>courier</code> <code>remarks</code> <code>engineer_email</code><span class="ty">text</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">How it travelled and anything worth saying about it. The email widens who
+        can see the row.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>Upstream</strong> <code>spare_request_lines</code> standing at <b>Stores</b> —
+      and only those. Sending a line that has moved on is refused: &ldquo;only &hellip; of the
+      selected spares are still waiting at Stores&rdquo;.</div>
+    <div><strong>Downstream</strong> <code>spare_dispatch_lines</code> · the Delivery Challan and
+      Declaration · the <b>Stock out</b> arm of <code>handstock_balance</code> · the Stock Out
+      register.</div>
+    <div><strong>Not allowed</strong> Two engineers in one batch · a quantity of zero or less ·
+      more than is left to send on a line · dispatching at all without
+      <code>spare.dispatch</code>.</div>
+  </div>
+</article>
+
+<article class="t" id="spare_dispatch_lines">
+  <div class="t-head">
+    <p class="t-name">spare_dispatch_lines</p>
+    <p class="t-grain">One row per <b>part in a batch</b>. The row that actually puts stock in an
+      engineer's hands.</p>
+    <div class="chips">
+      <span class="chip"><b>11</b> columns</span>
+      <span class="chip">PK <b>id</b></span>
+      <span class="chip">RLS <b>on</b> · 2 policies</span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>line_id</code><span class="ty">bigint</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">The request line it satisfies &mdash; a real foreign key,
+        <code>on delete cascade</code>. One of the very few in this module.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>dispatch_uid</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">The batch. A string join to <code>spare_dispatches.uid</code>, not a
+        foreign key.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>qty</code><span class="ty">numeric</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">How many actually went in this batch, which may be fewer than were asked
+        for. <b>This is the quantity the balance counts</b>, not the requested one.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>refurbished</code><span class="ty">boolean</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">Whether a refurbished part was substituted. If so it <em>must exist in
+        Part Master and be active</em> &mdash; &ldquo;add it before issuing it&rdquo;.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>received_at</code> <code>received_by</code> <code>receipt_remarks</code><span class="ty">timestamptz / text</span><span class="b b-opt">the engineer confirms</span></div>
+      <div class="f-r">The receipt, recorded per batch line rather than per request &mdash; parts
+        sent separately arrive separately.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>Upstream</strong> <code>spare_request_lines</code> · <code>spare_dispatches</code>
+      · <code>parts</code> for the refurbished check.</div>
+    <div><strong>Downstream</strong> The first arm of <code>handstock_movements</code>: every row
+      here is <b>Stock out / IN</b> with ref type <code>Stores DC</code>.</div>
+    <div><strong>Watch for</strong> The Stock Out register reads the view
+      <code>spare_stock_out_lines</code>, which publishes this table's <code>id</code> as
+      <b><code>line_id</code></b>. Ordering a paged read by <code>id</code> there does not sort
+      badly &mdash; it <em>errors</em>, and the register comes back empty.</div>
+  </div>
+</article>
+
+<div class="band"><h2>3 &nbsp;Consumption</h2><span class="n">spare_consumption</span></div>
+<p class="bandnote">
+  One table, and <b>the control point of the whole module</b>. Everything else has a document
+  and a second party behind it; this is the engineer saying what they fitted. So it is the
+  movement that is capped, the one that cannot be deleted, and the one with a second, separately
+  permissioned way in.
+</p>
+
+<article class="t" id="spare_consumption">
+  <div class="t-head">
+    <p class="t-name">spare_consumption</p>
+    <p class="t-grain">One row per <b>part booked against a call</b> &mdash; either reported by
+      the engineer on the visit, or reconciled afterwards by the Spare Coordinator.</p>
+    <div class="chips">
+      <span class="chip"><b>20</b> columns</span>
+      <span class="chip">PK <b>id</b></span>
+      <span class="chip">UNIQUE <b>source_ref_key</b></span>
+      <span class="chip">RLS <b>on</b> · 3 policies</span>
+      <span class="chip">4 triggers</span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>source</code><span class="ty">text</span><span class="b b-set">defaults</span></div>
+      <div class="f-r"><b>The flag that decides who may write the row.</b> <code>Report</code>
+        (the default) needs <code>calls.report</code> or <code>spare.dispatch</code>;
+        <code>Reconciliation</code> needs <code>consumption.reconcile</code>. It is also the
+        flag an adjustment may never change.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>ucn</code> <code>call_number</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">The call the part went into. On a reconciliation both the presence and the
+        <b>existence</b> of the UCN are checked: &ldquo;<em>No call found with UCN &hellip; &mdash;
+        check the number</em>&rdquo;. A typo is caught here rather than becoming an orphan row.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>part</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">The catalogue string again. Mandated explicitly on a reconciliation.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>engineer</code> <code>engineer_email</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">Whose hand stock the part came off &mdash; which is the balance that gets
+        checked. Mandated on a reconciliation.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>qty</code><span class="ty">numeric</span><span class="b b-req">you supply</span></div>
+      <div class="f-r"><em>Must be more than zero</em>, and <b>capped at the engineer's balance</b>:
+        &ldquo;<em>&hellip; has 2 of PART in hand, so 5 cannot be consumed. Ask the Spare
+        Coordinator to correct the hand stock first.</em>&rdquo; Reported lines are capped as well
+        as reconciled ones &mdash; the engineer does not correct the stock, the coordinator does.
+        <b>A quantity of 0 means voided</b>, which is why zero is refused on the way in but is a
+        valid resting state.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>remarks</code><span class="ty">text</span><span class="b b-req">on a reconciliation</span></div>
+      <div class="f-r">Why the spare is being booked by hand. One of the four things a
+        reconciliation cannot be saved without.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>original_qty</code> <code>adjusted_by</code> <code>adjusted_at</code> <code>adjustment_reason</code><span class="ty">numeric / text / timestamptz</span><span class="b b-set">set on adjustment</span></div>
+      <div class="f-r"><b>How a wrong line is corrected without being erased.</b> The quantity
+        changes, the original is kept beside it, and a reason is <em>demanded</em> &mdash;
+        separately worded for the two cases: &ldquo;say why the quantity is being adjusted&rdquo;
+        and &ldquo;say why the line is being voided&rdquo;. An adjustment may change
+        <em>only the quantity</em>: not the call, part, engineer or source.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>source_ref</code> <code>source_ref_key</code><span class="ty">text / text</span><span class="b b-opt">optional</span></div>
+      <div class="f-r"><code>source_ref_key</code> is <b>generated</b> from
+        <code>source_ref</code> and carries a unique index, so re-importing the same file cannot
+        double-book a part. Blank is exempt &mdash; the key is null and null does not collide.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>recorded_by</code> <code>created_by</code> <code>created_at</code><span class="ty">text / uuid / timestamptz</span><span class="b b-set">set for you</span></div>
+      <div class="f-r"><code>created_by</code> is filled from the session when you leave it empty,
+        and is one of the things that lets you see your own row afterwards.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>grir</code> <code>data</code><span class="ty">text / jsonb</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">The goods-receipt reference, and whatever an import carried.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>Upstream</strong> The visit report (Report) · the Spare Consumption screen and
+      the Call Report review (Reconciliation) · <code>handstock_balance</code>, which is what the
+      cap is measured against · the call, which must exist.</div>
+    <div><strong>Downstream</strong> The <b>Consumption</b> arm of the balance (OUT) ·
+      <code>consumption_report</code> · <code>spare_usage</code> and Spare Insights ·
+      <code>unused_spare_report</code>, which compares what was sent against what was used.</div>
+    <div><strong>Never</strong> Deleted &mdash; the row is <em>voided</em> instead, quantity set to
+      0 with its original quantity, reason and author retained, and the stock returns to the
+      engineer. A hard delete is blocked outright.</div>
+  </div>
+</article>
+
+<div class="band"><h2>4 &nbsp;Out again</h2><span class="n">stock_transfers · stock_transfer_lines · material_returns</span></div>
+<p class="bandnote">
+  The two ways stock leaves an engineer without going into a machine. Both are capped against
+  the same balance, and both are written once and never edited.
+</p>
+
+<article class="t" id="stock_transfers">
+  <div class="t-head">
+    <p class="t-name">stock_transfers</p>
+    <p class="t-grain">One row per <b>transfer</b> between two engineers. <b>One record, both
+      sides</b> &mdash; it is not two entries that have to agree.</p>
+    <div class="chips">
+      <span class="chip"><b>11</b> columns</span>
+      <span class="chip">PK <b>id</b></span>
+      <span class="chip">UNIQUE <b>uid</b></span>
+      <span class="chip">1 CHECK</span>
+      <span class="chip">RLS <b>on</b> · 3 policies</span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>uid</code><span class="ty">text</span><span class="b b-set">set for you</span></div>
+      <div class="f-r"><code>ST-YYMM-NNNN</code>, from <code>stock_transfer_counters</code>.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>from_engineer</code> <code>to_engineer</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">Both sides. A <b>CHECK constraint</b> refuses a transfer to oneself,
+        comparing trimmed and lowercased &mdash; so the same name in different case or with
+        stray spaces is still caught.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>transfer_date</code> <code>status</code><span class="ty">date / text</span><span class="b b-set">defaults</span></div>
+      <div class="f-r">Today, and <code>Completed</code>. A transfer is not a workflow &mdash;
+        there is nothing to approve.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>source</code> <code>remarks</code> <code>extra</code><span class="ty">text / jsonb</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">Where the record came from, and anything worth saying.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>Upstream</strong> Both engineers' balances.</div>
+    <div><strong>Downstream</strong> <b>Two</b> arms of <code>handstock_movements</code> from the
+      same rows &mdash; <code>Transfer out</code> against the sender, <code>Transfer in</code>
+      against the receiver. That is why the two sides can never disagree.</div>
+    <div><strong>Not allowed</strong> A transfer to yourself · transferring without
+      <code>stock.transfer</code> · editing lines on somebody else's transfer.</div>
+  </div>
+</article>
+
+<article class="t" id="stock_transfer_lines">
+  <div class="t-head">
+    <p class="t-name">stock_transfer_lines</p>
+    <p class="t-grain">One row per <b>part</b> in a transfer.</p>
+    <div class="chips">
+      <span class="chip"><b>6</b> columns</span>
+      <span class="chip">PK <b>id</b></span>
+      <span class="chip">1 CHECK</span>
+      <span class="chip">RLS <b>on</b> · 2 policies</span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>transfer_uid</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">The parent, a real foreign key, <code>on delete cascade</code>. You may
+        only add lines to a transfer <b>you created</b>.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>part</code> <code>qty</code><span class="ty">text / numeric</span><span class="b b-req">you supply</span></div>
+      <div class="f-r"><code>qty &gt; 0</code> as a <b>CHECK</b>, and capped against the sender's
+        balance after the fact: &ldquo;<em>Stock transfer exceeds available stock</em>&rdquo;.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>row_no</code><span class="ty">int</span><span class="b b-set">set for you</span></div>
+      <div class="f-r">Assigned on insert.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>Upstream</strong> <code>stock_transfers</code> · the sender's balance.</div>
+    <div><strong>Downstream</strong> Both transfer arms of the balance.</div>
+  </div>
+</article>
+
+<article class="t" id="material_returns">
+  <div class="t-head">
+    <p class="t-name">material_returns</p>
+    <p class="t-grain">One row per <b>part returned to Stores</b> &mdash; the MRN.</p>
+    <div class="chips">
+      <span class="chip"><b>22</b> columns</span>
+      <span class="chip">PK <b>id</b></span>
+      <span class="chip">UNIQUE <b>uid + part + row</b></span>
+      <span class="chip">1 CHECK</span>
+      <span class="chip">RLS <b>on</b> · 3 policies</span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>uid</code> <code>mrn_no</code><span class="ty">text</span><span class="b b-set">set for you</span></div>
+      <div class="f-r"><code>MRN-YYMM-NNNN</code>, from <code>material_return_counters</code>. One
+        MRN carries many parts, each its own row, numbered by <code>row_no</code>.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>good_qty</code> <code>defective_qty</code><span class="ty">numeric</span><span class="b b-req">you supply</span></div>
+      <div class="f-r"><b>Two columns, deliberately.</b> Good stock goes back on the shelf;
+        defective stock does not &mdash; collapsing them into one figure would put failed parts
+        back into circulation. A <b>CHECK</b> requires their sum to be more than zero, so an
+        empty return is refused, but either one alone is fine.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>part</code> <code>item_code</code> <code>item_name</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">Give either the catalogue string or the code and name &mdash; <b>a trigger
+        fills whichever you left empty</b> from the other, so the two views of one part cannot
+        drift apart.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>engineer</code> <code>engineer_email</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">Whose stock it comes off. Capped: &ldquo;<em>Material return exceeds hand
+        stock</em>&rdquo;. An engineer may only file a return <b>for themselves</b> unless they
+        are an approver or an admin.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>customer_name</code> <code>report_no</code> <code>removed_from_equipment</code><span class="ty">text</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">Where a defective part came off, which is what makes the return traceable
+        back to a failure.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>mrn_date</code> <code>returned_at</code> <code>handstock_note</code> <code>remarks</code> <code>source</code><span class="ty">date / timestamptz / text</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">The document date and the record's own time.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>Upstream</strong> The engineer's balance · the call or machine the part came off.</div>
+    <div><strong>Downstream</strong> The <b>Return</b> arm of the balance (OUT, ref type
+      <code>MRN</code>) · Stores' own stock, for the good quantity only.</div>
+    <div><strong>Never edited</strong> &ldquo;<em>A material return cannot be edited &mdash; raise
+      a correcting entry instead.</em>&rdquo; Only an admin may delete one.</div>
+  </div>
+</article>
+
+<div class="band"><h2>5 &nbsp;Where the balance starts</h2><span class="n">handstock_opening · spare_issue_history · spare_consumption_history · handstock_period</span></div>
+<p class="bandnote">
+  RITHI did not begin with empty vans. These four carry the figure the ledger starts from and
+  the movements that happened before the system existed &mdash; kept in <b>separate tables</b>
+  rather than back-dated into the live ones, so &ldquo;what does the system know&rdquo; and
+  &ldquo;what did we carry in&rdquo; stay answerable apart.
+</p>
+
+<article class="t" id="handstock_opening">
+  <div class="t-head">
+    <p class="t-name">handstock_opening</p>
+    <p class="t-grain">One row per <b>engineer + part + pool</b>. The figure the balance counts
+      up from.</p>
+    <div class="chips">
+      <span class="chip"><b>15</b> columns</span>
+      <span class="chip">PK <b>id</b></span>
+      <span class="chip">UNIQUE <b>engineer_key + part_code + source_key</b></span>
+      <span class="chip">RLS <b>on</b> · 2 policies</span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>engineer</code> <code>part</code> <code>source</code><span class="ty">text</span><span class="b b-req">all three</span></div>
+      <div class="f-r">Each demanded by name: &ldquo;an opening balance needs the
+        engineer / the part / its source (which pool it is)&rdquo;. <b>Source is what makes two
+        opening figures for the same engineer and part legitimate</b> rather than a duplicate.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>engineer_key</code> <code>part_code</code> <code>source_key</code><span class="ty">text</span><span class="b b-set">generated</span></div>
+      <div class="f-r"><b>Computed by the database and not writable at all.</b> They normalise
+        case and spacing, and together they are the unique key &mdash; so
+        <code>&nbsp;Ravi&nbsp;</code> and <code>ravi</code> cannot open two balances.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>qty</code> <code>as_of</code><span class="ty">numeric / date</span><span class="b b-req">you supply</span></div>
+      <div class="f-r">How much, and the date it was true. Unlike every other quantity here this
+        one is <b>not capped</b> &mdash; there is nothing to cap it against yet.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>recorded_by</code> <code>recorded_by_name</code> <code>remarks</code> <code>data</code><span class="ty">uuid / text / jsonb</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">Who entered it, and why.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>Upstream</strong> A physical count, or the pre-RITHI system.</div>
+    <div><strong>Downstream</strong> The <b>Opening</b> arm of the balance (IN, ref type
+      <code>Opening balance</code>).</div>
+    <div><strong>Who may write it</strong> <code>consumption.reconcile</code> or
+      <code>spare.dispatch</code> &mdash; the Spare Coordinator and Stores, not the engineer whose
+      balance it sets.</div>
+  </div>
+</article>
+
+<article class="t" id="spare_issue_history">
+  <div class="t-head">
+    <p class="t-name">spare_issue_history</p>
+    <p class="t-grain">One row per <b>stock out that happened before RITHI</b>.</p>
+    <div class="chips">
+      <span class="chip"><b>17</b> columns</span>
+      <span class="chip">UNIQUE <b>source_key + ref</b></span>
+      <span class="chip">CHECK <b>qty &gt; 0</b></span>
+      <span class="chip">RLS <b>on</b> · 2 policies</span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>engineer</code> <code>part</code> <code>source</code><span class="ty">text</span><span class="b b-req">all three</span></div>
+      <div class="f-r">&ldquo;An issued spare needs the engineer it went to / the part / its
+        source (which body of data it came from).&rdquo;</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>ref</code> <code>source_key</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r"><b>Unique together</b>, which is what makes a re-import safe: the same
+        historical row loaded twice collides instead of doubling an engineer's stock.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>qty</code> <code>issued_at</code> <code>so_no</code> <code>line_uid</code><span class="ty">numeric / timestamptz / text</span><span class="b b-req">qty · rest optional</span></div>
+      <div class="f-r"><code>qty</code> must be positive. <code>line_uid</code> lets a historical
+        row be tied to a live request line where one exists, so the same issue is not counted
+        twice from two directions.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>Downstream</strong> A <b>Stock out</b> arm of the balance, marked ref type
+      <code>Historical</code> &mdash; which is how the balance can show the live figure and the
+      carried-in figure separately.</div>
+  </div>
+</article>
+
+<article class="t" id="spare_consumption_history">
+  <div class="t-head">
+    <p class="t-name">spare_consumption_history</p>
+    <p class="t-grain">One row per <b>consumption that happened before RITHI</b>.</p>
+    <div class="chips">
+      <span class="chip"><b>18</b> columns</span>
+      <span class="chip">CHECK <b>qty &ge; 0</b></span>
+      <span class="chip">RLS <b>on</b> · 2 policies</span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>engineer</code> <code>part</code><span class="ty">text</span><span class="b b-req">both</span></div>
+      <div class="f-r">&ldquo;A historical consumption row needs the engineer / the part.&rdquo;</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>qty</code><span class="ty">numeric</span><span class="b b-req">you supply</span></div>
+      <div class="f-r"><b>Zero is allowed here, unlike its live counterpart</b> &mdash; because a
+        historical line may have been voided before it was carried in, and a void is recorded as
+        a quantity of zero. Negative is refused.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>ucn</code> <code>call_number</code> <code>party_name</code> <code>consumed_at</code><span class="ty">text / timestamptz</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">What it was used on, as far as the old record knew.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>Downstream</strong> A <b>Consumption</b> arm of the balance, ref type
+      <code>Historical</code>.</div>
+  </div>
+</article>
+
+<article class="t" id="handstock_period">
+  <div class="t-head">
+    <p class="t-name">handstock_period</p>
+    <p class="t-grain"><b>Exactly one row, ever.</b> How far back the ledger is closed.</p>
+    <div class="chips">
+      <span class="chip"><b>5</b> columns</span>
+      <span class="chip">PK <b>singleton</b></span>
+      <span class="chip">CHECK <b>singleton</b></span>
+      <span class="chip">RLS <b>on</b> · <b>read only</b></span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>singleton</code><span class="ty">boolean</span><span class="b b-set">set for you</span></div>
+      <div class="f-r">The primary key, with a <b>CHECK that it is true</b> &mdash; so a second row
+        is impossible by construction rather than by convention.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>closed_through</code><span class="ty">date</span><span class="b b-no">not writable</span></div>
+      <div class="f-r">Movements on or before this date are settled. <b>This table has no write
+        policy at all</b> &mdash; not a restrictive one, none. The only way in is the closing
+        routine, which refuses a period that has not ended yet (&ldquo;<em>close a period that has
+        ENDED</em>&rdquo;) and is the Spare Coordinator's to run.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>closed_at</code> <code>closed_by</code> <code>closed_by_name</code><span class="ty">timestamptz / uuid / text</span><span class="b b-set">stamped</span></div>
+      <div class="f-r">Who closed it and when.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>Downstream</strong> Every hand-stock screen, which reads it to know what may
+      still be corrected.</div>
+  </div>
+</article>
+
+<div class="band"><h2>6 &nbsp;Not written by anybody</h2><span class="n">the counters · the derived views · the master</span></div>
+<p class="bandnote">
+  The last group holds no decisions. Numbers that must never be issued twice, a balance that is
+  calculated rather than stored, and the catalogue everything else quotes.
+</p>
+
+<article class="t" id="counters">
+  <div class="t-head">
+    <p class="t-name">spare_or_counters &middot; spare_dispatch_counters &middot; stock_transfer_counters &middot; material_return_counters</p>
+    <p class="t-grain">One row per <b>series and month</b>. Four tables, two or three columns
+      each, and <b>nobody can touch any of them</b>.</p>
+    <div class="chips">
+      <span class="chip">RLS <b>on</b></span>
+      <span class="chip"><b>zero policies</b></span>
+      <span class="chip">PK on the period</span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>period</code> <code>series</code><span class="ty">text</span><span class="b b-no">sealed</span></div>
+      <div class="f-r"><code>YY/MM</code> or <code>YYMM</code>, and for stock outs a series
+        alongside it. The primary key, so one month's counter is one row.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>last_no</code><span class="ty">int</span><span class="b b-no">sealed</span></div>
+      <div class="f-r">The highest number handed out this month.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>Why nobody can read them</strong>
+      Row-level security is <b>on</b> and there are <b>no policies</b>. That is not an oversight
+      &mdash; a table with RLS on and nothing granting access is closed to every signed-in user,
+      for reading as much as for writing.</div>
+    <div><strong>How a number is issued</strong>
+      Only through the numbering functions, which run with the <b>table owner's</b> rights and do
+      the increment and the read in <b>one statement</b>. Two people clicking Save at the same
+      instant get consecutive numbers; neither can see the counter, and neither can set it.</div>
+    <div><strong>What it produces</strong>
+      <code>OR-YYMM-NNNN</code> · <code>SO-YYMM-NNNN</code> · <code>ST-YYMM-NNNN</code> ·
+      <code>MRN-YYMM-NNNN</code> &mdash; and each is then made <b>immutable</b> on its own record.</div>
+  </div>
+</article>
+
+<article class="t" id="views">
+  <div class="t-head">
+    <p class="t-name">handstock_movements &rarr; handstock_balance &rarr; engineer_stock</p>
+    <p class="t-grain"><b>Hand stock is derived and never stored.</b> There is no balance column
+      anywhere in this schema &mdash; the figure is recomputed from the movements every time it is
+      asked for.</p>
+    <div class="chips">
+      <span class="chip">views, not tables</span>
+      <span class="chip"><b>10</b> arms</span>
+      <span class="chip">8 source tables</span>
+      <span class="chip">security invoker</span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>handstock_movements</code><span class="ty">view · 16 cols</span><span class="b b-set">derived</span></div>
+      <div class="f-r"><b>One row per movement</b>, unioned from ten places across eight tables.
+        Six kinds: <code>Opening</code>, <code>Stock out</code> and <code>Transfer in</code> are
+        <b>IN</b>; <code>Consumption</code>, <code>Transfer out</code> and <code>Return</code> are
+        <b>OUT</b>. Each row also says where it came from &mdash; <code>Stores DC</code>,
+        <code>Call</code>, <code>Transfer</code>, <code>MRN</code>, <code>Opening balance</code>
+        or <code>Historical</code>.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>handstock_balance</code><span class="ty">view · 20 cols</span><span class="b b-set">derived</span></div>
+      <div class="f-r">The movements grouped by engineer and part. <code>on_hand</code> is
+        <b>everything IN minus everything OUT</b>, and the six kinds are also published
+        separately, so a balance that looks wrong can be read back to the movement that made it.
+        It keeps the historical figures apart from the live ones as well
+        (<code>hist_net</code>, <code>on_hand_live</code>) &mdash; the same reason the history
+        tables are separate.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>engineer_stock</code><span class="ty">view · 3 cols</span><span class="b b-set">derived</span></div>
+      <div class="f-r">Engineer, part, quantity. <b>The one every cap consults</b> &mdash;
+        consumption, transfers and returns all measure against this.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>spare_pending_rm</code> <code>spare_pending_dispatch</code> <code>spare_stock_out_lines</code><span class="ty">views</span><span class="b b-set">derived</span></div>
+      <div class="f-r">The three registers: what is waiting for an RM, what is waiting at Stores
+        (with the requested and dispatched quantities side by side, for partial sends), and what
+        has gone out.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>consumption_report</code> <code>spare_usage</code> <code>spare_usage_rollup</code> <code>unused_spare_report</code><span class="ty">views</span><span class="b b-set">derived</span></div>
+      <div class="f-r">The reports. <code>unused_spare_report</code> is the one worth knowing
+        about: it sets <b>what was sent against what was consumed</b> on the same call and names
+        the shortfall.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>The formula, in full</strong>
+      <code>on hand = opening + stock out + transfers in &minus; consumed &minus; transfers out
+      &minus; returns</code></div>
+    <div><strong>Why derived and not stored</strong>
+      A stored balance has to be corrected when a movement is corrected, and the two drift the
+      first time a correction fails halfway. Deriving it means <b>a voided consumption line
+      returns the stock by itself</b>, with nothing to remember to do.</div>
+    <div><strong>What it costs</strong>
+      Every read recomputes. That is why these views carry their own indexes and why the
+      <code>jit</code> setting is turned off on this database &mdash; without it one balance query
+      spent 3.7 seconds <b>compiling</b> a query that runs in 174 ms.</div>
+  </div>
+</article>
+
+<article class="t" id="parts">
+  <div class="t-head">
+    <p class="t-name">parts</p>
+    <p class="t-grain">One row per <b>catalogue part</b> &mdash; Part Master. Not a Spare table,
+      but the master every one of them quotes.</p>
+    <div class="chips">
+      <span class="chip"><b>17</b> columns</span>
+      <span class="chip">UNIQUE <b>item_detail_key</b></span>
+      <span class="chip">RLS <b>on</b> · 2 policies</span>
+      <span class="chip"><b>no foreign keys</b></span>
+    </div>
+  </div>
+  <div class="fields">
+    <div class="f k">
+      <div class="f-n"><code>code</code> <code>description</code> <code>item_detail</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
+      <div class="f-r"><code>item_detail</code> is the <code>CODE|Description</code> string that
+        every other table carries, and its normalised form is <b>unique</b> &mdash; the catalogue's
+        real key.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>active</code><span class="ty">boolean</span><span class="b b-set">defaults true</span></div>
+      <div class="f-r">An inactive part cannot be issued as a <b>refurbished substitute</b>. It
+        does not stop anything else: a part fitted in 2014 is still consumed, returned and
+        reported on.</div>
+    </div>
+    <div class="f">
+      <div class="f-n"><code>category</code> <code>product</code> <code>purchase_cost</code><span class="ty">text / numeric</span><span class="b b-opt">optional</span></div>
+      <div class="f-r">What Spare Insights groups by &mdash; the consumable/spare split comes from
+        <code>category</code>.</div>
+    </div>
+  </div>
+  <div class="flow">
+    <div><strong>The fact that matters most</strong>
+      <b>Nothing has a foreign key to this table.</b> Every request line, dispatch line,
+      consumption row, transfer line, return and history row carries the
+      <code>CODE|Description</code> <b>string</b>.</div>
+    <div><strong>What follows from it</strong>
+      Renaming a part is not an update to one row. <b>Nine tables</b> hold that string, so a
+      rename is all of them or none &mdash; there is one routine that does it, and a half-finished
+      rename would change an engineer's balance, because the balance groups by the part code it
+      finds.</div>
+    <div><strong>And why it is like that</strong>
+      The string is what the old system carried, and the records are historical: a part that has
+      been deleted from the catalogue must still read correctly on a ten-year-old consumption
+      line. A foreign key would have refused the import.</div>
+  </div>
+</article>
+
+<section class="close">
+  <p><b>Three things worth carrying away from all of this.</b></p>
+  <p>
+    <b>Approvals are recorded per part, never on the request.</b> The header's approval columns
+    exist, and writing to them is refused in those words. A request's stage is a reading of its
+    lines &mdash; the earliest one still moving.
+  </p>
+  <p>
+    <b>Consumption is the control point.</b> Every other movement has a document and a second
+    party behind it. Consumption has neither, so it is the one that is capped against the
+    balance, the one that cannot be deleted, and the one where a correction demands a reason and
+    keeps the original figure beside the new one.
+  </p>
+  <p>
+    <b>The balance is not a number anybody wrote.</b> It is the sum of six kinds of movement
+    across eight tables, recomputed on every read. That is what makes a voided line return stock
+    on its own &mdash; and it is why a part renamed in only eight of its nine tables would quietly
+    change what an engineer is holding.
+  </p>
+  <p class="stamp">
+    Introspected from PostgreSQL 16 with every migration applied &mdash; columns, types,
+    defaults, generated expressions, CHECK constraints, unique indexes, foreign keys in both
+    directions, triggers and row-level policies. Refusal wording is quoted from the messages the
+    system raises. Column counts are the whole table; the fields listed are the ones that carry a
+    decision.<br>
+    RITHI CRM &middot; Knowledge Base &middot; How RITHI Functions &middot; Schema
+  </p>
+</section>
+
+</div>
+<script>
+// ===========================================================================
+// THIS FILE IS BOTH A SHARED DIAGRAM AND AN IN-APP PAGE, and it must behave
+// as either. Standalone it is an ordinary document. Framed by RITHI CRM it has
+// two more jobs, and both fail silently if left to chance:
+//
+//   1. FOLLOW THE HOST'S THEME. The app has its own light/dark toggle, and a
+//      framed document cannot see it — a viewer in dark mode would otherwise
+//      get a white page inside a dark one. The app passes ?theme= and this
+//      stamps it, which is the same attribute the CSS above already honours.
+//      With no parameter nothing is stamped and prefers-color-scheme decides,
+//      exactly as before.
+//   2. SAY HOW TALL IT IS. A fixed-height iframe gives the reader a second
+//      scrollbar inside the first, which on a long document is worse than no
+//      frame at all. The height is posted on load, on resize, and whenever the
+//      content changes.
+//
+// Everything here is guarded: a failure leaves a page that still reads.
+(function () {
+  try {
+    var t = new URLSearchParams(location.search).get('theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { /* no theme is not a broken page */ }
+
+  if (window.parent === window) return;   // standalone: nothing to report to
+  var last = 0;
+  function tell() {
+    var h = Math.ceil(document.documentElement.scrollHeight);
+    if (Math.abs(h - last) < 2) return;
+    last = h;
+    try { window.parent.postMessage({ type: 'rithi-doc-height', height: h }, '*'); } catch (e) { /* ignore */ }
+  }
+  window.addEventListener('load', tell);
+  window.addEventListener('resize', tell);
+  document.addEventListener('DOMContentLoaded', tell);
+  if (window.ResizeObserver) new ResizeObserver(tell).observe(document.documentElement);
+  setTimeout(tell, 60); setTimeout(tell, 400); setTimeout(tell, 1200);
+})();
+</script>
+</body>
+</html>
