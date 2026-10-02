@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Administration Works</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#131a22;
+  --ink-2:#38434f;
+  --muted:#6a7885;
+  --surface:#ffffff;
+  --page:#f2f4f7;
+  --line:#d9dfe6;
+  --line-soft:#e7ebf0;
+  --rail:#9aa7b4;
+
+  /* THE CALL-STATUS CODE. Literal, and the same in both themes — these are the
+     hexes in src/lib/callstate.tsx. A colour people have learned to read is a
+     code, and a code that means something else in dark mode is not one. */
+  --st-unattended:#d32f2f;
+  --st-unsolved:#1565c0;
+  --st-pending:#c2185b;
+  --st-solved:#2e7d32;
+  --st-reopened:#ef6c00;
+  --st-cancelled:#546e7a;
+
+  --master:#00695c;      /* what flows IN  */
+  --rule:#8e2d8e;        /* what is REFUSED */
+  --mandate:#b25000;     /* what is DEMANDED */
+
+  --shadow:0 1px 2px rgba(19,26,34,.06), 0 8px 20px -12px rgba(19,26,34,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+    --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+    --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+  --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+  --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--page); color:var(--ink);
+  font-family:'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size:16px; line-height:1.55;
+}
+code, .mono{font-family:'IBM Plex Mono', ui-monospace, monospace}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 16px 88px}
+/* FRAMED IN THE APP, the page is already inside a padded shell, so it drops its
+   own bottom gutter and its top rule — the app's header is directly above. */
+body.framed .wrap{padding-bottom:28px}
+body.framed header.top{padding-top:8px}
+
+/* ---- masthead ---------------------------------------------------------- */
+header.top{padding:44px 0 26px; border-bottom:1px solid var(--line)}
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 12px;
+}
+h1{
+  font-size:clamp(30px,5.2vw,46px); line-height:1.08; margin:0 0 14px;
+  letter-spacing:-.021em; font-weight:700; text-wrap:balance; max-width:20ch;
+}
+.standfirst{margin:0; max-width:64ch; color:var(--ink-2); font-size:17px}
+.standfirst b{color:var(--ink)}
+
+/* ---- the three-gutter key --------------------------------------------- */
+.key{
+  display:grid; gap:10px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+}
+.key div{
+  border-left:3px solid var(--k); padding:2px 0 2px 12px;
+  font-size:13.5px; color:var(--ink-2);
+}
+.key strong{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--k); font-weight:600;
+}
+
+/* ---- the spine --------------------------------------------------------- */
+.flow{margin-top:14px}
+.stage{
+  display:grid; gap:0 28px; padding:34px 0 6px;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.32fr) minmax(0,1fr);
+  border-bottom:1px solid var(--line-soft);
+}
+.stage:last-child{border-bottom:0}
+
+/* the centre column carries the rail */
+.step{grid-column:2; position:relative; padding-left:38px}
+.step::before{           /* the rail */
+  content:""; position:absolute; left:11px; top:-34px; bottom:-40px; width:2px;
+  background:var(--line);
+}
+/* THE RAIL STOPS AT EACH FLOW'S EDGE. With two flows on one page it would
+   otherwise run straight through the band announcing the second one and the
+   ledger between them — drawing a line between two things that are not
+   sequential. A rail that lies about continuity is worse than no rail. */
+.stage:first-of-type .step::before{top:14px}
+.stage:last-of-type .step::before{bottom:auto; height:14px}
+.flowhead + .stage .step::before{top:14px}
+.stage:has(+ .flowhead) .step::before,
+.stage:has(+ .ledger) .step::before{bottom:auto; height:14px}
+.step::after{            /* the node */
+  content:""; position:absolute; left:4px; top:7px;
+  width:16px; height:16px; border-radius:50%;
+  background:var(--surface); border:3px solid var(--node,var(--rail));
+}
+.n{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em;
+  color:var(--muted); text-transform:uppercase; margin:0 0 4px;
+}
+h2{font-size:21px; line-height:1.25; margin:0 0 8px; letter-spacing:-.012em; font-weight:600}
+.step p{margin:0 0 10px; color:var(--ink-2); font-size:14.5px; max-width:52ch}
+.step p:last-child{margin-bottom:0}
+.step .who{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+  color:var(--ink); background:var(--line-soft); border-radius:3px;
+  padding:2px 7px; margin:0 6px 8px 0;
+}
+
+/* side columns */
+.side{align-self:start; padding-top:22px}
+.side.in{grid-column:1; text-align:right}
+.side.out{grid-column:3}
+.side h3{
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.13em;
+  text-transform:uppercase; margin:0 0 9px; font-weight:600; color:var(--c);
+}
+.side ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px}
+.side.in ul{align-items:flex-end}
+.side li{font-size:13.2px; line-height:1.45; color:var(--ink-2); max-width:34ch}
+.side li b{color:var(--ink); font-weight:600}
+.side.in li{border-right:2px solid var(--c); padding-right:10px}
+.side.out li{border-left:2px solid var(--c); padding-left:10px}
+.side.in{--c:var(--master)}
+.side.out{--c:var(--rule)}
+.side.out li.mandate{--c:var(--mandate); border-left-color:var(--mandate)}
+.tag{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10px;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--surface);
+  background:var(--mandate); border-radius:2px; padding:1px 5px; margin-right:6px;
+  vertical-align:1px; font-weight:600;
+}
+.tag.db{background:var(--rule)}
+
+/* ---- the status code --------------------------------------------------- */
+.states{
+  margin:38px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.states h2{margin-bottom:6px}
+.states > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+.chips{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px}
+.chip{
+  color:#fff; font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500;
+  padding:5px 11px; border-radius:3px; white-space:nowrap;
+}
+.transitions{width:100%; border-collapse:collapse; font-size:13.5px}
+.transitions th{
+  text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--muted);
+  font-weight:600; padding:0 14px 8px 0; border-bottom:1px solid var(--line);
+}
+.transitions td{padding:11px 14px 11px 0; border-bottom:1px solid var(--line-soft); vertical-align:top; color:var(--ink-2)}
+.transitions tr:last-child td{border-bottom:0}
+.transitions td:first-child{color:var(--ink); font-weight:600; white-space:nowrap}
+.scroll{overflow-x:auto}
+
+/* ---- closing panels ---------------------------------------------------- */
+.panels{display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); margin-top:38px}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:22px; box-shadow:var(--shadow)}
+.panel h3{margin:0 0 10px; font-size:16.5px; font-weight:600; letter-spacing:-.008em}
+.panel p{margin:0 0 10px; font-size:14px; color:var(--ink-2)}
+.panel p:last-child{margin-bottom:0}
+.panel ul{margin:0; padding-left:18px; font-size:14px; color:var(--ink-2)}
+.panel li{margin-bottom:7px}
+.panel li:last-child{margin-bottom:0}
+.panel li b{color:var(--ink)}
+
+footer{margin-top:44px; padding-top:20px; border-top:1px solid var(--line); font-size:13px; color:var(--muted)}
+footer code{font-size:12.5px}
+
+
+/* ---- the two flows ------------------------------------------------------ */
+/* TWO PATHS INTO THE SAME RECORD, and the reader needs to know which one they
+   are in before the first stage rather than after it — so each flow opens with
+   a full-width band, and the contents strip at the top says there are two. */
+.flownav{
+  display:grid; gap:12px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+}
+.flownav a{
+  display:block; text-decoration:none; color:inherit;
+  border:1px solid var(--line); border-radius:8px; padding:14px 16px;
+  background:var(--surface); box-shadow:var(--shadow);
+}
+.flownav a:hover{border-color:var(--rail)}
+.flownav a:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
+.flownav-n{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--muted); margin-bottom:4px;
+}
+.flownav-t{display:block; font-weight:600; font-size:15.5px; line-height:1.3; margin-bottom:4px}
+.flownav-s{display:block; font-size:12.5px; color:var(--muted)}
+
+.flowhead{
+  margin:44px 0 0; padding:24px 0 22px;
+  border-top:3px solid var(--ink); border-bottom:1px solid var(--line);
+}
+.flowhead-n{
+  font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 8px;
+}
+.flowhead-t{font-size:clamp(22px,3.4vw,30px); line-height:1.15; margin:0 0 12px; letter-spacing:-.016em; text-wrap:balance}
+.flowhead-p{margin:0 0 10px; max-width:68ch; color:var(--ink-2); font-size:15px}
+.flowhead-p:last-child{margin-bottom:0}
+
+/* The ledger: which master answers which field. A table rather than prose
+   because that is the question people come back to this page with. */
+.ledger{
+  margin:34px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.ledger h2{margin:0 0 6px}
+.ledger > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+
+/* ---- narrow ------------------------------------------------------------ */
+@media (max-width:900px){
+  .stage{grid-template-columns:1fr; gap:0; padding:28px 0 10px}
+  .step{grid-column:1}
+  .side.in, .side.out{grid-column:1; text-align:left; padding:16px 0 0 38px}
+  .side.in ul{align-items:flex-start}
+  .side.in li{border-right:0; padding-right:0; border-left:2px solid var(--c); padding-left:10px}
+  .side.in{order:2} .step{order:1} .side.out{order:3}
+  .stage{display:flex; flex-direction:column}
+  .step::before{display:none}
+  .step::after{left:0}
+  .step{padding-left:30px}
+}
+</style>
+</head>
+<body>
+<script>
+  // Set before paint, so a framed page never flashes its standalone padding.
+  try { if (window.parent !== window) document.body.className = 'framed'; } catch (e) {}
+</script>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">RITHI CRM · Administration · process reference</p>
+  <h1>How administration works</h1>
+  <p class="standfirst">
+    <b>Who may do what, what goes in, what comes out, and how the system is set.</b> This page covers the thirteen
+    screens under <b>Administration</b>: Solved Without a Report, Tracker, Roles &amp; Permissions, Audit Log, Bulk
+    Uploads, Bulk Report Mapping, Data Export, Device Cache Status, PM Bulk Upload, Admin Config, Software Validation,
+    Settings and Version History — what each is for, what you do there, what it refuses, which permission each action
+    needs, the records it keeps and what it changes elsewhere. Read the middle column for <b>what happens</b>, the left
+    for <b>what the step reads</b>, and the right for <b>what the system refuses and what it demands</b>.
+  </p>
+
+  <div class="key">
+    <div style="--k:var(--master)"><strong>Reads</strong>The record, setting or file the step draws on.</div>
+    <div style="--k:var(--rule)"><strong>Restrictions</strong>What the system will not allow, and where the refusal comes from.</div>
+    <div style="--k:var(--mandate)"><strong>Mandates</strong>What it will not proceed without.</div>
+  </div>
+</header>
+
+<nav class="flownav" aria-label="The four flows">
+  <a href="#flow1">
+    <span class="flownav-n">Flow 1</span>
+    <span class="flownav-t">Access and the trail</span>
+    <span class="flownav-s">Roles &amp; Permissions · Audit Log</span>
+  </a>
+  <a href="#flow2">
+    <span class="flownav-n">Flow 2</span>
+    <span class="flownav-t">Getting data in</span>
+    <span class="flownav-s">Bulk Uploads · Bulk Report Mapping · PM Bulk Upload</span>
+  </a>
+  <a href="#flow3">
+    <span class="flownav-n">Flow 3</span>
+    <span class="flownav-t">Taking data out, and checking it</span>
+    <span class="flownav-s">Data Export · Solved Without a Report · Device Cache Status</span>
+  </a>
+  <a href="#flow4">
+    <span class="flownav-n">Flow 4</span>
+    <span class="flownav-t">How the system is set, and its own record</span>
+    <span class="flownav-s">Admin Config · Settings · Software Validation · Tracker · Version History</span>
+  </a>
+</nav>
+
+<main class="flow">
+
+  <!-- ================= FLOW 1 ================= -->
+  <section class="flowhead" id="flow1">
+    <p class="flowhead-n">Flow 1</p>
+    <h2 class="flowhead-t">Access and the trail — Roles &amp; Permissions, Audit Log</h2>
+    <p class="flowhead-p">
+      <b>Two kinds of tick.</b> Every screen has a <b>page key</b> — on the matrix it is the box on the page's own row, and
+      elsewhere it reads <i>Open: &lt;screen&gt;</i>. It opens the page and nothing else. The <b>action keys</b> listed under
+      the page are what can be done there. A role can be allowed to open a page and do nothing on it, and the database
+      asks for the action keys again whatever the screen shows.
+    </p>
+    <p class="flowhead-p">
+      <b>A role whose stored list is empty is not a role with no permissions.</b> It is "not configured", and both the
+      application and the database then give it an <b>Engineer's</b> permissions. That is why the screen will not save an
+      empty role and why a new role must start as a copy.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every role's stored permission list</b> — every signed-in user may read it</li>
+        <li><b>The master value lists</b>, one page each under Master</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 1 · Step 01</p>
+      <h2>Roles &amp; Permissions — reading the matrix</h2>
+      <span class="who">Open: Roles &amp; Permissions</span><span class="who">Manage roles &amp; permissions</span><span class="who">Open the administration pages, read-only</span>
+      <p>
+        One column per role, built-in and added. The rows are grouped under the same headings, in the same order, as
+        the menu; each heading lists its pages, and a page opens to show its actions. <b>⌄ Expand all</b> and <b>› Collapse
+        all</b> open and close the lot. The screen's own line: <i>"View is permission to open the page. The actions under it
+        are what can be done there."</i>
+      </p>
+      <p>
+        Under an open page, <b>Everything on this page</b> gives a ✓ / ✕ per role that ticks or unticks every action on
+        the page <b>and</b> the page itself. The <b>Master</b> heading carries one 🗂 page per value list, each with
+        <b>Add / edit values in this list</b> and <b>Delete values from this list</b>. The last heading, <b>Across the
+        system → Not tied to one page</b>, holds View all data (every record), Export / download CSV, Open the
+        administration pages read-only, and Save a table layout for everyone or for a role.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Without either key: <i>"You don't have permission to manage roles."</i></li>
+        <li>With <b>Open the administration pages, read-only</b> alone the boxes are greyed and the foot reads <i>"You can read this matrix but not change it."</i></li>
+        <li><span class="tag db">Policy</span>Changing a role's stored list needs <b>Manage roles &amp; permissions</b>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The parent list</b> — the same list the database reads</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--rule)">
+      <p class="n">Flow 1 · Step 02</p>
+      <h2>Ticks with parts — “all of the below”</h2>
+      <span class="who">Manage roles &amp; permissions</span>
+      <p>
+        <b>Manage users</b>, <b>Edit masters</b>, <b>Edit sales / warranties</b>, <b>Edit contracts</b>, and each call
+        register's <b>Edit</b> and <b>Report</b> are made of smaller ticks listed under them (the ledger below names every
+        one). Holding the parent grants every child: the child's box shows ticked, and its tooltip names the parent.
+      </p>
+      <p>
+        <b>Unticking a child releases it</b> (since v0.10.34, 02-Oct-2026). The parent is unticked and every <i>other</i>
+        child it was granting is ticked in its own right, so the role loses only the box you clicked. The tooltip says
+        so: <i>"Granted by “…”. Unticking this unticks “…” and keeps its other items ticked."</i> A child with several
+        parents — <b>Book spares used on a visit</b> and <b>Record customer feedback on a visit</b> are children of all
+        three registers' Report — is released from each one the role holds.
+      </p>
+      <p>
+        <b>Four older inheritances are not drawn as ticks.</b> <i>All Masters</i> opens every value list, <i>Reports (all
+        of them)</i> opens every report, <i>Service Manuals</i> opens Technical / Service Notes, and <i>Edit masters</i>
+        grants every list's Add / edit and Delete. The matrix leaves those boxes empty; the export says a role can reach a
+        list <i>"without a Yes against it here."</i>
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Function</span>The database grants a child to whoever holds its parent, so screens and policies test the child, never the parent.</li>
+        <li><b>Reset a person’s password</b> is not a child of Manage users — ticking Manage users never hands it over.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The roles you changed</b> since the screen loaded</li>
+        <li><b>Admin's stored list</b>, compared with every key there is</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--mandate)">
+      <p class="n">Flow 1 · Step 03</p>
+      <h2>The Admin column, and Save permissions</h2>
+      <span class="who">Manage roles &amp; permissions</span>
+      <p>
+        <b>The Admin column is the only thing greyed.</b> Its header says <i>"Admin holds every permission — this column
+        cannot be changed"</i>, and the page subtitle adds that a Super Admin has full access too — <i>"which is not a role
+        and cannot be granted here."</i> Every other role's every box is tickable.
+      </p>
+      <p>
+        <b>Save permissions</b> writes only the roles you touched; a role nobody edited is left exactly as stored. If
+        Admin's stored list has fallen behind the full set of keys, Save re-writes it. The result: <i>"Saved N roles: … They
+        apply on each user’s next action / reload."</i> Pressed with nothing changed: <i>"Nothing was changed, so nothing was
+        written."</i>
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>A role with nothing ticked is not saved: <i>"… would be left with NO permissions ticked. An empty role means "not configured" and falls back to the built-in defaults, which is not what unticking everything looks like it does — tick at least one, or remove the role."</i> This refusal is the screen's alone — see <b>Not yet in place</b>.</li>
+        <li><span class="tag db">Function</span>A role whose stored list is empty is given the <b>Engineer</b> role's stored permissions by the database (tested).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The role you copy from</b>, as it stands on screen</li>
+        <li><b>Existing role keys</b>, to refuse a duplicate</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--mandate)">
+      <p class="n">Flow 1 · Step 04</p>
+      <h2>＋ Add a role — always a copy</h2>
+      <span class="who">Manage roles &amp; permissions</span>
+      <p>
+        <b>Role name</b> builds the <b>Key</b> shown beneath it — lower case, letters, digits and underscores — <i>"this is
+        what the database stores, and it cannot be changed later."</i> <b>Copy permissions from</b> picks the role to start
+        from; copying Admin gives every key, including every value list's. <b>Add role</b> writes the new role at once, adds
+        its column and says <i>"Added “…” (…) with …'s N permissions. Untick what it should not have, then Save."</i>
+      </p>
+      <p>
+        A role is never deleted from this screen: <i>"people may be on it, and removing it would drop them to the engineer
+        fallback without telling anybody. Untick everything it holds instead, or move its users first."</i>
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span><i>"Give the role a name."</i> · <i>"Choose the role to copy from — a role cannot start empty."</i></li>
+        <li><i>"That name has no letters or digits in it — the key is built from the name."</i> · <i>"A role key cannot start with a digit."</i></li>
+        <li><i>"… is reserved."</i> — admin, super_admin, authenticated, anon and postgres. · <i>"A role with the key "…" already exists."</i></li>
+        <li>The <b>＋ Add a role</b> card is shown only with Manage roles &amp; permissions.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The matrix as it is on screen</b>, saved or not</li>
+        <li><b>Each role's stored list</b>, to say where its row comes from</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 1 · Step 05</p>
+      <h2>⭳ Export matrix</h2>
+      <span class="who">Open: Roles &amp; Permissions</span>
+      <p>
+        Offered to a read-only viewer as well. It downloads <b>permission-matrix-&lt;date&gt;.xlsx</b> with three sheets.
+        <b>Matrix</b>: Group, Page, Route, Grants, Permission key and a Yes / No column per role — one row per grantable
+        thing, with the page's own key as an <i>Open the page</i> row. <b>Roles</b>: Role, Key, Permissions held, and
+        <b>Where this row comes from</b> — <i>Stored in the database</i>, <i>Always full — not stored, and cannot be
+        changed</i> for Admin, or <i>NOT CONFIGURED — showing the Engineer fallback, which is what these users actually
+        get</i>. <b>How to read this</b>: taken from, on and by, and whether the file is <i>Saved</i> or <i>UNSAVED</i> —
+        changes made on screen and not yet saved are exported, and the file says so.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>The export is recorded in the Audit Log as <code>rbac.export</code>.</li>
+        <li>It does not ask for <b>Export / download CSV</b> — see <b>Not yet in place</b>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The audit log</b>, newest first, 500 at a time</li>
+        <li><b>A copy kept on this device</b>, shown at once and refreshed every 30 minutes while no filter is set</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 1 · Step 06</p>
+      <h2>Audit Log — what the application recorded</h2>
+      <span class="who">Open: Audit Log</span><span class="who">View audit log</span>
+      <p>
+        Columns: Time, User, Email, Role, Action, Target, Status, ms, Error. Filter by <b>Action</b> (e.g. login,
+        call.create) and <b>Email</b> — both match any part — and <b>Status</b> (ok / error). <b>Load more</b> reads the
+        next 500; <b>⭳ Export CSV</b> downloads the rows loaded.
+      </p>
+      <p>
+        <b>What is in it.</b> Sign-ins, failed sign-ins and sign-outs, and the actions screens record as they happen —
+        among them call.create, call.report, spare.request, spare.drop, rbac.save, rbac.role.add, rbac.export,
+        tracker.add, tracker.delete, user.reset_password and report.solved_without_report — each with how long it took and
+        any error. The database stamps the login, the email and the time; the display name and role come from the
+        application.
+      </p>
+      <p>
+        <b>The second trail.</b> Separately, the database keeps a before-and-after copy of every row written to fifteen
+        tables — the three call registers, visit reports, call requests, pending registrations, spare requests and their
+        lines, spare consumption, feedback, material returns, stock transfers, training sessions, training attendance and
+        R&amp;R periods. A single write of more than 150 rows is kept as one event naming the table and the count. This
+        trail is written by the database, so it cannot be bypassed, and it is never purged. It is readable by an
+        administrator or a holder of View audit log; <b>no screen shows it</b>.
+      </p>
+      <p>
+        <b>Retention.</b> Audit Log rows older than the retention setting — 3,650 days unless changed — are deleted by a
+        daily job at 00:30 UTC, where the project has scheduled jobs switched on. The Audit Mode history is a third,
+        separate record: it is on Admin Config.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Without the key: <i>"You don’t have permission to view the audit log."</i></li>
+        <li><span class="tag db">Policy</span>Reading needs an administrator or <b>View audit log</b> (since 02-Oct-2026; before that, administrators only).</li>
+        <li><span class="tag db">Policy</span>Nothing can change or delete an Audit Log row through the application. Any signed-in user can add one; somebody not yet signed in can add only a sign-in or failed sign-in.</li>
+        <li>The log is written by the application, so a write made directly to the database, not through a screen, leaves no Audit Log row.</li>
+        <li>The CSV needs <b>Export / download CSV</b>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 1, as a ledger</h2>
+    <p>Every “all of the below” tick and the smaller ticks it grants. Holding the left grants everything on the right.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Parent</th><th>Grants</th></tr></thead>
+        <tbody>
+          <tr><td>Manage users (all of the below)</td><td>Edit User Master details, profiles and R&amp;R · Create logins · Disable or delete logins · Assign roles &amp; grant permissions · Change the Settings page (connections, templates)</td></tr>
+          <tr><td>Edit masters (all of the below)</td><td>Add / edit master records · Verify a party’s KYC · Rename a part · Swap the Serviceman on every party at once</td></tr>
+          <tr><td>Edit sales / warranties (all of the below)</td><td>Add / edit warranty entries and their machines · Delete a whole warranty entry with its machines</td></tr>
+          <tr><td>Edit contracts (all of the below)</td><td>Add / edit contract entries and their machines · Delete a whole contract entry with its machines</td></tr>
+          <tr><td>Edit Field calls · Edit installation calls · Edit PM calls (all sections)</td><td>Each its own register's: the complaint · customer &amp; product · the vigilance answers · customer contact details</td></tr>
+          <tr><td>Report / update Field · installation · PM calls (all of the below)</td><td>File a visit on that register's call · Book spares used on a visit (any register) · Record customer feedback on a visit (any register)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= FLOW 2 ================= -->
+  <section class="flowhead" id="flow2">
+    <p class="flowhead-n">Flow 2</p>
+    <h2 class="flowhead-t">Getting data in — Bulk Uploads, Bulk Report Mapping, PM Bulk Upload</h2>
+    <p class="flowhead-p">
+      <b>You pick the register; the register says what the file means.</b> A Call Type sheet and a Pending Reason sheet
+      look alike, so nothing is guessed from the headings: the register you choose stamps what the file cannot say — the
+      list name, the call type. Every file is <b>previewed before anything is written</b>.
+    </p>
+    <p class="flowhead-p">
+      <b>The upload keys open the screens, not the tables.</b> <i>Load registers in bulk</i> and <i>Upload PM calls in
+      bulk</i> add reach to nothing: every row still has to pass the write rules of the table it lands in, exactly as if
+      it had been typed.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The register list</b>, plus one upload per value list</li>
+        <li><b>The row count</b> each register's table holds now</li>
+        <li><b>Your CSV file</b></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 2 · Step 01</p>
+      <h2>Bulk Uploads — pick a register, then its file</h2>
+      <span class="who">Open: Bulk Uploads</span><span class="who">Load registers in bulk (Bulk Uploads)</span>
+      <p>
+        Registers are grouped Calls, Visit Reports, Spares, Quality, Masters, Master Value Lists and Cover; each shows how
+        many rows its table holds, a note saying which export it takes, and — where it points at another register —
+        <i>"Load … first — these rows point at it."</i> Choose a <b>.csv</b> file on the register's row.
+      </p>
+      <p>
+        The heading row is <b>found</b>, not assumed to be the first, using the register's own column names — so a sheet
+        printed with a letterhead above its headings still reads. <b>Dates are read day-first</b> (03/04/2026 = 3 April). A
+        column is read month-first only where its own values prove it (a number above 12 where the month would be), and
+        the preview then says so by name.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Without the key: <i>"Bulk uploads need “Load registers in bulk” on Roles &amp; Permissions."</i></li>
+        <li><span class="tag db">Policy</span>Each row is written only if your own rights allow that table to be written — the key adds nothing.</li>
+        <li>An empty file: <i>"That file has no rows."</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The register's column list</b> — each column's accepted headings, and which are required</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--mandate)">
+      <p class="n">Flow 2 · Step 02</p>
+      <h2>The preview — ready, held back, kept, ignored</h2>
+      <span class="who">Load registers in bulk (Bulk Uploads)</span>
+      <p>
+        The row shows <b>N ready · N held back · N kept on the row</b> (or <i>ignored</i>). Opened, it lists: columns
+        <b>set by this register</b>, whose file value is ignored; columns <b>read month-first</b>; columns <b>not kept</b>
+        because the register was told it does not want them; columns <b>kept on the row</b> — stored with the record as
+        written, where the register keeps extras — or <b>not loaded</b> where it has nowhere to put them; the first eight
+        rows <b>held back</b>, each with its reason; the <b>recognised columns</b>, required ones marked <b>*</b>; and the
+        first row exactly as it will be written.
+      </p>
+      <p>
+        A cell a typed column cannot read — <i>15/13/24</i> as a date, <i>two</i> as a number — is kept with the row's
+        extras where the register has them, rather than lost.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>A row missing a required column is held back and named — <i>"row N (no …)"</i>. The ledger below lists each register's required columns.</li>
+        <li>Some registers hold back rows the database would refuse, by name, so the rest of the file still loads (ledger).</li>
+        <li>Nothing loadable: <i>"Nothing loadable — every row is missing … Is this the right register for this file? Each register's note says which export it takes."</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The register's matching key</b>, where it has one</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--rule)">
+      <p class="n">Flow 2 · Step 03</p>
+      <h2>Blank cells, and what a re-load does</h2>
+      <span class="who">Load registers in bulk (Bulk Uploads)</span>
+      <p>
+        <b>A blank cell normally changes nothing</b>: the column keeps what it had, or takes its default on a new row. Only
+        the <b>Product Database</b> upload <b>empties</b> a column whose heading the file carries with a blank cell — that
+        file is a machine's whole row, so a blank means "none". Even there, a column the register stamps and a required
+        column are never emptied. A heading the file does not carry at all leaves its column alone, on every register.
+      </p>
+      <p>
+        <b>A register with a matching key corrects on a re-load</b>: a row whose key is already there is updated, not
+        added again. Within one file the last row of a repeated key wins — except the WinMax opening stock, where lines
+        sharing a part code are added together, and value lists, where rows differing only by product both stay.
+        <b>A register with no key adds every row again</b>: the MRN Register and Stock Transfer Lines, each marked
+        <i>"⚠ No natural key: a second run adds rows rather than correcting them."</i>
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Index</span>A register's key needs its index on the database; without it the load stops with a message naming the key and pointing at <code>_status.sql</code>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>What the rows point at</b> — spare requests, stock transfers, active User Master names, visits, the Standard Complaint list</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 2 · Step 04</p>
+      <h2>⤵ Upload — prepare, confirm, write in batches</h2>
+      <span class="who">Load registers in bulk (Bulk Uploads)</span>
+      <p>
+        <b>Prepared first</b>, before you are asked to confirm, so the number you approve is the number written. Spare
+        Request Lines: each OR number is matched to its request, and a request is created — status <i>Imported</i> — for
+        any OR number in neither file. Stock Transfer Lines: a line whose transfer is not in the register is held back.
+        Opening stock: a name that is not an <b>active</b> User Master row is held back. Consumption: a call with no visit
+        has one filed from the file's own <b>Visit Date &amp; Time</b> — one per UCN — and rows whose call has no visit
+        and no date are held back by name. Standard Complaint: matched on its Key, never renamed.
+      </p>
+      <p>
+        <b>Then the confirmation</b>: <i>"Upload N rows into …? Rows are matched on …, so running this again corrects them
+        rather than duplicating."</i> — or, with no key, <i>"⚠ This register has NO natural key — running it again will
+        ADD N more rows, not correct these."</i> Rows go up in batches (500; 300 for visit reports and sale or contract
+        details; 2,000 for the history and opening-stock tables) with a running count, and the result reads <i>"N rows
+        written to …"</i>. After a Product Database or Party Master upload this device re-downloads its offline copy.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>A load stops at the first batch the database refuses; batches already written stay: <i>"… (row ~N) … (N written before it stopped.)"</i></li>
+        <li>A timeout adds <i>"the database cancelled the batch. Re-run it: rows already written are updated, not duplicated."</i></li>
+        <li>Opening stock with no active User Master row at all is refused: <i>"The User Master has no active users on this project, so every row would be held back. Load the User Master first."</i></li>
+        <li>The upload itself writes no Audit Log entry.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>The registers Bulk Uploads loads</h2>
+    <p>What each matches on, what every row must carry, and what is held back or set for you. Names are as on the screen.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Register</th><th>Matched on</th><th>Required</th><th>Held back · set by the register</th></tr></thead>
+        <tbody>
+          <tr><td>Field Calls · Installation Calls · PM Calls</td><td>UCN</td><td>UCN</td><td>Call type set to FIELD / INSTALLATION / PM by the register chosen</td></tr>
+          <tr><td>Call Registration Requests</td><td>Request ID + product + serial (built by the database)</td><td>ID</td><td>A UCN-shaped value marks the request Registered; anything else in that column is kept, not filed as a UCN</td></tr>
+          <tr><td>Field · Installation · PM Reports</td><td>The visit's UID — made from the UCN and visit date when the file has none</td><td>UCN, Visit Date &amp; Time</td><td>All three write the same visit table</td></tr>
+          <tr><td>Spare Request</td><td>OR number</td><td>OR No</td><td>—</td></tr>
+          <tr><td>Spare Request Lines (+ RM / Commercial / NSM approval)</td><td>Line ID (request no | part number)</td><td>Line ID, OR No, Spare</td><td>A line asking for no quantity</td></tr>
+          <tr><td>Stock Out Register</td><td>Stock out number</td><td>UID / Stock Out No / DC Number</td><td>—</td></tr>
+          <tr><td>Consumption</td><td>The export's own row ID</td><td>Spares Used, Consumed Qty</td><td>Rows whose call has no visit and no visit date (Step 04)</td></tr>
+          <tr><td>MRN Register</td><td><b>No key — a re-run adds</b></td><td>Item Details (or Item Code + Item Name)</td><td>Good and defective both zero · source set to import</td></tr>
+          <tr><td>Stock Transfer Register</td><td>Stock Transfer Number</td><td>Number, From Engineer, To Engineer</td><td>From and to the same engineer · source set to import</td></tr>
+          <tr><td>Stock Transfer Lines</td><td><b>No key — a re-run adds</b></td><td>Transfer, Part, Qty</td><td>Lines whose transfer is not in the register</td></tr>
+          <tr><td>Opening Stock — a pool you have prepared</td><td>Engineer + part code + source</td><td>Engineer, Part, Qty, Source</td><td>Names not active in the User Master</td></tr>
+          <tr><td>Opening Stock — the WinMax export, as exported</td><td>Engineer + part code + source</td><td>User Name, Item Code, a balance</td><td>Good plus defective counted; zero balance held back; non-active names held back · source WinMax HS, as of 09-Jun-2022</td></tr>
+          <tr><td>Consumption — historical (pre-2026)</td><td>Source + Ref</td><td>Engineer, Part, Qty, Source, Ref</td><td>—</td></tr>
+          <tr><td>Consumption — yearly export (pre-2026)</td><td>Source + Ref (position in file, UCN, part code)</td><td>Engineer, Spares Used, Consumed Qty</td><td>Source taken from each row's Visit Entry Date year</td></tr>
+          <tr><td>Stock Out — all years</td><td>Source + SO number and line</td><td>Engineer, Spare, Dispatched Qty</td><td>Nothing dispatched on the row · source Stock out</td></tr>
+          <tr><td>Technical / Service Notes</td><td>Drive link</td><td>Title, Drive link</td><td>Kind set to service note</td></tr>
+          <tr><td>QMS Documents (Master List)</td><td>Document No + Revision</td><td>Document No, Title, Drive URL</td><td>Kind set to QMS; assigns no training</td></tr>
+          <tr><td>Customer Feedback</td><td>UCN — one feedback per call</td><td>UCN</td><td>Marked imported from the v2Feedback export</td></tr>
+          <tr><td>Field Failure Register (any year)</td><td>FFR number + machine serial</td><td>FFR No</td><td>Marked imported; unrecognised columns kept</td></tr>
+          <tr><td>DCCR Register</td><td>UCN</td><td>UCN</td><td>Every row marked imported — keeps the file's reviewers and dates and raises no Field Failure Report</td></tr>
+          <tr><td>Party Master</td><td>Party name</td><td>Party Name</td><td>—</td></tr>
+          <tr><td>Product Database</td><td>Model + serial</td><td>Item Serial Number, Item Name</td><td><b>A blank cell empties its column</b></td></tr>
+          <tr><td>Product Master (product lines)</td><td>Product Code</td><td>Product Code, Product Name</td><td>—</td></tr>
+          <tr><td>Part Master</td><td>CODE|Description</td><td>Item Code, Item Details (or built from code and description)</td><td>Spare / Consumable title-cased</td></tr>
+          <tr><td>Ownership Transfer</td><td>OT number + serial</td><td>Serial, Party Name (TO), OT Number</td><td>Priority not kept</td></tr>
+          <tr><td>Additional Entry Details (recovered warranty)</td><td>Product + serial</td><td>Serial, Product Name</td><td>Priority not kept</td></tr>
+          <tr><td>Sale Entry · Sale Details · Contract Entry · Contract Details</td><td>SA number · item UID · MC number · item UID</td><td>Shaped by the cover importer</td><td>A machine whose entry is not loaded yet gets a stub entry</td></tr>
+          <tr><td>Each value list (Master Value Lists)</td><td>List + value (+ stage and product)</td><td>The value</td><td>List name set by the register; Standard Complaint matched on its Key and never renamed</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The visits already loaded</b> — those you can see</li>
+        <li><b>Your Google Drive</b>, by file name, through the CallReg bridge</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 2 · Step 05</p>
+      <h2>Bulk Report Mapping — card 0: references already in the register</h2>
+      <span class="who">Open: Bulk Report Mapping</span><span class="who">File a visit on a Field / installation / PM call</span>
+      <p>
+        Visits loaded through Bulk Uploads keep the attachment cell as the file wrote it, so many hold an AppSheet path
+        where a Drive link should be. <b>🔍 Survey the register</b> counts the visits with a report, by shape, and how many
+        still need converting. Set <b>Convert up to … per pass</b> (500 to start, 1 to 2,000), then <b>🔎 Resolve</b>
+        looks each file name up in Drive — in an optional folder first — and <b>⤵ Convert</b> writes the links after a
+        confirmation.
+      </p>
+      <p>
+        Only the link changes. The original reference goes into <b>Source Ref</b> unless that row already has one; the
+        status, visit date, engineer and entry date are not touched. A file Drive cannot find, or finds twice, keeps its
+        reference.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>The Drive lookup needs the CallReg bridge set in Settings: <i>"The Drive lookup needs the CallReg bridge — set its URL in Settings."</i></li>
+        <li>A role shown only its own and its team's visits is told the counts are <i>"visits you can see"</i>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Your CSV of recovered visits</b></li>
+        <li><b>The calls it names</b>, by UCN or Call Number, and their visits</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--rule)">
+      <p class="n">Flow 2 · Step 06</p>
+      <h2>Bulk Report Mapping — steps 1 to 3: a sheet of recovered reports</h2>
+      <span class="who">File a visit on a Field / installation / PM call</span>
+      <p>
+        <b>1 · The sheet.</b> Columns are found by name: UCN or Call Number (UCN wins), Visit Date, Engineer, Call Status
+        and the attachment (Manual Report, Service Report, Attachment, File, Photo …); anything else is kept on the visit.
+        A row finds its call by <b>UCN</b>, then by <b>Call Number</b> — never by serial or party. <b>2 · The
+        attachments</b> are looked up in Drive by file name; a name matching more than one file is left blank.
+        <b>3 · What will be written</b> shows every row with <b>Will do</b>:
+      </p>
+      <p>
+        <b>skip</b> — a completed visit on the call already has a report, or the row carries nothing to attach;
+        <b>📎 attach</b> — the call has a <i>Solved - Report Completed</i> visit with no report, so the link, its source
+        reference, that status and the time of mapping are written onto it, and nothing else — not its entry date; <b>➕ file a new visit</b> — the call has no
+        completed visit, so one is filed with status <i>Solved - Report Completed</i>. <b>⤵ Attach N · file N</b> asks
+        to confirm, attaches first, then files.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Without an administrator or a visit key: <i>"Loading recovered visit history needs a visit-report key for the Field, Installation or PM register."</i></li>
+        <li class="mandate"><span class="tag">Mandate</span>A row is held back for: <i>"No call with that UCN or Call Number."</i> · <i>"… calls share that UCN."</i> · <i>"No usable visit date."</i> · <i>"No row id, and no call + visit date to derive one from."</i></li>
+        <li><span class="tag db">Policy</span>Each visit written needs <b>File a visit</b> on that call's own register.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Your PM CSV</b>, or the template</li>
+        <li><b>The latest registration time</b> already in the chosen month</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--mandate)">
+      <p class="n">Flow 2 · Step 07</p>
+      <h2>PM Bulk Upload — the month's PM batch</h2>
+      <span class="who">Open: PM Bulk Upload</span><span class="who">Upload PM calls in bulk</span><span class="who">Create PM calls</span>
+      <p>
+        <b>⭳ Download template</b>, then <b>📄 Choose CSV file</b>. Set the <b>Due month</b> (this month to start; a past
+        month to backfill), <b>First registered at</b> and the <b>Gap between calls</b> — pre-filled 00:30 on the 1st and
+        5 seconds for a fresh month, or 10 seconds after the latest call already in it, with 10-second gaps. The first
+        eight calls are previewed: Call No, Party, Product, Serial, Engineer, Registered at, Added On, Type.
+      </p>
+      <p>
+        <b>⬆️ Import N PM calls</b> creates every row as a PM call, status Registered, dated the 1st of the due month, with
+        today as Added On. A Call Number in the file is kept; a blank one is assigned. The UCN is always assigned by the
+        system. Cover words are read as WGP / OGP / CMC / AMC. Unrecognised columns are kept on the call — including
+        <b>PM Due Date</b>, which does not set the date.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Without the key: <i>"🔒 PM bulk upload needs “Upload PM calls in bulk” on Roles &amp; Permissions."</i></li>
+        <li class="mandate"><span class="tag">Mandate</span>A row needs a party, a product or a serial; others are skipped as blank. None at all: <i>"No usable rows — the file needs at least a Party / Product / Serial column. …"</i></li>
+        <li><span class="tag db">Policy</span>Each call is created only for a holder of <b>Create PM calls</b>.</li>
+        <li>No key: importing the same file again creates its calls again.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= FLOW 3 ================= -->
+  <section class="flowhead" id="flow3">
+    <p class="flowhead-n">Flow 3</p>
+    <h2 class="flowhead-t">Taking data out, and checking it</h2>
+    <p class="flowhead-p">
+      <b>Everything here reads as you.</b> Data Export downloads, the Solved Without a Report list and the visits Bulk
+      Report Mapping surveys are all bounded by the same row rules as every other screen — so an empty or short result
+      from a role that sees only its own and its team's records is a statement about that role, not about the register.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The names of the tables and views</b>, with the database's own estimated row counts</li>
+        <li><b>The rows of each table you tick</b>, as you may see them</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 3 · Step 01</p>
+      <h2>Data Export — whole tables, as one ZIP</h2>
+      <span class="who">Open: Data Export</span><span class="who">Export whole tables (Data Export)</span>
+      <p>
+        <b>1 · The tables</b>: find a table, tick it, <b>Select all</b> or <b>Clear</b>; the running total says
+        <i>"about N rows (approx.)"</i> because the counts are estimates. <b>2 · Download</b>: <b>⬇️ Export N tables</b> reads
+        each one and downloads <b>rithi-export-&lt;date&gt;.zip</b> — one CSV per table, dates written dd-MMM-yyyy HH:mm:ss,
+        structured columns written as stored. It ends <i>"N table(s) exported — table rows · …"</i>.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Without the page key, or without either of the two Data Export keys: <i>"Exporting needs “Export whole tables” or “Create, pause or delete an export schedule” on Roles &amp; Permissions."</i></li>
+        <li><span class="tag db">Function</span>The three audit trails (Audit Log, the database trail, Audit Mode history) are never offered.</li>
+        <li><i>"Pick at least one table."</i> · a failure: <i>"Stopped: … Nothing was downloaded."</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The ticked tables</b> — a schedule is made from them</li>
+        <li><b>The schedules</b>, their next and last run, and what has been sent</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--mandate)">
+      <p class="n">Flow 3 · Step 02</p>
+      <h2>Data Export — scheduled exports</h2>
+      <span class="who">Create, pause or delete an export schedule</span>
+      <p>
+        <b>3 · Scheduled exports</b>: <b>＋ Schedule the N ticked tables</b>, then Name, How often (Every day / Once a
+        week, and On which day), At (IST), Active, and <b>Create schedule</b>. Each schedule row has <b>Edit</b> (its tables
+        become the ticked ones), <b>Pause</b> / <b>Resume</b> and <b>Delete</b> — <i>"Nothing already sent is affected."</i> A
+        paused schedule shows no next run. <b>What has been sent</b> lists each run: started, schedule, tables, rows,
+        outcome.
+      </p>
+      <p>
+        <i>"You choose which tables and when; you cannot choose where it goes."</i> The recipients are set on the server.
+        The screen also says: <i>"Nothing is sent until the mail side is deployed once."</i>
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag db">Trigger</span><i>"A scheduled export needs a name, so the mail says what it is."</i> · <i>"A scheduled export must name at least one table."</i></li>
+        <li><span class="tag db">Trigger</span><i>"This system does not export "…" — it is not a table here, or it is an audit trail."</i></li>
+        <li><span class="tag db">Check</span>A weekly schedule needs a day; a daily one has none.</li>
+        <li><span class="tag db">Policy</span>The record of runs can be read, never written or erased, from any screen.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Calls reading Solved</b>, each with its latest-entered visit</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Flow 3 · Step 03</p>
+      <h2>Solved Without a Report — what to re-upload</h2>
+      <span class="who">Open: Solved Without a Report</span>
+      <p>
+        Every call whose status reads <b>Solved</b> while its visit record is incomplete. The <b>Missing</b> column names
+        every gap on the row: <i>no visit at all</i> · <i>no visit date</i> · <i>entry date looks like an import stamp
+        (N visits share it)</i> — 25 or more visits entered at the same instant to the microsecond, the sign of a batch load
+        — · <i>no service report</i>. The visit looked at is the latest <b>entered</b>, the same one the call's status comes
+        from.
+      </p>
+      <p>
+        Chips filter by gap (a call with two gaps counts in both, so the chips add up to more than the calls); search by
+        UCN, call number, party, product or serial. <b>⭳ Excel</b> and <b>⭳ CSV</b> download what is shown; the workbook
+        has an <b>About</b> sheet with the scope and what each gap means.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>The rows are the calls you may see under the ordinary call rules; the page key restricts the screen, not the rows.</li>
+        <li>An empty list says <i>"Every solved call has a dated visit and a service report behind it."</i> only to a reader who sees every record; anyone else is told <i>"No solved call that you can see is missing …"</i></li>
+        <li>A call reading <b>Report pending</b> is not listed (tested) — see <b>Not yet in place</b>.</li>
+        <li>Each download is recorded as <code>report.solved_without_report</code>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every profile</b>, and what each device last reported</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 3 · Step 04</p>
+      <h2>Device Cache Status — who can search offline</h2>
+      <span class="who">Open: Device Cache Status</span>
+      <p>
+        One row per person per device, <b>including everybody who has never reported</b>: Person, Role, State, Device, App
+        version, Machines and when downloaded, Customers and when downloaded, Complaints stored, Problem, Last reported. The
+        State chips: <b>Current (under 6 hours)</b>, <b>Due a refresh (6-24 hours)</b>, <b>Older than a day</b>, <b>No copy
+        on the device</b>, <b>Never reported</b> — judged on the older of the two downloads.
+      </p>
+      <p>
+        Each device reports after every download and on sign-out, so a device switched off shows its last report. Problem
+        names a browser that will not keep a copy and the last download error.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Function</span>Without the page key the report itself is refused: <i>"RBAC: the Device Cache Status report needs the mod:/device-cache permission."</i> The page key is the whole right here.</li>
+        <li><span class="tag db">Trigger</span>A device can write only its own person's row; the person is taken from the sign-in.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 3, as a ledger</h2>
+    <p>What each gap on Solved Without a Report means, and what fixes it.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Gap</th><th>Means</th><th>Fixed by</th></tr></thead>
+        <tbody>
+          <tr><td>no visit at all</td><td>The call has no visit record</td><td>Loading the visit — Bulk Uploads → Visit Reports, or Bulk Report Mapping</td></tr>
+          <tr><td>no visit date</td><td>A visit with no Visit Date &amp; Time, so it cannot be placed in time</td><td>Re-loading the visit with its date</td></tr>
+          <tr><td>entry date looks like an import stamp</td><td>The Visit Entry Date is the moment of an upload shared by 25+ visits — the file did not carry one</td><td>Re-loading with Visit Entry Date, which decides the call's status</td></tr>
+          <tr><td>no service report</td><td>The visit is recorded, its document is not</td><td>Bulk Report Mapping (attach)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= FLOW 4 ================= -->
+  <section class="flowhead" id="flow4">
+    <p class="flowhead-n">Flow 4</p>
+    <h2 class="flowhead-t">How the system is set, and its own record</h2>
+    <p class="flowhead-p">
+      <b>Admin Config</b> holds the settings the rules read, each card with its own permission. <b>Settings</b> holds
+      this browser's connections. <b>Software Validation</b>, the <b>Tracker</b> and <b>Version History</b> are the
+      system's record of itself — what it must do and how that is proved, what is being worked on, and what changed.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The SLA targets</b></li>
+        <li><b>The Hotline desks</b> — profiles with the Hotline role, and the chosen one</li>
+        <li><b>The frequent-failure settings</b></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 4 · Step 01</p>
+      <h2>Admin Config — the settings the rules read</h2>
+      <span class="who">Open: Admin Config</span><span class="who">Admin config (SLA targets, Call Registration desk, Frequent Failure rule)</span>
+      <p>
+        <b>SLA Targets</b> — each rule's hours (shown in days where whole) and Active. The screen's built-in defaults are
+        First visit 72 h, Call closure 120 h, Closure — call includes a spare 168 h, Closure — spare &amp; not in CMC / WGP
+        240 h, Stores dispatch — from final approval 72 h; it saves only the rules you changed. They highlight open calls
+        on track, due soon or breached on the Dashboard.
+      </p>
+      <p>
+        <b>Call Registration — the Hotline desk</b>: <b>Calls are filed to</b> one desk. Left empty, a new call goes to the
+        single profile with the Hotline role, and to whoever registers it when there is none or more than one; the card
+        says which applies now. Who actually registered each call is recorded separately and cannot be set.
+      </p>
+      <p>
+        <b>Frequent Failure — the rule Review 2 applies</b>. Rule 1: <b>Failures needed</b> (2 — counting the call under
+        review) within a <b>Window (months)</b> (1), on the same equipment — with the same complaint while that box is
+        ticked — or with the same part fitted in that machine. Rule 2: the same complaint on <b>Serials needed</b> (at
+        least 2) different serials of one product within a <b>Window (days)</b> (30), while <b>Rule 2 is in force</b>.
+        <i>"Saved. It applies to reviews from here on — answers already recorded are unchanged."</i>
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Without the key the three cards are greyed: <i>"Changing this needs “Admin config”."</i> · <i>"Changing these needs “Admin config”."</i></li>
+        <li><span class="tag db">Policy</span>The SLA targets and the settings table are written only by an administrator or a holder of <b>Admin config</b>.</li>
+        <li>An SLA target is at least 1 hour; Rule 2 needs at least 2 serials.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The Audit Mode setting</b> and every change of it</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--mandate)">
+      <p class="n">Flow 4 · Step 02</p>
+      <h2>Admin Config — Audit Mode</h2>
+      <span class="who">Switch Audit Mode on or off, and read its history</span>
+      <p>
+        The badge reads <b>ON</b> or <b>OFF</b>. Type why, then <b>Switch ON</b> / <b>Switch OFF</b>. <b>While it is
+        on</b>, a call's <b>Update Party Details</b> and <b>Update Product Details</b> are hidden and the database refuses
+        them; nothing else behaves differently yet. Every change is kept with when, to, reason and by whom, and the table
+        of changes is shown beneath.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span><i>"Give a reason — it is kept with the change."</i> · <span class="tag db">Function</span><i>"Changing Audit Mode needs a reason"</i></li>
+        <li><span class="tag db">Function</span><i>"RBAC: changing Audit Mode needs "Switch Audit Mode on or off""</i></li>
+        <li><span class="tag db">Function</span>While on: <i>"Audit Mode is ON: a call's party and product details cannot be refreshed from the masters until an administrator turns it off."</i></li>
+        <li><span class="tag db">Policy</span>The history is readable by an administrator, View audit log or Switch Audit Mode; the card shows it only to the last.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>CSV files</b> — the table is worked out from their columns</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--rule)">
+      <p class="n">Flow 4 · Step 03</p>
+      <h2>Admin Config — Cover normalisation (legacy importer)</h2>
+      <span class="who">Load data through the Data Import panel</span>
+      <p>
+        The card opens with <i>"Loading a register? Use Bulk Uploads instead."</i> It is kept for the four AppSheet sale /
+        contract exports (Sale Entry, Warranty Sale Details, Contract Entry, Contract Details) and the <b>Normalise
+        cover</b> step after them; it also recognises User Master and MRN files. Choose files, then <b>Import N
+        file(s)</b>. After a cover file it normalises automatically — values a machine line merely repeats from its entry
+        go back to following the entry, and machine cover is refreshed — and <b>Normalise cover</b> runs that step again.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>The card is not shown without its key.</li>
+        <li>No preview and no confirmation. The screen says: <i>"Import into an empty table — re-importing duplicates rows, except the four sale / contract exports, which are matched on their own number and can be re-run safely."</i></li>
+        <li><span class="tag db">Policy</span>Every row still needs the table's own write right.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>This browser's</b> saved connections</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 4 · Step 04</p>
+      <h2>Settings — this browser's connections</h2>
+      <span class="who">Open: Settings</span><span class="who">Change the Settings page (connections, templates)</span><span class="who">Open the administration pages, read-only</span>
+      <p>
+        <b>Database Connection (Supabase)</b>: Project URL and anon public key, <b>Test</b> and <b>Save</b>. <b>Google
+        Sheet Connection</b>: the CallReg Web App URL (ending /exec) and the Field Calls tab, <b>Test</b> and <b>Save</b> —
+        the bridge Bulk Report Mapping uses for Drive lookups. Both are saved <b>in this browser only</b>, and Test saves
+        what it tests.
+      </p>
+      <p>
+        Also: <b>Design System Defaults</b> (a description of how tables, forms and charts behave), <b>Document
+        Templates</b> placeholders kept in this browser, and <b>Reset Demo Data</b>, which clears the old demo records
+        held in this browser — <i>"keeps your sign-in and theme"</i>. A person's own account, password and theme are on
+        My Profile.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>With neither key: <i>"These settings are for administrators. Manage your own account, password and theme on the Profile page."</i></li>
+        <li>Read-only: <i>"You can see how this app is set up, but not change it."</i> The fields are greyed and Test, Save, the templates and Reset are not offered.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The validation package</b>, held with the application</li>
+        <li><b>Recorded test results</b></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 4 · Step 05</p>
+      <h2>Software Validation — the package</h2>
+      <span class="who">Open: Software Validation</span><span class="who">Record software validation results</span>
+      <p>
+        The software validation package for the Field Service module, marked <b>DRAFT — pending QA review &amp;
+        approval</b>. Tabs include the Validation Plan, User and System Requirements, Requirements by Module, the
+        Traceability Matrix, Data Flows (how a record moves from screen to screen, drawn from the package), the Defect
+        Register, Risk Assessment and FMEA, Security, Data Integrity, Data Migration, Backup &amp; Recovery, the Test
+        Protocol (IQ / OQ / PQ) and the Summary Report. <b>🖨️ Print tab</b> and <b>🖨️ Print full package</b>.
+      </p>
+      <p>
+        On the Test Protocol a holder of the key records each test's result (Pass / Fail / N/A), actual result and tester;
+        the summary counts what is recorded. It is not the servicing-process requirements, which are a separate document.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Without the key: <i>"results are read-only for your role"</i>.</li>
+        <li><span class="tag db">Policy</span>Results are written only with <b>Record software validation results</b>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The tracker list</b>, in its hand order</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 4 · Step 06</p>
+      <h2>Tracker — the shared activity list</h2>
+      <span class="who">Open: Tracker</span><span class="who">Delete a Tracker item</span>
+      <p>
+        <b>+ Add an item</b> adds one at the end. Each item has a title, detail, status (Open, In progress, Blocked, Done,
+        Dropped), with whom, area and due date; every field saves when you click away. The number on a row is its position
+        on the list you are looking at. Each row says who last changed it, when, and who raised it — stamped by the
+        database. Done and Dropped are hidden until <b>Show Done and Dropped</b> is ticked.
+      </p>
+      <p>
+        <b>Delete</b> asks first: <i>"Marking it Done or Dropped keeps it on the list — deleting removes it for
+        everybody."</i>
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>The page key is the right to read, add and edit.</li>
+        <li><span class="tag db">Policy</span>Deleting needs the page key and <b>Delete a Tracker item</b>; without it the button says <i>"Deleting needs the “Delete a Tracker item” permission — mark it Done or Dropped instead"</i>.</li>
+        <li><span class="tag db">Check</span>The status can only be one of the five.</li>
+        <li>Adding and deleting are recorded in the Audit Log; edits are not.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The build this tab is running</b></li>
+        <li><b>The change log</b> shipped with it</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 4 · Step 07</p>
+      <h2>Version History</h2>
+      <span class="who">Open: Version History</span>
+      <p>
+        <b>Current build</b>: Version, Build number, Build ID and when it was built. <b>Change log</b>: each release's
+        version, date, summary and changes, newest first. Read only.
+      </p>
+      <p>
+        Separately, every tab checks for a newer build when it gains focus and every 5 minutes, and a banner offers
+        <b>⟳ Update now</b>. It names a version only when the version differs; otherwise it says <i>"An update is out — this
+        tab is running an earlier build of v…"</i>.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Nothing on this page changes anything.</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<!-- permissions ----------------------------------------------------------- -->
+<section class="states">
+  <h2>Who may do what</h2>
+  <p>
+    Each screen opens with its own <b>Open:</b> key (the box on the page's row of the matrix). The actions are ticked
+    under <b>Administration</b> on Roles &amp; Permissions, except where shown. A key with a parent is also granted by
+    the parent. No action here is Admin-only: an administrator holds every key, and every key can be ticked for any role.
+  </p>
+  <div class="scroll">
+    <table class="transitions">
+      <thead><tr><th>To</th><th>Permission</th><th>Granted also by</th></tr></thead>
+      <tbody>
+        <tr><td>Change the role matrix, add a role</td><td>Manage roles &amp; permissions</td><td>—</td></tr>
+        <tr><td>Read the matrix, Settings, without changing them</td><td>Open the administration pages, read-only (Across the system)</td><td>—</td></tr>
+        <tr><td>Read the Audit Log</td><td>View audit log</td><td>—</td></tr>
+        <tr><td>Load a register in Bulk Uploads</td><td>Load registers in bulk (Bulk Uploads), and the table's own write right</td><td>—</td></tr>
+        <tr><td>Bulk Report Mapping</td><td>File a visit on a Field / installation / PM call (Service Calls)</td><td>That register's Report / update (all of the below)</td></tr>
+        <tr><td>PM Bulk Upload</td><td>Upload PM calls in bulk, and Create PM calls (PM Calls)</td><td>—</td></tr>
+        <tr><td>Export whole tables</td><td>Export whole tables (Data Export)</td><td>—</td></tr>
+        <tr><td>Create, pause, edit or delete a schedule</td><td>Create, pause or delete an export schedule</td><td>—</td></tr>
+        <tr><td>SLA targets, Hotline desk, frequent-failure rule</td><td>Admin config (SLA targets, Call Registration desk, Frequent Failure rule)</td><td>—</td></tr>
+        <tr><td>Audit Mode</td><td>Switch Audit Mode on or off, and read its history</td><td>—</td></tr>
+        <tr><td>Cover normalisation (legacy importer)</td><td>Load data through the Data Import panel</td><td>—</td></tr>
+        <tr><td>Record a validation result</td><td>Record software validation results</td><td>—</td></tr>
+        <tr><td>Change Settings</td><td>Change the Settings page (connections, templates)</td><td>Manage users (all of the below)</td></tr>
+        <tr><td>Add and edit Tracker items</td><td>Open: Tracker</td><td>—</td></tr>
+        <tr><td>Delete a Tracker item</td><td>Delete a Tracker item</td><td>—</td></tr>
+        <tr><td>Solved Without a Report, Device Cache Status, Version History</td><td>The page key alone</td><td>—</td></tr>
+        <tr><td>Download a CSV (Audit Log, Solved Without a Report)</td><td>Export / download CSV (Across the system)</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="margin:16px 0 0; color:var(--ink-2); font-size:14.5px; max-width:70ch">
+    <b>The menu.</b> An Administration entry is shown to a holder of its page key, of any <b>Manage users</b> key or of
+    <b>Open the administration pages, read-only</b>; Tracker and Version History to holders of their page key. The page
+    itself still opens only with its page key — otherwise <i>"🔒 You don’t have access to this module. Ask an administrator
+    to grant it in Roles &amp; Permissions."</i>
+  </p>
+</section>
+
+<!-- panels --------------------------------------------------------------- -->
+<div class="panels">
+
+  <div class="panel">
+    <h3>The records kept</h3>
+    <ul>
+      <li><b>Audit Log.</b> Action, target, status, error and duration, with login, email and time stamped by the database; kept for the retention period (3,650 days unless changed).</li>
+      <li><b>The database trail.</b> Before-and-after copies of rows written to fifteen quality tables, one event per bulk write over 150 rows; never purged; no screen reads it.</li>
+      <li><b>Audit Mode history.</b> Every switch with its reason, who and when; the application cannot write or erase it.</li>
+      <li><b>Roles.</b> Each role's stored permission list; a save is recorded as <code>rbac.save</code> naming the roles, an added role as <code>rbac.role.add</code>.</li>
+      <li><b>Export runs.</b> Each scheduled run's tables, rows and outcome, readable and not editable.</li>
+      <li><b>Device reports.</b> One row per person per device, the person stamped from the sign-in.</li>
+      <li><b>Tracker.</b> Who raised each item and who last changed it, stamped by the database.</li>
+      <li><b>Validation results.</b> One result per test.</li>
+      <li><b>System columns.</b> Every table also records which login created and last changed each row, and when, written by the database.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h3>Not yet in place</h3>
+    <p>Stated here so nobody reads this page as describing them as done.</p>
+    <ul>
+      <li><b>Solved Without a Report leaves out Report pending</b> (D-090). Its About sheet says calls reading Solved - Report Pending appear too; a call with that status reads <i>Report pending</i>, which the list does not include (tested).</li>
+      <li><b>Admin config can switch Audit Mode with no reason and no history</b> (D-088). A holder of Admin config can write the setting directly rather than through the switch; tested, the mode went ON and no change was recorded. The same holder can change the Audit Log retention period, which has no screen (tested).</li>
+      <li><b>An empty role is refused by the screen only</b> (D-089). The database accepts one, and its people then get the Engineer's permissions (tested). A holder of Manage roles &amp; permissions can also change the role they are on themselves (tested).</li>
+      <li><b>Workbook and ZIP downloads skip Export / download CSV</b> (D-018, D-065) — the permission matrix, Solved Without a Report's Excel and Data Export. Data Export also writes no Audit Log entry, reads its pages in no fixed order, and stops at 200,000 rows a table without saying so (D-065).</li>
+      <li><b>Changes that leave no record</b> (D-067): Bulk Uploads, the legacy importer, the SLA targets, the Hotline desk, the frequent-failure rule and a changed connection in Settings write no audit entry; a role save records only which roles, not what changed.</li>
+      <li><b>Bulk Uploads writes before you confirm</b> (D-075): the spare-request stubs and the visits filed for consumption stay if you press Cancel — and a visit moves its call's status.</li>
+      <li><b>Loads that duplicate</b> (D-071, D-038): the MRN Register and Stock Transfer Lines; the legacy importer's User Master and MRN files, with no preview; and PM Bulk Upload, which also accepts a call with no serial.</li>
+      <li><b>A re-test replaces the earlier validation result</b>, keeping the first date (D-068).</li>
+      <li><b>The menu can offer an Administration page the person cannot open</b>: any Manage users key, or the read-only key, shows every Administration entry, while each page asks for its own key.</li>
+      <li><b>Bulk Report Mapping counts an attach the database refused as attached</b> (D-091): it does not check that a row was written.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer>
+  <p>
+    Drawn from the running system: <code>src/modules/SolvedWithoutReport.tsx</code>, <code>Tracker.tsx</code>,
+    <code>RolePermissions.tsx</code>, <code>AuditLog.tsx</code>, <code>BulkUploads.tsx</code>, <code>ReportMapping.tsx</code>
+    (and <code>ConvertLoadedReports.tsx</code>), <code>DataExport.tsx</code>, <code>DeviceCacheStatus.tsx</code>,
+    <code>PmBulkUpload.tsx</code>, <code>AdminConfig.tsx</code> and its cards, <code>SoftwareValidation.tsx</code>,
+    <code>Settings.tsx</code> and <code>VersionHistory.tsx</code>; <code>src/lib/rbac.ts</code>, <code>uploads.ts</code>,
+    <code>reportMapping.ts</code>, <code>pmImport.ts</code> and <code>audit.ts</code>; and the migrations they rest on,
+    read at their latest definition. Statements marked tested were run on a database built from every migration. Where
+    this page and the code disagree, the code is the fact and this page is the bug.
+  </p>
+</footer>
+
+</div>
+
+<script>
+// ===========================================================================
+// THIS FILE IS BOTH THE SHARED DIAGRAM AND THE IN-APP PAGE, and it must behave
+// as either. Standalone it is an ordinary document. Framed by RITHI CRM it has
+// two more jobs, and both fail silently if left to chance:
+//
+//   1. FOLLOW THE HOST'S THEME. The app has its own light/dark toggle, and a
+//      framed document cannot see it — a viewer in dark mode would otherwise
+//      get a white page inside a dark one. The app passes ?theme= and this
+//      stamps it, which is the same attribute the CSS above already honours.
+//      With no parameter nothing is stamped and prefers-color-scheme decides,
+//      exactly as before.
+//   2. SAY HOW TALL IT IS. A fixed-height iframe gives the reader a second
+//      scrollbar inside the first, which on a long document is worse than no
+//      frame at all. The height is posted on load, on resize, and whenever the
+//      content changes.
+//
+// Everything here is guarded: a failure leaves a page that still reads.
+(function () {
+  try {
+    var t = new URLSearchParams(location.search).get('theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { /* no theme is not a broken page */ }
+
+  if (window.parent === window) return;   // standalone: nothing to report to
+  var last = 0;
+  function tell() {
+    var h = Math.ceil(document.documentElement.scrollHeight);
+    if (Math.abs(h - last) < 2) return;
+    last = h;
+    try { window.parent.postMessage({ type: 'rithi-doc-height', height: h }, '*'); } catch (e) { /* ignore */ }
+  }
+  window.addEventListener('load', tell);
+  window.addEventListener('resize', tell);
+  document.addEventListener('DOMContentLoaded', tell);
+  if (window.ResizeObserver) new ResizeObserver(tell).observe(document.documentElement);
+  setTimeout(tell, 60); setTimeout(tell, 400); setTimeout(tell, 1200);
+})();
+</script>
+</body>
+</html>
