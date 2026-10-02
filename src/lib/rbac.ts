@@ -726,7 +726,7 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.edit', 'masters.edit.records', 'masters.edit.kyc', 'masters.edit.swap_serviceman'] },
-    { path: '/product-database', label: 'Product Database', actions: ['install.create'] },
+    { path: '/product-database', label: 'Product Database', actions: ['calls.create', 'install.create'] },
     { path: '/product-database-2', label: 'Product Database 2.0', actions: ['masters.view', 'pd2.rebuild'] },
     { path: '/product-master', label: 'Product Master (product lines)', actions: [] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage', 'users.manage.details', 'users.manage.create', 'users.manage.disable', 'users.manage.access', 'users.reset_password'] },
