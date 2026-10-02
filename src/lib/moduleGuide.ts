@@ -236,6 +236,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Give the warranty start and the period in months; end date, years and PM visits follow',
       'Add the machines (product from active Product Master lines, serial typed)',
       'Raise the installation calls for the machines, or one machine at a time from Register',
+      'Filter the Register to machines still waiting for an installation call (INSTALL CALL PENDING); click a line to open its sale',
       'Click an entry to open it in a pop-up: sale details on the left, its products on the right, every button in the bar at the top',
       'Use ↺ Force update child records to make every machine follow the entry again',
       'Use ⇢ Convert to Contract to raise a contract from this sale: the customer and machines carry over, you give the MC Number, type, period, PM visits and billing',

@@ -522,6 +522,12 @@ against the call it was fitted to.
 Both work the same way. Two views: **Entries** (the deal and its machines) and
 **Register** (one row per machine, with Active / About to expire / Inactive
 tiles — it used to be called *By machine*).
+**Clicking a line on the Register tab opens that machine's entry**, in the same
+window, with the machine opened and marked on the right.
+**On the Warranty Register, the Installation call column reads Pending** for a
+machine still waiting for its call ("To Check" counts as pending) and shows the
+UCN once one is mapped; the **INSTALL CALL PENDING** tile filters to them,
+across the whole register, together with the search and the state tiles.
 **Clicking an entry opens it in a pop-up window**: the entry's details on the
 left, its products on the right, each half scrolling on its own. Every button —
 Save entry, Delete entry, Close, + Add machine and Force update child records,
@@ -582,6 +588,10 @@ first, as Call Request does.
 real Excel dates — they sort, filter by month and take your own date format.
 **⭳ Export CSV** is still there, but a CSV holds only text, so its dates are
 written as `dd-MMM-yyyy` text.
+
+**Renew this contract** and **⇢ Convert to Contract** open in a **third column**
+beside the details and the products, so the machines being carried over stay in
+view.
 
 **⇢ Convert to Contract** (on a saved sale, in the Warranty Register) raises a
 contract from it. The **customer** and every **machine with a serial** carry

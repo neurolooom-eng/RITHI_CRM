@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.45',
+    date: '2026-10-02',
+    title: 'Warranty and Contract: a Register line opens its entry, Renew / Convert in a third column, installation call pending',
+    changes: [
+      'CLICKING A LINE ON THE REGISTER TAB now opens that machine\'s sale or contract, in the same window as the Entries tab, with the machine opened and marked on the right.',
+      'RENEW THIS CONTRACT and CONVERT TO CONTRACT now open in a third column beside the details and the products, so you can see the machines you are carrying over.',
+      'WARRANTY → REGISTER: a new Installation call column reads Pending for a machine still waiting for its installation call ("To Check" counts as pending) and shows the UCN once one is mapped. The INSTALL CALL PENDING tile shows how many there are and filters to them, across the whole register. It works together with the search and the Active / About to expire / Inactive tiles. Exports carry the same column.',
+    ],
+  },
+  {
     version: '0.10.44',
     date: '2026-10-02',
     title: 'Pending Registrations: filter by Call Type',
