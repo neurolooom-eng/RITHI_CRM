@@ -1576,7 +1576,7 @@ Purpose: Sale Entries (warranty) and Contract Entries with the machines under ea
 
 | # | Capability | Where | Guard | Covered by | Note |
 |---|---|---|---|---|---|
-| 1 | Two tabs: Entries (the deals) and By machine | CoverRegister.tsx:53, 1267-1270 | mod:/warranties, mod:/contracts; DB read: masters.view or cover.edit or admin (0036:561, 0236) | FRS-016, URS-011 | |
+| 1 | Two tabs: Entries (the deals) and By machine (labelled Register on the Contract Register) | CoverRegister.tsx:53, 1267-1270 | mod:/warranties, mod:/contracts; DB read: masters.view or cover.edit or admin (0036:561, 0236) | FRS-016, URS-011 | |
 | 2 | Entries list, newest first, with machine count and State (Active / About to expire / Inactive) from the end date | 994-1004, 1319-1327; cover.ts:238-257; coverspec.ts:205-214 | read policy | partial: FRS-016 — the state rule and its "about to expire" threshold are not stated | |
 | 3 | By-machine list with resolved cover and a "N pinned" / "follows entry" column | 1006-1018; cover.ts:284-299 | read policy | FRS-016, OQ-27 | |
 | 4 | Three state tiles with counts that also filter. A count that was not loaded shows "—", never 0 | 580-587, 684-696, 735-746, 1272-1283 | none | GAP | Medium |
@@ -1584,7 +1584,7 @@ Purpose: Sale Entries (warranty) and Contract Entries with the machines under ea
 | 6 | Opens 2,000 rows (two server pages). Load more doubles each time. Counts show "+" | 56-77, 659-721, 1258 | none | partial: FRS-048 | |
 | 7 | Cached per tab, with a 30-minute background sync while unfiltered | 622-628, 731-734, 750-755 | none | GAP | Low |
 | 8 | Arriving from a Product Database 2.0 link opens the right tab already searched | 567-579 | none | GAP | Low |
-| 9 | An opened entry appears beside the list in an adjustable split pane (width remembered) | 1057-1062, 1285-1290; components/ui/SplitPane.tsx | none | NAR-005 | |
+| 9 | Warranty: an opened entry appears beside the list in an adjustable split pane (width remembered). Contract: it opens in a pop-up, details left and products right, every entry action in a fixed bar at the top, a confirmation before closing over unsaved changes | CoverRegister.tsx entryPane / entryPopup; components/ui/SplitPane.tsx; fieldcalls.css .cover-pop | none | NAR-005, NAR-007 | |
 | 10 | + New entry offers the next number in the series (editable, not reserved). Sale: warranty start defaults to today, and the entry date is stamped on create | 608-620, 804-814, 1238-1240; cover.ts:267-274 | perm cover.edit; DB write cover.edit | GAP | Number series behaviour (duplicate refused by the unique key) is not stated. Medium |
 | 11 | Entry form fields by section. Derived fields are shown but cannot be typed: warranty end and years from months, and the entry date | 121-140, 1076-1110; cover.ts field defs (SALE/CONTRACT) | cover.edit (fields disabled without it, 1088) | CW-004, FRS-079 (cover.edit) | |
 | 12 | PM visits follow the period until someone types over them | 1089-1103; coverspec deriveHeader | cover.edit | FRS-090.1-.3, OQ-78 | |

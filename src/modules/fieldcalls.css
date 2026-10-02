@@ -689,3 +689,45 @@ th.rbac-col-admin { color: var(--text-muted); }
   .renew-rate{width:110px}
   .renew-tot{flex:1 1 auto}
 }
+
+/* ---- Contract entry pop-up ----------------------------------------------
+   The user, 2026-10-02: the entry opens in a pop-up, details on the left and
+   the products on the right, with every action button in a bar at the top
+   that stays put. The bar does not scroll; each half scrolls on its own, so
+   reading down the products never moves the details out of view. */
+.cover-pop-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(8, 15, 22, 0.42);
+  display: flex; align-items: center; justify-content: center;
+}
+.cover-pop {
+  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-lg);
+  width: min(1400px, 96vw); height: 92vh;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.cover-pop-bar {
+  flex: none; position: sticky; top: 0; z-index: 2;
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 10px 14px; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.cover-pop-body {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.cover-pop-col { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 14px 14px; }
+.cover-pop-col + .cover-pop-col { border-left: 1px solid var(--border); }
+/* Each half keeps its own heading in view while it scrolls. */
+.cover-pop-col-head {
+  position: sticky; top: 0; z-index: 1; background: var(--surface);
+  padding: 12px 0 8px; margin-bottom: 4px; font-weight: 600; font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+/* A phone has no room for two halves: they stack and scroll as one, and the
+   bar stays at the top. */
+@media (max-width: 900px) {
+  .cover-pop { width: 100vw; height: 100vh; border-radius: 0; }
+  .cover-pop-body { display: block; overflow: auto; }
+  .cover-pop-col { overflow: visible; }
+  .cover-pop-col + .cover-pop-col { border-left: 0; border-top: 1px solid var(--border); }
+}

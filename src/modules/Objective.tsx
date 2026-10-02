@@ -497,7 +497,7 @@ export function Objective() {
               <button
                 className="btn"
                 title={cutoffLocked
-                  ? 'Anyone with config.manage may change the cut-off again'
+                  ? 'Unlock: anyone with "Edit the objective" may change the cut-off again'
                   : 'Stop anyone without "Lock the objective cut-off" changing the cut-off date'}
                 onClick={() => {
                   void setObjectiveCutoffLock(!cutoffLocked).then((r) => {
@@ -505,7 +505,7 @@ export function Objective() {
                     setCutoffLocked(!cutoffLocked);
                     setOMsg(cutoffLocked
                       ? 'The cut-off date is UNLOCKED — anyone who can re-calculate may change it.'
-                      : 'The cut-off date is LOCKED. Only an administrator can change it now.');
+                      : 'The cut-off date is LOCKED. Only a holder of "Lock or unlock the objective cut-off" can change it now.');
                   });
                 }}
               >

@@ -87,6 +87,13 @@ const DOCS = [
     title: 'How hand stock moves — the six movements behind the balance, and what each one refuses',
   },
   {
+    id: 'quality',
+    label: 'Quality & Analytics',
+    file: 'how-quality-works.html',
+    blurb: 'The daily review, the Field Failure Report it raises, and how both are counted — the Objective, Product Failure Analysis, KPIs and Spare Insights.',
+    title: 'How quality works — the review, the Field Failure Report, and the figures built on them',
+  },
+  {
     // THE SCHEMA, and it is a different KIND of document from the three above.
     // Those answer "how does this work"; this one answers "what is in the
     // table, must I fill it in, and what happens to the value next" — the
