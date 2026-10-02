@@ -27,15 +27,17 @@ import { todayLocal } from '../lib/dates';
 // because it turns an invisible gap into a job somebody can finish.
 // ===========================================================================
 
-// 1 Jan 2026 to today, per the ask — and selectable.
-const DEFAULT_FROM = '2026-01-01';
+// 1 January OF THIS YEAR to today, per the ask -- and selectable. It was the
+// literal 2026-01-01, so from 2027 both the opening window and "This year"
+// would have covered more than a year (D-023).
+const yearStart = () => `${new Date().getFullYear()}-01-01`;
 const todayISO = todayLocal;
 
 const n = (v: number) => v.toLocaleString();
 
 export function SpareInsights() {
   const live = supabaseConfigured();
-  const [from, setFrom] = useState(DEFAULT_FROM);
+  const [from, setFrom] = useState(yearStart);
   const [to, setTo] = useState(todayISO());
   const [data, setData] = useState<SpareInsight | null>(null);
   const [busy, setBusy] = useState(false);
@@ -81,7 +83,7 @@ export function SpareInsights() {
           <label className="field-label" style={{ display: 'grid', gap: 4 }}>To
             <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </label>
-          <button className="btn btn-sm" onClick={() => { setFrom(DEFAULT_FROM); setTo(todayISO()); }}>
+          <button className="btn btn-sm" onClick={() => { setFrom(yearStart()); setTo(todayISO()); }}>
             This year
           </button>
           <span className="muted" style={{ fontSize: 12.5 }}>

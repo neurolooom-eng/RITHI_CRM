@@ -171,9 +171,8 @@ export function IndoorService() {
         icon="🏭"
         subtitle="Equipment in the workshop — repair, rework, salvage, pre-delivery, demo (§4.5)"
         count={shown.length}
-        // EXACT, and so it takes no "+": every row is on screen. listIndoorJobs
-        // caps at 500 and the register is nowhere near that; when it is, this
-        // becomes a lower bound and the flag has to change with it.
+        // EXACT, and so it takes no "+": listIndoorJobs reads every job, a
+        // page at a time (D-040), so every row is on screen.
         countMore={false}
         onRefresh={load}
         refreshing={busy}

@@ -1085,6 +1085,11 @@ typed into a form that reads it.
 
 - **User Access** (`/users`) is gone: it opens the **User Master**, where logins
   are created, roles assigned and — by an administrator — passwords reset.
+- **A new login's starting password** is the one proposed on User Master → New
+  User (you can type another). The person signs in with it and can change it
+  under My Profile; they are not forced to. That is deliberate, for ease of
+  operation — it does mean anyone who knows the starting password can sign in as
+  that person until they change it.
 - **Signing in** is only ever with a RITHI login (e-mail and password). There is no
   demo sign-in and no sheet sign-in. A forgotten password: ask an administrator —
   both the sign-in and the reset screen say so.

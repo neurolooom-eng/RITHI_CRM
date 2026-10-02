@@ -25,7 +25,9 @@ import { formatDayTime } from '../lib/dates';
 // ===========================================================================
 // HAND STOCK — the stock level an engineer is carrying, per spare.
 //
-//   Stock Level = Stock Out (Stores) − Consumption − Transfer From + Transfer To − Returned
+//   Stock Level = every movement IN − every movement OUT: the opening balance +
+//   Stock Out (Stores) − Consumption − Transfer From + Transfer To − Returned,
+//   ± office adjustments and the migrated history (FRS-013/FRS-043, D-048).
 //
 // Nothing is entered here: the movements are the Stores dispatch on a spare
 // request, the consumption on a call report, the hand-overs recorded on Stock
@@ -54,6 +56,8 @@ type Row = HandstockBalance & { id: string; _state?: string };
 type MoveRow = HandstockMovement & { id: string };
 type Holding = 'held' | 'short' | 'settled' | '';
 type Tab = 'levels' | 'moves';
+// How many movements the stock-level drawer reads for one line (newest first).
+const MOVES_CAP = 500;
 
 const asRow = (r: Record<string, unknown>): Row => ({
   engineer_key: String(r.engineer_key ?? ''),
@@ -604,7 +608,7 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
   useEffect(() => {
     let alive = true;
     setBusy(true); setErr(''); setMoves([]);
-    listHandstockMovements(row.engineer_key, row.part_code)
+    listHandstockMovements(row.engineer_key, row.part_code, MOVES_CAP)
       .then((r) => { if (alive) setMoves(r.map(asMovement)); })
       .catch((e) => { if (alive) setErr(e instanceof Error ? e.message : String(e)); })
       .finally(() => { if (alive) setBusy(false); });
@@ -622,15 +626,31 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
         <div className="rep-grid">
           {field('Engineer', row.engineer)}
           {field('Spare', row.part)}
+          {field('Opening balance', row.opening)}
           {field('Stock out (Stores)', row.stock_out)}
           {field('Consumed', row.consumed)}
           {field('Transferred in', row.transferred_in)}
           {field('Transferred out', row.transferred_out)}
           {field('Returned (MRN)', row.returned)}
         </div>
-        <p className="muted" style={{ fontSize: 12.5, margin: '8px 0 0' }}>
-          {row.stock_out} − {row.consumed} − {row.transferred_out} + {row.transferred_in} − {row.returned} = <b>{row.on_hand}</b>
-        </p>
+        {/* THE SUM ADDS UP (D-048). It printed five terms and the database's
+            result, which is every movement IN less every movement OUT -- the
+            opening balance included -- so for a line with an opening the
+            printed sum and the printed answer disagreed on the one screen meant
+            to show how the figure was reached. Anything the named terms do not
+            cover is shown as the difference, rather than left out. */}
+        {(() => {
+          const named = row.opening + row.stock_out - row.consumed - row.transferred_out + row.transferred_in - row.returned;
+          const other = Math.round((row.on_hand - named) * 1000) / 1000;
+          return (
+            <p className="muted" style={{ fontSize: 12.5, margin: '8px 0 0' }}>
+              {row.opening} opening + {row.stock_out} stock out − {row.consumed} consumed − {row.transferred_out} out
+              {' '}+ {row.transferred_in} in − {row.returned} returned
+              {other !== 0 && <> {other > 0 ? '+' : '−'} {Math.abs(other)} other movements</>}
+              {' '}= <b>{row.on_hand}</b>
+            </p>
+          );
+        })()}
         {row.on_hand < 0 && (
           <p className="muted" style={{ fontSize: 12.5, margin: '8px 0 0' }}>
             More consumed or handed on than Stores has issued — stock carried from before this register,
@@ -645,7 +665,16 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
       </section>
 
       <section className="rep-sec">
-        <div className="rep-sec-title">Movements <span className="muted">({moves.length})</span></div>
+        <div className="rep-sec-title">Movements <span className="muted">({moves.length}{moves.length >= MOVES_CAP ? '+' : ''})</span></div>
+        {/* IT SAYS WHEN IT STOPS (D-047): the drawer reads the latest
+            MOVES_CAP movements, and a line with more read as complete. The
+            Movements tab, filtered to the engineer, pages through the lot. */}
+        {moves.length >= MOVES_CAP && (
+          <div className="muted" style={{ fontSize: 12.5 }}>
+            Showing the latest {MOVES_CAP} movements; older ones are not listed here. The Movements tab, filtered to
+            this engineer, has them all.
+          </div>
+        )}
         {busy && <div className="muted" style={{ fontSize: 12.5 }}>Loading movements…</div>}
         {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span></div>}
         <ol className="wf-trail">
