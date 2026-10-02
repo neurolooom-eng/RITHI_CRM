@@ -109,7 +109,8 @@ customer and machine, the vigilance answers, the contact details — so a manage
 can have some and not others. Re-allocating to another engineer is its own right.
 **Every change to a vigilance answer is recorded** (who, when, from what to what),
 because those three answers are Review 1. A call can be **cancelled** (and
-restored) or **closed without a visit**; neither deletes anything.
+restored); that deletes nothing. There is no closing a call without a visit:
+enter the visit that happened, or cancel a call that should not have been raised.
 
 ## Getting data in
 

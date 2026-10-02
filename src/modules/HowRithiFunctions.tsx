@@ -87,6 +87,13 @@ const DOCS = [
     title: 'How hand stock moves — the six movements behind the balance, and what each one refuses',
   },
   {
+    id: 'service',
+    label: 'Service Calls',
+    file: 'how-service-calls-work.html',
+    blurb: 'The three call registers side by side, a request becoming a call, the visit that sets its status, and Pending Calls, Call Review and Customer Feedback.',
+    title: 'How service calls work — the three registers, the visit, and what follows it',
+  },
+  {
     id: 'quality',
     label: 'Quality & Analytics',
     file: 'how-quality-works.html',

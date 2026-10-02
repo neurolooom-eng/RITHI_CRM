@@ -422,7 +422,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     ],
     records: ['calls', 'reports', 'feedback', 'spare_consumption'],
     rules: [
-      'A PM call is dated to the 1st of its due month',
+      'A PM call raised by PM Bulk Upload is dated the 1st of the chosen month',
       'PM calls have their own permission ticks, separate from Field calls',
     ],
   },
