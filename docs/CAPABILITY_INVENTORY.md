@@ -3233,3 +3233,5 @@ _Added 2026-10-02 for the Software Validation Package Rev 3.1. Same method as ab
 | 12 | Part Master | HSN Code column, on Add part and the edit drawer (digits only), and in the Part Master upload | PartMaster.tsx; uploads.ts; 0309 | masters.edit.records | FRS-219; OQ-213 |
 | 13 | Part Master — rename | A rename moves stock adjustments too, and needs only masters.edit.rename_part even for a part on another engineer's request or on a return | 0309, 0310 | masters.edit.rename_part (DB) | FRS-178.3, FRS-178.7, FRS-178.8; OQ-213 |
 | 14 | Reports | The open tab is highlighted | dccr.css | — | D-080 (fixed) |
+| 15 | How RITHI Functions → All modules | Every menu screen explained, in menu order, with its flows; the reader's access shown | ModuleGuide.tsx; moduleGuide.ts | signed in | FRS-191.10 |
+| 16 | How RITHI Functions / Software Validation → Data flows | Fourteen workflows; ▶ Play, Pause, Previous, Next, Reset walk a flow step by step | FlowDiagram.tsx; flows.ts | signed in | FRS-209.8, FRS-209.9 |
