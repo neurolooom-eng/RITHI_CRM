@@ -47,11 +47,12 @@ export function CallReport() {
       { key: 'callType', label: 'Call type', type: 'select',
         options: [{ value: 'FIELD', label: 'Field' }, { value: 'INSTALL', label: 'Installation' },
                   { value: 'P M', label: 'PM' }] },
-      // EXACT, not contains: "Solved" and "Solved - Report Pending" are
-      // different answers and a contains-match would fold the second into the
-      // first, which is the distinction open_state exists to keep.
+      // EXACT, not contains: "Solved" and "Report pending" are different
+      // answers. THE OPTIONS ARE THE VALUES call_open_state() WRITES (0226) --
+      // they offered "Solved - Report Pending", which the column never holds,
+      // so that choice matched nothing, and left out Cancelled (D-094).
       { key: 'status', label: 'Call status', type: 'select',
-        options: ['Unattended', 'Unsolved', 'Solved - Report Pending', 'Solved']
+        options: ['Unattended', 'Unsolved', 'Report pending', 'Solved', 'Cancelled']
           .map((v) => ({ value: v, label: v })) },
     ],
     notes: [
@@ -60,12 +61,12 @@ export function CallReport() {
           + 'call’s own status follows. A report written up late does not outrank a visit '
           + 'made after it.' },
       { Item: 'A note on the status',
-        Value: 'Call Status is worked out from the visits (Unattended / Unsolved / Solved - '
-          + 'Report Pending / Solved). "Status (as keyed)" is what somebody typed, and the two '
+        Value: 'Call Status is worked out from the visits (Unattended / Unsolved / Report '
+          + 'pending / Solved), or Cancelled. "Status (as keyed)" is what somebody typed, and the two '
           + 'can disagree — that disagreement is worth seeing, which is why both are available.' },
       { Item: 'A note on the spares',
         Value: 'Spare Lines, Spare Qty and Spares Used are the parts booked against the CALL. '
-          + 'Voided lines (qty 0) are excluded, so this agrees with the Consumption Report.' },
+          + 'Voided lines (qty 0) are excluded here; the Consumption Report lists them at QTY 0.' },
       { Item: 'What you can see',
         Value: 'Exactly the calls your role may see — the report reads them under the same rules '
           + 'as the register, never more.' },

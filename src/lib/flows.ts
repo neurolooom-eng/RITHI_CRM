@@ -776,7 +776,7 @@ export const FLOWS: Flow[] = [
         detail: 'Each report is offered only to a role holding its own key, filters in the database over the whole register and shows the exact number of matching rows.',
         records: ['consumption_report', 'call_report', 'feedback_report'], reqs: ['FRS-192', 'URS-148', 'OQ-185'] },
       { id: 'file', label: 'Columns chosen, file written', route: '/exports', area: 'report',
-        detail: 'Mandatory columns are always included and optional ones chosen; every matching row is read before the file is written. A workbook carries a sheet stating the report, the filter, the rows and when it was taken, with dates as dates and numbers as numbers.',
+        detail: 'Mandatory columns are always included and optional ones chosen; every matching row is read before the file is written. A workbook from the column picker carries a sheet stating the report, the filter, the rows and when it was taken, with dates as dates and numbers as numbers (the KPI Export, a fixed format, has no such sheet).',
         reqs: ['FRS-192', 'URS-148', 'OQ-185'] },
       { id: 'gate', label: 'The export gate', area: 'report', automatic: true,
         detail: 'A file needs export.data and the report’s own right, and the report’s download controls are disabled for a role that may not take it. Today the gate is enforced in the CSV writer; the workbook and ZIP writers do not yet consult it.',

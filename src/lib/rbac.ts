@@ -168,9 +168,9 @@ export const MODULES: ModuleDef[] = [
   // can open Reports. The user asked for administrators to begin with
   // (2026-09-24) and said they would grant the rest themselves, so
   // `admin: true` keeps the key out of NON_ADMIN_MODULES and 0241 writes it
-  // into `app_roles` for `admin` ALONE -- not for the other two roles in
-  // SEES_EVERY_MODULE, because the standing rule is to leave a role alone
-  // unless it was named.
+  // into `app_roles` for `admin` and `technical_support` (0241's own grant) --
+  // not for the remaining role in SEES_EVERY_MODULE, because the standing rule
+  // is to leave a role alone unless it was named.
   { path: '/handstock-report', label: 'Hand Stock Report', admin: true },
   // INDOOR SERVICE — the workshop register (procedure §4.5). Its own module,
   // because a DEMO unit has no call to hang off: the register stands alone and
