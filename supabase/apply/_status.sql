@@ -1651,7 +1651,12 @@ with checks(sort_order, bundle, provides, present) as (
         coalesce((select p.prosrc like '%new.original_qty := old.qty%' and p.prosrc like '%new.adjusted_at := now()%' from pg_proc p where p.oid = to_regprocedure('public.consumption_adjust_guard()')), false)),
     (245, 'Every warranty sale was re-read from the Party Master once, and its machines put back on it', 'The one-time update of 2026-10-02 (0318) ran: one_time_fixes_done holds 0318_warranty_party_refresh, whose detail says how many sales and machine lines it changed; the values it replaced are in sale_party_refresh_backup and sale_items_inherit_backup. It never runs twice -- re-running the bundle leaves everything alone. NO means it has not run on this project. Restore: sales_contracts.sql (0318)',
         (to_regclass('public.one_time_fixes_done') is not null
-         and exists (select 1 from public.one_time_fixes_done where name = '0318_warranty_party_refresh')))
+         and exists (select 1 from public.one_time_fixes_done where name = '0318_warranty_party_refresh'))),
+    (246, 'Warranty machines mapped to their installation calls once; the rest listed for administrators', 'The one-time mapping of 2026-10-02 (0319) ran -- one_time_fixes_done holds 0319_install_call_mapping, whose detail gives the counts by rule; every change is in inst_call_repair_log -- and install_calls_unmapped() exists, asks for mod:/install-calls-unmapped, and cannot be called by the public key. NO means it has not run on this project. Restore: sales_contracts.sql (0319)',
+        (to_regclass('public.one_time_fixes_done') is not null
+         and exists (select 1 from public.one_time_fixes_done where name = '0319_install_call_mapping')
+         and coalesce((select p.prosrc like '%mod:/install-calls-unmapped%' from pg_proc p where p.oid = to_regprocedure('public.install_calls_unmapped()')), false)
+         and not has_function_privilege('anon', to_regprocedure('public.install_calls_unmapped()'), 'EXECUTE')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

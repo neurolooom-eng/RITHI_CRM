@@ -941,7 +941,13 @@ const MODULES = {
             // and every machine put back on its sale, guarded by a marker row
             // so a replay of this bundle never repeats it. Reads `parties`
             // (masters) and asks for its columns rather than assuming them.
-            '0318_warranty_party_refresh_once.sql'],
+            '0318_warranty_party_refresh_once.sql',
+            // ONE TIME (2026-10-02): each warranty machine mapped to its
+            // installation call (WI- number, product + serial + party, product
+            // + serial; installation calls only, exactly one or nothing), and
+            // install_calls_unmapped() -- the administrators' list of the rest.
+            // Needs is_call_number() and inst_call_repair_log (0234, above).
+            '0319_install_call_mapping_once.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.41',
+    date: '2026-10-02',
+    title: 'Installation calls mapped to their machines, and a list of the machines without one',
+    changes: [
+      'ONE-TIME MAPPING: every warranty machine without an installation call in INST Call was matched to one, using installation calls only. It tried, in order, the call number WI-<Product>-<Serial>, then Product + Serial + Party Name, then Product + Serial. A machine was mapped only where exactly one call fitted. Nothing that was already mapped was changed, and every change is logged with the rule that made it. It ran once and cannot run again.',
+      'NEW (administrators only): REPORTS → MACHINES WITHOUT AN INSTALLATION CALL. Every warranty machine that still has no installation call, with the reason (no call found, the call is on another machine line, one match not mapped, or several to choose from) and the candidate calls with their parties. Filter by reason and export to Excel or CSV. It changes nothing: map the call from the Warranty Register and the machine leaves the list. Give it to other roles on Roles & Permissions.',
+    ],
+  },
+  {
     version: '0.10.40',
     date: '2026-10-02',
     title: 'How RITHI Functions: the Reports document, and three report fixes',

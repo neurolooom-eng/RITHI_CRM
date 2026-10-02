@@ -48,6 +48,7 @@ import { SolvedWithoutReport } from './modules/SolvedWithoutReport';
 import { DeviceCacheStatus } from './modules/DeviceCacheStatus';
 import { HandStockReport } from './modules/HandStockReport';
 import { FeedbackWithoutReport } from './modules/FeedbackWithoutReport';
+import { InstallCallsUnmapped } from './modules/InstallCallsUnmapped';
 import { ReportsHub } from './modules/ReportsHub';
 import { SpareInsights } from './modules/SpareInsights';
 import { Workload } from './modules/Workload';
@@ -206,6 +207,7 @@ function Shell() {
         <Route path="/device-cache" element={<DeviceCacheStatus />} />
         <Route path="/handstock-report" element={<HandStockReport />} />
         <Route path="/feedback-without-report" element={<FeedbackWithoutReport />} />
+        <Route path="/install-calls-unmapped" element={<InstallCallsUnmapped />} />
         <Route path="/tracker" element={<Tracker />} />
         <Route path="/users" element={<Navigate to="/user-master" replace />} />
         <Route path="/settings" element={<Settings />} />
