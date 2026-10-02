@@ -24,7 +24,7 @@ export function AdminConfig() {
     <div>
       <PageHeader
         title="Admin Config"
-        subtitle="Bulk data loads, the service-level targets, the frequent-failure rule, and the two switches only an administrator throws."
+        subtitle="Bulk data loads, the service-level targets, the frequent-failure rule, and the two switches with their own permissions (Audit Mode, the Data Import panel)."
         icon="🛠️"
       />
 

@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.25',
+    date: '2026-10-02',
+    title: 'How RITHI Functions: the Quality & Analytics document',
+    changes: [
+      'NEW: HOW RITHI FUNCTIONS → QUALITY & ANALYTICS. The daily review, the Field Failure Report it raises, and the figures built on both (the Objective, Product Failure Analysis, KPIs and Spare Insights), step by step. Each step shows what it reads, what happens, and what it refuses or demands. Where something is not yet built, the document says so.',
+      'CORRECTED ON SCREEN: on the Daily Complaint Review, a stage is complete (dated and signed with your name) as soon as all its answers are in, whether auto save or Save review stored them. The hint used to say only Save review completes it.',
+      'CORRECTED ON SCREEN: the Objective lock and Admin Config now name the permissions that actually apply (Edit the objective, Lock or unlock the objective cut-off, and the Audit Mode and Data Import switches), rather than "administrator only".',
+    ],
+  },
+  {
     version: '0.10.24',
     date: '2026-10-02',
     title: 'Screens that showed less, or more, than they said',
