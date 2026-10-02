@@ -551,6 +551,9 @@ Database first.
 > a **\***, and the message names every one left blank. Contracts loaded from the old system's files are not refused for
 > blanks; the rule is the form's.
 
+**Prev MC Number** is not on the contract form: **Renew this contract** fills it
+in on the new contract with the number it was renewed from.
+
 **Renew this contract** raises the next MC from an expiring one. It starts the
 day after the old one ends, so cover has no gap and no overlap, and the
 machines, type, party, period and billing schedule carry over. Untick anything

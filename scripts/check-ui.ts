@@ -2706,6 +2706,16 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
   // ...and the link back must be written, or "what was this machine on before?"
   // has no answer.
   eq('the new contract points back at the old one', /prev_mc_number:/.test(renew), true);
+  // HIDDEN ON THE FORM, NOT DROPPED (the user, 2026-10-02): the header field
+  // list is also the save's whitelist, so removing the field would make the
+  // renewal's write of it disappear.
+  {
+    const prev = configFor('contract').headerFields.find((f) => f.name === 'prev_mc_number');
+    eq('Prev MC Number is still a writable header column', !!prev, true);
+    eq('...but is not shown on the contract form', prev?.hidden, true);
+    eq('...and the form leaves hidden fields out',
+      /const shownHeader = cfg\.headerFields\.filter\(\(f\) => !f\.hidden\)/.test(readFileSync('src/modules/CoverRegister.tsx', 'utf8')), true);
+  }
   eq('...and each machine carries its own history', /last_contract_number:/.test(renew), true);
 }
 

@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.30',
+    date: '2026-10-02',
+    title: 'Contract entry: Prev MC Number is filled by Renew',
+    changes: [
+      'PREV MC NUMBER is no longer shown on the contract form. Renew this contract fills it in on the new contract with the number it was renewed from, so it cannot be mistyped. Machine History still shows it as "renewed from".',
+    ],
+  },
+  {
     version: '0.10.29',
     date: '2026-10-02',
     title: 'Contract entry: party from the Product Database, period in months, required fields',
