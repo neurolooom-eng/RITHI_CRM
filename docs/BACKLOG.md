@@ -230,6 +230,15 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.39 — How RITHI Functions: Administration document**
+  (`how-administration-works.html`). **Open, need the user's decision:** D-088 —
+  `app_settings_write` lets a `config.manage` holder set `audit_mode` (no reason,
+  no history) and `audit_retention_days`; D-089 — an empty role is refused by the
+  screen only, and an `rbac.manage` holder can widen their own role; D-090 —
+  Solved Without a Report excludes *Solved - Report Pending* though its text says
+  it lists them; D-091 — `attachReportsToVisits` counts a refused update.
+  **Next document: Reports**, then Documents & Knowledge Base, Contracts &
+  Warranty, Overview (Indoor skipped by the user).
 - ✅ **0.10.37 — How RITHI Functions: Masters document** (`how-masters-work.html`).
   D-087 fixed (+ Field asks calls.create). **Open, need the user's decision:**
   D-084 — `user_directory_address_guard` still lets only an administrator change

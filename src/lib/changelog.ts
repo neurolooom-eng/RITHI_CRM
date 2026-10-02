@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.39',
+    date: '2026-10-02',
+    title: 'How RITHI Functions: the Administration document',
+    changes: [
+      'NEW: HOW RITHI FUNCTIONS → ADMINISTRATION. Covers Roles & Permissions, Audit Log, Bulk Uploads, Bulk Report Mapping, PM Bulk Upload, Data Export, Solved Without a Report, Device Cache Status, Admin Config, Settings, Software Validation, Tracker and Version History: what each does, who may use it, what it refuses, and what it records.',
+      'CORRECTED: Bulk Report Mapping now says which permission it needs (a visit-report key) instead of "admin access". The handbook now says the Audit Log records all the time, not only in Audit Mode; that the objective cut-offs are on the Objective screen, not Admin Config; and that Settings holds the connections, not your preferences.',
+    ],
+  },
+  {
     version: '0.10.38',
     date: '2026-10-02',
     title: 'Warranty Register: Convert to Contract, a one-time Party Master update, and Save only when changed',
