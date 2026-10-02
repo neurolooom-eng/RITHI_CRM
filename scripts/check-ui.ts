@@ -10,7 +10,7 @@ import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod, todayLocal } from '../src/lib/dates';
-import { configFor } from '../src/lib/cover';
+import { configFor, contractStatusText, yearsHint } from '../src/lib/cover';
 import { localIsoDate, formatDayTime, excelSerial, hasClockTime } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
@@ -2706,6 +2706,43 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
   // ...and the link back must be written, or "what was this machine on before?"
   // has no answer.
   eq('the new contract points back at the old one', /prev_mc_number:/.test(renew), true);
+  // HIDDEN ON THE FORM, NOT DROPPED (the user, 2026-10-02): the header field
+  // list is also the save's whitelist, so removing the field would make the
+  // renewal's write of it disappear.
+  {
+    const prev = configFor('contract').headerFields.find((f) => f.name === 'prev_mc_number');
+    eq('Prev MC Number is still a writable header column', !!prev, true);
+    eq('...but is not shown on the contract form', prev?.hidden, true);
+    // STATUS IS WORKED OUT, AND YEARS IS A LINE, NOT A BOX (2026-10-02).
+    const status = configFor('contract').headerFields.find((f) => f.name === 'status');
+    eq('a contract status is computed, never typed', !!status?.compute && !!status?.derived, true);
+    // A LOCAL yyyy-MM-dd, `days` from today -- built by hand, because
+    // localIsoDate reads a value from the wire and answers nothing for a Date.
+    const dayFromToday = (days: number) => {
+      const t = new Date(); t.setDate(t.getDate() + days);
+      return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    };
+    eq('...Active more than 30 days out', contractStatusText({ contract_end: dayFromToday(31) }), 'Active');
+    eq('...About to Expire at exactly 30 days', contractStatusText({ contract_end: dayFromToday(30) }), 'About to Expire');
+    eq('...About to Expire on the end date itself', contractStatusText({ contract_end: dayFromToday(0) }), 'About to Expire');
+    eq('...Contract Expired the day after', contractStatusText({ contract_end: dayFromToday(-1) }), 'Contract Expired');
+    eq('...and nothing with no end date', contractStatusText({}), '');
+    eq('the years are hidden and still written', configFor('contract').headerFields.find((f) => f.name === 'contract_years')?.hidden, true);
+    eq('...and shown under the months', yearsHint({ contract_months: 18 }, 'contract_months'), '= 1.5 years');
+    // AN EXCEL EXPORT CARRIES DATES AS DATES (the user, 2026-10-02): every
+    // cell goes through xlsxCell, and a computed column is worked out rather
+    // than read off a key the row does not have.
+    {
+      const reg = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+      eq('the cover registers export .xlsx', /xlsxDownload\(`\$\{name\}\.xlsx`/.test(reg), true);
+      eq('...every cell through xlsxCell', /xlsxCell\(exportValue\(r, c\.key\)\)/.test(reg), true);
+      eq('...and the entry State is worked out for the file', /if \(key === 'status_now'\) return stateOf/.test(reg), true);
+    }
+    eq('the entry window says how old the device copy is',
+      /<MachineRegisterNote \/>/.test(readFileSync('src/modules/CoverRegister.tsx', 'utf8')), true);
+    eq('...and the form leaves hidden fields out',
+      /const shownHeader = cfg\.headerFields\.filter\(\(f\) => !f\.hidden\)/.test(readFileSync('src/modules/CoverRegister.tsx', 'utf8')), true);
+  }
   eq('...and each machine carries its own history', /last_contract_number:/.test(renew), true);
 }
 
@@ -5581,8 +5618,21 @@ console.log('\n-- the Product Database and the Product Master are two registers 
     /optionsFrom: 'sellable-code'/.test(saleBlock) && /optionsFrom: 'sellable-name'/.test(saleBlock), true);
   // A CONTRACT MAY NAME A RETIRED LINE — the machine it covers was sold when
   // the line was current, and refusing it would refuse the work, not the sale.
+  // (The contract's PARTY is a picker -- the Product Database's customers,
+  // 2026-10-02 -- so the test is for the PRODUCT-LINE lists, not any list.)
   eq('...and a contract may still name a retired one',
-    /optionsFrom/.test(contractBlock), false);
+    /optionsFrom: 'sellable-/.test(contractBlock), false);
+  eq("a contract's party is picked from the Product Database",
+    /name: 'party_name'[^}]*optionsFrom: 'product-party'/.test(contractBlock), true);
+  // The user, 2026-10-02: start defaults to today; months, Payment Schedule,
+  // Bill Generate At and PM Visits (Total) are required; years and end are
+  // worked out, never typed.
+  for (const f of ['contract_months', 'pm_visits_total', 'payment_schedule', 'bill_generate_at']) {
+    eq(`a contract requires ${f}`, new RegExp(`name: '${f}'[^}]*required: true`).test(contractBlock), true);
+  }
+  for (const f of ['contract_years', 'contract_end']) {
+    eq(`a contract's ${f} is worked out, not typed`, new RegExp(`name: '${f}'[^}]*derived:`).test(contractBlock), true);
+  }
   // Free text stays ON: the catalogue is hand-maintained and may be incomplete
   // or unreadable to this reader, and a Sale Entry that could not be typed at
   // all would be a worse fault than the one this prevents.

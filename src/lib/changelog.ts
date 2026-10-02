@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.29',
+    version: '0.10.33',
     date: '2026-10-02',
     title: 'Rules the screens kept, now kept by the database too',
     changes: [
@@ -26,6 +26,46 @@ export const CHANGELOG: ChangeEntry[] = [
       'PRINTED FIELD FAILURE REPORT: needs access to the Field Failure Register.',
       'DELIVERY CHALLAN AND DECLARATION can be reprinted for any stock out, however old.',
       'SIGN OUT clears the saved lists and the menu counts from the device, so the next person does not see them.',
+    ],
+  },
+  {
+    version: '0.10.32',
+    date: '2026-10-02',
+    title: 'Warranty and Contract registers: Export Excel with real dates',
+    changes: [
+      'NEW: ⭳ EXPORT EXCEL on the Warranty and Contract Registers (Entries and Register tabs). Dates arrive as real Excel dates (dd-MMM-yyyy), so they sort, filter by month and take any date format you choose. Serials and contract numbers stay as text, leading zeros included.',
+      'Export CSV is still there. A CSV can only hold text, so its dates are written as dd-MMM-yyyy text. Use Export Excel when you want dates Excel can work with.',
+      'FIXED: the State column on the Entries export was empty. It now carries the same Active / About to expire / Inactive the screen shows, in both files.',
+    ],
+  },
+  {
+    version: '0.10.31',
+    date: '2026-10-02',
+    title: 'Contract entry: Status worked out, years shown under the months, device copy named',
+    changes: [
+      'STATUS on a contract is now worked out and cannot be typed: Active while the end date is more than 30 days away, About to Expire within 30 days (the end date itself included), Contract Expired once it has passed. It follows the same rule as the register\'s Active / About to expire / Inactive tiles. A contract with no end date shows no status.',
+      'CONTRACT PERIOD (YEARS) is no longer a box on the form. The years now appear as a line under Period (Months), e.g. "= 1.5 years", and on the Renew panel too.',
+      'THE ENTRY WINDOW NOW SAYS WHAT THIS DEVICE HOLDS, as Call Request does: how many machines and customers are downloaded and when. Party Name already searched that copy first; now you can see how old it is.',
+    ],
+  },
+  {
+    version: '0.10.30',
+    date: '2026-10-02',
+    title: 'Contract entry: Prev MC Number is filled by Renew',
+    changes: [
+      'PREV MC NUMBER is no longer shown on the contract form. Renew this contract fills it in on the new contract with the number it was renewed from, so it cannot be mistyped. Machine History still shows it as "renewed from".',
+    ],
+  },
+  {
+    version: '0.10.29',
+    date: '2026-10-02',
+    title: 'Contract entry: party from the Product Database, period in months, required fields',
+    changes: [
+      'PARTY NAME on a contract is now picked from the Product Database: type part of the name and choose. It lists customers who own a machine on record, and a name cannot be typed in — add the machine to the Product Database first if the customer is missing.',
+      'CONTRACT START DATE opens on today for a new contract. Change it if the contract starts on another day.',
+      'TYPE THE PERIOD IN MONTHS and the rest fills in: Period (Years) and Contract End Date are worked out from the start date and the months, and can no longer be typed. PM Visits (Total) is still suggested from the period and can be changed.',
+      'FOUR FIELDS ARE NOW REQUIRED: Period (Months), PM Visits (Total), Payment Schedule and Bill Generate At. They carry a *, and Save entry names every one left blank instead of saving.',
+      'RENEW THIS CONTRACT works the same way: the new End and Years are worked out, and a renewal needs a Period (Months).',
     ],
   },
   {

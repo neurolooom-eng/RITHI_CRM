@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput, LongDateText } from '../components/ui/LongDate';
-import { sbSearchParties, sbPartyInfo } from '../lib/supabase';
+import { sbSearchParties, sbSearchProductParties, sbPartyInfo } from '../lib/supabase';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT,
          // THE VALUE TEST, not the row test. `isPinned` from ./cover takes
@@ -12,6 +12,7 @@ import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          partyFillChanges } from '../lib/coverspec';
 import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
+import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
 import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
 import { listProductLines, sellableNames, sellableCodes, retiredNames, type ProductLine } from '../lib/productLines';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
@@ -22,7 +23,7 @@ import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
   configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit,
-  raiseInstallCalls,
+  raiseInstallCalls, missingRequired, yearsHint,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
@@ -33,6 +34,7 @@ import {
 import { itemTaxAmount, totalAfterTax, upliftRate } from '../lib/coverspec';
 import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
+import { xlsxDownload, xlsxCell } from '../lib/xlsx';
 
 // ===========================================================================
 // WARRANTY / CONTRACT REGISTER — one screen, two shapes.
@@ -154,6 +156,18 @@ function FieldInput({
                          // has nothing to fill it from.
                          allowFreeText
                          emptyHint="Customers come from the Party Master. Typing a name the master has not got is allowed — nothing will be filled in for it." />;
+  }
+  // THE PRODUCT DATABASE'S CUSTOMERS, searched as you type (the user,
+  // 2026-10-02, for the Contract Register). NO free text: a contract covers
+  // machines already on record, so a name the Product Database has never
+  // heard of is not a customer this contract can cover -- it is a typo, or a
+  // machine that has to be added there first.
+  if (field.optionsFrom === 'product-party') {
+    return <SelectPicker value={value} onChange={onChange} disabled={disabled}
+                         placeholder="— find the customer —"
+                         options={value ? [value] : []}
+                         onSearch={(term) => sbSearchProductParties(term, 50)}
+                         emptyHint="Customers come from the Product Database — whoever owns a machine on record. Type more of the name to narrow the list." />;
   }
   if (field.type === 'bool') {
     return <SelectPicker value={value} onChange={onChange} disabled={disabled} placeholder="—"
@@ -446,23 +460,22 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
           {/* dd-MMM-yyyy at rest, the native picker while editing (FRS-089.1, D-064). */}
           <LongDateInput value={d.contract_start} onChange={(v) => reperiodMonths(v, d.contract_months)} />
         </label>
+        {/* WORKED OUT, NOT TYPED, as on the contract form itself (the user,
+            2026-10-02): the end is the start plus the months, and the years
+            are the months divided by twelve. */}
         <label className="rep-field">
-          <span className="field-label">End</span>
-          <LongDateInput value={d.contract_end} onChange={(v) => set('contract_end', v)} />
-        </label>
-        {/* Two views of ONE period. Typing in either sets the other, so they
-            cannot disagree and cannot be added together. */}
-        <label className="rep-field">
-          <span className="field-label">Period (Years)</span>
-          <input className="input" type="number" min={0} step="0.5" value={d.contract_years ?? ''}
-                 onChange={(e) => reperiodMonths(d.contract_start,
-                   e.target.value === '' ? null : Number(e.target.value) * 12)} />
+          <span className="field-label">End <span className="muted">· from Start + Period (months)</span></span>
+          <LongDateText value={d.contract_end} />
         </label>
         <label className="rep-field">
-          <span className="field-label">Period (Months)</span>
+          <span className="field-label">Period (Months) *</span>
           <input className="input" type="number" min={0} value={d.contract_months ?? ''}
                  onChange={(e) => reperiodMonths(d.contract_start,
                    e.target.value === '' ? null : Number(e.target.value))} />
+          {/* The years, as a line rather than a box (2026-10-02). */}
+          {yearsHint(d as unknown as Row, 'contract_months') && (
+            <span className="muted rep-hint">{yearsHint(d as unknown as Row, 'contract_months')}</span>
+          )}
         </label>
       </div>
 
@@ -626,7 +639,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     // was installed on another day (the user, 2026-09-22). The ENTRY date is
     // not set here at all: the database stamps it (0230), which is what
     // "automatic" has to mean if it is to be trusted.
-    setDraft(kind === 'sale' ? { warranty_start: todayLocal() } : {});
+    // CONTRACT START DEFAULTS TO TODAY as well (the user, 2026-10-02), typed
+    // over for a contract that starts on another day.
+    setDraft(kind === 'sale' ? { warranty_start: todayLocal() } : { contract_start: todayLocal() });
     try {
       const n = await nextCoverNumber(kind);
       setDraft((d) => (str(d[cfg.key]) ? d : { ...d, [cfg.key]: n }));
@@ -816,6 +831,13 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   };
 
   const saveEntry = async () => {
+    // EVERY BLANK REQUIRED FIELD NAMED AT ONCE, before anything is written --
+    // one at a time would be a round trip per field.
+    const missing = missingRequired(cfg.headerFields, draft);
+    if (missing.length) {
+      setMsg({ tone: 'error', text: `Fill in ${missing.join(', ')} before saving — ${missing.length === 1 ? 'it is' : 'they are'} required.` });
+      return;
+    }
     setSaving(true);
     try {
       // THE ENTRY DATE IS STAMPED ON CREATION, never typed (the user,
@@ -1066,7 +1088,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     ) },
   ];
 
-  const sections = [...new Set(cfg.headerFields.map((f) => f.section))];
+  // A HIDDEN field is written by the code, never shown (Prev MC Number).
+  const shownHeader = cfg.headerFields.filter((f) => !f.hidden);
+  const sections = [...new Set(shownHeader.map((f) => f.section))];
 
   // AN ENTRY OPENS AS A POP-UP (the user, 2026-10-02: "When I click on the
   // Entry, the Entry should open in a Pop Up Window with 2 Screens - Left Side
@@ -1121,15 +1145,15 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     <div key={sec} style={{ marginBottom: 10 }}>
       <div className="field-label" style={{ opacity: 0.75 }}>{sec}</div>
       <div className="rep-grid">
-        {cfg.headerFields.filter((f) => f.section === sec).map((f) => (
+        {shownHeader.filter((f) => f.section === sec).map((f) => (
           <label key={f.name} className="rep-field">
             <span className="field-label">
-              {f.label}
+              {f.label}{f.required && <span title="Required"> *</span>}
               {f.derived && <span className="muted"> · from {f.derived}</span>}
               {kind === 'sale' && SALE_PARTY_FIELDS.includes(f.name)
                 && <span className="muted"> · from the party</span>}
             </span>
-            <FieldInput field={f} value={fromDb(f, draft[f.name])} disabled={!canEdit}
+            <FieldInput field={f} value={f.compute ? f.compute(draft) : fromDb(f, draft[f.name])} disabled={!canEdit}
               onChange={(v) => {
                 setDraft((d) => {
                   // The register's own arithmetic, from the AppSheet
@@ -1147,6 +1171,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 });
                 if (kind === 'sale' && f.name === 'party_name') void fillFromParty(v);
               }} />
+            {f.hint && f.hint(draft) && <span className="muted rep-hint">{f.hint(draft)}</span>}
           </label>
         ))}
       </div>
@@ -1300,6 +1325,12 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 screen of contract fields. */}
             {renewPanel && <div style={{ marginBottom: 14 }}>{renewPanel}</div>}
             <div className="cover-pop-col-head">{cfg.keyLabel} details</div>
+            {/* WHAT THIS DEVICE HOLDS, as on Call Request (the user,
+                2026-10-02). Party Name searches the copy on the device first --
+                the machine register for a contract, the Party Master for a
+                sale -- both downloaded at sign-in by Layout and refreshed every
+                six hours; this line says how old that copy is. */}
+            <MachineRegisterNote />
             {entryNote}
             {entryFields}
           </div>
@@ -1311,6 +1342,42 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       </div>
     </div>
   ) : null;
+
+  // ===========================================================================
+  // EXPORT: THE SAME COLUMNS AS THE TABLE, TWO FILES.
+  //
+  // The user, 2026-10-02: "During Export, it has to be a Excel Compatible Date
+  // Field". A CSV can carry only text, so its dates are dd-MMM-yyyy STRINGS,
+  // and whether Excel turns those back into dates on opening depends on the
+  // reader's regional settings. The .xlsx carries each date as a serial plus a
+  // date format (xlsxCell) -- a real date, sortable and filterable by month --
+  // and leaves a code or a serial as text.
+  //
+  // ONE SOURCE FOR BOTH FILES. A column drawn by `render` and stored nowhere
+  // (the entry's State) used to export EMPTY, because the CSV read the row's
+  // key and the row has no such key. It is worked out here, the way the table
+  // works it out, so a file and the screen say the same thing.
+  // ===========================================================================
+  const exportValue = (r: Row, key: string): unknown => {
+    if (key === 'status_now') return stateOf(str(r[cfg.endColumn]));
+    if (key === 'overridden') return Array.isArray(r.overridden) ? r.overridden.join(', ') : '';
+    return r[key];
+  };
+  const exportCols = (cols: Column<Row>[]) =>
+    cols.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header }));
+  const exportCsv = (name: string, cols: Column<Row>[], data: Row[], more: boolean) => {
+    const ec = exportCols(cols);
+    csvExport(`${name}.csv`, ec,
+      data.map((r) => Object.fromEntries(ec.map((c) => [c.key, exportValue(r, c.key)]))), partial(more));
+  };
+  const exportXlsx = (name: string, sheet: string, cols: Column<Row>[], data: Row[], more: boolean) => {
+    const ec = exportCols(cols);
+    xlsxDownload(`${name}.xlsx`, [{
+      name: sheet,
+      columns: ec.map((c) => c.header),
+      rows: data.map((r) => Object.fromEntries(ec.map((c) => [c.header, xlsxCell(exportValue(r, c.key))]))),
+    }], partial(more));
+  };
 
   const entriesTable = (
         <DataTable<Row>
@@ -1337,7 +1404,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 <button className="btn btn-sm btn-primary" onClick={() => void newEntry()}>+ New entry</button>
               )}
               {rows.length > 0 && (
-                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-entries.csv`, headerColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), rows, partial(feeds.entries.more))}>⭳ Export CSV</button>
+                <>
+                  <button className="btn btn-sm" onClick={() => exportXlsx(`${kind}-entries`, 'Entries', headerColumns, rows, feeds.entries.more)}
+                    title="Dates arrive as Excel dates">⭳ Export Excel</button>
+                  <button className="btn btn-sm" onClick={() => exportCsv(`${kind}-entries`, headerColumns, rows, feeds.entries.more)}>⭳ Export CSV</button>
+                </>
               )}
             </Toolbar>
           }
@@ -1399,7 +1470,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
               <SearchBox value={q} onChange={setQ} placeholder="Serial, product, party…" />
               <div className="spacer" />
               {machines.length > 0 && (
-                <button className="btn btn-sm" onClick={() => csvExport(`${kind}-machines.csv`, machineColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), machines, partial(feeds.machines.more))}>⭳ Export CSV</button>
+                <>
+                  <button className="btn btn-sm" onClick={() => exportXlsx(`${kind}-register`, 'Register', machineColumns, machines, feeds.machines.more)}
+                    title="Dates arrive as Excel dates">⭳ Export Excel</button>
+                  <button className="btn btn-sm" onClick={() => exportCsv(`${kind}-register`, machineColumns, machines, feeds.machines.more)}>⭳ Export CSV</button>
+                </>
               )}
             </Toolbar>
           }

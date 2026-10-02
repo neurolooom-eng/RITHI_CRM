@@ -95,6 +95,10 @@ visits are shown and not typeable, with the period entered in MONTHS and the
 rest following — the user's instruction the same day. `cover_period_end(start,
 months)` is the database's copy; `product_database_v2` prefers the derived end
 wherever both are known and falls back to the register's stored end otherwise.
+**And on the CONTRACT form since 2026-10-02** (FRS-220): the Contract End Date
+and Period (Years) are worked out from the start and the Period (Months) and
+are not typeable, on the entry and on the Renew panel. The earlier allowance for
+an end typed for a part-month contract is withdrawn with it.
 
 **CW-005 — The end of a period is computed the same way everywhere.**
 *§4.2.5.* One arithmetic, one answer.

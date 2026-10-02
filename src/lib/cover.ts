@@ -16,7 +16,7 @@ import { getSupabase, addCall } from './supabase';
 import { dayAfter, addPeriod, todayLocal } from './dates';
 import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears,
          inheritAllPatch, isPinnedValue, installCallFromSale, machinesNeedingInstallCall,
-         type SaleForCall, type SaleItemForCall } from './coverspec';
+         coverStatus, type SaleForCall, type SaleItemForCall } from './coverspec';
 
 export type CoverKind = 'sale' | 'contract';
 
@@ -32,8 +32,12 @@ export interface CoverField {
    *  the machine it covers was sold when the line was current. */
   /**  `party` is the PARTY MASTER, searched on the server rather than
    *  downloaded: 5,873 customers is a few hundred KB before the field would
-   *  work at all, and the same box on the call registers already searches. */
-  optionsFrom?: 'sellable-name' | 'sellable-code' | 'party';
+   *  work at all, and the same box on the call registers already searches.
+   *  `product-party` is the PRODUCT DATABASE's customers -- whoever owns a
+   *  machine on record (the user, 2026-10-02, for the Contract Register: a
+   *  contract covers machines already installed, so its party is one that
+   *  owns them). Picked from the list, never typed. */
+  optionsFrom?: 'sellable-name' | 'sellable-code' | 'party' | 'product-party';
   section: string;
   /** THE FORM DOES NOT ASK FOR THIS ONE — it is worked out, or it is stamped.
    *  Shown, and not typeable: a box somebody can type into is a box whose value
@@ -42,6 +46,58 @@ export interface CoverField {
   derived?: string;
   /** On an item: this field inherits from the header unless it is pinned. */
   inherits?: boolean;
+  /** THE FORM REFUSES TO SAVE THE ENTRY WITHOUT IT. Checked by
+   *  `missingRequired()` before the write, so the refusal names every blank
+   *  field at once. Deliberately not a database rule: the registers are also
+   *  loaded from the superseded system's exports, where these columns are
+   *  often blank, and a NOT NULL would refuse that history. */
+  required?: boolean;
+  /** NOT SHOWN ON THE FORM, but still a column the entry may write -- the
+   *  field list is also the save's whitelist (`writable` below), so removing a
+   *  field would stop it being written at all. Set by the code instead: Prev
+   *  MC Number is written by Renew this contract (the user, 2026-10-02:
+   *  "Prev MC Number - Hide it -> Auto Populate this when I use the Renew
+   *  Contract Button"). */
+  hidden?: boolean;
+  /** WORKED OUT ON THE SCREEN FROM THE REST OF THE ROW, never stored by the
+   *  form -- for a value that depends on TODAY, which a stored copy would get
+   *  wrong by tomorrow. Shown read-only in place of the stored column. */
+  compute?: (row: Row) => string;
+  /** A short line under the field, worked out from the row (e.g. the years a
+   *  number of months comes to), for a value not worth a box of its own. */
+  hint?: (row: Row) => string;
+}
+
+/** A contract's status in the user's words (2026-10-02): "Active" more than
+ *  30 days before the end date, "About to Expire" within 30 days of it
+ *  (the end date itself included), "Contract Expired" once today is past it.
+ *  THE RULE IS coverStatus -- the one the register's tiles and the SQL's
+ *  cover_state() use -- so the form cannot disagree with the list; only the
+ *  words are this field's. No end date is no status, never "Active". */
+export function contractStatusText(row: Row): string {
+  const s = coverStatus(row.contract_end);
+  return s === 'ACTIVE' ? 'Active'
+    : s === 'ABOUT TO EXPIRE' ? 'About to Expire'
+    : s === 'INACTIVE' ? 'Contract Expired'
+    : '';
+}
+
+/** "= 2 years" under a period typed in months. */
+export function yearsHint(row: Row, field: string): string {
+  const y = periodYears(row[field]);
+  if (y == null) return '';
+  // 7 months is 0.58 years on screen, not 0.5833333333 -- the stored value
+  // keeps its precision; only the reading is rounded.
+  const r = Math.round(y * 100) / 100;
+  return `= ${r} year${r === 1 ? '' : 's'}`;
+}
+
+/** The labels of the required header fields this row leaves blank. */
+export function missingRequired(fields: CoverField[], row: Row): string[] {
+  return fields
+    .filter((f) => f.required && !f.derived && !f.hidden)
+    .filter((f) => { const v = row[f.name]; return v == null || String(v).trim() === ''; })
+    .map((f) => f.label);
 }
 
 export interface CoverConfig {
@@ -164,24 +220,48 @@ export const CONTRACT: CoverConfig = {
   headerFields: [
     { name: 'mc_number', label: 'MC Number', section: 'Contract' },
     { name: 'entry_at', label: 'Contract Entry Date', type: 'date', section: 'Contract' },
-    { name: 'party_name', label: 'Party Name', section: 'Contract' },
+    // FROM THE PRODUCT DATABASE, TYPE TO SEARCH (the user, 2026-10-02). A
+    // contract covers machines already installed, so its customer is one who
+    // owns them.
+    { name: 'party_name', label: 'Party Name', section: 'Contract', optionsFrom: 'product-party' },
     { name: 'contract_type', label: 'Contract Type', type: 'select', options: ['', 'CMC', 'AMC'], section: 'Contract' },
-    { name: 'prev_mc_number', label: 'Prev MC Number', section: 'Contract' },
-    { name: 'status', label: 'Status (as keyed)', section: 'Contract' },
+    // HIDDEN, AND FILLED BY RENEW (renewContract sets it to the contract being
+    // renewed). Still read by Machine History ("renewed from …") and still
+    // loaded from the old system's exports.
+    { name: 'prev_mc_number', label: 'Prev MC Number', section: 'Contract', hidden: true },
+    // WORKED OUT FROM THE END DATE AND TODAY (the user, 2026-10-02), not typed.
+    // The stored column keeps whatever the old system's export carried; the
+    // form shows the computed status in its place and never writes it, since a
+    // status stored today is wrong the day the 30-day line is crossed.
+    { name: 'status', label: 'Status', section: 'Contract',
+      derived: 'the Contract End Date and today', compute: contractStatusText },
+    // THE PERIOD IS ENTERED IN MONTHS AND THE REST FOLLOWS, as on the
+    // Warranty Register (the user, 2026-10-02: "Contract Start Date can
+    // Default to Today, Contract Period (Months) is Mandatory. Contract Period
+    // Years is Auto Calculated, Contract End Date is also Auto Calculate based
+    // on the Contract Start Date + Period in Months"). `deriveHeader` already
+    // computed both; the form now stops inviting anybody to type over them.
     { name: 'contract_start', label: 'Contract Start Date', type: 'date', section: 'Period' },
-    { name: 'contract_end', label: 'Contract End Date', type: 'date', section: 'Period' },
-    { name: 'contract_years', label: 'Contract Period (Years)', type: 'number', section: 'Period' },
-    { name: 'contract_months', label: 'Contract Period (Months)', type: 'number', section: 'Period' },
-    { name: 'pm_visits_total', label: 'PM Visits (Total)', type: 'number', section: 'Period' },
+    { name: 'contract_months', label: 'Contract Period (Months)', type: 'number', section: 'Period', required: true,
+      hint: (r) => yearsHint(r, 'contract_months') },
+    // HIDDEN, AND STILL WRITTEN (the user, 2026-10-02: "hide this ... since it
+    // is a Calculated Field"). `deriveHeader` keeps it equal to months / 12 and
+    // the save writes it; the years show as a line under the months instead.
+    { name: 'contract_years', label: 'Contract Period (Years)', type: 'number', section: 'Period',
+      derived: 'the months', hidden: true },
+    { name: 'contract_end', label: 'Contract End Date', type: 'date', section: 'Period',
+      derived: 'Contract Start + Period (months)' },
+    // Suggested from the period and still typeable (FRS-090), now required.
+    { name: 'pm_visits_total', label: 'PM Visits (Total)', type: 'number', section: 'Period', required: true },
     // MONTHLY IS ON THE SHEET AND WAS MISSING HERE. ContractEntry_Schema col 5
     // lists Yearly / Half Yearly / Quarterly / Monthly; three of the four were
     // transcribed. The field takes no fallback, so a monthly contract could not
     // be keyed at all — and an import carrying "Monthly" would show a value the
     // form cannot re-select.
     { name: 'payment_schedule', label: 'Payment Schedule', type: 'select',
-      options: ['', 'Yearly', 'Half Yearly', 'Quarterly', 'Monthly'], section: 'Billing' },
+      options: ['', 'Yearly', 'Half Yearly', 'Quarterly', 'Monthly'], section: 'Billing', required: true },
     { name: 'bill_generate_at', label: 'Bill Generate At', type: 'select',
-      options: ['', 'Beginning Of Period', 'End Of Period'], section: 'Billing' },
+      options: ['', 'Beginning Of Period', 'End Of Period'], section: 'Billing', required: true },
   ],
   itemFields: [
     { name: 'product_code', label: 'Product Code', section: 'Machine' },
@@ -569,6 +649,11 @@ export async function renewContract(
     throw new Error(`MC Number ${mc} already exists. Renewing into it would merge two contracts.`);
   }
   if (!d.contract_start) throw new Error('The new contract needs a start date.');
+  // THE PERIOD IN MONTHS IS REQUIRED, as on the contract form (2026-10-02):
+  // without it there is no end date to work out, and the end is no longer typed.
+  if (d.contract_months == null || !(d.contract_months > 0)) {
+    throw new Error('Give the new contract its Period (Months) — the end date is worked out from it.');
+  }
   if (!d.serials.length) throw new Error('Tick at least one machine to carry over.');
 
   // EVERY RATE IS CHECKED BEFORE ANYTHING IS WRITTEN. The header goes in first
