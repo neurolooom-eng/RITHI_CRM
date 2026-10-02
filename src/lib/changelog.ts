@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.22',
+    date: '2026-10-02',
+    title: 'Software Validation Package Rev 3.1',
+    changes: [
+      'THE VALIDATION PACKAGE IS AT REV 3.1 (Software Validation). It now covers everything shipped since Rev 3.0: Part Search, the top-bar search, the HSN Code, My Profile tabs and My Team, and Technical Notes (bulk load, Drive dates, several products, offered on calls). Each has its requirement and its test.',
+      'IT RECORDS WHAT THAT WORK FOUND. Renames left stock adjustments behind. The right to rename a part was not enough for a part on another engineer\'s request or on a material return. The database update tool hid what an update reported. All three are fixed and recorded as defects, with one finding left open as a decision.',
+      'Rev 3.0\'s own entry, the page-by-page review of every action, is now in the package history. The package version had stayed at 2.5.',
+      'FIXED: when the database update tool runs, it now shows what each update reported, such as how many records it changed or skipped. Before, it said only "applied".',
+    ],
+  },
+  {
     version: '0.10.21',
     date: '2026-10-01',
     title: 'HSN clean-up finished; renaming a part works for more people',

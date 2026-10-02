@@ -230,6 +230,17 @@ Also a provision to map the Complaint to all Products."*
   0255 is applied by the migrations workflow on merge (the live project is
   baselined) -- confirm the "Apply database migrations" run logs it applied.
   ✅ **Phase 2 built in 0.10.1** (below).
+- ✅ **0.10.22 — Software Validation Package Rev 3.1.** VAL_META 2.5 → 3.1;
+  revision history gains Rev 3.0 (never written into it) and Rev 3.1. New:
+  OQ-213 (HSN + rename, auto), OQ-214 (My Profile tabs / My Team), OQ-215
+  (Technical Notes, auto); FRS-035 states the notes bulk load (0272 — shipped
+  stated nowhere); FRS-213.8 is the global search; FRS-214.1, R-104 and FM-93
+  name users.manage.settings. Defects D-076..D-080 (D-078, the NULL-widening
+  parts rule with no user, left OPEN as a decision); R-105, R-106, FM-94.
+  `docs/CAPABILITY_INVENTORY.md` gains a Rev 3.1 addendum (14 capabilities).
+  Coverage: 0 of 65 screens and 0 of 171 actions unnamed. Also fixed (D-079):
+  `scripts/apply-migrations.mjs` printed "applied" and dropped the migration's
+  NOTICEs; it now prints them. validate: 124/124 suites, 22/22 checks.
 - ✅ **0.10.21 — HSN clean-up finished; rename passes the line and return
   guards.** 0309 on live filled all 29 HSN codes but cleaned only 12
   descriptions (read back with `_part_hsn.sql`; the workflow does not print a

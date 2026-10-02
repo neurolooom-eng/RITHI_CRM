@@ -50,7 +50,7 @@
 // ===========================================================================
 
 import { readdirSync, readFileSync, writeSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
@@ -137,11 +137,21 @@ const psql = (sql, { quiet = true } = {}) => execFileSync(
   { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: process.env },
 );
 
-const psqlFile = (file) => execFileSync(
-  'psql',
-  [url, '-v', 'ON_ERROR_STOP=1', '-f', file],
-  { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: process.env },
-);
+// KEEPS stderr ON SUCCESS TOO. Postgres writes a migration's NOTICEs there, and
+// execFileSync drops stderr unless the command fails -- so 0309's one-time fill
+// reported "Left as they were: <17 parts>" to nobody, and the run read
+// "applied" while 17 of 29 renames had been refused (2026-10-01). The caller
+// prints the NOTICE / WARNING lines under the file's name.
+const psqlFile = (file) => {
+  const r = spawnSync('psql', [url, '-v', 'ON_ERROR_STOP=1', '-f', file],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: process.env });
+  if (r.status !== 0) {
+    const e = new Error(r.error ? String(r.error) : `psql exited ${r.status}`);
+    e.stdout = r.stdout; e.stderr = r.stderr;
+    throw e;
+  }
+  return r;
+};
 
 // Anything psql prints can carry the connection string in an error line, so it
 // is scrubbed before it reaches a log.
@@ -326,8 +336,12 @@ try {
     const { writeFileSync } = await import('node:fs');
     writeFileSync(wrapped, sql);
     try {
-      psqlFile(wrapped);
+      const r = psqlFile(wrapped);
       console.log('applied');
+      // What the migration SAID while it ran -- counts, things it skipped.
+      scrub(r.stderr || '').split('\n')
+        .filter((l) => /\b(NOTICE|WARNING):/.test(l))
+        .forEach((l) => console.log(`      ${l.replace(/^psql:[^:]*:\d+:\s*/, '')}`));
     } catch (e) {
       console.log('FAILED');
       const out = scrub(e.stdout) + scrub(e.stderr);
