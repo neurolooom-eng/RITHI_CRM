@@ -9780,7 +9780,8 @@ console.log('\n-- data flows name real screens, requirements and tests --');
     /key: 'flows', label: 'Data Flows'/.test(sv) && /<FlowGallery printAll=\{all\} \/>/.test(sv), true);
   eq('...and no two tabs share a key',
     [...sv.matchAll(/\{ key: '([a-z]+)', label:/g)].map((m) => m[1]).filter((k, i, a) => a.indexOf(k) !== i), []);
-  eq('How RITHI Functions shows the same flows', /<FlowGallery \/>/.test(readFileSync('src/modules/HowRithiFunctions.tsx', 'utf8')), true);
+  // It may open on a named flow (the module guide's chips, 2026-10-02).
+  eq('How RITHI Functions shows the same flows', /<FlowGallery( pick=\{flowPick\})? \/>/.test(readFileSync('src/modules/HowRithiFunctions.tsx', 'utf8')), true);
 }
 
 console.log('\n-- Part Search is read only, for everyone (2026-10-01) --');

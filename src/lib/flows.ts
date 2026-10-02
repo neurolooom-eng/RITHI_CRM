@@ -23,7 +23,10 @@
 // Nothing else is needed — the layout is computed.
 // ---------------------------------------------------------------------------
 
-export type FlowArea = 'call' | 'spare' | 'stock' | 'quality' | 'cover' | 'master' | 'report';
+// 'doc' (documents, training, knowledge) and 'admin' (people, permissions,
+// loads, the audit trail) joined on 2026-10-02 with the flows for every
+// workflow.
+export type FlowArea = 'call' | 'spare' | 'stock' | 'quality' | 'cover' | 'master' | 'report' | 'doc' | 'admin';
 
 export interface FlowStep {
   id: string;

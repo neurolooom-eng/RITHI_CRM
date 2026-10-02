@@ -25,6 +25,8 @@
 .fl-cover .fl-stripe, .fl-key.fl-cover { fill: #059669; background: #059669; }
 .fl-master .fl-stripe, .fl-key.fl-master { fill: #64748b; background: #64748b; }
 .fl-report .fl-stripe, .fl-key.fl-report { fill: #0891b2; background: #0891b2; }
+.fl-doc .fl-stripe, .fl-key.fl-doc { fill: #db2777; background: #db2777; }
+.fl-admin .fl-stripe, .fl-key.fl-admin { fill: #4f46e5; background: #4f46e5; }
 .fl-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; vertical-align: -1px; }
 
 .fl-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
@@ -39,8 +41,26 @@
 .fl-legend { font-size: 12px; margin-top: 4px; }
 .fl-table { margin-top: 10px; }
 
+/* ▶ PLAY. Steps not reached yet wait faded; played steps stay as they are; the
+   current one is lifted by .fl-on (contrast). The arrows into the current step
+   run -- the dash moves toward it -- unless reduced motion is asked for. */
+.fl-player { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; }
+.fl-player-pos { font-size: 12.5px; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.fl-node { transition: opacity .35s ease; }
+.fl-walking .fl-node.fl-later { opacity: .28; }
+.fl-walking .fl-edge-dim { opacity: .25; }
+.fl-walking .fl-node.fl-on .fl-box { stroke-width: 2.5; }
+.fl-edge-live { stroke: var(--text); stroke-width: 2.4; stroke-dasharray: 7 5; animation: fl-run 0.9s linear infinite; }
+.fl-arrowhead-live { fill: var(--text); }
+@keyframes fl-run { to { stroke-dashoffset: -24; } }
+.fl-still .fl-edge-live, .fl-still .fl-node { animation: none; transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .fl-edge-live { animation: none; }
+  .fl-node { transition: none; }
+}
+
 @media print {
   .fl-scroll { overflow: visible; border: 0; background: none; }
   .fl-svg { max-width: 100%; height: auto; }
-  .fl-chips { display: none; }
+  .fl-chips, .fl-player { display: none; }
 }

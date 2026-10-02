@@ -1,0 +1,32 @@
+/* How every module works (ModuleGuide.tsx). A reference page that is scanned:
+   menu groups as headings, one block per screen, the two lists side by side
+   and stacking on a narrow screen. Theme tokens only. */
+.mg-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 2px 0 10px; }
+.mg-search { flex: 1 1 320px; max-width: 520px; }
+.mg-jump { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.mg-jump .chip { text-decoration: none; }
+.mg-group { margin-top: 18px; }
+.mg-group-h {
+  font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin: 0 0 4px;
+}
+.mg-item { padding: 14px 2px 16px; border-bottom: 1px solid var(--border); }
+.mg-item-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mg-item-h h3 { margin: 0; font-size: 16.5px; flex: 1 1 auto; }
+.mg-icon { font-size: 18px; width: 24px; text-align: center; }
+.mg-purpose { margin: 6px 0 8px; max-width: 80ch; line-height: 1.5; }
+.mg-cols { display: grid; gap: 8px 22px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.mg-cols h4 {
+  margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.mg-cols ul { margin: 0; padding-left: 18px; }
+.mg-cols li { margin: 2px 0; font-size: 13.5px; line-height: 1.45; }
+.mg-rules li::marker { color: var(--danger, #d32f2f); }
+.mg-meta { margin: 8px 0 0; font-size: 12.5px; color: var(--text-muted); }
+.mg-meta code { font-size: 12px; }
+.mg-flows { margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; color: var(--text-muted); }
+@media print {
+  .mg-bar, .mg-jump, .mg-item-h .btn, .mg-flows { display: none; }
+  .mg-item { break-inside: avoid; }
+}
