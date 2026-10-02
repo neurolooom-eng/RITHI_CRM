@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.44',
+    date: '2026-10-02',
+    title: 'Pending Registrations: filter by Call Type',
+    changes: [
+      'PENDING REGISTRATIONS: clickable Call Type chips at the top, each with its count. Click one to show only that type, or All to show every request. The counts follow the search.',
+    ],
+  },
+  {
     version: '0.10.43',
     date: '2026-10-02',
     title: 'Indoor_DC, and the MTN and MRN printed',

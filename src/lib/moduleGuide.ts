@@ -381,6 +381,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'The Hotline queue of requests with no UCN. Registering one issues the UCN and files the call.',
     does: [
       'See every pending request and whether its machine already has an open call',
+      'Filter by Call Type with the chips at the top, each with its count',
       'Map a request to an existing call by its UCN',
       'Create the new call from the request, already filled in',
       'Cancel a request with a reason',
