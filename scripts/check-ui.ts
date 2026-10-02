@@ -9833,5 +9833,25 @@ console.log('\n-- the header search finds records and opens each on its own scre
     && /state as \{ product\?: string; serial\?: string \}/.test(readFileSync('src/modules/MachineHistory.tsx', 'utf8')), true);
 }
 
+console.log('\n-- How RITHI Functions explains every screen in the menu (2026-10-02) --');
+{
+  // The menu, read from Layout.tsx's NAV (a .tsx with a stylesheet, so it is
+  // read as text rather than imported) plus the value-list pages it adds.
+  const lay = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+  const navBlock = lay.slice(lay.indexOf('export const NAV'), lay.indexOf('\n];', lay.indexOf('export const NAV')));
+  const { MASTER_LISTS, masterListPath } = await import('../src/modules/masterLists');
+  const menu = [
+    ...[...navBlock.matchAll(/\{ to: '([^']+)'/g)].map((m) => m[1]),
+    ...MASTER_LISTS.map((l) => masterListPath(l.key)),
+  ];
+  const { MODULE_GUIDE } = await import('../src/lib/moduleGuide');
+  const guide = new Set(MODULE_GUIDE.map((e) => e.route));
+  eq('every screen in the menu has a guide entry', menu.filter((r) => !guide.has(r)), []);
+  eq('...and every guide entry is a screen in the menu', [...guide].filter((r) => !menu.includes(r)), []);
+  eq('...each said once', MODULE_GUIDE.length, guide.size);
+  eq('...and each says what the screen is for, what is done there and what it refuses',
+    MODULE_GUIDE.filter((e) => !e.purpose.trim() || !e.does.length || !e.rules.length).map((e) => e.route), []);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

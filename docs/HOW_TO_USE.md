@@ -1119,8 +1119,9 @@ typed into a form that reads it.
 - **Admin Config** `/admin-config` — the settings the rules read: the SLA
   targets, the Call Registration desk, the frequent-failure window and threshold,
   the objective cut-offs and their lock, audit mode. The SLA targets, the desk
-  and the frequent-failure rule are open to anybody given *Admin config*; Audit
-  Mode and the Data Import panel are an administrator's. **While Audit Mode is
+  and the frequent-failure rule are open to anybody given *Admin config*;
+  switching Audit Mode and the Data Import panel each have their own tick on
+  Roles & Permissions (*audit.mode*, *import.panel*). **While Audit Mode is
   ON** a call's Update Party Details and Update Product Details are hidden (and
   refused).
 - **Software Validation** `/software-validation` — the ISO 13485 §4.1.6 package:
