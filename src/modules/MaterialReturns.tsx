@@ -1,3 +1,4 @@
+import { logAudit } from '../lib/audit';
 import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
@@ -369,6 +370,11 @@ function MrnDrawer({
         },
         lines,
       );
+      // A STOCK MOVEMENT IS AUDITED (D-051), as dispatch, drop and
+      // consumption are. The database images the rows too (0314).
+      logAudit({ action: 'material.return', target: mrnNo.trim() || res.uid || '',
+                 status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error,
+                 meta: { engineer: engineer.trim(), lines: lines.length, uid: res.uid ?? '' } });
       if (res.ok) { onSaved(res.uid ?? ''); onClose(); }
       else setErr(res.error ?? 'Could not record the return.');
     } catch (e) {

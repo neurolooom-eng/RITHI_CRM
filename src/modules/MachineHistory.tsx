@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { supabaseConfigured, sbListProductNames, sbListProductSerials } from '../lib/supabase';
-import { machineHistory, machineNow, type MachineEvent, type MachineNow } from '../lib/machineHistory';
+import { machineHistory, machineNow, type MachineEvent, type MachineHistory, type MachineNow } from '../lib/machineHistory';
 // ONE RENDERING OF A MACHINE'S LIFE, shared with the pop-up the Daily
 // Complaint Review Register opens. A second copy would drift, and the drift
 // would be invisible -- both would look perfectly reasonable.
@@ -47,6 +47,7 @@ export function MachineHistory() {
   const [only, setOnly] = useState<MachineEvent['source'] | ''>('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [unread, setUnread] = useState<MachineHistory['unread']>([]);
 
   // ARRIVING FROM A MACHINE SOMEWHERE ELSE (Product Database 2.0 links every
   // row here). IT CANNOT SET BOTH BOXES AT ONCE: choosing a product CLEARS the
@@ -101,16 +102,16 @@ export function MachineHistory() {
 
   const look = async () => {
     if (!product || !serial) return;
-    setBusy(true); setMsg(''); setEvents(null); setNow(null);
+    setBusy(true); setMsg(''); setEvents(null); setNow(null); setUnread([]);
     try {
       const [n, e] = await Promise.all([
         machineNow(product, serial),
         machineHistory(product, serial),
       ]);
-      setNow(n); setEvents(e);
-      if (!n && !e.length) setMsg('Nothing anywhere mentions this machine.');
+      setNow(n); setEvents(e.events); setUnread(e.unread);
+      if (!n && !e.events.length && !e.unread.length) setMsg('Nothing anywhere mentions this machine.');
       logAudit({ action: 'machine.history', target: `${product} ${serial}`,
-                 meta: { events: e.length, onMaster: !!n?.onMaster } });
+                 meta: { events: e.events.length, onMaster: !!n?.onMaster, unread: e.unread.map((u) => u.source) } });
     } catch (err) {
       setMsg(err instanceof Error ? err.message : String(err));
     } finally { setBusy(false); }
@@ -121,7 +122,7 @@ export function MachineHistory() {
       <PageHeader
         title="Machine History" icon="🔎"
         subtitle="One machine — where it is now, and everything ever recorded against it."
-        count={events ? events.length : undefined} countMore={false}
+        count={events ? events.length : undefined} countMore={unread.length > 0}
       />
       {!live && (
         <div className="sheet-banner sheet-banner-error">
@@ -162,7 +163,7 @@ export function MachineHistory() {
         </div>
       </SectionCard>
 
-      <MachineHistoryView product={product} serial={serial} now={now} events={events} />
+      <MachineHistoryView product={product} serial={serial} now={now} events={events} unread={unread} />
     </div>
   );
 }

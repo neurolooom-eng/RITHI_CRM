@@ -14,11 +14,27 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     version: '0.10.36',
     date: '2026-10-02',
-    title: 'Spares: three faults fixed',
+    title: 'Spares: two faults fixed',
     changes: [
       'FIXED: ticking spares and approving them on RM Approval now sends each one where the single Approve button would. A warranty (WGP) spare goes straight to Stores, a HandStock spare to NSM, and an AMC or OGP spare to Commercial. Before this, every ticked spare waited at Commercial. Spares already waiting there are not moved: the read-only check _spares_waiting_at_commercial_by_mistake.sql lists them.',
       'FIXED: a consumption line that is corrected or voided keeps its original quantity again, and when it was adjusted.',
-      'FIXED: raising the quantity on a consumption line failed with an error. It is now checked against the engineer\'s hand stock again, and refused only when the stock is not there.',
+    ],
+  },
+  {
+    version: '0.10.35',
+    date: '2026-10-02',
+    title: 'Rules the screens kept, now kept by the database too',
+    changes: [
+      'CANCEL CALL: only an Unattended or Unsolved call can be cancelled, however it is asked for. The Cancel button already worked this way; the database now refuses a Solved or Re-opened call too.',
+      'A REASON IS REQUIRED to reject a spare, drop a spare or move a spare request to another engineer — on every path, not just the bulk one. Pending Dispatch no longer drops spares when the reason box is left empty, and the Change engineer form marks Why as required.',
+      'SPARE CONSUMPTION: who booked a reconciliation line and who adjusted a line is the person signed in, whatever the screen sends.',
+      'FIXED: raising a consumption line’s quantity (for example correcting 1 to 2) failed with “function does not exist”. It works again, and is still capped at what the engineer has in hand.',
+      'MACHINE HISTORY reads every record of the machine, not the first 50–500 of each kind. If one kind of record cannot be read, it says which and why instead of showing it as empty.',
+      'MATERIAL RETURNS, STOCK TRANSFERS, TRAINING RESULTS AND R&R PERIODS are now kept in the record audit trail, so a change shows what it replaced. Returns and transfers also appear in the Audit Log.',
+      'AUDIT LOG: a role given "View audit log" now sees it. It used to open empty for everyone but administrators.',
+      'PRINTED FIELD FAILURE REPORT: needs access to the Field Failure Register.',
+      'DELIVERY CHALLAN AND DECLARATION can be reprinted for any stock out, however old.',
+      'SIGN OUT clears the saved lists and the menu counts from the device, so the next person does not see them.',
     ],
   },
   {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { listSpareDispatches, listDispatchLines, supabaseConfigured } from '../lib/supabase';
+import { spareDispatchByNo, listDispatchLines, supabaseConfigured } from '../lib/supabase';
 import { buildDc, paginate, COMPANY, DECLARATION, type DcDocument, type DcPage } from '../lib/dc';
 import { useMySignature, signatureBelongsTo } from '../lib/signature';
 import { useAuth } from '../lib/auth';
@@ -37,10 +37,9 @@ export function DeliveryChallan() {
     let live = true;
     (async () => {
       try {
-        // The header list is RLS-scoped, so a stock out the user may not see
-        // simply is not there — no separate permission check needed.
-        const heads = await listSpareDispatches(500);
-        const head = heads.find((h) => String(h.uid) === stockOut);
+        // Read BY ITS NUMBER (D-045), RLS-scoped, so a stock out the user may
+        // not see simply is not there — no separate permission check needed.
+        const head = await spareDispatchByNo(stockOut);
         if (!head) { if (live) setErr(`Stock out ${stockOut} was not found, or you cannot view it.`); return; }
         const lines = await listDispatchLines(stockOut);
         if (live) setDoc(buildDc(head, lines));

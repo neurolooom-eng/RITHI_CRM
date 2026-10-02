@@ -28,6 +28,24 @@ export function saveCache<T = Record<string, unknown>>(key: string, rows: T[]): 
   return at;
 }
 
+/** FORGET EVERY CACHED REGISTER AT SIGN-OUT (D-070). Each holds rows read
+ *  under the signed-in person's row-level security -- up to 1,500 Audit Log
+ *  rows among them -- so they must not outlive the session on a shared device.
+ *  `rithi.sync.*` goes too: a "last synced" time with no rows behind it would
+ *  tell the next person's screen it is fresh when it has read nothing.
+ *  Preferences (theme, column widths, filters) are kept: they are the device's,
+ *  not the data's. */
+export function forgetCachedRegisters(): void {
+  try {
+    const doomed: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith(PREFIX) || k.startsWith('rithi.sync.'))) doomed.push(k);
+    }
+    for (const k of doomed) localStorage.removeItem(k);
+  } catch { /* storage unavailable: nothing was cached */ }
+}
+
 export const isStale = (at: string | undefined, ttl = SYNC_TTL_MS): boolean =>
   !at || Date.now() - new Date(at).getTime() > ttl;
 

@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0311 -- two repairs found while documenting the Spares group.
+-- 0311 / 0317 -- two repairs found while documenting the Spares group.
 --
 --   D-081  A tick-box RM approval (decide_spare_lines) writes Auto-Approved
 --          into Commercial / NSM by the same rule as the single-spare Approve:
@@ -9,8 +9,8 @@
 --          through and would prove nothing.
 --   D-082  An amended or voided consumption line keeps its original quantity
 --          and the time it was adjusted.
---   D-083  Raising a consumption line's quantity is checked against hand
---          stock again, rather than failing on a function that never existed.
+--   D-083  (fixed by 0316) raising a line is checked against hand stock, and
+--          the original quantity survives the raise too.
 --
 -- Run after _stub.sql + every migration. Only `expect ERROR` errors allowed.
 -- ===========================================================================
@@ -80,11 +80,11 @@ update public.spare_consumption set qty = 0, adjustment_reason = 'not fitted aft
 select qty, original_qty, adjusted_at is not null as adjusted_at_set
   from public.spare_consumption where ucn = 'T311-C';
 
-\echo '--- 4. D-083: raising the line again is checked against hand stock, not refused by a missing function ---'
+\echo '--- 4. raising the line again is checked against hand stock (0316) and keeps the original quantity ---'
 \echo 'expect: qty 1, original_qty still 3'
 update public.spare_consumption set qty = 1, adjustment_reason = 'fitted after all' where ucn = 'T311-C';
 select qty, original_qty from public.spare_consumption where ucn = 'T311-C';
-\echo 'expect ERROR: has 9 of P-9 in hand, so the line cannot be raised by 50'
+\echo 'expect ERROR: Only 9 left in ENG 311''s hand stock for P-9|NINE'
 update public.spare_consumption set qty = 51, adjustment_reason = 'too many' where ucn = 'T311-C';
 
 \echo '--- 5. the guard still refuses a void with no reason ---'

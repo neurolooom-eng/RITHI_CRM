@@ -339,6 +339,9 @@ const MODULES = {
       // and split keys (0286 has the parent rule). BEFORE the file below, which
       // must stay last.
       '0287_call_keys_per_register.sql',
+      // D-036: cancel_call() refuses a call that is no longer open -- the
+      // rule of the Cancel button, in the function 0108 defines and 0242 loops.
+      '0311_cancel_needs_an_open_call.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -544,6 +547,10 @@ const MODULES = {
             // AFTER 0225: the table's description says the audit is ON again,
             // where 0112 left it saying "historical, not maintained".
             '0246_record_audit_description.sql',
+            // D-051/D-062: five more tables imaged -- returns, transfers,
+            // training sessions, attendance and R&R periods. After 0225, whose
+            // triggers it copies; here, after every module that creates them.
+            '0314_record_audit_on_movements_and_training.sql',
             // The FFR register's retention trigger. HERE, not beside the table
             // in 0165: block_hard_delete() is defined in this module, which runs
             // after daily_review — check:replay caught the fresh apply failing.
@@ -630,11 +637,13 @@ const MODULES = {
     blurb: ['The audit trail: who did what, when, whether it worked and how long it',
             'took. Clients insert their own events; the identity is stamped by the',
             'database so it cannot be forged, and only admins can read it.'],
-    needs: ['profiles', 'isAdmin'],
+    needs: ['profiles', 'isAdmin', 'rbac'],
     files: ['0009_audit_log.sql', '0033_audit_retention.sql', '0047_audit_retention_compliance.sql',
             '0114_audit_mode.sql',
             // Switching Audit Mode is audit.mode. Redefines 0114 above.
-            '0307_audit_mode_key.sql'],
+            '0307_audit_mode_key.sql',
+            // D-066: audit_log admits audit.view as record_audit does (0048).
+            '0315_audit_log_read_admits_audit_view.sql'],
   },
   tracker: {
     title: 'Tracker (the shared activity list)',
@@ -845,9 +854,19 @@ const MODULES = {
             // and 0309's HSN clean-up finishes (0310). After 0309, which it
             // redefines rename_part_records() over.
             '0310_rename_passes_the_return_guard.sql',
+            // D-042: who booked a reconciliation line and who adjusted a line
+            // come from the session (the rule of 0211), in a trigger of its own
+            // beside the adjust guard rather than a re-typed copy of it.
+            '0312_consumption_people_are_stamped.sql',
+            // D-043: a rejection, a drop and a reassignment each need their
+            // reason. Redefines reassign_spare_request from 0304, so it follows it.
+            '0313_a_reason_is_required.sql',
+            // A quantity going UP called handstock_available(), which never
+            // existed. Redefines consumption_adjust_guard from 0261, so it follows it.
+            '0316_adjust_guard_reads_the_balance.sql',
             // An amended or voided consumption line keeps its original quantity
-            // and adjustment time again (0311, D-082). Redefines 0261's guard.
-            '0311_void_keeps_original_qty.sql'],
+            // and adjustment time again (0317, D-082). Redefines 0316's guard.
+            '0317_void_keeps_original_qty.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {

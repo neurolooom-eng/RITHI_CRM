@@ -57,7 +57,10 @@
 --   0289_spares_on_a_visit_rename_and_returns.sql
 --   0309_part_hsn_code.sql
 --   0310_rename_passes_the_return_guard.sql
---   0311_void_keeps_original_qty.sql
+--   0312_consumption_people_are_stamped.sql
+--   0313_a_reason_is_required.sql
+--   0316_adjust_guard_reads_the_balance.sql
+--   0317_void_keeps_original_qty.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -5118,31 +5121,220 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0311_void_keeps_original_qty.sql
+-- 0312_consumption_people_are_stamped.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0311 -- A VOIDED OR AMENDED CONSUMPTION LINE KEEPS ITS ORIGINAL QUANTITY (D-082),
---         AND A RAISED ONE IS CHECKED AGAINST HAND STOCK AGAIN (D-083)
+-- WHO BOOKED AND WHO ADJUSTED A CONSUMPTION LINE COMES FROM THE SESSION
+-- (D-042, FRS-151.5 and .7).
 --
--- consumption_adjust_guard() stamped original_qty (the quantity before the
--- first amendment) and adjusted_at (0062, 0063, 0081). 0196 -- the part
--- rename -- rewrote the function without those two lines and 0261 kept the
--- omission, so FRS-029 ("the original quantity ... retained on the row") had
--- stopped being true. Measured on a database built from every migration.
+-- addReconciliationConsumption() sent `recorded_by` from the browser and
+-- nothing replaced it (0059 added it as plain text); `adjusted_by` was stamped
+-- only when the client sent it BLANK (0062, 0063), so a supplied name won. Both
+-- are shown on the Consumption Report as the person who booked or adjusted the
+-- line -- what the reader is shown was whatever the client said. The login was
+-- always recoverable from sys_created_by / sys_updated_by (0244); these are the
+-- columns people READ. 0211 fixed the same fault for spare_dispatches.
 --
--- D-083, found by this file's own test: 0196 also replaced the hand-stock
--- cap on a RAISE with public.handstock_available(), which does not exist, so
--- raising a line's quantity failed outright. 0081's cap is put back, reading
--- handstock_balance as it did.
+-- THE RULE (0211's): where there IS a signed-in session, the name comes from
+-- it and a caller-supplied value is DISCARDED, not refused -- refusing makes an
+-- honest client fail, discarding makes a buggy one harmless. Where there is
+-- none (a migration, an administrative load) the supplied value is all there
+-- is and is kept.
 --
--- AND: the two lines go back at the end of the quantity path, where
--- 0081 had them. Everything else is 0261 verbatim, read out of a database
--- built from every migration (it carries 0259's engineer-rename exemption and
--- 0261's rename ticket, which 0081 does not). Existing lines are not
--- rewritten: what they lost is in the database change history (0225), not
--- here.
+--   insert, source = 'Reconciliation'  recorded_by := the session's name
+--   update that changes the quantity   adjusted_by := the session's name
+--   any other update                   recorded_by and adjusted_by keep
+--                                      what they were
+--
+-- A separate trigger rather than an edit to consumption_adjust_guard(): that
+-- function has been rewritten four times (0062, 0063, 0259, 0263) and carries
+-- the rename and part-rename exemptions; re-typing it to add two lines is how
+-- a rule gets dropped (0210, 0217). Named so it fires AFTER the adjust and
+-- reconcile guards, which decide whether the write happens at all, and before
+-- zz_consumption_needs_visit and zzz_sys_stamp.
 -- ===========================================================================
+
+create or replace function public.consumption_stamp_people()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare me text;
+begin
+  -- my_display_name() (0211) inlined: it lives in the spare_requests bundle,
+  -- and this one must not need another bundle to have run.
+  select coalesce(nullif(btrim(p.full_name), ''), nullif(btrim(p.email), ''))
+    into me from public.profiles p where p.id = auth.uid();
+  if me is null then return new; end if;     -- no session: keep what was sent
+
+  if tg_op = 'INSERT' then
+    if coalesce(new.source, '') = 'Reconciliation' then
+      new.recorded_by := me;
+    end if;
+    return new;
+  end if;
+
+  -- UPDATE. The booking's author never changes after the booking.
+  new.recorded_by := old.recorded_by;
+  if new.qty is distinct from old.qty then
+    new.adjusted_by := me;
+  else
+    new.adjusted_by := old.adjusted_by;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.consumption_stamp_people() from public, anon, authenticated;
+
+drop trigger if exists consumption_stamp_people on public.spare_consumption;
+create trigger consumption_stamp_people
+  before insert or update on public.spare_consumption
+  for each row execute function public.consumption_stamp_people();
+
+-- ------------------------------------------------------------------------
+-- 0313_a_reason_is_required.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A REASON THE REQUIREMENT DEMANDS CANNOT BE LEFT BLANK (D-043, URS-120,
+-- URS-035, FRS-148).
+--
+-- Three paths let one through:
+--   1. a single-line or per-order REJECTION is a direct UPDATE of
+--      spare_request_lines, and the line guard (0217) checks the permission,
+--      not the reason -- only the bulk path, decide_spare_lines() (0118),
+--      demanded one;
+--   2. Pending Dispatch's DROP sends whatever window.prompt() returned, and OK
+--      on an empty box is an empty string -- a drop with no reason;
+--   3. reassign_spare_request() defaulted p_reason to '' and the screen's Why
+--      box was optional, while URS-035 keeps every change WITH its reason.
+--
+-- THE RULE: a line moving INTO Rejected at any stage needs `reject_reason`; a
+-- line moving INTO Dropped needs `dispatch_remarks` (where the drop's reason
+-- is written, by decide_spare_lines() and the screen alike); a reassignment
+-- needs p_reason. Only a CHANGE is tested, so a re-load that leaves a
+-- historical rejection as it was is untouched, and an insert (an imported
+-- request) is not an update. With no signed-in session (a migration, an
+-- administrative load) nothing is refused: there is nobody to ask.
+--
+-- A trigger of its own rather than a line in spare_request_lines_guard():
+-- that function was rewritten from an old copy once and lost three rules
+-- (0210, repaired by 0217), and again by 0310. Adding to it means re-typing it.
+--
+-- reassign_spare_request() below is 0304's definition read out of a database
+-- built from every migration, with one check added after the engineer's.
+-- ===========================================================================
+
+create or replace function public.spare_line_needs_a_reason()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if (   (coalesce(new.rm_approval, '')         = 'Rejected' and coalesce(old.rm_approval, '')         <> 'Rejected')
+      or (coalesce(new.commercial_approval, '') = 'Rejected' and coalesce(old.commercial_approval, '') <> 'Rejected')
+      or (coalesce(new.nsm_approval, '')        = 'Rejected' and coalesce(old.nsm_approval, '')        <> 'Rejected'))
+     and btrim(coalesce(new.reject_reason, '')) = '' then
+    raise exception 'A rejection needs a reason';
+  end if;
+  if coalesce(new.stores_status, '') = 'Dropped' and coalesce(old.stores_status, '') <> 'Dropped'
+     and btrim(coalesce(new.dispatch_remarks, '')) = '' then
+    raise exception 'A drop needs a reason';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.spare_line_needs_a_reason() from public, anon, authenticated;
+
+drop trigger if exists spare_line_needs_a_reason on public.spare_request_lines;
+create trigger spare_line_needs_a_reason
+  before update on public.spare_request_lines
+  for each row execute function public.spare_line_needs_a_reason();
+
+CREATE OR REPLACE FUNCTION public.reassign_spare_request(p_uid text, p_engineer text, p_email text DEFAULT ''::text, p_reason text DEFAULT ''::text)
+ RETURNS spare_requests
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  r      public.spare_requests;
+  v_name text := coalesce((select full_name from public.profiles where id = auth.uid()), '');
+  v_to   text := btrim(coalesce(p_engineer, ''));
+  v_mail text := lower(btrim(coalesce(p_email, '')));
+begin
+  if not coalesce(public.has_perm('spare.reassign'), false) then
+    raise exception 'Changing the engineer on a spare request needs "Change the engineer on a spare request"';
+  end if;
+  if v_to = '' then
+    raise exception 'Give the engineer the request is being moved to';
+  end if;
+  -- THE REASON IS REQUIRED (D-043, URS-035): every change is kept WITH its
+  -- reason. It defaulted to '' and the screen's Why box was optional.
+  if btrim(coalesce(p_reason, '')) = '' then
+    raise exception 'Say why the order is moving to another engineer — the reason is kept with the record';
+  end if;
+
+  select * into r from public.spare_requests where uid = p_uid;
+  if not found then
+    raise exception 'No spare request %', p_uid;
+  end if;
+  if public.spare_request_is_dispatched(p_uid) then
+    raise exception 'OR % has already been dispatched — the parts are in %''s hands, so the engineer cannot be changed. Use a stock transfer instead.',
+      coalesce(nullif(r.or_no, ''), p_uid), coalesce(nullif(r.engineer, ''), 'the engineer');
+  end if;
+  if lower(btrim(coalesce(r.engineer, ''))) = lower(v_to)
+     and (v_mail = '' or lower(coalesce(r.engineer_email, '')) = v_mail) then
+    return r;                       -- already there; nothing to log
+  end if;
+
+  -- The address is looked up when it is not given, so the request keeps a
+  -- working one: every engineer-scoped read matches on email, and a name with
+  -- the wrong address beside it is a request its own engineer cannot see.
+  if v_mail = '' then
+    v_mail := lower(coalesce((select email from public.profiles
+                               where lower(full_name) = lower(v_to)
+                               order by id limit 1), ''));
+  end if;
+
+  -- Tell the guard trigger that this update is the one it is meant to allow.
+  -- `true` scopes it to this transaction, so it cannot leak into the next.
+  perform set_config('rithi.reassigning', p_uid, true);
+
+  insert into public.spare_request_engineer_log
+    (request_uid, or_no, from_engineer, from_email, to_engineer, to_email, reason, changed_by, changed_by_name)
+  values (p_uid, coalesce(r.or_no, ''), coalesce(r.engineer, ''), coalesce(r.engineer_email, ''),
+          v_to, v_mail, btrim(coalesce(p_reason, '')), auth.uid(), v_name);
+
+  update public.spare_requests
+     set engineer = v_to, engineer_email = v_mail
+   where uid = p_uid
+  returning * into r;
+
+  perform set_config('rithi.reassigning', '', true);
+  return r;
+end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0316_adjust_guard_reads_the_balance.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- RAISING A CONSUMPTION LINE'S QUANTITY WORKS AGAIN (found 2026-10-02 while
+-- proving D-042).
+--
+-- 0196 rewrote consumption_adjust_guard() and, for a quantity going UP, asked
+-- `public.handstock_available(new.engineer, new.part)` -- a function no
+-- migration has ever defined. plpgsql resolves a call when it RUNS, so the
+-- rewrite applied cleanly and every check passed; 0261 then copied the line.
+-- What it cost: every upward adjustment of a consumption line -- the Spare
+-- Coordinator correcting 1 to 2 -- failed with
+--   function public.handstock_available(text, text) does not exist
+-- while a reduction and a void went through. No suite raised a quantity, which
+-- is how it lasted.
+--
+-- THE FIX reads the balance exactly as the insert cap does
+-- (consumption_reconcile_guard: handstock_balance.on_hand by engineer key and
+-- part code, a line with no engineer or no part unchecked), and refuses an
+-- increase beyond what is in hand -- 0062's original rule. A missing balance
+-- row is 0 in hand, as at insert. Everything else is 0261's definition, read
+-- out of a database built from every migration, unchanged.
+-- ===========================================================================
+
 CREATE OR REPLACE FUNCTION public.consumption_adjust_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -5197,26 +5389,121 @@ begin
     raise exception 'Say why the quantity is being adjusted — the reason is kept with the line';
   end if;
 
-  -- A RAISE still has to fit in the engineer's hand stock; a reduction never
-  -- does. RESTORED FROM 0081 (0311, D-083): 0196 replaced this with a call to
-  -- public.handstock_available(), a function no migration has ever created, so
-  -- every raise of a consumption quantity failed with "function ... does not
-  -- exist" instead of being checked.
   delta := coalesce(new.qty, 0) - coalesce(old.qty, 0);
   if delta > 0 then
-    select coalesce(b.on_hand, 0) into avail
-      from public.handstock_balance b
-     where b.engineer_key = public.handstock_key(new.engineer)
-       and b.part_code = public.part_code(new.part);
-    if coalesce(avail, 0) < delta then
-      raise exception '% has % of % in hand, so the line cannot be raised by %. Ask the Spare Coordinator to correct the hand stock first.',
-        new.engineer, coalesce(avail, 0), public.part_code(new.part), delta;
+    -- THE BALANCE THE INSERT CAP READS (consumption_reconcile_guard), and the
+    -- same skip for a line naming no engineer or no part. 0196 called a
+    -- helper here that no migration defines (see the header).
+    -- A nested test, not an early return: what follows this block stamps
+    -- original_qty and adjusted_at, and must run for every adjustment.
+    if coalesce(btrim(new.engineer), '') <> '' and coalesce(btrim(new.part), '') <> '' then
+      select coalesce(b.on_hand, 0) into avail
+        from public.handstock_balance b
+       where b.engineer_key = public.handstock_key(new.engineer)
+         and b.part_code    = public.part_code(new.part);
+      if delta > coalesce(avail, 0) then
+        raise exception 'Only % left in %''s hand stock for %', coalesce(avail, 0), new.engineer, new.part;
+      end if;
+    end if;
+  end if;
+  return new;
+end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0317_void_keeps_original_qty.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0317 -- A VOIDED OR AMENDED CONSUMPTION LINE KEEPS ITS ORIGINAL QUANTITY (D-082)
+--
+-- consumption_adjust_guard() stamped original_qty (the quantity before the
+-- first amendment) and adjusted_at (0062, 0063, 0081). 0196 -- the part
+-- rename -- rewrote the function without those two lines; 0261 and 0316 kept
+-- the omission (0316's own comment says the code after its cap "stamps
+-- original_qty and adjusted_at" -- nothing did). FRS-029 ("the original
+-- quantity ... retained on the row") had stopped being true. Measured on a
+-- database built from every migration.
+--
+-- ONE CHANGE: the two lines go back at the end of the quantity path, where
+-- 0081 had them. Everything else is 0316 verbatim. Existing lines are not
+-- rewritten: what they lost is in the database change history (0225).
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.consumption_adjust_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare avail numeric; delta numeric;
+begin
+  if coalesce(new.ucn, '')      is distinct from coalesce(old.ucn, '')
+  or (coalesce(new.engineer, '') is distinct from coalesce(old.engineer, '')
+      -- A USER MASTER RENAME (0259): the same person, spelled correctly. It
+      -- changes no quantity, so nothing below has anything to check.
+      and not public.engineer_rename_in_progress(old.engineer, new.engineer))
+  or coalesce(new.source, '')   is distinct from coalesce(old.source, '') then
+    raise exception 'A reconciliation can only change the quantity — not the call, part, engineer or source';
+  end if;
+
+  if coalesce(new.part, '') is distinct from coalesce(old.part, '') then
+    -- ONLY the substitution rename_part() filed a ticket for, in THIS
+    -- transaction, for this exact row's current value. Anything else is a line
+    -- being re-pointed, which is what this guard is for.
+    if not exists (
+      select 1 from public.part_rename_ticket t
+       where t.txid = txid_current()
+         and t.old_key = lower(btrim(coalesce(old.part, '')))
+         and t.new_detail = coalesce(new.part, '')
+    ) then
+      raise exception 'A reconciliation can only change the quantity — not the call, part, engineer or source';
+    end if;
+    -- A rename changes no quantity, so the stock arithmetic below has nothing
+    -- to check and the cap cannot be affected.
+    if new.qty is not distinct from old.qty then return new; end if;
+  end if;
+
+  if new.qty is not distinct from old.qty then
+    return new;                        -- nothing quantitative changed
+  end if;
+  if coalesce(new.qty, 0) < 0 then
+    raise exception 'Quantity cannot be negative';
+  end if;
+
+  -- The one exemption: the same imported line, re-loaded from its source.
+  if coalesce(btrim(new.source_ref), '') <> ''
+     and btrim(new.source_ref) is not distinct from btrim(old.source_ref) then
+    return new;
+  end if;
+
+  if coalesce(new.qty, 0) <= 0 and coalesce(btrim(new.adjustment_reason), '') = '' then
+    raise exception 'Say why the line is being voided — the reason is kept with it';
+  end if;
+  if coalesce(btrim(new.adjustment_reason), '') = '' then
+    raise exception 'Say why the quantity is being adjusted — the reason is kept with the line';
+  end if;
+
+  delta := coalesce(new.qty, 0) - coalesce(old.qty, 0);
+  if delta > 0 then
+    -- THE BALANCE THE INSERT CAP READS (consumption_reconcile_guard), and the
+    -- same skip for a line naming no engineer or no part. 0196 called a
+    -- helper here that no migration defines (see the header).
+    -- A nested test, not an early return: what follows this block stamps
+    -- original_qty and adjusted_at, and must run for every adjustment.
+    if coalesce(btrim(new.engineer), '') <> '' and coalesce(btrim(new.part), '') <> '' then
+      select coalesce(b.on_hand, 0) into avail
+        from public.handstock_balance b
+       where b.engineer_key = public.handstock_key(new.engineer)
+         and b.part_code    = public.part_code(new.part);
+      if delta > coalesce(avail, 0) then
+        raise exception 'Only % left in %''s hand stock for %', coalesce(avail, 0), new.engineer, new.part;
+      end if;
     end if;
   end if;
 
-  -- RESTORED (0311, D-082): the quantity before the FIRST change, and when
-  -- the line was last adjusted. 0081 had both; 0196 rewrote this function
-  -- from an older body and dropped them, and 0261 kept the omission.
+  -- RESTORED (0317, D-082): the quantity before the FIRST change, and when the
+  -- line was last adjusted. 0081 had both; 0196 rewrote this function from an
+  -- older body and dropped them, 0261 and 0316 kept the omission.
   if old.original_qty is null then new.original_qty := old.qty; end if;
   new.adjusted_at := now();
   return new;
