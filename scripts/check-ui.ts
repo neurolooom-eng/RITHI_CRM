@@ -5930,17 +5930,19 @@ console.log('\n-- one machine, across every register --');
 
   // One register refusing must not lose the other nine — they are read in
   // parallel and a reader may hold rights to some and not others.
-  eq('a register that refuses does not empty the page',
-    /one register refusing must not lose the other nine/.test(lib), true);
+  // ...AND IS NAMED (D-019): it used to come back as an empty register, so a
+  // history missing one read as complete.
+  eq('a register that refuses does not empty the page, and is named',
+    /readAll</.test(lib) && /unread\.push\(/.test(lib), true);
   // An undated row sorts LAST: putting it first would read as the most recent
   // thing that happened.
   eq('an undated row does not pose as the newest',
     /\(b\.on \|\| ''\)\.localeCompare\(a\.on \|\| ''\)/.test(lib), true);
   // A UCN carries its call's colour wherever it appears — the standing rule.
   eq('a UCN is coloured here too', /<Ucn ucn=\{String\(r\.ucn\)\}/.test(mv), true);
-  // The counts are over whole registers read for one machine, not pages, so
-  // they are exact and take no "+".
-  eq('the counts are exact, so they take no plus', /countMore=\{false\}/.test(mh), true);
+  // The counts are over whole registers read for one machine, so they are
+  // exact -- and take a "+" only when a register refused (D-019).
+  eq('the counts are exact unless a register refused', /countMore=\{unread\.length > 0\}/.test(mh), true);
   // A machine the Product Master has never heard of is a FINDING, not an error.
   eq('a machine missing from the register says so',
     /not on the Product Database/.test(mv), true);
@@ -9913,6 +9915,46 @@ console.log('\n-- How RITHI Functions explains every screen in the menu (2026-10
   eq('...each said once', MODULE_GUIDE.length, guide.size);
   eq('...and each says what the screen is for, what is done there and what it refuses',
     MODULE_GUIDE.filter((e) => !e.purpose.trim() || !e.does.length || !e.rules.length).map((e) => e.route), []);
+}
+
+console.log('\n-- High batch 1: what a screen could not read, and what it leaves behind (2026-10-02) --');
+{
+  // D-019: MACHINE HISTORY NAMES A REGISTER THAT REFUSED. Every register is
+  // read whole through allRows, and a refusal comes back in `unread` rather
+  // than as an empty list -- the `r.error ? [] :` it used to be.
+  const mh = code(readFileSync('src/lib/machineHistory.ts', 'utf8'));
+  eq('Machine History reads every register through allRows, never a fixed limit',
+    /allRows/.test(mh) && !/\.limit\(\d+\)/.test(mh.slice(mh.indexOf('export async function machineHistory'))), true);
+  eq('...and a register that refuses is named in `unread`, not shown as empty',
+    /unread\.push\(/.test(mh) && !/r\.error \? \[\]/.test(mh), true);
+  const mhv = code(readFileSync('src/components/machine/MachineHistoryView.tsx', 'utf8'));
+  eq('...and the view says so, and marks its counts and its file partial',
+    /unread/.test(mhv) && /partial\(more\)/.test(mhv) && !/COMPLETE\)/.test(mhv), true);
+
+  // D-026: THE PRINTED FFR ANSWERS TO THE REGISTER'S KEY.
+  const app = code(readFileSync('src/App.tsx', 'utf8'));
+  eq('the /ffr/ print route asks the Field Failure Register\'s module key',
+    /startsWith\('\/ffr\/'\) && !can\(actionForPath\('\/failure-report'\)\)/.test(app), true);
+
+  // D-045: A STOCK OUT IS READ BY ITS NUMBER, not looked for in the latest 500.
+  for (const f of ['DeliveryChallan', 'Declaration']) {
+    const src = code(readFileSync(`src/modules/${f}.tsx`, 'utf8'));
+    eq(`${f} reads its stock out by number`,
+      /spareDispatchByNo\(stockOut\)/.test(src) && !/listSpareDispatches/.test(src), true);
+  }
+
+  // D-070: ONE PERSON'S DATA DOES NOT OUTLIVE THEIR SESSION. The cached
+  // registers, their sync times and the menu counts go at sign-out, by the
+  // button and by any other end of the session.
+  const auth = code(readFileSync('src/lib/auth.tsx', 'utf8'));
+  const logoutBody = auth.slice(auth.indexOf('const logout = () =>'), auth.indexOf('const can:'));
+  eq('sign-out forgets the cached registers and the menu counts',
+    /forgetCachedRegisters\(\)/.test(logoutBody) && /clearModuleCounts\(\)/.test(logoutBody), true);
+  eq('...and so does a session ended elsewhere',
+    /event === 'SIGNED_OUT'\) \{ forgetCachedRegisters\(\); clearModuleCounts\(\);/.test(auth), true);
+  const cache = code(readFileSync('src/lib/cache.ts', 'utf8'));
+  eq('...both rithi.cache.* and rithi.sync.*',
+    /startsWith\(PREFIX\)/.test(cache) && /startsWith\('rithi\.sync\.'\)/.test(cache), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

@@ -1,3 +1,4 @@
+import { logAudit } from '../lib/audit';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -108,6 +109,11 @@ function TransferDrawer({
     setBusy(true); setErr('');
     try {
       const res = await addStockTransfer(from, to, lines, remarks.trim(), on);
+      // A STOCK MOVEMENT IS AUDITED (D-051), as dispatch, drop and
+      // consumption are. The database images the rows too (0314).
+      logAudit({ action: 'stock.transfer', target: res.uid || '', status: res.ok ? 'ok' : 'error',
+                 error: res.ok ? undefined : res.error,
+                 meta: { from: from.trim(), to: to.trim(), lines: lines.length } });
       if (res.ok) { onSaved(res.uid); onClose(); }
       else setErr(res.error ?? 'Could not save the transfer.');
     } catch (e) {

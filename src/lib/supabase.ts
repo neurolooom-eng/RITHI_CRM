@@ -3876,6 +3876,18 @@ export async function listSpareDispatches(limit = 500): Promise<Record<string, u
   return data ?? [];
 }
 
+// ONE STOCK OUT, BY ITS NUMBER (D-045). The challan and the declaration used to
+// read the latest 500 and look for theirs in the result, so a stock out older
+// than that read "not found, or you cannot view it" -- pointing at permissions
+// when the cause was a limit. Row-level security still decides: a stock out the
+// reader may not see comes back as null, exactly as before.
+export async function spareDispatchByNo(stockOutNo: string): Promise<Record<string, unknown> | null> {
+  const { data, error } = await must().from('spare_dispatches').select('*')
+    .eq('uid', stockOutNo).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return (data as Record<string, unknown> | null) ?? null;
+}
+
 // The spares that went out under one stock out — what a DC prints.
 export async function listDispatchLines(stockOutNo: string): Promise<Record<string, unknown>[]> {
   // A line can be sent across several stock outs (partial dispatch), so the DC

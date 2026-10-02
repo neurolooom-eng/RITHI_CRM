@@ -543,9 +543,13 @@ h1{
     </div>
     <div class="f">
       <div class="f-n"><code>reject_reason</code> <code>rejected_stage</code><span class="ty">text</span><span class="b b-req">on a rejection</span></div>
-      <div class="f-r">A rejection or a drop <em>needs a reason</em> &mdash; the bulk decision
-        routine refuses without one. <code>rejected_stage</code> records where it died, which the
-        stage alone cannot tell you afterwards.</div>
+      <div class="f-r">A rejection or a drop <em>needs a reason</em>, on every path &mdash; one
+        line, one order or the bulk decision. A line moved into Rejected with a blank
+        <code>reject_reason</code> is refused with &ldquo;A rejection needs a reason&rdquo;; one moved
+        into Dropped with a blank <code>dispatch_remarks</code>, which is where a drop&rsquo;s reason
+        is written, with &ldquo;A drop needs a reason&rdquo; (0313). Only a <em>change</em> is
+        tested, so an old rejection is left as it is. <code>rejected_stage</code> records where it
+        died, which the stage alone cannot tell you afterwards.</div>
     </div>
   </div>
 
@@ -602,8 +606,8 @@ h1{
     </div>
     <div class="f">
       <div class="f-n"><code>reason</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
-      <div class="f-r">Why it moved. The point of the log &mdash; a reassignment with no reason
-        answers the question a reader is actually asking.</div>
+      <div class="f-r">Why it moved. The point of the log, and <em>required</em>: a blank one is
+        refused with &ldquo;Say why the order is moving to another engineer&rdquo; (0313).</div>
     </div>
     <div class="f">
       <div class="f-n"><code>changed_by</code> <code>changed_by_name</code> <code>changed_at</code><span class="ty">uuid / text / timestamptz</span><span class="b b-set">set for you</span></div>
@@ -805,7 +809,9 @@ h1{
         changes, the original is kept beside it, and a reason is <em>demanded</em> &mdash;
         separately worded for the two cases: &ldquo;say why the quantity is being adjusted&rdquo;
         and &ldquo;say why the line is being voided&rdquo;. An adjustment may change
-        <em>only the quantity</em>: not the call, part, engineer or source.</div>
+        <em>only the quantity</em>: not the call, part, engineer or source. Raising it is capped at
+        what is in hand (0316). <code>adjusted_by</code> is the signed-in person &mdash; a name the
+        screen sends is replaced (0312).</div>
     </div>
     <div class="f">
       <div class="f-n"><code>source_ref</code> <code>source_ref_key</code><span class="ty">text / text</span><span class="b b-opt">optional</span></div>
@@ -816,7 +822,9 @@ h1{
     <div class="f">
       <div class="f-n"><code>recorded_by</code> <code>created_by</code> <code>created_at</code><span class="ty">text / uuid / timestamptz</span><span class="b b-set">set for you</span></div>
       <div class="f-r"><code>created_by</code> is filled from the session when you leave it empty,
-        and is one of the things that lets you see your own row afterwards.</div>
+        and is one of the things that lets you see your own row afterwards. On a reconciliation
+        line <code>recorded_by</code> is the signed-in person whatever the screen sends, and no
+        later edit changes it (0312).</div>
     </div>
     <div class="f">
       <div class="f-n"><code>grir</code> <code>data</code><span class="ty">text / jsonb</span><span class="b b-opt">optional</span></div>

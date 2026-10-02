@@ -88,15 +88,25 @@ begin;
 rollback;
 
 \echo '--- 7. CANCELLED OUTRANKS REOPENED ---'
-\echo 'expect: Cancelled, not Reopened'
+-- cancel_call() no longer cancels a re-opened call (0311, D-036: only an
+-- Unattended or Unsolved call), so the refusal is proved first and the
+-- cancelled state is then written as the table owner. What this section
+-- proves is the RANKING call_state applies, however the row got there --
+-- a call cancelled before 0311, or by an administrative correction.
 call public.be('cc_admin@x.com');
 update public.calls set last_status = 'Solved' where ucn = 'CC-I1';
 call public.be('cc_hotline@x.com');
 begin;
   set local role authenticated;
   select public.reopen_call('CC-I1', 'came back');
-  select public.cancel_call('CC-I1', 'wrong machine');
 commit;
+\echo 'expect ERROR: Call CC-I1 is Reopened: only an Unattended or Unsolved call can be cancelled'
+begin;
+  set local role authenticated;
+  select public.cancel_call('CC-I1', 'wrong machine');
+rollback;
+update public.installation_calls set cancelled_at = now(), cancel_reason = 'wrong machine' where ucn = 'CC-I1';
+\echo 'expect: Cancelled, not Reopened'
 select ucn, state, (reopened_at is not null) as was_reopened from public.call_state where ucn = 'CC-I1';
 
 \echo '--- 8. the NSM can cancel a PM call — three tables, one register ---'

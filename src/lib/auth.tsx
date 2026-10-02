@@ -4,6 +4,8 @@ import { sbSignIn, sbSignOut, clearMyNotifications, sbCurrentProfile, sbListProf
 import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac, parentActions, ROLES , roleLabelFor, setRoleLabels } from './rbac';
 import { setAuditUser, logAudit } from './audit';
 import { setCanExport } from './format';
+import { forgetCachedRegisters } from './cache';
+import { clearModuleCounts } from './counts';
 
 const auditIdentity = (u: User | null) => u ? { actor: u.fullName || u.email, role: (u.rbacRole || legacyToRbac(u.role)), email: u.email } : null;
 
@@ -308,6 +310,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // listener itself is holding.
     const off = sbOnAuthChange((event) => {
       if (event === 'TOKEN_REFRESHED') return;
+      // A session ended anywhere else -- another tab, an expiry -- forgets the
+      // same things the Sign out button does (D-070).
+      if (event === 'SIGNED_OUT') { forgetCachedRegisters(); clearModuleCounts(); }
       void hydrate();
     });
     return () => { alive = false; off(); };
@@ -382,6 +387,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     setViewAs(null);
+    // ONE PERSON'S DATA DOES NOT OUTLIVE THEIR SESSION ON THE DEVICE (D-070):
+    // the cached registers and the menu counts were left for whoever signed in
+    // next. The offline machine and party copy is removed by sbSignOut().
+    forgetCachedRegisters();
+    clearModuleCounts();
     if (supaMode) {
       logAudit({ action: 'logout', status: 'ok' });
       setAuditUser(null); setSupaUser(null); setSupaUsers([]);

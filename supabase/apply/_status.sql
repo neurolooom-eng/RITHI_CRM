@@ -288,9 +288,17 @@ with checks(sort_order, bundle, provides, present) as (
                  where table_schema = 'public' and table_name = 'handstock_balance'
                    and column_name = 'on_hand_live')),
     (60, 'audit trail: record_audit is ARMED', 'the database-enforced before/after trail is back on -- 3 statement triggers (i/u/d) on each of the 10 quality tables (0225, reversing 0112). COUNTED, not merely present: a partly-armed table audits some writes and not others, which reads as covered. NO means a change to a quality record is not being photographed by the database, and audit_log alone cannot say what a row was before. Restore: data_integrity.sql',
+        -- ON THE TEN TABLES IT NAMES, not every table: 0314 arms five more,
+        -- and counting them all made this row read NO on a project with
+        -- everything applied (row 240 counts those five).
         (select count(*) from pg_trigger
           where tgname in ('record_audit_i', 'record_audit_u', 'record_audit_d')
-            and not tgisinternal) = 30),
+            and not tgisinternal
+            and tgrelid in (select c.oid from pg_class c
+                             where c.relnamespace = 'public'::regnamespace
+                               and c.relname in ('field_calls', 'installation_calls', 'pm_calls', 'reports',
+                                                 'spare_requests', 'spare_request_lines', 'spare_consumption',
+                                                 'feedback', 'call_requests', 'pending_registrations'))) = 30),
     (173, 'calls: a CANCELLED call reads Cancelled, not Report pending', 'call_open_state() + call_open_state_t on the three call tables (0226). open_state''s final ELSE turned any status it did not recognise into "Report pending", so 19 calls whose status is "Canceled" sat in a queue of work somebody was chasing. TESTED BY VALUE, not by the trigger existing: the function is asked about a real cancelled status, because a trigger that is present and wrong reads as covered. NO means those calls are still mis-stated. Restore: call_requests.sql',
         (public.call_open_state('Canceled', now()) = 'Cancelled'
      and public.call_open_state('Cancelled', now()) = 'Cancelled'
@@ -1615,7 +1623,28 @@ with checks(sort_order, bundle, provides, present) as (
     (236, 'A part rename passes the spare-line and material-return guards', 'spare_request_lines_guard (0310, Spare_1.sql) and material_returns_immutable (0310, HandStock_X.sql) let through the one change a part rename makes, by the ticket only rename_part_records() writes, so a rename no longer needs an administrator for parts on somebody else''s request or on a return; rename_part_records() moves stock transfers last. NO means one of the two bundles has not been re-run since. Restore: Spare_1.sql (0310_rename_passes_the_line_guard) and HandStock_X.sql (0310_rename_passes_the_return_guard)',
         (coalesce((select p.prosrc like '%part_rename_ticket%' from pg_proc p where p.oid = to_regprocedure('public.spare_request_lines_guard()')), false)
          and coalesce((select p.prosrc like '%part_rename_ticket%' from pg_proc p where p.oid = to_regprocedure('public.material_returns_immutable()')), false)
-         and coalesce((select position('stock_transfer_lines' in p.prosrc) > position('handstock_adjustments' in p.prosrc) from pg_proc p where p.oid = to_regprocedure('public.rename_part_records(bigint,text,text)')), false)))
+         and coalesce((select position('stock_transfer_lines' in p.prosrc) > position('handstock_adjustments' in p.prosrc) from pg_proc p where p.oid = to_regprocedure('public.rename_part_records(bigint,text,text)')), false))),
+    (237, 'Only an Unattended or Unsolved call can be cancelled', 'cancel_call() refuses a Solved, Report-pending or re-opened call, the rule the Cancel button already followed; cancel_calls() loops it (0311, D-036). NO means call_requests.sql has not been re-run since. Restore: call_requests.sql (0311)',
+        coalesce((select p.prosrc like '%Unattended%' and p.prosrc like '%reopened_at%' from pg_proc p where p.oid = to_regprocedure('public.cancel_call(text,text)')), false)),
+    (238, 'Who booked and who adjusted a consumption line come from the session', 'consumption_stamp_people stamps recorded_by on a reconciliation line and adjusted_by on a changed quantity from the signed-in session, discarding what the browser sent (0312, D-042). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0312)',
+        (to_regprocedure('public.consumption_stamp_people()') is not null
+         and exists (select 1 from pg_trigger where tgname = 'consumption_stamp_people'
+                        and tgrelid = to_regclass('public.spare_consumption')))),
+    (239, 'A rejection, a drop and a reassignment each need a reason', 'spare_line_needs_a_reason refuses a line moved into Rejected without reject_reason or into Dropped without dispatch_remarks; reassign_spare_request() refuses a blank reason (0313, D-043). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0313)',
+        (exists (select 1 from pg_trigger where tgname = 'spare_line_needs_a_reason'
+                    and tgrelid = to_regclass('public.spare_request_lines'))
+         and coalesce((select p.prosrc like '%Say why the order is moving%' from pg_proc p where p.oid = to_regprocedure('public.reassign_spare_request(text,text,text,text)')), false))),
+    (240, 'Returns, transfers, training and R&R periods are imaged', 'record_audit is armed on material_returns, stock_transfers, training_sessions, training_attendance and user_rr, insert, update and delete -- 15 triggers (0314, D-051, D-062). NO means data_integrity.sql has not been re-run since. Restore: data_integrity.sql (0314)',
+        ((select count(*) from pg_trigger t
+           where t.tgname in ('record_audit_i', 'record_audit_u', 'record_audit_d')
+             and t.tgrelid in (select c.oid from pg_class c
+                                where c.relnamespace = 'public'::regnamespace
+                                  and c.relname in ('material_returns', 'stock_transfers', 'training_sessions',
+                                                    'training_attendance', 'user_rr'))) = 15)),
+    (241, 'The audit log is readable with audit.view', 'audit_read on audit_log admits is_admin() or audit.view, as record_audit_read does -- the Audit Log screen opens for audit.view (0315, D-066). NO means audit.sql has not been re-run since. Restore: audit.sql (0315)',
+        coalesce((select coalesce(qual, '') like '%audit.view%' from pg_policies where schemaname = 'public' and tablename = 'audit_log' and policyname = 'audit_read'), false)),
+    (242, 'Raising a consumption line''s quantity works', 'consumption_adjust_guard() reads handstock_balance for a quantity going up; since 0196 it called handstock_available(), which does not exist, so every increase failed (0316). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0316)',
+        coalesce((select p.prosrc like '%handstock_balance%' and p.prosrc not like '%handstock_available%' from pg_proc p where p.oid = to_regprocedure('public.consumption_adjust_guard()')), false))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

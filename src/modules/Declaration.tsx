@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  listSpareDispatches, listDispatchLines, engineerAddress, saveEngineerAddress, supabaseConfigured,
+  spareDispatchByNo, listDispatchLines, engineerAddress, saveEngineerAddress, supabaseConfigured,
 } from '../lib/supabase';
 import { buildDc, paginate, type DcDocument, type DcPage, mergeDcLines } from '../lib/dc';
 import {
@@ -45,8 +45,7 @@ export function Declaration() {
     let live = true;
     (async () => {
       try {
-        const heads = await listSpareDispatches(500);
-        const head = heads.find((h) => String(h.uid) === stockOut);
+        const head = await spareDispatchByNo(stockOut);
         if (!head) { if (live) setErr(`Stock out ${stockOut} was not found, or you cannot view it.`); return; }
         const lines = await listDispatchLines(stockOut);
         // One line per PART on a declaration: the parcel holds two of it,

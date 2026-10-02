@@ -49,6 +49,14 @@ export function setModuleCount(path: string, n: number, more = false) {
   listeners.forEach((l) => l());
 }
 
+// FORGOTTEN AT SIGN-OUT (D-070). The counts beside the menu are one person's:
+// the next person on the device must not read them before their own load.
+export function clearModuleCounts() {
+  counts = {};
+  try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+  listeners.forEach((l) => l());
+}
+
 // Human label for a count: "1,234" or "1,000+".
 export function countLabel(c: Count): string {
   return `${c.n.toLocaleString()}${c.more ? '+' : ''}`;

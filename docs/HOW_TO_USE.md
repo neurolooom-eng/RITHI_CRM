@@ -109,8 +109,11 @@ customer and machine, the vigilance answers, the contact details — so a manage
 can have some and not others. Re-allocating to another engineer is its own right.
 **Every change to a vigilance answer is recorded** (who, when, from what to what),
 because those three answers are Review 1. A call can be **cancelled** (and
-restored); that deletes nothing. There is no closing a call without a visit:
-enter the visit that happened, or cancel a call that should not have been raised.
+restored); that deletes nothing. **Only an Unattended or Unsolved call can be
+cancelled** — a call that was visited and closed, or re-opened, cannot, because
+cancelling it would take what was done out of every count. The database refuses
+it too, not just the button. There is no closing a call without a visit: enter
+the visit that happened, or cancel a call that should not have been raised.
 
 ## Getting data in
 
@@ -261,6 +264,8 @@ against the call it was fitted to.
    serial and cover, because "is this part plausible for this fault?" is most of
    the decision. Tick several and approve or reject them at once; a rejection needs a reason.
    A spare is dropped from Spare Requests or Pending Dispatch, not here.
+   **A reason is required on every path** — a rejection, a drop, and moving a request
+   to another engineer. Nothing is rejected, dropped or moved with the box left empty.
 3. Commercial and NSM approve their own stages where the request needs them.
    **Only the words Approved, Auto-Approved or "Cleared for Stores
    Processing" move a spare on.** A spare loaded from a sheet with anything
@@ -979,6 +984,9 @@ typed into a form that reads it.
     export.
   > A machine not on the Product Master still has a history, and the screen says
   > so rather than looking empty. Nothing from before the migration is here.
+  > **Every record is read, however many there are.** If one kind of record
+  > cannot be read, a red banner names it and the reason, and the count carries a
+  > **+** — the list is then known to be incomplete.
 
   > **You can also open it from a review.** The Daily Complaint Review Register's
   > Review Desk has a **🔎 Machine History** button beside *Raise FFR*: it opens
