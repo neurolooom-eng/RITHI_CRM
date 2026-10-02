@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0317 — ONE TIME: every Warranty Sale Entry re-read from the Party Master, and
+-- 0318 — ONE TIME: every Warranty Sale Entry re-read from the Party Master, and
 -- every machine on it put back on its entry.
 --
 -- The user, 2026-10-02: "As a 1 time activity - Update all Records in Warranty
@@ -81,13 +81,13 @@ declare
   n_sales int := 0;
   n_items int := 0;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0317_warranty_party_refresh') then
-    raise notice '0317: done before -- the warranty sales were not touched again';
+  if exists (select 1 from public.one_time_fixes_done where name = '0318_warranty_party_refresh') then
+    raise notice '0318: done before -- the warranty sales were not touched again';
     return;
   end if;
   if to_regclass('public.sale_entries') is null or to_regclass('public.sale_items') is null
      or to_regclass('public.parties') is null then
-    raise notice '0317: sale_entries, sale_items or parties missing -- nothing to do (and not marked done)';
+    raise notice '0318: sale_entries, sale_items or parties missing -- nothing to do (and not marked done)';
     return;
   end if;
   -- THE PARTY COLUMNS THE BUTTON READS come from the `masters` bundle (0200,
@@ -97,7 +97,7 @@ begin
        where table_schema = 'public' and table_name = 'parties'
          and column_name in ('state', 'city', 'address', 'extra', 'pincode', 'phone', 'phone_2',
                              'pan', 'gstin', 'party_type', 'profile', 'service_engineer', 'name_key')) < 13 then
-    raise notice '0317: the Party Master lacks columns the update reads -- run masters.sql first (not marked done)';
+    raise notice '0318: the Party Master lacks columns the update reads -- run masters.sql first (not marked done)';
     return;
   end if;
 
@@ -171,7 +171,7 @@ begin
   get diagnostics n_items = row_count;
 
   insert into public.one_time_fixes_done (name, detail)
-  values ('0317_warranty_party_refresh',
+  values ('0318_warranty_party_refresh',
           format('%s sale(s) updated from the Party Master; %s machine line(s) put back on their sale', n_sales, n_items));
-  raise notice '0317: % sale(s) updated from the Party Master; % machine line(s) put back on their sale', n_sales, n_items;
+  raise notice '0318: % sale(s) updated from the Party Master; % machine line(s) put back on their sale', n_sales, n_items;
 end $$;

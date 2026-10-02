@@ -12,13 +12,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.36',
+    version: '0.10.37',
     date: '2026-10-02',
     title: 'Warranty Register: Convert to Contract, a one-time Party Master update, and Save only when changed',
     changes: [
       'NEW: ⇢ CONVERT TO CONTRACT on a saved warranty sale. The customer and every machine with a serial carry over to a new contract, each machine noting its SA Number and warranty end. The contract starts the day after the warranty ends. You give the MC Number (the next one is offered), Contract Type, Period (Months), PM Visits, Payment Schedule, Bill Generate At and, optionally, a rate per machine. It warns if the sale\'s machines are already on a contract, and takes you to the new contract.',
       'ONE-TIME UPDATE: every warranty sale has been re-read from the Party Master, as if ↺ Update from Party Master had been pressed on each one (blanks included), and every machine has been put back on its sale, as ↺ Force update child records does. It runs once and cannot run again. Every value it replaced is kept, so anything needed can be recovered.',
       'SAVE ENTRY is greyed out until you change something on the entry, on both the Warranty and Contract Registers.',
+    ],
+  },
+  {
+    version: '0.10.36',
+    date: '2026-10-02',
+    title: 'Spares: two faults fixed',
+    changes: [
+      'FIXED: ticking spares and approving them on RM Approval now sends each one where the single Approve button would. A warranty (WGP) spare goes straight to Stores, a HandStock spare to NSM, and an AMC or OGP spare to Commercial. Before this, every ticked spare waited at Commercial. Spares already waiting there are not moved: the read-only check _spares_waiting_at_commercial_by_mistake.sql lists them.',
+      'FIXED: a consumption line that is corrected or voided keeps its original quantity again, and when it was adjusted.',
     ],
   },
   {
