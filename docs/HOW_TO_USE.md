@@ -701,6 +701,11 @@ typed into a form that reads it.
   > cannot name it. It changes nothing else: machines already sold still take
   > contracts, calls, visits, spares and feedback. A line stops being sold long
   > before it stops being serviced.
+  > **Imported** (Yes / No) says whether the line is imported. It decides
+  > whether a DEMO unit of it needs Pre-Delivery Testing in the workshop. It
+  > starts blank (*not known*); set it on this screen if you may edit master
+  > records, or with an **Imported** column in the upload — a blank cell there
+  > leaves what is set alone.
   Load it under **Bulk Uploads → Product Master (product lines)**.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
@@ -1116,6 +1121,35 @@ typed into a form that reads it.
   5. Dispatch
   > A job does not need a call — a demo unit has none. A harvested part cannot go
   > back into stock until decontamination is recorded.
+
+  **The paper register R/SER/07 lives here.** Each job carries its columns:
+  Field Service Report No, Engineer Name (filled from the call's engineer when
+  you enter a UCN; "Indoor Service" for a DEMO unit), Customer Place, Problem
+  Reported, **Status — which on R/SER/07 is the machine's cover** (WGP / OGP /
+  CMC / AMC, read from the Product Database when you type the product or
+  serial, and changeable), Indoor Service Report No, DC No. and DC Date, and
+  Remarks. **R/SER/07 register view** shows the register as the paper keeps it,
+  one sheet at a time — *Customer – Devices* or *Demo* — with S.No running in
+  incoming-date order; from there **Excel** downloads both sheets and **Print**
+  prints the sheet you are on (landscape A4). Both need the export right.
+
+  **Verified by** is a supervisor's step: once the unit is Dispatched, Closed
+  or Condemned, somebody holding *Verify an Indoor Service register entry*
+  presses Verify, and the system records who and when. Nobody holds that right
+  until an administrator ticks it in Roles & Permissions.
+
+  **Pre-Delivery Testing (R/SER/QC/007)** is for a **DEMO unit of an imported
+  product** only — in-house equipment and customer machines do not have it.
+  Whether a product is imported comes from the **Product Master** (the Imported
+  column). Fill the date, measuring equipment, software version, HV, HT, checks
+  1–5 (OK / NOT OK) and the two readings tables, then **Sign as the
+  inspector** — your name and designation are recorded by the system. The unit
+  **cannot be Dispatched or Closed** until every field is filled, it is signed,
+  and every check reads OK. **Print R/SER/QC/007** prints the form; a test that
+  is not finished still prints, with a band saying so.
+  > If the job says it is **not known** whether the product is imported, the
+  > test is not demanded — set Imported on the Product Master for that line and
+  > the job will ask for it.
 - **Solved Without a Report** `/missing-visit-reports` — **administrators
   only.** Every call that reads Solved while its visit record is incomplete —
   the list of what to re-upload.

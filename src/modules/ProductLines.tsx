@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, SectionCard, Toolbar, SearchBox } from '../components/ui/ui';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { getSupabase, supabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
@@ -37,6 +38,9 @@ const s = (r: Row, k: string) => String(r[k] ?? '').trim();
 export function ProductLines() {
   const live = supabaseConfigured();
   const { can } = useAuth();
+  // IMPORTED (0319) is the ONE field this screen writes: whoever may write a
+  // product line (pm_write asks masters.edit.records, 0290) may set it here.
+  const mayEdit = can('masters.edit.records');
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -53,6 +57,21 @@ export function ProductLines() {
     setBusy(false);
   };
   useEffect(() => { if (live) void load(); }, [live]);
+
+  // Rows COUNTED: row-level security refuses an update by matching nothing,
+  // and no error is not "saved" (finding 48).
+  const setImported = async (code: string, v: string) => {
+    const c = getSupabase();
+    if (!c) return;
+    const value = v === 'Yes' ? true : v === 'No' ? false : null;
+    const { data, error } = await c.from('product_master').update({ imported: value })
+      .eq('product_code', code).select('product_code');
+    if (error) { setMsg(`Could not save Imported for ${code}: ${error.message}`); return; }
+    if (!data || data.length === 0) { setMsg(`Nothing was saved for ${code} — your role may not edit product lines.`); return; }
+    setMsg('');
+    setRows((all) => all.map((r) => (r.product_code === code ? { ...r, imported: value } : r)));
+  };
+  const importedLabel = (r: Row) => (r.imported === true ? 'Yes' : r.imported === false ? 'No' : '');
 
   const counts = useMemo(() => ({
     all: rows.length,
@@ -84,6 +103,13 @@ export function ProductLines() {
       render: (r) => (r.active === false
         ? <span className="pl-retired">Inactive</span>
         : <span className="muted">Active</span>) },
+    // IMPORTED (0319): decides whether a DEMO unit of the line owes
+    // Pre-Delivery Testing R/SER/QC/007 in the workshop. Blank = not known.
+    { key: 'imported', header: 'Imported', width: 130, wrap: false,
+      render: (r) => (mayEdit
+        ? <SelectPicker value={importedLabel(r)} options={['Yes', 'No']} placeholder="— not set —"
+            onChange={(v) => void setImported(String(r.product_code), v)} />
+        : (importedLabel(r) || <span className="muted">not set</span>)) },
     { key: 'added_on', header: 'Added', width: 130, wrap: false,
       render: (r) => fmtLongDate(r.added_on) },
     { key: 'added_by', header: 'Added by', width: 130 },
@@ -112,7 +138,8 @@ export function ProductLines() {
           <b>Inactive</b> means the line is no longer sold — a <b>new Sale Entry</b> cannot name
           it. Everything else carries on: machines already sold still take <b>contracts, calls,
           visits, spares and feedback</b>, because a line stops being sold long before it stops
-          being serviced.
+          being serviced. <b>Imported</b> (Yes / No, blank until set) decides whether a DEMO unit of the line
+          owes Pre-Delivery Testing (R/SER/QC/007) in the workshop.
         </span>
       </div>
 
@@ -145,7 +172,7 @@ export function ProductLines() {
         {!busy && !rows.length && (
           <div className="muted" style={{ marginTop: 10 }}>
             Nothing here yet. Load it under <b>Bulk Uploads → Product Master (product lines)</b>
-            {' — an administrator’s upload, since this screen is read-only'}.
+            {' — an administrator’s upload; this screen writes only the Imported column'}.
           </div>
         )}
       </SectionCard>

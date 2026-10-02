@@ -1374,6 +1374,11 @@ export const UPLOADS: UploadDef[] = [
       // and anything it cannot read stays TRUE, because a line the file does
       // not clearly retire is one still being sold.
       { to: 'active', from: ['active?', 'active', 'active/inactive?', 'status'], type: 'bool' },
+      // IMPORTED (0319), Yes / No. This register has no blanksClear, so a
+      // blank cell -- or a file without the column -- leaves the stored value
+      // alone; a word it cannot read as Yes / No is kept in `extra` and the
+      // column left alone -- never a guess.
+      { to: 'imported', from: ['imported', 'imported?', 'imported (yes/no)'], type: 'bool' },
       DATE('added_on', 'added on', 'date added'),
       TEXT('added_by', 'added by'),
     ] },
