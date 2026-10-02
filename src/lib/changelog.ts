@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.40',
+    date: '2026-10-02',
+    title: 'How RITHI Functions: the Reports document, and three report fixes',
+    changes: [
+      'NEW: HOW RITHI FUNCTIONS → REPORTS. Covers every report in the Reports menu: what one row is, which date it filters on, its columns, who may download it, and why two reports can count differently.',
+      'FIXED: the Hand Stock Report has an "Other ±" column for stock adjustments, so each row adds up to On Hand. It did not add up where an adjustment existed.',
+      'FIXED: "Extra (import)" and "All Answers" download as their contents instead of [object Object], in Excel and CSV alike.',
+      'FIXED: the Call Report\'s status filter offers the values the column holds (Unattended, Unsolved, Report pending, Solved, Cancelled). "Solved - Report Pending" matched nothing, and Cancelled was missing.',
+      'CORRECTED: the Call Report says voided spares are excluded there but listed at QTY 0 on the Consumption Report. Not Consumed Against this Call says it lists Solved calls only, and Short as well as Not used. The handbook gives the Hand Stock Report\'s first roles as Admin and Technical Support.',
+    ],
+  },
+  {
     version: '0.10.39',
     date: '2026-10-02',
     title: 'How RITHI Functions: the Administration document',

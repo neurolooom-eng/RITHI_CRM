@@ -41,6 +41,11 @@ export const HANDSTOCK_REPORT_COLUMNS: ReportColumn[] = [
   { key: 'transferred_in', header: 'Transferred In' },
   { key: 'transferred_out', header: 'Transferred Out' },
   { key: 'returned', header: 'Returned' },
+  // ADJUSTMENTS AND ANYTHING ELSE THE BALANCE COUNTS (0266) that has no column
+  // of its own: On Hand minus the named movements, as the Hand Stock drawer
+  // shows it (D-048). Without it the row did not add up -- an opening of 5 and
+  // an adjustment of +3 read 5 beside an On Hand of 8 (D-092).
+  { key: 'other_movements', header: 'Other ± (adjustments)' },
   { key: 'on_hand', header: 'On Hand' },
   // THE SHEET ERA, SEPARATELY. `on_hand` counts everything; `on_hand_live`
   // counts only what this system itself recorded. Both are true, of different
@@ -53,6 +58,14 @@ export const HANDSTOCK_REPORT_COLUMNS: ReportColumn[] = [
   { key: 'last_out', header: 'Last Out' },
   { key: 'last_movement', header: 'Last Movement' },
 ];
+
+/** On Hand minus the movements the report names: adjustments and whatever
+ *  else the balance counts without a column of its own. The drawer's formula. */
+export function otherMovements(r: Record<string, unknown>): number {
+  const n = (k: string) => Number(r[k] ?? 0) || 0;
+  const named = n('opening') + n('stock_out') - n('consumed') - n('transferred_out') + n('transferred_in') - n('returned');
+  return Math.round((n('on_hand') - named) * 1000) / 1000;
+}
 
 /** Two digits, so a time never renders as `9-5-3`. */
 const p2 = (n: number) => String(n).padStart(2, '0');

@@ -108,6 +108,13 @@ const DOCS = [
     title: 'How administration works — access, the trail, loading data in and taking it out',
   },
   {
+    id: 'reports',
+    label: 'Reports',
+    file: 'how-reports-work.html',
+    blurb: 'Every report in the Reports menu: what each row is, which date it filters on, its columns, who may download it, and why two reports can count differently.',
+    title: 'How the reports work — what each counts, its columns, and who may download it',
+  },
+  {
     id: 'quality',
     label: 'Quality & Analytics',
     file: 'how-quality-works.html',

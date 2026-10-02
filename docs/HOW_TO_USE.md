@@ -205,7 +205,8 @@ the visit that happened, or cancel a call that should not have been raised.
   > **Those two are not fields on the consumption row.** The Consumption Report
   > reads them from the **visit**, so there is nothing on the spare line to
   > type them into and re-uploading the consumption file cannot fill them.
-  > They are blank for one reason: the call has no visit report.
+  > When the call has no visit report they fall back to other dates (the
+  > booking time last), and only Visit UID stays blank.
   >
   > **If your consumption file carries `Visit Date & Time`, just load it.**
   > The Consumption upload files the visit from that column BEFORE it writes the
@@ -1047,15 +1048,16 @@ typed into a form that reads it.
   dropped lines are excluded.
 - **Reports — KPI Export** `/exports/kpi` — the workbook's Field_INST tab in its
   own column order; cancelled calls excluded entirely.
-- **Hand Stock Report** `/handstock-report` — **administrators to begin with**;
+- **Hand Stock Report** `/handstock-report` — **Admin and Technical Support to begin with**;
   every other role is a tick on Roles & Permissions, and that tick gives the
   role the menu entry as well as the page. One line per engineer and part:
   every engineer's stock for an office role, and for anybody else their own
   stock plus their team's, if they manage one. The file's About sheet says
   which.
   > **It shows the workings, not just the number.** Opening, Stock Out,
-  > Consumed, Transferred In, Transferred Out and Returned sit beside On Hand,
-  > so whoever is reconciling can add it up rather than take it on trust.
+  > Consumed, Transferred In, Transferred Out, Returned and **Other ±** (stock
+  > adjustments) sit beside On Hand, so whoever is reconciling can add it up
+  > rather than take it on trust.
   >
   > **A negative On Hand is a finding, not a rounding error** — it means more
   > was consumed than this system knows was issued. Those figures are picked

@@ -10,7 +10,7 @@ import { listHandstockBalance, supabaseConfigured } from '../lib/supabase';
 import { loadFailure } from '../lib/dberror';
 import { useAuth } from '../lib/auth';
 import { seesEveryRecord } from '../lib/rbac';
-import { HANDSTOCK_REPORT_COLUMNS, handStockFileName, isLastPage } from '../lib/handstockreport';
+import { HANDSTOCK_REPORT_COLUMNS, handStockFileName, isLastPage, otherMovements } from '../lib/handstockreport';
 import { COMPLETE, partial } from '../lib/exportscope';
 
 // ===========================================================================
@@ -67,6 +67,7 @@ const COLUMNS: Column<Row>[] = [
   { key: 'transferred_in', header: 'Trf In', width: 75, wrap: false, render: (r) => num(r.transferred_in) },
   { key: 'transferred_out', header: 'Trf Out', width: 80, wrap: false, render: (r) => num(r.transferred_out) },
   { key: 'returned', header: 'Returned', width: 85, wrap: false, render: (r) => num(r.returned) },
+  { key: 'other_movements', header: 'Other ±', width: 80, wrap: false, render: (r) => num(r.other_movements) },
   { key: 'on_hand', header: 'On Hand', width: 85, wrap: false,
     // THE ONE FIGURE PEOPLE ACT ON, so it is the one that is emphasised — and a
     // NEGATIVE balance is a finding rather than a rounding error: it means more
@@ -107,6 +108,7 @@ export function HandStockReport() {
         if (run.current !== mine) return;          // a newer load owns the screen
         batch.forEach((b, i) => all.push({
           ...b,
+          other_movements: otherMovements(b as Record<string, unknown>),
           // engineer_key|part_code IS the row, and it is what the view groups
           // by — a positional id would change under the next sort and take the
           // table's row identity with it.
@@ -190,7 +192,7 @@ export function HandStockReport() {
         columns: ['Item', 'Value'],
         rows: [
           { Item: 'Report', Value: 'Hand Stock' },
-          { Item: 'What it is', Value: 'Every engineer’s hand stock, netted per part: opening + stock out + transfers in − consumed − transfers out − returned.' },
+          { Item: 'What it is', Value: 'Every engineer’s hand stock, netted per part: opening + stock out + transfers in − consumed − transfers out − returned ± other (adjustments).' },
           { Item: 'Derived, not stored', Value: 'There is no hand-stock table. These figures are computed from the movements, so this file and the Hand Stock screen cannot disagree.' },
           { Item: 'Completeness', Value: 'Every page was loaded before this file could be written — the download is refused while rows are still coming.' },
           { Item: 'Scope', Value: scope },
