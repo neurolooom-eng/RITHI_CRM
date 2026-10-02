@@ -1343,12 +1343,12 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.consumption_needs_a_visit()') is null
          or (select p.prosrc ~ 'Reconciliation' and p.prosrc ~ 'No visit has been filed'
                from pg_proc p where p.oid = to_regprocedure('public.consumption_needs_a_visit()')))),
-    (187, 'Every table carries its system columns', 'sys_id, sys_created_by, sys_created_on, sys_updated_by and sys_updated_on, a unique index on sys_id and the zzz_sys_stamp trigger, on EVERY table in public except the nine number counters (0244). The user, 2026-09-26: "I need a key, Timestamp, sys_created_by, sys_updated_by in all the tables" and "sys_created_by, sys_created_on shouldn''t overlap with any of the other fields". THE DATABASE WRITES THEM, never the app: sys_stamp() discards what a signed-in caller sends and stamps the login (auth.uid()) and now(); only a trusted role -- the SQL editor, a migration, a SECURITY DEFINER function -- may supply a value, so a restore can put back what it saved. THEY OVERLAP NOTHING: created_at, created_by and the rest keep their business meaning, which is not always the author -- on a call, created_by is the Hotline DESK. Rows that existed before were filled ONCE from same-meaning fields (created_at; actual_created_by, else created_by, else recorded_by; updated_at; updated_by) by a table rewrite that fires no trigger, and left blank where nothing was recorded. _tables_without_key_time_author.sql NAMES the tables missing it (its sys_columns column). The usual cause of a NO is a table added AFTER 0244 ran: the bundle attaches itself to whatever exists when it runs, so re-running it covers the new table and touches nothing else. NO means a table can be written without saying who or when. Restore: sys_columns.sql',
+    (187, 'Every table carries its system columns', 'sys_id, sys_created_by, sys_created_on, sys_updated_by and sys_updated_on, a unique index on sys_id and the zzz_sys_stamp trigger, on EVERY table in public except the ten number counters (0244; indoor_dc_counters added by 0321). The user, 2026-09-26: "I need a key, Timestamp, sys_created_by, sys_updated_by in all the tables" and "sys_created_by, sys_created_on shouldn''t overlap with any of the other fields". THE DATABASE WRITES THEM, never the app: sys_stamp() discards what a signed-in caller sends and stamps the login (auth.uid()) and now(); only a trusted role -- the SQL editor, a migration, a SECURITY DEFINER function -- may supply a value, so a restore can put back what it saved. THEY OVERLAP NOTHING: created_at, created_by and the rest keep their business meaning, which is not always the author -- on a call, created_by is the Hotline DESK. Rows that existed before were filled ONCE from same-meaning fields (created_at; actual_created_by, else created_by, else recorded_by; updated_at; updated_by) by a table rewrite that fires no trigger, and left blank where nothing was recorded. _tables_without_key_time_author.sql NAMES the tables missing it (its sys_columns column). The usual cause of a NO is a table added AFTER 0244 ran: the bundle attaches itself to whatever exists when it runs, so re-running it covers the new table and touches nothing else. NO means a table can be written without saying who or when. Restore: sys_columns.sql',
         (to_regprocedure('public.sys_stamp()') is not null
          and not exists (
            select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
             where n.nspname = 'public' and c.relkind = 'r'
-              and c.relname not in ('call_number_seq', 'ffr_counters', 'indoor_job_counters',
+              and c.relname not in ('call_number_seq', 'ffr_counters', 'indoor_dc_counters', 'indoor_job_counters',
                                     'material_return_counters', 'party_key_seq', 'spare_dispatch_counters',
                                     'spare_or_counters', 'stock_transfer_counters', 'ucn_counters',
                                     'harness', 'schema_migrations')
@@ -1674,7 +1674,25 @@ with checks(sort_order, bundle, provides, present) as (
          and exists (select 1 from pg_trigger where tgname = 'zz_indoor_pdt_stamp' and tgrelid = to_regclass('public.indoor_pdt'))
          and not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'indoor_pdt' and cmd in ('DELETE', 'ALL'))
          and coalesce((select p.prosrc like '%indoor_job_is_imported%' and p.prosrc like '%reads NOT OK%'
-                         from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false)))
+                         from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false))),
+    (250, 'Indoor_DC: the workshop''s own delivery challan', 'indoor_dcs + indoor_dc_lines (0321): an IDC-YYMM-NNNN number issued by the database (next_indoor_dc_no() + indoor_dc_counters, monthly by the DC date; a number sent is discarded), readable with the Indoor Service Register''s key, with NO write policy and no write grant -- the only writer is create_indoor_dc(), which asks indoor.dispatch, takes Ready units for one consignee, TRIES each unit against indoor_jobs_guard()''s leaving rules and refuses it in the guard''s words, and stamps each job dispatch_ref = the IDC number and dc_date = the DC date. Never deleted (no_hard_delete). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0321)',
+        (to_regclass('public.indoor_dcs') is not null
+         and to_regclass('public.indoor_dc_lines') is not null
+         and to_regclass('public.indoor_dc_counters') is not null
+         and to_regclass('public.indoor_dc_list') is not null
+         and to_regprocedure('public.next_indoor_dc_no(date)') is not null
+         and to_regprocedure('public.indoor_job_product_code(text,text)') is not null
+         and exists (select 1 from pg_trigger where tgname = 'zz_indoor_dcs_stamp' and tgrelid = to_regclass('public.indoor_dcs'))
+         and exists (select 1 from pg_trigger where tgname = 'no_hard_delete' and tgrelid = to_regclass('public.indoor_dcs'))
+         and not exists (select 1 from pg_policies where schemaname = 'public' and tablename in ('indoor_dcs', 'indoor_dc_lines')
+                           and cmd <> 'SELECT')
+         and not has_function_privilege('anon', to_regprocedure('public.next_indoor_dc_no(date)'), 'EXECUTE')
+         and coalesce((select p.prosrc like '%indoor.dispatch%' and p.prosrc like '%indoor_dc_trial_passed%'
+                              and p.prosrc like '%dispatch_ref = v_no%'
+                         from pg_proc p where p.oid = to_regprocedure('public.create_indoor_dc(bigint[],text,date,text,date,text,text,jsonb)')), false))),
+    (251, 'A stock transfer line may carry its own reason', 'stock_transfer_lines.reason (0322), text, blank by default: the per-item "Reason for Transfer" of the MATERIAL TRANSFER NOTE R/SER/STR/003. The printed MTN shows the line''s reason, else the transfer''s common remarks. NO means the Stock Transfer form''s per-line reason is refused on save. Restore: stock_transfer.sql (0322)',
+        exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stock_transfer_lines'
+                   and column_name = 'reason' and data_type = 'text'))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

@@ -74,6 +74,41 @@ up)_
 
 ---
 
+## 2026-10-02 — Indoor_DC, and the MTN and MRN printed (0321, 0322)
+
+The user, with three paper templates: a delivery challan for the Indoor Service
+module only ("Name it Indoor_DC"), the MATERIAL TRANSFER NOTE R/SER/STR/003 and
+the MATERIAL RETURN NOTE R/SER/STR/002.
+
+- **Shipped (on the branch):**
+  - `0321_indoor_dc.sql` (indoor): `indoor_dcs` + `indoor_dc_lines`, numbered
+    IDC-YYMM-NNNN by the database (`next_indoor_dc_no()`, `indoor_dc_counters`
+    -- added to 0244's counter list, row 187 and `sys_columns_test`), written
+    ONLY by `create_indoor_dc()` (indoor.dispatch; Ready units, one consignee,
+    none already on a DC; each unit TRIED against `indoor_jobs_guard()` and
+    refused in its words; stamps dispatch_ref + dc_date, status untouched),
+    `indoor_job_product_code()` for PART No., `indoor_dc_list`. Read with
+    mod:/indoor; no write grant; `no_hard_delete`. No key added, nothing granted.
+  - `0322_stock_transfer_line_reason.sql` (stock_transfer):
+    `stock_transfer_lines.reason`, optional.
+  - Screens: Indoor Service -- tick Ready units, **Create Indoor DC**, **Indoor
+    DCs** list, print `/indoor-dc/<no>`, and the DC's print from a unit's
+    drawer. Stock Transfer -- a reason per part, **🖨 MTN** → `/mtn/<uid>`.
+    Material Returns -- **Print MRN** in a return's detail → `/mrn-print/<uid>`.
+  - Requirements URS-171/172, FRS-228/229/230, FRS-213.4, OQ-223/224; suite
+    `indoor_dc_test`; `_status.sql` rows 250-251.
+- **Pending:** the merge's "Apply database migrations" run applies 0321 and
+  0322 -- read its log; then rows 250 and 251 read yes.
+- **Left open (not settled by the user):** editing or cancelling an issued
+  Indoor DC (none is offered; a wrong one is undone by clearing the unit's DC
+  No. on the job and issuing another); whether a unit's DC No. typed by hand
+  should still be allowed beside the Indoor DC; recording the RECEIPT of a
+  stock transfer (so the MTN's Received By is blank); a place for the customer
+  on the MRN (it prints the customer name only); the Store Dept. Use columns;
+  GSTIN / phone of the consignee on the DC; `_backup_before_reset.sql`,
+  `_reset_for_production.sql` and `_restore_from_backup.sql` do not list the
+  indoor tables at all (0158 onwards), the new counter included.
+
 ## 2026-10-02 — Indoor Service in line with R/SER/07 and R/SER/QC/007 (0319, 0320, v0.10.42)
 
 The user photographed the two controlled paper records the workshop keeps and

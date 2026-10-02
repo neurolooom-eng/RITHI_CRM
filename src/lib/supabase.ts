@@ -3638,7 +3638,7 @@ export async function listAllStock(cap = 5000): Promise<StockRow[]> {
 }
 
 export async function addStockTransfer(
-  from: string, to: string, lines: { part: string; qty: number }[], remarks = '', on?: string,
+  from: string, to: string, lines: { part: string; qty: number; reason?: string }[], remarks = '', on?: string,
 ): Promise<{ ok: boolean; uid?: string; error?: string }> {
   const c = must();
   // uid / row_no are assigned by the database.
@@ -3648,7 +3648,10 @@ export async function addStockTransfer(
   if (error) return { ok: false, error: errMsg(error) };
   const uid = String(data.uid);
   const { error: le } = await c.from('stock_transfer_lines')
-    .insert(lines.map((l, i) => ({ transfer_uid: uid, row_no: i + 1, part: l.part, qty: l.qty })));
+    // The per-line reason is OPTIONAL (0322) and sent only when given, so a
+    // project that has not run 0322 still records a transfer with none.
+    .insert(lines.map((l, i) => ({ transfer_uid: uid, row_no: i + 1, part: l.part, qty: l.qty,
+                                   ...(l.reason?.trim() ? { reason: l.reason.trim() } : {}) })));
   if (le) {
     // The lines are the transfer; a header alone is not a usable record. The
     // stock check rejects the whole insert, so nothing moved.
@@ -3656,6 +3659,68 @@ export async function addStockTransfer(
     return { ok: false, error: errMsg(le) };
   }
   return { ok: true, uid };
+}
+
+/** ONE transfer and its lines, for the printed MATERIAL TRANSFER NOTE. Read BY
+ *  ITS NUMBER and RLS-scoped (st_read / stl_read), so a transfer the reader may
+ *  not see is simply not found. `entered_by_name` is the name RITHI knows for
+ *  the login that keyed it (app_user_names). */
+export interface StockTransferDoc {
+  uid: string; from_engineer: string; to_engineer: string; transfer_date: string | null;
+  remarks: string; status: string; created_by: string | null; entered_by_name: string;
+  lines: { row_no: number | null; part: string; qty: number; reason: string }[];
+}
+export async function stockTransferByUid(uid: string): Promise<StockTransferDoc | null> {
+  const c = must();
+  const { data: h, error } = await c.from('stock_transfers')
+    .select('uid, from_engineer, to_engineer, transfer_date, remarks, status, created_by')
+    .eq('uid', uid).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  if (!h) return null;
+  const { data: ls, error: le } = await c.from('stock_transfer_lines').select('*')
+    .eq('transfer_uid', uid).order('row_no', { ascending: true, nullsFirst: false }).order('id');
+  if (le) throw new Error(errMsg(le));
+  const entered = h.created_by ? await userNameById(String(h.created_by)) : '';
+  return {
+    uid: String(h.uid), from_engineer: String(h.from_engineer ?? ''), to_engineer: String(h.to_engineer ?? ''),
+    transfer_date: (h.transfer_date as string | null) ?? null, remarks: String(h.remarks ?? ''),
+    status: String(h.status ?? ''), created_by: (h.created_by as string | null) ?? null, entered_by_name: entered,
+    lines: (ls ?? []).map((l) => ({
+      row_no: l.row_no == null ? null : Number(l.row_no), part: String(l.part ?? ''), qty: Number(l.qty),
+      // `reason` arrives with 0322; before it the key is absent and reads blank.
+      reason: String((l as Record<string, unknown>).reason ?? ''),
+    })),
+  };
+}
+
+/** The name RITHI knows for a login (app_user_names, 0068): '' when unknown. */
+export async function userNameById(id: string): Promise<string> {
+  if (!id) return '';
+  const { data } = await must().from('app_user_names').select('name').eq('id', id).maybeSingle();
+  return String(data?.name ?? '').trim();
+}
+
+/** THE PLACE OF A PERSON, for the MTN and the MRN: their City on the User
+ *  Master, else their Region (the user's decision, 2026-10-02). Matched on the
+ *  name, case- and space-insensitively. Where the directory holds the name more
+ *  than once and the rows DISAGREE, the place is left blank rather than one of
+ *  them picked -- a wrong place on a stores record is worse than none. */
+export async function placeOfPerson(name: string): Promise<string> {
+  const n = name.trim();
+  if (!n) return '';
+  const pattern = n.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+  const { data, error } = await must().from('user_directory')
+    .select('name, city, region').ilike('name', pattern).order('id').limit(20);
+  if (error || !data) return '';
+  const rows = data.filter((r) => String(r.name ?? '').trim().toLowerCase() === n.toLowerCase());
+  const one = (k: 'city' | 'region') => {
+    const vals = [...new Set(rows.map((r) => String(r[k] ?? '').trim()).filter(Boolean))];
+    return vals.length === 1 ? vals[0]! : vals.length > 1 ? null : '';
+  };
+  const city = one('city');
+  if (city === null) return '';
+  if (city) return city;
+  return one('region') ?? '';
 }
 
 // ---- stores dispatch ------------------------------------------------------
@@ -4058,6 +4123,15 @@ export async function listMaterialReturns(limit = 1000, offset = 0): Promise<Rec
     // tie and a page boundary could double one line and drop another.
     .order('id', { ascending: true })
     .range(offset, offset + limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+
+/** ONE return -- every line sharing its `uid` -- for the printed MATERIAL
+ *  RETURN NOTE. RLS-scoped, so a return the reader may not see is not found. */
+export async function materialReturnByUid(uid: string): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('material_returns').select('*')
+    .eq('uid', uid).order('row_no', { ascending: true, nullsFirst: false }).order('id', { ascending: true });
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
@@ -5748,6 +5822,71 @@ export async function verifyIndoorJob(id: number, uid: string): Promise<{ ok: bo
   if (error) return { ok: false, error: errMsg(error) };
   if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not change this job.' };
   return { ok: true };
+}
+
+// ---- Indoor_DC (0321) --------------------------------------------------------
+/** One Indoor DC as indoor_dc_list gives it. */
+export interface IndoorDc {
+  id: number; dc_no: string; dc_date: string; consignee: string;
+  customer_ref: string; customer_ref_date: string | null; mode_of_despatch: string;
+  purpose: string; issued_by_name: string; created_by: string | null; created_at: string;
+  line_count: number; job_nos: string | null;
+}
+export interface IndoorDcLine {
+  id: number; dc_id: number; line_no: number; job_id: number; accessory_id: number | null;
+  part_no: string; description: string; qty: number; purpose: string;
+}
+
+/** Every Indoor DC, newest first, paged (D-040) with `id` as the tiebreaker. */
+export async function listIndoorDcs(): Promise<IndoorDc[]> {
+  return allRows<IndoorDc>((a, b) => must()
+    .from('indoor_dc_list').select('*')
+    .order('dc_date', { ascending: false }).order('id', { ascending: false })
+    .range(a, b) as never);
+}
+
+/** One DC by its NUMBER, with its lines in print order. RLS-scoped: a reader
+ *  without the Indoor Service Register gets null. */
+export async function indoorDcByNo(dcNo: string): Promise<{ dc: IndoorDc; lines: IndoorDcLine[] } | null> {
+  const c = must();
+  const { data, error } = await c.from('indoor_dc_list').select('*').eq('dc_no', dcNo).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  if (!data) return null;
+  const { data: ls, error: le } = await c.from('indoor_dc_lines').select('*')
+    .eq('dc_id', (data as IndoorDc).id).order('line_no', { ascending: true });
+  if (le) throw new Error(errMsg(le));
+  return { dc: data as IndoorDc, lines: (ls ?? []) as IndoorDcLine[] };
+}
+
+/** The PART No. the DC will print for a job's equipment (0321's
+ *  indoor_job_product_code), for the preview before it is issued. '' = none. */
+export async function indoorJobProductCode(productName: string, serial: string): Promise<string> {
+  const { data, error } = await must().rpc('indoor_job_product_code', { p_product_name: productName, p_serial: serial });
+  if (error) return '';
+  return String(data ?? '');
+}
+
+/** ISSUE an Indoor DC. The DATABASE issues the number, tries every unit
+ *  against the dispatch rules, builds the lines and stamps each job (0321);
+ *  this sends what was typed. `linePurposes` overrides PURPOSE per line
+ *  (accessoryId null = the equipment line). */
+export async function createIndoorDc(input: {
+  jobIds: number[]; consignee: string; dcDate?: string; customerRef?: string; customerRefDate?: string;
+  mode?: string; purpose?: string;
+  linePurposes?: { jobId: number; accessoryId: number | null; purpose: string }[];
+}): Promise<{ ok: boolean; dcNo?: string; error?: string }> {
+  const { data, error } = await must().rpc('create_indoor_dc', {
+    p_job_ids: input.jobIds,
+    p_consignee: input.consignee,
+    p_dc_date: input.dcDate || null,
+    p_customer_ref: input.customerRef ?? '',
+    p_customer_ref_date: input.customerRefDate || null,
+    p_mode: input.mode ?? '',
+    p_purpose: input.purpose ?? '',
+    p_line_purposes: (input.linePurposes ?? []).map((l) => ({ job_id: l.jobId, accessory_id: l.accessoryId, purpose: l.purpose })),
+  });
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true, dcNo: String(data ?? '') };
 }
 
 export async function getIndoorPdt(jobId: number): Promise<IndoorPdt | null> {

@@ -171,3 +171,38 @@ export function pdtOwed(j: Pick<IndoorJob, 'kind' | 'product_imported'>): boolea
   if (j.product_imported == null) return null;
   return j.product_imported === true;
 }
+
+// ---------------------------------------------------------------------------
+// INDOOR_DC -- the workshop's delivery challan (0321).
+//
+// THE TEMPLATE'S OWN TEXT, in one constant. Deliberately NOT the COMPANY
+// constant of src/lib/dc.ts: that is the spare DC's letterhead, and this form
+// prints the SERVICE CENTER's address as the user's template carries it.
+// ---------------------------------------------------------------------------
+export const INDOOR_DC_FORM = {
+  org: 'AIR LIQUIDE MEDICAL SYSTEMS PVT. LTD.',
+  dept: 'SERVICE CENTER',
+  address: [
+    '5th Floor, Tower-B, “Tek Meadows”, 51, Rajiv Gandhi Salai,',
+    'Sholinganallur, Chennai - 600 119. India.',
+  ],
+  tel: 'Tel : +91 44 4385 1116 / 17, 4385 1187 / 88',
+  email: 'E-mail : service.almsindia@airliquide.com',
+  title: 'DELIVERY CHALLAN (DC)',
+  gstin: 'GSTIN : 33AAACE8420F1Z3',
+  columns: ['S.No.', 'PART No.', 'DESCRIPTION', 'QTY.', 'PURPOSE'],
+  signBoxes: ['ISSUED BY (Stores)', 'AUTHORISED BY', 'RECEIVED BY (WITH DATE)', 'PACKED & DESPATCH BY'],
+  note: 'Note : Kindly return us one copy of DC duly signed',
+} as const;
+
+/** Whom a job goes back to: its party (customer property) or the party it is
+ *  going to (a DEMO unit). The DATABASE asks the same (create_indoor_dc), and
+ *  refuses jobs whose consignees differ. */
+export function jobConsignee(j: Pick<IndoorJob, 'kind' | 'party_name' | 'demo_for_party'>): string {
+  return String((j.kind === 'DEMO unit' ? j.demo_for_party : j.party_name) ?? '').trim();
+}
+export const consigneeKey = (s: string) => s.trim().toUpperCase();
+
+/** The equipment line's DESCRIPTION, as the database writes it. */
+export const equipmentDescription = (name: string, serial: string) =>
+  `${name.trim()}${serial.trim() ? ` Sl.No ${serial.trim()}` : ''}`.trim();
