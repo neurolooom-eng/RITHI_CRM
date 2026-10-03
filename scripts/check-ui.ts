@@ -7225,7 +7225,22 @@ console.log('\n-- My Workload: the queues left the registers, and open what they
   // somebody who may not read it is a number they cannot act on and a leak:
   // "Spares waiting 240" is the size of a queue the register would refuse them.
   eq('a register the reader cannot open is not even counted',
-    /\.filter\(\(j\) => can\(j\.needs\)\)/.test(page), true);
+    /\.filter\(\(j\) => j\.always \|\| can\(j\.needs\)\)/.test(page)
+    // ONE exception, and it counts nothing the reader cannot open (0326): the
+    // Indoor DCs the User Master names them on, which row-level security
+    // limits them to and /indoor-dc-approvals shows them.
+    && (page.match(/always: true/g) ?? []).length === 1
+    && /needs: 'mod:\/indoor', always: true, run: \(\) => indoorDcSection\(can\('mod:\/indoor'\)\)/.test(page), true);
+  {
+    const wlib = readFileSync('src/lib/workload.ts', 'utf8');
+    const sec = wlib.slice(wlib.indexOf('export async function indoorDcSection'));
+    eq('...without the Indoor key it shows only the DCs naming the reader, never the whole queue',
+      /if \(!hasIndoor\) \{[\s\S]{0,700}cards: mine \? \[\{ label: 'Awaiting my approval'[\s\S]{0,200}\] : \[\]/.test(sec)
+      && !/if \(!hasIndoor\) \{[\s\S]{0,700}Pending approval[\s\S]{0,40}\n  \}\n  const open/.test(sec), true);
+    const app = readFileSync('src/App.tsx', 'utf8');
+    eq('...and the page it opens is routed',
+      /<Route path="\/indoor-dc-approvals" element=\{<IndoorDcApprovals \/>\} \/>/.test(app), true);
+  }
 
   // EVERY COUNT IS OVER WHAT LOADED, so a section still reading says so — the
   // rule this project applies everywhere and would be easiest to drop on a

@@ -5,7 +5,8 @@
 -- What this proves:
 --
 --   * indoor_dc_authorisers() offers the issuer's Reporting Manager and
---     Regional Manager (User Master) and every active NSM -- and nobody else.
+--     Regional Manager (User Master) and, as NSM, the Regional Manager's own
+--     Reporting Manager (0326) -- and nobody else.
 --   * STAGE 4: the Indoor Service Report is REFUSED before the unit is cleaned
 --     and without its report number; uploading needs indoor.work; who and when
 --     are STAMPED from the session (a name the browser sends is discarded).
@@ -16,18 +17,17 @@
 --   * A unit on a pending DC is not Dispatched.
 --   * APPROVAL: only the AUTHORISED BY person (by their User Master name) or an
 --     administrator approves or rejects -- the issuer and a stranger are
---     refused; a DC whose UCN job has no visit filed is not approved; the visit
---     recorded must be a visit of THAT call reading Unsolved / Return to Field /
---     Update Visit Work Details? = Yes; approval stamps who and when.
+--     refused; a visit recorded by hand must be a visit of THAT call reading
+--     Unsolved / Return to Field / Update Visit Work Details? = Yes; APPROVING
+--     FILES THE VISIT ITSELF (0326) and stamps who and when.
 --   * A job with no UCN (a DEMO unit) needs no visit to be approved.
 --   * REJECT needs a reason, keeps the DC, and RELEASES the units (DC No., DC
 --     date and dispatch stamps cleared) so a new DC can be made -- by an
 --     approver who holds no indoor right at all.
 --   * "Return to Field" is on the Call Pending Reason master, active.
 --
--- The visit itself is written by the screen through the Visit Entry's own save
--- path (CallReporting.tsx fileVisit); here it is a row put in `reports` the way
--- that path writes one.
+-- Since 0326 the approval writes the visit in the database, as the Visit
+-- Entry's own save path did; indoor_dc_user_master_test proves the rest.
 --
 -- Superuser bypasses RLS and privileges, so every scoped check runs as
 -- `authenticated`. Run after _stub.sql + every migration.
@@ -66,10 +66,17 @@ insert into public.app_roles (role, permissions) values
 on conflict (role) do update set permissions = excluded.permissions;
 
 -- THE USER MASTER: Ajay reports to Stage Manager, regionally to Stage Regional.
-delete from public.user_directory where email in ('stg_ajay@x.com', 'stg_mgr@x.com');
+-- The Regional Manager's own row names Stage Nsm as THEIR manager: that is
+-- Ajay's NSM (0326).
+delete from public.user_directory where email in ('stg_ajay@x.com', 'stg_mgr@x.com', 'stg_rgm@x.com');
 insert into public.user_directory (name, email, reporting_manager, regional_manager) values
- ('Stage Ajay',    'stg_ajay@x.com', 'Stage Manager', 'Stage Regional'),
- ('Stage Manager', 'stg_mgr@x.com',  '',              '');
+ ('Stage Ajay',     'stg_ajay@x.com', 'Stage Manager', 'Stage Regional'),
+ ('Stage Manager',  'stg_mgr@x.com',  '',              ''),
+ ('Stage Regional', 'stg_rgm@x.com',  'Stage Nsm',     '');
+-- The calls the units came in on: the approval files its visit against them.
+insert into public.field_calls (ucn, call_number, party_name) values
+ ('UCN-STG-1', 'CN-STG-1', 'STG HOSPITAL'), ('UCN-STG-3', 'CN-STG-3', 'STG HOSPITAL'), ('UCN-STG-4', 'CN-STG-4', 'STG HOSPITAL')
+on conflict do nothing;
 
 create or replace procedure public.be(p text) language plpgsql as $$
 begin update public.harness set uid = (select id from auth.users where email = p), email = p; end $$;
@@ -90,7 +97,7 @@ insert into public.indoor_job_accessories (job_id, name, qty)
 select id, 'Nothing', 0 from public.indoor_jobs where serial = 'G1';
 
 \echo '--- 1. WHO MAY AUTHORISE AJAY''S DC ---'
-\echo 'expect: Stage Manager (Reporting Manager), Stage Regional (Regional Manager), Stage Nsm (NSM) -- not the inactive NSM'
+\echo 'expect: Stage Manager (Reporting Manager), Stage Regional (Regional Manager), Stage Nsm (NSM, the Regional Manager''s own manager) -- not the other NSM login'
 begin;
   set local role authenticated;
   select name, basis from public.indoor_dc_authorisers();
@@ -213,24 +220,19 @@ begin;
   select i_may_approve from public.indoor_dc_list where dc_no = :'dc1';
 commit;
 
-\echo '--- 11. THE APPROVER: not before the visit is filed ---'
+\echo '--- 11. THE APPROVER: the check, then the approval files the visit ---'
 call public.be('stg_mgr@x.com');
 begin;
   set local role authenticated;
-  \echo 'expect: OK -- the check before filing visits asks who and state only'
+  \echo 'expect: OK -- the check asks who, state and that each visit is drafted'
   select public.approve_indoor_dc(:'dc1', true);
   select i_may_approve from public.indoor_dc_list where dc_no = :'dc1';
-  \echo 'expect ERROR: is not approved: the visit is not yet filed for'
-  select public.approve_indoor_dc(:'dc1');
 commit;
 
--- THE VISITS, as the Visit Entry's save path writes them (as the approver).
+-- A visit recorded BY HAND must still be one the rule accepts.
 insert into public.reports (uid, ucn, call_status, pending_reason, engineer, data) values
  ('VIS-STG-WRONG', 'UCN-STG-1', 'Solved - Report Completed', '',                'Stage Ajay', '{"Update Visit Work Details?": "Yes"}'::jsonb),
- ('VIS-STG-OTHER', 'UCN-STG-3', 'Unsolved',                  'Return to Field', 'Stage Ajay', '{"Update Visit Work Details?": "Yes"}'::jsonb),
- ('VIS-STG-1',     'UCN-STG-1', 'Unsolved',                  'Return to Field', 'Stage Ajay',
-  '{"Update Visit Work Details?": "Yes", "Manual Report No.": "ISR-G1", "Job Done": "Repaired in the workshop"}'::jsonb);
-update public.reports set manual_report = 'https://drive/isr-g1' where uid = 'VIS-STG-1';
+ ('VIS-STG-OTHER', 'UCN-STG-3', 'Unsolved',                  'Return to Field', 'Stage Ajay', '{"Update Visit Work Details?": "Yes"}'::jsonb);
 
 begin;
   set local role authenticated;
@@ -244,11 +246,10 @@ begin;
 commit;
 begin;
   set local role authenticated;
-  select public.record_indoor_visit((select id from public.indoor_jobs where serial = 'G1'), 'VIS-STG-1', true);
   select public.approve_indoor_dc(:'dc1') = :'dc1' as approved;
 commit;
-\echo 'expect: VIS-STG-1 recorded and filed; the visit reads Unsolved | Return to Field | Yes | ISR-G1 | the report link'
-select j.visit_uid, j.visit_filed_at is not null as filed, r.call_status, r.pending_reason,
+\echo 'expect: a WEB- visit filed by the approval; it reads Unsolved | Return to Field | Yes | ISR-G1 | the report link'
+select j.visit_uid like 'WEB-%' as web_visit, j.visit_filed_at is not null as filed, r.call_status, r.pending_reason,
        r.data ->> 'Update Visit Work Details?' as update_work, r.data ->> 'Manual Report No.' as report_no, r.manual_report
   from public.indoor_jobs j join public.reports r on r.uid = j.visit_uid where j.serial = 'G1';
 \echo 'expect: Approved | approved by the manager | Stage Manager | just now'

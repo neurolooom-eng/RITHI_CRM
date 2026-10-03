@@ -325,10 +325,23 @@ export async function reviewSection(): Promise<WorkloadSection> {
 /** Indoor DCs (0323) -- "Only the INDOOR DC needs an approval". Awaiting the
  *  reader is the list's own test (`i_may_approve`: they are its AUTHORISED BY,
  *  or an administrator), so this counts what the Indoor DC list puts first. */
-export async function indoorDcSection(): Promise<WorkloadSection> {
+export async function indoorDcSection(hasIndoor: boolean): Promise<WorkloadSection> {
   const dcs = await listIndoorDcs();
   const pending = dcs.filter((d) => d.approval_status === 'Pending approval');
   const mine = pending.filter((d) => d.i_may_approve).length;
+  // WHOEVER THE USER MASTER NAMES APPROVES, WHATEVER THEIR ROLE (0326). A
+  // reader whose role cannot open Indoor Service sees only the DCs naming them
+  // (row-level security), on a page of their own; with none waiting, the
+  // section is not shown at all (no cards -- Workload drops it).
+  if (!hasIndoor) {
+    const opens = { path: '/indoor-dc-approvals', opens: 'the Indoor DCs naming you' };
+    return {
+      key: 'indoor-dc', title: 'Indoor DCs', path: '/indoor-dc-approvals', needs: 'mod:/indoor',
+      more: false,
+      cards: mine ? [{ label: 'Awaiting my approval', value: mine, sub: 'Indoor DCs naming you', icon: '⚡',
+                       tone: 'primary', to: opens }] : [],
+    };
+  }
   const open = (opens: string) => ({ path: '/indoor', state: { indoorView: 'dcs' }, opens });
   return {
     key: 'indoor-dc', title: 'Indoor DCs', path: '/indoor', needs: 'mod:/indoor',

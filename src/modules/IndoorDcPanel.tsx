@@ -10,18 +10,16 @@
 //                     the reader's approval first, with Approve / Reject.
 //
 // THE APPROVAL (0323, the user: "Only the INDOOR DC needs an approval"). A DC
-// is created PENDING APPROVAL naming its AUTHORISED BY -- the issuer's
-// Reporting Manager, Regional Manager or an NSM (indoor_dc_authorisers()).
-// That person (or an administrator) approves or rejects it. APPROVING FILES
-// THE VISITS: for every job on the DC with a UCN, the Visit Entry drafted with
-// its Indoor Service Report is filed against the call through the Visit
-// Entry's OWN save path (fileVisit, CallReporting.tsx), as the approver, with
-// the visiting engineer the drafted report names (picked on the Repair page,
-// the Indoor engineer by default) -- then recorded on the job
-// (record_indoor_visit) -- and only then is the DC approved. The database
-// refuses the approval while any visit is unfiled, so a visit that fails
-// leaves the DC pending, says why, and a retry files only what is left (the
-// job remembers the visit it already filed).
+// is created PENDING APPROVAL naming its AUTHORISED BY -- from the ISSUER'S
+// User Master row (0326, the user: "it is dynamic based on the user master"):
+// their Reporting Manager, their Regional Manager, and as NSM the Regional
+// Manager's own Reporting Manager; never the issuer. That person (or an
+// administrator) approves or rejects it, whatever their role holds: they see
+// the DCs naming them here, or on /indoor-dc-approvals from My Workload when
+// their role cannot open Indoor Service. APPROVING FILES THE VISITS in the
+// database (approve_indoor_dc): for every unit with a UCN, the visit drafted
+// with its Indoor Service Report and its spares, in one transaction with the
+// approval, so a refusal leaves the DC pending with nothing filed.
 //
 // THE DATABASE DECIDES (create_indoor_dc): it issues the number, refuses a
 // unit the dispatch rules would refuse (in the rule's own words), refuses
@@ -34,7 +32,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   createIndoorDc, indoorJobProductCode, listIndoorAccessories, listIndoorDcs, sbPartyInfo,
-  listIndoorDcAuthorisers, approveIndoorDc, rejectIndoorDc, recordIndoorVisit, indoorJobsOnDc, callByUcn,
+  listIndoorDcAuthorisers, approveIndoorDc, rejectIndoorDc,
   type IndoorDc, type IndoorJob,
 } from '../lib/supabase';
 import { equipmentDescription, jobConsignee } from '../lib/indoorforms';
@@ -42,8 +40,7 @@ import { formatDay } from '../lib/dates';
 import { todayISO } from '../lib/format';
 import { logAudit } from '../lib/audit';
 import { SelectPicker } from '../components/ui/SelectPicker';
-import { useAuth } from '../lib/auth';
-import { fileVisit, INDOOR_VISIT_FIXED, type VisitDraft } from './CallReporting';
+import { PageHeader } from '../components/ui/ui';
 
 interface PreviewLine {
   key: string; jobId: number; accessoryId: number | null; jobNo: string;
@@ -252,50 +249,19 @@ export function IndoorDcForm({ jobs, onClose, onIssued, inPane }: {
   );
 }
 
-/** File the drafted visit of every job on the DC that has a UCN and has not
- *  had it filed, then approve. Returns the first refusal, in its own words. */
-async function approveWithVisits(dc: IndoorDc, filerEmail: string, onStep: (s: string) => void): Promise<{ ok: boolean; error?: string }> {
-  const check = await approveIndoorDc(dc.dc_no, true);
-  if (!check.ok) return check;
-  const jobs = await indoorJobsOnDc(dc.id);
-  for (const j of jobs) {
-    const ucn = String(j.ucn ?? '').trim();
-    if (!ucn || j.visit_filed_at) continue;
-    const draft = j.visit_draft as unknown as VisitDraft | null;
-    if (!draft) return { ok: false, error: `${j.job_no}: no visit was drafted with its Indoor Service Report — the Indoor engineer completes it (Report stage) before this DC can be approved.` };
-    onStep(`Filing the visit for ${ucn} (${j.job_no})…`);
-    const call = await callByUcn(ucn).catch(() => null);
-    if (!call) return { ok: false, error: `${j.job_no}: call ${ucn} was not found, or you cannot view it — the visit cannot be filed.` };
-    // THE USER'S RULE, whatever the draft says: Unsolved / Return to Field /
-    // work details Yes; the report is the uploaded Indoor Service Report and
-    // its number travels as Manual Report No.
-    const d: VisitDraft = {
-      ...draft,
-      status: INDOOR_VISIT_FIXED.status, pendingReason: INDOOR_VISIT_FIXED.pendingReason,
-      updateWork: INDOOR_VISIT_FIXED.updateWork, manualLink: j.report_file_url,
-    };
-    // A visit already filed on an earlier attempt is not filed again: the job
-    // remembers it. (Spares and feedback that failed are retried; an Indoor
-    // visit is Unsolved, so it carries no feedback -- fileVisit asks for it
-    // on a SOLVED call only.)
-    const r = await fileVisit(call, d, {
-      filerEmail, extraData: { 'Manual Report No.': j.indoor_report_no },
-      progress: j.visit_uid ? { uid: j.visit_uid } : {},
-    });
-    if (!r.ok) {
-      if (r.progress.uid && r.progress.uid !== j.visit_uid) await recordIndoorVisit(j.id, r.progress.uid, false);
-      return { ok: false, error: `${j.job_no} (${ucn}): ${r.error}` };
-    }
-    const rec = await recordIndoorVisit(j.id, r.uid, true);
-    if (!rec.ok) return { ok: false, error: `${j.job_no}: the visit ${r.uid} was filed but could not be recorded on the job: ${rec.error}` };
-  }
-  onStep('Approving…');
+/** APPROVING FILES THE VISITS IN THE DATABASE (0326). approve_indoor_dc()
+ *  files, for every unit on the DC with a UCN, the visit drafted with its
+ *  Indoor Service Report and its spares, stamps the unit and approves -- in one
+ *  transaction, as the approver -- so a refusal anywhere leaves the DC pending
+ *  with nothing filed, and the approver's ROLE needs no call-report key: the
+ *  User Master naming them is what lets them approve. */
+async function approveDc(dc: IndoorDc, onStep: (s: string) => void): Promise<{ ok: boolean; error?: string }> {
+  onStep(`Approving ${dc.dc_no} and filing its visits…`);
   return approveIndoorDc(dc.dc_no);
 }
 
 export function IndoorDcList({ onChanged }: { onChanged?: () => void } = {}) {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [dcs, setDcs] = useState<IndoorDc[] | null>(null);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
@@ -320,7 +286,7 @@ export function IndoorDcList({ onChanged }: { onChanged?: () => void } = {}) {
 
   const approve = async (d: IndoorDc) => {
     setBusy(d.dc_no); setMsg('');
-    const r = await approveWithVisits(d, user?.email ?? '', (s) => setMsg(s)).catch((e) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+    const r = await approveDc(d, (s) => setMsg(s)).catch((e) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
     setBusy('');
     logAudit({ action: 'indoor.dc_approve', target: d.dc_no, status: r.ok ? 'ok' : 'error', error: r.ok ? undefined : r.error });
     setMsg(r.ok ? `Indoor DC ${d.dc_no} approved — the visits are filed against the calls.` : `Not approved: ${r.error}`);
@@ -385,3 +351,19 @@ export function IndoorDcList({ onChanged }: { onChanged?: () => void } = {}) {
     </div>
   );
 }
+
+/** THE INDOOR DCs AWAITING THE READER (0326): the page My Workload opens for
+ *  a person the User Master names as AUTHORISED BY whose role cannot open
+ *  Indoor Service. Not a module and not keyed: row-level security shows them
+ *  the DCs naming them and nothing else, and approving is approve_indoor_dc's
+ *  own test. */
+export function IndoorDcApprovals() {
+  return (
+    <div>
+      <PageHeader title="Indoor DCs to approve" icon="🏭"
+        subtitle="The Indoor DCs that name you as AUTHORISED BY. Approving files each unit's visit against its call." />
+      <IndoorDcList />
+    </div>
+  );
+}
+

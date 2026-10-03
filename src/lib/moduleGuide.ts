@@ -643,6 +643,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'View the register as R/SER/07 (Customer – Devices / Demo), download it to Excel and print it',
       'Tick Ready units for one consignee and create an Indoor DC (IDC-YYMM-NNNN) for them, naming who authorises it; list and re-print every Indoor DC',
       'Approve or reject an Indoor DC that names you — approving files each unit\'s drafted visit against its call',
+      'Who may authorise a DC comes from the User Master: your Reporting Manager, your Regional Manager, and the Regional Manager\'s own manager as NSM — never yourself; they approve whatever their role',
       'Open a job as a window; from its DC page create the Indoor DC in a pane beside the job, the divider dragged to taste',
       'Pick the Visiting Service Engineer for the drafted visit from the active people on the User Master (you by default)',
       'Arrange the R/SER/07 register\'s columns — order, width, wrap, which are shown — as on every register',

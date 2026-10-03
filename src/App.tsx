@@ -32,6 +32,7 @@ import { FieldFailureReportPrint } from './modules/FieldFailureReportPrint';
 import { IndoorPdtPrint } from './modules/IndoorPdtPrint';
 import { IndoorRegisterPrint } from './modules/IndoorRegisterPrint';
 import { IndoorDcPrint } from './modules/IndoorDcPrint';
+import { IndoorDcApprovals } from './modules/IndoorDcPanel';
 import { MtnPrint } from './modules/MtnPrint';
 import { MrnPrint } from './modules/MrnPrint';
 import { DeliveryChallan } from './modules/DeliveryChallan';
@@ -120,8 +121,11 @@ function Shell() {
     // THE TWO INDOOR SERVICE RECORDS (R/SER/QC/007, R/SER/07) answer to the
     // Indoor Service Register's own key, as the FFR answers to its register's
     // (D-026). The register print also asks export.data, on its own page.
-    if ((location.pathname.startsWith('/indoor-dc/')
-         || location.pathname.startsWith('/indoor-pdt/') || location.pathname.startsWith('/indoor-register/'))
+    // THE INDOOR DC IS NOT AMONG THEM since 0326: the person the User Master
+    // names as its AUTHORISED BY reads it whatever their role, and row-level
+    // security shows a reader nothing else -- a DC they may not see is simply
+    // not found.
+    if ((location.pathname.startsWith('/indoor-pdt/') || location.pathname.startsWith('/indoor-register/'))
         && !can(actionForPath('/indoor'))) {
       return (
         <div style={{ padding: 32 }} className="muted">
@@ -187,6 +191,10 @@ function Shell() {
       <ErrorBoundary where={location.pathname}>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        {/* NOT A MODULE (0326): the Indoor DCs naming the reader as AUTHORISED
+            BY, opened from My Workload by someone whose role cannot open
+            Indoor Service. Row-level security is what limits it. */}
+        <Route path="/indoor-dc-approvals" element={<IndoorDcApprovals />} />
         <Route path="/daily-review" element={<DailyCallReview />} />
         <Route path="/call-review" element={<CallReview />} />
         <Route path="/parties" element={<PartyMaster />} />

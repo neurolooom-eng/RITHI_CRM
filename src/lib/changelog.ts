@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.60',
+    date: '2026-10-03',
+    title: 'Indoor DC: authorised and approved as the User Master says',
+    changes: [
+      'AUTHORISED BY on an Indoor DC now comes only from the User Master: your Reporting Manager, your Regional Manager, and as NSM the Reporting Manager on your Regional Manager’s own row. It no longer lists every NSM, and you can never name yourself.',
+      'THE PERSON NAMED APPROVES WHATEVER THEIR ROLE. They see the DCs that name them on My Workload (Indoor DCs — Awaiting my approval); if their role cannot open Indoor Service, the card opens a page listing just those DCs, and the DC print opens for them.',
+      'APPROVING FILES THE VISIT IN ONE STEP: each unit’s drafted visit and its spares are filed against the call together with the approval. If anything is refused (for example a spare the engineer does not hold), nothing is filed and the DC stays pending with the reason shown.',
+      'A unit’s visit can no longer be marked as filed by editing the unit; only approving its DC does that.',
+    ],
+  },
+  {
     version: '0.10.59',
     date: '2026-10-03',
     title: 'Convert to Contract leaves out machines now with another customer',

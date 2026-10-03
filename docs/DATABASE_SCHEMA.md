@@ -1369,7 +1369,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| SELECT | `indoor_dc_lines_read` | `( SELECT has_perm('mod:/indoor'::text) AS has_perm)` | — |
+| SELECT | `indoor_dc_lines_read` | `(( SELECT has_perm('mod:/indoor'::text) AS has_perm) OR indoor_dc_names_me(dc_id))` | — |
 
 ---
 
@@ -1440,7 +1440,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| SELECT | `indoor_dcs_read` | `( SELECT has_perm('mod:/indoor'::text) AS has_perm)` | — |
+| SELECT | `indoor_dcs_read` | `(( SELECT has_perm('mod:/indoor'::text) AS has_perm) OR indoor_dc_may_approve(authorised_by_name))` | — |
 
 ---
 
@@ -1697,14 +1697,14 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 - `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
 - `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 
-**Triggers:** `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `indoor_job_visit_by_approval` → `indoor_job_visit_by_approval()` · `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | INSERT | `indoor_insert` | — | `has_perm('indoor.receive'::text)` |
-| SELECT | `indoor_read` | `has_perm('mod:/indoor'::text)` | — |
+| SELECT | `indoor_read` | `(( SELECT has_perm('mod:/indoor'::text) AS has_perm) OR indoor_job_on_my_dc(dispatch_ref))` | — |
 | UPDATE | `indoor_update` | `(has_perm('indoor.receive'::text) OR has_perm('indoor.work'::text) OR has_perm('indoor.qc'::text) OR has_perm('indoor.dispatch'::text) OR has_perm('indoor.condemn'::text))` | `(has_perm('indoor.receive'::text) OR has_perm('indoor.work'::text) OR has_perm('indoor.qc'::text) OR has_perm('indoor.dispatch'::text) OR has_perm('indoor.condemn'::text))` |
 
 ---
