@@ -562,3 +562,11 @@ td.ind-rows-empty { text-align: left; }
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .rep-inline .rep-linked-value.is-blank { color: var(--text-muted); font-style: italic; font-size: 12.5px; }
+
+/* Inside the Repair page's group the visit form's first section carries no
+   rule or eyebrow of its own: the group's heading already names it. */
+.ind-group .rep-inline { margin-top: 0; }
+.ind-group .rep-inline .rep-form > .rep-sec:first-child { border-top: 0; padding-top: 8px; }
+.ind-group .rep-inline .rep-form > .rep-sec:first-child > .rep-sec-title { display: none; }
+.ind-group-aside .btn-ghost { color: var(--primary); font-weight: 600; }
+.ind-reportstate { margin-bottom: 14px; }

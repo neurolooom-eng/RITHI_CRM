@@ -650,7 +650,7 @@ export function CallReportDrawer({
             <label className="rep-field" style={{ marginBottom: 6 }}>
               <span className="field-label">Indoor Service Report No *</span>
               <input className="input" value={reportNo} onChange={(e) => setReportNo(e.target.value)} />
-              <span className="muted rep-hint">The uploaded file is named “{reportNo.trim() || '<report no>'}_&lt;file name&gt;”, so it traces back to this number. It is the visit’s Manual Report when the visit is filed.</span>
+              <span className="muted rep-hint" title="It traces the file back to this number, and is the visit’s Manual Report when the visit is filed.">The file is saved as “{reportNo.trim() || '<report no>'}_&lt;file name&gt;”.</span>
             </label>
           ) : null}
           <span className="field-label">{indoor ? 'Indoor Service Report *' : `Manual Report${solved ? ' *' : ''}`}</span>
@@ -777,6 +777,17 @@ export function CallReportDrawer({
             </div>
           </section>}
 
+          {/* Inline (Indoor): the report number and its file come first -- they
+              are what this stage is named after. */}
+          {inline && (
+            <section className="rep-sec">
+              <div className="rep-sec-title">Indoor Service Report</div>
+              <div className="rep-grid">
+                {workFields.filter((f) => f.kind === 'manual').map(renderWorkField)}
+              </div>
+            </section>
+          )}
+
           {/* Visit */}
           <section className="rep-sec">
             <div className="rep-sec-title">Visit</div>
@@ -867,7 +878,7 @@ export function CallReportDrawer({
             <section className="rep-sec">
               <div className="rep-sec-title">Service Report</div>
               <div className="rep-grid">
-                {workFields.map(renderWorkField)}
+                {(inline ? workFields.filter((f) => f.kind !== 'manual') : workFields).map(renderWorkField)}
               </div>
             </section>
           )}
@@ -1000,7 +1011,7 @@ export function CallReportDrawer({
 
           <div className="rep-actions">
             {!inline && <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>}
-            <button className="btn btn-primary" onClick={() => void save()} disabled={busy || uploading || !status}>{busy ? 'Saving…' : uploading ? 'Uploading…' : inline ? 'Save report & visit details' : indoor ? 'Save the report and the visit draft' : 'Save Report'}</button>
+            <button className="btn btn-primary" onClick={() => void save()} disabled={busy || uploading || !status}>{busy ? 'Saving…' : uploading ? 'Uploading…' : inline ? 'Upload service report' : indoor ? 'Save the report and the visit draft' : 'Save Report'}</button>
           </div>
         </div>
       )}
