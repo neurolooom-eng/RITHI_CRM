@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**100 tables · 37 views · 2843 columns · 202 policies · 63 foreign keys.**
+**101 tables · 37 views · 2852 columns · 202 policies · 63 foreign keys.**
 
 ## How to read this
 
@@ -96,6 +96,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [product_database_v2_state](#product-database-v2-state)
 - [product_master](#product-master)
 - [products](#products)
+- [products_install_start_backup](#products-install-start-backup)
 - [products_new_owner_address_backup](#products-new-owner-address-backup)
 - [products_resync_backup](#products-resync-backup)
 - [profiles](#profiles)
@@ -926,7 +927,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `created_by` → **users**(`id`) · on delete no action _(feedback_created_by_fkey)_
 
-**Triggers:** `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_install_start_to_product` → `install_start_to_product()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1888,7 +1889,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `installation_calls_type_ck` — `CHECK ((call_table_for(call_type) = 'installation'::text))`
 
-**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `installation_call_not_for_dealer` → `installation_call_not_for_dealer()` · `installation_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_requests_follow_call` → `spare_requests_follow_call()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `installation_call_not_for_dealer` → `installation_call_not_for_dealer()` · `installation_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_requests_follow_call` → `spare_requests_follow_call()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zz_install_start_to_product` → `install_start_to_product()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2823,6 +2824,32 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | --- | --- | --- | --- |
 | ALL | `products_write` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 | SELECT | `products_read` | `(auth.role() = 'authenticated'::text)` | — |
+
+---
+
+## products_install_start_backup
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('products_install_start_backup_id_seq'::regclass)` |  |
+| 2 | `machine_key` | text | **no** |  |  |
+| 3 | `before` | jsonb | **no** |  |  |
+| 4 | `saved_at` | timestamp with time zone | **no** | `now()` |  |
+| 5 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 6 | `sys_created_by` | uuid | yes |  |  |
+| 7 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 8 | `sys_updated_by` | uuid | yes |  |  |
+| 9 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(products_install_start_backup_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
 
 ---
 

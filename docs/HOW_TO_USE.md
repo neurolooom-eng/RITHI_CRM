@@ -86,6 +86,11 @@ different totals. An empty register usually means access, not emptiness.
 
 - **Field Call Register** `/field-calls` — breakdown calls.
 - **Installation Calls** `/installations` — new machines going in.
+  > **Warranty Start Date?** on the installation report is a choice, not a date:
+  > **Installation Call Solved Date** — the machine's warranty in the Product
+  > Database then starts the day this call is solved and ends a warranty period
+  > later — or **Invoice Date**, which keeps the start on the PO / Warranty Sale
+  > Entry. Nothing is pre-selected; the engineer must choose.
 - **Preventive (PM)** `/pm-calls` — planned maintenance.
   > **Update Party Details / Update Product Details** (all three registers, on a
   > call of any status — in the Call View, or tick calls and use the bar):
