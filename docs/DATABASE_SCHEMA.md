@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**98 tables · 37 views · 2817 columns · 202 policies · 63 foreign keys.**
+**99 tables · 37 views · 2827 columns · 202 policies · 63 foreign keys.**
 
 ## How to read this
 
@@ -96,6 +96,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [product_database_v2_state](#product-database-v2-state)
 - [product_master](#product-master)
 - [products](#products)
+- [products_new_owner_address_backup](#products-new-owner-address-backup)
 - [profiles](#profiles)
 - [quality_objectives](#quality-objectives)
 - [record_audit](#record-audit)
@@ -2814,6 +2815,33 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | --- | --- | --- | --- |
 | ALL | `products_write` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 | SELECT | `products_read` | `(auth.role() = 'authenticated'::text)` | — |
+
+---
+
+## products_new_owner_address_backup
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('products_new_owner_address_backup_id_seq'::regclass…` |  |
+| 2 | `machine_key` | text | **no** |  |  |
+| 3 | `party_name` | text | yes |  |  |
+| 4 | `before` | jsonb | **no** |  |  |
+| 5 | `saved_at` | timestamp with time zone | **no** | `now()` |  |
+| 6 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 7 | `sys_created_by` | uuid | yes |  |  |
+| 8 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 9 | `sys_updated_by` | uuid | yes |  |  |
+| 10 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(products_new_owner_address_backup_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
 
 ---
 
