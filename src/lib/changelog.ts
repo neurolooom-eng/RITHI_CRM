@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.49',
+    date: '2026-10-03',
+    title: 'Indoor Service: one page per stage, and a cleaner form',
+    changes: [
+      'INDOOR JOB IN PAGES: Intake → Cleaning → Repair → DC, one page at a time, with Back and Next. A job opens on its current stage. Stages already done can be opened from the marker at the top; later ones unlock in order, as before.',
+      'REPAIR IS THE SERVICE REPORT: the report number, the file, the visit details (spares consumed included) and Request spare are all on the Repair page, finished with one button: Upload service report. Upload no longer opens a second window.',
+      'EACH THING ASKED ONCE: the Standard Complaint is taken from intake. The Complaint Observation and Job Done typed in the report become the job\'s findings and work done, so they are not entered again.',
+      'A QUIETER LOOK for the job and the intake form: one column, light dividers, no stacked boxes, plain text for values you cannot change, and one main button per page. Works in light and dark themes and on a narrow screen.',
+    ],
+  },
+  {
     version: '0.10.48',
     date: '2026-10-02',
     title: 'Indoor Service in stages, and the Indoor DC approved',
