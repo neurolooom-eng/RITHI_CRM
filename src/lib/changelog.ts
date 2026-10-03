@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.64',
+    date: '2026-10-03',
+    title: 'Second re-review of every module',
+    changes: [
+      'SOFTWARE VALIDATION: every open defect re-checked against the current release and every module read again from scratch. 36 new defects are in the register (D-118 to D-153), five are now partly fixed, and fourteen entries were corrected or widened.',
+      'The most serious: hand stock can be pushed below zero, or created, by six routes; a spare\'s part, quantity and cover can be changed after it is approved; calls can be re-opened or closed, and reviews written, by people who cannot see them; the master delete guard can be got round by renaming first; and four faults in the new dealer workflow.',
+      'A new read-only check, _review_findings_on_live_data.sql, says whether any of these has already left a mark on the live data. Nothing in how the application works was changed.',
+    ],
+  },
+  {
     version: '0.10.63',
     date: '2026-10-03',
     title: 'Product Database: a transferred machine shows its new owner\'s address',
