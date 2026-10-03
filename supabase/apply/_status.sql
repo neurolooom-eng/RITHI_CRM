@@ -1797,7 +1797,25 @@ with checks(sort_order, bundle, provides, present) as (
          and to_regclass('public.products_new_owner_address_backup') is not null
          and not has_table_privilege('anon', to_regclass('public.products_new_owner_address_backup'), 'SELECT')
          and not has_table_privilege('authenticated', to_regclass('public.products_new_owner_address_backup'), 'SELECT')
-         and exists (select 1 from public.one_time_fixes_done where name = '0329_new_owner_address')))
+         and exists (select 1 from public.one_time_fixes_done where name = '0329_new_owner_address'))),
+    (262, 'The sale, the contract and the transfer fill the Product Database by product + serial', 'sync_product_machine(product, serial) carries the latest sale (Warranty No., dates, PM visits, Invoice No./Date, Warranty Years/Months, Accessories Included), the latest contract (No., dates, type, status, PM visits overwriting the sale''s), and the latest transfer (Ref, Date) onto that ONE machine, inserting one a contract names that is not held; every register path calls it; a transfer moves that machine only (D-060); the one-time re-sync has run, its old values in products_resync_backup (0330). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0330)',
+        (to_regprocedure('public.sync_product_machine(text,text)') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.sync_product_machine(text,text)'), 'EXECUTE')
+         and not has_function_privilege('authenticated', to_regprocedure('public.sync_product_machine(text,text)'), 'EXECUTE')
+         and (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'products'
+                and column_name in ('invoice_no', 'invoice_date', 'warranty_years', 'warranty_months',
+                                    'accessories_included', 'transfer_ref', 'transfer_date')) = 7
+         and coalesce((select p.prosrc like '%sync_product_machine%' from pg_proc p
+                        where p.oid = to_regprocedure('public.cover_item_sync()')), false)
+         and coalesce((select p.prosrc like '%sync_product_machine%' from pg_proc p
+                        where p.oid = to_regprocedure('public.upsert_product_from_sale(bigint)')), false)
+         and coalesce((select p.prosrc like '%sync_product_machine%' from pg_proc p
+                        where p.oid = to_regprocedure('public.transfer_to_product()')), false)
+         and coalesce((select p.prosrc like '%machine_key%' from pg_proc p
+                        where p.oid = to_regprocedure('public.ownership_transfer_move()')), false)
+         and to_regclass('public.products_resync_backup') is not null
+         and not has_table_privilege('authenticated', to_regclass('public.products_resync_backup'), 'SELECT')
+         and exists (select 1 from public.one_time_fixes_done where name = '0330_product_database_resync')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

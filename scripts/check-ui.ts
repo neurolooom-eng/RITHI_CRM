@@ -5638,8 +5638,10 @@ console.log('\n-- the Product Database and the Product Master are two registers 
     // columns" means retained where nobody can get at them.
     const scr = readFileSync('src/modules/ProductMaster.tsx', 'utf8');
     const listed = scr.slice(scr.indexOf('const ALL_FIELDS'), scr.indexOf('].map((k) =>'));
-    eq('the screen offers all 32 columns of the export',
-      (listed.match(/'/g) ?? []).length / 2, 32);
+    // 32 from the export, and the 7 the registers fill since 0330 (invoice,
+    // warranty years/months, accessories, transfer ref/date).
+    eq('the screen offers all 32 columns of the export, and the 7 the registers fill',
+      (listed.match(/'/g) ?? []).length / 2, 39);
     eq('...to the Columns picker', /allFields=\{ALL_FIELDS\}/.test(scr), true);
     // The export carries ALL of them, not the eleven on screen: getting every
     // column OUT of the register is the concrete meaning of retaining them.

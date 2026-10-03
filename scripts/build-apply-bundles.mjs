@@ -1004,7 +1004,11 @@ const MODULES = {
             '0328_sold_through_dealer_workflow.sql',
             // A transferred machine carries its NEW owner's Party Master address
             // (D-098, the user, 2026-10-03); redefines 0328's two functions.
-            '0329_transferred_machine_carries_new_owner_address.sql'],
+            '0329_transferred_machine_carries_new_owner_address.sql',
+            // The sale, the contract and the transfer fill the Product Database
+            // by product + serial (the user, 2026-10-03); after 0329, whose two
+            // functions it extends.
+            '0330_registers_fill_product_database.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
