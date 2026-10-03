@@ -685,7 +685,7 @@ export const PERM_TREE: PermHeader[] = [
   { title: 'Contracts & Warranty', pages: [
     { path: '/warranties', label: 'Warranty Register', actions: ['masters.view', 'cover.edit', 'cover.edit.entries', 'cover.edit.delete', 'calls.create', 'install.create'] },
     { path: '/contracts', label: 'Contract Register', actions: ['masters.view', 'contract.edit', 'contract.edit.entries', 'contract.edit.delete', 'calls.create'] },
-    { path: '/ownership-transfer', label: 'Ownership Transfer', actions: ['ownership.transfer', 'cover.edit.entries'] },
+    { path: '/ownership-transfer', label: 'Ownership Transfer', actions: ['ownership.transfer', 'cover.edit.entries', 'install.create'] },
   ] },
   // KNOWLEDGE BASE, WHICH THE MATRIX DID NOT HAVE AT ALL until 2026-09-14.
   // Service Manuals sat under Documents here while the MENU put it under
