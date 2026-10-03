@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.51',
+    date: '2026-10-03',
+    title: 'Convert to Contract leaves out machines now with another customer',
+    changes: [
+      'CONVERT TO CONTRACT (Warranty Register) no longer offers a machine that has been transferred to a different customer. It is listed under the products with "Product serial number was transferred to a different customer" and the customer who has it now.',
+      'The check is made again when you press Create the contract, so a transfer recorded while the panel was open still keeps the machine off the contract. A machine sold back to the same customer later is offered again.',
+    ],
+  },
+  {
     version: '0.10.50',
     date: '2026-10-03',
     title: 'Software Validation: the open defects re-checked, 21 new ones recorded',

@@ -245,6 +245,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     rules: [
       'Save entry is greyed out until something on the entry has changed',
       'Converting needs the right to create contracts; it warns if the sale is already on a contract',
+      'Converting never offers a machine now with a different customer: it is listed apart as "Product serial number was transferred to a different customer"',
       'Save the entry before raising installation calls; a line needs both a Product and a Serial to get one',
       'Changing the customer replaces all the filled-in details, blanks included',
       'A retired product line takes no new sale',

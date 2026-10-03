@@ -807,3 +807,28 @@ export function partyFillChanges(current: Row, fill: Row): FieldChange[] {
   }
   return out;
 }
+
+// ===========================================================================
+// A MACHINE NOW WITH ANOTHER CUSTOMER IS NOT THE SALE'S TO CONVERT (the user,
+// 2026-10-03: "When converting a Sale Entry into Contract -- there could
+// potentially be a ownership transfer.. if the product is not with that user
+// never given that product in the list of the Contract.. and add a statement -
+// Product serial number was transferred to a different customer").
+//
+// Who has the machine NOW is the database's decision, not this file's:
+// machine_current_party() (0238, 0240) takes the latest dated sale or transfer,
+// a transfer winning a tie. This only compares its answer with the sale's
+// buyer. An EMPTY answer is not read as a transfer -- it means the database
+// found no sale line with that product and serial and no transfer either, so
+// nothing says the machine left the buyer.
+// ===========================================================================
+export const TRANSFERRED_AWAY = 'Product serial number was transferred to a different customer';
+
+const partyKey = (v: unknown): string => String(v ?? '').trim().toLowerCase();
+
+/** Whether the customer a machine is with now is somebody other than the sale's buyer. */
+export const withAnotherCustomer = (saleParty: unknown, currentParty: unknown): boolean => {
+  const now = partyKey(currentParty);
+  return now !== '' && now !== partyKey(saleParty);
+};
+

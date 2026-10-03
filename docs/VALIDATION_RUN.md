@@ -4,16 +4,16 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-10-02T20:11:55.184Z
-- **Took** 148s
-- **Commit** `8738c097` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.10.48
+- **Run at** 2026-10-03T15:01:57.036Z
+- **Took** 141s
+- **Commit** `f1dc033` on `claude/usage-k7slq0`
+- **Version** 0.10.51
 
 ## Result
 
 | | Passed | Total |
 | --- | --- | --- |
-| Database suites | 131 | 131 |
+| Database suites | 132 | 132 |
 | Automated checks | 22 | 22 |
 | Labelled `expect ERROR` outcomes matched | 308 | 308 |
 
@@ -39,7 +39,7 @@ stopped working produces a suite that runs clean.
 | `check:columns` | ✅ pass | every column of all 35 registers exists |
 | `check:cover-party` | ✅ pass | all passed |
 | `check:dberror` | ✅ pass | all passed |
-| `check:generated` | ✅ pass | every generated bundle matches its migrations (107 checked) |
+| `check:generated` | ✅ pass | every generated bundle matches its migrations (108 checked) |
 | `check:kyc` | ✅ pass | all passed |
 | `check:machine` | ✅ pass | all passed |
 | `check:mapping` | ✅ pass | all passed |
@@ -60,7 +60,7 @@ stopped working produces a suite that runs clean.
 
 ## Database suites
 
-### ✅ 131 suite(s) clean
+### ✅ 132 suite(s) clean
 
-`additional_entry_machine_key` · `admin_keys_grantable` · `admin_reset_password` · `analysis_roles` · `app_user_names` · `audit_mode` · `auto_review2` · `bulk_review2` · `call_allot_permission` · `call_cancel_batch` · `call_cancel` · `call_cancelled_state` · `call_creator` · `call_edit_sections` · `call_refresh_from_masters` · `call_registrant` · `call_reopen` · `call_request_edit` · `call_requests` · `calls_view_honest_update` · `clear_notifications` · `close_call` · `complaint_suggestions` · `complaint_text` · `consumption_needs_visit` · `consumption_report` · `consumption_visit_dates` · `cover_code` · `cover_expiry` · `daily_call_review` · `data_export` · `dccr_auto_review_switch` · `device_cache_status` · `directory_rename_carries_records` · `directory_rename_carries_team` · `dispatched_by_stamped` · `document_drive_details` · `documents` · `engineer_address` · `export_schedule` · `feedback_dates` · `feedback_key_repair` · `feedback_key` · `feedback_upsert_policy` · `feedback_without_report` · `ffr_call_context` · `ffr_import` · `ffr_multi_machine` · `ffr_reviewer_history` · `ffr_reviewer_nsm` · `ffr_view_right` · `frequent_failure_rule2` · `frequent_failure` · `handstock_adjustments` · `handstock_needs_nsm` · `handstock_opening` · `handstock` · `high_batch_1` · `how_rithi_functions_key` · `indoor_dc` · `indoor_register_pdt` · `indoor_service` · `indoor_stages` · `install_call_mapping_once` · `kpi_field_inst` · `link_install_call` · `lockdown` · `master_list_permissions` · `material_returns` · `objective_ffr_count` · `objective_periods` · `objective_recalc` · `ownership_transfer_same_party` · `part_hsn_code` · `party_kyc` · `party_service_engineer` · `people_training` · `permissions_by_screen` · `product_accessories` · `product_database_2_materialised` · `product_database_v2` · `product_serial_key` · `quality_objectives` · `reconciliation_needs_no_visit` · `reliability_wrr` · `rename_part` · `retention` · `review_actual_product` · `role_table_views` · `sales_contracts` · `saved_charts` · `service_note_upload_key` · `solved_without_report` · `spare_approval_forms` · `spare_approval_whole_word` · `spare_bulk_approval` · `spare_bulk_decisions` · `spare_dispatch` · `spare_fixes_0311` · `spare_import_exemption` · `spare_insights_ist_window` · `spare_insights` · `spare_issue_history` · `spare_line_approvals` · `spare_line_stub_rls` · `spare_line_uid` · `spare_or_no_key` · `spare_or_number` · `spare_request_follows_call` · `spare_request_reassign` · `spare_rm_scope` · `spare_stock_scope` · `spare_workflow` · `stock_transfer` · `stores_spare_view_all` · `sys_columns` · `technical_support` · `tracker` · `ucn_daily_reset` · `unresolved_login` · `unused_spare_report` · `user_directory_role` · `user_master_sync` · `user_signatures` · `view_all_except_three` · `visible_engineers_blank` · `visible_engineers` · `visit_date` · `warranty_party_refresh_once` · `zoho_migration_role` · `zoho_readonly`
+`additional_entry_machine_key` · `admin_keys_grantable` · `admin_reset_password` · `analysis_roles` · `app_user_names` · `audit_mode` · `auto_review2` · `bulk_review2` · `call_allot_permission` · `call_cancel_batch` · `call_cancel` · `call_cancelled_state` · `call_creator` · `call_edit_sections` · `call_refresh_from_masters` · `call_registrant` · `call_reopen` · `call_request_edit` · `call_requests` · `calls_view_honest_update` · `clear_notifications` · `close_call` · `complaint_suggestions` · `complaint_text` · `consumption_needs_visit` · `consumption_report` · `consumption_visit_dates` · `convert_skips_transferred` · `cover_code` · `cover_expiry` · `daily_call_review` · `data_export` · `dccr_auto_review_switch` · `device_cache_status` · `directory_rename_carries_records` · `directory_rename_carries_team` · `dispatched_by_stamped` · `document_drive_details` · `documents` · `engineer_address` · `export_schedule` · `feedback_dates` · `feedback_key_repair` · `feedback_key` · `feedback_upsert_policy` · `feedback_without_report` · `ffr_call_context` · `ffr_import` · `ffr_multi_machine` · `ffr_reviewer_history` · `ffr_reviewer_nsm` · `ffr_view_right` · `frequent_failure_rule2` · `frequent_failure` · `handstock_adjustments` · `handstock_needs_nsm` · `handstock_opening` · `handstock` · `high_batch_1` · `how_rithi_functions_key` · `indoor_dc` · `indoor_register_pdt` · `indoor_service` · `indoor_stages` · `install_call_mapping_once` · `kpi_field_inst` · `link_install_call` · `lockdown` · `master_list_permissions` · `material_returns` · `objective_ffr_count` · `objective_periods` · `objective_recalc` · `ownership_transfer_same_party` · `part_hsn_code` · `party_kyc` · `party_service_engineer` · `people_training` · `permissions_by_screen` · `product_accessories` · `product_database_2_materialised` · `product_database_v2` · `product_serial_key` · `quality_objectives` · `reconciliation_needs_no_visit` · `reliability_wrr` · `rename_part` · `retention` · `review_actual_product` · `role_table_views` · `sales_contracts` · `saved_charts` · `service_note_upload_key` · `solved_without_report` · `spare_approval_forms` · `spare_approval_whole_word` · `spare_bulk_approval` · `spare_bulk_decisions` · `spare_dispatch` · `spare_fixes_0311` · `spare_import_exemption` · `spare_insights_ist_window` · `spare_insights` · `spare_issue_history` · `spare_line_approvals` · `spare_line_stub_rls` · `spare_line_uid` · `spare_or_no_key` · `spare_or_number` · `spare_request_follows_call` · `spare_request_reassign` · `spare_rm_scope` · `spare_stock_scope` · `spare_workflow` · `stock_transfer` · `stores_spare_view_all` · `sys_columns` · `technical_support` · `tracker` · `ucn_daily_reset` · `unresolved_login` · `unused_spare_report` · `user_directory_role` · `user_master_sync` · `user_signatures` · `view_all_except_three` · `visible_engineers_blank` · `visible_engineers` · `visit_date` · `warranty_party_refresh_once` · `zoho_migration_role` · `zoho_readonly`
 

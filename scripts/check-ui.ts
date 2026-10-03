@@ -1659,6 +1659,21 @@ console.log('\n-- the evidence workbook --');
       /countMore=\{feed\.more\}[\s\S]{0,600}onLoadMore=\{loadMore\}[\s\S]{0,80}loadingMore=\{busy\} \/>/.test(cov), true);
     eq('...and neither table carries a second one',
       (cov.match(/onLoadMore=/g) ?? []).length === 1, true);
+    // The user, 2026-10-03: converting a sale into a contract never offers a
+    // machine now with a different customer, and says why beside it.
+    eq('Convert asks who has each machine before offering it',
+      /machinesWithAnotherCustomer\(sale, items\)/.test(cov)
+      && /const machines = withSerial\.filter\(\(i\) => !away\?\.has\(/.test(cov), true);
+    eq('...says the user\'s sentence beside a machine it leaves out',
+      /\{TRANSFERRED_AWAY\}/.test(cov), true);
+    eq('...and cannot create the contract until the check has answered',
+      /disabled=\{busy \|\| checking \|\| !!awayErr \|\| !machines\.length\}/.test(cov), true);
+    {
+      const cl = readFileSync(`${process.cwd()}/src/lib/cover.ts`, 'utf8');
+      eq('...and the write asks again, so a draft cannot carry one past it',
+        /const away = await machinesWithAnotherCustomer\(sale, items\.filter/.test(cl)
+        && /rpc\('machine_current_party'/.test(cl), true);
+    }
     // THE DOUBLING IS IN THE NUMBER OF REQUESTS, not the size of one. PostgREST
     // caps a response (db-max-rows), so asking for 4,000 returns 1,000 and the
     // page would conclude there was nothing more — a register that looks

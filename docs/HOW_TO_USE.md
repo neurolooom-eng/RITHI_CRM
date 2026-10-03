@@ -606,6 +606,11 @@ Number** (the next one is offered), **Contract Type**, **Period (Months)**, **PM
 Visits**, **Payment Schedule**, **Bill Generate At** and, if you like, a rate per
 machine. It warns if the sale's machines are already on a contract, and opens
 the Contract Register on the new one.
+**A machine now with a different customer is never offered.** If a machine on
+the sale has since been transferred (or sold) to someone else, it is left out of
+the list and shown under it as *"Product serial number was transferred to a
+different customer"*, with the customer who has it. The check is made again
+when you press Create the contract.
 
 **Save entry stays grey until something on the entry has changed.**
 
