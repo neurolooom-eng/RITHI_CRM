@@ -49,6 +49,13 @@ export const INDOOR_VISIT_FIXED = {
 } as const;
 const RATINGS_FALLBACK = ['Excellent', 'Good', 'Average', 'Poor'];
 const WARRANTY_Q = 'Warranty Start Date?';
+// THE ENGINEER'S CHOICE, NOT A DATE (the user, 2026-10-03). The customer
+// feedback's own two answers, word for word as the live register holds them
+// (_warranty_start_answers.sql: 328 and 78 installations). "Installation Call
+// Solved Date" makes the Product Database warranty start the day this call is
+// solved, ending a warranty period later (0331); "Invoice Date" keeps the
+// documented start on the PO / Warranty Sale Entry.
+export const WARRANTY_START_CHOICES = ['Installation Call Solved Date', 'Invoice Date'];
 const YESNO = ['Yes', 'No'];
 
 // The Service Report section, in spec order. `req` fields are mandatory
@@ -409,11 +416,8 @@ export function CallReportDrawer({
   const fixedIndoor = !!indoor;
   // A completed report always carries the work details — the spec locks it.
   useEffect(() => { if (solved) setUpdateWork('Yes'); }, [solved]);
-  // Warranty start is asked on installations only; default it to today.
-  useEffect(() => {
-    if (isInstall && workOpen && work[WARRANTY_Q] === undefined) setField(WARRANTY_Q, todayISO());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInstall, workOpen]);
+  // Warranty start is asked on installations only, and the engineer CHOOSES its
+  // basis -- no default, because a default is an answer nobody gave.
 
   // Accessory Serial No — the CPX / ASU units already on this party's account.
   const [accessories, setAccessories] = useState<{ serial: string; item: string }[]>([]);
@@ -711,7 +715,8 @@ export function CallReportDrawer({
         ) : f.kind === 'yesno' ? (
           <SelectPicker value={val} onChange={(v) => setField(f.key, v)} options={[...(f.opts ?? YESNO)]} />
         ) : f.kind === 'warranty' ? (
-          <input type="date" className="input" value={val} onChange={(e) => setField(f.key, e.target.value)} />
+          <SelectPicker value={WARRANTY_START_CHOICES.includes(val) ? val : ''} options={WARRANTY_START_CHOICES}
+            placeholder="Where does the warranty start?" onChange={(v) => setField(f.key, v)} />
         ) : f.kind === 'complaint' ? (
           // TYPE, SEARCH, SELECT — and NO free text (the user, 2026-09-09).
           // This was a datalist, which only SUGGESTS: it accepted anything

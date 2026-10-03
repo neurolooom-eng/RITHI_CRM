@@ -1,13 +1,13 @@
 -- ===========================================================================
--- THE SECOND BATCH OF HIGH-RATED DEFECTS, PROVED ON A DATABASE (0331-0338).
+-- THE SECOND BATCH OF HIGH-RATED DEFECTS, PROVED ON A DATABASE (0332-0339).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works -- the batch was asked for with
 -- "ensure it doesn't insert any breaking changes".
 --
---   1. D-118  an import marker is the importer's alone (0331)
---   2. D-119  a recorded transfer is not re-pointed (0331)
---   3. D-122  a return is the returner's own stock (0331)
---   4. D-123  a cut never takes stock below zero, and is imaged (0331)
+--   1. D-118  an import marker is the importer's alone (0339)
+--   2. D-119  a recorded transfer is not re-pointed (0339)
+--   3. D-122  a return is the returner's own stock (0339)
+--   4. D-123  a cut never takes stock below zero, and is imaged (0339)
 --   5. D-120  part and quantity are fixed once the RM decides (0332)
 --   6. D-121  the engineer moves only by Change engineer; cover follows the call (0332)
 --   7. D-127  re-open / close need sight of the call (0333)

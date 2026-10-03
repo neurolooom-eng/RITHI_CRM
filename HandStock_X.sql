@@ -61,7 +61,7 @@
 --   0313_a_reason_is_required.sql
 --   0316_adjust_guard_reads_the_balance.sql
 --   0317_void_keeps_original_qty.sql
---   0331_stock_moves_only_within_what_is_held.sql
+--   0339_stock_moves_only_within_what_is_held.sql
 --   0332_spare_request_fixed_once_decided.sql
 --   0335_master_key_changes_only_by_rename.sql
 --
@@ -5513,11 +5513,11 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
--- 0331_stock_moves_only_within_what_is_held.sql
+-- 0339_stock_moves_only_within_what_is_held.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0331 — HAND STOCK MOVES ONLY WITHIN WHAT IS HELD, ON EVERY ROUTE
+-- 0339 — HAND STOCK MOVES ONLY WITHIN WHAT IS HELD, ON EVERY ROUTE
 --        (second re-review, 2026-10-03: D-118, D-119, D-122, D-123)
 --
 -- Hand stock is derived, never stored, and the consumption cap is the control
@@ -5651,7 +5651,7 @@ begin
   end if;
 
   -- The one exemption: the same imported line, re-loaded from its source --
-  -- by somebody who may load history (0331, D-118).
+  -- by somebody who may load history (0339, D-118).
   if coalesce(btrim(new.source_ref), '') <> ''
      and btrim(new.source_ref) is not distinct from btrim(old.source_ref)
      and public.stock_import_allowed() then
@@ -5833,7 +5833,7 @@ end $$;
 --     (the old one kept), never refused, so nothing honest fails. On a new
 --     request the call's value is taken -- the form copies it anyway.
 --   * The importers (bulk.upload / import.panel) and writes with no signed-in
---     user are trusted with history, as in 0331.
+--     user are trusted with history, as in 0339.
 --
 -- A SEPARATE TRIGGER, NOT A REWRITE: spare_request_lines_guard() has been
 -- rewritten from an old body before and lost three rules (0210 -> 0217), so it
@@ -5946,7 +5946,7 @@ create trigger spare_requests_zz_header_rules before insert or update on public.
 --     item_detail_key, product lines on product_code), so a re-load never
 --     changes it. A change of case or of outer spaces is not a change of key and
 --     is allowed. The importers and writes with no signed-in user are trusted, as
---     in 0331.
+--     in 0339.
 --
 -- Filed in the handstock bundle, after rename_part's last definition (0310),
 -- because it reads part_rename_ticket, which that bundle creates.

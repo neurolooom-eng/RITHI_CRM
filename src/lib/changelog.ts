@@ -12,13 +12,23 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.65',
+    version: '0.10.66',
     date: '2026-10-03',
     title: 'Second re-review of every module',
     changes: [
       'SOFTWARE VALIDATION: every open defect re-checked against the current release and every module read again from scratch. 36 new defects are in the register (D-118 to D-153), five are now partly fixed, and fourteen entries were corrected or widened.',
       'The most serious: hand stock can be pushed below zero, or created, by six routes; a spare\'s part, quantity and cover can be changed after it is approved; calls can be re-opened or closed, and reviews written, by people who cannot see them; the master delete guard can be got round by renaming first; and four faults in the new dealer workflow.',
       'A new read-only check, _review_findings_on_live_data.sql, says whether any of these has already left a mark on the live data. Nothing in how the application works was changed.',
+    ],
+  },
+  {
+    version: '0.10.65',
+    date: '2026-10-03',
+    title: 'Installation: the engineer chooses where the warranty starts',
+    changes: [
+      'INSTALLATION REPORT: "Warranty Start Date?" is a choice again — Installation Call Solved Date or Invoice Date — the same two answers the customer feedback has always used. Nothing is pre-selected.',
+      'PRODUCT DATABASE: when the engineer chooses Installation Call Solved Date, that product + serial\'s warranty starts on the day the installation call is solved, and ends one warranty period later. Invoice Date keeps the start on the PO / Warranty Sale Entry. Saving the sale again does not undo it.',
+      'The installations already answered Installation Call Solved Date were applied once; the old dates are kept.',
     ],
   },
   {

@@ -22,7 +22,7 @@
 --     item_detail_key, product lines on product_code), so a re-load never
 --     changes it. A change of case or of outer spaces is not a change of key and
 --     is allowed. The importers and writes with no signed-in user are trusted, as
---     in 0331.
+--     in 0339.
 --
 -- Filed in the handstock bundle, after rename_part's last definition (0310),
 -- because it reads part_rename_ticket, which that bundle creates.

@@ -926,13 +926,13 @@ const MODULES = {
             // Second re-review (D-118, D-119, D-122, D-123): an import marker is the
             // importer's alone, a transfer header is not re-pointed, a return is one's
             // own stock, a cut never goes below zero. Redefines 0317's adjust guard.
-            '0331_stock_moves_only_within_what_is_held.sql',
+            '0339_stock_moves_only_within_what_is_held.sql',
             // D-120, D-121: part and quantity fixed once the RM decides; the engineer
             // moves only by Change engineer; the cover follows the call. Reads
-            // stock_import_allowed() from 0331.
+            // stock_import_allowed() from 0339.
             '0332_spare_request_fixed_once_decided.sql',
             // D-135: a master key changes only through a rename. Reads
-            // part_rename_ticket (0196) and stock_import_allowed() (0331).
+            // part_rename_ticket (0196) and stock_import_allowed() (0339).
             '0335_master_key_changes_only_by_rename.sql'],
     tail: () => cookbook(),
   },
@@ -1028,7 +1028,10 @@ const MODULES = {
             // The sale, the contract and the transfer fill the Product Database
             // by product + serial (the user, 2026-10-03); after 0329, whose two
             // functions it extends.
-            '0330_registers_fill_product_database.sql'],
+            '0330_registers_fill_product_database.sql',
+            // The installing engineer's "Warranty Start Date?" answer decides
+            // the Product Database warranty start (the user, 2026-10-03).
+            '0331_install_solved_date_starts_warranty.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

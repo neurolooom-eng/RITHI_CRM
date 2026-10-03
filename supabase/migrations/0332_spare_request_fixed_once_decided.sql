@@ -32,7 +32,7 @@
 --     (the old one kept), never refused, so nothing honest fails. On a new
 --     request the call's value is taken -- the form copies it anyway.
 --   * The importers (bulk.upload / import.panel) and writes with no signed-in
---     user are trusted with history, as in 0331.
+--     user are trusted with history, as in 0339.
 --
 -- A SEPARATE TRIGGER, NOT A REWRITE: spare_request_lines_guard() has been
 -- rewritten from an old body before and lost three rules (0210 -> 0217), so it

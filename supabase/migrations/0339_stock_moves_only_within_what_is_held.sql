@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0331 — HAND STOCK MOVES ONLY WITHIN WHAT IS HELD, ON EVERY ROUTE
+-- 0339 — HAND STOCK MOVES ONLY WITHIN WHAT IS HELD, ON EVERY ROUTE
 --        (second re-review, 2026-10-03: D-118, D-119, D-122, D-123)
 --
 -- Hand stock is derived, never stored, and the consumption cap is the control
@@ -133,7 +133,7 @@ begin
   end if;
 
   -- The one exemption: the same imported line, re-loaded from its source --
-  -- by somebody who may load history (0331, D-118).
+  -- by somebody who may load history (0339, D-118).
   if coalesce(btrim(new.source_ref), '') <> ''
      and btrim(new.source_ref) is not distinct from btrim(old.source_ref)
      and public.stock_import_allowed() then
