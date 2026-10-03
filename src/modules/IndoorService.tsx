@@ -340,12 +340,10 @@ export function IndoorService() {
         onRefresh={load}
         refreshing={busy}
         actions={<>
-          <button className="btn" onClick={() => setView((v) => (v === 'jobs' ? 'register' : 'jobs'))}>
-            {view === 'jobs' ? 'R/SER/07 register view' : 'Workshop view'}
-          </button>
-          <button className="btn" onClick={() => setView((v) => (v === 'dcs' ? 'jobs' : 'dcs'))}>
-            {view === 'dcs' ? 'Workshop view' : 'Indoor DCs'}
-          </button>
+          {/* THE OTHER TWO VIEWS, never the one on screen. */}
+          {view !== 'register' ? <button className="btn" onClick={() => setView('register')}>R/SER/07 register view</button> : null}
+          {view !== 'jobs' ? <button className="btn" onClick={() => setView('jobs')}>Workshop view</button> : null}
+          {view !== 'dcs' ? <button className="btn" onClick={() => setView('dcs')}>Indoor DCs</button> : null}
           {mayDispatch && view === 'jobs' ? (
             <button className="btn" disabled={pickedJobs.length === 0 || pickedConsignees.size > 1}
               title={pickedConsignees.size > 1 ? 'One Indoor DC goes to one consignee — tick units going to the same place.'
@@ -636,6 +634,12 @@ function IndoorJobWindow({ title, subtitle, onClose, actions, side, sideTitle, o
       if (e.key !== 'Escape' || e.defaultPrevented) return;
       // Something inside the window is on top -- it handles its own Esc.
       if (document.querySelector('.drawer-overlay, .modal-overlay')) return;
+      // An open pick list shuts first. A short one has no search box to take
+      // the key, so it is shut the way a click elsewhere shuts it.
+      if (boxRef.current?.querySelector('.picklist-menu')) {
+        document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        return;
+      }
       if (two && onCloseSide) onCloseSide(); else onClose();
     };
     window.addEventListener('keydown', onKey);

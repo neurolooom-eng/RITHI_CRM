@@ -717,11 +717,12 @@ td.ind-rows-empty { text-align: left; }
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.6fr) minmax(0, 1fr) auto;
   gap: 6px 22px;
   align-items: start;
-  padding: 14px 2px;
+  padding: 14px 4px 14px 14px;
   border-top: 1px solid var(--border);
 }
 .ind-dcrow:last-child { border-bottom: 1px solid var(--border); }
-.ind-dcrow.is-mine { box-shadow: inset 3px 0 0 var(--text); padding-left: 14px; }
+/* Awaiting the reader: a solid rule down the left -- contrast, not a tint. */
+.ind-dcrow.is-mine { box-shadow: inset 3px 0 0 var(--text); }
 .ind-dcrow-no { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13.5px; font-weight: 650; }
 .ind-dcrow-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; line-height: 1.45; overflow-wrap: anywhere; }
 .ind-dcrow-to { font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }

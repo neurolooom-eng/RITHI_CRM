@@ -509,7 +509,8 @@ var DRIVE_FOLDERS = {
   installation: 'Installation Reports',   // an Installation call's report
   pm:           'PM Reports',             // a PM call's report
   kyc:          'KYC',                    // Call Request -> KYC
-  additional:   'Additional Reports'      // Call Request -> Installation Report
+  additional:   'Additional Reports',     // Call Request -> Installation Report
+  indoor:       'INDOOR Service Reports'  // an Indoor Service job's signed service report (2026-10-03)
 };
 
 // The flat folder everything went to before today. STILL READ, NEVER WRITTEN:
