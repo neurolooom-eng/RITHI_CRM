@@ -270,3 +270,6 @@
   margin-top: 8px;
   padding-top: 8px;
 }
+/* The on-screen pager (D-155): the table draws 2,000 rows at a time. */
+.dt-pager { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; }
+.dt-group-more td { font-style: italic; padding: 6px 10px; }

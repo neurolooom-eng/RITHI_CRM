@@ -488,7 +488,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `call_reviews_write` | `has_perm('review.edit'::text)` | `has_perm('review.edit'::text)` |
+| ALL | `call_reviews_write` | `(( SELECT has_perm('review.edit'::text) AS has_perm) AND (( SELECT has_perm('bulk.upload'::text) AS has_perm) OR (EXISTS ( SELECT 1    FROM calls c   WHERE (c.ucn = call_reviews.uc…` | `(( SELECT has_perm('review.edit'::text) AS has_perm) AND (( SELECT has_perm('bulk.upload'::text) AS has_perm) OR (EXISTS ( SELECT 1    FROM calls c   WHERE (c.ucn = call_reviews.uc…` |
 | SELECT | `call_reviews_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -1220,7 +1220,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `recorded_by` → **users**(`id`) · on delete no action _(handstock_opening_recorded_by_fkey)_
 
-**Triggers:** `handstock_opening_biu` → `handstock_opening_biu()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `handstock_opening_biu` → `handstock_opening_biu()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `stock_cut_keeps_balance` → `stock_cut_keeps_balance()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2120,7 +2120,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `material_returns_qty_positive` — `CHECK (((COALESCE(good_qty, (0)::numeric) + COALESCE(defective_qty, (0)::numeric)) > (0)::numeric))`
 
-**Triggers:** `material_returns_assign_row_no` → `material_returns_assign_row_no()` · `material_returns_check_stock` → `material_returns_check_stock()` · `material_returns_immutable` → `material_returns_immutable()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `a_import_marker_needs_importer` → `import_marker_needs_importer()` · `material_return_is_own_stock` → `material_return_is_own_stock()` · `material_returns_assign_row_no` → `material_returns_assign_row_no()` · `material_returns_check_stock` → `material_returns_check_stock()` · `material_returns_immutable` → `material_returns_immutable()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2358,7 +2358,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `parties_kyc_docs_is_list` — `CHECK ((jsonb_typeof(kyc_docs) = 'array'::text))`
 
-**Triggers:** `master_delete_guard` → `master_delete_guard()` · `parties_aii` → `parties_after_insert()` · `parties_biu` → `parties_before_write()` · `parties_kyc_stamp` → `parties_kyc_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `master_delete_guard` → `master_delete_guard()` · `master_key_changes_only_by_rename` → `master_key_changes_only_by_rename()` · `parties_aii` → `parties_after_insert()` · `parties_biu` → `parties_before_write()` · `parties_kyc_stamp` → `parties_kyc_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2403,7 +2403,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Unique:** `item_detail_key` _(parts_item_detail_key_uniq)_ · `sys_id` _(parts_sys_id_key)_
 
-**Triggers:** `master_delete_guard` → `master_delete_guard()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `master_delete_guard` → `master_delete_guard()` · `master_key_changes_only_by_rename` → `master_key_changes_only_by_rename()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2793,7 +2793,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `created_by` → **users**(`id`) · on delete no action _(product_master_created_by_fkey)_
 
-**Triggers:** `master_delete_guard` → `master_delete_guard()` · `product_master_touch` → `product_master_touch()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `master_delete_guard` → `master_delete_guard()` · `master_key_changes_only_by_rename` → `master_key_changes_only_by_rename()` · `product_master_touch` → `product_master_touch()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -3465,7 +3465,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `created_by` → **users**(`id`) · on delete no action _(spare_consumption_created_by_fkey)_
 
-**Triggers:** `consumption_adjust_guard` → `consumption_adjust_guard()` · `consumption_biu` → `consumption_before_insert()` · `consumption_reconcile_guard` → `consumption_reconcile_guard()` · `consumption_stamp_people` → `consumption_stamp_people()` · `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_consumption_needs_visit` → `consumption_needs_a_visit()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `a_import_marker_needs_importer` → `import_marker_needs_importer()` · `consumption_adjust_guard` → `consumption_adjust_guard()` · `consumption_biu` → `consumption_before_insert()` · `consumption_reconcile_guard` → `consumption_reconcile_guard()` · `consumption_stamp_people` → `consumption_stamp_people()` · `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_consumption_needs_visit` → `consumption_needs_a_visit()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -3573,7 +3573,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `line_id` → **spare_request_lines**(`id`) · on delete cascade _(spare_dispatch_lines_line_id_fkey)_
 
-**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `stock_cut_keeps_balance` → `stock_cut_keeps_balance()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -3788,7 +3788,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Referenced by:** `spare_dispatch_lines.line_id`
 
-**Triggers:** `no_hard_delete` → `block_hard_delete()` · `notify_dispatch` → `notify_spare_dispatched()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_line_needs_a_reason` → `spare_line_needs_a_reason()` · `spare_request_line_stub_parent` → `spare_request_line_stub_parent()` · `spare_request_lines_answer_guard` → `spare_request_lines_answer_guard()` · `spare_request_lines_assign_row_no` → `spare_request_lines_assign_row_no()` · `spare_request_lines_dispatch_guard` → `spare_request_lines_dispatch_guard()` · `spare_request_lines_guard` → `spare_request_lines_guard()` · `spare_request_lines_line_uid` → `spare_request_lines_set_line_uid()` · `spare_request_lines_rm_scope_guard` → `spare_request_lines_rm_scope_guard()` · `spare_request_lines_rollup` → `spare_request_lines_rollup()` · `spare_request_lines_set_stage` → `spare_request_lines_set_stage()` · `spare_request_lines_uid_immutable` → `spare_request_lines_uid_immutable()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `notify_dispatch` → `notify_spare_dispatched()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_line_fixed_once_decided` → `spare_line_fixed_once_decided()` · `spare_line_needs_a_reason` → `spare_line_needs_a_reason()` · `spare_request_line_stub_parent` → `spare_request_line_stub_parent()` · `spare_request_lines_answer_guard` → `spare_request_lines_answer_guard()` · `spare_request_lines_assign_row_no` → `spare_request_lines_assign_row_no()` · `spare_request_lines_dispatch_guard` → `spare_request_lines_dispatch_guard()` · `spare_request_lines_guard` → `spare_request_lines_guard()` · `spare_request_lines_line_uid` → `spare_request_lines_set_line_uid()` · `spare_request_lines_rm_scope_guard` → `spare_request_lines_rm_scope_guard()` · `spare_request_lines_rollup` → `spare_request_lines_rollup()` · `spare_request_lines_set_stage` → `spare_request_lines_set_stage()` · `spare_request_lines_uid_immutable` → `spare_request_lines_uid_immutable()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -3861,7 +3861,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Referenced by:** `spare_request_engineer_log.request_uid` · `spare_request_lines.request_uid`
 
-**Triggers:** `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_request_engineer_guard` → `spare_request_engineer_guard()` · `spare_requests_assign_or_no` → `spare_requests_assign_or_no()` · `spare_requests_cover_code` → `cover_code_stamp()` · `spare_requests_number_immutable` → `spare_requests_number_immutable()` · `spare_requests_stage_guard` → `spare_requests_stage_guard()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_request_engineer_guard` → `spare_request_engineer_guard()` · `spare_requests_assign_or_no` → `spare_requests_assign_or_no()` · `spare_requests_cover_code` → `cover_code_stamp()` · `spare_requests_number_immutable` → `spare_requests_number_immutable()` · `spare_requests_stage_guard` → `spare_requests_stage_guard()` · `spare_requests_zz_header_rules` → `spare_requests_zz_header_rules()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -3964,7 +3964,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `stock_transfer_distinct_parties` — `CHECK ((lower(TRIM(BOTH FROM from_engineer)) <> lower(TRIM(BOTH FROM to_engineer))))`
 
-**Triggers:** `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `stock_transfers_assign_no` → `stock_transfers_assign_no()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `a_import_marker_needs_importer` → `import_marker_needs_importer()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `stock_transfer_header_fixed` → `stock_transfer_header_fixed()` · `stock_transfers_assign_no` → `stock_transfers_assign_no()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 

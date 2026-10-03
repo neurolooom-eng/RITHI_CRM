@@ -10070,6 +10070,27 @@ console.log('\n-- High batch 1: what a screen could not read, and what it leaves
       /spareDispatchByNo\(stockOut\)/.test(src) && !/listSpareDispatches/.test(src), true);
   }
 
+  // D-154: THE DECLARATION IS SIGNED BY WHOEVER BOOKED THE STOCK OUT, not by a
+  // name written into the form. It printed JAGADEESAN C on every declaration.
+  {
+    const decl = code(readFileSync('src/modules/Declaration.tsx', 'utf8'));
+    const form = code(readFileSync('src/lib/declaration.ts', 'utf8'));
+    eq('the Declaration names whoever booked the stock out', /\{doc\.dispatchedBy\}/.test(decl), true);
+    eq('...and the form carries no fixed sender name', /senderName/.test(form + decl), false);
+  }
+
+  // D-155: THE TABLE DRAWS A PAGE, NOT EVERY LOADED ROW. Loading the whole
+  // install base drew 20,000 rows -- 320,000 page elements, ~19 s frozen -- and
+  // crashed the browser. Counts, filters, sort and exports still read sortedRows.
+  {
+    const dtSrc = code(readFileSync('src/components/table/DataTable.tsx', 'utf8'));
+    eq('the table draws one on-screen page of rows, not all of them',
+      /const SCREEN_PAGE = \d+/.test(dtSrc) && /pageRows\.map\(\(row\) => renderRow\(row\)\)/.test(dtSrc)
+        && !/:\s*sortedRows\.map\(\(row\) => renderRow\(row\)\)/.test(dtSrc), true);
+    eq('...an open group is capped the same way', /n\.rows\.slice\(0, SCREEN_PAGE\)/.test(dtSrc), true);
+    eq('...and the footer still counts every row', /\{sortedRows\.length\} row/.test(dtSrc), true);
+  }
+
   // D-070: ONE PERSON'S DATA DOES NOT OUTLIVE THEIR SESSION. The cached
   // registers, their sync times and the menu counts go at sign-out, by the
   // button and by any other end of the session.

@@ -408,6 +408,7 @@ footer code{font-size:12.5px}
       <ul>
         <li class="mandate"><span class="tag db">Trigger</span><i>"An opening balance needs the engineer."</i> · <i>"An opening balance needs the part."</i> · <i>"An opening balance needs its source (which pool it is)."</i></li>
         <li><span class="tag db">Policy</span>Writing one needs <b>Add consumption against a call (reconciliation)</b> or <b>Dispatch / DC (Stores)</b>.</li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>Lowering or deleting one cannot take the engineer below zero</b> (0339): <i>"… would be left with −3 of … — correct hand stock through a Hand Stock adjustment, which is checked and kept"</i>. The same holds for a Stores stock-out line, and both are recorded in the database's before-and-after trail. A re-load by Bulk Uploads is not limited.</li>
       </ul>
     </div>
   </section>
@@ -449,7 +450,7 @@ footer code{font-size:12.5px}
         <li class="mandate"><span class="tag db">Trigger</span><b>A visit on the call:</b> <i>"No visit has been filed on … yet, so a spare cannot be booked against it. File the visit report first — the spare is recorded on the visit it was used on."</i></li>
         <li class="mandate"><span class="tag db">Trigger</span>A quantity above zero: <i>"Quantity must be more than zero"</i>.</li>
         <li><span class="tag db">Policy</span>Needs <b>Book spares used on a visit (any register)</b> (or <b>Dispatch / DC (Stores)</b>); the form says so before the visit is saved.</li>
-        <li>A line loaded by a bulk upload, carrying its source reference, is a record of what was used and is not capped.</li>
+        <li>A line loaded by a bulk upload, carrying its source reference, is a record of what was used and is not capped — <b>only</b> when it was loaded by somebody who may load history (<b>Bulk Uploads</b> or the <b>Data Import panel</b>). A source reference sent by anybody else is dropped and the cap applies (0339).</li>
       </ul>
     </div>
   </section>
@@ -595,6 +596,7 @@ footer code{font-size:12.5px}
         <li><span class="tag db">Trigger</span><b>A transfer cannot overdraw the sender:</b> <i>"Stock transfer exceeds available stock: … would be left with −2 of …"</i>. Checked <b>after</b> each line is written, so several lines of the same part on one transfer are judged together.</li>
         <li class="mandate"><span class="tag">Form</span><i>"From and To must be different engineers."</i> — and the database refuses the same.</li>
         <li><span class="tag db">Policy</span>Needs <b>Transfer hand-stock between engineers</b>; nothing more limits whose stock it moves.</li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>A recorded transfer is not re-pointed</b> (0339): <i>"Transfer … is recorded: its engineers and date are not changed afterwards — record a new transfer back instead"</i>. A transfer marked imported by anybody but an importer is checked like any other.</li>
       </ul>
     </div>
   </section>
@@ -637,7 +639,7 @@ footer code{font-size:12.5px}
       <ul>
         <li><span class="tag db">Trigger</span><b>Not more than is held:</b> <i>"Material return exceeds hand stock: … would be left with … of …"</i> — the form caps it first.</li>
         <li class="mandate"><span class="tag">Form</span><i>"Enter the MRN number from the slip."</i> · at least one returned per line, good or defective.</li>
-        <li><span class="tag db">Policy</span>Your own stock only, unless you hold <b>Return stock in another engineer’s name</b>.</li>
+        <li><span class="tag db">Policy</span><span class="tag db">Trigger</span>Your own stock only, unless you hold <b>Return stock in another engineer’s name</b> — checked on the NAME the stock is counted by, not only the email (0339): <i>"A return is your own stock: … is not you."</i> A return marked imported by anybody but an importer is checked like any other.</li>
         <li><span class="tag db">Trigger</span><i>"A material return cannot be edited — raise a correcting entry instead"</i>.</li>
       </ul>
     </div>
