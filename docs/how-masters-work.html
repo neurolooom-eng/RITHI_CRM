@@ -573,7 +573,8 @@ footer code{font-size:12.5px}
         <li><b>The Product Database file</b> (Bulk Uploads)</li>
         <li><b>Warranty Register</b> sale entries and their machines</li>
         <li><b>Ownership Transfer</b></li>
-        <li><b>Contract Register</b> and <b>Installation Calls</b>, matched when read</li>
+        <li><b>Contract Register</b> contracts and their machines</li>
+        <li><b>Installation warranty record</b> — the engineer's Warranty Start Date? choice, from a report or the bulk upload</li>
         <li><b>Party Master</b> — the Serviceman</li>
       </ul>
     </div>
@@ -581,11 +582,20 @@ footer code{font-size:12.5px}
       <p class="n">Flow 2 · Step 02 · automatic</p>
       <h2>How a machine gets there, and what is worked out</h2>
       <p>
-        <b>Stored.</b> The <b>Product Database</b> upload adds or corrects machines, matched on model + serial. Saving a
-        machine on a <b>Warranty Register</b> sale adds it, or updates it if that model and serial are already there —
-        its party, product code, warranty dates and the sale's other details. The party written is the machine's
-        <b>current owner</b>: whichever is later of its latest sale entry and its latest ownership transfer. The sale
-        writes nothing about the contract.
+        <b>Stored — by product AND serial, never the serial alone.</b> The <b>Product Database</b> upload adds or
+        corrects machines. A <b>Warranty Register</b> sale adds each machine, or updates it — warranty number and dates,
+        PM visits, invoice number and date, warranty years and months, accessories included. A <b>Contract Register</b>
+        entry gives that machine its contract number, dates, type, status and PM visits (which replace the sale's), and
+        adds a machine not yet held. An <b>Ownership Transfer</b> moves that one machine to its new owner, with the new
+        owner's Party Master address and the transfer's Ref and Date. The owner written is the machine's <b>current
+        owner</b>: whichever is later of its latest sale entry and its latest ownership transfer.
+      </p>
+      <p>
+        <b>Where the warranty starts.</b> The installing engineer chooses on the installation report —
+        <b>Installation Call Solved Date</b> or <b>Invoice Date</b>. The first starts the machine's warranty on the day
+        the installation call was solved and ends it one warranty period later; the second keeps the sale's start.
+        Each installation's choice, solved date and resulting warranty are kept in the <b>installation warranty
+        record</b>, one row per call, which Bulk Uploads can fill for installations back to 2018.
       </p>
       <p>
         <b>Worked out each time it is read.</b> <b>Status</b>: <i>WGP</i> while the warranty end date is today or
