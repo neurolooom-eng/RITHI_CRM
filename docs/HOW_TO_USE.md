@@ -297,6 +297,9 @@ against the call it was fitted to.
    that approver, showing the word as loaded.
 4. **Pending Dispatch** `/spare-dispatch` — Stores issues the part and raises the
    Delivery Challan.
+   > The **📜 Declaration** that travels with the parcel is signed off in the name
+   > of **whoever booked the stock out** — the same person the challan names. It
+   > used to print one fixed name on every declaration.
 5. The engineer **acknowledges receipt**.
 6. **Spare Consumption** `/spare-consumption` — the part is booked against the
    call.

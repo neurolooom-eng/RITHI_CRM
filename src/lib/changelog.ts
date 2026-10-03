@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.69',
+    date: '2026-10-03',
+    title: 'The Declaration names whoever booked the stock out',
+    changes: [
+      'DECLARATION: the sender at the foot of the sheet is now the person who booked that stock out -- the same name the Delivery Challan carries -- instead of one fixed name on every declaration. An old stock out that recorded nobody leaves the name blank and says so.',
+    ],
+  },
+  {
     version: '0.10.68',
     date: '2026-10-03',
     title: 'Twelve High-rated defects fixed: hand stock, spare approvals, calls, reviews, masters, Indoor',
