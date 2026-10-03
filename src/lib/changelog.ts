@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.66',
+    date: '2026-10-03',
+    title: 'Spare request on a call with no visit adds the visit',
+    changes: [
+      'SPARE REQUEST: when the call has no visit yet, saving the request adds one — Call Status Unsolved, the requesting engineer, the request date, Call Pending Reason SPARES NOT AVAILABLE (as the pending-reason list spells it), Update Visit Work Details No. The call then reads Unsolved.',
+      'A call that already has a visit gets nothing added, and neither does a second request on the same call. A HandStock request never adds a visit.',
+      'If the visit cannot be added, the request is still saved and the screen says so.',
+    ],
+  },
+  {
     version: '0.10.65',
     date: '2026-10-03',
     title: 'Installation: the engineer chooses where the warranty starts',

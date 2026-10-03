@@ -1827,7 +1827,13 @@ with checks(sort_order, bundle, provides, present) as (
                       and tgrelid = to_regclass('public.installation_calls') and not tgisinternal)
          and to_regclass('public.products_install_start_backup') is not null
          and not has_table_privilege('authenticated', to_regclass('public.products_install_start_backup'), 'SELECT')
-         and exists (select 1 from public.one_time_fixes_done where name = '0331_install_warranty_start')))
+         and exists (select 1 from public.one_time_fixes_done where name = '0331_install_warranty_start'))),
+    (264, 'A spare request on a call with no visit files the visit it implies', 'file_visit_for_spare_request(uid) files one visit -- Unsolved, the requesting engineer, the request date, pending reason "spare not available" from the master, Update Visit Work Details? = No -- only where the call has no visit; callable by a signed-in user (it checks spare.request and the raiser itself), never by the public key (0332). Restore: Spare_1.sql (0332)',
+        (to_regprocedure('public.file_visit_for_spare_request(text)') is not null
+         and coalesce((select p.prosecdef from pg_proc p
+                        where p.oid = to_regprocedure('public.file_visit_for_spare_request(text)')), false)
+         and not has_function_privilege('anon', to_regprocedure('public.file_visit_for_spare_request(text)'), 'EXECUTE')
+         and has_function_privilege('authenticated', to_regprocedure('public.file_visit_for_spare_request(text)'), 'EXECUTE')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

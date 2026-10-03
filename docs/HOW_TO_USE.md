@@ -267,6 +267,12 @@ against the call it was fitted to.
    > request in line, open it and press **↻ Update from call**, or tick several
    > in the register and press it once. Lines already past RM approval keep the
    > approval route they were given; only what the request shows changes.
+   > **A request on a call with no visit adds the visit.** When the call has no
+   > visit yet, saving the request files one: **Unsolved**, the requesting
+   > engineer, the request date, pending reason **SPARES NOT AVAILABLE** (the
+   > Call Pending Reason list's spelling of it), Update Visit Work Details
+   > **No** — and the call reads Unsolved. If the call already has a visit,
+   > nothing is added. A HandStock request never adds one.
 2. **RM Approval** `/spare-rm-approval` — the queue shows the complaint, machine,
    serial and cover, because "is this part plausible for this fault?" is most of
    the decision. Tick several and approve or reject them at once; a rejection needs a reason.
