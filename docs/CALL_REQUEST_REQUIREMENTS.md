@@ -48,24 +48,24 @@ request in Pending Registrations, where it becomes a registered call with a UCN.
 
 ## A. Identity and keys
 
-**CR-001 — A request is identified by a REQID the database mints.**
+**CR-001 — A request is identified by a REQID the database mints.** · *v0.10.66 · 03-Oct-2026*
 Never by the client. Two people raising a request at the same moment must not
 collide, and a REQID that arrives from a browser is a number somebody can choose.
 *Status: met* — `next_call_reqid()` (0010), with a trigger keeping the counter
 ahead of any imported REQID (0097).
 
-**CR-002 — Each call on a request is keyed `REQID-Product-Serial`.**
+**CR-002 — Each call on a request is keyed `REQID-Product-Serial`.** · *v0.10.66 · 03-Oct-2026*
 The key is the database's, rebuilt on every write from the row's own columns, so
 it cannot drift from what the row says.
 *Status: met* — `call_requests_biu` (0003, 0083).
 
-**CR-003 — A key that reads `…-NA` is a defect, not a variant.**
+**CR-003 — A key that reads `…-NA` is a defect, not a variant.** · *v0.10.66 · 03-Oct-2026*
 `NA` in the key means the row named no machine. Every downstream lookup then
 matches the wrong unit or none.
 *Status: met by CR-010* — the serial is mandatory, so new requests cannot
 produce one. Historic rows may still carry `-NA` and are corrected by hand.
 
-**CR-004 — One machine appears at most once on a request.**
+**CR-004 — One machine appears at most once on a request.** · *v0.10.66 · 03-Oct-2026*
 Its UniqueID would otherwise be issued twice; the database would refuse the pair
 anyway, and refusing it on the form says which row it clashes with.
 *Status: met* — `machineRowProblem()` in `src/lib/callrequest.ts`, checked on the
@@ -73,7 +73,7 @@ serial alone because the rows may name different customers.
 
 ## B. The machine, and the customer it names
 
-**CR-005 — The customer is read off the machine, never asked for separately.**
+**CR-005 — The customer is read off the machine, never asked for separately.** · *v0.10.66 · 03-Oct-2026*
 This is the module's central rule (user's design, 2026-09-11). A customer chosen
 beside the machine can disagree with it, and did: `R18627` was filed against the
 wrong customer and corrected by hand.
@@ -101,7 +101,7 @@ affected name, its machine count, and which are safe to change (a space at
 either end leaves `machine_key` untouched; a non-breaking or zero-width
 character does not, and can collide).
 
-**CR-006 — Identifying the machine must not require identifying the customer first.**
+**CR-006 — Identifying the machine must not require identifying the customer first.** · *v0.10.66 · 03-Oct-2026*
 A customer name is an infix match over ~5,000 names; a serial is a prefix on an
 indexed column. Measured over all 19,253 machines as a signed-in engineer: serial
 prefix **0.21 ms**, mid-string **1.7–5 ms**. The old order timed out on a phone
@@ -110,7 +110,7 @@ and reported `canceling statement due to statement timeout`.
 in `sbSearchMachines` is **conditional**, and `check:ui` refuses an unconditional
 one, because that would restore the old ordering.
 
-**CR-007 — The first call fixes the customer for the request.**
+**CR-007 — The first call fixes the customer for the request.** · *v0.10.66 · 03-Oct-2026*
 A request is one visit to one site (user's rule, 2026-09-12).
 *Status: met* — calls 2–5 inherit the customer and are offered only that
 customer's products and machines, and **submit refuses a request whose machines
@@ -119,25 +119,25 @@ gap found in review (finding 43): a serial TYPED rather than picked is looked up
 in the register row by row at submit, and nothing compared the customers that
 came back.
 
-**CR-008 — A later call inherits the site, it does not ask for it again.**
+**CR-008 — A later call inherits the site, it does not ask for it again.** · *v0.10.66 · 03-Oct-2026*
 Customer, city, state, address and both contacts are copied from the first call.
 Asking five times is how five spellings of one hospital reach one request.
 *Status: met.*
 
-**CR-009 — Changing the first call's customer cannot leave a machine behind.**
+**CR-009 — Changing the first call's customer cannot leave a machine behind.** · *v0.10.66 · 03-Oct-2026*
 A machine belonging to the customer just replaced is cleared from the later
 calls. Leaving it would file a call against a machine this customer does not own.
 *Status: met.*
 
 ## C. What a request must capture
 
-**CR-010 — The serial number is mandatory.**
+**CR-010 — The serial number is mandatory.** · *v0.10.66 · 03-Oct-2026*
 A call that names a product but not a unit cannot be traced to the device
 serviced, and its cover cannot be established.
 *Status: met* — required on the request and on every call form.
 *Cross-reference: URS-053.*
 
-**CR-011 — A serial that names no customer is refused, but only after the register has been asked.**
+**CR-011 — A serial that names no customer is refused, but only after the register has been asked.** · *v0.10.66 · 03-Oct-2026*
 It means the serial matched no machine, and the call would be filed against
 nobody. The message names the cause: the machine is missing from Product Master.
 
@@ -155,72 +155,72 @@ resolves to nothing (`sbProductBySerial` returns null rather than guessing,
 because eleven machines are numbered 219), so a genuinely unanswerable row is
 still refused with the message it always had.
 
-**CR-012 — An empty master is a master problem, and the form says so.**
+**CR-012 — An empty master is a master problem, and the form says so.** · *v0.10.66 · 03-Oct-2026*
 It never offers a way round by accepting a typed value instead.
 *Status: met* — the serial picker takes no free text outside installations.
 
-**CR-013 — The site is recorded per call, not per request.**
+**CR-013 — The site is recorded per call, not per request.** · *v0.10.66 · 03-Oct-2026*
 City, state, address and contact belong to the machine's location. Two machines
 on one request can be in two buildings.
 *Status: met* (2026-09-12). Prefilled from the register and editable — the
 register records where the machine was *sold*, and a ward move is filed with
 nobody.
 
-**CR-014 — A value the person typed is never overwritten by the register.**
+**CR-014 — A value the person typed is never overwritten by the register.** · *v0.10.66 · 03-Oct-2026*
 Prefill fills what is empty. A correction must not be undone by the thing it was
 correcting.
 *Status: met.*
 
-**CR-015 — The Standard Complaint is chosen, never typed.**
+**CR-015 — The Standard Complaint is chosen, never typed.** · *v0.10.66 · 03-Oct-2026*
 Every count, filter and repeat-failure match downstream runs on that value; a
 hand-typed variant matches nothing.
 *Status: met.*
 *Cross-reference: URS-045.*
 
-**CR-016 — Reported Problem is mandatory and free.**
+**CR-016 — Reported Problem is mandatory and free.** · *v0.10.66 · 03-Oct-2026*
 It is the customer's words. Constraining it would lose the only unstructured
 account of the fault.
 *Status: met.*
 
 ## D. The installation exception
 
-**CR-017 — An installation asks for the customer, because there is no machine yet.**
+**CR-017 — An installation asks for the customer, because there is no machine yet.** · *v0.10.66 · 03-Oct-2026*
 The unit is not on the register, so nothing can name the customer. This path
 keeps the Party Master search, free text for a genuinely new customer, and a
 typed serial.
 *Status: met* — the whole customer block renders for installations only.
 
-**CR-018 — Installation is the only path that accepts a customer not on a master.**
+**CR-018 — Installation is the only path that accepts a customer not on a master.** · *v0.10.66 · 03-Oct-2026*
 Everywhere else a typed customer is a master entry that does not exist.
 *Status: met* — `allowFreeText` is set for installations alone.
 
 ## E. Status and hand-over
 
-**CR-019 — A request's status follows its UCN.**
+**CR-019 — A request's status follows its UCN.** · *v0.10.66 · 03-Oct-2026*
 A request carrying a UCN is Registered; the database decides, not the client.
 *Status: met* — `call_requests_biu` sets `Registered` when a UCN is present and
 the status is blank or Pending (0083).
 
-**CR-020 — A request is never deleted.**
+**CR-020 — A request is never deleted.** · *v0.10.66 · 03-Oct-2026*
 It is Cancelled, with a reason, and stays on the register.
 *Status: met* — `cancel_reason`, `cancelled_at`.
 
-**CR-021 — Pending Registrations reads `call_requests`.**
+**CR-021 — Pending Registrations reads `call_requests`.** · *v0.10.66 · 03-Oct-2026*
 Not `pending_registrations`, which is the sheet-era table. Two fixes were aimed
 at the wrong table before this was written down.
 *Status: met* — `listPending()` → `listCallRequestsAsPending()`.
 
 ## F. Who may see and raise one
 
-**CR-022 — Raising a request is a permission.**
+**CR-022 — Raising a request is a permission.** · *v0.10.66 · 03-Oct-2026*
 *Status: met* — `request.create`.
 
-**CR-023 — A person sees the requests that are theirs, their team's, or their desk's.**
+**CR-023 — A person sees the requests that are theirs, their team's, or their desk's.** · *v0.10.66 · 03-Oct-2026*
 Office roles with `data.view_all` see all.
 *Status: met* — `cr_read`: `can_view_all_calls()`, the registrant, the submitting
 e-mail, or the reporting tree.
 
-**CR-024 — The visibility rule is evaluated once per query, not once per row.**
+**CR-024 — The visibility rule is evaluated once per query, not once per row.** · *v0.10.66 · 03-Oct-2026*
 This is a requirement, not an optimisation. Evaluated per row it cost an engineer
 **1,840 ms** against an administrator's **189 ms** on 3,000 requests — the
 difference being that the administrator's test short-circuits and an engineer's
@@ -230,25 +230,25 @@ Run `supabase/apply/call_requests.sql` to apply it.
 
 ## G. Performance
 
-**CR-025 — No control on this form may cost more as the register grows.**
+**CR-025 — No control on this form may cost more as the register grows.** · *v0.10.66 · 03-Oct-2026*
 The form is used on a phone, on hospital wi-fi, by somebody standing next to a
 machine.
 *Status: met* — the product list is ~40 names fetched once; the machine search is
 a bounded, indexed lookup; the customer search is gone from this form entirely.
 
-**CR-026 — A list that is capped must be complete by some other route.**
+**CR-026 — A list that is capped must be complete by some other route.** · *v0.10.66 · 03-Oct-2026*
 A capped read can miss the row somebody is looking for — the fault that hid
 KARUNALAYA TRUST.
 *Status: met where capping is used* — on the installation path the Party Master
 read is ordered and complete and runs alongside the capped owner list.
 
-**CR-027 — A search that fails must say so, and must never look like an empty result.**
+**CR-027 — A search that fails must say so, and must never look like an empty result.** · *v0.10.66 · 03-Oct-2026*
 "Nothing matches" on a customer somebody is looking straight at leads them to
 raise a duplicate.
 *Status: met* — `PickList` reports a failed search distinctly and clears it on the
 next success.
 
-**CR-031 — A capped search must be ordered, and the closest match must be offered.**
+**CR-031 — A capped search must be ordered, and the closest match must be offered.** · *v0.10.66 · 03-Oct-2026*
 Reported 2026-09-24: *"the list is not sorted as per the closest match"*, on a
 request that was then refused for a machine on the register.
 
@@ -294,16 +294,16 @@ footer says so.
 
 ## H. Records and evidence
 
-**CR-028 — The person who raised a request is the database's to say.**
+**CR-028 — The person who raised a request is the database's to say.** · *v0.10.66 · 03-Oct-2026*
 *Status: met* — `created_by` is stamped from the session; a caller-supplied value
 is discarded.
 *Cross-reference: URS-044, which draws the same distinction on a call.*
 
-**CR-029 — Supporting documents attach to the request and follow it to the call.**
+**CR-029 — Supporting documents attach to the request and follow it to the call.** · *v0.10.66 · 03-Oct-2026*
 *Status: met* — service manuals matched by product, plus the installation report
 and KYC on an installation.
 
-**CR-030 — Every field the form collects is written per call row.**
+**CR-030 — Every field the form collects is written per call row.** · *v0.10.66 · 03-Oct-2026*
 `call_requests` holds party, city, state, address and contact per row; the form's
 grouping is a convenience, never the record's shape.
 *Status: met* — this is why C and B above needed no migration.

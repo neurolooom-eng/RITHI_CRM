@@ -930,7 +930,7 @@ const MODULES = {
             // D-120, D-121: part and quantity fixed once the RM decides; the engineer
             // moves only by Change engineer; the cover follows the call. Reads
             // stock_import_allowed() from 0339.
-            '0332_spare_request_fixed_once_decided.sql',
+            '0340_spare_request_fixed_once_decided.sql',
             // D-135: a master key changes only through a rename. Reads
             // part_rename_ticket (0196) and stock_import_allowed() (0339).
             '0335_master_key_changes_only_by_rename.sql'],
@@ -1031,7 +1031,10 @@ const MODULES = {
             '0330_registers_fill_product_database.sql',
             // The installing engineer's "Warranty Start Date?" answer decides
             // the Product Database warranty start (the user, 2026-10-03).
-            '0331_install_solved_date_starts_warranty.sql'],
+            '0331_install_solved_date_starts_warranty.sql',
+            // The installation's warranty decision in a table of its own, with
+            // a bulk upload for calls from 2018 (the user, 2026-10-03).
+            '0332_installation_warranty_starts.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

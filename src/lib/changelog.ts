@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.67',
+    version: '0.10.68',
     date: '2026-10-03',
     title: 'Twelve High-rated defects fixed: hand stock, spare approvals, calls, reviews, masters, Indoor',
     changes: [
@@ -25,13 +25,24 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.66',
+    version: '0.10.67',
     date: '2026-10-03',
     title: 'Second re-review of every module',
     changes: [
       'SOFTWARE VALIDATION: every open defect re-checked against the current release and every module read again from scratch. 36 new defects are in the register (D-118 to D-153), five are now partly fixed, and fourteen entries were corrected or widened.',
       'The most serious: hand stock can be pushed below zero, or created, by six routes; a spare\'s part, quantity and cover can be changed after it is approved; calls can be re-opened or closed, and reviews written, by people who cannot see them; the master delete guard can be got round by renaming first; and four faults in the new dealer workflow.',
       'A new read-only check, _review_findings_on_live_data.sql, says whether any of these has already left a mark on the live data. Nothing in how the application works was changed.',
+    ],
+  },
+  {
+    version: '0.10.66',
+    date: '2026-10-03',
+    title: 'Installation warranty record, its bulk upload, and a version on every requirement',
+    changes: [
+      'INSTALLATION VISIT ENTRY: under Warranty Start Date? you now see the machine\'s warranty as it stands in the Product Database, and where it will start and end after this report.',
+      'Every installation\'s warranty decision — the machine, customer, engineer, the choice, the solved date and the warranty it produced — is kept in its own record, one row per installation call. The installation feedback already on file was copied in.',
+      'BULK UPLOADS: a new register, Installation Warranty Start (old installation calls), loads past installations back to 2018 in one file. Each row decides its machine\'s warranty exactly as a report filed today does; re-loading a corrected file updates the same rows.',
+      'SOFTWARE VALIDATION (Rev 3.2): every requirement now carries a version and a date — v0.10.66, 03-Oct-2026 for all of them to start with, changed whenever a requirement changes.',
     ],
   },
   {

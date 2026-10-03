@@ -62,7 +62,7 @@
 --   0316_adjust_guard_reads_the_balance.sql
 --   0317_void_keeps_original_qty.sql
 --   0339_stock_moves_only_within_what_is_held.sql
---   0332_spare_request_fixed_once_decided.sql
+--   0340_spare_request_fixed_once_decided.sql
 --   0335_master_key_changes_only_by_rename.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -5796,11 +5796,11 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0332_spare_request_fixed_once_decided.sql
+-- 0340_spare_request_fixed_once_decided.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0332 — A SPARE REQUEST IS WHAT WAS APPROVED  (second re-review, 2026-10-03:
+-- 0340 — A SPARE REQUEST IS WHAT WAS APPROVED  (second re-review, 2026-10-03:
 --        D-120, D-121)
 --
 -- D-120  The parts rule in spare_request_lines_guard() exempts the requester

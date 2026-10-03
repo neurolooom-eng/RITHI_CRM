@@ -161,21 +161,21 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-10-03 — High-rated batch 2: twelve defects from the second re-review fixed (v0.10.67, 0332–0339, on the branch, not merged)
+### 2026-10-03 — High-rated batch 2: twelve defects from the second re-review fixed (v0.10.68, 0333–0340, on the branch, not merged)
 - **Your ask:** *"Start fixing the High defects. Ensure it doesn't insert any breaking changes. Update the documents / how rithi works / how to RITHI appropriately"*.
 - **How "no breaking change" was made true, not assumed:**
   - Every fix began by reading the rule's LIVE definition and every app and database path that writes those columns.
   - The honest paths are named in each migration's header: the importers, the screens, renames, receipts, Change engineer, the follow-the-call refresh, the DCCR upload, and 0324's own deletion.
   - Where a writer was only ever an importer, the importer keeps the old rule (`bulk.upload` / `import.panel`, or no signed-in user).
   - Where a client value could only be honest or forged, it is **discarded, not refused** (the 0113/0114 rule): a forged import marker, and an Item Status other than the call's.
-  - **`high_batch_2_test` proves both halves in every section**: the hole is closed AND the honest path beside it still works. 25 refusals, every one labelled. Run on a database WITHOUT 0332–0339, 22 of the 25 expectations go unmet.
+  - **`high_batch_2_test` proves both halves in every section**: the hole is closed AND the honest path beside it still works. 25 refusals, every one labelled. Run on a database WITHOUT 0333–0340, 22 of the 25 expectations go unmet.
 - **Fixed:**
   - **D-118 (0339):** an import marker is the importer's alone. Anyone else's is dropped before the stock guards read it.
   - **D-119 (0339):** a recorded transfer is not re-pointed or back-dated.
   - **D-122 (0339):** a return is the returner's own stock, checked on the name the stock is counted by.
   - **D-123 (0339):** a lower stock-out quantity or opening balance, or a delete, never leaves an engineer below zero. Both tables are imaged.
-  - **D-120 (0332):** part and quantity are fixed once the RM has decided. This is a trigger of its own; `spare_request_lines_guard` is untouched.
-  - **D-121 (0332):** the engineer moves only by Change engineer. Item Status follows the call; the request type is kept.
+  - **D-120 (0340):** part and quantity are fixed once the RM has decided. This is a trigger of its own; `spare_request_lines_guard` is untouched.
+  - **D-121 (0340):** the engineer moves only by Change engineer. Item Status follows the call; the request type is kept.
   - **D-127 (0333):** re-open, close, close-again, cancel and restore need sight of the call. The five functions were redefined from their live bodies with one check added.
   - **D-135 (0335):** a party name, part code and product code change only through a rename.
   - **D-141 (0336):** a verified, PDT-signed, reported, condemned or report-uploaded Indoor job is not deleted.
@@ -198,12 +198,12 @@ checked.
   - How RITHI Functions: hand stock, spares, calls, masters and quality, plus the Spare module schema.
   - A stale line corrected: the Change engineer "Why" was described as optional; it has been required since 0313.
   - Eleven requirement texts amended.
-  - OQ-238 added.
-  - `_status.sql` rows 264–271.
+  - OQ-239 added.
+  - `_status.sql` rows 265–272.
   - DATABASE_SCHEMA.md regenerated.
-- **Merged `main` twice on the way:** #520 took 0331 and v0.10.65, so the stock migration is 0339 and the re-review is v0.10.66.
+- **Merged `main` twice on the way:** #520 took 0331 and v0.10.65, so the stock migration is 0339 and the re-review v0.10.66; then #521 took 0332 and v0.10.66 too, so the spare migration is 0340, the re-review v0.10.67 and this batch v0.10.68, with status rows 265–272 and the test OQ-239 (#521 took OQ-238).
 
-### 2026-10-03 — Second re-review: every open defect re-checked at `1cdceb0`, and a fresh pass over every module (v0.10.66, on the branch, not merged)
+### 2026-10-03 — Second re-review: every open defect re-checked at `1cdceb0`, and a fresh pass over every module (v0.10.67, on the branch, not merged)
 - **Your ask:** *"Re-review all the modules"*.
 - **Method:** seven readers in parallel, each on its own copy of a database built from all 344 migrations, every write tried as a signed-in user. Two re-checked the 59 open or partly fixed defects; five read every module fresh — Masters, Indoor Service, Cover and sales (including the dealer workflow, #515, and the transferred-machine address, #516), Service Calls with Quality and Overview, and Spares with Reports and Administration.
 - **Every High finding below was reproduced again before it was recorded,** from the readers' own scripts or tests written for the purpose. One claim did not reproduce at first and did on a second look: the dealer re-load refusal fires only for a signed-in user, which is how an upload runs.

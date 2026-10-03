@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0332 — A SPARE REQUEST IS WHAT WAS APPROVED  (second re-review, 2026-10-03:
+-- 0340 — A SPARE REQUEST IS WHAT WAS APPROVED  (second re-review, 2026-10-03:
 --        D-120, D-121)
 --
 -- D-120  The parts rule in spare_request_lines_guard() exempts the requester

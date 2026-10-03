@@ -51,13 +51,20 @@ import {
 } from '../src/lib/requirements';
 
 const P = (s = '') => console.log(s);
+// A requirement's version and date, as the package prints them: v0.10.66 · 03-Oct-2026.
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const dayOf = (iso?: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? '');
+  return m ? `${m[3]}-${MON[Number(m[2]) - 1]}-${m[1]}` : '';
+};
+const verOf = (r: { version?: string; date?: string }) => (r.version ? `v${r.version} · ${dayOf(r.date)}` : '');
 
 // ---- the two hand-maintained references ------------------------------------
 // Read as IDENTIFIER + TITLE only, with a link to the full text. Copying the
 // prose would make this the second place each is written, and the sources carry
 // status lines that are updated in the change that makes one true — a copy here
 // would go stale the first time one moved.
-interface Ext { id: string; title: string; doc: string }
+interface Ext { id: string; title: string; doc: string; ver: string }
 function readExternal(file: string, prefix: string): Ext[] {
   const raw = readFileSync(file, 'utf8');
   const out: Ext[] = [];
@@ -68,7 +75,9 @@ function readExternal(file: string, prefix: string): Ext[] {
   while ((m = re.exec(raw))) {
     const id = m[1];
     if (out.some((x) => x.id === id)) continue;   // the first mention is the definition
-    out.push({ id, title: m[2].replace(/\s+/g, ' ').replace(/\.$/, '').trim(), doc: file });
+    // THE VERSION AND DATE written beside the heading (Rev 3.2: " · *v0.10.66 · 03-Oct-2026*").
+    const v = /^ · \*(v[\d.]+ · [^*]+)\*/.exec(raw.slice(m.index + m[0].length, m.index + m[0].length + 40));
+    out.push({ id, title: m[2].replace(/\s+/g, ' ').replace(/\.$/, '').trim(), doc: file, ver: v ? v[1] : '' });
   }
   return out.sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -78,22 +87,22 @@ const SR = readExternal('docs/ISO13485_SERVICING.md', 'SR');
 // mapped to the ISO clauses they serve. The third hand-maintained reference.
 const CW = readExternal('docs/COVER_REQUIREMENTS.md', 'CW');
 
-type Item = { kind: 'URS' | 'CR' | 'SR' | 'CW'; id: string; title: string; text?: string; risk?: string; doc?: string };
+type Item = { kind: 'URS' | 'CR' | 'SR' | 'CW'; id: string; title: string; text?: string; risk?: string; doc?: string; ver?: string };
 const items: { it: Item; mods: string[]; how?: Record<string, string> }[] = [
   ...URS.map((r) => ({
-    it: { kind: 'URS' as const, id: r.id, title: r.title, text: r.text, risk: r.risk },
+    it: { kind: 'URS' as const, id: r.id, title: r.title, text: r.text, risk: r.risk, ver: verOf(r) },
     mods: modulesFor(r).map((m) => m.path),
     // WHICH OF THE TWO FILED IT, carried through to the page so a reader can
     // tell "the text says so" from "somebody said so". They are different
     // kinds of claim and an auditor is entitled to tell them apart.
     how: Object.fromEntries(modulesFor(r).map((m) => [m.path, m.how])),
   })),
-  ...CR.map((r) => ({ it: { kind: 'CR' as const, id: r.id, title: r.title, doc: r.doc }, mods: modulesNamedBy(r.title).length ? modulesNamedBy(r.title) : ['/call-requests'] })),
-  ...SR.map((r) => ({ it: { kind: 'SR' as const, id: r.id, title: r.title, doc: r.doc }, mods: modulesNamedBy(r.title) })),
+  ...CR.map((r) => ({ it: { kind: 'CR' as const, id: r.id, title: r.title, doc: r.doc, ver: r.ver }, mods: modulesNamedBy(r.title).length ? modulesNamedBy(r.title) : ['/call-requests'] })),
+  ...SR.map((r) => ({ it: { kind: 'SR' as const, id: r.id, title: r.title, doc: r.doc, ver: r.ver }, mods: modulesNamedBy(r.title) })),
   // The cover requirements land on whichever screens their own words name; a
   // requirement about the assembled record names Product Database 2.0, one
   // about a transfer names Ownership Transfer, and so on.
-  ...CW.map((r) => ({ it: { kind: 'CW' as const, id: r.id, title: r.title, doc: r.doc }, mods: modulesNamedBy(r.title) })),
+  ...CW.map((r) => ({ it: { kind: 'CW' as const, id: r.id, title: r.title, doc: r.doc, ver: r.ver }, mods: modulesNamedBy(r.title) })),
 ];
 
 // ---- the document ----------------------------------------------------------
@@ -182,7 +191,7 @@ for (const header of PERM_TREE) {
         // FILED BY THE TEXT, OR FILED BY A DECLARATION. Said on every entry
         // rather than only on the exceptions, because a reader cannot tell
         // which kind of claim they are looking at from an absence.
-        P(`*Risk: ${it.risk}. Filed here because its own words name this screen.*`
+        P(`*${it.ver ? it.ver + ' · ' : ''}Risk: ${it.risk}. Filed here because its own words name this screen.*`
           .replace('its own words name this screen',
             how === 'declared' ? 'the requirement declares this screen' : 'its own words name this screen'));
         P();
@@ -200,7 +209,7 @@ for (const header of PERM_TREE) {
             const t = testsFor(f.id).map((x) => x.id);
             P(`| **${f.id}** — ${f.title} | ${f.risk} | ${t.length ? t.join(', ') : '_no test names it_'} |`);
           });
-          impl.forEach((f) => { P(); P(`**${f.id}.** ${f.text}`); });
+          impl.forEach((f) => { P(); P(`**${f.id}.**${verOf(f) ? ` *(${verOf(f)})*` : ''} ${f.text}`); });
         }
       }
     }
@@ -209,7 +218,7 @@ for (const header of PERM_TREE) {
       P();
       P(`**Also governing this screen** — maintained in their own documents:`);
       P();
-      ext.forEach(({ it }) => { seen.add(it.id); P(`- **${it.id}** — ${it.title} · [full text](${(it.doc ?? '').replace('docs/', '')})`); });
+      ext.forEach(({ it }) => { seen.add(it.id); P(`- **${it.id}** — ${it.title}${it.ver ? ` · *${it.ver}*` : ''} · [full text](${(it.doc ?? '').replace('docs/', '')})`); });
     }
   }
 }
@@ -230,9 +239,9 @@ for (const kind of ['URS', 'CR', 'SR', 'CW'] as const) {
   here.forEach(({ it }) => {
     if (kind === 'URS') {
       const impl = frsFor(it.id).map((f) => f.id);
-      P(`- **${it.id}** — ${it.title} · implemented by ${impl.length ? impl.join(', ') : '_nothing yet_'}`);
+      P(`- **${it.id}** — ${it.title}${it.ver ? ` · *${it.ver}*` : ''} · implemented by ${impl.length ? impl.join(', ') : '_nothing yet_'}`);
     } else {
-      P(`- **${it.id}** — ${it.title} · [full text](${(it.doc ?? '').replace('docs/', '')})`);
+      P(`- **${it.id}** — ${it.title}${it.ver ? ` · *${it.ver}*` : ''} · [full text](${(it.doc ?? '').replace('docs/', '')})`);
     }
   });
 }
@@ -327,7 +336,7 @@ P();
 for (const n of NON_AUDITABLE) {
   P(`### ${n.id} — ${n.title}`);
   P();
-  P(`*${n.classification}* · risk: **${n.risk}**`);
+  P(`*${n.classification}* · risk: **${n.risk}**${verOf(n) ? ` · *${verOf(n)}*` : ''}`);
   P();
   P(n.text);
   P();
