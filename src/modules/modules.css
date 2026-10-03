@@ -107,3 +107,10 @@
 .list-tight-row:last-child {
   border-bottom: none;
 }
+
+/* MASTER LIST: Add entry is a small form (2026-10-03) -- one field per line,
+   label above, the required ones marked *. */
+.ml-form { display: flex; flex-direction: column; gap: 14px; }
+.ml-field { display: flex; flex-direction: column; gap: 6px; }
+.ml-field .input { width: 100%; }
+.ml-hint { font-size: 12px; }

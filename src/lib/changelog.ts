@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.52',
+    date: '2026-10-03',
+    title: 'Master lists: Add entry is a form',
+    changes: [
+      'MASTER LISTS: "+ Add entry" opens a short form naming each field, with the required ones marked *. It replaces the empty boxes you had to type in before clicking Add.',
+      'DCCR COMPLAINT GROUPING and ROOT CAUSE KEY WORD: Product is required and picked from the Product Master, or COMM for a value common to every product.',
+    ],
+  },
+  {
     version: '0.10.51',
     date: '2026-10-03',
     title: 'Indoor Service: the Workshop view uses the standard table',
