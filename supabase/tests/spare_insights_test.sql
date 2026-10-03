@@ -22,8 +22,10 @@ update public.harness set uid = null, email = null;
 
 delete from public.spare_consumption where ucn like 'SI-%';
 delete from public.field_calls       where ucn like 'SI-%';
-delete from public.parts             where code like 'SIP-%';
+-- The stock that names the parts goes FIRST: since 0325 a part still named on
+-- a record cannot be deleted.
 delete from public.handstock_opening where engineer = 'SI ENG';
+delete from public.parts             where code like 'SIP-%';
 
 insert into public.field_calls (ucn, call_type, product_name, serial, reg_date, party_name,
                                 complaint_reported, standard_complaint, allocated_to, item_status)
@@ -158,8 +160,8 @@ select string_agg(column_name, ', ' order by column_name) as columns
    and column_name in ('category','product','purchase_cost','purchase_cost_f',
                        'source_added_by','source_added_on','source_modified_on','source_inactive_on');
 
--- Leave nothing behind.
+-- Leave nothing behind -- the stock before the parts it names (0325).
 delete from public.spare_consumption where ucn like 'SI-%';
 delete from public.field_calls       where ucn like 'SI-%';
-delete from public.parts             where code like 'SIP-%';
 delete from public.handstock_opening where engineer = 'SI ENG';
+delete from public.parts             where code like 'SIP-%';

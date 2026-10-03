@@ -9,6 +9,7 @@ import {
   queryAllParts, supabaseConfigured, addPart, setPartActive,
   updatePart, renamePart, partRenameImpact, type PartRenameImpact,
   normalisePartCode, composeItemDetail, PART_CODE_RE, type PartFilter,
+  deleteMasterRecord,
 } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { listMaster, dataConfigured } from '../lib/sheets';
@@ -186,7 +187,13 @@ export function PartMaster() {
   // out or an engineer's hand stock. Deactivating keeps that history and takes
   // the part out of the pickers.
   const { can } = useAuth();
-  const mayEdit = can('masters.edit.records') && live;
+  // ADD, EDIT AND DELETE ARE SEPARATE KEYS (0325, 2026-10-03); "Add / edit
+  // master records" still grants the first two. The accessories panel keeps
+  // that key itself: its policies were not split.
+  const mayAdd = can('masters.parts.add') && live;
+  const mayEdit = can('masters.parts.edit') && live;
+  const mayDelete = can('masters.parts.delete') && live;
+  const mayAccessories = can('masters.edit.records') && live;
   // A RENAME moves every record naming the part, so it is its own tick
   // (finding 67, 0289); the other fields are ordinary record edits.
   const mayRename = can('masters.edit.rename_part');
@@ -389,6 +396,17 @@ export function PartMaster() {
     await refresh();
   };
 
+  // DELETE (0325): refused by the database while any spare request, stock,
+  // transfer or consumption line names the part -- Deactivate is for those.
+  const removePart = async (r: Row) => {
+    const label = String(r.item_detail ?? r.code ?? '');
+    if (!window.confirm(`Delete ${label} from the Part Master?\n\nThis cannot be undone. It is refused while any spare request, stock or consumption record names this part; Deactivate it instead to take it out of the pickers.`)) return;
+    const res = await deleteMasterRecord('parts', 'id', Number(r.id));
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not delete it.' }); return; }
+    setRows((rs) => rs.filter((x) => x.id !== r.id));
+    setMsg({ tone: 'ok', text: `${label} deleted from the Part Master.` });
+  };
+
   const toggleActive = async (r: Row) => {
     const id = Number(r.id);
     const now = r.active !== false;
@@ -409,7 +427,7 @@ export function PartMaster() {
         title="Part Master"
         subtitle="Spare parts catalogue (ITEM Master) — cached locally, synced from the database."
         icon="🔩" count={visible.length}
-        actions={mayEdit && <button className="btn btn-primary" onClick={() => { setTried(false); setForm({ code: '', description: '', category: '', product: '', cost: '', common: false, hsn: '' }); }}>＋ Add entry</button>}
+        actions={mayAdd && <button className="btn btn-primary" onClick={() => { setTried(false); setForm({ code: '', description: '', category: '', product: '', cost: '', common: false, hsn: '' }); }}>＋ Add entry</button>}
       />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
@@ -417,18 +435,24 @@ export function PartMaster() {
           <button className="btn btn-ghost btn-sm" onClick={() => setMsg(null)}>✕</button>
         </div>
       )}
-      {live && <ProductAccessories mayEdit={mayEdit} />}
+      {live && <ProductAccessories mayEdit={mayAccessories} />}
       <DataTable<Row>
-        columns={((mayEdit ? [...COLUMNS, {
-          key: '_act', header: '', width: 190, sortable: false, wrap: false, align: 'center',
+        columns={((mayEdit || mayDelete ? [...COLUMNS, {
+          key: '_act', header: 'Actions', width: 230, sortable: false, wrap: false, align: 'center',
           render: (r: Row) => (
             <div className="row" onClick={(e) => e.stopPropagation()}>
-              <button className="btn btn-sm" onClick={() => openEdit(r)}
-                title="Edit this part — and rename it, carrying every record that names it">✎ Edit</button>
-              <button className="btn btn-sm" onClick={() => void toggleActive(r)}
-                title={r.active === false ? 'Put this part back in the pickers' : 'Take this part out of the pickers'}>
-                {r.active === false ? '↩ Reactivate' : '⊘ Deactivate'}
-              </button>
+              {mayEdit && (<>
+                <button className="btn btn-sm" onClick={() => openEdit(r)}
+                  title="Edit this part — and rename it, carrying every record that names it">✎ Edit</button>
+                <button className="btn btn-sm" onClick={() => void toggleActive(r)}
+                  title={r.active === false ? 'Put this part back in the pickers' : 'Take this part out of the pickers'}>
+                  {r.active === false ? '↩ Reactivate' : '⊘ Deactivate'}
+                </button>
+              </>)}
+              {mayDelete && (
+                <button className="btn btn-ghost btn-sm" onClick={() => void removePart(r)}
+                  title="Delete this part — refused while any spare request, stock or consumption record names it">🗑</button>
+              )}
             </div>
           ),
         } as Column<Row>] : COLUMNS) as Column<Row>[]).map((c): Column<Row> => (c.key !== 'product' ? c : {

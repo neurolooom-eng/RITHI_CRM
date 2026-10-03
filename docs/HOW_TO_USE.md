@@ -737,8 +737,13 @@ typed into a form that reads it.
   Load it under **Bulk Uploads → Product Master (product lines)**, or add one
   line with **＋ Add entry** — Product Code and Product Name are required, and a
   code already there is refused rather than overwritten.
+  **✎ Edit** on a row changes everything but the code; **🗑 Delete** is refused
+  while any machine, sale or contract carries the code — mark it Inactive instead.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
+  > **✎ Edit**, **⊘ Deactivate** and **🗑 Delete** are on every row, each with
+  > its own Part Master permission. Delete is refused while any spare request,
+  > stock or consumption record names the part — deactivate it instead.
   > **HSN Code** has its own column: set it on *＋ Add part* or the edit drawer
   > (digits only), or with an **HSN Code** column in the Part Master upload. The
   > 29 parts that used to carry "(HSN:…)" in their description had it moved
@@ -798,6 +803,9 @@ typed into a form that reads it.
   > **Click a party to edit it** — contact details, both addresses, the
   > Serviceman and the KYC. You need *Edit masters*. The **party name** is not
   > editable: every machine, call and contract names the customer by it.
+  > **✎ Edit** and **🗑 Delete** are on every row (each needs its own Party
+  > Master permission). A party any machine, call, sale or contract still names
+  > cannot be deleted — the message says how many records name it.
   > **＋ Add entry** adds a new customer: **Party Name, City and State** are
   > required, everything else can be filled now or later. The Party Key is given
   > when you save. A name already on the master is refused — search for it and
@@ -865,6 +873,9 @@ typed into a form that reads it.
   > of the two is theirs.
 - **All Masters** `/masters` — the value lists behind the dropdowns. Rights are
   **per list**.
+  > Each list has its own **Add**, **Edit** and **Delete** permission. **✎ Edit**
+  > on a row can **rename** a value: calls and reports already saved keep the old
+  > wording, so a count or filter on the new wording does not include them.
   > A value in use is **deactivated**, not deleted, so records that used it keep
   > reading correctly.
   > **Standard Complaint carries a Products column.** Tick the products a

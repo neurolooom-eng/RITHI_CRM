@@ -6996,8 +6996,12 @@ console.log('\n-- a new column reaches the Party Master screen, not just the tab
   eq('...and the count says it is a lower bound', /count=\{rows\.length\} countMore=\{more\}/.test(pm), true);
 
   // KYC HAS TO BE CAPTURABLE, or the columns are a report on an empty table.
-  eq('a party can be edited, by whoever may edit master records',
-    /can\('masters\.edit\.records'\)/.test(pm) && /onRowClick=\{mayEdit/.test(pm), true);
+  // Its own key since 0325 (one add, one edit, one delete per master), which
+  // "Add / edit master records" still grants as its parent.
+  eq('a party can be edited, by whoever holds the Party Master edit key',
+    /can\('masters\.parties\.edit'\)/.test(pm) && /onRowClick=\{mayEdit/.test(pm), true);
+  eq('...and that key is a child of "Add / edit master records"',
+    /'masters\.parties\.edit': \['masters\.edit\.records'/.test(readFileSync('src/lib/rbac.ts', 'utf8')), true);
   // THE PARTY NAME IS NOT EDITABLE. Every machine, call and contract names the
   // customer by that string and there is no foreign key to `parties`.
   eq('...but never its NAME, which everything else points at by string',

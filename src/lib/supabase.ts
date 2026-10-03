@@ -3394,13 +3394,39 @@ export async function addMasterItem(key: string, value: string, extra: Record<st
 }
 
 export async function updateMasterItem(id: number, patch: { value?: string; extra?: Record<string, string> }): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('masters').update(patch).eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // Rows COUNTED: row-level security refuses an update by matching nothing,
+  // and no error is not "saved" (finding 48).
+  const { data, error } = await must().from('masters').update(patch).eq('id', id).select('id');
+  if (error) {
+    if (error.code === '23505') return { ok: false, error: `“${patch.value ?? ''}” is already on this list.` };
+    return { ok: false, error: errMsg(error) };
+  }
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not edit values in this list.' };
+  return { ok: true };
 }
 
 export async function deleteMasterItem(id: number): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('masters').delete().eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // ROWS COUNTED: row-level security refuses a delete by matching nothing, and
+  // no error is not "removed" (finding 48).
+  const { data, error } = await must().from('masters').delete().eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was removed — your role may not delete values from this list.' };
+  return { ok: true };
+}
+
+/** Delete one Party, Part or Product Master row (0325).
+ *
+ *  The database refuses it while any record still names the row
+ *  (master_delete_guard) and says how many, which is passed on verbatim; a
+ *  role without the delete key matches nothing, so the rows are COUNTED. */
+export async function deleteMasterRecord(
+  table: 'parties' | 'parts' | 'product_master', column: string, value: string | number,
+): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await must().from(table).delete().eq(column, value).select(column);
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was deleted — your role may not delete from this master.' };
+  if (table === 'parties') void refreshPartyRegister({ force: true });
+  return { ok: true };
 }
 
 // Deactivate rather than delete: the value is already on calls, reports and
