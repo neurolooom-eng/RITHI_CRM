@@ -739,7 +739,9 @@ typed into a form that reads it.
   > starts blank (*not known*); set it on this screen if you may edit master
   > records, or with an **Imported** column in the upload — a blank cell there
   > leaves what is set alone.
-  Load it under **Bulk Uploads → Product Master (product lines)**.
+  Load it under **Bulk Uploads → Product Master (product lines)**, or add one
+  line with **＋ Add entry** — Product Code and Product Name are required, and a
+  code already there is refused rather than overwritten.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
   > **HSN Code** has its own column: set it on *＋ Add part* or the edit drawer
@@ -801,6 +803,10 @@ typed into a form that reads it.
   > **Click a party to edit it** — contact details, both addresses, the
   > Serviceman and the KYC. You need *Edit masters*. The **party name** is not
   > editable: every machine, call and contract names the customer by it.
+  > **＋ Add entry** adds a new customer: **Party Name, City and State** are
+  > required, everything else can be filled now or later. The Party Key is given
+  > when you save. A name already on the master is refused — search for it and
+  > edit that one instead.
   > **✎ Change engineer** corrects one Serviceman across every customer that
   > names them, in one go. Do this when a spelling here does not match the User
   > Master — a call is allotted by NAME, so a name nobody holds fills the box
@@ -1182,7 +1188,10 @@ typed into a form that reads it.
      it traces back here; the system records who uploaded it and when) and, for
      a unit with a call, fill that call's **visit details** right there on the
      page — Complaint Observation, Job Done, Add Consumption? with the spares
-     used, and the rest of the Visit Entry. *Call Status* (**Unsolved**), *Call
+     used, and the rest of the Visit Entry. **Visiting Service Engineer** starts
+     as you; pick whoever actually attended the unit (anyone active on the User
+     Master) — the visit is filed under that name, and the spares come from
+     that person's hand stock. *Call Status* (**Unsolved**), *Call
      Pending Reason* (**Return to Field**) and *Update Visit Work Details?*
      (**Yes**) are fixed. Each thing is asked once: the call's Standard
      Complaint comes from Intake, and Complaint Observation / Job Done are the
@@ -1197,8 +1206,19 @@ typed into a form that reads it.
   4. **DC** — once the report is uploaded (see *Indoor DC* below), then
      **Dispatched** once the DC is approved.
 
-  The job opens on the stage it is at; the stepper at the top moves between
-  the stages already reached, and **← Back** / **Next →** sit at the bottom.
+  A job opens as a **window** in the middle of the screen (× or **Esc** closes
+  it) on the stage it is at; the stepper at the top moves between the stages
+  already reached, and **← Back** / **Next →** sit at the bottom.
+
+  **Deleting a job** received in error — the wrong unit, a duplicate, a test —
+  is **Delete job** at the top of the window, for whoever holds *Delete an
+  Indoor Service job* (an administrator; nobody else until it is ticked in
+  Roles & Permissions). Say why and type the job number to confirm. It is
+  **permanent**: the job, its accessories, parts, checks and Pre-Delivery
+  Testing are removed, the number is not used again, and the deletion is
+  recorded with your name and the reason. A job that has been on **any** Indoor
+  DC (even a rejected one), or whose visit has been filed on its call, cannot
+  be deleted.
   > A job does not need a call — a demo unit has none, and files no visit. A
   > harvested part cannot go back into stock until decontamination is recorded.
 
@@ -1211,7 +1231,10 @@ typed into a form that reads it.
   Remarks. The **R/SER/07 register view** opens first and shows the register as
   the paper keeps it (plus a *Stage* chip on screen), one sheet at a time — *Customer – Devices* or *Demo* — with S.No running in
   incoming-date order; from there **Excel** downloads both sheets and **Print**
-  prints the sheet you are on (landscape A4). Both need the export right.
+  prints the sheet you are on (landscape A4). Both need the export right. The
+  register is the usual table: drag a heading to move a column, its edge to
+  widen it, **⚙ Columns** to show or hide one, **Wrap** for long text — it
+  remembers. Every job is on screen, so the count is exact.
 
   **Verified by** is a supervisor's step: once the unit is Dispatched, Closed
   or Condemned, somebody holding *Verify an Indoor Service register entry*
@@ -1234,8 +1257,10 @@ typed into a form that reads it.
   **Indoor DC — the delivery challan a unit leaves on.** In the workshop view,
   someone with the dispatch right ticks the **Ready** units (report uploaded)
   going to **one** consignee (the customer, or for a DEMO unit the party it is
-  going to) and presses **Create Indoor DC** — or presses **Create Indoor DC
-  for this unit** in a job. *To* is filled from the Party Master and can be
+  going to) and presses **Create Indoor DC** — or, in a job's **DC** page,
+  presses **Create Indoor DC**: the window splits in two, the job on the left
+  and the DC form on the right (drag the line between them to resize; × on the
+  DC side closes just that). *To* is filled from the Party Master and can be
   typed over; add the MIRN / customer reference and its date, mode of despatch
   and the purpose (once for the DC, changeable per line). The **DATE is the day
   you enter it** and cannot be changed. Choose **AUTHORISED BY** — your

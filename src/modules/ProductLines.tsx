@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PageHeader, SectionCard, Toolbar, SearchBox } from '../components/ui/ui';
+import { PageHeader, SectionCard, Toolbar, SearchBox, Modal } from '../components/ui/ui';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { getSupabase, supabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { csvExport, fmtLongDate } from '../lib/format';
 import './fieldcalls.css';
+import './knowledgebase.css';
 import { COMPLETE } from '../lib/exportscope';
+import { todayLocal } from '../lib/dates';
 
 // ===========================================================================
 // PRODUCT MASTER — the catalogue of product LINES.
@@ -37,9 +39,10 @@ const s = (r: Row, k: string) => String(r[k] ?? '').trim();
 
 export function ProductLines() {
   const live = supabaseConfigured();
-  const { can } = useAuth();
-  // IMPORTED (0319) is the ONE field this screen writes: whoever may write a
-  // product line (pm_write asks masters.edit.records, 0290) may set it here.
+  const { can, user } = useAuth();
+  // IMPORTED (0319) is the one field this screen EDITS, and ＋ Add entry adds a
+  // whole line: whoever may write a product line (pm_write asks
+  // masters.edit.records, 0290) may do both.
   const mayEdit = can('masters.edit.records');
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
@@ -71,6 +74,63 @@ export function ProductLines() {
     setMsg('');
     setRows((all) => all.map((r) => (r.product_code === code ? { ...r, imported: value } : r)));
   };
+  // ---- Add entry: the same pop-up form as Part and Party Master -----------
+  // PRODUCT CODE AND PRODUCT NAME ARE REQUIRED -- the two this register's own
+  // upload requires. The code is the key: one already here is refused by code,
+  // not overwritten (the upload is the place to correct a line). Type and
+  // Category offer the values the catalogue already uses, so a new line is
+  // grouped with its siblings rather than under a new spelling of the same word.
+  type Draft = { product_code: string; product_name: string; item_detail: string; item_type: string;
+    item_category: string; short_form: string; active: string; imported: string };
+  const blankDraft: Draft = { product_code: '', product_name: '', item_detail: '', item_type: '',
+    item_category: '', short_form: '', active: 'Active', imported: '' };
+  const [adding, setAdding] = useState<Draft | null>(null);
+  const [addTried, setAddTried] = useState(false);
+  const [addErr, setAddErr] = useState('');
+  const [saving, setSaving] = useState(false);
+  const addMissing = (d: Draft) => ([['product_code', 'Product Code'], ['product_name', 'Product Name']] as const)
+    .filter(([k]) => !d[k].trim()).map(([, l]) => l);
+  const setDraft = (k: keyof Draft, v: string) => setAdding((d) => d && ({ ...d, [k]: v }));
+  const used = (k: string) => [...new Set(rows.map((r) => s(r, k)).filter(Boolean))].sort();
+  const saveAdd = async () => {
+    const c = getSupabase();
+    if (!adding || !c) return;
+    setAddTried(true);
+    const missing = addMissing(adding);
+    if (missing.length) { setAddErr(`Fill ${missing.join(', ')}.`); return; }
+    const code = adding.product_code.trim();
+    if (rows.some((r) => s(r, 'product_code').toLowerCase() === code.toLowerCase())) {
+      setAddErr(`${code} is already on the Product Master.`); return;
+    }
+    setSaving(true); setAddErr('');
+    const { data, error } = await c.from('product_master').insert({
+      product_code: code,
+      product_name: adding.product_name.trim(),
+      item_detail: adding.item_detail.trim(),
+      item_type: adding.item_type.trim(),
+      item_category: adding.item_category.trim(),
+      short_form: adding.short_form.trim(),
+      active: adding.active !== 'Inactive',
+      imported: adding.imported === 'Yes' ? true : adding.imported === 'No' ? false : null,
+      // The register's own Added / Added by columns -- the upload carries the
+      // superseded system's; a line added here was added today, by this person.
+      added_on: todayLocal(),
+      added_by: String(user?.fullName ?? user?.email ?? ''),
+    }).select('*');
+    setSaving(false);
+    if (error) {
+      setAddErr(error.code === '23505' ? `${code} is already on the Product Master.`
+        : error.code === '42501' || /row-level security/i.test(error.message)
+          ? 'Your role does not have permission to add a product line.' : error.message);
+      return;
+    }
+    if (!data || data.length === 0) { setAddErr('Nothing was saved — your role may not add product lines.'); return; }
+    setRows((all) => [...all, ...data].sort((a, b) => s(a, 'product_name').localeCompare(s(b, 'product_name'))));
+    setAdding(null);
+    setNote(`${code} — ${adding.product_name.trim()} added to the Product Master.`);
+  };
+  const [note, setNote] = useState('');
+
   const importedLabel = (r: Row) => (r.imported === true ? 'Yes' : r.imported === false ? 'No' : '');
 
   const counts = useMemo(() => ({
@@ -122,6 +182,9 @@ export function ProductLines() {
         subtitle="The product lines — one row per code. Not the machines: those are the Product Database."
         count={shown.length} countMore={false}
         onRefresh={() => void load()} refreshing={busy}
+        actions={mayEdit && live && (
+          <button className="btn btn-primary" onClick={() => { setAdding(blankDraft); setAddTried(false); setAddErr(''); }}>＋ Add entry</button>
+        )}
       />
       {!live && (
         <div className="sheet-banner sheet-banner-error">
@@ -129,6 +192,12 @@ export function ProductLines() {
         </div>
       )}
       {msg && <div className="sheet-banner sheet-banner-error"><span>{msg}</span></div>}
+      {note && (
+        <div className="sheet-banner sheet-banner-ok">
+          <span>{note}</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => setNote('')}>✕</button>
+        </div>
+      )}
 
       {/* WHAT INACTIVE MEANS, on the page rather than in somebody's head. It is
           a narrow rule and the narrowness is the point: it stops a SALE, and
@@ -172,10 +241,58 @@ export function ProductLines() {
         {!busy && !rows.length && (
           <div className="muted" style={{ marginTop: 10 }}>
             Nothing here yet. Load it under <b>Bulk Uploads → Product Master (product lines)</b>
-            {' — an administrator’s upload; this screen writes only the Imported column'}.
+            {' — or ＋ Add entry for a single line'}.
           </div>
         )}
       </SectionCard>
+      {adding && (
+        <Modal open title="Add to Product Master" onClose={() => setAdding(null)} width={560}>
+          <form className="kb-form ml-form" onSubmit={(e) => { e.preventDefault(); void saveAdd(); }}>
+            {([['product_code', 'Product Code', 'Unique — one line per code.'], ['product_name', 'Product Name', 'The name every machine, sale and call uses for this line.']] as const).map(([k, l, hint]) => (
+              <div className="ml-field" key={k}>
+                <label className="field-label">{l} <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
+                <input className="input" value={adding[k]} autoFocus={k === 'product_code'}
+                  onChange={(e) => setDraft(k, e.target.value)} />
+                <span className="muted ml-hint">{hint}</span>
+              </div>
+            ))}
+            <div className="ml-field">
+              <label className="field-label">Item Detail</label>
+              <input className="input" value={adding.item_detail} onChange={(e) => setDraft('item_detail', e.target.value)} />
+            </div>
+            {([['item_type', 'Type'], ['item_category', 'Category']] as const).map(([k, l]) => (
+              <div className="ml-field" key={k}>
+                <label className="field-label">{l}</label>
+                <SelectPicker value={adding[k]} options={used(k)} allowFreeText
+                  placeholder="Choose one already used, or type a new one"
+                  onChange={(v) => setDraft(k, v)} />
+              </div>
+            ))}
+            <div className="ml-field">
+              <label className="field-label">Short Form</label>
+              <input className="input" value={adding.short_form} onChange={(e) => setDraft('short_form', e.target.value)} />
+            </div>
+            <div className="ml-field">
+              <label className="field-label">Still sold?</label>
+              <SelectPicker value={adding.active} options={['Active', 'Inactive']} onChange={(v) => setDraft('active', v || 'Active')} />
+              <span className="muted ml-hint">Inactive means no new Sale Entry can name it.</span>
+            </div>
+            <div className="ml-field">
+              <label className="field-label">Imported</label>
+              <SelectPicker value={adding.imported} options={['Yes', 'No']} placeholder="— not set —"
+                onChange={(v) => setDraft('imported', v)} />
+              <span className="muted ml-hint">Decides whether a demo unit owes Pre-Delivery Testing (R/SER/QC/007).</span>
+            </div>
+            {(addErr || (addTried && addMissing(adding).length > 0)) && (
+              <div className="field-err">{addErr || `Fill ${addMissing(adding).join(', ')}.`}</div>
+            )}
+            <div className="kb-form-actions">
+              <button type="button" className="btn btn-ghost" disabled={saving} onClick={() => setAdding(null)}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Adding…' : 'Add entry'}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

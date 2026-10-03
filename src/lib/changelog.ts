@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.51',
+    version: '0.10.58',
     date: '2026-10-03',
     title: 'Convert to Contract leaves out machines now with another customer',
     changes: [
@@ -21,13 +21,79 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.50',
+    version: '0.10.57',
     date: '2026-10-03',
     title: 'Software Validation: the open defects re-checked, 21 new ones recorded',
     changes: [
       'SOFTWARE VALIDATION → Defects: every defect still open was re-checked against this version. None was fixed by the work of 1–3 October; four are now partly fixed, and thirteen descriptions were corrected where the system had moved on.',
       'TWENTY-ONE NEW DEFECTS (D-097 to D-117) from reading what changed between 1 and 3 October: the one-time warranty update, the Indoor DC and its approval, the Pre-Delivery Testing record, the Warranty and Contract pop-up, the installation-call mapping, stock transfer reasons and the top-bar search.',
       'IMPORTANT: the one-time warranty update of 2 October cleared the warranty dates of machines whose sale entry has none, and rewrote Product Database addresses from the sale. The old machine values are kept; a new read-only check, _what_0318_cleared.sql, counts what was cleared. Nothing has been restored yet.',
+    ],
+  },
+  {
+    version: '0.10.56',
+    date: '2026-10-03',
+    title: 'Party Master: the forms in columns',
+    changes: [
+      'PARTY MASTER: Add entry and the Edit panel lay the fields out in 3 columns (2 on a narrower window, 1 on a phone). Addresses and notes take a full row, and a field left on its own at the end of a section stretches across the empty space.',
+    ],
+  },
+  {
+    version: '0.10.55',
+    date: '2026-10-03',
+    title: 'Product Master: Add entry form',
+    changes: [
+      'PRODUCT MASTER: "+ Add entry" adds a product line from a pop-up form. Product Code and Product Name are required (marked *); Item Detail, Type, Category, Short Form, Still sold? and Imported are optional. Type and Category offer the values already in use, or take a new one.',
+      'A code already on the Product Master is refused rather than overwritten — correct an existing line through the bulk upload. The line records today as Added and you as Added by.',
+    ],
+  },
+  {
+    version: '0.10.54',
+    date: '2026-10-03',
+    title: 'Party Master: Add entry form',
+    changes: [
+      'PARTY MASTER: "+ Add entry" adds a new customer from a pop-up form. Party Name, City and State are required (marked *); the type, Serviceman, addresses, contacts, GSTIN and PAN can be filled now or later from the party\'s Edit form. The Party Key is given when it is saved and shown in the message.',
+      'A name already on the Party Master is refused — even typed in different capitals or with extra spaces — so the same customer is not entered twice. Search for it and edit that one instead.',
+    ],
+  },
+  {
+    version: '0.10.53',
+    date: '2026-10-03',
+    title: 'Part Master: Add entry form; drop-down lists no longer cut off',
+    changes: [
+      'PART MASTER: "+ Add entry" opens the same pop-up form as the master lists, with the required fields marked *. Anything missing is named once you press Add entry, not before you start typing.',
+      'FIXED: a drop-down list inside a pop-up, a side panel or a table was cut off at that box\'s edge, as the Product list was on the Add entry form. Lists now open over everything, upwards when there is no room below (a phone with its keyboard open), and follow the field when you scroll.',
+    ],
+  },
+  {
+    version: '0.10.52',
+    date: '2026-10-03',
+    title: 'Master lists: Add entry is a form',
+    changes: [
+      'MASTER LISTS: "+ Add entry" opens a short form naming each field, with the required ones marked *. It replaces the empty boxes you had to type in before clicking Add.',
+      'DCCR COMPLAINT GROUPING and ROOT CAUSE KEY WORD: Product is required and picked from the Product Master, or COMM for a value common to every product.',
+    ],
+  },
+  {
+    version: '0.10.51',
+    date: '2026-10-03',
+    title: 'Indoor Service: the Workshop view uses the standard table',
+    changes: [
+      'WORKSHOP VIEW: the job list now uses the standard table, as the R/SER/07 register does. You can drag column widths, drag headings to reorder, wrap text, and pick columns. The DC tick box for choosing units stays as the first column.',
+    ],
+  },
+  {
+    version: '0.10.50',
+    date: '2026-10-03',
+    title: 'Indoor Service: a pop-up job window, the DC side by side, delete, and the standard table',
+    changes: [
+      'THE JOB OPENS AS A POP-UP WINDOW instead of a side panel. Esc or × closes it.',
+      'CREATE DC splits the window: the job on the left, the DC details on the right. Drag the divider to set the widths; the split is remembered on this device. The DC no longer opens behind the job.',
+      'A NEW LOOK for the DC form and the Indoor DC list, with a clear chip for Pending approval, Approved or Rejected. DCs waiting for you are listed first.',
+      'VISIT ENGINEER can be changed on the Repair page: pick anyone active on the User Master. The visit filed at DC approval names that engineer.',
+      'DELETE JOB: a new "Delete an Indoor Service job" permission. Administrators hold it; grant it to other roles on Roles & Permissions. It asks for a reason and the job number, and permanently removes the job with its accessories, checks and test records. It is refused once a DC has been issued or a visit filed for the job. Each deletion is written to the Audit Log.',
+      'THE REGISTER uses the standard table: drag column widths, drag headings to reorder, wrap, and pick columns. It loads every job, so the count is exact.',
+      'INDOOR SERVICE REPORTS are saved to the "INDOOR Service Reports" folder in the Reports drive. This takes effect once the CallReg Web App is redeployed.',
     ],
   },
   {

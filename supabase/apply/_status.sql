@@ -1725,7 +1725,15 @@ with checks(sort_order, bundle, provides, present) as (
                          from pg_proc p where p.oid = to_regprocedure('public.approve_indoor_dc(text,boolean)')), false))),
     (254, 'Return to Field is a Call Pending Reason', 'The value Return to Field on the pendingreason master, active (0323) -- the pending reason every visit filed from an Indoor DC''s approval carries. NO means indoor.sql has not been re-run since, or the value was deactivated on the Masters screen. Restore: indoor.sql (0323)',
         exists (select 1 from public.masters where name = 'pendingreason' and value = 'Return to Field'
-                   and coalesce((to_jsonb(masters) ->> 'active')::boolean, true)))
+                   and coalesce((to_jsonb(masters) ->> 'active')::boolean, true))),
+    (255, 'An Indoor Service job can be deleted -- only by delete_indoor_job(), and never once it left a trace', 'delete_indoor_job(job_id, reason) (0324): asks indoor.delete (granted to no role by the migration; an administrator passes), needs a reason, refuses a job carrying a DC No., named on any Indoor DC line or whose visit is filed, deletes the job with its accessories, harvested parts, checks and PDT, and writes audit_log indoor.job_delete. Callable by a signed-in user (it asks the key itself), not by the public key; DELETE on indoor_jobs and indoor_pdt revoked from the API roles. NO means indoor.sql has not been re-run since. Restore: indoor.sql (0324)',
+        (to_regprocedure('public.delete_indoor_job(bigint,text)') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.delete_indoor_job(bigint,text)'), 'EXECUTE')
+         and not has_table_privilege('authenticated', to_regclass('public.indoor_jobs'), 'DELETE')
+         and not has_table_privilege('authenticated', to_regclass('public.indoor_pdt'), 'DELETE')
+         and coalesce((select p.prosrc like '%indoor.delete%' and p.prosrc like '%indoor_dc_lines%'
+                              and p.prosrc like '%visit_uid is not null%' and p.prosrc like '%indoor.job_delete%'
+                         from pg_proc p where p.oid = to_regprocedure('public.delete_indoor_job(bigint,text)')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

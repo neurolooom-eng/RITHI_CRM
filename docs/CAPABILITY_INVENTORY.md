@@ -784,6 +784,10 @@ Purpose: the workshop register for equipment taken in (repair, rework, salvage, 
 | 22 | Dispatch reference; warning while accessories are outstanding (not blocking); dispatched by and at shown | IndoorService.tsx:661-676 | indoor.dispatch; DB trigger | partial: URS-051, FRS-059 | |
 | 23 | Receiving a unit is written to the audit log; the later field saves are not logged by the screen | IndoorService.tsx:149 | none | partial: URS-016, FRS-021 | Every other change relies on the database trail |
 | 24 | Not connected: says it reads live data only | IndoorService.tsx:155-165 | none | GAP | Low |
+| 25 | A job opens as a centred window (Esc / × closes); Create Indoor DC on its DC page opens the DC form in a second pane with a draggable divider, remembered per device (2026-10-03) | IndoorService.tsx IndoorJobWindow | indoor.dispatch for the DC | FRS-239, OQ-229 | |
+| 26 | Visiting Service Engineer of the drafted visit picked from the active User Master (default: the signed-in engineer); filed with that name and email at the DC's approval (2026-10-03) | CallReporting.tsx (Indoor mode); access.ts useActivePeople | indoor.work | FRS-237, OQ-228, OQ-229 | |
+| 27 | Delete a job permanently with a reason and the typed job number; refused once on any Indoor DC or with its visit filed; audited (2026-10-03, 0324) | IndoorService.tsx DeleteJobAction; delete_indoor_job() | indoor.delete (no role by migration; admin passes) | URS-175, FRS-238, OQ-228, OQ-229 | |
+| 28 | R/SER/07 register in the app's DataTable: column order, widths, wrap, picker; exact count (2026-10-03) | IndoorService.tsx registerColumns | export.data for Excel / Print | FRS-239, OQ-229 | |
 
 ---
 

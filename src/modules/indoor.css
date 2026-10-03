@@ -570,3 +570,169 @@ td.ind-rows-empty { text-align: left; }
 .ind-group .rep-inline .rep-form > .rep-sec:first-child > .rep-sec-title { display: none; }
 .ind-group-aside .btn-ghost { color: var(--primary); font-weight: 600; }
 .ind-reportstate { margin-bottom: 14px; }
+
+/* ===========================================================================
+   THE JOB WINDOW (2026-10-03): a centred pop-up instead of the side drawer,
+   and TWO PANES -- the job and the DC form -- with a divider the reader drags.
+   No transform on the window: a drawer opened from inside it (Request spare)
+   is position:fixed, and a transformed ancestor would trap it in the window.
+   =========================================================================== */
+.ind-win-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(8, 15, 22, 0.46);
+  animation: ind-win-fade 0.14s ease;
+}
+@keyframes ind-win-fade { from { opacity: 0; } to { opacity: 1; } }
+.ind-win {
+  width: min(1100px, 100%);
+  height: min(90vh, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+.ind-win.is-two { width: min(1560px, 100%); }
+.ind-win-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.ind-win-pane.is-side { background: var(--surface); }
+.ind-win-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.ind-win-titles { min-width: 0; }
+.ind-win-title { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ind-win-sub { margin-top: 2px; font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ind-win-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+.ind-win-x {
+  all: unset;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.ind-win-x:hover { background: var(--surface-alt); color: var(--text); }
+.ind-win-x:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.ind-win-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 22px 20px; }
+/* The divider: a 10px target, a 1px line -- the drawer grip's rule. */
+.ind-win-grip { position: relative; cursor: col-resize; background: transparent; touch-action: none; }
+.ind-win-grip::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; left: 4px;
+  width: 2px;
+  background: var(--border);
+  transition: background 0.12s;
+}
+.ind-win-grip:hover::after, .ind-win-grip:focus-visible::after, body.drawer-resizing .ind-win-grip::after { background: var(--text); }
+.ind-win-grip:focus-visible { outline: none; }
+/* A phone has no room for two panes side by side: they stack. */
+@media (max-width: 760px) {
+  .ind-win-overlay { padding: 0; }
+  .ind-win { height: 100%; border-radius: 0; border: 0; }
+  .ind-win.is-two { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: minmax(0, 1fr) 1px minmax(0, 1fr); }
+  .ind-win-grip { cursor: default; pointer-events: none; }
+  .ind-win-grip::after { left: 0; right: 0; width: auto; height: 1px; top: 0; bottom: auto; }
+  .ind-win-body { padding: 14px 16px 18px; }
+}
+
+/* ---- the quiet danger action, and its confirmation ----------------------- */
+.ind-danger-link {
+  all: unset;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--danger);
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.ind-danger-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.ind-danger-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.ind-confirm { gap: 12px; padding: 0; }
+.ind-confirm .ind-field { margin-top: 2px; }
+.ind-confirm-lead { margin: 0; font-size: 13.5px; line-height: 1.45; }
+.ind-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 14px; border-top: 1px solid var(--border); margin-top: 4px; }
+
+/* ---- the register: one line of guidance above the bar -------------------- */
+.ind-regnote { margin: 0 0 8px; }
+
+/* ===========================================================================
+   THE INDOOR DC IN THE FORM'S LANGUAGE (2026-10-03): the create form and the
+   DC list as one calm column -- eyebrows, hairlines, plain text for what is
+   read only, one solid button, the approval as a chip. Tokens only.
+   =========================================================================== */
+.ind-dcform .ind-dc-lead { margin: 0 0 4px; font-size: 13px; line-height: 1.5; color: var(--text); }
+.ind-dcform .ind-dc-lead .ind-muted { font-size: 12.5px; }
+.ind-dcform .ind-dc-units { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ind-dc-unit { font-size: 12px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); color: var(--text); background: var(--surface-alt); }
+.ind-dcform .ind-lines td input { width: 100%; min-width: 120px; }
+.ind-dcform .ind-lines .ind-dc-desc small { display: block; color: var(--text-muted); font-size: 11px; margin-top: 1px; }
+.ind-dcform .ind-lines td.num, .ind-dcform .ind-lines th.num { text-align: right; padding-right: 14px; font-variant-numeric: tabular-nums; }
+.ind-dcform .ind-formactions { gap: 8px; align-items: center; border-top: 1px solid var(--border); padding-top: 16px; margin-top: 4px; }
+.ind-dcform .ind-formactions .btn-primary { padding: 8px 18px; }
+.ind-dcform .ind-formactions .ind-pager-note { margin-right: auto; }
+
+/* The approval chip: same hue in both themes (it is a state code), solid. */
+.ind-appr {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.ind-appr::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.ind-appr.is-pending  { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.ind-appr.is-approved { background: #dcfce7; color: #166534; border-color: #86efac; }
+.ind-appr.is-rejected { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.ind-appr.is-legacy   { background: transparent; color: var(--text-muted); border-color: var(--border); }
+
+/* The DC list: rows as quiet cards on hairlines, not a dense grid. */
+.ind-dclist { display: flex; flex-direction: column; }
+.ind-dclist-count { margin: 0 0 12px; }
+.ind-dcrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.6fr) minmax(0, 1fr) auto;
+  gap: 6px 22px;
+  align-items: start;
+  padding: 14px 4px 14px 14px;
+  border-top: 1px solid var(--border);
+}
+.ind-dcrow:last-child { border-bottom: 1px solid var(--border); }
+/* Awaiting the reader: a solid rule down the left -- contrast, not a tint. */
+.ind-dcrow.is-mine { box-shadow: inset 3px 0 0 var(--text); }
+.ind-dcrow-no { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13.5px; font-weight: 650; }
+.ind-dcrow-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; line-height: 1.45; overflow-wrap: anywhere; }
+.ind-dcrow-to { font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.ind-dcrow-state { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.ind-dcrow-acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.ind-dcrow-reject { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ind-dcrow-reject input { flex: 1 1 260px; }
+@container (max-width: 760px) {
+  .ind-dcrow { grid-template-columns: minmax(0, 1fr) auto; }
+  .ind-dcrow-to { grid-column: 1 / -1; order: 3; }
+  .ind-dcrow-state { order: 2; align-items: flex-end; }
+  .ind-dcrow-acts { grid-column: 1 / -1; order: 4; justify-content: flex-start; }
+}

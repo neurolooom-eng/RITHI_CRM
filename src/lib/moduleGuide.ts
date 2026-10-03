@@ -643,8 +643,12 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'View the register as R/SER/07 (Customer – Devices / Demo), download it to Excel and print it',
       'Tick Ready units for one consignee and create an Indoor DC (IDC-YYMM-NNNN) for them, naming who authorises it; list and re-print every Indoor DC',
       'Approve or reject an Indoor DC that names you — approving files each unit\'s drafted visit against its call',
+      'Open a job as a window; from its DC page create the Indoor DC in a pane beside the job, the divider dragged to taste',
+      'Pick the Visiting Service Engineer for the drafted visit from the active people on the User Master (you by default)',
+      'Arrange the R/SER/07 register\'s columns — order, width, wrap, which are shown — as on every register',
+      'Delete a job received in error, permanently, with a reason (needs the Delete an Indoor Service job right)',
     ],
-    records: ['indoor_jobs', 'indoor_job_list', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks', 'indoor_pdt', 'product_master', 'indoor_dcs', 'indoor_dc_lines', 'indoor_dc_list', 'parties', 'calls', 'pending_calls', 'reports', 'spare_consumption', 'spare_requests', 'rpc:indoor_dc_authorisers', 'rpc:create_indoor_dc', 'rpc:approve_indoor_dc', 'rpc:reject_indoor_dc', 'rpc:record_indoor_visit', 'audit_log'],
+    records: ['indoor_jobs', 'indoor_job_list', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks', 'indoor_pdt', 'product_master', 'indoor_dcs', 'indoor_dc_lines', 'indoor_dc_list', 'parties', 'calls', 'pending_calls', 'reports', 'spare_consumption', 'spare_requests', 'rpc:indoor_dc_authorisers', 'rpc:create_indoor_dc', 'rpc:approve_indoor_dc', 'rpc:reject_indoor_dc', 'rpc:record_indoor_visit', 'rpc:delete_indoor_job', 'user_directory', 'audit_log'],
     rules: [
       'A harvested part cannot go back into stock until decontamination is recorded',
       'A job cannot be Dispatched or Closed without a quality check',
@@ -661,6 +665,8 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Approval is refused until every unit\'s visit is filed — Unsolved, pending Return to Field, work details Yes; a unit with no call files none',
       'A rejected DC is kept, with its reason, and its units are released for a new DC',
       'Requesting a spare from a job does not change the call\'s status',
+      'The visit is filed under the engineer picked on the Repair page, and its spares come from that engineer\'s hand stock',
+      'Deleting a job needs its own right (no role holds it until an administrator ticks it), a reason and the job number typed; it is refused once the job has been on any Indoor DC or its visit is filed, and it is recorded with who, when and why',
     ],
   },
 

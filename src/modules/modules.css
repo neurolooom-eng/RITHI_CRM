@@ -107,3 +107,25 @@
 .list-tight-row:last-child {
   border-bottom: none;
 }
+
+/* MASTER LIST: Add entry is a small form (2026-10-03) -- one field per line,
+   label above, the required ones marked *. */
+.ml-form { display: flex; flex-direction: column; gap: 14px; }
+.ml-field { display: flex; flex-direction: column; gap: 6px; }
+.ml-field .input { width: 100%; }
+.ml-hint { font-size: 12px; }
+
+/* ---- A form in 2 or 3 columns (Party Master, 2026-10-03) -----------------
+   The column count comes from the form's measured width (`useColumns`), as a
+   pf-c2 / pf-c3 class on the form. A field ALONE on the last row stretches
+   across the columns left empty, rather than leaving a gap beside it (the
+   user: "all fields which are just 1 per row should merge across"); a long
+   field -- an address, a note -- is rendered outside the grid at full width. */
+.pf-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px 14px; }
+.pf-c2 .pf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pf-c2 .pf-grid > :last-child:nth-child(2n+1) { grid-column: 1 / -1; }
+.pf-c3 .pf-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pf-c3 .pf-grid > :last-child:nth-child(3n+1) { grid-column: 1 / -1; }
+.pf-c3 .pf-grid > :last-child:nth-child(3n+2) { grid-column: span 2; }
+.pf-section { display: flex; flex-direction: column; gap: 10px; }
+.pf-section h4 { margin: 8px 0 0; }

@@ -698,7 +698,11 @@ const MODULES = {
             // RM / RgM / NSM; approve_indoor_dc / reject_indoor_dc), and
             // "Return to Field" on the Call Pending Reason master. Reads
             // reports (base) and my_dir_name() (0004) -- both earlier.
-            '0323_indoor_stages.sql'],
+            '0323_indoor_stages.sql',
+            // Deleting a job PERMANENTLY (2026-10-03): delete_indoor_job(),
+            // indoor.delete (granted to no role), refused once a DC or a filed
+            // visit names the job; writes audit_log (0009, earlier) at RUN time.
+            '0324_indoor_delete_job.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',

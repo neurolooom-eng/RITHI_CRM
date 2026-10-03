@@ -1081,6 +1081,28 @@ export async function updateParty(id: number, patch: PartyPatch): Promise<{ ok: 
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+/** A NEW party, from Party Master's Add entry form.
+ *
+ *  The database assigns the Party Key (`Party-N`, 0076's after-insert trigger)
+ *  and trims the name, so the row is re-read to show the key that was given.
+ *  The name is the register's natural key (`name_key`, unique ignoring case and
+ *  outer spaces), so a party that already exists is refused BY NAME rather than
+ *  as the index's own wording. */
+export async function addParty(
+  fields: PartyPatch & { party_name: string },
+): Promise<{ ok: true; id: number; partyKey: string } | { ok: false; error: string }> {
+  const { data, error } = await must().from('parties').insert(fields).select('id').single();
+  if (error) {
+    if (error.code === '23505' && /name_key/.test(error.message ?? ''))
+      return { ok: false, error: `"${fields.party_name.trim()}" is already on the Party Master — search for it and edit that one instead.` };
+    return { ok: false, error: errMsg(error) };
+  }
+  const id = Number((data as { id: number }).id);
+  void refreshPartyRegister({ force: true });
+  const fresh = await getParty(id).catch(() => null);
+  return { ok: true, id, partyKey: String(fresh?.party_key ?? '') };
+}
+
 /** One party, re-read after an edit.
  *
  *  The database DERIVES things the form did not send — the GSTIN and PAN out of
@@ -3340,6 +3362,19 @@ export async function listMasterItems(key: string, cap = 5000): Promise<MasterIt
 // them. Until 2026-09-07 this offered the product's own PLUS everything tagged
 // COMM, which buried a Monnal's alarm codes in the common list and left every
 // other product with only the handful of COMM values.
+/** The product lines on the Product Master, for a pick list (the DCCR lists'
+ *  Product, the user 2026-10-03: "products should be listed from Product
+ *  Master"). Every line, active or retired, so a grouping can still be kept
+ *  for a product no longer sold; names de-duplicated and sorted. */
+export async function listProductMasterNames(): Promise<string[]> {
+  const c = getSupabase(); if (!c) return [];
+  const { data, error } = await c.from('product_master').select('product_name').order('product_name');
+  if (error) throw new Error(errMsg(error));
+  const seen = new Set<string>();
+  return (data ?? []).map((r) => String((r as { product_name?: string }).product_name ?? '').trim())
+    .filter((v) => v && !seen.has(v.toUpperCase()) && seen.add(v.toUpperCase()));
+}
+
 export async function listMasterValuesForProduct(key: string, product: string, limit = 5000): Promise<string[]> {
   const items = await listMasterItems(key, limit);
   const seen = new Set<string>();
@@ -5949,6 +5984,15 @@ export async function rejectIndoorDc(dcNo: string, reason: string): Promise<{ ok
 export async function recordIndoorVisit(jobId: number, visitUid: string, complete: boolean): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().rpc('record_indoor_visit', { p_job_id: jobId, p_visit_uid: visitUid, p_complete: complete });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+/** Delete an Indoor Service job PERMANENTLY with its accessories, parts,
+ *  checks and PDT (0324). The database asks indoor.delete, needs the reason,
+ *  refuses a job a DC or a filed visit names, and writes the audit row itself.
+ *  Returns the deleted job's number. */
+export async function deleteIndoorJob(jobId: number, reason: string): Promise<{ ok: boolean; jobNo?: string; error?: string }> {
+  const { data, error } = await must().rpc('delete_indoor_job', { p_job_id: jobId, p_reason: reason });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, jobNo: String(data ?? '') };
 }
 
 /** The jobs on one Indoor DC, in print order (the equipment lines). */

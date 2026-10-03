@@ -8336,13 +8336,13 @@ console.log('\n-- a document is filed in the folder it belongs to --');
     const kv = line.match(/^\s*([a-z]+):\s*'([^']+)'/);
     if (kv) inGs[kv[1]] = kv[2];
   }
-  eq('...and the client names exactly the same five folders',
+  eq('...and the client names exactly the same six folders',
     Object.keys(inGs).sort(), Object.keys(DRIVE_FOLDER_NAMES).sort());
   eq('...spelled identically on both sides', inGs, { ...DRIVE_FOLDER_NAMES });
   eq('...which is the mapping that was asked for',
     [DRIVE_FOLDER_NAMES.field, DRIVE_FOLDER_NAMES.installation, DRIVE_FOLDER_NAMES.pm,
-     DRIVE_FOLDER_NAMES.kyc, DRIVE_FOLDER_NAMES.additional],
-    ['Field Reports', 'Installation Reports', 'PM Reports', 'KYC', 'Additional Reports']);
+     DRIVE_FOLDER_NAMES.kyc, DRIVE_FOLDER_NAMES.additional, DRIVE_FOLDER_NAMES.indoor],
+    ['Field Reports', 'Installation Reports', 'PM Reports', 'KYC', 'Additional Reports', 'INDOOR Service Reports']);
 
   // RESOLVED BY NAME, because a shared drive's subfolder ids cannot be read
   // from outside it — a pasted id is a guess, and a wrong one files the
