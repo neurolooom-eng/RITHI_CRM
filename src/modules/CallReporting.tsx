@@ -12,7 +12,7 @@ import { useSpareParts } from '../lib/useSpareParts';
 import { logAudit } from '../lib/audit';
 import { consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
-import { useAccessScope, useTeamEngineers } from '../lib/access';
+import { useAccessScope, useActivePeople, useTeamEngineers } from '../lib/access';
 import { todayISO, fmtLongDateTime, fmtLongDate } from '../lib/format';
 import { visitDateProblem } from '../lib/visitdate';
 import { manualReportLink } from '../lib/reports';
@@ -308,6 +308,12 @@ export function CallReportDrawer({
     ?? toIsoDate(call?.complaintDate ?? call?.['complaint_date'])
     ?? '';
   const [engineer, setEngineer] = useState('');
+  // THE INDOOR VISIT'S ENGINEER IS PICKED (the user, 2026-10-03): any active
+  // person on the User Master, defaulting to the signed-in Indoor engineer, and
+  // the email travels with the name so the filed visit's engineer_email names
+  // the same person (useActivePeople). On a field visit the email stays the
+  // filer's, as it always has.
+  const [indoorEmail, setIndoorEmail] = useState('');
   const [updateWork, setUpdateWork] = useState('Yes');
   const [status, setStatus] = useState('');
   const [pendingReason, setPendingReason] = useState('');
@@ -322,6 +328,14 @@ export function CallReportDrawer({
   // the spare request and the call request offer, from `useTeamEngineers`.
   const selfName = user?.fullName ?? '';
   const engineerOptions = useTeamEngineers(engineer).names;
+  const activePeople = useActivePeople(indoor && engineer.trim() ? { name: engineer, email: indoorEmail } : undefined).people;
+  const pickIndoorEngineer = (name: string) => {
+    setEngineer(name);
+    const p = activePeople.find((x) => x.name.trim().toLowerCase() === name.trim().toLowerCase());
+    // The signed-in user's own login email where the User Master row carries
+    // none, or where the chosen name is theirs.
+    setIndoorEmail(p?.email || (name.trim() === selfName.trim() ? (user?.email ?? '') : ''));
+  };
 
   const solved = /solved/i.test(status) && /complet/i.test(status);
   const reportPending = /report\s*pending/i.test(status);
@@ -370,7 +384,11 @@ export function CallReportDrawer({
       // was drafted before (a re-opened draft starts where it was left).
       const d = indoor.initial;
       setStatus(INDOOR_VISIT_FIXED.status); setPendingReason(INDOOR_VISIT_FIXED.pendingReason);
-      setUpdateWork(INDOOR_VISIT_FIXED.updateWork); setEngineer(selfName);
+      setUpdateWork(INDOOR_VISIT_FIXED.updateWork);
+      // A re-opened draft keeps the engineer it was saved with; a new one
+      // starts on the signed-in Indoor engineer.
+      setEngineer(d?.engineer?.trim() ? d.engineer : selfName);
+      setIndoorEmail(d?.engineer?.trim() ? (d.engineerEmail ?? '') : (user?.email ?? ''));
       setReportNo(indoor.reportNo); setManualLink(indoor.reportLink);
       if (d) {
         setVisitDate(d.visitDate || todayISO()); setWork(d.work ?? {}); setSignoff(d.signoff ?? {});
@@ -596,7 +614,7 @@ export function CallReportDrawer({
     const allSpares = d ? [...spares, d.line] : spares;
     if (d) { setSpares(allSpares); setSpareDraft({ part: '', qty: '1', grir: '' }); }
     const draft: VisitDraft = {
-      visitDate, engineer, engineerEmail: user?.email ?? '', status, pendingReason, updateWork,
+      visitDate, engineer, engineerEmail: indoor ? indoorEmail : (user?.email ?? ''), status, pendingReason, updateWork,
       work: workWithLinked(), signoff: solved ? signoff : {}, spares: allSpares, feedback, manualLink,
     };
     setBusy(true); setErr('');
@@ -733,7 +751,7 @@ export function CallReportDrawer({
   const body = (
     <>
       {inline ? (
-        <div className="rep-inline-note">Drafted now, filed against <b>{ucn}</b> as you when the Indoor DC is approved — nothing is written to the call yet.</div>
+        <div className="rep-inline-note">Drafted now, filed against <b>{ucn}</b> under the Visiting Service Engineer below when the Indoor DC is approved — nothing is written to the call yet.</div>
       ) : indoor ? (
         <div className="detail-hint">📝 The Visit Entry for <b>{ucn}</b>, drafted with the Indoor Service Report. <b>Nothing is written to the call now</b> — the visit is filed against the call, as you, when the Indoor DC is approved.</div>
       ) : (
@@ -811,14 +829,17 @@ export function CallReportDrawer({
                     : <>Not in the future.</>}
                 </span>
               </label>
-              {inline ? (
-                <div className="rep-field">
-                  <span className="field-label">Visiting Service Engineer</span>
-                  <span className="rep-linked-value">{selfName || '—'}</span>
-                </div>
+              {indoor ? (
+                <label className="rep-field">
+                  <span className="field-label">Visiting Service Engineer *</span>
+                  <SelectPicker value={engineer} onChange={pickIndoorEngineer} options={activePeople.map((p) => p.name)}
+                                placeholder="— who attended the unit —"
+                                emptyHint="Active people on the User Master." />
+                  <span className="muted rep-hint">Defaults to you. The visit is filed under this name when the Indoor DC is approved, and any spares come from this person’s hand stock.</span>
+                </label>
               ) : <label className="rep-field">
                 <span className="field-label">Visiting Service Engineer *</span>
-                <SelectPicker value={engineer} onChange={setEngineer} options={fixedIndoor ? [selfName] : engineerOptions} disabled={fixedIndoor}
+                <SelectPicker value={engineer} onChange={setEngineer} options={engineerOptions}
                               emptyHint="Only engineers on your team are listed." />
                 <span className="muted rep-hint">
                   {isAdmin || scope.isManager ? 'Defaults to you; you can report for an engineer.' : 'You — the user filing this report.'}

@@ -341,6 +341,11 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // register row. Its own key, asked by the database and stamped from the
   // session; granted to NOBODY by the migration -- an administrator ticks it.
   { group: 'Indoor Service', key: 'indoor.verify', label: 'Verify an Indoor Service register entry' },
+  // DELETING A JOB PERMANENTLY (0324, the user, 2026-10-03: "Allow Admin by
+  // default, rest I will update from Roles & Permissions"). Asked by
+  // delete_indoor_job(), which refuses a job any DC or filed visit names;
+  // granted to NO role by the migration -- an administrator passes anyway.
+  { group: 'Indoor Service', key: 'indoor.delete', label: 'Delete an Indoor Service job' },
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
   { group: 'Spares', key: 'consumption.reconcile', label: 'Add consumption against a call (reconciliation)' },
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
@@ -715,7 +720,7 @@ export const PERM_TREE: PermHeader[] = [
   // page harder to trust than to use.
   { title: 'Indoor Service', pages: [
     { path: '/indoor', label: 'Indoor Service Register',
-      actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn', 'indoor.verify'] },
+      actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn', 'indoor.verify', 'indoor.delete'] },
   ] },
   { title: 'Reports', pages: [
     // The parent GRANTS ALL THREE below it, so a role that only needs one is

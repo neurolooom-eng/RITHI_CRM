@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useArrivingFilter } from '../lib/arriveWith';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { Drawer, FacetChips, Modal, PageHeader, SectionCard } from '../components/ui/ui';
+import { DataTable, type Column } from '../components/table/DataTable';
 import {
   supabaseConfigured, listIndoorJobs, saveIndoorJob, markIndoorCleaned,
   listIndoorAccessories, addIndoorAccessory, saveIndoorAccessory, deleteIndoorAccessory,
   listIndoorParts, addIndoorPart, deleteIndoorPart,
   listIndoorChecks, addIndoorCheck, saveIndoorCheck, deleteIndoorCheck,
   getIndoorPdt, saveIndoorPdt, signIndoorPdt, verifyIndoorJob, sbProductBySerial, callByUcn,
-  listIndoorDcs, saveIndoorReport,
+  listIndoorDcs, saveIndoorReport, deleteIndoorJob,
   INDOOR_KINDS, INDOOR_ACTIVITIES, INDOOR_STATUSES,
   type IndoorJob, type IndoorAccessory, type IndoorPart, type IndoorCheck, type IndoorPdt,
 } from '../lib/supabase';
@@ -22,7 +23,7 @@ import {
   PDT_CHECKS, PDT_FIO2, PDT_MODES, pdtGaps, pdtOwed, type RegisterSheet,
 } from '../lib/indoorforms';
 import { useAuth } from '../lib/auth';
-import { IndoorDcDrawer, IndoorDcList } from './IndoorDcPanel';
+import { IndoorDcForm, IndoorDcList } from './IndoorDcPanel';
 import { consigneeKey, jobConsignee, jobStage, INDOOR_STAGES, STAGES_DONE, indoorReportFileName, type StageState } from '../lib/indoorforms';
 import { IndoorIntake } from './IndoorIntake';
 import { CallReportDrawer, type IndoorDraftMode, type VisitDraft } from './CallReporting';
@@ -34,6 +35,15 @@ import { formatDay, formatDayTime } from '../lib/dates';
 
 /** R/SER/07's "Status" is the machine's COVER, in the one vocabulary (0208). */
 const COVERS = ['WGP', 'OGP', 'CMC', 'AMC'];
+
+/** One register row: the R/SER/07 values under their headings, the stage, the job. */
+type RegisterRow = Record<string, unknown> & { Stage: string; _job: IndoorJob };
+/** Starting widths for the register's columns -- the reader resizes them and
+ *  the table remembers. Text-heavy columns start wider. */
+const REGISTER_WIDTH: Record<string, number> = {
+  'S.No': 60, 'Product Name': 150, 'Customer Name': 190, 'Customer Place': 130, 'Problem Reported': 220,
+  'Accessories Received': 190, 'Engineer Name': 140, 'Remarks': 180, 'Status': 80, 'Verified By': 130,
+};
 
 // ===========================================================================
 // INDOOR SERVICE REGISTER — the workshop, procedure §4.5. Phase 1.
@@ -114,6 +124,9 @@ export function IndoorService() {
   const mayDispatch = can('indoor.dispatch');
   const mayCondemn  = can('indoor.condemn');
   const mayVerify   = can('indoor.verify');
+  // DELETING A JOB (0324): its own key, granted to no role by migration; the
+  // database asks it again and refuses a job a DC or a filed visit names.
+  const mayDelete   = can('indoor.delete');
   // THE SAME GATE AS EVERY OTHER DOWNLOAD (D-018): the Excel file and the
   // printed register are the register's rows leaving the system.
   const mayExport   = can('export.data');
@@ -172,7 +185,10 @@ export function IndoorService() {
   const dcEligible = (j: IndoorJob) => j.status === 'Ready' && !(j.dispatch_ref ?? '').trim()
     && !!(j.report_file_url ?? '').trim();
   const stageOf = (j: IndoorJob) => jobStage(j, dcStatus[(j.dispatch_ref ?? '').trim()]);
-  const [dcFor, setDcFor] = useState<IndoorJob[] | null>(null);
+  // CREATE DC FROM THE JOB opens the DC form BESIDE the job, in the same
+  // window (the user, 2026-10-03) -- it used to open a drawer behind it.
+  const [dcPane, setDcPane] = useState(false);
+  useEffect(() => { setDcPane(false); }, [openId]);
   const pickedJobs = useMemo(() => picked.map((id) => jobs.find((j) => j.id === id)).filter((j): j is IndoorJob => !!j),
     [picked, jobs]);
   const pickedConsignees = new Set(pickedJobs.map((j) => consigneeKey(jobConsignee(j))));
@@ -213,6 +229,50 @@ export function IndoorService() {
 
   // ---- R/SER/07 -----------------------------------------------------------
   const sheetRows = useMemo(() => registerJobs(jobs, sheet, from, to), [jobs, sheet, from, to]);
+
+  // THE REGISTER IN THE APP'S OWN TABLE (the user, 2026-10-03): widths,
+  // order, wrap and the column picker as on every register. One flat row per
+  // job -- the R/SER/07 values under their own headings, so the table's sort
+  // and filters read them -- with the job itself carried under `_job`.
+  // Every job is already on screen (listIndoorJobs reads them all, a page at a
+  // time), so there is no Load more and the count is exact.
+  const registerRows = useMemo<RegisterRow[]>(() => sheetRows.map((j, i) => ({
+    ...registerRow(j, i + 1), Stage: stageOf(j).label, _job: j,
+  })), [sheetRows, dcStatus]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const registerColumns = useMemo<Column<RegisterRow>[]>(() => [
+    { key: 'Stage', header: 'Stage', width: 150,
+      render: (r) => {
+        const st = stageOf(r._job);
+        return <span className={`ind-stagechip ${st.current < STAGES_DONE && !st.offPath ? 'is-now' : ''}`}
+          title="Where the unit is in the workflow — on screen only, the paper has no such column">{st.label}</span>;
+      } },
+    ...REGISTER_COLUMNS.map((c): Column<RegisterRow> => ({
+      key: c,
+      header: c,
+      width: REGISTER_WIDTH[c] ?? 130,
+      accessor: (r) => {
+        const v = r[c];
+        return typeof v === 'number' ? v : String(v ?? '');
+      },
+      render: c === 'Indoor Service Report No'
+        // STAGE 4 FROM THE REGISTER: a link once uploaded; an Upload button
+        // (the job on its Repair page) once the unit is cleaned.
+        ? (r) => {
+            const j = r._job;
+            if ((j.report_file_url ?? '').trim()) {
+              return <a href={j.report_file_url} target="_blank" rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()} title={j.report_file_name}>{j.indoor_report_no || 'report'} ↗</a>;
+            }
+            if (j.cleaned_at && mayWork) {
+              return <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); setOpenPage(2); setOpenId(j.id); }}>⭱ Upload</button>;
+            }
+            return <span className="ind-hint">{j.indoor_report_no || (j.cleaned_at ? '' : 'after cleaning')}</span>;
+          }
+        : REGISTER_DATE_COLUMNS.includes(c)
+          ? (r) => formatDay(r[c] as string)
+          : undefined,
+    })),
+  ], [mayWork, dcStatus]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const downloadRegister = () => {
     // REFUSED HERE AS csvExport REFUSES: xlsxDownload does not test the export
@@ -273,7 +333,7 @@ export function IndoorService() {
         title="Indoor Service Register"
         icon="🏭"
         subtitle="Equipment in the workshop — repair, rework, salvage, pre-delivery, demo (§4.5)"
-        count={shown.length}
+        count={view === 'register' ? sheetRows.length : shown.length}
         // EXACT, and so it takes no "+": listIndoorJobs reads every job, a
         // page at a time (D-040), so every row is on screen.
         countMore={false}
@@ -327,6 +387,10 @@ export function IndoorService() {
 
       {view === 'register' ? (
         <SectionCard title="R/SER/07 — Indoor Service Equipment Failure Register">
+          <p className="ind-note ind-regnote">
+            The paper register’s columns, in its order — drag a heading to move it, its edge to size it, ⚙ to show or hide.
+            S.No runs within the sheet in incoming-date order; <b>Status</b> is the machine’s cover, not the workshop stage.
+          </p>
           <div className="ind-filters ind-regbar">
             <label className="ind-toggle">
               <input type="radio" checked={sheet === 'customer'} onChange={() => setSheet('customer')} />
@@ -343,42 +407,16 @@ export function IndoorService() {
               <button className="btn" onClick={printRegister}>🖨 Print this sheet</button>
             </> : null}
           </div>
-          <p className="ind-note">
-            The paper register’s columns, in its order. S.No runs within the sheet in incoming-date order;
-            <b> Status</b> is the machine’s cover, not the workshop stage.
-          </p>
-          <div className="table-wrap">
-            <table className="table">
-              <thead><tr><th title="Where the unit is in the workflow — on screen only, the paper has no such column">Stage</th>
-                {REGISTER_COLUMNS.map((c) => <th key={c}>{c}</th>)}</tr></thead>
-              <tbody>
-                {sheetRows.map((j, i) => {
-                  const r = registerRow(j, i + 1);
-                  const st = stageOf(j);
-                  return (
-                    <tr key={j.id} className="row-click" onClick={() => { setOpenPage(undefined); setOpenId(j.id); }}>
-                      <td><span className={`ind-stagechip ${st.current < STAGES_DONE && !st.offPath ? 'is-now' : ''}`}>{st.label}</span></td>
-                      {REGISTER_COLUMNS.map((c) => (
-                        <td key={c}>{c === 'Indoor Service Report No'
-                          // STAGE 4 FROM THE REGISTER: a link once uploaded; an
-                          // Upload button once the unit is cleaned.
-                          ? ((j.report_file_url ?? '').trim()
-                              ? <a href={j.report_file_url} target="_blank" rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()} title={j.report_file_name}>{j.indoor_report_no || 'report'} ↗</a>
-                              : j.cleaned_at && mayWork
-                                ? <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); setOpenPage(2); setOpenId(j.id); }}>⭱ Upload</button>
-                                : <span className="ind-hint">{j.indoor_report_no || (j.cleaned_at ? '' : 'after cleaning')}</span>)
-                          : REGISTER_DATE_COLUMNS.includes(c) ? formatDay(r[c]) : String(r[c] ?? '')}</td>
-                      ))}
-                    </tr>
-                  );
-                })}
-                {sheetRows.length === 0 ? (
-                  <tr><td colSpan={REGISTER_COLUMNS.length + 1} className="ind-empty">Nothing on this sheet for these dates.</td></tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+          <DataTable<RegisterRow>
+            columns={registerColumns}
+            rows={registerRows}
+            getRowId={(r) => String(r._job.id)}
+            storageKey="indoorRegister.rser07"
+            rowsBeforeScroll={14}
+            dense
+            onRowClick={(r) => { setOpenPage(undefined); setOpenId(r._job.id); }}
+            emptyText="Nothing on this sheet for these dates."
+          />
         </SectionCard>
       ) : null}
 
@@ -441,11 +479,13 @@ export function IndoorService() {
       </div>
       ) : null}
 
-      <Drawer open={(dcOpen && pickedJobs.length > 0) || !!dcFor} onClose={() => { setDcOpen(false); setDcFor(null); }} storeKey="indoor-dc"
+      {/* THE TICKED UNITS' DC (Workshop view) -- no job is open, so nothing
+          sits in front of it. From a job, the DC opens beside the job instead. */}
+      <Drawer open={dcOpen && pickedJobs.length > 0} onClose={() => setDcOpen(false)} storeKey="indoor-dc"
         title="Create Indoor DC">
-        {dcFor || (dcOpen && pickedJobs.length > 0) ? (
-          <IndoorDcDrawer jobs={dcFor ?? pickedJobs} onClose={() => { setDcOpen(false); setDcFor(null); }}
-            onIssued={(no) => { setDcOpen(false); setDcFor(null); setPicked([]); setMsg(`Indoor DC ${no} created — pending approval.`); load(); }} />
+        {dcOpen && pickedJobs.length > 0 ? (
+          <IndoorDcForm jobs={pickedJobs} onClose={() => setDcOpen(false)}
+            onIssued={(no) => { setDcOpen(false); setPicked([]); setMsg(`Indoor DC ${no} created — pending approval.`); load(); }} />
         ) : null}
       </Drawer>
 
@@ -457,9 +497,19 @@ export function IndoorService() {
       </Drawer>
 
 
-      <Drawer open={!!job} onClose={() => setOpenId(null)} storeKey="indoor-job"
-        title={job ? `${job.job_no} — ${job.product_name || 'equipment'}` : ''}>
-        {job ? (
+      {job ? (
+        <IndoorJobWindow
+          title={`${job.job_no} — ${job.product_name || 'equipment'}`}
+          subtitle={[job.serial ? `Sl.No ${job.serial}` : '', jobConsignee(job), job.ucn ?? ''].filter(Boolean).join(' · ')}
+          onClose={() => setOpenId(null)}
+          actions={mayDelete ? <DeleteJobAction job={job} onDeleted={(no) => { setOpenId(null); setMsg(`${no} deleted permanently.`); load(); }} /> : null}
+          side={dcPane && dcEligible(job) && mayDispatch ? (
+            <IndoorDcForm jobs={[job]} inPane onClose={() => setDcPane(false)}
+              onIssued={(no) => { setDcPane(false); setMsg(`Indoor DC ${no} created — pending approval.`); load(); }} />
+          ) : null}
+          sideTitle="Create Indoor DC"
+          onCloseSide={() => setDcPane(false)}
+        >
           <IndoorJobDrawer
             key={job.id}
             job={job}
@@ -475,10 +525,11 @@ export function IndoorService() {
             dcStatus={dcStatus[(job.dispatch_ref ?? '').trim()]}
             startAt={openPage}
             onReportSaved={() => { setMsg(`Indoor Service Report saved on ${job.job_no}.`); load(); }}
-            onCreateDc={dcEligible(job) && mayDispatch ? () => setDcFor([job]) : undefined}
+            onCreateDc={dcEligible(job) && mayDispatch ? () => setDcPane(true) : undefined}
+            dcOpen={dcPane}
           />
-        ) : null}
-      </Drawer>
+        </IndoorJobWindow>
+      ) : null}
     </>
   );
 }
@@ -544,9 +595,191 @@ function Group({ title, aside, children }: { title: string; aside?: React.ReactN
   );
 }
 
+// ---------------------------------------------------------------------------
+// THE JOB AS A WINDOW (the user, 2026-10-03): centred, large, scrolling inside,
+// Esc or × to close -- and when "Create DC" is pressed it becomes TWO PANES,
+// the job on the left and the DC form on the right, with a divider the reader
+// drags. The split is remembered per device, as the Pending Registrations
+// panes are. Closing the DC pane returns to the single pane. Esc closes the
+// DC pane first, then the window; it is left alone while a picker, drawer or
+// confirmation inside the window is open (they take Esc themselves).
+//
+// Not the shared Modal: that one has no Esc, no second pane and no divider,
+// and widening it for one screen would change every modal in the app.
+// ---------------------------------------------------------------------------
+const SPLIT_KEY = 'rithi.indoor.split';
+const readSplit = () => {
+  try {
+    const n = Number(localStorage.getItem(SPLIT_KEY));
+    if (Number.isFinite(n) && n >= 30 && n <= 75) return n;
+  } catch { /* a private window */ }
+  return 58;
+};
+
+function IndoorJobWindow({ title, subtitle, onClose, actions, side, sideTitle, onCloseSide, children }: {
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  actions?: React.ReactNode;
+  side?: React.ReactNode;
+  sideTitle?: string;
+  onCloseSide?: () => void;
+  children: React.ReactNode;
+}) {
+  const [split, setSplit] = useState(readSplit);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const drag = useRef<{ x: number; start: number; width: number } | null>(null);
+  const two = !!side;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      // Something inside the window is on top -- it handles its own Esc.
+      if (document.querySelector('.drawer-overlay, .modal-overlay')) return;
+      if (two && onCloseSide) onCloseSide(); else onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [two, onClose, onCloseSide]);
+
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const d = drag.current;
+      if (!d) return;
+      setSplit(Math.max(30, Math.min(75, d.start + ((e.clientX - d.x) / d.width) * 100)));
+    };
+    const up = () => {
+      if (!drag.current) return;
+      drag.current = null;
+      document.body.classList.remove('drawer-resizing');
+      setSplit((v) => { try { localStorage.setItem(SPLIT_KEY, String(Math.round(v))); } catch { /* ignore */ } return v; });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+  }, []);
+  const startDrag = (e: React.PointerEvent) => {
+    e.preventDefault();
+    drag.current = { x: e.clientX, start: split, width: boxRef.current?.getBoundingClientRect().width ?? 1200 };
+    document.body.classList.add('drawer-resizing');
+  };
+  const nudge = (e: React.KeyboardEvent) => {
+    const step = e.key === 'ArrowLeft' ? -2 : e.key === 'ArrowRight' ? 2 : 0;
+    if (!step) return;
+    e.preventDefault();
+    setSplit((v) => {
+      const n = Math.max(30, Math.min(75, v + step));
+      try { localStorage.setItem(SPLIT_KEY, String(Math.round(n))); } catch { /* ignore */ }
+      return n;
+    });
+  };
+
+  return (
+    <div className="ind-win-overlay" onMouseDown={onClose}>
+      <div ref={boxRef} className={`ind-win${two ? ' is-two' : ''}`} role="dialog" aria-modal="true" aria-label={title}
+        onMouseDown={(e) => e.stopPropagation()}
+        style={two ? { gridTemplateColumns: `minmax(0, ${split}fr) 10px minmax(0, ${100 - split}fr)` } : undefined}>
+        <section className="ind-win-pane">
+          <header className="ind-win-head">
+            <div className="ind-win-titles">
+              <h2 className="ind-win-title">{title}</h2>
+              {subtitle ? <div className="ind-win-sub">{subtitle}</div> : null}
+            </div>
+            <div className="ind-win-actions">
+              {actions}
+              <button type="button" className="ind-win-x" onClick={onClose} aria-label="Close" title="Close (Esc)">×</button>
+            </div>
+          </header>
+          <div className="ind-win-body">{children}</div>
+        </section>
+        {two ? (<>
+          <div className="ind-win-grip" role="separator" aria-orientation="vertical" aria-label="Resize the two panes"
+            aria-valuenow={Math.round(split)} aria-valuemin={30} aria-valuemax={75} tabIndex={0}
+            onPointerDown={startDrag} onKeyDown={nudge} title="Drag to resize" />
+          <section className="ind-win-pane is-side">
+            <header className="ind-win-head">
+              <div className="ind-win-titles">
+                <div className="ind-eyebrow">Indoor DC</div>
+                <h2 className="ind-win-title">{sideTitle}</h2>
+              </div>
+              <div className="ind-win-actions">
+                <button type="button" className="ind-win-x" onClick={onCloseSide} aria-label="Close the DC form" title="Close the DC form">×</button>
+              </div>
+            </header>
+            <div className="ind-win-body">{side}</div>
+          </section>
+        </>) : null}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DELETE JOB (0324) -- quiet, in the window's header, only to a holder of
+// indoor.delete. It asks why and makes the reader type the job number, because
+// the deletion is PERMANENT (the user's choice over keep-and-hide). The
+// database refuses a job a DC or a filed visit names, in its own words, and
+// writes the audit row; this screen only says what happened.
+// ---------------------------------------------------------------------------
+function DeleteJobAction({ job, onDeleted }: { job: IndoorJob; onDeleted: (jobNo: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const blocked = (job.dispatch_ref ?? '').trim()
+    ? `It carries DC No. ${job.dispatch_ref} — a job that went on a delivery challan is kept.`
+    : job.visit_uid
+      ? `Its visit ${job.visit_uid} is filed against ${job.ucn} — the call’s history names it, so it is kept.`
+      : '';
+  const close = () => { setOpen(false); setReason(''); setTyped(''); setErr(''); };
+  const go = async () => {
+    setBusy(true); setErr('');
+    const r = await deleteIndoorJob(job.id, reason.trim());
+    setBusy(false);
+    logAudit({ action: 'indoor.job_delete', target: job.job_no, status: r.ok ? 'ok' : 'error', error: r.ok ? undefined : r.error,
+               meta: { via: 'screen', product: job.product_name, serial: job.serial, ucn: job.ucn ?? '' } });
+    if (!r.ok) { setErr(r.error ?? 'Not deleted.'); return; }
+    close();
+    onDeleted(r.jobNo || job.job_no);
+  };
+  return (<>
+    <button type="button" className="ind-danger-link" onClick={() => setOpen(true)}
+      title="Delete this job permanently — only before it has gone on a DC or had its visit filed">Delete job</button>
+    <Modal open={open} onClose={close} title={`Delete ${job.job_no}?`} width={480}>
+      <div className="ind-form ind-confirm">
+        {blocked ? (
+          <p className="ind-warn">{blocked}</p>
+        ) : (<>
+          <p className="ind-confirm-lead">
+            <b>{job.job_no}</b> — {job.product_name || 'equipment'}{job.serial ? <> · Sl.No <span className="mono">{job.serial}</span></> : null}
+            {job.ucn ? <> · call <span className="mono">{job.ucn}</span></> : null}
+          </p>
+          <p className="ind-hint">The job, its accessories, harvested parts, checks and Pre-Delivery Testing are removed for good. The number is not issued again. The deletion is recorded with your name and the reason.</p>
+          <Field label="Why is it being deleted? *" wide>
+            <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Duplicate intake — the unit is IND26-0012" />
+          </Field>
+          <Field label={`Type ${job.job_no} to confirm`} wide>
+            <input className="mono" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
+          </Field>
+          {err ? <p className="ind-warn">{err}</p> : null}
+        </>)}
+        <div className="ind-confirm-actions">
+          <button type="button" className="btn btn-ghost" onClick={close} disabled={busy}>{blocked ? 'Close' : 'Cancel'}</button>
+          {blocked ? null : (
+            <button type="button" className="btn btn-danger" onClick={() => void go()}
+              disabled={busy || !reason.trim() || typed.trim().toUpperCase() !== job.job_no.toUpperCase()}>
+              {busy ? 'Deleting…' : 'Delete permanently'}</button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  </>);
+}
+
 function IndoorJobDrawer({
   job, accessories, parts, checks, pdt, reloadChildren, reload, patch, uid, rights, msg, setMsg,
-  stage, dcStatus, startAt, onReportSaved, onCreateDc,
+  stage, dcStatus, startAt, onReportSaved, onCreateDc, dcOpen,
 }: {
   job: IndoorJob;
   accessories: IndoorAccessory[];
@@ -567,6 +800,8 @@ function IndoorJobDrawer({
   startAt?: number;
   onReportSaved: () => void;
   onCreateDc?: () => void;
+  /** The DC form is open beside the job. */
+  dcOpen?: boolean;
 }) {
   const { mayWork, mayQc, mayDispatch, mayCondemn, mayVerify } = rights;
   const navigate = useNavigate();
@@ -679,6 +914,7 @@ function IndoorJobDrawer({
     }
     if (view === 2) return <span className="ind-pager-note">The DC opens once the service report is uploaded.</span>;
     if (view === LAST_PAGE) {
+      if (onCreateDc && dcOpen) return <span className="ind-pager-note">The DC form is open on the right →</span>;
       if (onCreateDc) return <button type="button" className="btn btn-primary" onClick={onCreateDc}>Create Indoor DC</button>;
       if (mayVerifyNow) return <button type="button" className="btn btn-primary" onClick={() => void verify()}>Verify this register entry</button>;
     }
