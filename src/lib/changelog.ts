@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.62',
+    date: '2026-10-03',
+    title: 'Sold Through is the dealer; the dealer\'s customer gets the installation call',
+    changes: [
+      'SOLD THROUGH on the Warranty Sale Entry (and each machine) now lists DEALERS only — Party Master entries whose Type is DEALER.',
+      'A SALE TO A DEALER GETS NO INSTALLATION CALL: the button is not offered and the machines are not counted as pending; the system refuses such a call however it is raised.',
+      'OWNERSHIP TRANSFER: when the From party is a dealer, it is recorded as Sold Through (filled in by the system) and the Product Database shows it. + Installation call on a transfer raises the customer\'s call, numbered OT-PRODUCT-SERIAL and dated the transfer date.',
+      'The Sold Through values the one-time warranty update of 2 October took off machine lines are put back (once).',
+    ],
+  },
+  {
     version: '0.10.61',
     date: '2026-10-03',
     title: 'Indoor DC: authorised and approved as the User Master says',

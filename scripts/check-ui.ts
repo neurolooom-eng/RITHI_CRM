@@ -8695,7 +8695,25 @@ console.log('\n-- an installation call is raised the same way from either place 
   // A MACHINE REACHES A CONTRACT ALREADY INSTALLED. An action that cannot make
   // sense for the record in front of somebody is worse than a missing one,
   // because they press it to find out what it does.
-  eq('it is offered on the sale register only', /kind === 'sale' && \(\s*isCallNumber\(r\.inst_call\)/.test(cr), true);
+  eq('it is offered on the sale register only',
+    /kind === 'sale' && !\(isDealerType\(r\.party_type\) && !isCallNumber\(r\.inst_call\)\) && \(\s*isCallNumber\(r\.inst_call\)/.test(cr), true);
+  // A DEALER GETS NO INSTALLATION CALL (the user, 2026-10-03; 0328): not on
+  // the entry, not on a Register line, not counted as pending, and the shared
+  // raiser refuses it before the database has to.
+  eq('...and never for a dealer: the entry, the line, the pending rule and the raiser',
+    /isDealerType\(draft\.party_type\) && \(\s*<span className="muted" style=\{\{ fontSize: 12 \}\}>\{DEALER_NO_INSTALL\}/.test(cr)
+    && /kind === 'sale' && isDealerType\(r\.party_type\) && !isCallNumber\(r\.inst_call\)/.test(cr)
+    && /&& !isDealerType\(r\.party_type\);/.test(cr)
+    && /if \(isDealerType\(header\.party_type\)\) return \{ created: \[\], error: DEALER_NO_INSTALL \};/.test(code(readFileSync('src/lib/cover.ts', 'utf8'))), true);
+  {
+    const ot = code(readFileSync('src/modules/OwnershipTransfer.tsx', 'utf8'));
+    eq('the transfer raises the customer\'s OT- call through the one builder, once per machine',
+      /installCallFromTransfer\(t, /.test(ot) && /installCallByNumber\(callNo\)/.test(ot)
+      && /return \{ \.\.\.base, callNumber: transferCallNumber\(t\.item_name, t\.serial_number\), complaintDate: day, breakdownDate: day \};/.test(cs), true);
+    eq('...and Sold Through on the Warranty Sale Entry lists dealers only',
+      /optionsFrom === 'dealer'[\s\S]{0,300}onSearch=\{\(term\) => sbSearchDealers\(term, 50\)\}/.test(cr)
+      && !/optionsFrom === 'dealer'[\s\S]{0,400}allowFreeText[\s\S]{0,40}emptyHint="Only Party Master entries whose Type is DEALER/.test(cr), true);
+  }
   // The UCN IS the evidence the button disables itself by, so showing it is
   // showing the reason -- not a greyed-out button with no explanation.
   // A UCN, NOT ANY VALUE. The AppSheet export writes the literal "To Check"

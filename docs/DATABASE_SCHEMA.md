@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**98 tables · 37 views · 2816 columns · 202 policies · 63 foreign keys.**
+**98 tables · 37 views · 2817 columns · 202 policies · 63 foreign keys.**
 
 ## How to read this
 
@@ -1886,7 +1886,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `installation_calls_type_ck` — `CHECK ((call_table_for(call_type) = 'installation'::text))`
 
-**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `installation_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_requests_follow_call` → `spare_requests_follow_call()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `installation_call_not_for_dealer` → `installation_call_not_for_dealer()` · `installation_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_requests_follow_call` → `spare_requests_follow_call()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2205,6 +2205,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 19 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 20 | `sys_updated_by` | uuid | yes |  |  |
 | 21 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 22 | `sold_through` | text | **no** | `''::text` |  |
 
 **Unique:** `reference_no, serial_number` _(ownership_transfer_key_uniq)_ · `sys_id` _(ownership_transfers_sys_id_key)_
 
@@ -2216,7 +2217,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `ownership_transfer_parties_differ` — `CHECK ((btrim(lower(from_party)) IS DISTINCT FROM btrim(lower(to_party))))`
 
-**Triggers:** `ownership_transfer_aiu` → `ownership_transfer_move()` · `ownership_transfer_biu` → `ownership_transfer_apply()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zz_transfer_to_product` → `transfer_to_product()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `ownership_transfer_aiu` → `ownership_transfer_move()` · `ownership_transfer_biu` → `ownership_transfer_apply()` · `ownership_transfer_sold_through` → `ownership_transfer_sold_through()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zz_transfer_to_product` → `transfer_to_product()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
