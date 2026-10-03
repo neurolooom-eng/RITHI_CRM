@@ -1,3 +1,4 @@
+import { useMenuPosition } from './menuPosition';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 // ===========================================================================
@@ -291,6 +292,9 @@ export function PickList({
     if (e.key === 'Escape') { e.preventDefault(); close(); inputRef.current?.blur(); }
   };
 
+  // The menu floats against the window, so no scrolling container clips it.
+  const menuStyle = useMenuPosition(boxRef, open);
+
   return (
     <div className="picklist" ref={boxRef}>
       {open && searchable ? (
@@ -328,7 +332,7 @@ export function PickList({
       )}
 
       {open && (
-        <div className="picklist-menu">
+        <div className="picklist-menu" style={menuStyle}>
           <button type="button" className="picklist-opt picklist-clear" onMouseDown={(e) => e.preventDefault()} onClick={() => choose('')}>
             — none —
           </button>

@@ -3,7 +3,7 @@ import { SelectPicker } from '../components/ui/SelectPicker';
 import { PickList } from '../components/ui/PickList';
 import { MultiPick } from '../components/ui/MultiPick';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { PageHeader, Toolbar, Drawer } from '../components/ui/ui';
+import { PageHeader, Toolbar, Drawer, Modal } from '../components/ui/ui';
 import { csvExport, timeAgo } from '../lib/format';
 import {
   queryAllParts, supabaseConfigured, addPart, setPartActive,
@@ -191,6 +191,8 @@ export function PartMaster() {
   // (finding 67, 0289); the other fields are ordinary record edits.
   const mayRename = can('masters.edit.rename_part');
   const [form, setForm] = useState<{ code: string; description: string; category: string; product: string; cost: string; common: boolean; hsn: string } | null>(null);
+  // Whether Add has been pressed on the new-part form -- its error shows only then.
+  const [tried, setTried] = useState(false);
   // DIGITS ONLY, ANY LENGTH. No length is imposed: one part's code on file is
   // 7 digits, kept as written (the user's choice), and a rule here would make
   // that part unsavable until somebody decided what it should be.
@@ -217,7 +219,9 @@ export function PartMaster() {
   const saveNew = async () => {
     if (!form) return;
     const problem = formProblem();
-    if (problem) { setMsg({ tone: 'error', text: problem }); return; }
+    // THE FORM SAYS WHAT IS MISSING, once Add has been pressed -- not before
+    // anything is typed (the master lists' Add entry form, 2026-10-03).
+    if (problem) { setTried(true); return; }
     setSaving(true);
     const res = await addPart(form.code, form.description, {
       category: form.category, product: form.common ? '' : form.product, common: form.common,
@@ -405,7 +409,7 @@ export function PartMaster() {
         title="Part Master"
         subtitle="Spare parts catalogue (ITEM Master) — cached locally, synced from the database."
         icon="🔩" count={visible.length}
-        actions={mayEdit && <button className="btn btn-primary" onClick={() => setForm({ code: '', description: '', category: '', product: '', cost: '', common: false, hsn: '' })}>＋ Add part</button>}
+        actions={mayEdit && <button className="btn btn-primary" onClick={() => { setTried(false); setForm({ code: '', description: '', category: '', product: '', cost: '', common: false, hsn: '' }); }}>＋ Add entry</button>}
       />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
@@ -508,8 +512,8 @@ export function PartMaster() {
       />
 
       {form && (
-        <Drawer open onClose={() => setForm(null)} title="Add part" width={560}>
-          <div className="kb-form">
+        <Modal open onClose={() => setForm(null)} title="Add to Part Master" width={560}>
+          <form className="kb-form ml-form" onSubmit={(e) => { e.preventDefault(); void saveNew(); }}>
             <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
               The catalogue stores the code and description separately and shows pickers
               <b> CODE|Description</b>. That pipe is what every spare picker splits on, so a
@@ -579,15 +583,15 @@ export function PartMaster() {
                 {form.code || form.description ? composeItemDetail(form.code, form.description) : '—'}
               </code>
             </div>
-            {!!formProblem() && <div className="sheet-banner sheet-banner-error"><span>{formProblem()}</span></div>}
-            <div className="kb-form-actions">
-              <button className="btn btn-primary" onClick={() => void saveNew()} disabled={saving || !!formProblem()}>
-                {saving ? 'Saving…' : 'Add part'}
+            {tried && !!formProblem() && <div className="field-err">{formProblem()}</div>}
+            <div className="row" style={{ gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setForm(null)} disabled={saving}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={saving}>
+                {saving ? 'Saving…' : 'Add entry'}
               </button>
-              <button className="btn" onClick={() => setForm(null)} disabled={saving}>Cancel</button>
             </div>
-          </div>
-        </Drawer>
+          </form>
+        </Modal>
       )}
 
       {edit && (
