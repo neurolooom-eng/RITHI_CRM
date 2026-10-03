@@ -796,6 +796,10 @@ typed into a form that reads it.
   > **Click a party to edit it** — contact details, both addresses, the
   > Serviceman and the KYC. You need *Edit masters*. The **party name** is not
   > editable: every machine, call and contract names the customer by it.
+  > **＋ Add entry** adds a new customer: **Party Name, City and State** are
+  > required, everything else can be filled now or later. The Party Key is given
+  > when you save. A name already on the master is refused — search for it and
+  > edit that one instead.
   > **✎ Change engineer** corrects one Serviceman across every customer that
   > names them, in one go. Do this when a spelling here does not match the User
   > Master — a call is allotted by NAME, so a name nobody holds fills the box

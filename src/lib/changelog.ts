@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.54',
+    date: '2026-10-03',
+    title: 'Party Master: Add entry form',
+    changes: [
+      'PARTY MASTER: "+ Add entry" adds a new customer from a pop-up form. Party Name, City and State are required (marked *); the type, Serviceman, addresses, contacts, GSTIN and PAN can be filled now or later from the party\'s Edit form. The Party Key is given when it is saved and shown in the message.',
+      'A name already on the Party Master is refused — even typed in different capitals or with extra spaces — so the same customer is not entered twice. Search for it and edit that one instead.',
+    ],
+  },
+  {
     version: '0.10.53',
     date: '2026-10-03',
     title: 'Part Master: Add entry form; drop-down lists no longer cut off',

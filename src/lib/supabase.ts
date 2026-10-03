@@ -1081,6 +1081,28 @@ export async function updateParty(id: number, patch: PartyPatch): Promise<{ ok: 
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+/** A NEW party, from Party Master's Add entry form.
+ *
+ *  The database assigns the Party Key (`Party-N`, 0076's after-insert trigger)
+ *  and trims the name, so the row is re-read to show the key that was given.
+ *  The name is the register's natural key (`name_key`, unique ignoring case and
+ *  outer spaces), so a party that already exists is refused BY NAME rather than
+ *  as the index's own wording. */
+export async function addParty(
+  fields: PartyPatch & { party_name: string },
+): Promise<{ ok: true; id: number; partyKey: string } | { ok: false; error: string }> {
+  const { data, error } = await must().from('parties').insert(fields).select('id').single();
+  if (error) {
+    if (error.code === '23505' && /name_key/.test(error.message ?? ''))
+      return { ok: false, error: `"${fields.party_name.trim()}" is already on the Party Master — search for it and edit that one instead.` };
+    return { ok: false, error: errMsg(error) };
+  }
+  const id = Number((data as { id: number }).id);
+  void refreshPartyRegister({ force: true });
+  const fresh = await getParty(id).catch(() => null);
+  return { ok: true, id, partyKey: String(fresh?.party_key ?? '') };
+}
+
 /** One party, re-read after an edit.
  *
  *  The database DERIVES things the form did not send — the GSTIN and PAN out of

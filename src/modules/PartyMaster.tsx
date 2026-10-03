@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { PageHeader, Toolbar, Drawer } from '../components/ui/ui';
+import { PageHeader, Toolbar, Drawer, Modal } from '../components/ui/ui';
 import { PickList } from '../components/ui/PickList';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { csvExport, timeAgo } from '../lib/format';
 import {
-  queryParties, updateParty, getParty, supabaseConfigured,
+  queryParties, updateParty, getParty, addParty, supabaseConfigured,
   partyServiceEngineerCounts, renamePartyServiceEngineer, sbDirectoryNames,
   type PartyFilter, type PartyPatch,
 } from '../lib/supabase';
@@ -173,6 +173,35 @@ export function PartyMaster() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
   const [saving, setSaving] = useState(false);
+
+  // ---- Add entry: a pop-up form, the same as Part Master's ------------------
+  // NAME, CITY AND STATE ARE REQUIRED (the user, 2026-10-03); everything else
+  // is the Edit form's fields and may be filled later. The Party Key is the
+  // database's to give (0076), and a name already on the register is refused.
+  const [adding, setAdding] = useState<Record<string, string> | null>(null);
+  const [addTried, setAddTried] = useState(false);
+  const addMissing = (a: Record<string, string>) =>
+    ([['party_name', 'Party Name'], ['city', 'City'], ['state', 'State']] as const)
+      .filter(([k]) => !String(a[k] ?? '').trim()).map(([, l]) => l);
+  const [addErr, setAddErr] = useState('');
+  const saveAdd = async () => {
+    if (!adding) return;
+    setAddTried(true);
+    const missing = addMissing(adding);
+    if (missing.length) { setAddErr(`Fill ${missing.join(', ')}.`); return; }
+    const fields: Record<string, string> = {};
+    Object.entries(adding).forEach(([k, v]) => { if (String(v).trim()) fields[k] = String(v).trim(); });
+    setSaving(true); setAddErr('');
+    const res = await addParty(fields as unknown as PartyPatch & { party_name: string });
+    setSaving(false);
+    if (!res.ok) { setAddErr(res.error); return; }
+    setAdding(null);
+    setMsg({ tone: 'ok', text: `${fields.party_name} added to the Party Master${res.partyKey ? ` as ${res.partyKey}` : ''}.` });
+    try {
+      const fresh = await getParty(res.id);
+      if (fresh) setRows((rs) => [{ ...fresh, id: String(fresh.id) } as Row, ...rs]);
+    } catch { /* it was written; the next refresh shows it */ }
+  };
 
   // ---- Change engineer: one spelling, every customer that names it ---------
   // 32 of the 49 Servicemen on the supplied export match no User Master name,
@@ -385,7 +414,10 @@ export function PartyMaster() {
         // This register pages a thousand at a time and the real file has 4,752
         // parties, so the badge read a flat "1,000" — a number that looks exact,
         // is not, and is the one somebody quotes.
-        count={rows.length} countMore={more} />
+        count={rows.length} countMore={more}
+        actions={mayEdit && (
+          <button className="btn btn-primary" onClick={() => { setAdding({}); setAddTried(false); setAddErr(''); }}>＋ Add entry</button>
+        )} />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>
@@ -639,6 +671,48 @@ export function PartyMaster() {
             </div>
           </div>
         </Drawer>
+      )}
+      {adding && (
+        <Modal open title="Add to Party Master" onClose={() => setAdding(null)} width={620}>
+          <form className="kb-form ml-form" onSubmit={(e) => { e.preventDefault(); void saveAdd(); }}>
+            {([['party_name', 'Party Name'], ['city', 'City'], ['state', 'State']] as const).map(([k, l]) => (
+              <div className="ml-field" key={k}>
+                <label className="field-label">{l} <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
+                <input className="input" value={adding[k] ?? ''} autoFocus={k === 'party_name'}
+                  onChange={(e) => setAdding((a) => ({ ...(a ?? {}), [k]: e.target.value }))} />
+              </div>
+            ))}
+            <div className="muted ml-hint">Everything below is optional and can be filled in later from the party's Edit form. The Party Key is given when it is saved.</div>
+            {EDIT_GROUPS.map((g) => (
+              <div key={g.title} className="ml-form">
+                <h4 style={{ margin: '6px 0 0' }}>{g.title}</h4>
+                {g.note && <div className="muted ml-hint">{g.note}</div>}
+                {g.fields.filter(({ key }) => key !== 'city' && key !== 'state').map(({ key, label }) => (
+                  <div className="ml-field" key={key}>
+                    <label className="field-label">{label}</label>
+                    <input className="input" value={adding[key] ?? ''}
+                      onChange={(e) => setAdding((a) => ({ ...(a ?? {}), [key]: e.target.value }))} />
+                  </div>
+                ))}
+              </div>
+            ))}
+            <h4 style={{ margin: '6px 0 0' }}>Tax</h4>
+            {([['gstin', 'GSTIN'], ['pan', 'PAN']] as const).map(([k, l]) => (
+              <div className="ml-field" key={k}>
+                <label className="field-label">{l}</label>
+                <input className="input" value={adding[k] ?? ''}
+                  onChange={(e) => setAdding((a) => ({ ...(a ?? {}), [k]: e.target.value }))} />
+              </div>
+            ))}
+            {(addErr || (addTried && addMissing(adding).length > 0)) && (
+              <div className="field-err">{addErr || `Fill ${addMissing(adding).join(', ')}.`}</div>
+            )}
+            <div className="kb-form-actions">
+              <button type="button" className="btn btn-ghost" disabled={saving} onClick={() => setAdding(null)}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Adding…' : 'Add entry'}</button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );
