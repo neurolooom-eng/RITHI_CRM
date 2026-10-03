@@ -12,6 +12,36 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.61',
+    date: '2026-10-03',
+    title: 'Indoor DC: authorised and approved as the User Master says',
+    changes: [
+      'AUTHORISED BY on an Indoor DC now comes only from the User Master: your Reporting Manager, your Regional Manager, and as NSM the Reporting Manager on your Regional Manager’s own row. It no longer lists every NSM, and you can never name yourself.',
+      'THE PERSON NAMED APPROVES WHATEVER THEIR ROLE. They see the DCs that name them on My Workload (Indoor DCs — Awaiting my approval); if their role cannot open Indoor Service, the card opens a page listing just those DCs, and the DC print opens for them.',
+      'APPROVING FILES THE VISIT IN ONE STEP: each unit’s drafted visit and its spares are filed against the call together with the approval. If anything is refused (for example a spare the engineer does not hold), nothing is filed and the DC stays pending with the reason shown.',
+      'A unit’s visit can no longer be marked as filed by editing the unit; only approving its DC does that.',
+    ],
+  },
+  {
+    version: '0.10.60',
+    date: '2026-10-03',
+    title: 'Convert to Contract leaves out machines now with another customer',
+    changes: [
+      'CONVERT TO CONTRACT (Warranty Register) no longer offers a machine that has been transferred to a different customer. It is listed under the products with "Product serial number was transferred to a different customer" and the customer who has it now.',
+      'The check is made again when you press Create the contract, so a transfer recorded while the panel was open still keeps the machine off the contract. A machine sold back to the same customer later is offered again.',
+    ],
+  },
+  {
+    version: '0.10.59',
+    date: '2026-10-03',
+    title: 'Software Validation: the open defects re-checked, 21 new ones recorded',
+    changes: [
+      'SOFTWARE VALIDATION → Defects: every defect still open was re-checked against this version. None was fixed by the work of 1–3 October; four are now partly fixed, and thirteen descriptions were corrected where the system had moved on.',
+      'TWENTY-ONE NEW DEFECTS (D-097 to D-117) from reading what changed between 1 and 3 October: the one-time warranty update, the Indoor DC and its approval, the Pre-Delivery Testing record, the Warranty and Contract pop-up, the installation-call mapping, stock transfer reasons and the top-bar search.',
+      'IMPORTANT: the one-time warranty update of 2 October cleared the warranty dates of machines whose sale entry has none, and rewrote Product Database addresses from the sale. The old machine values are kept; a new read-only check, _what_0318_cleared.sql, counts what was cleared. Nothing has been restored yet.',
+    ],
+  },
+  {
     version: '0.10.58',
     date: '2026-10-03',
     title: 'Party Master: Country, beside City and State',

@@ -16,7 +16,7 @@ import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, inheritAllPatch, isPinnedValue,
          installCallFromSale, machinesNeedingInstallCall, INSTALL_COMPLAINT,
          partyFillChanges, deriveHeader, suggestedPmVisits, isCallNumber,
-         installCallNumber } from '../src/lib/coverspec';
+         installCallNumber, withAnotherCustomer, TRANSFERRED_AWAY } from '../src/lib/coverspec';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -369,6 +369,22 @@ console.log('\n-- re-reading the customer onto a sale that already names them --
   eq('a value the master no longer holds is cleared',
     partyFillChanges({ ...fill, pan: 'AAACT1234D' }, { ...fill, pan: '' }),
     [{ field: 'pan', from: 'AAACT1234D', to: '' }]);
+}
+
+console.log('\n-- converting a sale: a machine now with another customer is not offered --');
+{
+  // The user, 2026-10-03: "if the product is not with that user never given
+  // that product in the list of the Contract".
+  eq('the buyer still has it', withAnotherCustomer('CITY HOSPITAL', 'CITY HOSPITAL'), false);
+  eq('...whatever the case and the spacing', withAnotherCustomer('City Hospital ', '  CITY HOSPITAL'), false);
+  eq('transferred to somebody else', withAnotherCustomer('CITY HOSPITAL', 'METRO CLINIC'), true);
+  // An empty answer means the database found neither the sale line nor a
+  // transfer: nothing says the machine left, so it is not hidden.
+  eq('no answer is not a transfer', withAnotherCustomer('CITY HOSPITAL', ''), false);
+  eq('...nor is null', withAnotherCustomer('CITY HOSPITAL', null), false);
+  // A sale with no party name: any named owner is somebody else.
+  eq('a sale naming nobody', withAnotherCustomer('', 'METRO CLINIC'), true);
+  eq('the statement is the user\'s wording', TRANSFERRED_AWAY, 'Product serial number was transferred to a different customer');
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

@@ -5,6 +5,20 @@ Supabase (Postgres + RLS + Auth); the Apps Script bridge (`apps-script/CallReg.g
 remains for the sheet-era paths — file uploads to Drive, and reads when Supabase
 isn't connected.
 
+## Which branch for which work — remind the user (the user, 2026-10-03)
+
+**`claude/usage-k7slq0` is the REVIEW branch**: module reviews and re-reviews,
+fixing the defects and review findings they record, and keeping the
+requirements and the software validation package current (`validation.ts`,
+`REQUIREMENTS.md`, `MODULE_REVIEW_LOG.md`, the defect register). **New features
+and workflow changes belong on the dev branch**, not this one. When a request
+on the review branch is a new feature rather than a review, a fix or a
+validation-package update, **say so and remind the user to use the dev branch
+before building it** — the user's words: *"I want this branch only for review +
+Fixing those comments and updating req, validation package.. this is the
+purpose of this branch ... next time remind me to use the dev branch"*. On the
+review branch, nothing is merged to `main` until the user explicitly asks.
+
 ## Shipping — the default, no need to ask
 
 Every change is **committed, merged to `main`, and deployed**. Pushing to `main`

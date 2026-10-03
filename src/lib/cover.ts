@@ -16,7 +16,8 @@ import { getSupabase, addCall } from './supabase';
 import { dayAfter, addPeriod, todayLocal } from './dates';
 import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears,
          inheritAllPatch, isPinnedValue, installCallFromSale, machinesNeedingInstallCall,
-         coverStatus, contractPmVisits, periodEnd, type SaleForCall, type SaleItemForCall } from './coverspec';
+         coverStatus, contractPmVisits, periodEnd, withAnotherCustomer, TRANSFERRED_AWAY,
+         type SaleForCall, type SaleItemForCall } from './coverspec';
 
 export type CoverKind = 'sale' | 'contract';
 
@@ -909,6 +910,26 @@ export async function contractsFromSale(sa: string): Promise<string[]> {
   return [...new Set((data ?? []).map((r) => str((r as Row).mc_number)).filter(Boolean))];
 }
 
+/** The machines of a sale that are now with a DIFFERENT customer, by serial,
+ *  each with the customer who has it. Asked of machine_current_party() — the
+ *  database's own rule (latest dated sale or transfer) — a few machines at a
+ *  time. A failed read THROWS: a list that could not be checked must not be
+ *  offered as though it had been. */
+export async function machinesWithAnotherCustomer(sale: Row, items: Row[]): Promise<Map<string, string>> {
+  const away = new Map<string, string>();
+  const todo = items.filter((i) => str(i.serial_number));
+  for (let k = 0; k < todo.length; k += 8) {
+    await Promise.all(todo.slice(k, k + 8).map(async (it) => {
+      const { data, error } = await client().rpc('machine_current_party', {
+        p_item_name: str(it.product_name), p_serial: str(it.serial_number),
+      });
+      if (error) throw new Error(`Could not check who has ${str(it.serial_number)}: ${error.message}`);
+      if (withAnotherCustomer(sale.party_name, data)) away.set(str(it.serial_number), str(data).trim());
+    }));
+  }
+  return away;
+}
+
 export async function convertWarrantyToContract(
   sale: Row, items: Row[], d: ConversionDraft,
 ): Promise<{ mc_number: string; machines: number }> {
@@ -921,6 +942,15 @@ export async function convertWarrantyToContract(
   const missing = missingRequired(CONTRACT.headerFields, header);
   if (missing.length) throw new Error(`Fill in ${missing.join(', ')} — ${missing.length === 1 ? 'it is' : 'they are'} required on a contract.`);
   if (!d.serials.length) throw new Error('Tick at least one machine to put on the contract.');
+  // ASKED AGAIN AT THE WRITE, not only when the panel opened: a transfer
+  // recorded meanwhile, or a draft that never went through the panel, must not
+  // put another customer's machine on this customer's contract.
+  const ticked = new Set(d.serials);
+  const away = await machinesWithAnotherCustomer(sale, items.filter((i) => ticked.has(str(i.serial_number))));
+  if (away.size) {
+    throw new Error(`${[...away.keys()].join(', ')}: ${TRANSFERRED_AWAY} — untick ${away.size === 1 ? 'it' : 'them'}; `
+      + `${away.size === 1 ? 'it is' : 'they are'} not ${str(sale.party_name) || 'this customer'}'s to put on a contract.`);
+  }
   if (await contractNumberExists(mc)) {
     throw new Error(`MC Number ${mc} already exists. Converting into it would merge two contracts.`);
   }

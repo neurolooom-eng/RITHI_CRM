@@ -57,7 +57,7 @@ export function Workload() {
 
   const load = useMemo(() => () => {
     if (!supabaseConfigured()) return;
-    const jobs: { needs: string; run: () => Promise<WorkloadSection> }[] = [
+    const jobs: { needs: string; always?: boolean; run: () => Promise<WorkloadSection> }[] = [
       { needs: 'mod:/spare-requests', run: () => spareRequestSection(can, email, mayRmApprove) },
       { needs: 'mod:/spare-rm-approval', run: rmApprovalSection },
       { needs: 'mod:/spare-dispatch', run: dispatchSection },
@@ -71,15 +71,20 @@ export function Workload() {
       { needs: 'mod:/mrn', run: materialReturnsSection },
       { needs: 'mod:/stock-transfer', run: stockTransferSection },
       // INDOOR DCs AWAITING APPROVAL (0323): shown to whoever can open the
-      // Indoor Service Register, where they are approved.
-      { needs: 'mod:/indoor', run: indoorDcSection },
-    ].filter((j) => can(j.needs));
+      // Indoor Service Register -- AND to anybody the User Master names as a
+      // DC's AUTHORISED BY, whatever their role (0327): row-level security
+      // shows them only those DCs, and with none waiting the section is empty
+      // and dropped.
+      { needs: 'mod:/indoor', always: true, run: () => indoorDcSection(can('mod:/indoor')) },
+    ].filter((j) => j.always || can(j.needs));
     setSections([]); setErr([]); setBusy(jobs.length); setAt(new Date().toISOString());
     jobs.forEach((j) => {
       j.run()
         // ORDERED BY THE LIST ABOVE, not by which finished first — a page whose
         // sections rearrange themselves between refreshes cannot be learned.
-        .then((s) => setSections((cur) => [...cur, s].sort(
+        // A SECTION WITH NO CARDS IS NOT SHOWN: the Indoor DC section, for a
+        // reader with no DC naming them, has nothing to say.
+        .then((s) => s.cards.length && setSections((cur) => [...cur, s].sort(
           (a, b) => jobs.findIndex((x) => x.needs === a.needs) - jobs.findIndex((x) => x.needs === b.needs))))
         // ONE SECTION FAILING IS NOT THE PAGE FAILING. It says which, and the
         // other six still arrive.

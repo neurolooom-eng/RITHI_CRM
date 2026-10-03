@@ -1703,7 +1703,7 @@ with checks(sort_order, bundle, provides, present) as (
                               and p.prosrc like '%still pending approval%' and p.prosrc like '%indoor.verify%'
                               and p.prosrc like '%indoor.dispatch is required to mark a unit%'
                          from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false))),
-    (253, 'An Indoor DC is approved by its Authorised By, and the visit is filed at approval', 'indoor_dcs carries authorised_by_name and the approval (approval_status, approved_by / approved_by_name / approved_at, rejected_by / rejected_at / rejection_reason) (0323). create_indoor_dc() refuses a unit with no uploaded Indoor Service Report and an AUTHORISED BY that is not the issuer''s Reporting Manager, Regional Manager or an active NSM (indoor_dc_authorisers()), and creates the DC Pending approval. approve_indoor_dc() / reject_indoor_dc() / record_indoor_visit() let only that person (by User Master name) or an administrator decide; approval needs every UCN job''s visit filed; rejection releases the units through a release ticket nobody else can write. None is callable by the public key. NO means indoor.sql has not been re-run since. Restore: indoor.sql (0323)',
+    (253, 'An Indoor DC is approved by its Authorised By, and the visit is filed at approval', 'indoor_dcs carries authorised_by_name and the approval (approval_status, approved_by / approved_by_name / approved_at, rejected_by / rejected_at / rejection_reason) (0323). create_indoor_dc() refuses a unit with no uploaded Indoor Service Report and an AUTHORISED BY that is not the issuer''s Reporting Manager, Regional Manager or an active NSM (indoor_dc_authorisers()), and creates the DC Pending approval. approve_indoor_dc() / reject_indoor_dc() / record_indoor_visit() let only that person (by User Master name) or an administrator decide; approving files every UCN job''s drafted visit itself (0327, which moved this row: before it the approval refused while a visit was unfiled); rejection releases the units through a release ticket nobody else can write. None is callable by the public key. NO means indoor.sql has not been re-run since. Restore: indoor.sql (0327)',
         ((select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'indoor_dcs'
            and column_name in ('authorised_by_name', 'approval_status', 'approved_by', 'approved_by_name', 'approved_at',
                                'rejected_by', 'rejected_at', 'rejection_reason')) = 8
@@ -1721,7 +1721,7 @@ with checks(sort_order, bundle, provides, present) as (
          and coalesce((select p.prosrc like '%has not been uploaded%' and p.prosrc like '%indoor_dc_authorisers%'
                               and p.prosrc like '%Pending approval%' and p.prosrc like '%a.qty%'
                          from pg_proc p where p.oid = to_regprocedure('public.create_indoor_dc(bigint[],text,text,date,text,text,jsonb,text)')), false)
-         and coalesce((select p.prosrc like '%visit is not yet filed%'
+         and coalesce((select p.prosrc like '%visit_draft%' and p.prosrc like '%insert into public.reports%'
                          from pg_proc p where p.oid = to_regprocedure('public.approve_indoor_dc(text,boolean)')), false))),
     (254, 'Return to Field is a Call Pending Reason', 'The value Return to Field on the pendingreason master, active (0323) -- the pending reason every visit filed from an Indoor DC''s approval carries. NO means indoor.sql has not been re-run since, or the value was deactivated on the Masters screen. Restore: indoor.sql (0323)',
         exists (select 1 from public.masters where name = 'pendingreason' and value = 'Return to Field'
@@ -1756,7 +1756,25 @@ with checks(sort_order, bundle, provides, present) as (
                         where schemaname = 'public' and tablename = 'masters' and policyname = 'masters_insert'), false))),
     (258, 'A party has a Country', 'parties.country, plain text, blank by default (0326) -- set on the Party Master''s Add and Edit forms and by a Country column in its upload. NO means masters.sql has not been re-run since. Restore: masters.sql (0326)',
         exists (select 1 from information_schema.columns
-                 where table_schema = 'public' and table_name = 'parties' and column_name = 'country'))
+                 where table_schema = 'public' and table_name = 'parties' and column_name = 'country')),
+    (259, 'The Indoor DC is approved by whoever the User Master names, whatever their role, and the approval files the visit', 'indoor_dc_authorisers() offers the issuer''s Reporting Manager, Regional Manager and -- as NSM -- the Regional Manager''s own Reporting Manager, from the User Master, never the issuer and no longer every nsm login; the person named reads that DC, its lines and its units (indoor_dcs_read, indoor_dc_lines_read, indoor_read admit them through indoor_dc_names_me / indoor_job_on_my_dc, which the public key cannot call); approve_indoor_dc() files each unit''s visit and spares itself, refuses the issuer, and only it or record_indoor_visit() may mark a visit filed (indoor_job_visit_by_approval) (0327). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0327)',
+        (coalesce((select p.prosrc like '%rgm_row%' and p.prosrc not like '%role = ''nsm''%'
+                     from pg_proc p where p.oid = to_regprocedure('public.indoor_dc_authorisers()')), false)
+         and to_regprocedure('public.indoor_dc_names_me(bigint)') is not null
+         and to_regprocedure('public.indoor_job_on_my_dc(text)') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.indoor_dc_names_me(bigint)'), 'EXECUTE')
+         and not has_function_privilege('anon', to_regprocedure('public.indoor_job_on_my_dc(text)'), 'EXECUTE')
+         and coalesce((select qual like '%indoor_dc_may_approve%' from pg_policies
+                         where schemaname = 'public' and tablename = 'indoor_dcs' and policyname = 'indoor_dcs_read'), false)
+         and coalesce((select qual like '%indoor_dc_names_me%' from pg_policies
+                         where schemaname = 'public' and tablename = 'indoor_dc_lines' and policyname = 'indoor_dc_lines_read'), false)
+         and coalesce((select qual like '%indoor_job_on_my_dc%' from pg_policies
+                         where schemaname = 'public' and tablename = 'indoor_jobs' and policyname = 'indoor_read'), false)
+         and exists (select 1 from pg_trigger where tgname = 'indoor_job_visit_by_approval' and tgrelid = to_regclass('public.indoor_jobs'))
+         and coalesce((select p.prosrc like '%was issued by you%' and p.prosrc like '%spare_consumption%'
+                         from pg_proc p where p.oid = to_regprocedure('public.approve_indoor_dc(text,boolean)')), false)
+         and coalesce((select p.prosrc like '%rithi.indoor_visit%'
+                         from pg_proc p where p.oid = to_regprocedure('public.record_indoor_visit(bigint,text,boolean)')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

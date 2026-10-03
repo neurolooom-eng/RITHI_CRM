@@ -1659,6 +1659,21 @@ console.log('\n-- the evidence workbook --');
       /countMore=\{feed\.more\}[\s\S]{0,600}onLoadMore=\{loadMore\}[\s\S]{0,80}loadingMore=\{busy\} \/>/.test(cov), true);
     eq('...and neither table carries a second one',
       (cov.match(/onLoadMore=/g) ?? []).length === 1, true);
+    // The user, 2026-10-03: converting a sale into a contract never offers a
+    // machine now with a different customer, and says why beside it.
+    eq('Convert asks who has each machine before offering it',
+      /machinesWithAnotherCustomer\(sale, items\)/.test(cov)
+      && /const machines = withSerial\.filter\(\(i\) => !away\?\.has\(/.test(cov), true);
+    eq('...says the user\'s sentence beside a machine it leaves out',
+      /\{TRANSFERRED_AWAY\}/.test(cov), true);
+    eq('...and cannot create the contract until the check has answered',
+      /disabled=\{busy \|\| checking \|\| !!awayErr \|\| !machines\.length\}/.test(cov), true);
+    {
+      const cl = readFileSync(`${process.cwd()}/src/lib/cover.ts`, 'utf8');
+      eq('...and the write asks again, so a draft cannot carry one past it',
+        /const away = await machinesWithAnotherCustomer\(sale, items\.filter/.test(cl)
+        && /rpc\('machine_current_party'/.test(cl), true);
+    }
     // THE DOUBLING IS IN THE NUMBER OF REQUESTS, not the size of one. PostgREST
     // caps a response (db-max-rows), so asking for 4,000 returns 1,000 and the
     // page would conclude there was nothing more — a register that looks
@@ -7210,7 +7225,22 @@ console.log('\n-- My Workload: the queues left the registers, and open what they
   // somebody who may not read it is a number they cannot act on and a leak:
   // "Spares waiting 240" is the size of a queue the register would refuse them.
   eq('a register the reader cannot open is not even counted',
-    /\.filter\(\(j\) => can\(j\.needs\)\)/.test(page), true);
+    /\.filter\(\(j\) => j\.always \|\| can\(j\.needs\)\)/.test(page)
+    // ONE exception, and it counts nothing the reader cannot open (0327): the
+    // Indoor DCs the User Master names them on, which row-level security
+    // limits them to and /indoor-dc-approvals shows them.
+    && (page.match(/always: true/g) ?? []).length === 1
+    && /needs: 'mod:\/indoor', always: true, run: \(\) => indoorDcSection\(can\('mod:\/indoor'\)\)/.test(page), true);
+  {
+    const wlib = readFileSync('src/lib/workload.ts', 'utf8');
+    const sec = wlib.slice(wlib.indexOf('export async function indoorDcSection'));
+    eq('...without the Indoor key it shows only the DCs naming the reader, never the whole queue',
+      /if \(!hasIndoor\) \{[\s\S]{0,700}cards: mine \? \[\{ label: 'Awaiting my approval'[\s\S]{0,200}\] : \[\]/.test(sec)
+      && !/if \(!hasIndoor\) \{[\s\S]{0,700}Pending approval[\s\S]{0,40}\n  \}\n  const open/.test(sec), true);
+    const app = readFileSync('src/App.tsx', 'utf8');
+    eq('...and the page it opens is routed',
+      /<Route path="\/indoor-dc-approvals" element=\{<IndoorDcApprovals \/>\} \/>/.test(app), true);
+  }
 
   // EVERY COUNT IS OVER WHAT LOADED, so a section still reading says so — the
   // rule this project applies everywhere and would be easiest to drop on a

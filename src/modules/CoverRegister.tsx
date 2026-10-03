@@ -13,7 +13,7 @@ import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
 import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
-import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
+import { coverStatus, deriveHeader, deriveItem, TRANSFERRED_AWAY } from '../lib/coverspec';
 import { listProductLines, sellableNames, sellableCodes, retiredNames, type ProductLine } from '../lib/productLines';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtDate, statusBadge, timeAgo } from '../lib/format';
@@ -26,6 +26,7 @@ import {
   raiseInstallCalls, missingRequired, yearsHint, getHeader, countPendingSales,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   proposeConversion, conversionHeader, convertWarrantyToContract, contractsFromSale, suggestedContractPmVisits,
+  machinesWithAnotherCustomer,
   CONTRACT, type ConversionDraft,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
@@ -592,6 +593,12 @@ function ConvertPanel({ sale, items, onDone, onCancel }: {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [already, setAlready] = useState<string[]>([]);
+  // WHO HAS EACH MACHINE NOW (the user, 2026-10-03). null while asking; a
+  // machine with a different customer is never offered, and the reason is
+  // said beside it. A failed check stops the conversion rather than offering
+  // a list nobody checked.
+  const [away, setAway] = useState<Map<string, string> | null>(null);
+  const [awayErr, setAwayErr] = useState('');
   const set = <K extends keyof ConversionDraft>(k: K, v: ConversionDraft[K]) => setD((x) => ({ ...x, [k]: v }));
 
   // The next MC in the series, OFFERED (editable, not reserved), and the
@@ -600,6 +607,21 @@ function ConvertPanel({ sale, items, onDone, onCancel }: {
     void nextCoverNumber('contract').then((n) => setD((x) => (x.mc_number ? x : { ...x, mc_number: n }))).catch(() => {});
     void contractsFromSale(str(sale.sa_number)).then(setAlready).catch(() => {});
   }, [sale.sa_number]);
+  useEffect(() => {
+    let live = true;
+    setAway(null); setAwayErr('');
+    machinesWithAnotherCustomer(sale, items)
+      .then((m) => {
+        if (!live) return;
+        setAway(m);
+        setD((x) => ({ ...x, serials: x.serials.filter((sn) => !m.has(sn)) }));
+      })
+      .catch((e) => { if (live) setAwayErr(e instanceof Error ? e.message : String(e)); });
+    return () => { live = false; };
+    // The buyer and the machines decide the answer; another edit to the
+    // draft does not, so it does not ask again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sale.party_name, sale.sa_number, items]);
 
   // PM VISITS FOLLOW THE MONTHS until somebody types over them -- the
   // contract form's rule (FRS-090), not a second one.
@@ -611,7 +633,10 @@ function ConvertPanel({ sale, items, onDone, onCancel }: {
 
   const header = conversionHeader(sale, d);
   const opt = (name: string) => CONTRACT.headerFields.find((f) => f.name === name)?.options?.filter(Boolean) ?? [];
-  const machines = items.filter((i) => str(i.serial_number));
+  const withSerial = items.filter((i) => str(i.serial_number));
+  const machines = withSerial.filter((i) => !away?.has(str(i.serial_number)));
+  const transferred = withSerial.filter((i) => away?.has(str(i.serial_number)));
+  const checking = away === null && !awayErr;
   const toggle = (sn: string) => setD((x) => ({
     ...x, serials: x.serials.includes(sn) ? x.serials.filter((s) => s !== sn) : [...x.serials, sn],
   }));
@@ -716,12 +741,38 @@ function ConvertPanel({ sale, items, onDone, onCancel }: {
             </div>
           );
         })}
-        {!machines.length && <div className="muted" style={{ fontSize: 12.5 }}>This sale has no machine with a serial number, so there is nothing to put on a contract.</div>}
+        {checking && <div className="muted" style={{ fontSize: 12.5 }}>Checking which customer has each machine now…</div>}
+        {!checking && !machines.length && (
+          <div className="muted" style={{ fontSize: 12.5 }}>
+            {transferred.length
+              ? `Every machine on ${str(sale.sa_number)} is now with a different customer, so there is nothing to put on ${str(sale.party_name) || 'this customer'}'s contract.`
+              : 'This sale has no machine with a serial number, so there is nothing to put on a contract.'}
+          </div>
+        )}
       </div>
+      {transferred.length > 0 && (
+        <div className="sheet-banner sheet-banner-info" style={{ marginTop: 8, display: 'block' }}>
+          <b>Not offered ({transferred.length}):</b>
+          {transferred.map((it) => {
+            const sn = str(it.serial_number);
+            return (
+              <div key={`away-${sn}`} style={{ fontSize: 12.5, marginTop: 4 }}>
+                <b>{sn}</b> <span className="muted">{str(it.product_name)}</span> — {TRANSFERRED_AWAY}
+                {away?.get(sn) ? <span className="muted"> (now with {away.get(sn)})</span> : null}.
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {awayErr && (
+        <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}>
+          <span>Could not check which customer has each machine, so the contract cannot be made yet: {awayErr}</span>
+        </div>
+      )}
 
       {msg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{msg}</span></div>}
       <div className="row" style={{ gap: 8, marginTop: 10 }}>
-        <button className="btn btn-primary" disabled={busy || !machines.length} onClick={() => void go()}>
+        <button className="btn btn-primary" disabled={busy || checking || !!awayErr || !machines.length} onClick={() => void go()}>
           {busy ? 'Creating…' : 'Create the contract'}
         </button>
         <button className="btn" disabled={busy} onClick={onCancel}>Cancel</button>

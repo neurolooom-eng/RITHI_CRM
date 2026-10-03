@@ -606,6 +606,11 @@ Number** (the next one is offered), **Contract Type**, **Period (Months)**, **PM
 Visits**, **Payment Schedule**, **Bill Generate At** and, if you like, a rate per
 machine. It warns if the sale's machines are already on a contract, and opens
 the Contract Register on the new one.
+**A machine now with a different customer is never offered.** If a machine on
+the sale has since been transferred (or sold) to someone else, it is left out of
+the list and shown under it as *"Product serial number was transferred to a
+different customer"*, with the customer who has it. The check is made again
+when you press Create the contract.
 
 **Save entry stays grey until something on the entry has changed.**
 
@@ -1271,9 +1276,10 @@ typed into a form that reads it.
   DC side closes just that). *To* is filled from the Party Master and can be
   typed over; add the MIRN / customer reference and its date, mode of despatch
   and the purpose (once for the DC, changeable per line). The **DATE is the day
-  you enter it** and cannot be changed. Choose **AUTHORISED BY** — your
-  Reporting Manager, your Regional Manager (from the User Master) or an NSM:
-  that person approves the DC. Each unit prints as a line — PART No. is its
+  you enter it** and cannot be changed. Choose **AUTHORISED BY** — all three
+  come from **your row in the User Master**: your Reporting Manager, your
+  Regional Manager, and as **NSM** the Reporting Manager on your Regional
+  Manager's own row. You cannot name yourself. That person approves the DC. Each unit prints as a line — PART No. is its
   product code where RITHI knows one — and each accessory as a line after it
   **with the quantity received**. The **number (IDC-YYMM-NNNN) is given by the
   system**; it is written on every unit as its DC No. with the DC date.
@@ -1282,15 +1288,18 @@ typed into a form that reads it.
   DC is **PENDING APPROVAL**: its print carries a band saying so and the
   AUTHORISED BY box stays empty; its units cannot be marked Dispatched yet. The
   person named (or an administrator) sees it **first in Indoor DCs**, and on
-  **My Workload** under *Indoor DCs — Awaiting my approval*, and presses
+  **My Workload** under *Indoor DCs — Awaiting my approval* — **whatever their
+  role**: someone whose role cannot open Indoor Service is taken to a page
+  listing just the DCs that name them — and presses
   **Approve** or **Reject…** (with a reason). **Approving files the visit**: for
   every unit with a call, the visit drafted with its Indoor Service Report is
   filed against the call — Unsolved, pending Return to Field, with the work
   details and the uploaded report — exactly as if it had been entered on the
   call; then the DC is approved and its print shows the approver's name.
-  > Approving needs you to be able to see the call and file visits on it; if a
-  > visit is refused, the DC stays pending, the message says why, and approving
-  > again files only what is left. **Rejecting** keeps the DC with its reason and
+  > Approving files every unit's visit and its spares **in one step**: if one is
+  > refused (for example a spare the engineer does not hold), nothing is filed,
+  > the DC stays pending and the message says why. Only approving the DC marks a
+  > visit as filed — it cannot be set by editing the unit. **Rejecting** keeps the DC with its reason and
   > frees its units for a new DC.
   > A unit is refused if it is not Ready, has no uploaded report, is already on a
   > DC, or would not be allowed to leave (no quality check on a repair, a failed

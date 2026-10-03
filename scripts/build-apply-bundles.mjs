@@ -712,7 +712,14 @@ const MODULES = {
             // Deleting a job PERMANENTLY (2026-10-03): delete_indoor_job(),
             // indoor.delete (granted to no role), refused once a DC or a filed
             // visit names the job; writes audit_log (0009, earlier) at RUN time.
-            '0324_indoor_delete_job.sql'],
+            '0324_indoor_delete_job.sql',
+            // The Indoor DC approved by whoever the User Master names
+            // (2026-10-03): Reporting Manager, Regional Manager, and the
+            // Regional Manager own Reporting Manager as NSM, never the issuer;
+            // the person named sees that DC, its lines and units whatever their
+            // role; approving files the visit and its spares in the database;
+            // only the approval marks a visit filed (D-108, D-109, D-110).
+            '0327_indoor_dc_approver_from_user_master.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
