@@ -1,3 +1,4 @@
+import { useMenuPosition } from './menuPosition';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './picklist.css';
 
@@ -99,6 +100,9 @@ export function MultiPick({
     if (e.key === 'Escape') { e.preventDefault(); close(); inputRef.current?.blur(); }
   };
 
+  // The menu floats against the window, so no scrolling container clips it.
+  const menuStyle = useMenuPosition(boxRef, open);
+
   return (
     <div className={`picklist${className ? ` ${className}` : ''}`} ref={boxRef}>
       <button
@@ -114,7 +118,7 @@ export function MultiPick({
       </button>
 
       {open && (
-        <div className="picklist-menu">
+        <div className="picklist-menu" style={menuStyle}>
           {searchable && (
             <input
               ref={inputRef}

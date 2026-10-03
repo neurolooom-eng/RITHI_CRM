@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.53',
+    date: '2026-10-03',
+    title: 'Part Master: Add entry form; drop-down lists no longer cut off',
+    changes: [
+      'PART MASTER: "+ Add entry" opens the same pop-up form as the master lists, with the required fields marked *. Anything missing is named once you press Add entry, not before you start typing.',
+      'FIXED: a drop-down list inside a pop-up, a side panel or a table was cut off at that box\'s edge, as the Product list was on the Add entry form. Lists now open over everything, upwards when there is no room below (a phone with its keyboard open), and follow the field when you scroll.',
+    ],
+  },
+  {
     version: '0.10.52',
     date: '2026-10-03',
     title: 'Master lists: Add entry is a form',
