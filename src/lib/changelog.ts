@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.60',
+    version: '0.10.61',
     date: '2026-10-03',
     title: 'Indoor DC: authorised and approved as the User Master says',
     changes: [
@@ -23,7 +23,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.59',
+    version: '0.10.60',
     date: '2026-10-03',
     title: 'Convert to Contract leaves out machines now with another customer',
     changes: [
@@ -32,13 +32,22 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.58',
+    version: '0.10.59',
     date: '2026-10-03',
     title: 'Software Validation: the open defects re-checked, 21 new ones recorded',
     changes: [
       'SOFTWARE VALIDATION → Defects: every defect still open was re-checked against this version. None was fixed by the work of 1–3 October; four are now partly fixed, and thirteen descriptions were corrected where the system had moved on.',
       'TWENTY-ONE NEW DEFECTS (D-097 to D-117) from reading what changed between 1 and 3 October: the one-time warranty update, the Indoor DC and its approval, the Pre-Delivery Testing record, the Warranty and Contract pop-up, the installation-call mapping, stock transfer reasons and the top-bar search.',
       'IMPORTANT: the one-time warranty update of 2 October cleared the warranty dates of machines whose sale entry has none, and rewrote Product Database addresses from the sale. The old machine values are kept; a new read-only check, _what_0318_cleared.sql, counts what was cleared. Nothing has been restored yet.',
+    ],
+  },
+  {
+    version: '0.10.58',
+    date: '2026-10-03',
+    title: 'Party Master: Country, beside City and State',
+    changes: [
+      'PARTY MASTER: a party now has a COUNTRY. City, State and Country sit on one row of the Add and Edit forms, with Pincode, Phone and Phone 2 on the next. It is a column in the table too.',
+      'Where your Party Master export already carried a Country, it is filled in from what was uploaded; the Party Master upload fills it from a "Country" column from now on.',
     ],
   },
   {

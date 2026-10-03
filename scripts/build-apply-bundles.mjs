@@ -719,7 +719,7 @@ const MODULES = {
             // the person named sees that DC, its lines and units whatever their
             // role; approving files the visit and its spares in the database;
             // only the approval marks a visit filed (D-108, D-109, D-110).
-            '0326_indoor_dc_approver_from_user_master.sql'],
+            '0327_indoor_dc_approver_from_user_master.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -804,7 +804,9 @@ const MODULES = {
             // Add / edit / delete keys on the Product Master and the value lists
             // (2026-10-03). Replaces 0290's pm_write and masters_insert, so after
             // it; reads master_delete_guard() from 0325 in rbac, which runs first.
-            '0325_product_line_and_list_add_edit_delete.sql'],
+            '0325_product_line_and_list_add_edit_delete.sql',
+            // A party's Country (2026-10-03), a plain column, blank by default.
+            '0326_party_country.sql'],
   },
   reports: {
     title: 'Reports',

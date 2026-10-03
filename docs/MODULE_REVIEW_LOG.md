@@ -161,11 +161,11 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-10-03 — Indoor DC: authorised and approved as the User Master says (v0.10.60, 0326, on the branch, not merged)
+### 2026-10-03 — Indoor DC: authorised and approved as the User Master says (v0.10.61, 0327, on the branch, not merged)
 - **Your decision:** *"AJAY G (INDOOR) is mapped to VIGNESH and Bagyaraj.. it is dynamic based on the user master. So when I say RM / RGM / NSM - it should map as per the user Master"*.
   - The NSM is **the Regional Manager's own manager**.
   - The person named **sees and approves the DC whatever their role**.
-- **Done, in 0326 (Indoor bundle):**
+- **Done, in 0327 (Indoor bundle):**
   - **Authorisers:** the issuer's Reporting Manager, their Regional Manager, and the Reporting Manager on the Regional Manager's own User Master row. Never the issuer, and no longer every `nsm` login.
   - **Visibility:** the person named reads that DC, its lines and its units, and nothing else of Indoor Service.
   - **My Workload** shows them *Awaiting my approval*. When their role cannot open Indoor Service, the card opens `/indoor-dc-approvals`. The DC print opens for them, limited by row-level security.
@@ -174,12 +174,12 @@ checked.
   - The issuer cannot approve a DC naming themselves.
 - **Defects:** D-108, D-109 and D-110 are fixed.
 - **Records:** FRS-234.3/.4 and FRS-235.1/.3/.6/.9 are amended; OQ-234 is new.
-- **`_status.sql`:** row 253 moved with `approve_indoor_dc`; row 258 is new.
+- **`_status.sql`:** row 253 moved with `approve_indoor_dc`; row 259 is new.
 - **Suites:**
   - New: `indoor_dc_user_master_test`.
   - Updated: `indoor_stages_test`, whose Regional Manager now names an NSM, whose calls now exist, and whose approval files the visit.
 
-### 2026-10-03 — Re-review: the 42 open defects re-checked, and a fresh pass over #476–#504 (v0.10.58, on the branch, not merged)
+### 2026-10-03 — Re-review: the 42 open defects re-checked, and a fresh pass over #476–#504 (v0.10.59, on the branch, not merged)
 - **Your ask:** *"Re-review modules"*. Two halves:
   - Every defect still open in the register was re-checked against `main` at `bea2b69` (v0.10.49).
   - Everything other sessions merged from 1 to 3 October was read fresh: Warranty / Contract / Installation calls (#481–#502, 0318, 0319), and Indoor Service, Spares, Masters, Reports, Part Search and global search (#471–#504, 0308–0323).

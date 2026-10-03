@@ -7226,7 +7226,7 @@ console.log('\n-- My Workload: the queues left the registers, and open what they
   // "Spares waiting 240" is the size of a queue the register would refuse them.
   eq('a register the reader cannot open is not even counted',
     /\.filter\(\(j\) => j\.always \|\| can\(j\.needs\)\)/.test(page)
-    // ONE exception, and it counts nothing the reader cannot open (0326): the
+    // ONE exception, and it counts nothing the reader cannot open (0327): the
     // Indoor DCs the User Master names them on, which row-level security
     // limits them to and /indoor-dc-approvals shows them.
     && (page.match(/always: true/g) ?? []).length === 1

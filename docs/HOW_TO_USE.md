@@ -811,6 +811,8 @@ typed into a form that reads it.
   > **✎ Edit** and **🗑 Delete** are on every row (each needs its own Party
   > Master permission). A party any machine, call, sale or contract still names
   > cannot be deleted — the message says how many records name it.
+  > **City, State and Country** are on one row; Country is optional and is
+  > filled from a *Country* column in the upload.
   > **＋ Add entry** adds a new customer: **Party Name, City and State** are
   > required, everything else can be filled now or later. The Party Key is given
   > when you save. A name already on the master is refused — search for it and

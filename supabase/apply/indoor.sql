@@ -21,7 +21,7 @@
 --   0321_indoor_dc.sql
 --   0323_indoor_stages.sql
 --   0324_indoor_delete_job.sql
---   0326_indoor_dc_approver_from_user_master.sql
+--   0327_indoor_dc_approver_from_user_master.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -2821,11 +2821,11 @@ do $$ begin
 exception when undefined_object then null; end $$;
 
 -- ------------------------------------------------------------------------
--- 0326_indoor_dc_approver_from_user_master.sql
+-- 0327_indoor_dc_approver_from_user_master.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0326 — THE INDOOR DC IS APPROVED BY WHOEVER THE USER MASTER NAMES, AND THE
+-- 0327 — THE INDOOR DC IS APPROVED BY WHOEVER THE USER MASTER NAMES, AND THE
 -- APPROVAL FILES THE VISIT ITSELF (D-109, D-110, D-108).
 --
 -- The user, 2026-10-03: "AJAY G (INDOOR) is mapped to VIGNESH and Bagyaraj..

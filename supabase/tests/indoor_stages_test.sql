@@ -6,7 +6,7 @@
 --
 --   * indoor_dc_authorisers() offers the issuer's Reporting Manager and
 --     Regional Manager (User Master) and, as NSM, the Regional Manager's own
---     Reporting Manager (0326) -- and nobody else.
+--     Reporting Manager (0327) -- and nobody else.
 --   * STAGE 4: the Indoor Service Report is REFUSED before the unit is cleaned
 --     and without its report number; uploading needs indoor.work; who and when
 --     are STAMPED from the session (a name the browser sends is discarded).
@@ -19,14 +19,14 @@
 --     administrator approves or rejects -- the issuer and a stranger are
 --     refused; a visit recorded by hand must be a visit of THAT call reading
 --     Unsolved / Return to Field / Update Visit Work Details? = Yes; APPROVING
---     FILES THE VISIT ITSELF (0326) and stamps who and when.
+--     FILES THE VISIT ITSELF (0327) and stamps who and when.
 --   * A job with no UCN (a DEMO unit) needs no visit to be approved.
 --   * REJECT needs a reason, keeps the DC, and RELEASES the units (DC No., DC
 --     date and dispatch stamps cleared) so a new DC can be made -- by an
 --     approver who holds no indoor right at all.
 --   * "Return to Field" is on the Call Pending Reason master, active.
 --
--- Since 0326 the approval writes the visit in the database, as the Visit
+-- Since 0327 the approval writes the visit in the database, as the Visit
 -- Entry's own save path did; indoor_dc_user_master_test proves the rest.
 --
 -- Superuser bypasses RLS and privileges, so every scoped check runs as
@@ -67,7 +67,7 @@ on conflict (role) do update set permissions = excluded.permissions;
 
 -- THE USER MASTER: Ajay reports to Stage Manager, regionally to Stage Regional.
 -- The Regional Manager's own row names Stage Nsm as THEIR manager: that is
--- Ajay's NSM (0326).
+-- Ajay's NSM (0327).
 delete from public.user_directory where email in ('stg_ajay@x.com', 'stg_mgr@x.com', 'stg_rgm@x.com');
 insert into public.user_directory (name, email, reporting_manager, regional_manager) values
  ('Stage Ajay',     'stg_ajay@x.com', 'Stage Manager', 'Stage Regional'),

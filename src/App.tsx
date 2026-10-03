@@ -121,7 +121,7 @@ function Shell() {
     // THE TWO INDOOR SERVICE RECORDS (R/SER/QC/007, R/SER/07) answer to the
     // Indoor Service Register's own key, as the FFR answers to its register's
     // (D-026). The register print also asks export.data, on its own page.
-    // THE INDOOR DC IS NOT AMONG THEM since 0326: the person the User Master
+    // THE INDOOR DC IS NOT AMONG THEM since 0327: the person the User Master
     // names as its AUTHORISED BY reads it whatever their role, and row-level
     // security shows a reader nothing else -- a DC they may not see is simply
     // not found.
@@ -191,7 +191,7 @@ function Shell() {
       <ErrorBoundary where={location.pathname}>
       <Routes>
         <Route path="/" element={<Dashboard />} />
-        {/* NOT A MODULE (0326): the Indoor DCs naming the reader as AUTHORISED
+        {/* NOT A MODULE (0327): the Indoor DCs naming the reader as AUTHORISED
             BY, opened from My Workload by someone whose role cannot open
             Indoor Service. Row-level security is what limits it. */}
         <Route path="/indoor-dc-approvals" element={<IndoorDcApprovals />} />

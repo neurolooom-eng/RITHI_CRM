@@ -1225,7 +1225,7 @@ export const UPLOADS: UploadDef[] = [
     note: 'The export loads as exported. The installation and billing contact blocks now have columns of their own, so the four headings this file repeats (Tel 1, Tel 2, Fax, Email ID — once per address) stop colliding; before this, the second of each reached nothing at all. Everything still without a column — Office Name (which is our own company on every row), Under and Salesman (both empty in the supplied file), the raw Tax strings — is kept on the row rather than dropped. Each party is given its key (Party-1, Party-2 …) on first load and keeps it; matching is on the party name, so re-loading a corrected sheet updates those parties instead of adding them again. SERVICEMAN gets a column of its own: it is what prefills “Call Allocated To” on a new call where the machine has no Service Engineer, and a value in the kept-as-is blob cannot be looked up.',
     cols: [
       { to: 'party_name', from: ['party name', 'party', 'customer', 'name'], required: true },
-      TEXT('city'), TEXT('state'),
+      TEXT('city'), TEXT('state'), TEXT('country'),
       // `profile` IS NO LONGER AN ALIAS OF THIS. It was, as a fallback, and that
       // stopped being right the moment Profile got a column of its own (0201):
       // on a file carrying Profile and no Type, BOTH columns would bind the

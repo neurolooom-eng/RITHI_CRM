@@ -72,7 +72,7 @@ export function Workload() {
       { needs: 'mod:/stock-transfer', run: stockTransferSection },
       // INDOOR DCs AWAITING APPROVAL (0323): shown to whoever can open the
       // Indoor Service Register -- AND to anybody the User Master names as a
-      // DC's AUTHORISED BY, whatever their role (0326): row-level security
+      // DC's AUTHORISED BY, whatever their role (0327): row-level security
       // shows them only those DCs, and with none waiting the section is empty
       // and dropped.
       { needs: 'mod:/indoor', always: true, run: () => indoorDcSection(can('mod:/indoor')) },

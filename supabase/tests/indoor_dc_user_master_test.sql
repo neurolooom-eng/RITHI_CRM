@@ -1,5 +1,5 @@
 -- ===========================================================================
--- THE INDOOR DC IS APPROVED BY WHOEVER THE USER MASTER NAMES (0326).
+-- THE INDOOR DC IS APPROVED BY WHOEVER THE USER MASTER NAMES (0327).
 --
 -- The user, 2026-10-03: "AJAY G (INDOOR) is mapped to VIGNESH and Bagyaraj..
 -- it is dynamic based on the user master. So when I say RM / RGM / NSM - it
@@ -22,7 +22,7 @@
 --      to Field / Yes / the report / its number / the drafted work), stamps
 --      the unit and approves the DC -- for an approver whose role could not
 --      file a visit itself.
---   6. A DC that names its own issuer (raised before 0326) is not approved
+--   6. A DC that names its own issuer (raised before 0327) is not approved
 --      by that issuer.
 -- Every error printed is labelled `expect ERROR` -- anything else is a failure.
 -- ===========================================================================

@@ -329,7 +329,7 @@ export async function indoorDcSection(hasIndoor: boolean): Promise<WorkloadSecti
   const dcs = await listIndoorDcs();
   const pending = dcs.filter((d) => d.approval_status === 'Pending approval');
   const mine = pending.filter((d) => d.i_may_approve).length;
-  // WHOEVER THE USER MASTER NAMES APPROVES, WHATEVER THEIR ROLE (0326). A
+  // WHOEVER THE USER MASTER NAMES APPROVES, WHATEVER THEIR ROLE (0327). A
   // reader whose role cannot open Indoor Service sees only the DCs naming them
   // (row-level security), on a page of their own; with none waiting, the
   // section is not shown at all (no cards -- Workload drops it).
