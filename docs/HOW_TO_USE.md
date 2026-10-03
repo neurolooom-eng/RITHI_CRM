@@ -1157,9 +1157,9 @@ typed into a form that reads it.
 - **Indoor Service Register** `/indoor` — work on a unit in the workshop. Two
   things are asked separately: whose **property** the unit is, and what
   **activity** is being done.
-  The work runs in **stages**, shown as a stepper at the top of each job and as
-  a chip on every row of the register — and a job shows only the stages it has
-  reached (no DC fields at intake, for example):
+  The work runs in four **stages**, one page each, shown as a stepper at the
+  top of each job and as a chip on every row of the register — and a job opens
+  only the stages it has reached (no DC page at intake, for example):
   1. **Intake** — **Receive equipment** opens the intake form. Either pick the
      **Product Name** and **Serial Number**, which lists that machine's **open
      calls** to choose from, or **type the UCN**. The job then fills itself from
@@ -1168,25 +1168,32 @@ typed into a form that reads it.
      Reported); the call's Standard Complaint shows beside it, read only. Fix
      anything that is wrong. A **DEMO / new device** is received without a call.
      List the **accessories received**: each item with its **quantity**
-     (and serial / tag where it has one), **＋ Add an item** for more.
+     (and serial / tag where it has one), **+ Add item** for more.
   2. **Cleaning** — **Mark cleaning done** against the work instruction
      (WI/SER/01) and its revision.
-  3. **Repair** — findings, work done, the status, the parts and checks the
+  3. **Repair — the service report** — once the unit is cleaned (never
+     before). This page **is** the Indoor Service Report: enter the **report
+     number**, pick the file (saved in Drive as **“<report no>_<file name>”** so
+     it traces back here; the system records who uploaded it and when) and, for
+     a unit with a call, fill that call's **visit details** right there on the
+     page — Complaint Observation, Job Done, Add Consumption? with the spares
+     used, and the rest of the Visit Entry. *Call Status* (**Unsolved**), *Call
+     Pending Reason* (**Return to Field**) and *Update Visit Work Details?*
+     (**Yes**) are fixed. Each thing is asked once: the call's Standard
+     Complaint comes from Intake, and Complaint Observation / Job Done are the
+     job's findings and work done. **Upload service report** saves it; nothing is
+     written to the call yet — it is a draft, filed when the DC is approved.
+     **Request spare** sits beside it (the usual Spare Request form with the
+     job's call filled in and you as the requester; it does **not** change the
+     call). Below: the job's status, any damage, the parts and checks the
      activity needs, and the **quality check** (a repair cannot leave without
-     one). **Request spare** opens the usual Spare Request form with the job's
-     call filled in and you as the requester; it does **not** change the call.
-  4. **Indoor Service Report** — once the unit is cleaned (never before),
-     **⭱ Upload** from the job or straight from the register's *Indoor Service
-     Report No* cell: enter the **report number**, then pick the file. It is
-     saved in Drive as **“<report no>_<file name>”** so it traces back here, and
-     the system records who uploaded it and when. **For a unit with a call the
-     same form is that call's Visit Entry** — fill the visit details as you would
-     on the call. *Call Status* (**Unsolved**), *Call Pending Reason*
-     (**Return to Field**) and *Update Visit Work Details?* (**Yes**) are fixed.
-     Nothing is written to the call yet: it is a draft, filed when the DC is
-     approved, so the work is entered once.
-  5. **DC** — once the report is uploaded (see *Indoor DC* below), then
+     one). **⭱ Upload** in the register's *Indoor Service Report No* cell opens
+     this page directly.
+  4. **DC** — once the report is uploaded (see *Indoor DC* below), then
      **Dispatched** once the DC is approved.
+
+  The job opens on the stage it is at; the stepper at the top moves between
+  the stages already reached, and **← Back** / **Next →** sit at the bottom.
   > A job does not need a call — a demo unit has none, and files no visit. A
   > harvested part cannot go back into stock until decontamination is recorded.
 

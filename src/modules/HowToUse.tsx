@@ -299,8 +299,8 @@ const SECTIONS: Sec[] = [
     steps: [
       <>Open <b>Service → Indoor Service Register</b> and receive the unit in.</>,
       <>Record <b>cleaning and disinfection</b> — before anyone works on it.</>,
-      <>Record the <b>findings and work done</b>, including any parts harvested from the unit.</>,
-      <>Sign the <b>quality check</b>.</>,
+      <>On <b>Repair</b>, upload the <b>service report</b> — with the call’s visit details (observation, job done, spares consumed) on the same page — and record any parts harvested from the unit.</>,
+      <>Sign the <b>quality check</b>, then <b>Next</b> to the DC.</>,
       <><b>Dispatch</b> the unit back.</>,
     ],
     go: [{ to: '/indoor', label: 'Indoor Service Register' }],
