@@ -169,7 +169,7 @@ eq('unrecognised column kept in data', cons.rows[0].data, { 'Job Note': 'kept' }
 
 console.log('\n-- every heading reaches a column or the row; none is dropped --');
 const party = shapeUpload(def('parties'), [
-  { 'Party Name': 'HOSP', 'Type': 'CUSTOMER', 'Profile': 'GOVERNMENT', 'Address': 'Main St', 'Billing Address': 'PO Box 9', 'COUNTRY': 'BD' },
+  { 'Party Name': 'HOSP', 'Type': 'CUSTOMER', 'Profile': 'GOVERNMENT', 'Address': 'Main St', 'Billing Address': 'PO Box 9', 'COUNTRY': 'BD', 'Office Name': 'RITHI' },
 ]);
 // THESE TWO USED TO COLLIDE and one of each pair was kept in `extra` as a
 // LOSING ALIAS. Both now have columns of their own (0201), so nothing is
@@ -181,7 +181,9 @@ eq('so are the two addresses',
 // THE INVARIANT THAT MATTERS, and it is stronger than the alias rule it
 // replaces: a heading either lands in a column or is kept on the row. A file's
 // column may be one this register does not know; it may never be DROPPED.
-eq('a heading with no column of its own is still kept', party.rows[0].extra, { 'COUNTRY': 'BD' });
+// COUNTRY has had a column since 0326 (2026-10-03); Office Name still has none.
+eq('a heading with no column of its own is still kept', party.rows[0].extra, { 'Office Name': 'RITHI' });
+eq('...and Country fills its own column', party.rows[0].country, 'BD');
 // AND A FALLBACK IS STILL A FALLBACK where the pair really is one value: a
 // party sheet with only a billing address has given us the only address it has.
 const billOnly = shapeUpload(def('parties'), [{ 'Party Name': 'HOSP', 'Billing Address': 'PO Box 9' }]);

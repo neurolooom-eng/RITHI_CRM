@@ -49,6 +49,7 @@ const COLUMNS: Column<Row>[] = [
   { key: 'party_name', header: 'Party Name', width: 300 },
   { key: 'city', header: 'City', width: 150 },
   { key: 'state', header: 'State', width: 150 },
+  { key: 'country', header: 'Country', width: 130 },
   { key: 'party_type', header: 'Type', width: 130 },
   // PRIVATE / GOVERNMENT — its own question, and its own column since 0201.
   { key: 'profile', header: 'Profile', width: 120 },
@@ -105,6 +106,9 @@ const EDIT_GROUPS: { title: string; note?: string; fields: { key: keyof PartyPat
     { key: 'address', label: 'Address', wide: true },
     { key: 'city', label: 'City' },
     { key: 'state', label: 'State' },
+    // CITY · STATE · COUNTRY ON ONE ROW (the user, 2026-10-03), so the three
+    // sit together in the grid, Pincode starting the next.
+    { key: 'country', label: 'Country' },
     { key: 'pincode', label: 'Pincode' },
     { key: 'phone', label: 'Phone' },
     { key: 'phone_2', label: 'Phone 2' },
@@ -735,9 +739,9 @@ export function PartyMaster() {
                 onChange={(e) => setAdding((a) => ({ ...(a ?? {}), party_name: e.target.value }))} />
             </div>
             <div className="pf-grid">
-              {([['city', 'City'], ['state', 'State']] as const).map(([k, l]) => (
+              {([['city', 'City'], ['state', 'State'], ['country', 'Country']] as const).map(([k, l]) => (
                 <div className="ml-field" key={k}>
-                  <label className="field-label">{l} <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
+                  <label className="field-label">{l} {k !== 'country' && <span style={{ color: 'var(--danger, #c00)' }}>*</span>}</label>
                   <input className="input" value={adding[k] ?? ''}
                     onChange={(e) => setAdding((a) => ({ ...(a ?? {}), [k]: e.target.value }))} />
                 </div>
@@ -748,7 +752,7 @@ export function PartyMaster() {
               <div key={g.title} className="pf-section">
                 <h4>{g.title}</h4>
                 {g.note && <div className="muted ml-hint">{g.note}</div>}
-                <PartyGroupFields fields={g.fields.filter(({ key }) => key !== 'city' && key !== 'state')}
+                <PartyGroupFields fields={g.fields.filter(({ key }) => key !== 'city' && key !== 'state' && key !== 'country')}
                   value={(k) => adding[k] ?? ''}
                   set={(k, v) => setAdding((a) => ({ ...(a ?? {}), [k]: v }))} />
               </div>

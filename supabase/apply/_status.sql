@@ -1753,7 +1753,10 @@ with checks(sort_order, bundle, provides, present) as (
                 and coalesce(qual, '') || coalesce(with_check, '') like '%masters.product_master.%') = 3
          and exists (select 1 from pg_trigger where tgname = 'master_delete_guard' and tgrelid = to_regclass('public.product_master'))
          and coalesce((select with_check like '%.add%' from pg_policies
-                        where schemaname = 'public' and tablename = 'masters' and policyname = 'masters_insert'), false)))
+                        where schemaname = 'public' and tablename = 'masters' and policyname = 'masters_insert'), false))),
+    (258, 'A party has a Country', 'parties.country, plain text, blank by default (0326) -- set on the Party Master''s Add and Edit forms and by a Country column in its upload. NO means masters.sql has not been re-run since. Restore: masters.sql (0326)',
+        exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'parties' and column_name = 'country'))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

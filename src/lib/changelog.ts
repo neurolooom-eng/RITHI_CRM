@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.58',
+    date: '2026-10-03',
+    title: 'Party Master: Country, beside City and State',
+    changes: [
+      'PARTY MASTER: a party now has a COUNTRY. City, State and Country sit on one row of the Add and Edit forms, with Pincode, Phone and Phone 2 on the next. It is a column in the table too.',
+      'Where your Party Master export already carried a Country, it is filled in from what was uploaded; the Party Master upload fills it from a "Country" column from now on.',
+    ],
+  },
+  {
     version: '0.10.57',
     date: '2026-10-03',
     title: 'Masters: Edit and Delete on every row, with their own permissions',
