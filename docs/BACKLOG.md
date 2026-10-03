@@ -102,6 +102,12 @@ register in the app's own table.
     in `rithi.indoor.split`), `IndoorDcForm` (renamed from IndoorDcDrawer) and
     the DC list restyled with approval chips, `DeleteJobAction`, the R/SER/07
     register on DataTable (`indoorRegister.rser07`).
+  - The Indoor Service Report file now goes to the shared drive's "INDOOR
+    Service Reports" folder (DriveFolder `indoor`; the CallReg.gs key needs the
+    Web App redeployed before it takes effect).
+  - The two older suites that expected a direct DELETE to match zero rows
+    (`indoor_service_test` 14, `indoor_register_pdt_test` 14) now expect the
+    refusal.
   - Requirements URS-175, FRS-237-239 (FRS-233/234 amended), OQ-228
     (`indoor_delete_job_test`), OQ-229 (manual); `_status.sql` row 255.
 - **Pending:** the merge's "Apply database migrations" run applies 0324 -- read

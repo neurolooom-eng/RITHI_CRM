@@ -239,13 +239,13 @@ select job_no = :'before_edit' as job_no_held,
 select demo_overdue from public.indoor_job_list where serial = 'IND-TEST-DEMO';
 
 \echo '--- 14. QUALITY RECORDS ARE NOT DELETED (0049''s rule, here too) ---'
-\echo 'expect: DELETE 0, then 1 -- and note it is not an ERROR. A table with no'
-\echo 'expect: delete policy removes NOTHING and says so quietly, which is why'
-\echo 'expect: the row count below is the assertion and the DELETE line is not.'
-\echo 'expect: A job raised in error is CLOSED with the reason, so the register'
-\echo 'expect: still says what happened to somebody''s machine.'
+\echo 'expect: a direct DELETE is refused outright since 0324 revoked the privilege'
+\echo 'expect: (before it, RLS matched nothing and said so quietly), then 1. The'
+\echo 'expect: only deletion is delete_indoor_job() -- its own key, a reason, and'
+\echo 'expect: never a job a DC or a filed visit names (indoor_delete_job_test).'
 begin;
   set local role authenticated;
+  \echo 'expect ERROR: permission denied for table indoor_jobs'
   delete from public.indoor_jobs where serial = 'IND-TEST-OTHER';
 commit;
 select count(*) as still_there from public.indoor_jobs where serial = 'IND-TEST-OTHER';

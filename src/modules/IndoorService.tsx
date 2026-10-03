@@ -1540,8 +1540,8 @@ function IndoorJobDrawer({
 // THE FILE goes to Drive through the bridge every other upload in this app
 // uses (uploadToDrive, apps-script/CallReg.gs), NAMED "<Indoor Service Report
 // No>_<original file name>" (indoorReportFileName) so it traces back to the
-// register. No Drive folder is named: the bridge has none for Indoor Service
-// yet, so it lands in the drive root, as the Document Library's do.
+// register, in the shared drive's "INDOOR Service Reports" folder (DriveFolder
+// 'indoor', the user, 2026-10-03).
 //
 // A JOB WITH A UCN gets the Visit Entry form itself (CallReportDrawer in its
 // INLINE Indoor mode, rendered on the page): every field the visit asks, by
@@ -1554,7 +1554,7 @@ async function uploadIndoorReportFile(file: File, reportNo: string): Promise<{ o
   if (!reportNo.trim()) return { ok: false, error: 'Enter the Indoor Service Report No. first — the file is named after it.' };
   if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: `${file.name} is larger than ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.` };
   const named = new File([file], indoorReportFileName(reportNo, file.name), { type: file.type || 'application/octet-stream' });
-  const r = await uploadToDrive(named);
+  const r = await uploadToDrive(named, '', 'indoor');
   return r.ok && r.url ? { ok: true, url: r.url, name: named.name } : { ok: false, error: r.error ?? 'Upload failed.' };
 }
 

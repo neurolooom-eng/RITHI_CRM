@@ -242,10 +242,11 @@ commit;
 select cover from public.indoor_jobs where serial = 'PDT-TEST-CUST';
 
 \echo '--- 14. A PDT IS NOT DELETED ---'
-\echo 'expect: DELETE 0, then 1 -- no DELETE policy: row-level security matches nothing,'
-\echo 'expect: so a quality record stays.'
+\echo 'expect: refused outright -- 0324 revoked DELETE (before it, no DELETE policy'
+\echo 'expect: matched nothing) -- so a quality record stays.'
 begin;
   set local role authenticated;
+  \echo 'expect ERROR: permission denied for table indoor_pdt'
   delete from public.indoor_pdt p using public.indoor_jobs j
    where j.id = p.job_id and j.serial = 'PDT-TEST-IMP';
 commit;
