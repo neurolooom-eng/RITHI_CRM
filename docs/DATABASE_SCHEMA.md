@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**98 tables · 37 views · 2815 columns · 196 policies · 63 foreign keys.**
+**98 tables · 37 views · 2815 columns · 202 policies · 63 foreign keys.**
 
 ## How to read this
 
@@ -1694,8 +1694,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 - `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
+- `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 
 **Triggers:** `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -2003,7 +2003,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | DELETE | `masters_delete` | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.delete'::text)))` | — |
-| INSERT | `masters_insert` | — | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.edit'::text)))` |
+| INSERT | `masters_insert` | — | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.add'::text)) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '…` |
 | SELECT | `masters_read` | `(auth.role() = 'authenticated'::text)` | — |
 | UPDATE | `masters_update` | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.edit'::text)))` | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.edit'::text)))` |
 
@@ -2304,14 +2304,16 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `parties_kyc_docs_is_list` — `CHECK ((jsonb_typeof(kyc_docs) = 'array'::text))`
 
-**Triggers:** `parties_aii` → `parties_after_insert()` · `parties_biu` → `parties_before_write()` · `parties_kyc_stamp` → `parties_kyc_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `master_delete_guard` → `master_delete_guard()` · `parties_aii` → `parties_after_insert()` · `parties_biu` → `parties_before_write()` · `parties_kyc_stamp` → `parties_kyc_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `parties_write` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
+| DELETE | `parties_delete` | `( SELECT has_perm('masters.parties.delete'::text) AS has_perm)` | — |
+| INSERT | `parties_insert` | — | `( SELECT has_perm('masters.parties.add'::text) AS has_perm)` |
 | SELECT | `parties_read` | `(auth.role() = 'authenticated'::text)` | — |
+| UPDATE | `parties_update` | `( SELECT has_perm('masters.parties.edit'::text) AS has_perm)` | `( SELECT has_perm('masters.parties.edit'::text) AS has_perm)` |
 
 ---
 
@@ -2347,14 +2349,16 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Unique:** `item_detail_key` _(parts_item_detail_key_uniq)_ · `sys_id` _(parts_sys_id_key)_
 
-**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `master_delete_guard` → `master_delete_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `parts_write` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
+| DELETE | `parts_delete` | `( SELECT has_perm('masters.parts.delete'::text) AS has_perm)` | — |
+| INSERT | `parts_insert` | — | `( SELECT has_perm('masters.parts.add'::text) AS has_perm)` |
 | SELECT | `parts_read` | `(auth.role() = 'authenticated'::text)` | — |
+| UPDATE | `parts_update` | `( SELECT has_perm('masters.parts.edit'::text) AS has_perm)` | `( SELECT has_perm('masters.parts.edit'::text) AS has_perm)` |
 
 ---
 
@@ -2735,14 +2739,16 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `created_by` → **users**(`id`) · on delete no action _(product_master_created_by_fkey)_
 
-**Triggers:** `product_master_touch` → `product_master_touch()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `master_delete_guard` → `master_delete_guard()` · `product_master_touch` → `product_master_touch()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `pm_write` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
+| DELETE | `pm_delete` | `( SELECT has_perm('masters.product_master.delete'::text) AS has_perm)` | — |
+| INSERT | `pm_insert` | — | `( SELECT has_perm('masters.product_master.add'::text) AS has_perm)` |
 | SELECT | `pm_read` | `(auth.role() = 'authenticated'::text)` | — |
+| UPDATE | `pm_update` | `( SELECT has_perm('masters.product_master.edit'::text) AS has_perm)` | `( SELECT has_perm('masters.product_master.edit'::text) AS has_perm)` |
 
 ---
 

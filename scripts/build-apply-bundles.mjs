@@ -56,6 +56,11 @@ const NEEDS = {
   spareLineStages: [`to_regprocedure('public.spare_line_stage(text,text,text,text,timestamptz,text)')`,
                     'per-spare approvals (spare_request_lines.dispatched_at)',
                     '0016_spare_line_approvals.sql (apply bundle: Spare_X.sql)'],
+  // The delete guard on the Product Master (0325, masters) is the function the
+  // rbac module defines for parties and parts; a trigger names its function at
+  // creation, so the masters bundle cannot run before it.
+  masterDeleteGuard: [`to_regprocedure('public.master_delete_guard()')`, 'master_delete_guard()',
+                      '0325_party_part_add_edit_delete.sql (apply bundle: rbac)'],
   transferTables: [`to_regclass('public.stock_transfer_lines')`, 'the stock-transfer tables',
                    '0020_stock_transfer.sql (apply bundle: stock_transfer)'],
   fieldCalls: [`to_regclass('public.field_calls')`, 'the split call tables (field_calls)',
@@ -266,6 +271,11 @@ const MODULES = {
             // Part Search (Overview, read only) merged into every configured
             // role (0308), the 0195 pattern. Before the tail, which does not touch it.
             '0308_part_search_key.sql',
+            // One key to add, one to edit, one to delete on the Party and Part
+            // Masters, and the guard that refuses deleting a row still named
+            // (2026-10-03). Redefines 0286's parties/parts policies, so after it;
+            // before the tail, which does not touch them.
+            '0325_party_part_add_edit_delete.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -750,7 +760,7 @@ const MODULES = {
             'from the pickers), and access is granted list by list: master.<list>.edit',
             'to add or change values and master.<list>.delete to remove one, with the',
             'global `masters.edit` still granting both on every list.'],
-    needs: ['profiles', 'rbac'],
+    needs: ['profiles', 'rbac', 'masterDeleteGuard'],
     files: ['0021_master_lists.sql', '0066_master_values_active.sql', '0067_master_list_permissions.sql', '0076_party_key.sql', '0086_party_key_safe_update.sql', '0079_part_product_keys.sql',
             // AFTER 0079, which is where the products keys live. A stored serial
             // key so a client can match one machine by EQUALITY instead of a
@@ -783,7 +793,11 @@ const MODULES = {
             '0290_master_keys_split.sql',
             // Is the product line imported? (2026-10-02) -- decides whether a
             // DEMO unit owes Pre-Delivery Testing R/SER/QC/007 (0320, indoor).
-            '0319_product_master_imported.sql'],
+            '0319_product_master_imported.sql',
+            // Add / edit / delete keys on the Product Master and the value lists
+            // (2026-10-03). Replaces 0290's pm_write and masters_insert, so after
+            // it; reads master_delete_guard() from 0325 in rbac, which runs first.
+            '0325_product_line_and_list_add_edit_delete.sql'],
   },
   reports: {
     title: 'Reports',

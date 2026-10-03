@@ -1555,8 +1555,8 @@ with checks(sort_order, bundle, provides, present) as (
         (coalesce((select coalesce(qual, '') || coalesce(with_check, '') like '%visit.spares%' from pg_policies where schemaname = 'public' and tablename = 'spare_consumption' and policyname = 'cons_write'), false)
          and coalesce((select coalesce(qual, '') || coalesce(with_check, '') like '%stock.return.others%' from pg_policies where schemaname = 'public' and tablename = 'material_returns' and policyname = 'mr_insert'), false)
          and coalesce((select p.prosrc like '%masters.edit.rename_part%' from pg_proc p where p.oid = to_regprocedure('public.rename_part(bigint,text,text)')), false))),
-    (218, 'Master records, KYC and the Serviceman swap are separate keys', 'Every master write rule asks masters.edit.records; a KYC status change asks masters.edit.kyc; the bulk Serviceman swap is swap_service_engineer() with masters.edit.swap_serviceman (0290). NO means masters.sql has not been re-run since. Restore: masters.sql',
-        (coalesce((select coalesce(qual, '') || coalesce(with_check, '') like '%masters.edit.records%' from pg_policies where schemaname = 'public' and tablename = 'product_master' and policyname = 'pm_write'), false)
+    (218, 'Master records, KYC and the Serviceman swap are separate keys', 'The master lists registry asks masters.edit.records (the Party, Part and Product Master rules moved to their own add / edit / delete keys in 0325 -- rows 256 and 257); a KYC status change asks masters.edit.kyc; the bulk Serviceman swap is swap_service_engineer() with masters.edit.swap_serviceman (0290). NO means masters.sql has not been re-run since. Restore: masters.sql',
+        (coalesce((select coalesce(qual, '') || coalesce(with_check, '') like '%masters.edit.records%' from pg_policies where schemaname = 'public' and tablename = 'master_lists' and policyname = 'master_lists_write'), false)
          and coalesce((select p.prosrc like '%masters.edit.kyc%' from pg_proc p where p.oid = to_regprocedure('public.parties_kyc_stamp()')), false)
          and to_regprocedure('public.swap_service_engineer(text,text)') is not null
          and not has_function_privilege('anon', to_regprocedure('public.swap_service_engineer(text,text)'), 'EXECUTE'))),
@@ -1733,7 +1733,27 @@ with checks(sort_order, bundle, provides, present) as (
          and not has_table_privilege('authenticated', to_regclass('public.indoor_pdt'), 'DELETE')
          and coalesce((select p.prosrc like '%indoor.delete%' and p.prosrc like '%indoor_dc_lines%'
                               and p.prosrc like '%visit_uid is not null%' and p.prosrc like '%indoor.job_delete%'
-                         from pg_proc p where p.oid = to_regprocedure('public.delete_indoor_job(bigint,text)')), false)))
+                         from pg_proc p where p.oid = to_regprocedure('public.delete_indoor_job(bigint,text)')), false))),
+    (256, 'Party and Part Master: one key to add, one to edit, one to delete -- and no delete while a record names the row', 'parties and parts each have insert / update / delete policies asking masters.parties.add / .edit / .delete and masters.parts.add / .edit / .delete, and no FOR ALL write policy; the fifteen parents of those keys and the Product Master''s are in perm_parents (add and edit under masters.edit.records and masters.edit, delete under masters.edit only); master_delete_guard() is on both tables and cannot be called through the API (0325). NO means rbac.sql has not been re-run since. Restore: rbac.sql (0325)',
+        (to_regprocedure('public.master_delete_guard()') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.master_delete_guard()'), 'EXECUTE')
+         and not has_function_privilege('authenticated', to_regprocedure('public.master_delete_guard()'), 'EXECUTE')
+         and not exists (select 1 from pg_policies where schemaname = 'public' and tablename in ('parties', 'parts') and policyname in ('parties_write', 'parts_write'))
+         and (select count(*) from pg_policies where schemaname = 'public' and tablename in ('parties', 'parts')
+                and policyname in ('parties_insert', 'parties_update', 'parties_delete', 'parts_insert', 'parts_update', 'parts_delete')
+                and coalesce(qual, '') || coalesce(with_check, '') like '%masters.' || tablename || '.%') = 6
+         and (select count(*) from public.perm_parents where child like 'masters.parties.%' or child like 'masters.parts.%'
+                or child like 'masters.product_master.%') = 15
+         and (select count(*) from pg_trigger where tgname = 'master_delete_guard'
+                and tgrelid in (to_regclass('public.parties'), to_regclass('public.parts'))) = 2)),
+    (257, 'Product Master and the value lists: add, edit and delete keys', 'product_master has pm_insert / pm_update / pm_delete asking masters.product_master.add / .edit / .delete and no pm_write; master_delete_guard() refuses deleting a line any machine, sale or contract names; adding to a value list also admits that list''s own add key, master.<list>.add (0325). NO means masters.sql has not been re-run since. Restore: masters.sql (0325)',
+        (not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'product_master' and policyname = 'pm_write')
+         and (select count(*) from pg_policies where schemaname = 'public' and tablename = 'product_master'
+                and policyname in ('pm_insert', 'pm_update', 'pm_delete')
+                and coalesce(qual, '') || coalesce(with_check, '') like '%masters.product_master.%') = 3
+         and exists (select 1 from pg_trigger where tgname = 'master_delete_guard' and tgrelid = to_regclass('public.product_master'))
+         and coalesce((select with_check like '%.add%' from pg_policies
+                        where schemaname = 'public' and tablename = 'masters' and policyname = 'masters_insert'), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

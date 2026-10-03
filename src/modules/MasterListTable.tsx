@@ -6,7 +6,7 @@ import { csvExport, fmtDate } from '../lib/format';
 import { listMaster, dataConfigured } from '../lib/sheets';
 import { addMasterItem, deleteMasterItem, setMasterItemActive, listMasterItems, supabaseConfigured, type MasterItem, type MasterList } from '../lib/supabase';
 import { clearMasterCache } from '../lib/masters';
-import { masterEditAction, masterDeleteAction } from '../lib/rbac';
+import { masterAddAction, masterEditAction, masterDeleteAction } from '../lib/rbac';
 import { usedBy } from './masterLists';
 import { cappedAt } from '../lib/exportscope';
 import { useMaster } from '../lib/masters';
@@ -29,6 +29,9 @@ import { COMMON_PRODUCT } from '../lib/dccr';
 export function MasterListTable({ list, onCountChange }: { list: MasterList; onCountChange?: (n: number) => void }) {
   const { user, can } = useAuth();
   const live = supabaseConfigured();
+  // ADD, EDIT AND DELETE ARE SEPARATE KEYS (0325, 2026-10-03). The list's edit
+  // key still grants adding, as it always did.
+  const addable = live && can(masterAddAction(list.key));
   const editable = live && can(masterEditAction(list.key));
   const removable = live && can(masterDeleteAction(list.key));
 
@@ -41,13 +44,25 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
   // they should type and click on Add"). A button opens it; required fields
   // say so; a DCCR list's Product is picked from the Product Master.
   const [adding, setAdding] = useState(false);
+  // EDITING reuses the Add form; this is the value it was opened on, or null
+  // when adding. RENAMING IS ALLOWED (the user's choice, 2026-10-03), and the
+  // form says what it does not do: records already saved keep the old wording.
+  const [editItem, setEditItem] = useState<MasterItem | null>(null);
+  const openEdit = (item: MasterItem) => {
+    const d: Record<string, string> = { value: String(item.value ?? '') };
+    list.columns.forEach((c) => { d[c.key] = String(item.extra?.[c.key] ?? ''); });
+    setDraft(d);
+    setDraftProducts(byProduct ? complaintProducts(item.extra) : []);
+    setFormErr(''); setEditItem(item); setAdding(true);
+  };
+  const closeForm = () => { setAdding(false); setEditItem(null); };
   const [formErr, setFormErr] = useState('');
   // The DCCR lists tag each value with ONE product (extra.product), COMM being
   // common to every product (src/lib/dccr.ts). Their Product is required.
   const productColumn = list.columns.find((c) => c.key === 'product');
   const [pmNames, setPmNames] = useState<string[]>([]);
   useEffect(() => {
-    if (!productColumn || !adding || pmNames.length) return;
+    if (!productColumn || !adding || pmNames.length) return; // the form is open, adding or editing
     listProductMasterNames().then(setPmNames).catch(() => setPmNames([]));
   }, [productColumn, adding, pmNames.length]);
   // STANDARD COMPLAINT ONLY: which products each complaint applies to (the
@@ -95,6 +110,19 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
     const withProducts = byProduct && draftProducts.length
       ? { ...extra, products: draftProducts } as unknown as Record<string, string> : extra;
     setBusy(true);
+    if (editItem) {
+      const merged = { ...(editItem.extra ?? {}), ...withProducts } as Record<string, string>;
+      list.columns.forEach((c) => { if (!(draft[c.key] ?? '').trim()) delete merged[c.key]; });
+      if (byProduct && !draftProducts.length) delete (merged as Record<string, unknown>).products;
+      const old = String(editItem.value ?? '');
+      const u = await updateMasterItem(editItem.id, { value, extra: merged });
+      if (!u.ok) { setFormErr(u.error ?? 'Could not save that entry.'); setBusy(false); return; }
+      setDraft({}); setDraftProducts([]); closeForm();
+      if (byProduct) clearMasterCache('complaintProducts');
+      await reload();
+      setMsg({ tone: 'ok', text: old !== value ? `Renamed “${old}” to “${value}”.` : `Saved “${value}”.` });
+      return;
+    }
     const r = await addMasterItem(list.key, value, withProducts, user?.fullName || user?.email || '');
     if (r.ok) { setDraft({}); setDraftProducts([]); setAdding(false); await reload(); setMsg({ tone: 'ok', text: `Added “${value}”.` }); }
     else { setFormErr(r.error ?? 'Could not add that entry.'); setBusy(false); }
@@ -229,23 +257,25 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
         ),
       });
     }
-    if (editable) {
+    // THE ACTION BUTTONS ON THE ROW (the user, 2026-10-03): edit, deactivate,
+    // delete -- each shown only to who holds its key.
+    if (editable || removable) {
       cols.push({
-        key: '_active', header: '', width: 120, sortable: false, wrap: false,
+        key: '_actions', header: 'Actions', width: 230, sortable: false, wrap: false,
         render: (r: MasterItem & Record<string, unknown>) => (
-          <button className="btn btn-sm" title={r.active === false ? 'Offer this value again' : 'Stop offering this value'}
-            onClick={(e) => { e.stopPropagation(); void setActive(r, r.active === false); }}>
-            {r.active === false ? '↩ Reactivate' : '⊘ Deactivate'}
-          </button>
-        ),
-      });
-    }
-    if (removable) {
-      cols.push({
-        key: '_remove', header: '', width: 70, sortable: false, wrap: false,
-        render: (r: MasterItem) => (
-          <button className="btn btn-ghost btn-sm" title="Remove from this list" disabled={busy}
-            onClick={(e) => { e.stopPropagation(); void remove(r); }}>🗑</button>
+          <div className="row" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
+            {editable && <button className="btn btn-sm" title="Edit or rename this value" onClick={() => openEdit(r)}>✎ Edit</button>}
+            {editable && (
+              <button className="btn btn-sm" title={r.active === false ? 'Offer this value again' : 'Stop offering this value'}
+                onClick={() => void setActive(r, r.active === false)}>
+                {r.active === false ? '↩ Reactivate' : '⊘ Deactivate'}
+              </button>
+            )}
+            {removable && (
+              <button className="btn btn-ghost btn-sm" title="Remove from this list" disabled={busy}
+                onClick={() => void remove(r)}>🗑</button>
+            )}
+          </div>
         ),
       });
     }
@@ -269,24 +299,31 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
         </p>
       )}
 
-      {editable ? (
+      {addable ? (
         <div className="row" style={{ gap: 8, margin: '4px 0 10px' }}>
-          <button className="btn btn-primary" onClick={() => { setDraft({}); setDraftProducts([]); setFormErr(''); setAdding(true); }}>
+          <button className="btn btn-primary" onClick={() => { setDraft({}); setDraftProducts([]); setFormErr(''); setEditItem(null); setAdding(true); }}>
             + Add entry
           </button>
         </div>
       ) : (
         <p className="muted" style={{ marginTop: 0 }}>
-          {live ? `You need the “Add / edit values” permission for ${list.label} to change this list.` : 'Connect the database to add or remove entries.'}
+          {live ? (editable || removable ? '' : `You need the “Add values” permission for ${list.label} to add to this list.`) : 'Connect the database to add or remove entries.'}
         </p>
       )}
 
-      <Modal open={adding} onClose={() => setAdding(false)} title={`Add to ${list.label}`} width={520}>
+      <Modal open={adding} onClose={closeForm} title={editItem ? `Edit “${editItem.value}”` : `Add to ${list.label}`} width={520}>
         <form className="ml-form" onSubmit={(e) => { e.preventDefault(); void add(); }}>
           <label className="ml-field">
             <span className="field-label">{list.value_label} *</span>
             <input className="input" autoFocus value={draft.value ?? ''}
               onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))} />
+            {editItem && (draft.value ?? '').trim() !== String(editItem.value ?? '') && (
+              <span className="muted ml-hint">
+                Renaming changes what is offered from now on. Calls, reports and spares already saved keep
+                “{String(editItem.value ?? '')}” — they are not rewritten, and a count or filter on the new
+                wording will not include them.
+              </span>
+            )}
           </label>
           {list.columns.map((c) => (
             <label key={c.key} className="ml-field">
@@ -313,8 +350,8 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
           )}
           {formErr ? <div className="field-err">{formErr}</div> : null}
           <div className="row" style={{ gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
-            <button type="button" className="btn btn-ghost" onClick={() => setAdding(false)}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Adding…' : 'Add entry'}</button>
+            <button type="button" className="btn btn-ghost" onClick={closeForm}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : editItem ? 'Save' : 'Add entry'}</button>
           </div>
         </form>
       </Modal>

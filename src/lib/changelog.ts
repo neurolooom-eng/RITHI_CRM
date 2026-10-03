@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.58',
+    version: '0.10.59',
     date: '2026-10-03',
     title: 'Convert to Contract leaves out machines now with another customer',
     changes: [
@@ -21,13 +21,25 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.57',
+    version: '0.10.58',
     date: '2026-10-03',
     title: 'Software Validation: the open defects re-checked, 21 new ones recorded',
     changes: [
       'SOFTWARE VALIDATION → Defects: every defect still open was re-checked against this version. None was fixed by the work of 1–3 October; four are now partly fixed, and thirteen descriptions were corrected where the system had moved on.',
       'TWENTY-ONE NEW DEFECTS (D-097 to D-117) from reading what changed between 1 and 3 October: the one-time warranty update, the Indoor DC and its approval, the Pre-Delivery Testing record, the Warranty and Contract pop-up, the installation-call mapping, stock transfer reasons and the top-bar search.',
       'IMPORTANT: the one-time warranty update of 2 October cleared the warranty dates of machines whose sale entry has none, and rewrote Product Database addresses from the sale. The old machine values are kept; a new read-only check, _what_0318_cleared.sql, counts what was cleared. Nothing has been restored yet.',
+    ],
+  },
+  {
+    version: '0.10.57',
+    date: '2026-10-03',
+    title: 'Masters: Edit and Delete on every row, with their own permissions',
+    changes: [
+      'PARTY, PRODUCT AND PART MASTER: each row has an Actions column — ✎ Edit and 🗑 Delete. Product Master\'s Edit changes everything but the Product Code.',
+      'VALUE LISTS (Complaint Grouping, Root Cause keyword and the rest): each row has ✎ Edit, which can RENAME the value. Calls and reports already saved keep the old wording — the form says so before you save.',
+      'ROLES & PERMISSIONS: Party Master, Product Master and Part Master each have their own Add, Edit and Delete permission, and each value list its own Add, Edit and Delete. Anybody who could add and edit masters before still can; Delete is given to nobody until you tick it (an administrator has it).',
+      'A party, part or product line that any machine, call, sale, contract or spare still names cannot be deleted — the message says how many records name it. Deactivate it (or mark the line Inactive) instead.',
+      'The Product Database stays read-only: machines come from the uploads and the warranty, contract and ownership registers.',
     ],
   },
   {

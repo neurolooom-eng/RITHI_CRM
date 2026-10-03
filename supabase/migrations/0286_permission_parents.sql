@@ -67,7 +67,24 @@ insert into public.perm_parents (child, parent) values
   ('users.manage.create', 'users.manage'),
   ('users.manage.disable', 'users.manage'),
   ('users.manage.access', 'users.manage'),
-  ('users.manage.settings', 'users.manage');
+  ('users.manage.settings', 'users.manage'),
+  -- One key to add, one to edit, one to delete per master (0325, 2026-10-03).
+  -- 0325 inserts the same rows for a database that ran this file before them.
+  ('masters.parties.add', 'masters.edit.records'),
+  ('masters.parties.add', 'masters.edit'),
+  ('masters.parties.edit', 'masters.edit.records'),
+  ('masters.parties.edit', 'masters.edit'),
+  ('masters.parties.delete', 'masters.edit'),
+  ('masters.parts.add', 'masters.edit.records'),
+  ('masters.parts.add', 'masters.edit'),
+  ('masters.parts.edit', 'masters.edit.records'),
+  ('masters.parts.edit', 'masters.edit'),
+  ('masters.parts.delete', 'masters.edit'),
+  ('masters.product_master.add', 'masters.edit.records'),
+  ('masters.product_master.add', 'masters.edit'),
+  ('masters.product_master.edit', 'masters.edit.records'),
+  ('masters.product_master.edit', 'masters.edit'),
+  ('masters.product_master.delete', 'masters.edit');
 
 -- has_perm() keeps its shape and its NULL: with no signed-in user
 -- my_extra_perms() is NULL, and several callers rely on `if not has_perm()`

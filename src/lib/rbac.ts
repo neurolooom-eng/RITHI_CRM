@@ -358,6 +358,20 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Masters', key: 'masters.edit.kyc', label: ' Verify a party\u2019s KYC' },
   { group: 'Masters', key: 'masters.edit.rename_part', label: ' Rename a part (moves every record that names it)' },
   { group: 'Masters', key: 'masters.edit.swap_serviceman', label: ' Swap the Serviceman on every party at once' },
+  // ONE KEY TO ADD, ONE TO EDIT, ONE TO DELETE PER MASTER (0325, the user,
+  // 2026-10-03). Add and edit are children of "Add / edit master records", so
+  // a role holding it keeps both; delete is a child of "Edit masters" only and
+  // otherwise granted to nobody. A delete is refused while any record still
+  // names the row (master_delete_guard).
+  { group: 'Masters', key: 'masters.parties.add', label: ' Party Master: add a party' },
+  { group: 'Masters', key: 'masters.parties.edit', label: ' Party Master: edit a party' },
+  { group: 'Masters', key: 'masters.parties.delete', label: ' Party Master: delete a party nothing names' },
+  { group: 'Masters', key: 'masters.product_master.add', label: ' Product Master: add a product line' },
+  { group: 'Masters', key: 'masters.product_master.edit', label: ' Product Master: edit a product line' },
+  { group: 'Masters', key: 'masters.product_master.delete', label: ' Product Master: delete a line nothing names' },
+  { group: 'Masters', key: 'masters.parts.add', label: ' Part Master: add a part' },
+  { group: 'Masters', key: 'masters.parts.edit', label: ' Part Master: edit a part' },
+  { group: 'Masters', key: 'masters.parts.delete', label: ' Part Master: delete a part nothing names' },
   { group: 'Masters', key: 'cover.edit', label: 'Edit sales / warranties (all of the below)' },
   { group: 'Masters', key: 'cover.edit.entries', label: ' Add / edit warranty entries and their machines' },
   { group: 'Masters', key: 'cover.edit.delete', label: ' Delete a whole warranty entry with its machines' },
@@ -743,12 +757,12 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/install-calls-unmapped', label: 'Machines Without an Installation Call', actions: [] },
   ] },
   { title: 'Master', lists: true, pages: [
-    { path: '/parties', label: 'Party Master', actions: ['masters.edit', 'masters.edit.records', 'masters.edit.kyc', 'masters.edit.swap_serviceman'] },
+    { path: '/parties', label: 'Party Master', actions: ['masters.edit', 'masters.edit.records', 'masters.parties.add', 'masters.parties.edit', 'masters.parties.delete', 'masters.edit.kyc', 'masters.edit.swap_serviceman'] },
     { path: '/product-database', label: 'Product Database', actions: ['calls.create', 'install.create'] },
     { path: '/product-database-2', label: 'Product Database 2.0', actions: ['masters.view', 'pd2.rebuild'] },
-    { path: '/product-master', label: 'Product Master (product lines)', actions: ['masters.edit', 'masters.edit.records'] },
+    { path: '/product-master', label: 'Product Master (product lines)', actions: ['masters.edit', 'masters.edit.records', 'masters.product_master.add', 'masters.product_master.edit', 'masters.product_master.delete'] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage', 'users.manage.details', 'users.manage.create', 'users.manage.disable', 'users.manage.access', 'users.reset_password'] },
-    { path: '/parts', label: 'Part Master', actions: ['masters.edit', 'masters.edit.records', 'masters.edit.rename_part'] },
+    { path: '/parts', label: 'Part Master', actions: ['masters.edit', 'masters.edit.records', 'masters.parts.add', 'masters.parts.edit', 'masters.parts.delete', 'masters.edit.rename_part'] },
     // All Masters is just the overview screen; each value list is its own page
     // under this header, so access is given list by list.
     { path: '/masters', label: 'All Masters (overview)', actions: ['masters.edit', 'masters.edit.records'] },
@@ -780,16 +794,20 @@ export const PERM_TREE: PermHeader[] = [
 // 0067_master_list_permissions.sql), so a role that maintains every master
 // keeps working without ticking anything list by list.
 export const masterAction = (key: string): string => `mod:/masters/${key}`;
+export const masterAddAction = (key: string): string => `master.${key}.add`;
 export const masterEditAction = (key: string): string => `master.${key}.edit`;
 export const masterDeleteAction = (key: string): string => `master.${key}.delete`;
-export const masterListActions = (key: string): string[] => [masterEditAction(key), masterDeleteAction(key)];
+// ADD, EDIT, DELETE (0325): the list's edit key is the PARENT of its add key,
+// as it always granted adding -- see parentActions below.
+export const masterListActions = (key: string): string[] => [masterAddAction(key), masterEditAction(key), masterDeleteAction(key)];
 
 // Those keys are built per list, so they are not in ACTIONS — the matrix asks
 // here for their labels.
 export const dynamicActionLabel = (key: string): string | undefined => {
-  const m = /^master\.(.+)\.(edit|delete)$/.exec(key);
+  const m = /^master\.(.+)\.(add|edit|delete)$/.exec(key);
   if (!m) return undefined;
-  return m[2] === 'edit' ? 'Add / edit values in this list' : 'Delete values from this list';
+  return m[2] === 'add' ? 'Add values to this list'
+    : m[2] === 'edit' ? 'Edit / rename / deactivate values (and add)' : 'Delete values from this list';
 };
 
 // A KEY'S PARENTS (0286, public.perm_parents): holding a parent grants the
@@ -814,6 +832,15 @@ export const PERM_PARENTS: Record<string, string[]> = {
   'users.manage.details': ['users.manage'], 'users.manage.create': ['users.manage'],
   'users.manage.disable': ['users.manage'], 'users.manage.access': ['users.manage'],
   'users.manage.settings': ['users.manage'],
+  'masters.parties.add': ['masters.edit.records', 'masters.edit'],
+  'masters.parties.edit': ['masters.edit.records', 'masters.edit'],
+  'masters.parties.delete': ['masters.edit'],
+  'masters.parts.add': ['masters.edit.records', 'masters.edit'],
+  'masters.parts.edit': ['masters.edit.records', 'masters.edit'],
+  'masters.parts.delete': ['masters.edit'],
+  'masters.product_master.add': ['masters.edit.records', 'masters.edit'],
+  'masters.product_master.edit': ['masters.edit.records', 'masters.edit'],
+  'masters.product_master.delete': ['masters.edit'],
 };
 
 /** Which register's keys govern a call of this type (0287): calls / install / pm.
@@ -834,6 +861,10 @@ export const parentActions = (key: string): string[] => {
   const out = [...(PERM_PARENTS[key] ?? [])];
   const p = parentAction(key);
   if (p && !out.includes(p)) out.push(p);
+  // A list's add key is also granted by that list's edit key, and by "Add /
+  // edit master records" -- exactly who masters_insert admits (0325).
+  const add = /^master\.(.+)\.add$/.exec(key);
+  if (add) out.push(`master.${add[1]}.edit`, 'masters.edit.records');
   return out;
 };
 
@@ -844,7 +875,7 @@ export const parentAction = (key: string): string | undefined => {
   if (key.startsWith('mod:/exports/')) return 'mod:/exports';
   // Technical / Service Notes sit under Service Manuals, and open with it.
   if (key.startsWith('mod:/service-manuals/')) return 'mod:/service-manuals';
-  if (/^master\..+\.(edit|delete)$/.test(key)) return 'masters.edit';
+  if (/^master\..+\.(add|edit|delete)$/.test(key)) return 'masters.edit';
   // A section of a call is covered by the whole-call right, the same way.
   // Whoever may edit everything may edit any part of it, so a role that had
   // `calls.edit` before the sections existed loses nothing by their existing.

@@ -338,7 +338,11 @@ export function DataTable<T>({
     if (v.order) {
       const valid = v.order.filter((k) => columns.some((c) => c.key === k));
       const missing = columns.map((c) => c.key).filter((k) => !valid.includes(k));
-      setOrder([...valid, ...missing]);
+      // A column added since the layout was saved goes at the END -- except one
+      // the screen puts FIRST (Party Master's Actions, 2026-10-03), which would
+      // otherwise land thirty columns to the right of where it was put.
+      const lead = missing.filter((k) => k === columns[0]?.key);
+      setOrder([...lead, ...valid, ...missing.filter((k) => !lead.includes(k))]);
     }
     if (v.widths) setWidths((w) => ({ ...w, ...v.widths }));
     if (Array.isArray(v.hidden)) setHidden(new Set(v.hidden));

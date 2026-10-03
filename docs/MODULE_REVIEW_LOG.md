@@ -161,7 +161,7 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-10-03 — Re-review: the 42 open defects re-checked, and a fresh pass over #476–#504 (v0.10.57, on the branch, not merged)
+### 2026-10-03 — Re-review: the 42 open defects re-checked, and a fresh pass over #476–#504 (v0.10.58, on the branch, not merged)
 - **Your ask:** *"Re-review modules"*. Two halves:
   - Every defect still open in the register was re-checked against `main` at `bea2b69` (v0.10.49).
   - Everything other sessions merged from 1 to 3 October was read fresh: Warranty / Contract / Installation calls (#481–#502, 0318, 0319), and Indoor Service, Spares, Masters, Reports, Part Search and global search (#471–#504, 0308–0323).
