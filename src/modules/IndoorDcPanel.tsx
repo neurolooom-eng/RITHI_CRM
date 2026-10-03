@@ -1,9 +1,10 @@
 // ===========================================================================
 // INDOOR_DC ON THE INDOOR SERVICE SCREEN (0321, 2026-10-02).
 //
-//   IndoorDcDrawer -- "Create Indoor DC" for the Ready units ticked on the
-//                     register: To (prefilled from the Party Master, editable),
-//                     DATE, MIRN No. / Customer Ref No. and its date, Mode of
+//   IndoorDcForm   -- "Create Indoor DC": for the Ready units ticked in the
+//                     Workshop view (a drawer), or for the open job (the
+//                     right-hand pane of the job window, 2026-10-03): To
+//                     (prefilled from the Party Master, editable), DATE, MIRN No. / Customer Ref No. and its date, Mode of
 //                     Despatch, PURPOSE typed once and editable per line.
 //   IndoorDcList   -- every Indoor DC, each re-printable; the ones awaiting
 //                     the reader's approval first, with Approve / Reject.
@@ -15,7 +16,8 @@
 // THE VISITS: for every job on the DC with a UCN, the Visit Entry drafted with
 // its Indoor Service Report is filed against the call through the Visit
 // Entry's OWN save path (fileVisit, CallReporting.tsx), as the approver, with
-// the Indoor engineer as the visiting engineer -- then recorded on the job
+// the visiting engineer the drafted report names (picked on the Repair page,
+// the Indoor engineer by default) -- then recorded on the job
 // (record_indoor_visit) -- and only then is the DC approved. The database
 // refuses the approval while any visit is unfiled, so a visit that fails
 // leaves the DC pending, says why, and a retry files only what is left (the
@@ -59,10 +61,31 @@ async function consigneeText(name: string): Promise<string> {
   return [n, p.address, place.trim()].filter((x) => x && x.trim()).join('\n');
 }
 
-export function IndoorDcDrawer({ jobs, onClose, onIssued }: {
+/** A read-only value in the form's language: plain text, not a disabled box. */
+function Value({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+  return (
+    <div className="ind-field">
+      <span className="ind-label">{label}</span>
+      <span className="ind-value">{children}</span>
+      {hint ? <span className="ind-hint">{hint}</span> : null}
+    </div>
+  );
+}
+
+/** The approval as a chip -- Pending approval / Approved / Rejected (and the
+ *  pre-0323 "Issued before approval"), one hue each, the same in both themes. */
+export function ApprovalChip({ status }: { status: string }) {
+  const tone = status === 'Approved' ? 'is-approved' : status === 'Rejected' ? 'is-rejected'
+    : status === 'Pending approval' ? 'is-pending' : 'is-legacy';
+  return <span className={`ind-appr ${tone}`}>{status}</span>;
+}
+
+export function IndoorDcForm({ jobs, onClose, onIssued, inPane }: {
   jobs: IndoorJob[];
   onClose: () => void;
   onIssued: (dcNo: string) => void;
+  /** Rendered as the right-hand pane of the job window (its title is there). */
+  inPane?: boolean;
 }) {
   const navigate = useNavigate();
   const [to, setTo] = useState('');
@@ -140,66 +163,89 @@ export function IndoorDcDrawer({ jobs, onClose, onIssued }: {
   };
 
   return (
-    <div className="ind-drawer">
-      {err ? <div className="ind-warn">{err}</div> : null}
-      <p className="ind-note">
-        {jobs.length} unit{jobs.length === 1 ? '' : 's'} going to <b>{consignee || '(no consignee recorded)'}</b>:{' '}
-        {jobs.map((j) => j.job_no).join(', ')}. The DC number is issued when you create it; each unit then carries it as
-        its DC No. and the DC date. The DC is <b>pending approval</b> until the person you name under AUTHORISED BY
-        approves it — that is when the visit is filed against each call — and the units are dispatched after that.
+    <div className={`ind-form ind-dcform${inPane ? ' is-pane' : ''}`}>
+      <p className="ind-dc-lead">
+        {jobs.length} unit{jobs.length === 1 ? '' : 's'} going to <b>{consignee || '(no consignee recorded)'}</b>.{' '}
+        <span className="ind-muted">The number is issued when you create the DC; it stays <b>pending approval</b> until
+          the person under Authorised By approves it — that files the visit against each call — and the units leave after that.</span>
       </p>
-      <div className="ind-grid">
-        <label className="ind-field" style={{ gridColumn: '1 / -1' }}>
-          <span className="ind-label">To *</span>
-          <textarea rows={4} value={to} onChange={(e) => setTo(e.target.value)} />
-          <span className="ind-hint">From the Party Master where the consignee is on it. Edit as the challan should read.</span>
-        </label>
-        <label className="ind-field"><span className="ind-label">DATE</span>
-          <input value={formatDay(dcDate)} disabled />
-          <span className="ind-hint">The date of entry — set by the database.</span></label>
-        <label className="ind-field"><span className="ind-label">AUTHORISED BY *</span>
-          <SelectPicker value={authorisedBy} onChange={setAuthorisedBy}
-            placeholder={authorisers === null ? 'Reading…' : authorisers.length ? '— who approves this DC —' : '— nobody to choose —'}
-            options={(authorisers ?? []).map((a) => ({ value: a.name, label: `${a.name} — ${a.basis}` }))} />
-          <span className="ind-hint">{authorisers && !authorisers.length
-            ? 'Your User Master row names no Reporting or Regional Manager and there is no active NSM — ask an administrator to fill it.'
-            : 'Your Reporting Manager, Regional Manager (User Master) or an NSM. They approve the DC.'}</span></label>
-        <label className="ind-field"><span className="ind-label">Mode of Despatch</span>
-          <input value={mode} onChange={(e) => setMode(e.target.value)} placeholder="By hand, courier …" /></label>
-        <label className="ind-field"><span className="ind-label">MIRN No. / CUSTOMER REF No.</span>
-          <input value={ref} onChange={(e) => setRef(e.target.value)} /></label>
-        <label className="ind-field"><span className="ind-label">Its DATE</span>
-          <input type="date" value={refDate} onChange={(e) => setRefDate(e.target.value)} /></label>
-        <label className="ind-field" style={{ gridColumn: '1 / -1' }}>
-          <span className="ind-label">PURPOSE (every line)</span>
-          <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="e.g. Returned after repair" /></label>
-      </div>
+      {jobs.length > 1 ? (
+        <div className="ind-dc-units">{jobs.map((j) => <span key={j.id} className="ind-dc-unit mono">{j.job_no}</span>)}</div>
+      ) : null}
+      {err ? <div className="ind-warn" role="alert">{err}</div> : null}
 
-      <div className="table-wrap" style={{ marginTop: 10 }}>
-        <table className="table">
-          <thead><tr><th>S.No.</th><th>PART No.</th><th>DESCRIPTION</th><th>QTY.</th><th>PURPOSE</th></tr></thead>
-          <tbody>
-            {shown.map((l, i) => (
-              <tr key={l.key}>
-                <td>{i + 1}</td>
-                <td className="mono">{l.partNo}</td>
-                <td>{l.description}<div className="ind-hint">{l.jobNo}{l.accessoryId ? ' · accessory' : ''}</div></td>
-                <td>{l.qty}</td>
-                <td><input value={l.purpose} onChange={(e) => {
-                  const v = e.target.value;
-                  setLines((all) => all.map((x) => (x.key === l.key ? { ...x, purpose: v, edited: true } : x)));
-                }} /></td>
-              </tr>
-            ))}
-            {shown.length === 0 ? <tr><td colSpan={5} className="ind-empty">Reading the units…</td></tr> : null}
-          </tbody>
-        </table>
-      </div>
+      <section className="ind-group" style={{ marginTop: 14 }}>
+        <div className="ind-group-head"><h4 className="ind-eyebrow">Consignee</h4></div>
+        <div className="ind-grid">
+          <label className="ind-field is-wide">
+            <span className="ind-label">To *</span>
+            <textarea rows={4} value={to} onChange={(e) => setTo(e.target.value)} />
+            <span className="ind-hint">From the Party Master where the consignee is on it. Edit it as the challan should read.</span>
+          </label>
+          <label className="ind-field"><span className="ind-label">MIRN No. / Customer Ref No.</span>
+            <input value={ref} onChange={(e) => setRef(e.target.value)} /></label>
+          <label className="ind-field"><span className="ind-label">Its date</span>
+            <input type="date" value={refDate} onChange={(e) => setRefDate(e.target.value)} /></label>
+        </div>
+      </section>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
-        <button className="btn btn-primary" onClick={() => void issue()} disabled={busy || jobs.length === 0}>
-          {busy ? 'Creating…' : 'Create Indoor DC (pending approval)'}
+      <section className="ind-group">
+        <div className="ind-group-head"><h4 className="ind-eyebrow">Despatch</h4></div>
+        <div className="ind-grid">
+          <Value label="DC date" hint="The date of entry — set by the database.">{formatDay(dcDate)}</Value>
+          <label className="ind-field"><span className="ind-label">Mode of despatch</span>
+            <input value={mode} onChange={(e) => setMode(e.target.value)} placeholder="By hand, courier …" /></label>
+          <label className="ind-field is-wide">
+            <span className="ind-label">Purpose (every line)</span>
+            <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="e.g. Returned after repair" />
+            <span className="ind-hint">Change it for one line in the table below.</span></label>
+        </div>
+      </section>
+
+      <section className="ind-group">
+        <div className="ind-group-head"><h4 className="ind-eyebrow">Approval</h4></div>
+        <div className="ind-grid">
+          <label className="ind-field is-wide"><span className="ind-label">Authorised by *</span>
+            <SelectPicker value={authorisedBy} onChange={setAuthorisedBy}
+              placeholder={authorisers === null ? 'Reading…' : authorisers.length ? '— who approves this DC —' : '— nobody to choose —'}
+              options={(authorisers ?? []).map((a) => ({ value: a.name, label: `${a.name} — ${a.basis}` }))} />
+            <span className="ind-hint">{authorisers && !authorisers.length
+              ? 'Your User Master row names no Reporting or Regional Manager and there is no active NSM — ask an administrator to fill it.'
+              : 'Your Reporting Manager, Regional Manager (User Master) or an NSM. They approve the DC.'}</span></label>
+        </div>
+      </section>
+
+      <section className="ind-group">
+        <div className="ind-group-head">
+          <h4 className="ind-eyebrow">Lines</h4>
+          <div className="ind-group-aside"><span className="ind-meta">{shown.length} line{shown.length === 1 ? '' : 's'}</span></div>
+        </div>
+        <div className="ind-lines-wrap">
+          <table className="ind-lines is-edit">
+            <thead><tr><th className="num">S.No.</th><th>Part No.</th><th>Description</th><th className="num">Qty</th><th>Purpose</th></tr></thead>
+            <tbody>
+              {shown.map((l, i) => (
+                <tr key={l.key}>
+                  <td className="num">{i + 1}</td>
+                  <td className="mono">{l.partNo || <span className="ind-muted">—</span>}</td>
+                  <td className="ind-dc-desc">{l.description}<small>{l.jobNo}{l.accessoryId ? ' · accessory' : ''}</small></td>
+                  <td className="num">{l.qty}</td>
+                  <td><input aria-label={`Purpose of line ${i + 1}`} value={l.purpose} onChange={(e) => {
+                    const v = e.target.value;
+                    setLines((all) => all.map((x) => (x.key === l.key ? { ...x, purpose: v, edited: true } : x)));
+                  }} /></td>
+                </tr>
+              ))}
+              {shown.length === 0 ? <tr><td colSpan={5} className="ind-rows-empty">Reading the units…</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div className="ind-formactions">
+        <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
+        <button type="button" className="btn btn-primary" onClick={() => void issue()} disabled={busy || jobs.length === 0}>
+          {busy ? 'Creating…' : 'Create Indoor DC'}
         </button>
       </div>
     </div>
@@ -265,7 +311,7 @@ export function IndoorDcList({ onChanged }: { onChanged?: () => void } = {}) {
     return () => { live = false; };
   }, [tick]);
   if (err) return <div className="ind-msg">Could not load the Indoor DCs: {err}</div>;
-  if (!dcs) return <p className="ind-note">Loading the Indoor DCs…</p>;
+  if (!dcs) return <p className="ind-meta">Loading the Indoor DCs…</p>;
 
   const mine = (d: IndoorDc) => d.approval_status === 'Pending approval' && d.i_may_approve;
   // AWAITING THE READER'S APPROVAL FIRST, then everything else as listed.
@@ -293,50 +339,49 @@ export function IndoorDcList({ onChanged }: { onChanged?: () => void } = {}) {
 
   const awaiting = dcs.filter(mine).length;
   return (
-    <div className="table-wrap">
-      {msg ? <div className="ind-msg">{msg}</div> : null}
-      {awaiting ? <p className="ind-warn"><b>{awaiting}</b> Indoor DC{awaiting === 1 ? ' is' : 's are'} waiting for your approval — listed first.</p> : null}
-      <table className="table">
-        <thead><tr><th>DC No.</th><th>Date</th><th>To</th><th>Units</th><th>Lines</th><th>Issued by</th><th>Authorised by</th><th>Approval</th><th /></tr></thead>
-        <tbody>
-          {ordered.map((d) => (
-            <tr key={d.id}>
-              <td className="mono">{d.dc_no}</td>
-              <td>{formatDay(d.dc_date)}</td>
-              <td>{d.consignee.split('\n')[0]}</td>
-              <td className="mono">{d.job_nos ?? ''}</td>
-              <td>{d.line_count}</td>
-              <td>{d.issued_by_name}</td>
-              <td>{d.authorised_by_name}</td>
-              <td>
-                <span className={`ind-chip ${d.approval_status === 'Approved' ? 'ind-ready' : d.approval_status === 'Rejected' ? 'ind-condemned' : d.approval_status === 'Pending approval' ? 'ind-waiting' : 'ind-closed'}`}>
-                  {d.approval_status}</span>
-                {d.approval_status === 'Approved' && d.approved_at
-                  ? <div className="ind-hint">{d.approved_by_name} · {formatDay(d.approved_at)}</div> : null}
-                {d.approval_status === 'Rejected' ? <div className="ind-hint">{d.rejection_reason}</div> : null}
-              </td>
-              <td style={{ whiteSpace: 'nowrap' }}>
-                {mine(d) ? (rejecting === d.dc_no ? (
-                  <>
-                    <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why it is rejected" />{' '}
-                    <button className="btn btn-sm" disabled={!!busy} onClick={() => void reject(d.dc_no)}>Reject</button>{' '}
-                    <button className="btn btn-sm btn-ghost" onClick={() => { setRejecting(null); setReason(''); }}>Cancel</button>
-                  </>
-                ) : (
-                  <>
-                    <button className="btn btn-sm btn-primary" disabled={!!busy} onClick={() => void approve(d)}
-                      title="Files the drafted visit against each call, then approves">
-                      {busy === d.dc_no ? 'Approving…' : 'Approve'}</button>{' '}
-                    <button className="btn btn-sm" disabled={!!busy} onClick={() => setRejecting(d.dc_no)}>Reject…</button>{' '}
-                  </>
-                )) : null}
-                <button className="btn btn-sm" onClick={() => navigate(`/indoor-dc/${encodeURIComponent(d.dc_no)}`)}>🖨 Print</button>
-              </td>
-            </tr>
-          ))}
-          {dcs.length === 0 ? <tr><td colSpan={9} className="ind-empty">No Indoor DC has been issued yet.</td></tr> : null}
-        </tbody>
-      </table>
+    <div className="ind-form ind-dclist">
+      {msg ? <div className="ind-warn" role="status">{msg}</div> : null}
+      <p className="ind-meta ind-dclist-count">
+        {dcs.length} Indoor DC{dcs.length === 1 ? '' : 's'}
+        {awaiting ? <> · <b>{awaiting} waiting for your approval</b>, listed first</> : null}
+      </p>
+      {ordered.map((d) => (
+        <div key={d.id} className={`ind-dcrow${mine(d) ? ' is-mine' : ''}`}>
+          <div>
+            <div className="ind-dcrow-no">{d.dc_no}</div>
+            <div className="ind-dcrow-sub">{formatDay(d.dc_date)} · {d.line_count} line{d.line_count === 1 ? '' : 's'}
+              {d.job_nos ? <><br /><span className="mono">{d.job_nos}</span></> : null}</div>
+          </div>
+          <div>
+            <div className="ind-dcrow-to">{d.consignee.split('\n')[0]}</div>
+            <div className="ind-dcrow-sub">Issued by {d.issued_by_name || '—'} · authorised by {d.authorised_by_name || '—'}</div>
+          </div>
+          <div className="ind-dcrow-state">
+            <ApprovalChip status={d.approval_status} />
+            {d.approval_status === 'Approved' && d.approved_at
+              ? <span className="ind-dcrow-sub">{d.approved_by_name} · {formatDay(d.approved_at)}</span> : null}
+            {d.approval_status === 'Rejected' && d.rejection_reason
+              ? <span className="ind-dcrow-sub">{d.rejection_reason}</span> : null}
+          </div>
+          <div className="ind-dcrow-acts">
+            {mine(d) && rejecting !== d.dc_no ? (<>
+              <button className="btn btn-sm btn-primary" disabled={!!busy} onClick={() => void approve(d)}
+                title="Files the drafted visit against each call, then approves">
+                {busy === d.dc_no ? 'Approving…' : 'Approve'}</button>
+              <button className="btn btn-sm" disabled={!!busy} onClick={() => setRejecting(d.dc_no)}>Reject…</button>
+            </>) : null}
+            <button className="btn btn-sm btn-ghost" onClick={() => navigate(`/indoor-dc/${encodeURIComponent(d.dc_no)}`)}>🖨 Print</button>
+          </div>
+          {mine(d) && rejecting === d.dc_no ? (
+            <div className="ind-dcrow-reject">
+              <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why it is rejected" aria-label={`Why ${d.dc_no} is rejected`} />
+              <button className="btn btn-sm btn-danger" disabled={!!busy || !reason.trim()} onClick={() => void reject(d.dc_no)}>Reject</button>
+              <button className="btn btn-sm btn-ghost" onClick={() => { setRejecting(null); setReason(''); }}>Cancel</button>
+            </div>
+          ) : null}
+        </div>
+      ))}
+      {dcs.length === 0 ? <p className="ind-rows-empty">No Indoor DC has been issued yet.</p> : null}
     </div>
   );
 }

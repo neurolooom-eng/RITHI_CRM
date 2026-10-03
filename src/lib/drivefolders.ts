@@ -20,7 +20,7 @@
 // in step — `check:ui` compares them word for word.
 // ===========================================================================
 
-export type DriveFolder = 'field' | 'installation' | 'pm' | 'kyc' | 'additional';
+export type DriveFolder = 'field' | 'installation' | 'pm' | 'kyc' | 'additional' | 'indoor';
 
 export const DRIVE_FOLDER_NAMES: Record<DriveFolder, string> = {
   field: 'Field Reports',
@@ -28,6 +28,10 @@ export const DRIVE_FOLDER_NAMES: Record<DriveFolder, string> = {
   pm: 'PM Reports',
   kyc: 'KYC',
   additional: 'Additional Reports',
+  // The Indoor Service report (the user, 2026-10-03: "The reports should be
+  // saved to" the INDOOR Service Reports folder -- in the same Reports shared
+  // drive, so it is resolved by name like the rest).
+  indoor: 'INDOOR Service Reports',
 };
 
 // WHICH FOLDER A VISIT REPORT BELONGS IN, from the call's own type — and this

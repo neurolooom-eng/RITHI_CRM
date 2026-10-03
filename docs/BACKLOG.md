@@ -75,6 +75,52 @@ up)_
 
 ---
 
+## 2026-10-03 — Indoor Service: the job as a window, the DC beside it, the visit engineer picked, a job deleted (0324)
+
+The user asked for five things on the Indoor Service screen: the Visiting
+Service Engineer on the Repair page's report editable; the job as a pop-up
+window and Create DC side by side in it (it used to open a drawer BEHIND the
+job); the DC form and list in the job form's look; deleting a job PERMANENTLY
+("Allow Admin by default, rest I will update from Roles & Permissions"); and the
+register in the app's own table.
+
+- **Shipped (on the branch):**
+  - `0324_indoor_delete_job.sql` (indoor): `delete_indoor_job(job_id, reason)`
+    -- indoor.delete, a reason, refused for a job with a DC No., on any Indoor
+    DC line (a rejected DC included) or with its visit filed; deletes the
+    accessories, parts, checks and PDT, then the job; the counter untouched;
+    audit_log `indoor.job_delete`. DELETE on indoor_jobs / indoor_pdt revoked
+    from the API roles. Execute: authenticated yes, anon no. NOTHING GRANTED --
+    `indoor.delete` is on FUNCTIONAL_ACTIONS and the /indoor PERM_TREE row only.
+  - The visit engineer: NO database change. Nothing pinned it to the session
+    (reports' policies ask call_perm(); record_indoor_visit() and the guard ask
+    the visit's call and its three fixed values, never its engineer) --
+    `indoor_delete_job_test` section 5 proves a visit naming a third person is
+    recorded and its DC approved. The screen: `useActivePeople()` (access.ts),
+    the pick in CallReportDrawer's Indoor mode, the email from the User Master.
+  - Screens: `IndoorJobWindow` (centred, two panes with a divider remembered
+    in `rithi.indoor.split`), `IndoorDcForm` (renamed from IndoorDcDrawer) and
+    the DC list restyled with approval chips, `DeleteJobAction`, the R/SER/07
+    register on DataTable (`indoorRegister.rser07`).
+  - The Indoor Service Report file now goes to the shared drive's "INDOOR
+    Service Reports" folder (DriveFolder `indoor`; the CallReg.gs key needs the
+    Web App redeployed before it takes effect).
+  - The two older suites that expected a direct DELETE to match zero rows
+    (`indoor_service_test` 14, `indoor_register_pdt_test` 14) now expect the
+    refusal.
+  - Requirements URS-175, FRS-237-239 (FRS-233/234 amended), OQ-228
+    (`indoor_delete_job_test`), OQ-229 (manual); `_status.sql` row 255.
+- **Pending:** the merge's "Apply database migrations" run applies 0324 -- read
+  its log; then row 255 reads yes.
+- **Left open:** audit_log is purged after its retention period (0033/0047), so
+  the deletion's trail lasts as long as audit_log does -- a permanent deletion
+  record would need a table of its own; the Workshop view's own table (the
+  ticked-units list) is still hand-built; the visit engineer may be anyone
+  active, so an engineer with no hand stock of the drafted spares makes the
+  approval fail at the consumption cap (the message says so).
+
+---
+
 ## 2026-10-02 — Indoor Service in stages; the Indoor DC approved by its Authorised By, filing the visit (0323)
 
 The user described the workshop's WORKFLOW as stages and asked for the screen to

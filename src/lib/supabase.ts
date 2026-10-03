@@ -5951,6 +5951,15 @@ export async function recordIndoorVisit(jobId: number, visitUid: string, complet
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+/** Delete an Indoor Service job PERMANENTLY with its accessories, parts,
+ *  checks and PDT (0324). The database asks indoor.delete, needs the reason,
+ *  refuses a job a DC or a filed visit names, and writes the audit row itself.
+ *  Returns the deleted job's number. */
+export async function deleteIndoorJob(jobId: number, reason: string): Promise<{ ok: boolean; jobNo?: string; error?: string }> {
+  const { data, error } = await must().rpc('delete_indoor_job', { p_job_id: jobId, p_reason: reason });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, jobNo: String(data ?? '') };
+}
+
 /** The jobs on one Indoor DC, in print order (the equipment lines). */
 export async function indoorJobsOnDc(dcId: number): Promise<IndoorJob[]> {
   const c = must();

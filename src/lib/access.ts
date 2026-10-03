@@ -192,6 +192,42 @@ export function useTeamEngineers(current?: string): { names: string[]; canPick: 
   return { names, canPick: names.length > 1, ready: scope.ready && (!scope.all || directory.length > 0) };
 }
 
+// ---------------------------------------------------------------------------
+// EVERY ACTIVE PERSON ON THE USER MASTER, WITH THEIR EMAIL.
+//
+// The Indoor Service Report's "Visiting Service Engineer" (the user,
+// 2026-10-03): the unit was worked on in the WORKSHOP, so the engineer is
+// whoever in the company attended it -- not limited to the reporter's own team
+// the way useTeamEngineers() limits a field visit. Active rows only, for the
+// reason given there; `current` is kept so a name already on a draft still
+// reads after that person leaves. The email is the User Master's Email ID (else
+// its GMAIL ID), so the visit's engineer_email names the same person as its
+// engineer.
+// ---------------------------------------------------------------------------
+export interface Person { name: string; email: string }
+export function useActivePeople(current?: Person): { people: Person[]; ready: boolean } {
+  const [rows, setRows] = useState<Person[] | null>(null);
+  useEffect(() => {
+    if (!dataConfigured()) { setRows([]); return; }
+    let cancelled = false;
+    void loadUserMaster().then((all) => {
+      if (cancelled) return;
+      const seen = new Map<string, Person>();
+      all.filter((r) => !/^(false|no|0|inactive)$/i.test(String(r['Validity'] ?? '').trim()))
+        .forEach((r) => {
+          const name = pick(r, H_NAME);
+          if (!name || seen.has(norm(name))) return;
+          seen.set(norm(name), { name, email: pick(r, H_EMAIL) || pick(r, H_GMAIL) });
+        });
+      setRows([...seen.values()]);
+    });
+    return () => { cancelled = true; };
+  }, []);
+  const list = [...(rows ?? [])];
+  if (current?.name.trim() && !list.some((p) => norm(p.name) === norm(current.name))) list.push(current);
+  return { people: list.sort((a, b) => a.name.localeCompare(b.name)), ready: rows !== null };
+}
+
 const H_REGION = ['REGION', 'Region', 'Zone'];
 
 // ---------------------------------------------------------------------------
