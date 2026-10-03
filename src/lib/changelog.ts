@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.67',
+    date: '2026-10-03',
+    title: 'Twelve High-rated defects fixed: hand stock, spare approvals, calls, reviews, masters, Indoor',
+    changes: [
+      'HAND STOCK: the stock limit now applies on every route. Marking a booking, transfer or return as "imported" no longer gets round it -- only Bulk Uploads and the Data Import panel load history. A recorded transfer cannot be re-pointed or back-dated (record a transfer back instead). A return must be your own stock unless you may return for others. Stores cannot cut an issued quantity or remove an opening balance below what the engineer has used -- correct it with Adjust stock.',
+      'SPARE REQUESTS: once the RM has approved or rejected a spare, its part and quantity are fixed -- raise a new request for something else. A request moves to another engineer only through Change engineer. Item Status is always the call\'s.',
+      'CALLS AND REVIEWS: you can re-open, close, cancel or restore only a call you can see, and a review is saved only on a call you can see -- so a Field Failure Report is never raised in your name on somebody else\'s call.',
+      'MASTERS: a party\'s name, a product line\'s code and a part\'s code change only through Rename, so nothing can be renamed and then deleted while records still name it.',
+      'INDOOR SERVICE: a job that has been verified, PDT-signed, reported to the customer, condemned or had its report uploaded is a quality record and is not deleted. A job received in error is deleted exactly as before.',
+      'Product Database 2.0 and three helper functions can no longer be reached without signing in. Nothing anybody does on a screen today is refused by these changes.',
+    ],
+  },
+  {
     version: '0.10.66',
     date: '2026-10-03',
     title: 'Second re-review of every module',

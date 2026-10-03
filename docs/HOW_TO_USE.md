@@ -120,6 +120,9 @@ cancelled** — a call that was visited and closed, or re-opened, cannot, becaus
 cancelling it would take what was done out of every count. The database refuses
 it too, not just the button. There is no closing a call without a visit: enter
 the visit that happened, or cancel a call that should not have been raised.
+**You can cancel, restore, re-open or close only a call you can see** — your
+own, your team's, or every call if your role sees everything. A right ticked
+on Roles & Permissions does not reach another team's calls.
 
 ## Getting data in
 
@@ -267,6 +270,11 @@ against the call it was fitted to.
    > request in line, open it and press **↻ Update from call**, or tick several
    > in the register and press it once. Lines already past RM approval keep the
    > approval route they were given; only what the request shows changes.
+   > Item Status always reads the call's — it cannot be set to anything else.
+   > **Once the RM has approved or rejected a spare, its part and quantity are
+   > fixed.** To ask for a different part or more of it, raise a new request.
+   > **Moving a request to another engineer is ✎ Change engineer** — it needs its
+   > own permission and a reason, and is kept on record. Nothing else moves it.
 2. **RM Approval** `/spare-rm-approval` — the queue shows the complaint, machine,
    serial and cover, because "is this part plausible for this fault?" is most of
    the decision. Tick several and approve or reject them at once; a rejection needs a reason.
@@ -307,6 +315,11 @@ against the call it was fitted to.
   > correct one, record another the other way — and a removal cannot take them
   > below zero. This replaces WinMax's *eBizWiz Admin* account, whose opening
   > stock has been removed.
+  > **The cap applies on every route.** Marking a booking, transfer or return
+  > as "imported" no longer lets it past the limit — only Bulk Uploads and the
+  > Data Import panel load history. Stores cannot lower an issued quantity or
+  > remove an opening balance below what the engineer has already used; a
+  > correction is a **± Adjust stock**, which is checked and kept.
 - **Material Returns (MRN)** `/mrn` — parts back to Stores; the return takes the
   stock off the engineer's balance. Open a return and press **Print MRN** for the
   **Material Return Note R/SER/STR/002** (landscape A4): the engineer and their
@@ -315,6 +328,8 @@ against the call it was fitted to.
   equipment, hand stock, and Good / Damaged. It prints only what the return
   holds — **Store Dept. Use**, **Authorized By** and **Received By** are left for
   Stores to write; **Entered By** is whoever keyed the return.
+  > **A return is your own stock.** Returning for another engineer needs *Return
+  > stock for another engineer* (Stores and the approvers hold it).
 - **Stock Transfer** `/stock-transfer` — hand stock between engineers. A transfer
   to the same person is held back and named. Each part can carry a **reason of
   its own** besides the common Remarks. **🖨 MTN** on a transfer prints the
@@ -323,13 +338,16 @@ against the call it was fitted to.
   reason or else the common remark, Issued By (the sending engineer and the
   date) and Entered By (who keyed it). **Received By is blank** — RITHI does not
   record the receipt of a transfer — and Authorised By is signed by hand.
+  > **A recorded transfer is not re-pointed.** Its engineers and date cannot be
+  > changed afterwards; if it went to the wrong person, record a transfer back.
 
 ## Quality
 
 - **Daily Complaint Review Register (R/SER/35)** `/daily-review` — the DCCR,
   where every solved call is reviewed. **Review 1** is the vigilance answer
   taken at registration; **Review 2** asks what the failure was; **Review 3**
-  classifies it.
+  classifies it. A review is saved only on a call you can see — so a Field
+  Failure Report is never raised in your name on somebody else's call.
   > **Frequent failure has two rules.** **Rule 1** — this machine failing again
   > (same product and serial) within the window. **Rule 2** — the same complaint
   > on **different serial numbers** of one product within 30 days, which is a
@@ -778,13 +796,16 @@ typed into a form that reads it.
   Load it under **Bulk Uploads → Product Master (product lines)**, or add one
   line with **＋ Add entry** — Product Code and Product Name are required, and a
   code already there is refused rather than overwritten.
-  **✎ Edit** on a row changes everything but the code; **🗑 Delete** is refused
-  while any machine, sale or contract carries the code — mark it Inactive instead.
+  **✎ Edit** on a row changes everything but the code — the code cannot be
+  changed any other way either; **🗑 Delete** is refused while any machine, sale
+  or contract carries the code — mark it Inactive instead.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
   > **✎ Edit**, **⊘ Deactivate** and **🗑 Delete** are on every row, each with
   > its own Part Master permission. Delete is refused while any spare request,
   > stock or consumption record names the part — deactivate it instead.
+  > A part's **code and description change only with Rename part**, which moves
+  > every record that names it; they cannot be changed any other way.
   > **HSN Code** has its own column: set it on *＋ Add part* or the edit drawer
   > (digits only), or with an **HSN Code** column in the Part Master upload. The
   > 29 parts that used to carry "(HSN:…)" in their description had it moved
@@ -1267,7 +1288,11 @@ typed into a form that reads it.
   Testing are removed, the number is not used again, and the deletion is
   recorded with your name and the reason. A job that has been on **any** Indoor
   DC (even a rejected one), or whose visit has been filed on its call, cannot
-  be deleted.
+  be deleted. **Nor can a job that has been worked on**: verified or
+  re-verified, its Pre-Delivery Testing signed, reported to the customer,
+  condemned or disposed of, or its report uploaded — those are quality records.
+  A QC result, checks, parts or an unsigned PDT on a job received in error do
+  not stop the deletion.
   > A job does not need a call — a demo unit has none, and files no visit. A
   > harvested part cannot go back into stock until decontamination is recorded.
 

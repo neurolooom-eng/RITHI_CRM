@@ -161,6 +161,48 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-10-03 — High-rated batch 2: twelve defects from the second re-review fixed (v0.10.67, 0332–0339, on the branch, not merged)
+- **Your ask:** *"Start fixing the High defects. Ensure it doesn't insert any breaking changes. Update the documents / how rithi works / how to RITHI appropriately"*.
+- **How "no breaking change" was made true, not assumed:**
+  - Every fix began by reading the rule's LIVE definition and every app and database path that writes those columns.
+  - The honest paths are named in each migration's header: the importers, the screens, renames, receipts, Change engineer, the follow-the-call refresh, the DCCR upload, and 0324's own deletion.
+  - Where a writer was only ever an importer, the importer keeps the old rule (`bulk.upload` / `import.panel`, or no signed-in user).
+  - Where a client value could only be honest or forged, it is **discarded, not refused** (the 0113/0114 rule): a forged import marker, and an Item Status other than the call's.
+  - **`high_batch_2_test` proves both halves in every section**: the hole is closed AND the honest path beside it still works. 25 refusals, every one labelled. Run on a database WITHOUT 0332–0339, 22 of the 25 expectations go unmet.
+- **Fixed:**
+  - **D-118 (0339):** an import marker is the importer's alone. Anyone else's is dropped before the stock guards read it.
+  - **D-119 (0339):** a recorded transfer is not re-pointed or back-dated.
+  - **D-122 (0339):** a return is the returner's own stock, checked on the name the stock is counted by.
+  - **D-123 (0339):** a lower stock-out quantity or opening balance, or a delete, never leaves an engineer below zero. Both tables are imaged.
+  - **D-120 (0332):** part and quantity are fixed once the RM has decided. This is a trigger of its own; `spare_request_lines_guard` is untouched.
+  - **D-121 (0332):** the engineer moves only by Change engineer. Item Status follows the call; the request type is kept.
+  - **D-127 (0333):** re-open, close, close-again, cancel and restore need sight of the call. The five functions were redefined from their live bodies with one check added.
+  - **D-135 (0335):** a party name, part code and product code change only through a rename.
+  - **D-141 (0336):** a verified, PDT-signed, reported, condemned or report-uploaded Indoor job is not deleted.
+  - **D-126 (0337):** Product Database 2.0's stored copy is closed to the public key.
+  - **D-133 (0338):** three helpers are closed to the public key.
+- **Partly fixed:** D-128 (0334). A review needs a real call the writer can see; reading every review is still open to every signed-in user, because narrowing it changes counts on screens.
+- **Two bugs the suite caught in my own first drafts, both fixed before anything was recorded:**
+  - **The sight check answered NULL, not false, for a call with no creator recorded,** so it waved such calls through. Fixed with `coalesce`, and the reason is written in 0333.
+  - **The Indoor delete counted the empty re-verifier text as "re-verified"** and refused a job received in error. Fixed.
+- **One rule narrowed to keep your decision:** 0324's own suite deletes a job carrying a QC result, checks, parts and an unsigned PDT as a duplicate intake. So none of those is a trace, and that deletion works exactly as before.
+- **Existing suites changed, because what they assumed is now refused:**
+  - `material_returns_test` section 8 loads its imported history with no session.
+  - `admin_keys_grantable_test`'s two reviewer roles now see the call they review.
+  - Both say why in the file.
+- **Not in this batch:**
+  - **D-142** (namesake approval) — FRS-235.3 itself specifies the name match, so it needs your decision.
+  - The rest of the open High defects need a decision, as listed under each.
+- **Documents updated:**
+  - `docs/HOW_TO_USE.md`: calls, spare requests, hand stock, returns, transfers, review, Product and Part Master, Indoor deletion.
+  - How RITHI Functions: hand stock, spares, calls, masters and quality, plus the Spare module schema.
+  - A stale line corrected: the Change engineer "Why" was described as optional; it has been required since 0313.
+  - Eleven requirement texts amended.
+  - OQ-238 added.
+  - `_status.sql` rows 264–271.
+  - DATABASE_SCHEMA.md regenerated.
+- **Merged `main` twice on the way:** #520 took 0331 and v0.10.65, so the stock migration is 0339 and the re-review is v0.10.66.
+
 ### 2026-10-03 — Second re-review: every open defect re-checked at `1cdceb0`, and a fresh pass over every module (v0.10.66, on the branch, not merged)
 - **Your ask:** *"Re-review all the modules"*.
 - **Method:** seven readers in parallel, each on its own copy of a database built from all 344 migrations, every write tried as a signed-in user. Two re-checked the 59 open or partly fixed defects; five read every module fresh — Masters, Indoor Service, Cover and sales (including the dealer workflow, #515, and the transferred-machine address, #516), Service Calls with Quality and Overview, and Spares with Reports and Administration.

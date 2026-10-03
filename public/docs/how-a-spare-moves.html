@@ -364,6 +364,8 @@ footer code{font-size:12.5px}
         <li><span class="tag db">Trigger</span>At most twenty: <i>"A spare request may carry at most 20 parts"</i>; and <i>"Quantity must be at least 1"</i>.</li>
         <li><span class="tag">Form</span>The part is <b>picked from the Part Master</b>, never typed. An empty list says whether it is still loading or the master has no part for that product.</li>
         <li><span class="tag db">Policy</span>Saving the request and its lines needs <b>Request spares</b>.</li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>Item Status is the call's</b> (0332): taken from the call when the request is saved, and afterwards changed only to the call's own value — by the call itself or <b>↻ Update from call</b>. Any other value is kept as it was; the request type stays as raised. That is what makes the cover a fair decider of the approval chain.</li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>Part and quantity are fixed once the RM has decided</b> (0332): <i>"Spare … has been approved by the RM: its part and quantity are what was approved and are not changed afterwards — raise a new request instead"</i>. Until then the engineer who raised it may still change them.</li>
       </ul>
     </div>
   </section>
@@ -519,13 +521,19 @@ footer code{font-size:12.5px}
         Once any spare on the order has gone out the name is fixed: the parts are counted in that
         engineer's hand stock, so moving them is a <b>Stock Transfer</b>.
       </p>
+      <p>
+        <b>This is the only way the engineer changes</b> (0332) — before dispatch as well as after. A
+        plain edit of the engineer is refused by the database, so every move has its permission, its
+        reason and its line under <b>Engineer on this order</b>.
+      </p>
     </div>
     <div class="side out">
       <h3>Restrictions &amp; mandates</h3>
       <ul>
         <li><span class="tag">Function</span>After dispatch: <i>"OR … has already been dispatched — the parts are in …'s hands, so the engineer cannot be changed. Use a stock transfer instead."</i></li>
         <li><span class="tag">Function</span>Without the right: <i>"Changing the engineer on a spare request needs "Change the engineer on a spare request""</i>.</li>
-        <li>The <b>Why</b> box is optional on the screen and in the database.</li>
+        <li class="mandate"><span class="tag db">Function</span>The <b>Why</b> is required, on the screen and in the database (0313): <i>"Say why the order is moving to another engineer — the reason is kept with the record"</i>.</li>
+        <li class="mandate"><span class="tag db">Trigger</span>Any other change of engineer: <i>"The engineer on … is changed with "Change engineer", which needs its key and a reason and keeps the change on record"</i> (0332).</li>
       </ul>
     </div>
   </section>
