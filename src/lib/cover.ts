@@ -17,7 +17,6 @@ import { dayAfter, addPeriod, todayLocal } from './dates';
 import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears,
          inheritAllPatch, isPinnedValue, installCallFromSale, machinesNeedingInstallCall,
          coverStatus, contractPmVisits, periodEnd, withAnotherCustomer, TRANSFERRED_AWAY,
-         isDealerType, DEALER_NO_INSTALL,
          type SaleForCall, type SaleItemForCall } from './coverspec';
 
 export type CoverKind = 'sale' | 'contract';
@@ -39,7 +38,7 @@ export interface CoverField {
    *  machine on record (the user, 2026-10-02, for the Contract Register: a
    *  contract covers machines already installed, so its party is one that
    *  owns them). Picked from the list, never typed. */
-  optionsFrom?: 'sellable-name' | 'sellable-code' | 'party' | 'product-party' | 'dealer';
+  optionsFrom?: 'sellable-name' | 'sellable-code' | 'party' | 'product-party';
   section: string;
   /** THE FORM DOES NOT ASK FOR THIS ONE — it is worked out, or it is stamped.
    *  Shown, and not typeable: a box somebody can type into is a box whose value
@@ -140,8 +139,7 @@ export const SALE: CoverConfig = {
     { name: 'entry_at', label: 'Sale Entry Date', type: 'date', section: 'Sale',
       derived: 'stamped when the entry is created' },
     { name: 'party_name', label: 'Party Name', section: 'Sale', optionsFrom: 'party' },
-    // THE DEALER (the user, 2026-10-03): only Party Master entries typed DEALER.
-    { name: 'sold_through', label: 'Sold Through', section: 'Sale', optionsFrom: 'dealer' },
+    { name: 'sold_through', label: 'Sold Through', section: 'Sale' },
     { name: 'invoice_no', label: 'Invoice No', section: 'Sale' },
     { name: 'invoice_date', label: 'Invoice Date', type: 'date', section: 'Sale' },
     { name: 'party_type', label: 'Type', type: 'select', options: ['', 'CUSTOMER', 'DEALER'], section: 'Sale' },
@@ -191,7 +189,7 @@ export const SALE: CoverConfig = {
     { name: 'warranty_status', label: 'Warranty Status', section: 'Warranty', inherits: true },
     { name: 'invoice_no', label: 'Invoice No', section: 'Sale', inherits: true },
     { name: 'invoice_date', label: 'Invoice Date', type: 'date', section: 'Sale', inherits: true },
-    { name: 'sold_through', label: 'Sold Through', section: 'Sale', inherits: true, optionsFrom: 'dealer' },
+    { name: 'sold_through', label: 'Sold Through', section: 'Sale', inherits: true },
     { name: 'other_details', label: 'Other Details', type: 'textarea', section: 'Sale', inherits: true },
     { name: 'state', label: 'State', section: 'Installation', inherits: true },
     { name: 'city', label: 'City', section: 'Installation', inherits: true },
@@ -349,19 +347,13 @@ export async function listHeaders(kind: CoverKind, f: HeaderFilter, offset = 0, 
   if (sale && f.pendingInstall) q = pendingLines(q, 'has_pending').limit(1, { referencedTable: 'has_pending' });
   if (f.number) q = q.ilike(cfg.key, like(f.number));
   if (f.party) q = q.ilike('party_name', like(f.party));
-  // ONE `or` PARAMETER: the search and, when filtering pending, "not a dealer"
-  // (0328) as one logic tree -- two separate `or`s are not a combination
-  // PostgREST documents.
-  const ors = [f.q ? `or(${cfg.key}.ilike.${like(f.q)},party_name.ilike.${like(f.q)})` : '',
-               sale && f.pendingInstall ? NOT_DEALER : ''].filter(Boolean);
-  if (ors.length) q = q.or(`and(${ors.join(',')})`);
+  if (f.q) q = q.or(`${cfg.key}.ilike.${like(f.q)},party_name.ilike.${like(f.q)}`);
   const { data, error } = await q;
   if (error) throw err(error);
   return (data ?? []).map((r) => {
     const { items, pending, has_pending: _hp, ...rest } = r as unknown as Row & { items?: { count: number }[]; pending?: { count: number }[]; has_pending?: unknown };
     return { ...rest, item_count: items?.[0]?.count ?? 0,
-             // A dealer's sale waits for no call of its own (0328).
-             ...(sale ? { pending_install: isDealerType(rest.party_type) ? 0 : pending?.[0]?.count ?? 0 } : {}) };
+             ...(sale ? { pending_install: pending?.[0]?.count ?? 0 } : {}) };
   });
 }
 
@@ -371,9 +363,7 @@ export async function countPendingSales(f: { q?: string }): Promise<number> {
   let q = client().from(cfg.headerTable)
     .select(`id, has_pending:${cfg.itemTable}!inner(id)`, { count: 'exact', head: true });
   q = pendingLines(q, 'has_pending');
-  // One `or`: the search and "not a dealer" (0328), as listHeaders does.
-  const ors = [f.q ? `or(${cfg.key}.ilike.${like(f.q)},party_name.ilike.${like(f.q)})` : '', NOT_DEALER].filter(Boolean);
-  q = q.or(`and(${ors.join(',')})`);
+  if (f.q) q = q.or(`${cfg.key}.ilike.${like(f.q)},party_name.ilike.${like(f.q)}`);
   const { count, error } = await q;
   if (error) throw err(error);
   return count ?? 0;
@@ -434,10 +424,7 @@ export async function listItems(kind: CoverKind, key: string): Promise<Row[]> {
 // ON THE SERVER, because the register is paged: a filter over the rows loaded
 // so far would answer "pending among the first 2,000", which reads as all.
 const UCN_PATTERN = '^[0-9]{2}[A-La-l][0-9]{2}[A-Za-z][0-9]{4}$';
-// A DEALER'S MACHINE IS NEVER "PENDING" (0328): it gets no installation call
-// of its own -- the transfer raises the customer's.
-const NOT_DEALER = 'or(party_type.is.null,party_type.not.ilike.dealer)';
-const PENDING_INSTALL = `and(product_name.neq.,serial_number.neq.,or(inst_call.is.null,inst_call.not.imatch."${UCN_PATTERN}"),${NOT_DEALER})`;
+const PENDING_INSTALL = `and(product_name.neq.,serial_number.neq.,or(inst_call.is.null,inst_call.not.imatch."${UCN_PATTERN}"))`;
 const searchExpr = (cfg: CoverConfig, text: string) => {
   const t = like(text);
   return `serial_number.ilike.${t},product_name.ilike.${t},party_name.ilike.${t},${cfg.key}.ilike.${t}`;
@@ -594,10 +581,6 @@ export async function forceInherit(kind: CoverKind, key: string): Promise<number
 export async function raiseInstallCalls(
   header: Row, items: Row[], onProgress?: (done: number, total: number) => void,
 ): Promise<{ created: { serial: string; ucn: string }[]; error?: string }> {
-  // A DEALER GETS NO INSTALLATION CALL (the user, 2026-10-03; 0328 refuses it
-  // in the database too): the call is raised from the Ownership Transfer when
-  // the dealer sells the machine.
-  if (isDealerType(header.party_type)) return { created: [], error: DEALER_NO_INSTALL };
   const todo = machinesNeedingInstallCall(items as SaleItemForCall[]) as Row[];
   const created: { serial: string; ucn: string }[] = [];
   for (const it of todo) {

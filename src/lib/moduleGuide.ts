@@ -247,7 +247,6 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Converting needs the right to create contracts; it warns if the sale is already on a contract',
       'Converting never offers a machine now with a different customer: it is listed apart as "Product serial number was transferred to a different customer"',
       'Save the entry before raising installation calls; a line needs both a Product and a Serial to get one',
-      'A sale to a DEALER gets no installation call — it is raised from the Ownership Transfer when the dealer sells the machine; Sold Through lists dealers only',
       'Changing the customer replaces all the filled-in details, blanks included',
       'A retired product line takes no new sale',
     ],
@@ -279,7 +278,6 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'One row per machine changing hands, plus warranty and contract details recovered for machines whose sale paperwork was lost.',
     does: [
       'Record a transfer: serial, To party, date, reference, reason, document',
-      'Raise the installation call for the customer a dealer sold the machine to: + Installation call on the transfer (OT-PRODUCT-SERIAL, dated the transfer date)',
       'Add entry details for a machine with no sale record',
       'Search either tab',
     ],
@@ -288,7 +286,6 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Leave From Party blank and it fills from whoever holds the machine now',
       'The machine follows the latest transfer; a back-dated one does not undo a later one',
       'There is no edit or delete of a transfer on this screen',
-      'Sold Through is the From party when the Party Master types it DEALER — filled in by the system, and shown in the Product Database',
     ],
   },
 

@@ -1774,21 +1774,7 @@ with checks(sort_order, bundle, provides, present) as (
          and coalesce((select p.prosrc like '%was issued by you%' and p.prosrc like '%spare_consumption%'
                          from pg_proc p where p.oid = to_regprocedure('public.approve_indoor_dc(text,boolean)')), false)
          and coalesce((select p.prosrc like '%rithi.indoor_visit%'
-                         from pg_proc p where p.oid = to_regprocedure('public.record_indoor_visit(bigint,text,boolean)')), false))),
-    (260, 'Sold Through is the dealer, and a dealer gets no installation call', 'party_is_dealer() (a Party Master entry typed DEALER); ownership_transfers.sold_through stamped from a dealer From party (ownership_transfer_sold_through); the Product Database''s Sold Through follows the latest dealer transfer (machine_sold_through, inside upsert_product_from_sale and transfer_to_product); installation_call_not_for_dealer refuses a signed-in installation call for a dealer; the Sold Through 0318 cleared put back once (one_time_fixes_done 0328_sold_through_restored) (0328). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0328)',
-        (to_regprocedure('public.party_is_dealer(text)') is not null
-         and not has_function_privilege('anon', to_regprocedure('public.party_is_dealer(text)'), 'EXECUTE')
-         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'ownership_transfers' and column_name = 'sold_through')
-         and exists (select 1 from pg_trigger where tgname = 'ownership_transfer_sold_through' and tgrelid = to_regclass('public.ownership_transfers'))
-         and exists (select 1 from pg_trigger where tgname = 'installation_call_not_for_dealer' and tgrelid = to_regclass('public.installation_calls'))
-         and to_regprocedure('public.machine_sold_through(text,text)') is not null
-         and coalesce((select p.prosrc like '%machine_sold_through%'
-                         from pg_proc p where p.oid = to_regprocedure('public.upsert_product_from_sale(bigint)')), false)
-         and coalesce((select p.prosrc like '%machine_sold_through%'
-                         from pg_proc p where p.oid = to_regprocedure('public.transfer_to_product()')), false)
-         and (to_regclass('public.one_time_fixes_done') is null
-              or exists (select 1 from public.one_time_fixes_done where name = '0328_sold_through_restored')
-              or not exists (select 1 from public.one_time_fixes_done where name = '0318_warranty_party_refresh'))))
+                         from pg_proc p where p.oid = to_regprocedure('public.record_indoor_visit(bigint,text,boolean)')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

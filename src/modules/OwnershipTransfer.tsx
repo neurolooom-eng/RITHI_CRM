@@ -10,9 +10,7 @@ import { LongDateInput } from '../components/ui/LongDate';
 import {
   listOwnershipTransfers, addOwnershipTransfer, listAdditionalEntries, saveAdditionalEntry,
   supabaseConfigured, type OwnershipTransfer as OT, type AdditionalEntry as AE,
-  addCall, sbPartyInfo, installCallByNumber, machineCover,
 } from '../lib/supabase';
-import { installCallFromTransfer, transferCallNumber } from '../lib/coverspec';
 
 // ===========================================================================
 // OWNERSHIP TRANSFER — where a machine has been, and who has it now.
@@ -38,11 +36,6 @@ export function OwnershipTransfer() {
   const live = supabaseConfigured();
   const mayMove = live && can('ownership.transfer');
   const mayCover = live && can('cover.edit.entries');
-  // THE INSTALLATION CALL A DEALER'S SALE WAITS FOR (the user, 2026-10-03):
-  // raised from the transfer, for the customer, numbered OT-PRODUCT-SERIAL,
-  // dated the transfer date. The same key that raises one from a sale.
-  const mayInstall = live && can('install.create');
-  const [raising, setRaising] = useState<number | null>(null);
 
   const [tab, setTab] = useState<Tab>('transfers');
   const [transfers, setTransfers] = useState<OT[]>([]);
@@ -104,28 +97,6 @@ export function OwnershipTransfer() {
     await load();
   };
 
-  const raiseInstall = async (t: OT) => {
-    const callNo = transferCallNumber(t.item_name, t.serial_number);
-    if (!callNo) { setMsg({ tone: 'error', text: 'This transfer names no machine model, so no installation call can be raised for it.' }); return; }
-    setRaising(t.id); setMsg(null);
-    try {
-      // ONE OT- CALL PER MACHINE: a second press finds the first.
-      const had = await installCallByNumber(callNo);
-      if (had) { setMsg({ tone: 'info', text: `${callNo} already has its installation call: ${had}.` }); return; }
-      if (!window.confirm(`Raise the installation call ${callNo} for ${t.to_party}, dated ${fmtLongDate(t.transfer_date) || 'the transfer date'}?`)) return;
-      const [party, cover] = await Promise.all([
-        sbPartyInfo(t.to_party).catch(() => null),
-        machineCover(t.item_name, t.serial_number).catch(() => null),
-      ]);
-      const r = await addCall(installCallFromTransfer(t, party ? { city: party.city, state: party.state, engineer: party.service_engineer } : null, cover));
-      setMsg(r.ok
-        ? { tone: 'ok', text: `Installation call ${r.ucn ?? ''} (${callNo}) raised for ${t.to_party}.` }
-        : { tone: 'error', text: `Not raised: ${r.error ?? 'the call was refused'}` });
-    } catch (e) {
-      setMsg({ tone: 'error', text: `Not raised: ${e instanceof Error ? e.message : String(e)}` });
-    } finally { setRaising(null); }
-  };
-
   const q = search.trim().toLowerCase();
   const visT = useMemo(() => transfers.filter((r) => !q || [r.serial_number, r.item_name, r.from_party, r.to_party, r.reference_no].some((v) => String(v ?? '').toLowerCase().includes(q))), [transfers, q]);
   const visE = useMemo(() => entries.filter((r) => !q || [r.serial_number, r.item_name, r.party_name, r.warranty_number, r.source_note].some((v) => String(v ?? '').toLowerCase().includes(q))), [entries, q]);
@@ -136,19 +107,10 @@ export function OwnershipTransfer() {
     { key: 'from_party', header: 'From', width: 190 },
     { key: 'to_party', header: 'To', width: 190 },
     { key: 'transfer_date', header: 'Transferred', width: 120, wrap: false, render: (r) => fmtLongDate(r.transfer_date) },
-    // THE DEALER IT CAME FROM (0328): the From party when the Party Master
-    // types it DEALER, stamped by the database.
-    { key: 'sold_through', header: 'Sold Through', width: 170, render: (r) => (r.sold_through ? String(r.sold_through) : <span className="muted">—</span>) },
     { key: 'reference_no', header: 'Reference', width: 130 },
     { key: 'reason', header: 'Reason', width: 160 },
     { key: 'document_url', header: 'Document', width: 110, render: (r) => (r.document_url ? <a href={r.document_url} target="_blank" rel="noreferrer">open</a> : <span className="muted">—</span>) },
     { key: 'recorded_by_name', header: 'Recorded By', width: 150 },
-    ...(mayInstall ? [{ key: '_inst', header: 'Installation call', width: 170, sortable: false, wrap: false,
-      render: (r: OT & Record<string, unknown>) => (
-        <button className="btn btn-sm" disabled={raising !== null} onClick={(e) => { e.stopPropagation(); void raiseInstall(r); }}
-          title={`Raise ${transferCallNumber(r.item_name, r.serial_number) || 'the installation call'} for ${r.to_party}, dated the transfer date`}>
-          {raising === r.id ? 'Raising…' : '+ Installation call'}
-        </button>) } as Column<OT & Record<string, unknown>>] : []),
   ];
 
   const eCols: Column<AE & Record<string, unknown>>[] = [
@@ -230,7 +192,7 @@ export function OwnershipTransfer() {
         {moveForm && (
           <div className="rep-form">
             <F label="Machine serial number *"><input className="input" value={moveForm.serial_number ?? ''} onChange={(e) => setMoveForm({ ...moveForm, serial_number: e.target.value })} /></F>
-            <F label="From party" hint="Leave blank — it is filled in from whoever holds the machine now. When the From party is a DEALER on the Party Master, it is recorded as Sold Through.">
+            <F label="From party" hint="Leave blank — it is filled in from whoever holds the machine now.">
               <input className="input" value={moveForm.from_party ?? ''} onChange={(e) => setMoveForm({ ...moveForm, from_party: e.target.value })} />
             </F>
             <F label="To party *"><input className="input" value={moveForm.to_party ?? ''} onChange={(e) => setMoveForm({ ...moveForm, to_party: e.target.value })} /></F>

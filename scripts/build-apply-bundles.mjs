@@ -994,14 +994,7 @@ const MODULES = {
             // + serial; installation calls only, exactly one or nothing), and
             // install_calls_unmapped() -- the administrators' list of the rest.
             // Needs is_call_number() and inst_call_repair_log (0234, above).
-            '0319_install_call_mapping_once.sql',
-            // Sold Through is the DEALER (2026-10-03): stamped on an ownership
-            // transfer from a From party the Party Master types DEALER; the
-            // Product Database Sold Through follows the latest such transfer;
-            // no installation call for a DEALER party (the transfer raises it,
-            // OT-PRODUCT-SERIAL); and, once, the Sold Through 0318 cleared put
-            // back. Reads parties (masters, earlier) at run time.
-            '0328_sold_through_dealer_workflow.sql'],
+            '0319_install_call_mapping_once.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

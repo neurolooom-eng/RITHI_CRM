@@ -977,39 +977,6 @@ export async function sbSearchParties(query: string, limit = 50): Promise<string
   }
   return serverSearchParties(query, limit);
 }
-/** DEALERS ONLY, for Sold Through (the user, 2026-10-03: "Only party
- *  identified as dealer should be listed"): Party Master entries whose Type is
- *  DEALER, searched on the server. */
-export async function sbSearchDealers(query: string, limit = 50): Promise<string[]> {
-  const c = getSupabase(); if (!c) return [];
-  let q = c.from('parties').select('party_name').ilike('party_type', 'dealer').order('party_name').limit(limit);
-  const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
-  if (term) q = q.ilike('party_name', `%${term}%`);
-  const { data, error } = await q;
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []).map((r) => String(r.party_name ?? '')).filter(Boolean);
-}
-
-/** The installation call already carrying this call number, if any -- so a
- *  transfer does not raise a second OT- call for the same machine. */
-export async function installCallByNumber(callNumber: string): Promise<string | null> {
-  const c = getSupabase(); if (!c || !callNumber.trim()) return null;
-  const { data, error } = await c.from('calls').select('ucn').eq('call_number', callNumber.trim()).limit(1);
-  if (error) throw new Error(errMsg(error));
-  return data && data.length ? String((data[0] as { ucn?: unknown }).ucn ?? '') : null;
-}
-
-/** The cover the Product Database holds for one machine (model + serial), for
- *  the installation call a transfer raises. */
-export async function machineCover(item: string, serial: string): Promise<{ warrantyNumber: string; warrantyStart: string; warrantyEnd: string } | null> {
-  const c = getSupabase(); if (!c) return null;
-  const key = `${item.trim().toLowerCase()}|${serial.trim().toLowerCase()}`;
-  const { data, error } = await c.from('products').select('warranty_number, warranty_start, warranty_end').eq('machine_key', key).limit(1);
-  if (error) throw new Error(errMsg(error));
-  const r = (data ?? [])[0] as Record<string, unknown> | undefined;
-  return r ? { warrantyNumber: String(r.warranty_number ?? ''), warrantyStart: String(r.warranty_start ?? ''), warrantyEnd: String(r.warranty_end ?? '') } : null;
-}
-
 async function serverSearchParties(query: string, limit = 50): Promise<string[]> {
   const c = getSupabase(); if (!c) return [];
   let q = c.from('parties').select('party_name').order('party_name').limit(limit);
@@ -4744,9 +4711,6 @@ export interface OwnershipTransfer {
   id: number; serial_number: string; item_name: string; from_party: string; to_party: string;
   transfer_date: string | null; reference_no: string; reason: string; remarks: string;
   document_url: string; recorded_by_name: string; created_at: string;
-  /** The dealer the machine came from: the From party when the Party Master
-   *  types it DEALER, stamped by the database (0328); blank otherwise. */
-  sold_through?: string;
 }
 export async function listOwnershipTransfers(serial = ''): Promise<OwnershipTransfer[]> {
   const c = getSupabase(); if (!c) return [];

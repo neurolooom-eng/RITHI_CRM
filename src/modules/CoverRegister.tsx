@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput, LongDateText } from '../components/ui/LongDate';
-import { sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers } from '../lib/supabase';
+import { sbSearchParties, sbSearchProductParties, sbPartyInfo } from '../lib/supabase';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT,
          // THE VALUE TEST, not the row test. `isPinned` from ./cover takes
@@ -13,7 +13,7 @@ import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
 import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
-import { coverStatus, deriveHeader, deriveItem, TRANSFERRED_AWAY, isDealerType, DEALER_NO_INSTALL } from '../lib/coverspec';
+import { coverStatus, deriveHeader, deriveItem, TRANSFERRED_AWAY } from '../lib/coverspec';
 import { listProductLines, sellableNames, sellableCodes, retiredNames, type ProductLine } from '../lib/productLines';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtDate, statusBadge, timeAgo } from '../lib/format';
@@ -171,16 +171,6 @@ function FieldInput({
                          options={value ? [value] : []}
                          onSearch={(term) => sbSearchProductParties(term, 50)}
                          emptyHint="Customers come from the Product Database — whoever owns a machine on record. Type more of the name to narrow the list." />;
-  }
-  // DEALERS ONLY (the user, 2026-10-03: "Only party identified as dealer
-  // should be listed as part of the drop down"). No free text: Sold Through
-  // monitors the dealer, and a name that is not a dealer monitors nothing.
-  if (field.optionsFrom === 'dealer') {
-    return <SelectPicker value={value} onChange={onChange} disabled={disabled}
-                         placeholder="— find the dealer —"
-                         options={value ? [value] : []}
-                         onSearch={(term) => sbSearchDealers(term, 50)}
-                         emptyHint="Only Party Master entries whose Type is DEALER are listed." />;
   }
   if (field.type === 'bool') {
     return <SelectPicker value={value} onChange={onChange} disabled={disabled} placeholder="—"
@@ -1344,10 +1334,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
             a contract already installed, so the button is not offered there --
             an action that makes no sense for the record in front of you is
             worse than a missing one, because somebody presses it to find out. */}
-        {kind === 'sale' && isDealerType(r.party_type) && !isCallNumber(r.inst_call) && (
-          <span className="muted" style={{ fontSize: 12 }} title={DEALER_NO_INSTALL}>Dealer — raised from the transfer</span>
-        )}
-        {kind === 'sale' && !(isDealerType(r.party_type) && !isCallNumber(r.inst_call)) && (
+        {kind === 'sale' && (
           isCallNumber(r.inst_call)
             // ALREADY DONE, AND IT SAYS WHICH. The UCN is the evidence the
             // button disables itself by, so showing it is showing the reason.
@@ -1496,13 +1483,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           itself rather than by a flag somebody has to maintain. A line
           with no product or no serial is not a machine yet and gets no
           call — the call would be about nothing. */}
-      {/* A DEALER GETS NO INSTALLATION CALL (the user, 2026-10-03; 0328):
-          the call is raised from the Ownership Transfer when the dealer sells
-          the machine. Said in place of the button, so nobody hunts for it. */}
-      {kind === 'sale' && isDealerType(draft.party_type) && (
-        <span className="muted" style={{ fontSize: 12 }}>{DEALER_NO_INSTALL}</span>
-      )}
-      {kind === 'sale' && !isDealerType(draft.party_type) && (
+      {kind === 'sale' && (
         needCalls.length > 0
           ? canRaiseInstall && <button className="btn btn-sm" disabled={saving} onClick={() => void raiseCalls()}
               title="Raise an installation call for each machine that has not got one">
@@ -1859,10 +1840,7 @@ const stateOf = (end: string): string => coverStatus(end);
 // PENDING = machinesNeedingInstallCall's rule for one line: a product and a
 // serial, and no call number in INST Call. The server filter is the same rule.
 const installPending = (r: Row): boolean =>
-  isPinnedValue(r.product_name) && isPinnedValue(r.serial_number) && !isCallNumber(r.inst_call)
-  // A DEALER'S MACHINE waits for no call of its own (0328): the transfer
-  // raises the customer's.
-  && !isDealerType(r.party_type);
+  isPinnedValue(r.product_name) && isPinnedValue(r.serial_number) && !isCallNumber(r.inst_call);
 
 // A machine row, in the shape the call form's prefill reads.
 function prefillFrom(r: Row, kind: CoverKind): Record<string, unknown> {

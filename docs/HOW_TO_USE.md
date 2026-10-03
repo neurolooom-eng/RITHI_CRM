@@ -449,15 +449,6 @@ against the call it was fitted to.
   >
   > ### Raising the installation calls
   >
-  > **A sale to a dealer gets no installation call.** If the sale's Type is
-  > **DEALER**, the button is not offered (on the entry or on its Register line)
-  > and the machines are not counted as *pending*; the system refuses such a call
-  > however it is raised. When the dealer sells the machine, record an
-  > **Ownership Transfer** and raise the call from there (see below).
-  >
-  > **Sold Through** lists **dealers only** — Party Master entries whose Type is
-  > DEALER. It records the dealer a machine was sold through.
-  >
   > **＋ Installation calls** raises one call per machine that has not got one.
   > Each one carries:
   >
@@ -652,16 +643,6 @@ set to zero.
     with that field blank, not dropped.
   - Matched on the OT number **and** the machine, so a corrected export updates
     rather than arriving twice.
-  - **Sold Through** is filled in by the system: when the **From** party is a
-    **DEALER** on the Party Master, that dealer is recorded as Sold Through, and
-    the Product Database shows it too. Between two customers it stays blank.
-  - **＋ Installation call** on a transfer raises the installation call for the
-    customer the machine went to — the way a dealer's sale gets its call. Its
-    Call Number is **`OT-PRODUCT-SERIAL`** (e.g. `OT-MONNAL TEO NF-210`) so it is
-    told apart from a sale's `WI-` call, its Complaint and Breakdown Date are
-    the **transfer date**, and it carries the customer's city, state and
-    engineer from the Party Master and the machine's cover from the Product
-    Database. A machine that already has its OT- call is not given a second.
 
 ## Masters & documents
 

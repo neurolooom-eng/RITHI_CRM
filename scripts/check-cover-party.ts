@@ -16,8 +16,7 @@ import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, inheritAllPatch, isPinnedValue,
          installCallFromSale, machinesNeedingInstallCall, INSTALL_COMPLAINT,
          partyFillChanges, deriveHeader, suggestedPmVisits, isCallNumber,
-         installCallNumber, withAnotherCustomer, TRANSFERRED_AWAY,
-         isDealerType, transferCallNumber, installCallFromTransfer, DEALER_NO_INSTALL } from '../src/lib/coverspec';
+         installCallNumber, withAnotherCustomer, TRANSFERRED_AWAY } from '../src/lib/coverspec';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -386,30 +385,6 @@ console.log('\n-- converting a sale: a machine now with another customer is not 
   // A sale with no party name: any named owner is somebody else.
   eq('a sale naming nobody', withAnotherCustomer('', 'METRO CLINIC'), true);
   eq('the statement is the user\'s wording', TRANSFERRED_AWAY, 'Product serial number was transferred to a different customer');
-}
-
-console.log('\n-- the dealer workflow: a dealer gets no call; the transfer raises the customer\'s --');
-{
-  eq('DEALER is a dealer', isDealerType('DEALER'), true);
-  eq('...whatever the case and spacing', isDealerType(' dealer '), true);
-  eq('a customer is not', isDealerType('CUSTOMER'), false);
-  eq('a blank type is not', isDealerType(''), false);
-  eq('the statement names where the call comes from', /Ownership Transfer/.test(DEALER_NO_INSTALL) && /OT-PRODUCT-SERIAL/.test(DEALER_NO_INSTALL), true);
-  // The user: "we name the call number as OT-PRODUCT-SERIAL NO".
-  eq('OT- + product + serial, the product keeping its spaces', transferCallNumber(' MONNAL TEO NF ', ' 210 '), 'OT-MONNAL TEO NF-210');
-  eq('...and nothing for a machine without both', transferCallNumber('MONNAL', ''), '');
-  const call = installCallFromTransfer(
-    { item_name: 'ORION', serial_number: 'S9', to_party: ' CITY CLINIC ', transfer_date: '2026-10-01T10:00:00Z' },
-    { city: 'Pune', state: 'Maharashtra', engineer: 'RAVI' },
-    { warrantyNumber: 'SA-1', warrantyStart: '2026-01-01', warrantyEnd: '2027-12-31' });
-  eq('the call is for the CUSTOMER the dealer sold to', call.partyName, 'CITY CLINIC');
-  eq('...numbered OT-', call.callNumber, 'OT-ORION-S9');
-  eq('...dated the TRANSFER date, both dates', [call.complaintDate, call.breakdownDate], ['2026-10-01', '2026-10-01']);
-  eq('...an installation, from the one builder', [call.callType, call.standardComplaint], ['INSTALLATION', 'INSTALLATION CALL']);
-  eq('...in the customer\'s city, allotted to their engineer', [call.city, call.state, call.allocatedTo], ['Pune', 'Maharashtra', 'RAVI']);
-  eq('...carrying the machine\'s cover', [call.warrantyNumber, call.warrantyEnd, call.itemStatus], ['SA-1', '2027-12-31', 'WGP']);
-  const bare = installCallFromTransfer({ item_name: 'ORION', serial_number: 'S9', to_party: 'X', transfer_date: '' }, null, null);
-  eq('no cover known: none claimed, and no date invented', [bare.itemStatus, bare.complaintDate], ['', '']);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
