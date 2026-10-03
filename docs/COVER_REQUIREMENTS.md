@@ -147,7 +147,7 @@ per day.
 **CW-011 — A change of owner is a dated record, and it is read.**
 *§7.5.9.* Who owns a machine shall be derived from the ownership transfer
 register where one exists, not left at whoever first bought it.
-**Status: Partial.** `ownership_transfers` records it (0072), Machine History shows it and Product Database 2.0 reads it (CW-012). The stored owner on `public.products` is moved by the latest transfer, but by SERIAL alone, so every model sharing the serial moves with it, and the form identifies the machine by serial alone (FRS-188; OPEN until D-060 is fixed).
+**Status: Partial.** `ownership_transfers` records it (0072), Machine History shows it and Product Database 2.0 reads it (CW-012). The stored owner on `public.products` is moved by the latest transfer for that PRODUCT + SERIAL only since 0330 (2026-10-03), with the transfer's Ref and Date and the new owner's Party Master address (0329); the form still identifies the machine by serial alone (FRS-188; D-060 partly fixed).
 
 **CW-012 — The most recently dated evidence decides the party.**
 *§7.5.9.* Where the registers disagree about who owns a machine, the latest

@@ -700,6 +700,14 @@ typed into a form that reads it.
   > **Warranty Status** and **Contract Status** here are the words the FILE
   > used. They are not the Active / About to expire / Inactive the system works
   > out from the dates, and the two can disagree — which is worth seeing.
+  > **The registers fill it, machine by machine** — product AND serial, never
+  > the serial alone. A **sale entry** adds each machine with its warranty,
+  > invoice, warranty term and accessories; a **contract entry** gives that
+  > machine the contract number, dates, type, status and PM visits (replacing
+  > the sale's PM visits), adding the machine if it is not there yet; an
+  > **ownership transfer** gives it the new owner, their address and the
+  > Transfer Ref and Date. Invoice, warranty term, accessories and transfer
+  > details are in ⚙ Columns.
 - **Product Database 2.0** `/product-database-2` — the same machines, but
   **worked out** rather than stored. One row per machine (model **and** serial),
   assembled from the warranty sale register, the contract register, the

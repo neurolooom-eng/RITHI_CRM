@@ -244,6 +244,12 @@ export function productRowToSheet(r: Record<string, unknown>): Record<string, un
     'INST Call Status': c('inst_call_status', 'INST Call Status'),
     'Report': c('report', 'Report'),
     'Associated Accessory': c('associated_accessory', 'Associated Accessory'),
+    // FILLED BY THE REGISTERS (0330, the user, 2026-10-03): the sale's invoice,
+    // warranty term and accessories, and the latest transfer's Ref and Date.
+    'Invoice No.': g('invoice_no'), 'Invoice Date': g('invoice_date'),
+    'Warranty Years': g('warranty_years'), 'Warranty Months': g('warranty_months'),
+    'Accessories Included': r.accessories_included === true ? 'Yes' : r.accessories_included === false ? 'No' : '',
+    'Transfer Ref': g('transfer_ref'), 'Transfer Date': g('transfer_date'),
   };
 }
 
