@@ -1049,7 +1049,7 @@ export async function sbSearchPartiesForInstall(query: string, limit = 50): Prom
 // Party Master view — field-specific server-side filters + paging (Load more).
 export interface PartyFilter { name?: string; city?: string; state?: string; type?: string }
 export interface PartyPatch {
-  city?: string; state?: string; party_type?: string; profile?: string; route?: string;
+  city?: string; state?: string; country?: string; party_type?: string; profile?: string; route?: string;
   address?: string; pincode?: string; phone?: string; phone_2?: string; fax?: string; email?: string;
   billing_address?: string; billing_pincode?: string; billing_phone?: string;
   billing_phone_2?: string; billing_fax?: string; billing_email?: string;
