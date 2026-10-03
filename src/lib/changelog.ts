@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.57',
+    date: '2026-10-03',
+    title: 'Masters: Edit and Delete on every row, with their own permissions',
+    changes: [
+      'PARTY, PRODUCT AND PART MASTER: each row has an Actions column — ✎ Edit and 🗑 Delete. Product Master\'s Edit changes everything but the Product Code.',
+      'VALUE LISTS (Complaint Grouping, Root Cause keyword and the rest): each row has ✎ Edit, which can RENAME the value. Calls and reports already saved keep the old wording — the form says so before you save.',
+      'ROLES & PERMISSIONS: Party Master, Product Master and Part Master each have their own Add, Edit and Delete permission, and each value list its own Add, Edit and Delete. Anybody who could add and edit masters before still can; Delete is given to nobody until you tick it (an administrator has it).',
+      'A party, part or product line that any machine, call, sale, contract or spare still names cannot be deleted — the message says how many records name it. Deactivate it (or mark the line Inactive) instead.',
+      'The Product Database stays read-only: machines come from the uploads and the warranty, contract and ownership registers.',
+    ],
+  },
+  {
     version: '0.10.56',
     date: '2026-10-03',
     title: 'Party Master: the forms in columns',

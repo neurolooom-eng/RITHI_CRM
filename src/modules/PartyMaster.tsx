@@ -7,7 +7,7 @@ import { PickList } from '../components/ui/PickList';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { csvExport, timeAgo } from '../lib/format';
 import {
-  queryParties, updateParty, getParty, addParty, supabaseConfigured,
+  queryParties, updateParty, getParty, addParty, deleteMasterRecord, supabaseConfigured,
   partyServiceEngineerCounts, renamePartyServiceEngineer, sbDirectoryNames,
   type PartyFilter, type PartyPatch,
 } from '../lib/supabase';
@@ -174,7 +174,11 @@ export function PartyMaster() {
   const { can, user } = useAuth();
   // THREE RIGHTS HERE, NOT ONE (finding 67, 0290): editing a party's record,
   // verifying its KYC, and changing the Serviceman on every party at once.
-  const mayEdit = can('masters.edit.records') && supabaseConfigured();
+  // ADD, EDIT AND DELETE ARE SEPARATE KEYS (0325, 2026-10-03); "Add / edit
+  // master records" still grants the first two.
+  const mayAdd = can('masters.parties.add') && supabaseConfigured();
+  const mayEdit = can('masters.parties.edit') && supabaseConfigured();
+  const mayDelete = can('masters.parties.delete') && supabaseConfigured();
   const mayKyc = can('masters.edit.kyc') && supabaseConfigured();
   const maySwap = can('masters.edit.swap_serviceman') && supabaseConfigured();
   const [uploading, setUploading] = useState(false);
@@ -343,6 +347,34 @@ export function PartyMaster() {
     setEdit(null);
     setMsg({ tone: 'ok', text: 'Saved.' });
   };
+  // ---- Delete: refused by the database while anything names the party -----
+  const removeParty = async (r: Row) => {
+    const name = String(r.party_name ?? '');
+    if (!window.confirm(`Delete "${name}" from the Party Master?\n\nThis cannot be undone. It is refused while any machine, call, sale, contract or spare still names this party.`)) return;
+    const res = await deleteMasterRecord('parties', 'id', Number(r.id));
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not delete it.' }); return; }
+    setRows((rs) => rs.filter((x) => x.id !== r.id));
+    setMsg({ tone: 'ok', text: `${name} deleted from the Party Master.` });
+  };
+  // THE ACTION BUTTONS ON THE ROW (the user, 2026-10-03: "Action button on the
+  // table"). FIRST, not last: the register is thirty columns wide and a
+  // button at the far end is a button nobody finds. A click on the row still
+  // opens it too.
+  const actionColumn: Column<Row> = {
+    key: '_actions', header: 'Actions', width: 150, sortable: false, wrap: false,
+    render: (r) => (
+      <div className="row" style={{ gap: 6 }}>
+        {mayEdit && (
+          <button className="btn btn-sm" title="Edit this party"
+            onClick={(e) => { e.stopPropagation(); setEdit(r); }}>✎ Edit</button>
+        )}
+        {mayDelete && (
+          <button className="btn btn-ghost btn-sm" title="Delete this party — refused while any record names it"
+            onClick={(e) => { e.stopPropagation(); void removeParty(r); }}>🗑</button>
+        )}
+      </div>
+    ),
+  };
   const hasFilter = !!(filter.name || filter.city || filter.state || filter.type);
 
   // Force-sync the browse set (no filters) and cache it.
@@ -441,7 +473,7 @@ export function PartyMaster() {
         // parties, so the badge read a flat "1,000" — a number that looks exact,
         // is not, and is the one somebody quotes.
         count={rows.length} countMore={more}
-        actions={mayEdit && (
+        actions={mayAdd && (
           <button className="btn btn-primary" onClick={() => { setAdding({}); setAddTried(false); setAddErr(''); }}>＋ Add entry</button>
         )} />
       {msg && (
@@ -451,7 +483,7 @@ export function PartyMaster() {
         </div>
       )}
       <DataTable<Row>
-        columns={COLUMNS}
+        columns={mayEdit || mayDelete ? [actionColumn, ...COLUMNS] : COLUMNS}
         allFields={allFields}
         rows={rows}
         getRowId={(r) => r.id}

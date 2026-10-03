@@ -63,6 +63,7 @@
 --   0300_unresolved_login_holds_nothing.sql
 --   0305_reset_password_key.sql
 --   0308_part_search_key.sql
+--   0325_party_part_add_edit_delete.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
@@ -99,6 +100,7 @@
 --   0263_user_department.sql
 --   0290_master_keys_split.sql
 --   0319_product_master_imported.sql
+--   0325_product_line_and_list_add_edit_delete.sql
 --   0070_documents.sql
 --   0265_qms_document_key.sql
 --   0272_service_note_upload_key.sql
@@ -4779,7 +4781,24 @@ insert into public.perm_parents (child, parent) values
   ('users.manage.create', 'users.manage'),
   ('users.manage.disable', 'users.manage'),
   ('users.manage.access', 'users.manage'),
-  ('users.manage.settings', 'users.manage');
+  ('users.manage.settings', 'users.manage'),
+  -- One key to add, one to edit, one to delete per master (0325, 2026-10-03).
+  -- 0325 inserts the same rows for a database that ran this file before them.
+  ('masters.parties.add', 'masters.edit.records'),
+  ('masters.parties.add', 'masters.edit'),
+  ('masters.parties.edit', 'masters.edit.records'),
+  ('masters.parties.edit', 'masters.edit'),
+  ('masters.parties.delete', 'masters.edit'),
+  ('masters.parts.add', 'masters.edit.records'),
+  ('masters.parts.add', 'masters.edit'),
+  ('masters.parts.edit', 'masters.edit.records'),
+  ('masters.parts.edit', 'masters.edit'),
+  ('masters.parts.delete', 'masters.edit'),
+  ('masters.product_master.add', 'masters.edit.records'),
+  ('masters.product_master.add', 'masters.edit'),
+  ('masters.product_master.edit', 'masters.edit.records'),
+  ('masters.product_master.edit', 'masters.edit'),
+  ('masters.product_master.delete', 'masters.edit');
 
 -- has_perm() keeps its shape and its NULL: with no signed-in user
 -- my_extra_perms() is NULL, and several callers rely on `if not has_perm()`
@@ -5241,6 +5260,160 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0325_party_part_add_edit_delete.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0325 — PARTY AND PART MASTER: ONE KEY TO ADD, ONE TO EDIT, ONE TO DELETE
+--
+-- The user, 2026-10-03: "Provision to edit all masters. Action button on the
+-- table. Ensure it is added in Roles and Permissions" -- and, asked how: "One
+-- add, one edit, one delete per master".
+--
+-- Until now one key, masters.edit.records, wrote parties and parts through a
+-- FOR ALL policy (0286), so whoever could add a party could also DELETE one
+-- through the API although no screen offered it. This file splits it:
+--
+--   masters.parties.add / .edit   parents: masters.edit.records, masters.edit
+--   masters.parties.delete        parent:  masters.edit
+--   masters.parts.add / .edit     parents: masters.edit.records, masters.edit
+--   masters.parts.delete          parent:  masters.edit
+--
+-- NOBODY'S GRANTS ARE TOUCHED. Add and edit are children of the key that
+-- already allowed them, so a role holding it keeps exactly what it had. Delete
+-- is a child of "Edit masters (all of the below)" only: a role holding just
+-- masters.edit.records loses an API delete no screen ever offered it, which is
+-- a narrowing, never a widening. An administrator passes has_perm() anyway.
+--
+-- A DELETE IS REFUSED WHILE ANY RECORD STILL NAMES THE ROW. Parties and parts
+-- are referenced by TEXT, not by foreign key -- a call carries the party's
+-- name, a consumption line the part's CODE|Description -- so a deleted party
+-- would leave every machine, call and contract naming a customer who no longer
+-- exists, with nothing to say so. master_delete_guard() counts those records
+-- as the OWNER (security definer), never as the caller: under the caller's
+-- row-level security an engineer's count would see only his own calls and pass
+-- a party that a thousand other calls name.
+--
+-- In the rbac module, after 0286 (which creates parties_write / parts_write)
+-- and before the policy tail, so a replay of rbac.sql ends on these.
+-- ===========================================================================
+
+-- ---- 1. the parents (0286's list carries the same rows) -------------------
+insert into public.perm_parents (child, parent) values
+  ('masters.parties.add', 'masters.edit.records'),
+  ('masters.parties.add', 'masters.edit'),
+  ('masters.parties.edit', 'masters.edit.records'),
+  ('masters.parties.edit', 'masters.edit'),
+  ('masters.parties.delete', 'masters.edit'),
+  ('masters.parts.add', 'masters.edit.records'),
+  ('masters.parts.add', 'masters.edit'),
+  ('masters.parts.edit', 'masters.edit.records'),
+  ('masters.parts.edit', 'masters.edit'),
+  ('masters.parts.delete', 'masters.edit'),
+  ('masters.product_master.add', 'masters.edit.records'),
+  ('masters.product_master.add', 'masters.edit'),
+  ('masters.product_master.edit', 'masters.edit.records'),
+  ('masters.product_master.edit', 'masters.edit'),
+  ('masters.product_master.delete', 'masters.edit')
+on conflict do nothing;
+
+-- ---- 2. parties and parts: insert / update / delete, each its own key -----
+-- Split out of FOR ALL, which is also a read policy; each wrapped in a
+-- sub-select so it is asked once per query, not once per row (0250).
+do $$
+declare t text; k text;
+begin
+  foreach t in array array['parties', 'parts'] loop
+    if to_regclass('public.' || t) is null then continue; end if;
+    k := 'masters.' || t;
+    execute format('drop policy if exists %1$s_write on public.%1$s', t);
+    execute format('drop policy if exists %1$s_insert on public.%1$s', t);
+    execute format('drop policy if exists %1$s_update on public.%1$s', t);
+    execute format('drop policy if exists %1$s_delete on public.%1$s', t);
+    execute format('create policy %1$s_insert on public.%1$s for insert '
+                   'with check ((select public.has_perm(%2$L)))', t, k || '.add');
+    execute format('create policy %1$s_update on public.%1$s for update '
+                   'using ((select public.has_perm(%2$L))) with check ((select public.has_perm(%2$L)))', t, k || '.edit');
+    execute format('create policy %1$s_delete on public.%1$s for delete '
+                   'using ((select public.has_perm(%2$L)))', t, k || '.delete');
+  end loop;
+end $$;
+
+-- ---- 3. no delete while a record names it --------------------------------
+-- plpgsql, so nothing in the body is resolved at creation: most of the tables
+-- it reads belong to modules that run after this one, and each is asked only
+-- if it exists. The lists are every column that names the row, read off the
+-- schema on 2026-10-03; a table added later that names a party or a part
+-- belongs here too.
+create or replace function public.master_delete_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  refs text[];
+  r text; tbl text; col text; n bigint;
+  key text;
+  found text[] := '{}';
+  total bigint := 0;
+begin
+  if tg_table_name = 'parties' then
+    key := lower(btrim(old.party_name));
+    refs := array['products.party_name', 'field_calls.party_name', 'installation_calls.party_name',
+      'pm_calls.party_name', 'call_requests.party_name', 'pending_registrations.party_name',
+      'sale_entries.party_name', 'contract_entries.party_name', 'contract_items.party_name',
+      'ownership_transfers.from_party', 'ownership_transfers.to_party',
+      'product_additional_entries.party_name', 'feedback.party_name', 'spare_requests.party_name',
+      'spare_consumption_history.party_name', 'indoor_jobs.party_name'];
+  elsif tg_table_name = 'parts' then
+    key := lower(btrim(old.item_detail));
+    refs := array['spare_request_lines.part', 'spare_dispatch_lines.part', 'spare_consumption.part',
+      'spare_consumption_history.part', 'spare_issue_history.part', 'handstock_opening.part',
+      'handstock_adjustments.part', 'stock_transfer_lines.part', 'material_returns.part'];
+  elsif tg_table_name = 'product_master' then
+    key := lower(btrim(old.product_code));
+    refs := array['products.item_code', 'sale_items.product_code', 'contract_items.product_code'];
+  else
+    return old;
+  end if;
+  if coalesce(key, '') = '' then return old; end if;
+
+  foreach r in array refs loop
+    tbl := split_part(r, '.', 1);
+    col := split_part(r, '.', 2);
+    if to_regclass('public.' || tbl) is null then continue; end if;
+    if not exists (select 1 from information_schema.columns
+                    where table_schema = 'public' and table_name = tbl and column_name = col) then
+      continue;
+    end if;
+    execute format('select count(*) from public.%I where lower(btrim(%I)) = $1', tbl, col) into n using key;
+    if n > 0 then
+      found := found || format('%s %s', n, case tbl when 'products' then 'machines' else replace(tbl, '_', ' ') end);
+      total := total + n;
+    end if;
+  end loop;
+
+  if total > 0 then
+    raise exception '% is still named on % record(s) — %. It cannot be deleted while they name it.',
+      case tg_table_name when 'parties' then 'This party'
+                         when 'parts' then 'This part'
+                         else 'This product line' end,
+      total, array_to_string(found, ', ')
+      using errcode = '23503';
+  end if;
+  return old;
+end $$;
+revoke execute on function public.master_delete_guard() from public, anon, authenticated;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['parties', 'parts'] loop
+    if to_regclass('public.' || t) is null then continue; end if;
+    execute format('drop trigger if exists master_delete_guard on public.%I', t);
+    execute format('create trigger master_delete_guard before delete on public.%I '
+                   'for each row execute function public.master_delete_guard()', t);
+  end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0121_rbac_policy_tail.sql
 -- ------------------------------------------------------------------------
 
@@ -5407,8 +5580,11 @@ begin
   drop policy if exists masters_update on public.masters;
   drop policy if exists masters_delete on public.masters;
 
+  -- masters_insert is 0325_product_line_and_list_add_edit_delete's (a list's
+  -- own add key, 2026-10-03).
   create policy masters_insert on public.masters for insert
     with check (public.has_perm('masters.edit.records')
+             or public.has_perm('master.' || coalesce(name, '') || '.add')
              or public.has_perm('master.' || coalesce(name, '') || '.edit'));
 
   create policy masters_update on public.masters for update
@@ -11124,6 +11300,54 @@ alter table public.product_master
 
 comment on column public.product_master.imported is
   'Is this product line IMPORTED (true) or made in-house (false)? NULL = not recorded yet. Decides whether a DEMO unit of the line owes Pre-Delivery Testing R/SER/QC/007 before it leaves the workshop (0320); NULL is treated as not owing it, and the indoor screen says the answer is unknown.';
+
+-- ------------------------------------------------------------------------
+-- 0325_product_line_and_list_add_edit_delete.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0325 — PRODUCT MASTER AND THE VALUE LISTS: ADD, EDIT AND DELETE KEYS
+--
+-- The user, 2026-10-03: "One add, one edit, one delete per master" -- the
+-- masters-module half of 0325_party_part_add_edit_delete.sql (rbac), which
+-- holds the parents and master_delete_guard().
+--
+--   Product Master   masters.product_master.add / .edit / .delete, split out
+--                    of pm_write (FOR ALL under masters.edit.records, 0290).
+--                    A line is refused deletion while a machine, a sale or a
+--                    contract names its code -- the same guard as a party.
+--   A value list     master.<list>.add joins master.<list>.edit and
+--                    master.<list>.delete. Adding asks the add key OR the
+--                    list's edit key (its parent, as everywhere else: a role
+--                    that could add values yesterday still can) OR
+--                    masters.edit.records, exactly as before. Edit -- which
+--                    now includes RENAMING a value, the user's choice -- and
+--                    delete are unchanged.
+--
+-- No grant is changed.
+-- ===========================================================================
+
+drop policy if exists pm_write on public.product_master;
+drop policy if exists pm_insert on public.product_master;
+drop policy if exists pm_update on public.product_master;
+drop policy if exists pm_delete on public.product_master;
+create policy pm_insert on public.product_master for insert
+  with check ((select public.has_perm('masters.product_master.add')));
+create policy pm_update on public.product_master for update
+  using ((select public.has_perm('masters.product_master.edit')))
+  with check ((select public.has_perm('masters.product_master.edit')));
+create policy pm_delete on public.product_master for delete
+  using ((select public.has_perm('masters.product_master.delete')));
+
+drop trigger if exists master_delete_guard on public.product_master;
+create trigger master_delete_guard before delete on public.product_master
+  for each row execute function public.master_delete_guard();
+
+drop policy if exists masters_insert on public.masters;
+create policy masters_insert on public.masters for insert
+    with check (public.has_perm('masters.edit.records')
+             or public.has_perm('master.' || coalesce(name, '') || '.add')
+             or public.has_perm('master.' || coalesce(name, '') || '.edit'));
 
 -- ------------------------------------------------------------------------
 -- 0070_documents.sql

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, SectionCard, Toolbar, SearchBox, Modal } from '../components/ui/ui';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { getSupabase, supabaseConfigured } from '../lib/supabase';
+import { getSupabase, supabaseConfigured, deleteMasterRecord } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { csvExport, fmtLongDate } from '../lib/format';
 import './fieldcalls.css';
@@ -43,7 +43,11 @@ export function ProductLines() {
   // IMPORTED (0319) is the one field this screen EDITS, and ＋ Add entry adds a
   // whole line: whoever may write a product line (pm_write asks
   // masters.edit.records, 0290) may do both.
-  const mayEdit = can('masters.edit.records');
+  // ADD, EDIT AND DELETE ARE SEPARATE KEYS (0325, 2026-10-03); "Add / edit
+  // master records" still grants the first two.
+  const mayAdd = can('masters.product_master.add');
+  const mayEdit = can('masters.product_master.edit');
+  const mayDelete = can('masters.product_master.delete');
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -85,6 +89,28 @@ export function ProductLines() {
   const blankDraft: Draft = { product_code: '', product_name: '', item_detail: '', item_type: '',
     item_category: '', short_form: '', active: 'Active', imported: '' };
   const [adding, setAdding] = useState<Draft | null>(null);
+  // EDITING reuses the Add form: the code it was opened on, or null when adding.
+  // The code itself is not editable -- it is the line's key, and a machine,
+  // sale or contract that names it would be left naming nothing.
+  const [editingCode, setEditingCode] = useState<string | null>(null);
+  const openEdit = (r: Row) => {
+    setEditingCode(s(r, 'product_code'));
+    setAdding({
+      product_code: s(r, 'product_code'), product_name: s(r, 'product_name'), item_detail: s(r, 'item_detail'),
+      item_type: s(r, 'item_type'), item_category: s(r, 'item_category'), short_form: s(r, 'short_form'),
+      active: r.active === false ? 'Inactive' : 'Active', imported: importedLabel(r),
+    });
+    setAddTried(false); setAddErr('');
+  };
+  const removeLine = async (r: Row) => {
+    const code = s(r, 'product_code');
+    if (!window.confirm(`Delete ${code} — ${s(r, 'product_name')} from the Product Master?\n\nThis cannot be undone. It is refused while any machine, sale or contract names this code; mark it Inactive instead to stop new sales.`)) return;
+    const res = await deleteMasterRecord('product_master', 'product_code', code);
+    if (!res.ok) { setMsg(res.error ?? 'Could not delete it.'); return; }
+    setMsg('');
+    setRows((all) => all.filter((x) => s(x, 'product_code') !== code));
+    setNote(`${code} deleted from the Product Master.`);
+  };
   const [addTried, setAddTried] = useState(false);
   const [addErr, setAddErr] = useState('');
   const [saving, setSaving] = useState(false);
@@ -99,6 +125,26 @@ export function ProductLines() {
     const missing = addMissing(adding);
     if (missing.length) { setAddErr(`Fill ${missing.join(', ')}.`); return; }
     const code = adding.product_code.trim();
+    if (editingCode) {
+      setSaving(true); setAddErr('');
+      const { data, error } = await c.from('product_master').update({
+        product_name: adding.product_name.trim(),
+        item_detail: adding.item_detail.trim(),
+        item_type: adding.item_type.trim(),
+        item_category: adding.item_category.trim(),
+        short_form: adding.short_form.trim(),
+        active: adding.active !== 'Inactive',
+        imported: adding.imported === 'Yes' ? true : adding.imported === 'No' ? false : null,
+      }).eq('product_code', editingCode).select('*');
+      setSaving(false);
+      if (error) { setAddErr(error.message); return; }
+      // Rows COUNTED: row-level security refuses an update by matching nothing.
+      if (!data || data.length === 0) { setAddErr('Nothing was saved — your role may not edit product lines.'); return; }
+      setRows((all) => all.map((r) => (s(r, 'product_code') === editingCode ? data[0] : r)));
+      setAdding(null); setEditingCode(null);
+      setNote(`${editingCode} saved.`);
+      return;
+    }
     if (rows.some((r) => s(r, 'product_code').toLowerCase() === code.toLowerCase())) {
       setAddErr(`${code} is already on the Product Master.`); return;
     }
@@ -173,6 +219,19 @@ export function ProductLines() {
     { key: 'added_on', header: 'Added', width: 130, wrap: false,
       render: (r) => fmtLongDate(r.added_on) },
     { key: 'added_by', header: 'Added by', width: 130 },
+    // THE ACTION BUTTONS ON THE ROW (the user, 2026-10-03).
+    ...((live && (mayEdit || mayDelete)) ? [{
+      key: '_actions', header: 'Actions', width: 140, sortable: false, wrap: false,
+      render: (r: Row) => (
+        <div className="row" style={{ gap: 6 }}>
+          {mayEdit && <button className="btn btn-sm" title="Edit this product line" onClick={() => openEdit(r)}>✎ Edit</button>}
+          {mayDelete && (
+            <button className="btn btn-ghost btn-sm" title="Delete this line — refused while any machine, sale or contract names it"
+              onClick={() => void removeLine(r)}>🗑</button>
+          )}
+        </div>
+      ),
+    } as Column<Row>] : []),
   ];
 
   return (
@@ -182,8 +241,8 @@ export function ProductLines() {
         subtitle="The product lines — one row per code. Not the machines: those are the Product Database."
         count={shown.length} countMore={false}
         onRefresh={() => void load()} refreshing={busy}
-        actions={mayEdit && live && (
-          <button className="btn btn-primary" onClick={() => { setAdding(blankDraft); setAddTried(false); setAddErr(''); }}>＋ Add entry</button>
+        actions={mayAdd && live && (
+          <button className="btn btn-primary" onClick={() => { setEditingCode(null); setAdding(blankDraft); setAddTried(false); setAddErr(''); }}>＋ Add entry</button>
         )}
       />
       {!live && (
@@ -230,7 +289,7 @@ export function ProductLines() {
           {shown.length > 0 && (
             <button className="btn btn-sm"
                     onClick={() => csvExport('product-master.csv',
-                      columns.map((c) => ({ key: c.key, header: String(c.header) })), shown, COMPLETE)}>
+                      columns.filter((c) => !String(c.key).startsWith('_')).map((c) => ({ key: c.key, header: String(c.header) })), shown, COMPLETE)}>
               ⭳ Export CSV
             </button>
           )}
@@ -246,12 +305,13 @@ export function ProductLines() {
         )}
       </SectionCard>
       {adding && (
-        <Modal open title="Add to Product Master" onClose={() => setAdding(null)} width={560}>
+        <Modal open title={editingCode ? `Edit ${editingCode}` : 'Add to Product Master'} onClose={() => { setAdding(null); setEditingCode(null); }} width={560}>
           <form className="kb-form ml-form" onSubmit={(e) => { e.preventDefault(); void saveAdd(); }}>
             {([['product_code', 'Product Code', 'Unique — one line per code.'], ['product_name', 'Product Name', 'The name every machine, sale and call uses for this line.']] as const).map(([k, l, hint]) => (
               <div className="ml-field" key={k}>
                 <label className="field-label">{l} <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
-                <input className="input" value={adding[k]} autoFocus={k === 'product_code'}
+                <input className="input" value={adding[k]} autoFocus={k === (editingCode ? 'product_name' : 'product_code')}
+                  disabled={!!editingCode && k === 'product_code'}
                   onChange={(e) => setDraft(k, e.target.value)} />
                 <span className="muted ml-hint">{hint}</span>
               </div>
@@ -287,8 +347,8 @@ export function ProductLines() {
               <div className="field-err">{addErr || `Fill ${addMissing(adding).join(', ')}.`}</div>
             )}
             <div className="kb-form-actions">
-              <button type="button" className="btn btn-ghost" disabled={saving} onClick={() => setAdding(null)}>Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Adding…' : 'Add entry'}</button>
+              <button type="button" className="btn btn-ghost" disabled={saving} onClick={() => { setAdding(null); setEditingCode(null); }}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingCode ? 'Save' : 'Add entry'}</button>
             </div>
           </form>
         </Modal>

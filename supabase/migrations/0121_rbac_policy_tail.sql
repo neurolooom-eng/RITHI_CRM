@@ -161,8 +161,11 @@ begin
   drop policy if exists masters_update on public.masters;
   drop policy if exists masters_delete on public.masters;
 
+  -- masters_insert is 0325_product_line_and_list_add_edit_delete's (a list's
+  -- own add key, 2026-10-03).
   create policy masters_insert on public.masters for insert
     with check (public.has_perm('masters.edit.records')
+             or public.has_perm('master.' || coalesce(name, '') || '.add')
              or public.has_perm('master.' || coalesce(name, '') || '.edit'));
 
   create policy masters_update on public.masters for update
