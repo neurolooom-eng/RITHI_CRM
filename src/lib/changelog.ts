@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.63',
+    date: '2026-10-03',
+    title: 'Product Database: a transferred machine shows its new owner\'s address',
+    changes: [
+      'PRODUCT DATABASE: a machine transferred to another customer now shows the NEW owner\'s address, city, state and Service Engineer, from that customer\'s Party Master entry. Before, saving its original sale again put the first buyer\'s address back.',
+      'Every machine already transferred was corrected once, and the values it replaced were kept. Where the new owner\'s Party Master has no address, the machine keeps the one it had.',
+    ],
+  },
+  {
     version: '0.10.62',
     date: '2026-10-03',
     title: 'Sold Through is the dealer; the dealer\'s customer gets the installation call',

@@ -1788,7 +1788,16 @@ with checks(sort_order, bundle, provides, present) as (
                          from pg_proc p where p.oid = to_regprocedure('public.transfer_to_product()')), false)
          and (to_regclass('public.one_time_fixes_done') is null
               or exists (select 1 from public.one_time_fixes_done where name = '0328_sold_through_restored')
-              or not exists (select 1 from public.one_time_fixes_done where name = '0318_warranty_party_refresh'))))
+              or not exists (select 1 from public.one_time_fixes_done where name = '0318_warranty_party_refresh')))),
+    (261, 'A transferred machine carries its new owner''s address', 'upsert_product_from_sale() and transfer_to_product() take the address, city, state and Service Engineer of a machine now with somebody other than its buyer from that owner''s Party Master entry, a blank there keeping the machine''s own value; the one-time repair has run, its old values in products_new_owner_address_backup, which the API cannot read (0329, D-098). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0329)',
+        (coalesce((select p.prosrc like '%v_moved%' and p.prosrc like '%o_address%'
+                     from pg_proc p where p.oid = to_regprocedure('public.upsert_product_from_sale(bigint)')), false)
+         and coalesce((select p.prosrc like '%pm.address%'
+                          from pg_proc p where p.oid = to_regprocedure('public.transfer_to_product()')), false)
+         and to_regclass('public.products_new_owner_address_backup') is not null
+         and not has_table_privilege('anon', to_regclass('public.products_new_owner_address_backup'), 'SELECT')
+         and not has_table_privilege('authenticated', to_regclass('public.products_new_owner_address_backup'), 'SELECT')
+         and exists (select 1 from public.one_time_fixes_done where name = '0329_new_owner_address')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

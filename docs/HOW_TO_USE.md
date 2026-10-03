@@ -646,6 +646,10 @@ set to zero.
 
 - **Ownership Transfer** `/ownership-transfer` — one row per hand-over; the
   machine follows the **latest** transfer.
+  - On the Product Database the machine then shows the **new owner's address,
+    city, state and Service Engineer**, from their Party Master entry, and keeps
+    them when the original sale is saved again. If the new owner's Party Master
+    has no address, the machine keeps the one it had.
   - **Leave "From Party" blank** and it fills from whoever holds the machine now,
     which is what lets a historical list load in date order.
   - If the previous owner cannot be worked out the hand-over is still recorded

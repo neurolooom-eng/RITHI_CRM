@@ -1001,7 +1001,10 @@ const MODULES = {
             // no installation call for a DEALER party (the transfer raises it,
             // OT-PRODUCT-SERIAL); and, once, the Sold Through 0318 cleared put
             // back. Reads parties (masters, earlier) at run time.
-            '0328_sold_through_dealer_workflow.sql'],
+            '0328_sold_through_dealer_workflow.sql',
+            // A transferred machine carries its NEW owner's Party Master address
+            // (D-098, the user, 2026-10-03); redefines 0328's two functions.
+            '0329_transferred_machine_carries_new_owner_address.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
