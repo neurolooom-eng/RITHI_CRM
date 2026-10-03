@@ -1105,6 +1105,9 @@ const MODULES = {
       // A tick-box RM approval auto-approves Commercial / NSM by the same rule
       // as the single-spare Approve (0311, D-081). Redefines 0118's function.
       '0311_tick_box_rm_auto_approves.sql',
+      // A request on a call with no visit files the visit it implies:
+      // Unsolved, "spare not available", Update Visit Work Details = No (0333).
+      '0333_spare_request_files_visit.sql',
       // LAST, and it must stay last: it re-asserts `dispatch_spare_lines()` and
       // `sd_read`, which handstock owns, so a replay of Spare_1.sql alone stops
       // reverting them. Guarded, so a fresh apply skips it.

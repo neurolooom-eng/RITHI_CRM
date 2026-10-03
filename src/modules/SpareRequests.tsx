@@ -113,7 +113,8 @@ export function SpareRequestDrawer({
   call: CallLike | null;
   open: boolean;
   onClose: () => void;
-  onSaved?: (ucn: string, uid?: string, orNo?: string) => void;
+  /** `visitError`: the request saved, but the visit it implies (0332) did not. */
+  onSaved?: (ucn: string, uid?: string, orNo?: string, visitError?: string) => void;
 }) {
   const { user } = useAuth();
   // THE CALL'S PRODUCT + ITS ACCESSORIES + THE COMMON PARTS (partfit.ts, the
@@ -209,7 +210,7 @@ export function SpareRequestDrawer({
     try {
       const res = await addSpareRequest(req, picks);
       logAudit({ action: 'spare.request', target: res.uid ?? uid, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, duration_ms: Math.round(performance.now() - t0), meta: { ucn: callFields.ucn, parts: picks.length } });
-      if (res.ok) { onSaved?.(callFields.ucn, res.uid ?? uid, res.orNo); onClose(); }
+      if (res.ok) { onSaved?.(callFields.ucn, res.uid ?? uid, res.orNo, res.visitError); onClose(); }
       else setErr(res.error ?? 'Could not submit the request.');
     } catch (e) {
       setErr(`Submit failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -1134,8 +1135,10 @@ export function SpareRequests() {
         call={null}
         open={drawer}
         onClose={() => setDrawer(false)}
-        onSaved={(_ucn, uid, orNo) => {
-          setMsg({ tone: 'ok', text: `Spare request ${orNo ? `${orNo} ` : ''}submitted${uid ? ` (${uid})` : ''}.` });
+        onSaved={(_ucn, uid, orNo, visitError) => {
+          setMsg(visitError
+            ? { tone: 'error', text: `Spare request ${orNo ? `${orNo} ` : ''}submitted${uid ? ` (${uid})` : ''}, but its visit entry was not added: ${visitError}` }
+            : { tone: 'ok', text: `Spare request ${orNo ? `${orNo} ` : ''}submitted${uid ? ` (${uid})` : ''}.` });
           void load();
         }}
       />
