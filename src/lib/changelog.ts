@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.50',
+    date: '2026-10-03',
+    title: 'Software Validation: the open defects re-checked, 21 new ones recorded',
+    changes: [
+      'SOFTWARE VALIDATION → Defects: every defect still open was re-checked against this version. None was fixed by the work of 1–3 October; four are now partly fixed, and thirteen descriptions were corrected where the system had moved on.',
+      'TWENTY-ONE NEW DEFECTS (D-097 to D-117) from reading what changed between 1 and 3 October: the one-time warranty update, the Indoor DC and its approval, the Pre-Delivery Testing record, the Warranty and Contract pop-up, the installation-call mapping, stock transfer reasons and the top-bar search.',
+      'IMPORTANT: the one-time warranty update of 2 October cleared the warranty dates of machines whose sale entry has none, and rewrote Product Database addresses from the sale. The old machine values are kept; a new read-only check, _what_0318_cleared.sql, counts what was cleared. Nothing has been restored yet.',
+    ],
+  },
+  {
     version: '0.10.49',
     date: '2026-10-03',
     title: 'Indoor Service: one page per stage, and a cleaner form',

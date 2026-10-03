@@ -161,6 +161,59 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-10-03 — Re-review: the 42 open defects re-checked, and a fresh pass over #476–#504 (v0.10.50, on the branch, not merged)
+- **Your ask:** *"Re-review modules"*. Two halves:
+  - Every defect still open in the register was re-checked against `main` at `bea2b69` (v0.10.49).
+  - Everything other sessions merged from 1 to 3 October was read fresh: Warranty / Contract / Installation calls (#481–#502, 0318, 0319), and Indoor Service, Spares, Masters, Reports, Part Search and global search (#471–#504, 0308–0323).
+- **Method:** five readers in parallel, each against a database built from all 337 migrations, with every write tried as a signed-in user on a throwaway copy. The two most serious claims were reproduced again before being recorded: 0318's cleared warranty and the Indoor DC approvers' missing keys.
+- **The 42 open defects:**
+  - **None** has been fixed by the recent merges.
+  - **Four are partly fixed:** D-020 and D-025 (already said so), plus **D-053** (Department was saved before the defect was filed) and **D-068** (the permission mismatch is gone; the overwrite is not).
+  - **Thirteen entries corrected** where the code had moved or the text was wrong: D-018, D-021, D-037, D-044, D-053, D-055, D-059, D-061, D-067, D-068, D-071, D-084, D-096.
+  - Two are wider than written:
+    - **D-037 / D-096:** every engineer reads, and can change through the API, every customer feedback row (`fb_read` / `fb_update` on `visit.feedback`, a child of `calls.report`).
+    - **D-061:** a QMS document can also be deleted outright.
+- **New, 21 defects (D-097 – D-117):**
+  - **0318 (the one-time warranty update), already applied live on 2 October** — "3663 sale(s) updated from the Party Master; 17279 machine line(s) put back on their sale":
+    - **D-097:** a machine whose sale entry holds no value lost its own value. Reproduced: warranty to 2027-12-31 under a stand-in entry, gone afterwards, from the Product Database too. The old values are in `sale_items_inherit_backup`. **`supabase/apply/_what_0318_cleared.sql` counts them per field on the live project** (read-only, one grid).
+    - **D-098:** the same run rewrote Product Database rows from the sale, transferred machines' addresses included, with no backup.
+  - **Indoor DC (0321, 0323):**
+    - **D-107:** a unit can be dispatched past its DC and the approval.
+    - **D-108:** the engineer can mark the visit filed with an older visit.
+    - **D-109:** with the shipped role permissions, RM and RGM cannot open Indoor and NSM cannot file the visit, so only an administrator can approve.
+    - **D-110:** an NSM can authorise and approve their own DC.
+  - **Indoor records:**
+    - **D-111:** a signed PDT can be changed and keeps its signature.
+    - **D-112:** the register's Dispatch Date is the DC's issue date.
+    - **D-114:** the cleaning gate rests on a browser-sent time.
+    - **D-115:** the report number can be blanked.
+    - **D-116:** the comments and handbook say the visit is filed at issue.
+  - **Cover screens (read, not run in a browser):**
+    - **D-099:** a newly saved machine still reads unsaved, and the installation-call bar can be wrong.
+    - **D-100:** Renew and Convert use unsaved edits and drop them.
+    - **D-101:** Convert can overlap a machine's own warranty and names the original buyer.
+    - **D-103:** Register-tab pages have no tiebreaker.
+    - **D-104:** Renew and Convert bypass the required fields.
+    - **D-105:** serial-only keys in Renew and Convert.
+    - **D-106:** Save writes back every field.
+  - **Others:**
+    - **D-102:** 0319 maps a call naming a different machine (from its own suite).
+    - **D-113:** a stock transfer with a reason on some lines only is refused and leaves an empty header.
+    - **D-117:** global search shows five hits per kind without saying there are more.
+- **Checked and clean:**
+  - 0317 against 0316: no rule dropped.
+  - 0311 tick-box approval; 0309/0310 rename guards.
+  - The print routes are key-guarded and use the company logo; signatures appear only for the right person.
+  - The new definer functions are revoked from the web key.
+  - 0319's once-only marker and its unmapped list's permission.
+  - `_status.sql` gives no false NO.
+  - The Reports fixes (#496) and the parent-key unticking (#490).
+- **Needs your decision before anything is changed:**
+  - D-097 / D-098: restore, and which address a transferred machine carries.
+  - D-101: Convert's start date and party.
+  - D-109 / D-110: who approves an Indoor DC, and may they approve their own.
+- **Nothing in the code was changed.** This entry, the register, the probe and the version are the whole change.
+
 ### 2026-10-02 — High-rated batch 1: rules the screens kept, now kept by the database (v0.10.35, merged in #483)
 - **Your ask:** *"Start with the next batch of items, Dont merge till i say so"*. Every open defect left is rated **High**, so this batch takes the ten whose fix needs no decision from you: the rule is already stated (by you, a requirement or the screen), and the fix makes the database or the screen keep it.
 - **Fixed:**
