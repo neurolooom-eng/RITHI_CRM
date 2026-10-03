@@ -161,10 +161,22 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-10-03 — The dealer workflow (Sold Through, OT- installation call, 0328) moved to the dev branch
-- It was built here as v0.10.62 / migration 0328, in commit `470855d`, and taken out again by a revert, at your word: *"I will finish this in the dev branch. I want this branch only for review + Fixing those comments and updating req, validation package"*.
-- To carry it over, cherry-pick `470855d` onto the dev branch. It holds the migration, the screens, URS-177 / FRS-243 / OQ-235, `_status.sql` row 260, the suite `sold_through_dealer_test`, and the restoration of the 249 Sold Through values 0318 cleared.
-- On the dev branch, re-check the migration number and the version against `main` first.
+### 2026-10-03 — Sold Through is the dealer; the dealer's customer gets the installation call (v0.10.62, 0328)
+- **Carried back and merged at your word** (*"Finish the work and merge it to main and deploy"*), after it had been taken out of the review branch for the dev branch; cherry-picked from `470855d`.
+- **Your explanation:** *"Sold through -- it is to monitor the equipments sold through Dealer. Only party identified as dealer should be listed ... we can not have an installation call for a dealer ... we do a Ownership transfer and then generate an installation call from the ownership transfer entry ... OT-PRODUCT-SERIAL NO"*.
+- **Your choices:**
+  - A transfer's Sold Through is its From party when that party is a dealer.
+  - The transfer's call is dated the transfer date.
+  - The dealer rule is kept by the screen and the database.
+  - All 249 Sold Through values 0318 cleared are restored.
+- **Done (0328, sales_contracts):**
+  - **Sold Through picker:** dealers only.
+  - **No installation call for a dealer:** not offered on the entry or the Register line, and not counted pending. Refused by the database however it is raised (calls already raised are left).
+  - **On a transfer:** Sold Through is stamped from a dealer From party, and the Product Database follows the latest dealer transfer, even when the sale is re-saved.
+  - **+ Installation call on a transfer:** OT-PRODUCT-SERIAL, for the customer, dated the transfer date, built by the sale's own call builder, one per machine.
+  - **0318 Sold Through restored, once:** where the line still follows its entry and the entry's value is blank or different.
+- **Records:** URS-177, FRS-243 and OQ-235 are new, and `_status.sql` row 260 is added.
+- **Tests:** suite `sold_through_dealer_test` is new, with new assertions in `check:cover-party` and `check:ui`.
 
 ### 2026-10-03 — Indoor DC: authorised and approved as the User Master says (v0.10.61, 0327, on the branch, not merged)
 - **Your decision:** *"AJAY G (INDOOR) is mapped to VIGNESH and Bagyaraj.. it is dynamic based on the user master. So when I say RM / RGM / NSM - it should map as per the user Master"*.
