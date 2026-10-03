@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.50',
+    date: '2026-10-03',
+    title: 'Indoor Service: a pop-up job window, the DC side by side, delete, and the standard table',
+    changes: [
+      'THE JOB OPENS AS A POP-UP WINDOW instead of a side panel. Esc or × closes it.',
+      'CREATE DC splits the window: the job on the left, the DC details on the right. Drag the divider to set the widths; the split is remembered on this device. The DC no longer opens behind the job.',
+      'A NEW LOOK for the DC form and the Indoor DC list, with a clear chip for Pending approval, Approved or Rejected. DCs waiting for you are listed first.',
+      'VISIT ENGINEER can be changed on the Repair page: pick anyone active on the User Master. The visit filed at DC approval names that engineer.',
+      'DELETE JOB: a new "Delete an Indoor Service job" permission. Administrators hold it; grant it to other roles on Roles & Permissions. It asks for a reason and the job number, and permanently removes the job with its accessories, checks and test records. It is refused once a DC has been issued or a visit filed for the job. Each deletion is written to the Audit Log.',
+      'THE REGISTER uses the standard table: drag column widths, drag headings to reorder, wrap, and pick columns. It loads every job, so the count is exact.',
+      'INDOOR SERVICE REPORTS are saved to the "INDOOR Service Reports" folder in the Reports drive. This takes effect once the CallReg Web App is redeployed.',
+    ],
+  },
+  {
     version: '0.10.49',
     date: '2026-10-03',
     title: 'Indoor Service: one page per stage, and a cleaner form',
