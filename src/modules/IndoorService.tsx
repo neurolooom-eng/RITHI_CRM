@@ -91,9 +91,13 @@ const SHOWS = {
   checks:  (a: string) => a === 'Pre-delivery inspection' || a === 'Repair' || a === 'Rework',
 };
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+/** A field: the label above, the control, and a hint only where it prevents a
+ *  mistake. `tip` is the longer explanation, on hover. `wide` spans the grid. */
+function Field({ label, hint, tip, wide, children }: {
+  label: string; hint?: string; tip?: string; wide?: boolean; children: React.ReactNode;
+}) {
   return (
-    <label className="ind-field">
+    <label className={`ind-field${wide ? ' is-wide' : ''}`} title={tip}>
       <span className="ind-label">{label}</span>
       {children}
       {hint ? <span className="ind-hint">{hint}</span> : null}
@@ -460,7 +464,9 @@ export function IndoorService() {
         title={job ? `${job.job_no} — ${job.product_name || 'equipment'}` : ''}>
         {job ? (
           <IndoorJobDrawer
+            key={job.id}
             job={job}
+            msg={msg}
             accessories={accessories} parts={parts} checks={checks} pdt={pdt}
             reloadChildren={() => loadChildren(job.id)}
             reload={load}
@@ -480,21 +486,66 @@ export function IndoorService() {
 }
 
 // ---------------------------------------------------------------------------
-// THE JOB DRAWER — the workflow as STAGES (0323, the user, 2026-10-02):
-// Intake -> Cleaning -> Repair -> Report -> DC (pending approval) ->
-// Dispatched / Approved, with a stepper at the top.
+// THE JOB DRAWER — the workflow as PAGES, one stage at a time (0323; the user,
+// 2026-10-03: "Can the stages not be changed into pages [Next Page] instead of
+// 1 looooong page?").
 //
-// ONLY THE CURRENT AND COMPLETED STAGES ARE SHOWN (the user's rule): at intake
-// there are no DC fields at all; the repair opens once the unit is cleaned;
-// the report can be uploaded once it is cleaned (the database refuses it
-// earlier); the DC appears once the report is uploaded. The ORDER is enforced
-// where it is a rule -- by the database -- and nothing is timed. This
-// replaces the earlier "every step always visible" layout, which the user
-// asked to change. The activity-specific sections (rework, salvage, PDI, demo,
-// PDT, condemn, verify) sit in the stage they belong to.
+// Intake -> Cleaning -> Repair -> Report -> DC. The stepper at the top is the
+// page navigator; Back / Next sit at the bottom. The drawer opens on the job's
+// CURRENT stage (jobStage) and remembers nothing across jobs (it is keyed by
+// the job). A page can be opened when its stage is done, or when it is open by
+// the SAME gates the single long page used: Repair and Report once the unit is
+// cleaned (the database refuses a report earlier), DC once the report is
+// uploaded -- plus, for a condemned unit, the DC page, where Verified By lives.
+// Where Next cannot go further it is replaced by the page's own action (Mark
+// cleaning done, Upload the report, Create Indoor DC, Verify) or one line
+// saying what has to happen first. Nothing about WHAT may be done changed: the
+// same fields, the same rights, the same saves.
+//
+// Where each section lives:
+//   Intake   -- property / activity / product / serial / tag / cover, customer
+//               and call, Field Service Report No, engineer, place, the call's
+//               Standard Complaint (read only), problem, condition on arrival,
+//               received-by, and the accessories received.
+//   Cleaning -- work instruction + revision, cleaned-by, and (Salvage) the
+//               decontamination tick that gates a harvest.
+//   Repair   -- status, Request spare, findings, work done, damage note; the
+//               activity blocks (Rework, Salvage incl. condemn and harvested
+//               parts, Pre-delivery inspection, Demo, Other), the checks, the
+//               Pre-Delivery Testing of an imported DEMO unit, and the QC.
+//   Report   -- the Indoor Service Report and the visit drafted against the
+//               call (the upload form / Visit Entry opens from here).
+//   DC       -- the Indoor DC and its approval, dispatch reference, DC date,
+//               print, accessories still out, remarks, and Verified By.
 // ---------------------------------------------------------------------------
+const PAGE_TITLE = ['Intake', 'Cleaning', 'Repair', 'Indoor Service Report', 'Indoor DC & dispatch'];
+const PAGE_CLAUSE = ['4.5.2', '4.5.3', '4.5.6', '0323', '4.5.7'];
+
+/** A read-only value: plain text, not a disabled input. */
+function Value({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
+  return (
+    <div className={`ind-field${wide ? ' is-wide' : ''}`}>
+      <span className="ind-label">{label}</span>
+      <span className="ind-value">{children}</span>
+    </div>
+  );
+}
+
+/** One group of a page: a small uppercase eyebrow, a hairline above. */
+function Group({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="ind-group">
+      <div className="ind-group-head">
+        <h4 className="ind-eyebrow">{title}</h4>
+        {aside ? <div className="ind-group-aside">{aside}</div> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function IndoorJobDrawer({
-  job, accessories, parts, checks, pdt, reloadChildren, reload, patch, uid, rights, setMsg,
+  job, accessories, parts, checks, pdt, reloadChildren, reload, patch, uid, rights, msg, setMsg,
   stage, dcStatus, onUpload, onCreateDc,
 }: {
   job: IndoorJob;
@@ -508,6 +559,7 @@ function IndoorJobDrawer({
   uid: string;
   rights: { mayReceive: boolean; mayWork: boolean; mayQc: boolean;
             mayDispatch: boolean; mayCondemn: boolean; mayVerify: boolean };
+  msg: string;
   setMsg: (s: string) => void;
   stage: StageState;
   dcStatus?: string;
@@ -518,6 +570,24 @@ function IndoorJobDrawer({
   const navigate = useNavigate();
   const cleaned = !!job.cleaned_at;
   const reported = !!(job.report_file_url ?? '').trim();
+  const verifiable = ['Dispatched', 'Closed', 'Condemned'].includes(job.status);
+
+  // WHICH PAGES OPEN: a done stage, or the gate the long page used.
+  const reach = [
+    true,
+    true,
+    cleaned || stage.done[2],
+    cleaned || stage.done[3],
+    reported || stage.done[4] || stage.offPath,
+  ];
+  const [view, setView] = useState(() => {
+    const want = Math.min(stage.current, 4);
+    let v = want;
+    while (v > 0 && !reach[v]) v -= 1;
+    return v;
+  });
+  const go = (i: number) => { if (i >= 0 && i <= 4 && reach[i]) setView(i); };
+
   // REQUEST SPARE: the SAME Spare Request drawer the call view raises, with
   // this job's call passed in; the requester is the signed-in engineer (the
   // drawer's own default). The call's status is NOT touched.
@@ -553,7 +623,6 @@ function IndoorJobDrawer({
     if (!(job.party_name ?? '').trim() && String(c.partyName ?? '').trim()) p.party_name = String(c.partyName).trim();
     if (Object.keys(p).length) void patch(job.id, p);
   };
-  const verifiable = ['Dispatched', 'Closed', 'Condemned'].includes(job.status);
   const owed = pdtOwed(job);
   const gaps = pdtGaps(pdt);
   const pdtSet = async (p: Partial<IndoorPdt>) => {
@@ -569,8 +638,7 @@ function IndoorJobDrawer({
 
   // THE SEGREGATION WARNING (4.5.6). Not a block — the procedure does not say
   // the check must be somebody else's, so the register records both names and
-  // says plainly when they are the same. Somebody reading the record later can
-  // then judge it; a system that silently allowed it could not be judged at all.
+  // says plainly when they are the same.
   const selfChecked = !!job.qc_result && job.qc_by === job.received_by;
 
   const child = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
@@ -578,617 +646,640 @@ function IndoorJobDrawer({
     if (!r.ok) setMsg(r.error ?? 'Could not save'); else { setMsg(''); reloadChildren(); }
   };
 
+  const markCleaned = async () => {
+    const r = await markIndoorCleaned(job.id, job.cleaning_wi || 'WI/SER/01', job.cleaning_wi_rev, uid);
+    if (!r.ok) setMsg(r.error ?? 'Could not record the cleaning');
+    else { setMsg(''); void patch(job.id, { status: 'Cleaned' }); }
+  };
+  const verify = async () => {
+    const r = await verifyIndoorJob(job.id, uid);
+    if (!r.ok) setMsg(r.error ?? 'Could not verify');
+    else { setMsg(''); reload(); }
+  };
+  const mayVerifyNow = verifiable && !job.verified_at && mayVerify;
+  const dcName = dcStatus === 'Pending approval' ? 'DC pending approval' : 'DC / Dispatched';
+
+  // ---- THE PAGER'S RIGHT-HAND SIDE: Next, else the page's action, else why.
+  const nextSlot = (() => {
+    if (view < 4 && reach[view + 1]) {
+      return <button type="button" className="btn btn-primary" onClick={() => go(view + 1)}>
+        Next · {view + 1 === 4 ? 'DC' : INDOOR_STAGES[view + 1]} →</button>;
+    }
+    if (view === 1) {
+      return mayWork
+        ? <button type="button" className="btn btn-primary" onClick={() => void markCleaned()}>Mark cleaning done</button>
+        : <span className="ind-pager-note">Repair opens once the unit is cleaned.</span>;
+    }
+    if (view === 3) {
+      return mayWork && !(job.dispatch_ref ?? '').trim()
+        ? <button type="button" className="btn btn-primary" onClick={onUpload}>⭱ Upload the report</button>
+        : <span className="ind-pager-note">The DC opens once the report is uploaded.</span>;
+    }
+    if (view === 4) {
+      if (onCreateDc) return <button type="button" className="btn btn-primary" onClick={onCreateDc}>Create Indoor DC</button>;
+      if (mayVerifyNow) return <button type="button" className="btn btn-primary" onClick={() => void verify()}>Verify this register entry</button>;
+    }
+    return null;
+  })();
+
   return (
-    <div className="ind-drawer">
-      {/* ---- THE STAGES (0323) ------------------------------------------- */}
-      <div className="ind-stepper" aria-label="Stage">
-        {INDOOR_STAGES.map((n, i) => (
-          <div key={n} className={`ind-step ${stage.done[i] ? 'is-done' : ''} ${i === stage.current ? 'is-now' : ''}`}>
-            <span className="ind-dot">{stage.done[i] ? '✓' : ''}</span>
-            <span className="ind-step-name">{n === 'DC' ? (dcStatus === 'Pending approval' ? 'DC pending approval' : 'DC / Dispatched') : n}</span>
-          </div>
-        ))}
-      </div>
-      <p className="ind-note"><span className="ind-stage-now">{stage.label}</span></p>
+    <div className="ind-form">
+      {/* ---- THE STAGES, as the page navigator ---------------------------- */}
+      <nav className="ind-stepper" aria-label="Stages">
+        <ol>
+          {INDOOR_STAGES.map((n, i) => {
+            const tone = stage.done[i] ? 'is-done' : i === stage.current ? 'is-now' : 'is-future';
+            return (
+              <li key={n} className={`ind-step ${tone}${i === view ? ' is-view' : ''}`}>
+                <button type="button" disabled={!reach[i]} aria-current={i === view ? 'step' : undefined}
+                  onClick={() => go(i)} title={reach[i] ? `Open ${n}` : `${n} — not reached yet`}>
+                  <span className="ind-dot" aria-hidden="true" />
+                  <span className="ind-step-name">{n === 'DC' ? dcName : n}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
 
-      {/* ---- 1. RECEIVE (4.5.2) ------------------------------------------ */}
-      <SectionCard title="1 · Intake — received (4.5.2)">
-        <div className="ind-grid">
-          <Field label="Whose property is it?"
-            hint="Customer property carries the duty of care of §7.5.10; a DEMO unit is the company's own stock.">
-            <SelectPicker value={job.kind} options={[...INDOOR_KINDS]}
-              onChange={(v) => set({ kind: v })} disabled={!mayWork} />
-          </Field>
-          <Field label="What is being done to it?"
-            hint="A different question from the one above, and it stays a different field.">
-            <SelectPicker value={job.activity} options={[...INDOOR_ACTIVITIES]}
-              onChange={(v) => set({ activity: v })} disabled={!mayWork} />
-          </Field>
-          <Field label="Product">
-            <input defaultValue={job.product_name} disabled={!mayWork}
-              onBlur={(e) => { if (e.target.value !== job.product_name) { set({ product_name: e.target.value }); void lookupCover(e.target.value, job.serial); } }} />
-          </Field>
-          <Field label="Serial number">
-            <input defaultValue={job.serial} disabled={!mayWork} className="mono"
-              onBlur={(e) => { if (e.target.value !== job.serial) { set({ serial: e.target.value }); void lookupCover(job.product_name, e.target.value); } }} />
-          </Field>
-          <Field label="Customer" hint="Left blank for a DEMO unit that has no customer.">
-            <input defaultValue={job.party_name ?? ''} disabled={!mayWork}
-              onBlur={(e) => set({ party_name: e.target.value })} />
-          </Field>
-          <Field label="Call (UCN)" hint="Optional — a DEMO unit has no call. Phase 2 links it both ways.">
-            <input defaultValue={job.ucn ?? ''} disabled={!mayWork} className="mono"
-              onBlur={(e) => { if (e.target.value !== (job.ucn ?? '')) { set({ ucn: e.target.value }); void fromCall(e.target.value); } }} />
-          </Field>
-          <Field label="Identification tag (4.5.4)">
-            <input defaultValue={job.tag_no} disabled={!mayWork} className="mono"
-              onBlur={(e) => set({ tag_no: e.target.value })} />
-          </Field>
+      <header className="ind-pagehead">
+        <div>
+          <div className="ind-eyebrow">Stage {view + 1} of 5 · {PAGE_CLAUSE[view]}</div>
+          <h3 className="ind-title">{PAGE_TITLE[view]}</h3>
         </div>
-        {/* THE REGISTER'S OWN COLUMNS (R/SER/07), in its words. */}
-        <div className="ind-grid">
-          <Field label="Field Service Report No">
-            <input defaultValue={job.field_report_no} disabled={!mayWork} className="mono"
-              onBlur={(e) => set({ field_report_no: e.target.value })} />
-          </Field>
-          <Field label="Engineer Name" hint="From the call’s allocated engineer when a UCN is given; “Indoor Service” for a DEMO unit.">
-            <input key={`eng-${job.engineer_name}`} defaultValue={job.engineer_name} disabled={!mayWork}
-              onBlur={(e) => set({ engineer_name: e.target.value })} />
-          </Field>
-          <Field label="Customer Place">
-            <input key={`place-${job.customer_place}`} defaultValue={job.customer_place} disabled={!mayWork}
-              onBlur={(e) => set({ customer_place: e.target.value })} />
-          </Field>
-          <Field label="Status (cover)" hint="Read from the machine in the Product Database when the product or serial changes. Not the workshop stage.">
-            <SelectPicker value={job.cover} options={job.cover && !COVERS.includes(job.cover) ? [...COVERS, job.cover] : COVERS}
-              onChange={(v) => set({ cover: v })} disabled={!mayWork} />
-          </Field>
-        </div>
-        {(job.standard_complaint ?? '').trim() ? (
-          <Field label="Standard Complaint" hint="As the call records it — read only.">
-            <input value={job.standard_complaint} disabled /></Field>
-        ) : null}
-        <Field label="Problem Reported">
-          <textarea defaultValue={job.problem_reported} disabled={!mayWork} rows={2}
-            onBlur={(e) => set({ problem_reported: e.target.value })} />
-        </Field>
-        <Field label="Condition on arrival"
-          hint="The baseline any later damage claim is judged against — so it is worth writing even when nothing is wrong.">
-          <textarea defaultValue={job.condition_on_arrival} disabled={!mayWork} rows={2}
-            onBlur={(e) => set({ condition_on_arrival: e.target.value })} />
-        </Field>
-        <p className="ind-note">
-          Received by <b>{job.received_by_name || '—'}</b> on {formatDayTime(job.received_at)}.
-        </p>
-      </SectionCard>
+        <span className="ind-stage-now" title="Where the job is now">{stage.label}</span>
+      </header>
 
-      {/* ---- accessories (4.5.4) ------------------------------------------ */}
-      {SHOWS.accessories(a) ? (
-        <SectionCard title="Accessories received">
-          <p className="ind-note">
-            Tagged to the parent equipment (4.5.4). Returning the customer's accessories is
-            part of returning their property, and a list is what makes that checkable at
-            dispatch — {job.accessories_outstanding} of {job.accessory_count} still to go back.
-          </p>
-          <table className="table ind-child">
-            <thead><tr><th>Item</th><th>Qty</th><th>Serial</th><th>Tag</th>{reported ? <th>Returned</th> : null}<th /></tr></thead>
-            <tbody>
-              {accessories.map((x) => (
-                <tr key={x.id}>
-                  <td><input defaultValue={x.name} disabled={!mayWork}
-                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { name: e.target.value }))} /></td>
-                  <td><input type="number" min={1} step="any" style={{ width: 64 }} defaultValue={x.qty ?? 1} disabled={!mayWork}
-                    onBlur={(e) => { const q = Number(e.target.value); if (q > 0 && q !== Number(x.qty)) void child(() => saveIndoorAccessory(x.id, { qty: q })); }} /></td>
-                  <td><input defaultValue={x.serial} className="mono" disabled={!mayWork}
-                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { serial: e.target.value }))} /></td>
-                  <td><input defaultValue={x.tag_no} className="mono" disabled={!mayWork}
-                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { tag_no: e.target.value }))} /></td>
-                  {reported ? <td><input type="checkbox" checked={x.returned} disabled={!mayWork}
-                    onChange={(e) => child(() => saveIndoorAccessory(x.id, { returned: e.target.checked }))} /></td> : null}
-                  <td>{mayWork ? <button className="btn-link"
-                    onClick={() => child(() => deleteIndoorAccessory(x.id))}>remove</button> : null}</td>
-                </tr>
-              ))}
-              {accessories.length === 0 ? <tr><td colSpan={6} className="ind-empty">Nothing listed.</td></tr> : null}
-            </tbody>
-          </table>
-          {mayWork ? <button className="btn"
-            onClick={() => child(() => addIndoorAccessory(job.id, { name: '', qty: 1 }))}>＋ Add an item</button> : null}
-        </SectionCard>
-      ) : null}
+      {msg ? <div className="ind-warn" role="status">{msg}</div> : null}
 
-      {/* ---- 2. CLEAN (4.5.3) -------------------------------------------- */}
-      <SectionCard title="2 · Cleaning — as per the work instruction (4.5.3)">
-        <div className="ind-grid">
-          <Field label="Work instruction"><input defaultValue={job.cleaning_wi} disabled={!mayWork}
-            onBlur={(e) => set({ cleaning_wi: e.target.value })} /></Field>
-          <Field label="Revision" hint="Which revision it was cleaned against — the WI changes, the record should say which one applied.">
-            <input defaultValue={job.cleaning_wi_rev} disabled={!mayWork}
-              onBlur={(e) => set({ cleaning_wi_rev: e.target.value })} /></Field>
-        </div>
-        {job.cleaned_at
-          ? <p className="ind-note">Cleaned by <b>{job.cleaned_by_name || '—'}</b> on {formatDayTime(job.cleaned_at)}.</p>
-          : mayWork
-            ? <button className="btn" onClick={async () => {
-                const r = await markIndoorCleaned(job.id, job.cleaning_wi || 'WI/SER/01', job.cleaning_wi_rev, uid);
-                if (!r.ok) setMsg(r.error ?? 'Could not record the cleaning');
-                else { setMsg(''); void patch(job.id, { status: 'Cleaned' }); }
-              }}>Mark cleaning done</button>
-            : <p className="ind-note">Not yet cleaned.</p>}
-        {SHOWS.salvage(a) ? (
-          <label className="ind-check">
-            <input type="checkbox" checked={job.decontaminated} disabled={!mayWork}
-              onChange={(e) => set({ decontaminated: e.target.checked })} />
-            Decontaminated — <b>required before any part is harvested</b>. The database refuses the harvest until this is ticked.
-          </label>
-        ) : null}
-      </SectionCard>
-
-      {cleaned ? (<>
-      {/* ---- 3. WORK (4.5.6) --------------------------------------------- */}
-      <SectionCard title="3 · Repair — findings and work done (4.5.6)">
-        <div className="ind-grid">
-          <Field label="Status">
-            {/* DISPATCHED AND CLOSED ARE THE DISPATCH RIGHT'S (finding 59, 0297):
-                the picker offered them to indoor.work, and the database now
-                refuses that, so the picker does not offer what it will refuse. */}
-            <SelectPicker value={job.status}
-              options={INDOOR_STATUSES.filter((st) => mayDispatch || !['Dispatched', 'Closed'].includes(st) || st === job.status)}
-              onChange={(v) => set({ status: v })} disabled={!mayWork} />
-          </Field>
-          {/* Offered to whoever works the job; RAISING it is the Spare Request
-              register's own right, which the database asks on submit -- the
-              key belongs to that page's row on Roles & Permissions, not this one. */}
-          {(job.ucn ?? '').trim() && mayWork ? (
-            <Field label="Spares" hint="The Spare Request form, with this call filled in and you as the requester (it needs the Spare Request right). The call’s status is not changed.">
-              <button className="btn" onClick={() => void requestSpare()}>Request spare</button>
+      {/* ================= 1. INTAKE (4.5.2) ================= */}
+      {view === 0 ? (<>
+        <Group title="Equipment">
+          <div className="ind-grid">
+            <Field label="Whose property is it?" tip="Customer property carries the duty of care of §7.5.10; a DEMO unit is the company's own stock.">
+              <SelectPicker value={job.kind} options={[...INDOOR_KINDS]}
+                onChange={(v) => set({ kind: v })} disabled={!mayWork} />
             </Field>
-          ) : null}
-        </div>
-        <Field label="Findings"><textarea defaultValue={job.findings} disabled={!mayWork} rows={3}
-          onBlur={(e) => set({ findings: e.target.value })} /></Field>
-        <Field label="Work done"><textarea defaultValue={job.work_done} disabled={!mayWork} rows={3}
-          onBlur={(e) => set({ work_done: e.target.value })} /></Field>
-        <Field label="Damage to the customer's property"
-          hint="§7.5.10 — damage to somebody's machine is theirs to be told about, and this is where that is recorded rather than nowhere.">
-          <textarea defaultValue={job.damage_note} disabled={!mayWork} rows={2}
-            onBlur={(e) => set({ damage_note: e.target.value })} /></Field>
-      </SectionCard>
-
-      {/* ---- per-activity -------------------------------------------------- */}
-      {SHOWS.rework(a) ? (
-        <SectionCard title="Rework — §8.3.4">
-          <div className="ind-grid">
-            <Field label="Nonconformity reference"><input defaultValue={job.nc_reference} disabled={!mayWork}
-              onBlur={(e) => set({ nc_reference: e.target.value })} /></Field>
-            <Field label="Rework instruction" hint="Rework runs to a DOCUMENTED instruction, not from memory.">
-              <input defaultValue={job.rework_instruction} disabled={!mayWork}
-                onBlur={(e) => set({ rework_instruction: e.target.value })} /></Field>
-            <Field label="Instruction revision"><input defaultValue={job.rework_instruction_rev} disabled={!mayWork}
-              onBlur={(e) => set({ rework_instruction_rev: e.target.value })} /></Field>
-            <Field label="Authorised by" hint="The same authority that approved the original process.">
-              <input defaultValue={job.rework_authorised_by} disabled={!mayWork}
-                onBlur={(e) => set({ rework_authorised_by: e.target.value })} /></Field>
-            <Field label="Re-verified by"><input defaultValue={job.reverified_by} disabled={!mayWork}
-              onBlur={(e) => set({ reverified_by: e.target.value })} /></Field>
-            <Field label="Re-verification result" hint="Rework without re-verification proves nothing.">
-              <SelectPicker value={job.reverification_result ?? ''} options={['Pass', 'Fail']}
-                onChange={(v) => set({ reverification_result: v })} disabled={!mayWork} /></Field>
-            <Field label="Disposition" hint="A failed rework has to end somewhere.">
-              <SelectPicker value={job.disposition ?? ''} options={['Released', 'Scrapped']}
-                onChange={(v) => set({ disposition: v })} disabled={!mayWork} /></Field>
+            <Field label="What is being done to it?" tip="A different question from whose property it is, and it stays a different field.">
+              <SelectPicker value={job.activity} options={[...INDOOR_ACTIVITIES]}
+                onChange={(v) => set({ activity: v })} disabled={!mayWork} />
+            </Field>
+            <Field label="Product">
+              <input defaultValue={job.product_name} disabled={!mayWork}
+                onBlur={(e) => { if (e.target.value !== job.product_name) { set({ product_name: e.target.value }); void lookupCover(e.target.value, job.serial); } }} />
+            </Field>
+            <Field label="Serial number">
+              <input defaultValue={job.serial} disabled={!mayWork} className="mono"
+                onBlur={(e) => { if (e.target.value !== job.serial) { set({ serial: e.target.value }); void lookupCover(job.product_name, e.target.value); } }} />
+            </Field>
+            <Field label="Status (cover)" tip="Read from the machine in the Product Database when the product or serial changes. Not the workshop stage.">
+              <SelectPicker value={job.cover} options={job.cover && !COVERS.includes(job.cover) ? [...COVERS, job.cover] : COVERS}
+                onChange={(v) => set({ cover: v })} disabled={!mayWork} />
+            </Field>
+            <Field label="Identification tag (4.5.4)">
+              <input defaultValue={job.tag_no} disabled={!mayWork} className="mono"
+                onBlur={(e) => set({ tag_no: e.target.value })} />
+            </Field>
           </div>
-          <label className="ind-check">
-            <input type="checkbox" checked={job.adverse_effect_assessed === true} disabled={!mayWork}
-              onChange={(e) => set({ adverse_effect_assessed: e.target.checked })} />
-            Adverse effect of the rework assessed — <b>§8.3.4 asks for this explicitly</b>, and it is the field most likely to be left out.
-          </label>
-          <Field label="What the assessment found">
-            <textarea defaultValue={job.adverse_effect_note} disabled={!mayWork} rows={2}
-              onBlur={(e) => set({ adverse_effect_note: e.target.value })} /></Field>
-        </SectionCard>
-      ) : null}
+        </Group>
 
-      {SHOWS.salvage(a) ? (
-        <SectionCard title="Salvage — the unit is condemned, the parts are not">
+        <Group title="Customer & call">
           <div className="ind-grid">
-            <Field label="Why it is being condemned">
-              <input defaultValue={job.condemned_reason} disabled={!mayCondemn}
-                onBlur={(e) => set({ condemned_reason: e.target.value })} /></Field>
-            <Field label="Disposal method" hint="What was NOT harvested still has to go somewhere — e-waste, and biohazard where the unit was in patient contact.">
-              <input defaultValue={job.disposal_method} disabled={!mayWork}
-                onBlur={(e) => set({ disposal_method: e.target.value })} /></Field>
-            <Field label="Disposal reference"><input defaultValue={job.disposal_ref} disabled={!mayWork}
-              onBlur={(e) => set({ disposal_ref: e.target.value })} /></Field>
+            <Field label="Customer" tip="Left blank for a DEMO unit that has no customer.">
+              <input defaultValue={job.party_name ?? ''} disabled={!mayWork}
+                onBlur={(e) => set({ party_name: e.target.value })} />
+            </Field>
+            <Field label="Customer Place">
+              <input key={`place-${job.customer_place}`} defaultValue={job.customer_place} disabled={!mayWork}
+                onBlur={(e) => set({ customer_place: e.target.value })} />
+            </Field>
+            <Field label="Call (UCN)" tip="Optional — a DEMO unit has no call. Fills engineer, place and customer where blank.">
+              <input defaultValue={job.ucn ?? ''} disabled={!mayWork} className="mono"
+                onBlur={(e) => { if (e.target.value !== (job.ucn ?? '')) { set({ ucn: e.target.value }); void fromCall(e.target.value); } }} />
+            </Field>
+            <Field label="Engineer Name" tip="From the call’s allocated engineer when a UCN is given; “Indoor Service” for a DEMO unit.">
+              <input key={`eng-${job.engineer_name}`} defaultValue={job.engineer_name} disabled={!mayWork}
+                onBlur={(e) => set({ engineer_name: e.target.value })} />
+            </Field>
+            <Field label="Field Service Report No">
+              <input defaultValue={job.field_report_no} disabled={!mayWork} className="mono"
+                onBlur={(e) => set({ field_report_no: e.target.value })} />
+            </Field>
+            {(job.standard_complaint ?? '').trim()
+              ? <Value label="Standard Complaint">{job.standard_complaint}</Value>
+              : null}
           </div>
-          {!mayCondemn ? (
-            <p className="ind-note">
-              Condemning a unit needs the <b>Condemn</b> right, which is granted separately —
-              scrapping a customer's machine is not a decision that arrives with the page.
-            </p>
-          ) : null}
-          {job.kind === 'Customer property' ? (
+        </Group>
+
+        <Group title="On arrival">
+          <div className="ind-grid">
+            <Field label="Problem Reported" wide>
+              <textarea defaultValue={job.problem_reported} disabled={!mayWork} rows={2}
+                onBlur={(e) => set({ problem_reported: e.target.value })} />
+            </Field>
+            <Field label="Condition on arrival" wide hint="The baseline any later damage claim is judged against.">
+              <textarea defaultValue={job.condition_on_arrival} disabled={!mayWork} rows={2}
+                onBlur={(e) => set({ condition_on_arrival: e.target.value })} />
+            </Field>
+          </div>
+          <p className="ind-meta">Received by <b>{job.received_by_name || '—'}</b> · {formatDayTime(job.received_at)}</p>
+        </Group>
+
+        {SHOWS.accessories(a) ? (
+          <Group title="Accessories received"
+            aside={<span className="ind-meta">{job.accessories_outstanding} of {job.accessory_count} still to go back</span>}>
+            <div className={`ind-rows${reported ? ' has-returned' : ''}`} role="table" aria-label="Accessories received">
+              <div className="ind-rows-head" role="row">
+                <span role="columnheader">Item</span><span role="columnheader">Qty</span>
+                <span role="columnheader">Serial</span><span role="columnheader">Tag</span>
+                {reported ? <span role="columnheader">Back</span> : null}<span />
+              </div>
+              {accessories.map((x) => (
+                <div className="ind-rows-row" role="row" key={x.id}>
+                  <input aria-label="Item" defaultValue={x.name} disabled={!mayWork}
+                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { name: e.target.value }))} />
+                  <input aria-label="Quantity" type="number" min={1} step="any" defaultValue={x.qty ?? 1} disabled={!mayWork}
+                    onBlur={(e) => { const q = Number(e.target.value); if (q > 0 && q !== Number(x.qty)) void child(() => saveIndoorAccessory(x.id, { qty: q })); }} />
+                  <input aria-label="Serial" defaultValue={x.serial} className="mono" disabled={!mayWork}
+                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { serial: e.target.value }))} />
+                  <input aria-label="Tag" defaultValue={x.tag_no} className="mono" disabled={!mayWork}
+                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { tag_no: e.target.value }))} />
+                  {reported ? <input type="checkbox" aria-label="Returned" checked={x.returned} disabled={!mayWork}
+                    onChange={(e) => child(() => saveIndoorAccessory(x.id, { returned: e.target.checked }))} /> : null}
+                  {mayWork ? <button type="button" className="ind-x" aria-label={`Remove ${x.name || 'item'}`} title="Remove"
+                    onClick={() => child(() => deleteIndoorAccessory(x.id))}>×</button> : <span />}
+                </div>
+              ))}
+              {accessories.length === 0 ? <div className="ind-rows-empty">Nothing listed.</div> : null}
+            </div>
+            {mayWork ? <button type="button" className="ind-add"
+              onClick={() => child(() => addIndoorAccessory(job.id, { name: '', qty: 1 }))}>+ Add item</button> : null}
+          </Group>
+        ) : null}
+      </>) : null}
+
+      {/* ================= 2. CLEANING (4.5.3) ================= */}
+      {view === 1 ? (
+        <Group title="Work instruction">
+          <div className="ind-grid">
+            <Field label="Work instruction"><input defaultValue={job.cleaning_wi} disabled={!mayWork}
+              onBlur={(e) => set({ cleaning_wi: e.target.value })} /></Field>
+            <Field label="Revision" tip="Which revision it was cleaned against — the WI changes, the record should say which one applied.">
+              <input defaultValue={job.cleaning_wi_rev} disabled={!mayWork}
+                onBlur={(e) => set({ cleaning_wi_rev: e.target.value })} /></Field>
+          </div>
+          {job.cleaned_at
+            ? <p className="ind-meta">Cleaned by <b>{job.cleaned_by_name || '—'}</b> · {formatDayTime(job.cleaned_at)}</p>
+            : <p className="ind-meta">Not yet cleaned.</p>}
+          {SHOWS.salvage(a) ? (
             <label className="ind-check">
-              <input type="checkbox" checked={job.customer_informed} disabled={!mayWork}
-                onChange={(e) => set({ customer_informed: e.target.checked })} />
-              The customer has been told — scrapping somebody's machine is theirs to know.
+              <input type="checkbox" checked={job.decontaminated} disabled={!mayWork}
+                onChange={(e) => set({ decontaminated: e.target.checked })} />
+              <span>Decontaminated — <b>required before any part is harvested</b>.</span>
             </label>
           ) : null}
-          {job.condemned_at ? (
-            <p className="ind-note">Condemned by <b>{job.condemned_by_name || '—'}</b> on {formatDayTime(job.condemned_at)}.</p>
-          ) : null}
-
-          <h4 className="ind-sub">Parts harvested</h4>
-          <p className="ind-note">
-            Recorded here and <b>not credited to hand stock</b>: a harvested part entering
-            stock under its normal code is indistinguishable from a new one, and the
-            condition grade would be decoration. Where it went is written in words until
-            that is settled.
-          </p>
-          <table className="table ind-child">
-            <thead><tr><th>Code</th><th>Description</th><th>Qty</th><th>Grade</th><th>Destination</th><th /></tr></thead>
-            <tbody>
-              {parts.map((p) => (
-                <tr key={p.id}>
-                  <td className="mono">{p.part_code}</td><td>{p.description}</td>
-                  <td>{p.qty}</td><td>{p.condition_grade}</td><td>{p.destination}</td>
-                  <td>{mayWork ? <button className="btn-link"
-                    onClick={() => child(() => deleteIndoorPart(p.id))}>remove</button> : null}</td>
-                </tr>
-              ))}
-              {parts.length === 0 ? <tr><td colSpan={6} className="ind-empty">Nothing harvested yet.</td></tr> : null}
-            </tbody>
-          </table>
-          {mayWork ? (
-            <button className="btn" disabled={!job.decontaminated}
-              title={job.decontaminated ? '' : 'The unit has to be decontaminated first (4.5.3)'}
-              onClick={() => child(() => addIndoorPart(job.id, { part_code: '', qty: 1, condition_grade: 'Serviceable' }))}>
-              Add a harvested part
-            </button>
-          ) : null}
-        </SectionCard>
+        </Group>
       ) : null}
 
-      {SHOWS.pdi(a) ? (
-        <SectionCard title="Pre-delivery inspection">
+      {/* ================= 3. REPAIR (4.5.6) ================= */}
+      {view === 2 ? (<>
+        <Group title="Findings & work done"
+          aside={(job.ucn ?? '').trim() && mayWork ? (
+            // RAISING it is the Spare Request register's own right, which the
+            // database asks on submit. The call's status is not changed.
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => void requestSpare()}
+              title="The Spare Request form, with this call filled in and you as the requester (it needs the Spare Request right). The call’s status is not changed.">
+              Request spare</button>
+          ) : null}>
           <div className="ind-grid">
-            <Field label="Arrived on" hint="The SA number, PO or stock receipt it came in against.">
-              <input defaultValue={job.source_ref} disabled={!mayWork}
-                onBlur={(e) => set({ source_ref: e.target.value })} /></Field>
-            <Field label="Checklist"><input defaultValue={job.checklist_ref} disabled={!mayWork}
-              onBlur={(e) => set({ checklist_ref: e.target.value })} /></Field>
-            <Field label="Checklist revision"><input defaultValue={job.checklist_rev} disabled={!mayWork}
-              onBlur={(e) => set({ checklist_rev: e.target.value })} /></Field>
-            <Field label="Firmware version"><input defaultValue={job.firmware_version} disabled={!mayWork}
-              onBlur={(e) => set({ firmware_version: e.target.value })} /></Field>
-            <Field label="Result" hint="“Pass with observation” is what stops a real finding being rounded up to Pass. A Fail does not leave the workshop.">
-              <SelectPicker value={job.pdi_result ?? ''} options={['Pass', 'Pass with observation', 'Fail']}
-                onChange={(v) => set({ pdi_result: v })} disabled={!mayWork} /></Field>
-            <Field label="Why it is being held"><input defaultValue={job.held_reason} disabled={!mayWork}
-              onBlur={(e) => set({ held_reason: e.target.value })} /></Field>
+            <Field label="Status">
+              {/* DISPATCHED AND CLOSED ARE THE DISPATCH RIGHT'S (finding 59, 0297). */}
+              <SelectPicker value={job.status}
+                options={INDOOR_STATUSES.filter((st) => mayDispatch || !['Dispatched', 'Closed'].includes(st) || st === job.status)}
+                onChange={(v) => set({ status: v })} disabled={!mayWork} />
+            </Field>
+            <span />
+            <Field label="Findings" wide><textarea defaultValue={job.findings} disabled={!mayWork} rows={3}
+              onBlur={(e) => set({ findings: e.target.value })} /></Field>
+            <Field label="Work done" wide><textarea defaultValue={job.work_done} disabled={!mayWork} rows={3}
+              onBlur={(e) => set({ work_done: e.target.value })} /></Field>
+            <Field label="Damage to the customer's property" wide
+              tip="§7.5.10 — damage to somebody's machine is theirs to be told about, and this is where that is recorded.">
+              <textarea defaultValue={job.damage_note} disabled={!mayWork} rows={2}
+                onBlur={(e) => set({ damage_note: e.target.value })} /></Field>
           </div>
-          <label className="ind-check">
-            <input type="checkbox" checked={job.accessories_per_packing_list === true} disabled={!mayWork}
-              onChange={(e) => set({ accessories_per_packing_list: e.target.checked })} />
-            Accessories match the packing list.
-          </label>
-        </SectionCard>
-      ) : null}
+        </Group>
 
-      {SHOWS.demo(a) ? (
-        <SectionCard title="Demo — a company asset on loan">
-          <div className="ind-grid">
-            <Field label="Going to"><input defaultValue={job.demo_for_party} disabled={!mayWork}
-              onBlur={(e) => set({ demo_for_party: e.target.value })} /></Field>
-            <Field label="Requested by"><input defaultValue={job.requested_by} disabled={!mayWork}
-              onBlur={(e) => set({ requested_by: e.target.value })} /></Field>
-            <Field label="Expected out"><input type="date" defaultValue={job.expected_out ?? ''} disabled={!mayWork}
-              onBlur={(e) => set({ expected_out: e.target.value })} /></Field>
-            <Field label="Expected back" hint="A demo unit is an asset on loan and it needs a due date — this is what makes the overdue count possible.">
-              <input type="date" defaultValue={job.expected_return ?? ''} disabled={!mayWork}
-                onBlur={(e) => set({ expected_return: e.target.value })} /></Field>
-            <Field label="Actually out"><input type="date" defaultValue={job.actual_out ?? ''} disabled={!mayWork}
-              onBlur={(e) => set({ actual_out: e.target.value })} /></Field>
-            <Field label="Actually back"><input type="date" defaultValue={job.actual_return ?? ''} disabled={!mayWork}
-              onBlur={(e) => set({ actual_return: e.target.value })} /></Field>
-            <Field label="Who has it now"><input defaultValue={job.custody_holder} disabled={!mayWork}
-              onBlur={(e) => set({ custody_holder: e.target.value })} /></Field>
-            <Field label="Outcome" hint="What the demo was FOR.">
-              <SelectPicker value={job.demo_outcome ?? ''} options={['Converted', 'Returned', 'Damaged', 'Lost']}
-                onChange={(v) => set({ demo_outcome: v })} disabled={!mayWork} /></Field>
-            <Field label="Sale reference"><input defaultValue={job.sale_ref} disabled={!mayWork}
-              onBlur={(e) => set({ sale_ref: e.target.value })} /></Field>
-          </div>
-          <div className="ind-grid">
-            <Field label="Condition going out"><textarea defaultValue={job.condition_out} rows={2} disabled={!mayWork}
-              onBlur={(e) => set({ condition_out: e.target.value })} /></Field>
-            <Field label="Condition coming back"><textarea defaultValue={job.condition_back} rows={2} disabled={!mayWork}
-              onBlur={(e) => set({ condition_back: e.target.value })} /></Field>
-          </div>
-          <Field label="Consumables used" hint="A demo burns stock, and that stock is real.">
-            <input defaultValue={job.consumables_used} disabled={!mayWork}
-              onBlur={(e) => set({ consumables_used: e.target.value })} /></Field>
-        </SectionCard>
-      ) : null}
+        {SHOWS.rework(a) ? (
+          <Group title="Rework · §8.3.4">
+            <div className="ind-grid">
+              <Field label="Nonconformity reference"><input defaultValue={job.nc_reference} disabled={!mayWork}
+                onBlur={(e) => set({ nc_reference: e.target.value })} /></Field>
+              <Field label="Rework instruction" tip="Rework runs to a DOCUMENTED instruction, not from memory.">
+                <input defaultValue={job.rework_instruction} disabled={!mayWork}
+                  onBlur={(e) => set({ rework_instruction: e.target.value })} /></Field>
+              <Field label="Instruction revision"><input defaultValue={job.rework_instruction_rev} disabled={!mayWork}
+                onBlur={(e) => set({ rework_instruction_rev: e.target.value })} /></Field>
+              <Field label="Authorised by" tip="The same authority that approved the original process.">
+                <input defaultValue={job.rework_authorised_by} disabled={!mayWork}
+                  onBlur={(e) => set({ rework_authorised_by: e.target.value })} /></Field>
+              <Field label="Re-verified by"><input defaultValue={job.reverified_by} disabled={!mayWork}
+                onBlur={(e) => set({ reverified_by: e.target.value })} /></Field>
+              <Field label="Re-verification result" tip="Rework without re-verification proves nothing.">
+                <SelectPicker value={job.reverification_result ?? ''} options={['Pass', 'Fail']}
+                  onChange={(v) => set({ reverification_result: v })} disabled={!mayWork} /></Field>
+              <Field label="Disposition" tip="A failed rework has to end somewhere.">
+                <SelectPicker value={job.disposition ?? ''} options={['Released', 'Scrapped']}
+                  onChange={(v) => set({ disposition: v })} disabled={!mayWork} /></Field>
+            </div>
+            <label className="ind-check">
+              <input type="checkbox" checked={job.adverse_effect_assessed === true} disabled={!mayWork}
+                onChange={(e) => set({ adverse_effect_assessed: e.target.checked })} />
+              <span>Adverse effect of the rework assessed — <b>§8.3.4 asks for this explicitly</b>.</span>
+            </label>
+            <Field label="What the assessment found">
+              <textarea defaultValue={job.adverse_effect_note} disabled={!mayWork} rows={2}
+                onBlur={(e) => set({ adverse_effect_note: e.target.value })} /></Field>
+          </Group>
+        ) : null}
 
-      {SHOWS.other(a) ? (
-        <SectionCard title="Other — what this job actually is">
-          <Field label="Description (required)"
-            hint="“Other” with no description is a hole in the record, so the database refuses it. If Other passes about one job in ten, the list is missing an activity — the fix is a new type, not a bigger box.">
-            <textarea defaultValue={job.activity_note} rows={2} disabled={!mayWork}
-              onBlur={(e) => set({ activity_note: e.target.value })} /></Field>
-        </SectionCard>
-      ) : null}
+        {SHOWS.salvage(a) ? (
+          <Group title="Salvage · condemn the unit, keep the parts">
+            <div className="ind-grid">
+              <Field label="Why it is being condemned" hint={!mayCondemn ? 'Needs the Condemn right, granted separately.' : undefined}>
+                <input defaultValue={job.condemned_reason} disabled={!mayCondemn}
+                  onBlur={(e) => set({ condemned_reason: e.target.value })} /></Field>
+              <Field label="Disposal method" tip="What was NOT harvested still has to go somewhere — e-waste, and biohazard where the unit was in patient contact.">
+                <input defaultValue={job.disposal_method} disabled={!mayWork}
+                  onBlur={(e) => set({ disposal_method: e.target.value })} /></Field>
+              <Field label="Disposal reference"><input defaultValue={job.disposal_ref} disabled={!mayWork}
+                onBlur={(e) => set({ disposal_ref: e.target.value })} /></Field>
+            </div>
+            {job.kind === 'Customer property' ? (
+              <label className="ind-check">
+                <input type="checkbox" checked={job.customer_informed} disabled={!mayWork}
+                  onChange={(e) => set({ customer_informed: e.target.checked })} />
+                <span>The customer has been told.</span>
+              </label>
+            ) : null}
+            {job.condemned_at ? (
+              <p className="ind-meta">Condemned by <b>{job.condemned_by_name || '—'}</b> · {formatDayTime(job.condemned_at)}</p>
+            ) : null}
 
-      {/* ---- the checks (SR-003 / SR-006 / SR-020) ------------------------ */}
-      {SHOWS.checks(a) ? (
-        <SectionCard title="Checks — expected against measured">
-          <p className="ind-note">
-            A reading on its own is not evidence: SR-006 asks for the expected value beside
-            it, and SR-020 for the instrument that took it, with its calibration date.
-            Phase 3 fills the expected column from per-product reference values; until then
-            it is typed from the checklist.
-          </p>
-          <table className="table ind-child">
-            <thead><tr><th>Parameter</th><th>Expected</th><th>Measured</th><th>Verdict</th>
-              <th>Instrument</th><th>Cal. due</th><th /></tr></thead>
-            <tbody>
-              {checks.map((c) => (
-                <tr key={c.id}>
-                  <td><input defaultValue={c.parameter} disabled={!mayWork}
-                    onBlur={(e) => child(() => saveIndoorCheck(c.id, { parameter: e.target.value }))} /></td>
-                  <td><input defaultValue={c.expected} disabled={!mayWork}
-                    onBlur={(e) => child(() => saveIndoorCheck(c.id, { expected: e.target.value }))} /></td>
-                  <td><input defaultValue={c.measured} disabled={!mayWork}
-                    onBlur={(e) => child(() => saveIndoorCheck(c.id, { measured: e.target.value }))} /></td>
-                  <td><SelectPicker value={c.verdict} options={['Pass', 'Fail', 'N/A']} disabled={!mayWork}
-                    onChange={(v) => child(() => saveIndoorCheck(c.id, { verdict: v }))} /></td>
-                  <td><input defaultValue={c.instrument} disabled={!mayWork}
-                    onBlur={(e) => child(() => saveIndoorCheck(c.id, { instrument: e.target.value }))} /></td>
-                  <td><input type="date" defaultValue={c.calibration_due ?? ''} disabled={!mayWork}
-                    onBlur={(e) => child(() => saveIndoorCheck(c.id, { calibration_due: e.target.value }))} /></td>
-                  <td>{mayWork ? <button className="btn-link"
-                    onClick={() => child(() => deleteIndoorCheck(c.id))}>remove</button> : null}</td>
-                </tr>
-              ))}
-              {checks.length === 0 ? <tr><td colSpan={7} className="ind-empty">No checks recorded.</td></tr> : null}
-            </tbody>
-          </table>
-          {mayWork ? <button className="btn"
-            onClick={() => child(() => addIndoorCheck(job.id, { seq: checks.length + 1 }))}>Add a check</button> : null}
-        </SectionCard>
-      ) : null}
-
-      {/* ---- R/SER/QC/007 (0320) ------------------------------------------
-          OWED BY A DEMO UNIT OF AN IMPORTED PRODUCT, and only by one -- the
-          user: "Pre-delivery check is done only for Imported products, not for
-          in-house manufactured equipment." Unknown is said out loud, because
-          it is a Product Master gap somebody can close. */}
-      {job.kind === 'DEMO unit' && owed !== true ? (
-        <SectionCard title="Pre-Delivery Testing (R/SER/QC/007)">
-          {owed === null ? (
-            <p className="ind-warn">
-              Whether <b>{job.product_name || 'this product'}</b> is imported is <b>not known</b> — no product line in
-              the Product Master matches it, or its <b>Imported</b> is blank. Pre-Delivery Testing is required
-              for a DEMO unit of an imported product only, so it is <b>not</b> required to dispatch this unit
-              until somebody sets Imported on the Product Master.
-            </p>
-          ) : (
-            <p className="ind-note">
-              {job.product_name || 'This product'} is made in-house (Product Master: Imported = No) — Pre-Delivery
-              Testing is done for imported products only.
-            </p>
-          )}
-        </SectionCard>
-      ) : null}
-      {owed === true ? (
-        <SectionCard title="Pre-Delivery Testing (R/SER/QC/007)">
-          <p className="ind-note">
-            A DEMO unit of an imported product. It is <b>not dispatched or closed</b> until every field below is
-            filled, the inspector has signed, and checks 1–5 all read <b>OK</b> — the database refuses it otherwise.
-          </p>
-          <div className="ind-grid">
-            <Field label="Product Name"><input value={job.product_name} disabled /></Field>
-            <Field label="SL. No"><input value={job.serial} disabled className="mono" /></Field>
-            <Field label="Date"><input type="date" key={`d-${pdt?.test_date}`} defaultValue={pdt?.test_date ?? ''} disabled={!mayWork}
-              onBlur={(e) => void pdtSet({ test_date: e.target.value || null })} /></Field>
-            <Field label="Measuring Equipment ID No"><input key={`m-${pdt?.measuring_equipment_id}`} defaultValue={pdt?.measuring_equipment_id ?? ''} disabled={!mayWork}
-              onBlur={(e) => void pdtSet({ measuring_equipment_id: e.target.value })} /></Field>
-            <Field label="Software Version"><input key={`s-${pdt?.software_version}`} defaultValue={pdt?.software_version ?? ''} disabled={!mayWork}
-              onBlur={(e) => void pdtSet({ software_version: e.target.value })} /></Field>
-            <Field label="HV"><input key={`hv-${pdt?.hv}`} defaultValue={pdt?.hv ?? ''} disabled={!mayWork}
-              onBlur={(e) => void pdtSet({ hv: e.target.value })} /></Field>
-            <Field label="HT"><input key={`ht-${pdt?.ht}`} defaultValue={pdt?.ht ?? ''} disabled={!mayWork}
-              onBlur={(e) => void pdtSet({ ht: e.target.value })} /></Field>
-          </div>
-          <table className="table ind-child">
-            <thead><tr><th>S.No</th><th>Description</th><th>OK / NOT OK</th></tr></thead>
-            <tbody>
-              {PDT_CHECKS.map((c) => (
-                <tr key={c.no}>
-                  <td>{c.no}.</td>
-                  <td>{c.text}</td>
-                  <td>{c.key
-                    ? <SelectPicker value={pdt?.[c.key] ?? ''} options={['OK', 'NOT OK']} disabled={!mayWork}
-                        onChange={(v) => void pdtSet({ [c.key!]: v || null } as Partial<IndoorPdt>)} />
-                    : <span className="ind-hint">instruction — not judged</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {PDT_MODES.map((m) => (
-            <table className="table ind-child" key={m.no}>
-              <thead>
-                <tr><th colSpan={4}>{m.no}. {m.settings}</th></tr>
-                <tr><th />{PDT_FIO2.map((f) => <th key={f}>At FiO2 {f}%</th>)}</tr>
-              </thead>
-              <tbody>
-                {m.rows.map((r) => (
-                  <tr key={r.label}>
-                    <td><b>{r.label}</b></td>
-                    {r.keys.map((k) => (
-                      <td key={k}><input type="number" step="any" key={`${k}-${pdt?.[k]}`} defaultValue={pdt?.[k] ?? ''} disabled={!mayWork}
-                        onBlur={(e) => void pdtSet({ [k]: numOrNull(e.target.value) } as Partial<IndoorPdt>)} /></td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ))}
-          <p className="ind-note">
-            <b>Inspected by:</b>{' '}
-            {pdt?.inspected_by
-              ? <>{pdt.inspector_name || '—'}{pdt.inspector_designation ? `, ${pdt.inspector_designation}` : ''} on {formatDayTime(pdt.inspected_at)}</>
-              : 'not signed yet'}
+            <h5 className="ind-subhead">Parts harvested</h5>
+            <p className="ind-hint" title="A harvested part entering stock under its normal code is indistinguishable from a new one, and the condition grade would be decoration.">
+              Recorded here and <b>not credited to hand stock</b>.</p>
+            <div className="ind-lines-wrap">
+              <table className="ind-lines">
+                <thead><tr><th>Code</th><th>Description</th><th>Qty</th><th>Grade</th><th>Destination</th><th /></tr></thead>
+                <tbody>
+                  {parts.map((p) => (
+                    <tr key={p.id}>
+                      <td className="mono">{p.part_code}</td><td>{p.description}</td>
+                      <td>{p.qty}</td><td>{p.condition_grade}</td><td>{p.destination}</td>
+                      <td>{mayWork ? <button type="button" className="ind-x" aria-label="Remove part" title="Remove"
+                        onClick={() => child(() => deleteIndoorPart(p.id))}>×</button> : null}</td>
+                    </tr>
+                  ))}
+                  {parts.length === 0 ? <tr><td colSpan={6} className="ind-rows-empty">Nothing harvested yet.</td></tr> : null}
+                </tbody>
+              </table>
+            </div>
             {mayWork ? (
-              <> {' '}
-                <button className="btn btn-sm" onClick={async () => {
+              <button type="button" className="ind-add" disabled={!job.decontaminated}
+                title={job.decontaminated ? '' : 'The unit has to be decontaminated first (4.5.3)'}
+                onClick={() => child(() => addIndoorPart(job.id, { part_code: '', qty: 1, condition_grade: 'Serviceable' }))}>
+                + Add a harvested part
+              </button>
+            ) : null}
+          </Group>
+        ) : null}
+
+        {SHOWS.pdi(a) ? (
+          <Group title="Pre-delivery inspection">
+            <div className="ind-grid">
+              <Field label="Arrived on" tip="The SA number, PO or stock receipt it came in against.">
+                <input defaultValue={job.source_ref} disabled={!mayWork}
+                  onBlur={(e) => set({ source_ref: e.target.value })} /></Field>
+              <Field label="Checklist"><input defaultValue={job.checklist_ref} disabled={!mayWork}
+                onBlur={(e) => set({ checklist_ref: e.target.value })} /></Field>
+              <Field label="Checklist revision"><input defaultValue={job.checklist_rev} disabled={!mayWork}
+                onBlur={(e) => set({ checklist_rev: e.target.value })} /></Field>
+              <Field label="Firmware version"><input defaultValue={job.firmware_version} disabled={!mayWork}
+                onBlur={(e) => set({ firmware_version: e.target.value })} /></Field>
+              <Field label="Result" tip="“Pass with observation” is what stops a real finding being rounded up to Pass. A Fail does not leave the workshop.">
+                <SelectPicker value={job.pdi_result ?? ''} options={['Pass', 'Pass with observation', 'Fail']}
+                  onChange={(v) => set({ pdi_result: v })} disabled={!mayWork} /></Field>
+              <Field label="Why it is being held"><input defaultValue={job.held_reason} disabled={!mayWork}
+                onBlur={(e) => set({ held_reason: e.target.value })} /></Field>
+            </div>
+            <label className="ind-check">
+              <input type="checkbox" checked={job.accessories_per_packing_list === true} disabled={!mayWork}
+                onChange={(e) => set({ accessories_per_packing_list: e.target.checked })} />
+              <span>Accessories match the packing list.</span>
+            </label>
+          </Group>
+        ) : null}
+
+        {SHOWS.demo(a) ? (
+          <Group title="Demo · a company asset on loan">
+            <div className="ind-grid">
+              <Field label="Going to"><input defaultValue={job.demo_for_party} disabled={!mayWork}
+                onBlur={(e) => set({ demo_for_party: e.target.value })} /></Field>
+              <Field label="Requested by"><input defaultValue={job.requested_by} disabled={!mayWork}
+                onBlur={(e) => set({ requested_by: e.target.value })} /></Field>
+              <Field label="Expected out"><input type="date" defaultValue={job.expected_out ?? ''} disabled={!mayWork}
+                onBlur={(e) => set({ expected_out: e.target.value })} /></Field>
+              <Field label="Expected back" tip="A demo unit is an asset on loan and it needs a due date — this is what makes the overdue count possible.">
+                <input type="date" defaultValue={job.expected_return ?? ''} disabled={!mayWork}
+                  onBlur={(e) => set({ expected_return: e.target.value })} /></Field>
+              <Field label="Actually out"><input type="date" defaultValue={job.actual_out ?? ''} disabled={!mayWork}
+                onBlur={(e) => set({ actual_out: e.target.value })} /></Field>
+              <Field label="Actually back"><input type="date" defaultValue={job.actual_return ?? ''} disabled={!mayWork}
+                onBlur={(e) => set({ actual_return: e.target.value })} /></Field>
+              <Field label="Who has it now"><input defaultValue={job.custody_holder} disabled={!mayWork}
+                onBlur={(e) => set({ custody_holder: e.target.value })} /></Field>
+              <Field label="Outcome" tip="What the demo was FOR.">
+                <SelectPicker value={job.demo_outcome ?? ''} options={['Converted', 'Returned', 'Damaged', 'Lost']}
+                  onChange={(v) => set({ demo_outcome: v })} disabled={!mayWork} /></Field>
+              <Field label="Sale reference"><input defaultValue={job.sale_ref} disabled={!mayWork}
+                onBlur={(e) => set({ sale_ref: e.target.value })} /></Field>
+              <Field label="Consumables used" tip="A demo burns stock, and that stock is real.">
+                <input defaultValue={job.consumables_used} disabled={!mayWork}
+                  onBlur={(e) => set({ consumables_used: e.target.value })} /></Field>
+              <Field label="Condition going out"><textarea defaultValue={job.condition_out} rows={2} disabled={!mayWork}
+                onBlur={(e) => set({ condition_out: e.target.value })} /></Field>
+              <Field label="Condition coming back"><textarea defaultValue={job.condition_back} rows={2} disabled={!mayWork}
+                onBlur={(e) => set({ condition_back: e.target.value })} /></Field>
+            </div>
+          </Group>
+        ) : null}
+
+        {SHOWS.other(a) ? (
+          <Group title="Other · what this job actually is">
+            <Field label="Description (required)"
+              hint="“Other” with no description is refused."
+              tip="If Other passes about one job in ten, the list is missing an activity — the fix is a new type, not a bigger box.">
+              <textarea defaultValue={job.activity_note} rows={2} disabled={!mayWork}
+                onBlur={(e) => set({ activity_note: e.target.value })} /></Field>
+          </Group>
+        ) : null}
+
+        {/* ---- the checks (SR-003 / SR-006 / SR-020) ---------------------- */}
+        {SHOWS.checks(a) ? (
+          <Group title="Checks · expected against measured">
+            <p className="ind-hint" title="SR-006 asks for the expected value beside each reading, and SR-020 for the instrument that took it, with its calibration date. Phase 3 fills the expected column from per-product reference values.">
+              Each reading beside its expected value and the instrument that took it.</p>
+            <div className="ind-lines-wrap">
+              <table className="ind-lines is-edit">
+                <thead><tr><th>Parameter</th><th>Expected</th><th>Measured</th><th>Verdict</th>
+                  <th>Instrument</th><th>Cal. due</th><th /></tr></thead>
+                <tbody>
+                  {checks.map((c) => (
+                    <tr key={c.id}>
+                      <td><input aria-label="Parameter" defaultValue={c.parameter} disabled={!mayWork}
+                        onBlur={(e) => child(() => saveIndoorCheck(c.id, { parameter: e.target.value }))} /></td>
+                      <td><input aria-label="Expected" defaultValue={c.expected} disabled={!mayWork}
+                        onBlur={(e) => child(() => saveIndoorCheck(c.id, { expected: e.target.value }))} /></td>
+                      <td><input aria-label="Measured" defaultValue={c.measured} disabled={!mayWork}
+                        onBlur={(e) => child(() => saveIndoorCheck(c.id, { measured: e.target.value }))} /></td>
+                      <td><SelectPicker value={c.verdict} options={['Pass', 'Fail', 'N/A']} disabled={!mayWork}
+                        onChange={(v) => child(() => saveIndoorCheck(c.id, { verdict: v }))} /></td>
+                      <td><input aria-label="Instrument" defaultValue={c.instrument} disabled={!mayWork}
+                        onBlur={(e) => child(() => saveIndoorCheck(c.id, { instrument: e.target.value }))} /></td>
+                      <td><input aria-label="Calibration due" type="date" defaultValue={c.calibration_due ?? ''} disabled={!mayWork}
+                        onBlur={(e) => child(() => saveIndoorCheck(c.id, { calibration_due: e.target.value }))} /></td>
+                      <td>{mayWork ? <button type="button" className="ind-x" aria-label="Remove check" title="Remove"
+                        onClick={() => child(() => deleteIndoorCheck(c.id))}>×</button> : null}</td>
+                    </tr>
+                  ))}
+                  {checks.length === 0 ? <tr><td colSpan={7} className="ind-rows-empty">No checks recorded.</td></tr> : null}
+                </tbody>
+              </table>
+            </div>
+            {mayWork ? <button type="button" className="ind-add"
+              onClick={() => child(() => addIndoorCheck(job.id, { seq: checks.length + 1 }))}>+ Add a check</button> : null}
+          </Group>
+        ) : null}
+
+        {/* ---- R/SER/QC/007 (0320): owed by a DEMO unit of an IMPORTED
+            product, and only by one. Unknown is said out loud. */}
+        {job.kind === 'DEMO unit' && owed !== true ? (
+          <Group title="Pre-Delivery Testing · R/SER/QC/007">
+            {owed === null ? (
+              <p className="ind-warn"
+                title="Pre-Delivery Testing is required for a DEMO unit of an imported product only, so it is not required to dispatch this unit until somebody sets Imported on the Product Master.">
+                Whether <b>{job.product_name || 'this product'}</b> is imported is <b>not known</b> (Product Master: Imported blank) — the test is not required until it is set.
+              </p>
+            ) : (
+              <p className="ind-hint">{job.product_name || 'This product'} is made in-house — Pre-Delivery Testing is for imported products only.</p>
+            )}
+          </Group>
+        ) : null}
+        {owed === true ? (
+          <Group title="Pre-Delivery Testing · R/SER/QC/007"
+            aside={<button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate(`/indoor-pdt/${job.id}`)}>
+              🖨 Print{gaps.blank.length || gaps.notOk.length ? ' (not complete)' : ''}</button>}>
+            <p className="ind-hint">Not dispatched until every field is filled, the inspector has signed and checks 1–5 read <b>OK</b>.</p>
+            <div className="ind-grid">
+              <Value label="Product Name">{job.product_name || '—'}</Value>
+              <Value label="SL. No"><span className="mono">{job.serial || '—'}</span></Value>
+              <Field label="Date"><input type="date" key={`d-${pdt?.test_date}`} defaultValue={pdt?.test_date ?? ''} disabled={!mayWork}
+                onBlur={(e) => void pdtSet({ test_date: e.target.value || null })} /></Field>
+              <Field label="Measuring Equipment ID No"><input key={`m-${pdt?.measuring_equipment_id}`} defaultValue={pdt?.measuring_equipment_id ?? ''} disabled={!mayWork}
+                onBlur={(e) => void pdtSet({ measuring_equipment_id: e.target.value })} /></Field>
+              <Field label="Software Version"><input key={`s-${pdt?.software_version}`} defaultValue={pdt?.software_version ?? ''} disabled={!mayWork}
+                onBlur={(e) => void pdtSet({ software_version: e.target.value })} /></Field>
+              <Field label="HV"><input key={`hv-${pdt?.hv}`} defaultValue={pdt?.hv ?? ''} disabled={!mayWork}
+                onBlur={(e) => void pdtSet({ hv: e.target.value })} /></Field>
+              <Field label="HT"><input key={`ht-${pdt?.ht}`} defaultValue={pdt?.ht ?? ''} disabled={!mayWork}
+                onBlur={(e) => void pdtSet({ ht: e.target.value })} /></Field>
+            </div>
+            <div className="ind-lines-wrap">
+              <table className="ind-lines">
+                <thead><tr><th>S.No</th><th>Description</th><th>OK / NOT OK</th></tr></thead>
+                <tbody>
+                  {PDT_CHECKS.map((c) => (
+                    <tr key={c.no}>
+                      <td>{c.no}.</td>
+                      <td>{c.text}</td>
+                      <td className="ind-lines-pick">{c.key
+                        ? <SelectPicker value={pdt?.[c.key] ?? ''} options={['OK', 'NOT OK']} disabled={!mayWork}
+                            onChange={(v) => void pdtSet({ [c.key!]: v || null } as Partial<IndoorPdt>)} />
+                        : <span className="ind-hint">instruction — not judged</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {PDT_MODES.map((m) => (
+              <div className="ind-lines-wrap" key={m.no}>
+                <table className="ind-lines is-edit">
+                  <thead>
+                    <tr><th colSpan={4} className="ind-lines-cap">{m.no}. {m.settings}</th></tr>
+                    <tr><th />{PDT_FIO2.map((f) => <th key={f}>At FiO2 {f}%</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {m.rows.map((r) => (
+                      <tr key={r.label}>
+                        <td><b>{r.label}</b></td>
+                        {r.keys.map((k) => (
+                          <td key={k}><input aria-label={`${r.label} ${k}`} type="number" step="any" key={`${k}-${pdt?.[k]}`} defaultValue={pdt?.[k] ?? ''} disabled={!mayWork}
+                            onBlur={(e) => void pdtSet({ [k]: numOrNull(e.target.value) } as Partial<IndoorPdt>)} /></td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+            <div className="ind-signrow">
+              <span className="ind-meta"><b>Inspected by</b>{' '}
+                {pdt?.inspected_by
+                  ? <>{pdt.inspector_name || '—'}{pdt.inspector_designation ? `, ${pdt.inspector_designation}` : ''} · {formatDayTime(pdt.inspected_at)}</>
+                  : 'not signed yet'}</span>
+              {mayWork ? (
+                <button type="button" className="btn btn-sm" onClick={async () => {
                   const r = await signIndoorPdt(job.id, uid, !pdt?.inspected_by);
                   if (!r.ok) setMsg(r.error ?? 'Could not sign'); else { setMsg(''); reloadChildren(); }
                 }}>{pdt?.inspected_by ? 'Withdraw the signature' : 'Sign as the inspector'}</button>
-              </>
+              ) : null}
+            </div>
+            {gaps.notOk.length ? (
+              <p className="ind-warn">Check {gaps.notOk.join(', ')} reads NOT OK — the unit cannot be dispatched.</p>
             ) : null}
-          </p>
-          {gaps.notOk.length ? (
-            <p className="ind-warn">Check {gaps.notOk.join(', ')} reads NOT OK — the unit cannot be dispatched.</p>
-          ) : null}
-          {gaps.blank.length ? (
-            <p className="ind-warn">Still blank: {gaps.blank.join(', ')}. The unit cannot be dispatched until the test is complete.</p>
-          ) : null}
-          <button className="btn" onClick={() => navigate(`/indoor-pdt/${job.id}`)}>
-            🖨 Print R/SER/QC/007{gaps.blank.length || gaps.notOk.length ? ' (not complete — the sheet says so)' : ''}
-          </button>
-        </SectionCard>
-      ) : null}
+            {gaps.blank.length ? (
+              <p className="ind-warn">Still blank: {gaps.blank.join(', ')}. Not dispatched until the test is complete.</p>
+            ) : null}
+          </Group>
+        ) : null}
 
-      {/* ---- 4. QC (4.5.6) ------------------------------------------------ */}
-      <SectionCard title="Quality check (4.5.6) — the last step of the repair">
-        <div className="ind-grid">
-          <Field label="Result" hint="A Fail sends it back to Under repair. A machine does not leave with a failed check.">
-            <SelectPicker value={job.qc_result ?? ''} options={['Pass', 'Fail']} disabled={!mayQc}
-              onChange={(v) => set(v === 'Fail'
-                ? { qc_result: v, status: 'Under repair' }
-                : { qc_result: v })} /></Field>
-          <Field label="Notes"><input defaultValue={job.qc_notes} disabled={!mayQc}
-            onBlur={(e) => set({ qc_notes: e.target.value })} /></Field>
-        </div>
-        {!mayQc ? (
-          <p className="ind-note">
-            Signing the check needs the <b>quality check</b> right, which is separate from the
-            work on purpose — it is what lets the check be somebody other than the person who
-            did the repair.
-          </p>
-        ) : null}
-        {job.qc_at ? (
-          <p className="ind-note">Checked by <b>{job.qc_by_name || '—'}</b> on {formatDayTime(job.qc_at)}.</p>
-        ) : null}
-        {selfChecked ? (
-          <p className="ind-warn">
-            The check was signed by the same person who received the unit. The procedure
-            does not forbid it, and this is recorded rather than blocked — but where a
-            second pair of hands is available, the check is worth more from them.
-          </p>
-        ) : null}
-      </SectionCard>
+        {/* ---- QC (4.5.6) — the last step of the repair ------------------- */}
+        <Group title="Quality check · 4.5.6">
+          <div className="ind-grid">
+            <Field label="Result" tip="A Fail sends it back to Under repair. A machine does not leave with a failed check."
+              hint={!mayQc ? 'Signing needs the quality check right.' : undefined}>
+              <SelectPicker value={job.qc_result ?? ''} options={['Pass', 'Fail']} disabled={!mayQc}
+                onChange={(v) => set(v === 'Fail'
+                  ? { qc_result: v, status: 'Under repair' }
+                  : { qc_result: v })} /></Field>
+            <Field label="Notes"><input defaultValue={job.qc_notes} disabled={!mayQc}
+              onBlur={(e) => set({ qc_notes: e.target.value })} /></Field>
+          </div>
+          {job.qc_at ? (
+            <p className="ind-meta">Checked by <b>{job.qc_by_name || '—'}</b> · {formatDayTime(job.qc_at)}</p>
+          ) : null}
+          {selfChecked ? (
+            <p className="ind-warn" title="The procedure does not forbid it, and this is recorded rather than blocked — but where a second pair of hands is available, the check is worth more from them.">
+              Checked by the same person who received the unit — recorded, not blocked.
+            </p>
+          ) : null}
+        </Group>
       </>) : null}
 
-      {/* ---- 4. SERVICE REPORT (0323) -------------------------------------
-          Uploaded after cleaning (the database refuses it earlier). For a job
-          with a UCN the same form drafts the Visit Entry; it is filed against
-          the call when the Indoor DC is approved. */}
-      {cleaned ? (
-        <SectionCard title="4 · Indoor Service Report">
-          {reported ? (
-            <p className="ind-note">
-              Report <b className="mono">{job.indoor_report_no}</b> —{' '}
-              <a href={job.report_file_url} target="_blank" rel="noopener noreferrer">{job.report_file_name || 'open'} ↗</a>
-              {job.report_uploaded_at ? <> · uploaded by <b>{job.report_uploaded_by_name || '—'}</b> on {formatDayTime(job.report_uploaded_at)}</> : null}
-            </p>
-          ) : <p className="ind-note">Not uploaded yet.</p>}
+      {/* ================= 4. REPORT (0323) =================
+          For a job with a UCN the upload form drafts the Visit Entry; it is
+          filed against the call when the Indoor DC is approved. */}
+      {view === 3 ? (
+        <Group title="Report"
+          aside={reported && mayWork && !(job.dispatch_ref ?? '').trim()
+            ? <button type="button" className="btn btn-ghost btn-sm" onClick={onUpload}>Change the report / visit details</button>
+            : null}>
+          <div className="ind-grid">
+            <Value label="Indoor Service Report No">
+              {reported ? <span className="mono">{job.indoor_report_no || '—'}</span> : <span className="ind-muted">Not uploaded yet</span>}
+            </Value>
+            <Value label="File">
+              {reported
+                ? <a href={job.report_file_url} target="_blank" rel="noopener noreferrer">{job.report_file_name || 'open'} ↗</a>
+                : <span className="ind-muted">—</span>}
+            </Value>
+            {reported && job.report_uploaded_at ? (
+              <Value label="Uploaded" wide>{job.report_uploaded_by_name || '—'} · {formatDayTime(job.report_uploaded_at)}</Value>
+            ) : null}
+          </div>
+          <h5 className="ind-subhead">Visit against the call</h5>
           {(job.ucn ?? '').trim() ? (
             job.visit_filed_at
-              ? <p className="ind-note">Visit <b className="mono">{job.visit_uid}</b> filed against {job.ucn} on {formatDayTime(job.visit_filed_at)} (at the Indoor DC’s approval).</p>
+              ? <p className="ind-meta">Visit <b className="mono">{job.visit_uid}</b> filed against {job.ucn} · {formatDayTime(job.visit_filed_at)} (at the Indoor DC’s approval).</p>
               : job.visit_draft
-                ? <p className="ind-note">The visit against <b>{job.ucn}</b> is <b>drafted</b>{job.visit_date ? <> (visit date {formatDay(job.visit_date)})</> : null} — Unsolved, pending Return to Field. It is filed when the Indoor DC is approved.</p>
+                ? <p className="ind-meta">The visit against <b>{job.ucn}</b> is <b>drafted</b>{job.visit_date ? <> (visit date {formatDay(job.visit_date)})</> : null} — Unsolved, pending Return to Field. Filed when the Indoor DC is approved.</p>
                 : <p className="ind-warn">The visit against {job.ucn} is not drafted yet — the upload form asks for it.</p>
-          ) : <p className="ind-note">No call — a DEMO / new device files no visit.</p>}
-          {mayWork && !(job.dispatch_ref ?? '').trim()
-            ? <button className="btn" onClick={onUpload}>{reported ? 'Change the report / visit details' : '⭱ Upload the Indoor Service Report'}</button>
-            : null}
-        </SectionCard>
+          ) : <p className="ind-meta">No call — a DEMO / new device files no visit.</p>}
+        </Group>
       ) : null}
 
-      {reported ? (<>
-      {/* ---- 5. DISPATCH (4.5.7) ------------------------------------------ */}
-      <SectionCard title="5 · Indoor DC and dispatch (4.5.7)">
-        {onCreateDc ? (
-          <p className="ind-note"><button className="btn btn-primary" onClick={onCreateDc}>Create Indoor DC for this unit</button>
-            {' '}or tick it with others going to the same place in the Workshop view.</p>
-        ) : !(job.dispatch_ref ?? '').trim() && job.status !== 'Ready' ? (
-          <p className="ind-note">A unit goes on an Indoor DC once it is <b>Ready</b>.</p>
+      {/* ================= 5. DC & DISPATCH (4.5.7) ================= */}
+      {view === 4 ? (<>
+        {reported ? (
+          <Group title="Indoor DC">
+            {onCreateDc ? (
+              <p className="ind-hint">Or tick it with others going to the same place in the Workshop view.</p>
+            ) : !(job.dispatch_ref ?? '').trim() && job.status !== 'Ready' ? (
+              <p className="ind-hint">A unit goes on an Indoor DC once it is <b>Ready</b>.</p>
+            ) : null}
+            {dcStatus === 'Pending approval' ? (
+              <p className="ind-warn">Indoor DC <b>{job.dispatch_ref}</b> is <b>pending approval</b> — the unit is dispatched once it is approved.</p>
+            ) : dcStatus === 'Approved' ? (
+              <p className="ind-meta">Indoor DC <b>{job.dispatch_ref}</b> is approved.</p>
+            ) : null}
+            <div className="ind-grid">
+              <Field label="Dispatch reference (DC number)" hint={!mayDispatch ? 'Dispatching needs the dispatch right.' : undefined}>
+                <input defaultValue={job.dispatch_ref} disabled={!mayDispatch}
+                  onBlur={(e) => set({ dispatch_ref: e.target.value })} /></Field>
+              <Value label="DC Date">{job.dc_date ? formatDay(job.dc_date) : <span className="ind-muted">Set by the Indoor DC</span>}</Value>
+            </div>
+            {job.accessories_outstanding > 0 ? (
+              <p className="ind-warn">
+                {job.accessories_outstanding} accessor{job.accessories_outstanding === 1 ? 'y is' : 'ies are'} not
+                marked returned yet (Intake page).
+              </p>
+            ) : null}
+            {job.dispatched_at ? (
+              <p className="ind-meta">Dispatched by <b>{job.dispatched_by_name || '—'}</b> · {formatDayTime(job.dispatched_at)}</p>
+            ) : null}
+            {/^IDC-/.test(job.dispatch_ref ?? '') ? (
+              // INDOOR_DC (0321): a reference the database issued, so its challan exists.
+              <div className="ind-signrow">
+                <span className="ind-meta">On Indoor DC <b>{job.dispatch_ref}</b></span>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate(`/indoor-dc/${encodeURIComponent(job.dispatch_ref)}`)}>🖨 Print the DC</button>
+              </div>
+            ) : null}
+            <Field label="Remarks">
+              <textarea defaultValue={job.remarks} disabled={!mayWork} rows={2}
+                onBlur={(e) => set({ remarks: e.target.value })} /></Field>
+          </Group>
         ) : null}
-        {dcStatus === 'Pending approval' ? (
-          <p className="ind-warn">Indoor DC <b>{job.dispatch_ref}</b> is <b>pending approval</b> — the unit is dispatched once it is approved.</p>
-        ) : dcStatus === 'Approved' ? (
-          <p className="ind-note">Indoor DC <b>{job.dispatch_ref}</b> is approved.</p>
-        ) : null}
-        <Field label="Dispatch reference (DC number)">
-          <input defaultValue={job.dispatch_ref} disabled={!mayDispatch}
-            onBlur={(e) => set({ dispatch_ref: e.target.value })} /></Field>
-        {job.accessories_outstanding > 0 ? (
-          <p className="ind-warn">
-            {job.accessories_outstanding} accessor{job.accessories_outstanding === 1 ? 'y is' : 'ies are'} still
-            not marked returned. Returning the customer's property means returning all of it.
-          </p>
-        ) : null}
-        <Field label="DC Date" hint="Set by the Indoor DC: the date it was entered.">
-          <input value={job.dc_date ? formatDay(job.dc_date) : ''} disabled /></Field>
-        {job.dispatched_at ? (
-          <p className="ind-note">Dispatched by <b>{job.dispatched_by_name || '—'}</b> on {formatDayTime(job.dispatched_at)}.</p>
-        ) : null}
-        {/^IDC-/.test(job.dispatch_ref ?? '') ? (
-          // INDOOR_DC (0321): a reference the database issued, so its challan exists.
-          <p className="ind-note">
-            On Indoor DC <b>{job.dispatch_ref}</b>.{' '}
-            <button className="btn btn-sm" onClick={() => navigate(`/indoor-dc/${encodeURIComponent(job.dispatch_ref)}`)}>🖨 Print the DC</button>
-          </p>
-        ) : null}
-        {!mayDispatch ? <p className="ind-note">Dispatching needs the <b>dispatch</b> right.</p> : null}
-        <Field label="Remarks">
-          <textarea defaultValue={job.remarks} disabled={!mayWork} rows={2}
-            onBlur={(e) => set({ remarks: e.target.value })} /></Field>
-      </SectionCard>
+
+        <Group title="Verified by · R/SER/07">
+          {job.verified_at ? (
+            <p className="ind-meta">Verified by <b>{job.verified_by_name || '—'}</b> · {formatDayTime(job.verified_at)}</p>
+          ) : verifiable ? (
+            mayVerify
+              ? (onCreateDc
+                  ? <button type="button" className="btn" onClick={() => void verify()}>Verify this register entry</button>
+                  : <p className="ind-meta">Not verified yet.</p>)
+              : <p className="ind-meta">Not verified yet — needs the <b>Verify an Indoor Service register entry</b> right.</p>
+          ) : (
+            <p className="ind-meta">Verified once the unit is Dispatched, Closed or Condemned.</p>
+          )}
+        </Group>
       </>) : null}
 
-      {/* ---- 6. VERIFIED BY (R/SER/07) ------------------------------------ */}
-      {verifiable || job.verified_at ? (
-      <SectionCard title="6 · Verified by">
-        {job.verified_at ? (
-          <p className="ind-note">Verified by <b>{job.verified_by_name || '—'}</b> on {formatDayTime(job.verified_at)}.</p>
-        ) : verifiable ? (
-          mayVerify
-            ? <button className="btn" onClick={async () => {
-                const r = await verifyIndoorJob(job.id, uid);
-                if (!r.ok) setMsg(r.error ?? 'Could not verify');
-                else { setMsg(''); reload(); }
-              }}>Verify this register entry</button>
-            : <p className="ind-note">Not verified yet. Verifying needs the <b>Verify an Indoor Service register entry</b> right.</p>
-        ) : (
-          <p className="ind-note">A register entry is verified once the unit is Dispatched, Closed or Condemned.</p>
-        )}
-      </SectionCard>
-      ) : null}
+      {/* ---- Back / Next ---------------------------------------------------- */}
+      <nav className="ind-pager" aria-label="Pages">
+        {view > 0
+          ? <button type="button" className="btn btn-ghost" onClick={() => go(view - 1)}>← Back</button>
+          : <span />}
+        <div className="ind-pager-end">{nextSlot}</div>
+      </nav>
 
       {spareCall ? (
         <SpareRequestDrawer call={spareCall} open={!!spareCall} onClose={() => setSpareCall(null)}
           onSaved={(u) => { setSpareCall(null); setMsg(`Spare request raised for ${u} — track it under Spares → Spare Requests.`); }} />
       ) : null}
 
-      <p className="ind-foot">
-        Last changed by {job.updated_by_name || '—'}. Phase 2 links this back to the call:
-        the transfer of 4.5.1, a chip on the call itself, and the field engineer's
-        completion report closing it (4.5.7).
-      </p>
+      <p className="ind-foot">Last changed by {job.updated_by_name || '—'}.</p>
     </div>
   );
 }
@@ -1293,18 +1384,24 @@ function ReportUpload({ job, onClose, onDone }: { job: IndoorJob; onClose: () =>
   };
   return (
     <Modal open onClose={onClose} title={`Indoor Service Report — ${job.job_no}`}>
-      {err ? <div className="ind-warn">{err}</div> : null}
-      <p className="ind-note">No call — a DEMO / new device files no visit. The report number and the file are all this stage asks.</p>
-      <Field label="Indoor Service Report No *">
-        <input className="mono" value={reportNo} onChange={(e) => setReportNo(e.target.value)} /></Field>
-      <Field label="The report" hint={`Saved in Drive as “${reportNo.trim() || '<report no>'}_<file name>”. PDF or photo, up to 10 MB.`}>
-        {link ? <a href={link} target="_blank" rel="noopener noreferrer">{name || 'uploaded'} ↗</a> : null}
-        <input type="file" accept=".pdf,image/*" disabled={busy || !reportNo.trim()}
-          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void pick(f); }} />
-      </Field>
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
-        <button className="btn btn-primary" onClick={() => void save()} disabled={busy || !link}>{busy ? 'Saving…' : 'Save the report'}</button>
+      <div className="ind-form">
+        {err ? <div className="ind-warn">{err}</div> : null}
+        <p className="ind-hint">No call — a DEMO / new device files no visit. The report number and the file are all this stage asks.</p>
+        <div className="ind-grid">
+          <Field label="Indoor Service Report No *" wide>
+            <input className="mono" value={reportNo} onChange={(e) => setReportNo(e.target.value)} /></Field>
+          <Field label="The report" wide hint={`Saved in Drive as “${reportNo.trim() || '<report no>'}_<file name>”. PDF or photo, up to 10 MB.`}>
+            {link ? <a href={link} target="_blank" rel="noopener noreferrer">{name || 'uploaded'} ↗</a> : null}
+            <input type="file" accept=".pdf,image/*" disabled={busy || !reportNo.trim()}
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void pick(f); }} />
+          </Field>
+        </div>
+        <nav className="ind-pager">
+          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
+          <div className="ind-pager-end">
+            <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={busy || !link}>{busy ? 'Saving…' : 'Save the report'}</button>
+          </div>
+        </nav>
       </div>
     </Modal>
   );

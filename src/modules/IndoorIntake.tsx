@@ -116,113 +116,126 @@ export function IndoorIntake({ onFiled, onCancel }: {
     onFiled(r.id, r.job_no ?? '');
   };
 
+  const setLine = (i: number, p: Partial<AccLine>) => setAcc((x) => x.map((y, j) => (j === i ? { ...y, ...p } : y)));
+
   return (
-    <div className="ind-drawer">
-      {err ? <div className="ind-warn">{err}</div> : null}
-      <div className="ind-filters">
-        <label className="ind-toggle"><input type="radio" checked={mode === 'call'} onChange={() => { setMode('call'); setF(EMPTY); }} /> From a call</label>
-        <label className="ind-toggle"><input type="radio" checked={mode === 'demo'} onChange={() => { setMode('demo'); setF(EMPTY); setActivity('Demo'); }} /> DEMO / new device (no call)</label>
+    <div className="ind-form">
+      {err ? <div className="ind-warn" role="alert">{err}</div> : null}
+
+      <div className="ind-seg" role="radiogroup" aria-label="How the unit came in">
+        <button type="button" role="radio" aria-checked={mode === 'call'} className={mode === 'call' ? 'is-on' : ''}
+          onClick={() => { setMode('call'); setF(EMPTY); }}>From a call</button>
+        <button type="button" role="radio" aria-checked={mode === 'demo'} className={mode === 'demo' ? 'is-on' : ''}
+          onClick={() => { setMode('demo'); setF(EMPTY); setActivity('Demo'); }}>Demo / new device</button>
       </div>
 
-      <div className="ind-grid">
-        <label className="ind-field"><span className="ind-label">Product Name</span>
-          <SelectPicker value={product} onChange={(v) => { setProduct(v); setSerial(''); }} options={products}
-            allowFreeText={mode === 'demo'} placeholder="— pick the product —" /></label>
-        <label className="ind-field"><span className="ind-label">Serial Number</span>
-          {mode === 'call' ? (
-            <SelectPicker value={serial} onChange={setSerial} options={serial ? [serial] : []} disabled={!product}
-              onSearch={(q) => sbSearchMachines(product, q, 50).then((h) => h.map((x) => x.serial))}
-              placeholder={product ? '— type to find the serial —' : 'pick the product first'} />
-          ) : (
-            <input className="mono" value={serial} onChange={(e) => setSerial(e.target.value)} />
-          )}</label>
-      </div>
+      <section className="ind-group">
+        <div className="ind-group-head"><h4 className="ind-eyebrow">{mode === 'call' ? 'Find the machine' : 'The device'}</h4></div>
+        <div className="ind-grid">
+          <label className="ind-field"><span className="ind-label">Product Name</span>
+            <SelectPicker value={product} onChange={(v) => { setProduct(v); setSerial(''); }} options={products}
+              allowFreeText={mode === 'demo'} placeholder="Pick the product" /></label>
+          <label className="ind-field"><span className="ind-label">Serial Number</span>
+            {mode === 'call' ? (
+              <SelectPicker value={serial} onChange={setSerial} options={serial ? [serial] : []} disabled={!product}
+                onSearch={(q) => sbSearchMachines(product, q, 50).then((h) => h.map((x) => x.serial))}
+                placeholder={product ? 'Type to find the serial' : 'Pick the product first'} />
+            ) : (
+              <input className="mono" value={serial} onChange={(e) => setSerial(e.target.value)} />
+            )}</label>
+        </div>
 
-      {mode === 'call' ? (
-        <>
-          {open !== null ? (
-            <div className="table-wrap">
-              <table className="table ind-child">
-                <thead><tr><th /><th>UCN</th><th>Call type</th><th>Customer</th><th>Allotted to</th><th>Registered</th><th>Complaint</th></tr></thead>
-                <tbody>
-                  {open.map((c) => (
-                    <tr key={c.ucn} className="row-click" onClick={() => void pickUcn(c.ucn)}>
-                      <td><input type="radio" readOnly checked={f.ucn === c.ucn} /></td>
-                      <td className="mono">{c.ucn}</td><td>{c.callType}</td><td>{c.partyName}</td>
-                      <td>{c.allocatedTo}</td><td>{formatDay(c.regDate)}</td><td>{c.complaint}</td>
-                    </tr>
-                  ))}
-                  {open.length === 0 ? <tr><td colSpan={7} className="ind-empty">No open call on this machine — type the UCN below, or receive it as a DEMO / new device.</td></tr> : null}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-          <div className="ind-grid">
-            <label className="ind-field"><span className="ind-label">…or type the UCN</span>
-              <input className="mono" value={typedUcn} onChange={(e) => setTypedUcn(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') void pickUcn(typedUcn); }} /></label>
-            <div className="ind-field"><span className="ind-label">&nbsp;</span>
-              <button className="btn" disabled={!typedUcn.trim()} onClick={() => void pickUcn(typedUcn)}>Fill from this call</button></div>
-          </div>
-
-          {f.ucn ? (
-            <>
-              <h4 className="ind-sub">From call {f.ucn} — edit anything that is wrong</h4>
-              <div className="ind-grid">
-                <label className="ind-field"><span className="ind-label">UC No</span><input className="mono" value={f.ucn} disabled /></label>
-                <label className="ind-field"><span className="ind-label">Customer Name</span><input value={f.party_name} onChange={(e) => set({ party_name: e.target.value })} /></label>
-                <label className="ind-field"><span className="ind-label">Customer Place</span><input value={f.customer_place} onChange={(e) => set({ customer_place: e.target.value })} /></label>
-                <label className="ind-field"><span className="ind-label">Engineer Name</span><input value={f.engineer_name} onChange={(e) => set({ engineer_name: e.target.value })} />
-                  <span className="ind-hint">The engineer the call is allotted to now.</span></label>
-                <label className="ind-field"><span className="ind-label">Product Name</span><input value={f.product_name} onChange={(e) => set({ product_name: e.target.value })} /></label>
-                <label className="ind-field"><span className="ind-label">Product Sl. No</span><input className="mono" value={f.serial} onChange={(e) => set({ serial: e.target.value })} /></label>
-                <label className="ind-field"><span className="ind-label">Status (cover)</span><input value={f.cover} onChange={(e) => set({ cover: e.target.value })} />
-                  <span className="ind-hint">The machine’s item status now — WGP / OGP / CMC / AMC.</span></label>
-                {f.standard_complaint ? (
-                  <label className="ind-field"><span className="ind-label">Standard Complaint</span><input value={f.standard_complaint} disabled />
-                    <span className="ind-hint">As the call records it.</span></label>
-                ) : null}
+        {mode === 'call' ? (
+          <>
+            {open !== null ? (
+              <div className="ind-calls" role="radiogroup" aria-label="Open calls on this machine">
+                <div className="ind-calls-head">Open calls on this machine</div>
+                {open.map((c) => (
+                  <button type="button" key={c.ucn} role="radio" aria-checked={f.ucn === c.ucn}
+                    className={`ind-call${f.ucn === c.ucn ? ' is-on' : ''}`} onClick={() => void pickUcn(c.ucn)}>
+                    <span className="ind-call-radio" aria-hidden="true" />
+                    <span className="ind-call-main">
+                      <span className="ind-call-top"><b className="mono">{c.ucn}</b><span>{c.callType}</span><span>{formatDay(c.regDate)}</span></span>
+                      <span className="ind-call-sub">{[c.partyName, c.allocatedTo, c.complaint].filter(Boolean).join(' · ')}</span>
+                    </span>
+                  </button>
+                ))}
+                {open.length === 0 ? <div className="ind-rows-empty">No open call on this machine — type the UCN, or receive it as a demo / new device.</div> : null}
               </div>
-            </>
+            ) : null}
+            <div className="ind-ucnrow">
+              <span className="ind-label">or type the UCN</span>
+              <input className="mono" value={typedUcn} aria-label="UCN" placeholder="e.g. 26H11F0014"
+                onChange={(e) => setTypedUcn(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void pickUcn(typedUcn); }} />
+              <button type="button" className="btn btn-ghost btn-sm" disabled={!typedUcn.trim()} onClick={() => void pickUcn(typedUcn)}>Fill from this call</button>
+            </div>
+          </>
+        ) : null}
+      </section>
+
+      {mode === 'call' && f.ucn ? (
+        <section className="ind-group">
+          <div className="ind-group-head"><h4 className="ind-eyebrow">From call {f.ucn}</h4>
+            <div className="ind-group-aside"><span className="ind-meta">Edit anything that is wrong</span></div></div>
+          <div className="ind-grid">
+            <div className="ind-field"><span className="ind-label">UC No</span><span className="ind-value mono">{f.ucn}</span></div>
+            {f.standard_complaint ? (
+              <div className="ind-field" title="As the call records it."><span className="ind-label">Standard Complaint</span><span className="ind-value">{f.standard_complaint}</span></div>
+            ) : <span />}
+            <label className="ind-field"><span className="ind-label">Customer Name</span><input value={f.party_name} onChange={(e) => set({ party_name: e.target.value })} /></label>
+            <label className="ind-field"><span className="ind-label">Customer Place</span><input value={f.customer_place} onChange={(e) => set({ customer_place: e.target.value })} /></label>
+            <label className="ind-field" title="The engineer the call is allotted to now."><span className="ind-label">Engineer Name</span><input value={f.engineer_name} onChange={(e) => set({ engineer_name: e.target.value })} /></label>
+            <label className="ind-field" title="The machine’s item status now — WGP / OGP / CMC / AMC."><span className="ind-label">Status (cover)</span><input value={f.cover} onChange={(e) => set({ cover: e.target.value })} /></label>
+            <label className="ind-field"><span className="ind-label">Product Name</span><input value={f.product_name} onChange={(e) => set({ product_name: e.target.value })} /></label>
+            <label className="ind-field"><span className="ind-label">Product Sl. No</span><input className="mono" value={f.serial} onChange={(e) => set({ serial: e.target.value })} /></label>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="ind-group">
+        <div className="ind-group-head"><h4 className="ind-eyebrow">The job</h4></div>
+        <div className="ind-grid">
+          <label className="ind-field"><span className="ind-label">What is being done to it?</span>
+            <SelectPicker value={activity} onChange={setActivity} options={[...INDOOR_ACTIVITIES]} /></label>
+          <label className="ind-field"><span className="ind-label">Identification tag (4.5.4)</span>
+            <input className="mono" value={tag} onChange={(e) => setTag(e.target.value)} /></label>
+          {mode === 'demo' || f.ucn ? (
+            <label className="ind-field is-wide"><span className="ind-label">Problem Reported</span>
+              <textarea rows={2} value={f.problem_reported} onChange={(e) => set({ problem_reported: e.target.value })} /></label>
           ) : null}
-        </>
-      ) : null}
+          <label className="ind-field is-wide"><span className="ind-label">Condition on arrival</span>
+            <textarea rows={2} value={condition} onChange={(e) => setCondition(e.target.value)} /></label>
+        </div>
+      </section>
 
-      <div className="ind-grid">
-        <label className="ind-field"><span className="ind-label">What is being done to it?</span>
-          <SelectPicker value={activity} onChange={setActivity} options={[...INDOOR_ACTIVITIES]} /></label>
-        <label className="ind-field"><span className="ind-label">Identification tag (4.5.4)</span>
-          <input className="mono" value={tag} onChange={(e) => setTag(e.target.value)} /></label>
-      </div>
-      {mode === 'demo' || f.ucn ? (
-        <label className="ind-field"><span className="ind-label">Problem Reported</span>
-          <textarea rows={2} value={f.problem_reported} onChange={(e) => set({ problem_reported: e.target.value })} /></label>
-      ) : null}
-      <label className="ind-field"><span className="ind-label">Condition on arrival</span>
-        <textarea rows={2} value={condition} onChange={(e) => setCondition(e.target.value)} /></label>
-
-      <h4 className="ind-sub">Accessories received</h4>
-      <table className="table ind-child">
-        <thead><tr><th>Item</th><th>Qty</th><th>Serial</th><th>Tag</th><th /></tr></thead>
-        <tbody>
+      <section className="ind-group">
+        <div className="ind-group-head"><h4 className="ind-eyebrow">Accessories received</h4></div>
+        <div className="ind-rows" role="table" aria-label="Accessories received">
+          <div className="ind-rows-head" role="row">
+            <span role="columnheader">Item</span><span role="columnheader">Qty</span>
+            <span role="columnheader">Serial</span><span role="columnheader">Tag</span><span />
+          </div>
           {acc.map((a, i) => (
-            <tr key={i}>
-              <td><input value={a.name} onChange={(e) => setAcc((x) => x.map((y, j) => (j === i ? { ...y, name: e.target.value } : y)))} /></td>
-              <td><input type="number" min={1} step="any" style={{ width: 70 }} value={a.qty}
-                onChange={(e) => setAcc((x) => x.map((y, j) => (j === i ? { ...y, qty: e.target.value } : y)))} /></td>
-              <td><input className="mono" value={a.serial} onChange={(e) => setAcc((x) => x.map((y, j) => (j === i ? { ...y, serial: e.target.value } : y)))} /></td>
-              <td><input className="mono" value={a.tag} onChange={(e) => setAcc((x) => x.map((y, j) => (j === i ? { ...y, tag: e.target.value } : y)))} /></td>
-              <td><button className="btn-link" onClick={() => setAcc((x) => (x.length > 1 ? x.filter((_, j) => j !== i) : [{ ...EMPTY_ACC }]))}>remove</button></td>
-            </tr>
+            <div className="ind-rows-row" role="row" key={i}>
+              <input aria-label="Item" placeholder="Item" value={a.name} onChange={(e) => setLine(i, { name: e.target.value })} />
+              <input aria-label="Quantity" type="number" min={1} step="any" value={a.qty} onChange={(e) => setLine(i, { qty: e.target.value })} />
+              <input aria-label="Serial" className="mono" value={a.serial} onChange={(e) => setLine(i, { serial: e.target.value })} />
+              <input aria-label="Tag" className="mono" value={a.tag} onChange={(e) => setLine(i, { tag: e.target.value })} />
+              <button type="button" className="ind-x" aria-label={`Remove ${a.name || 'item'}`} title="Remove"
+                onClick={() => setAcc((x) => (x.length > 1 ? x.filter((_, j) => j !== i) : [{ ...EMPTY_ACC }]))}>×</button>
+            </div>
           ))}
-        </tbody>
-      </table>
-      <button className="btn" onClick={() => setAcc((x) => [...x, { ...EMPTY_ACC }])}>＋ Add an item</button>
+        </div>
+        <button type="button" className="ind-add" onClick={() => setAcc((x) => [...x, { ...EMPTY_ACC }])}>+ Add item</button>
+      </section>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-        <button className="btn" onClick={onCancel} disabled={busy}>Cancel</button>
-        <button className="btn btn-primary" onClick={() => void file()} disabled={busy}>{busy ? 'Filing…' : 'Receive the equipment'}</button>
-      </div>
+      <nav className="ind-pager">
+        <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
+        <div className="ind-pager-end">
+          <button type="button" className="btn btn-primary" onClick={() => void file()} disabled={busy}>{busy ? 'Filing…' : 'Receive the equipment'}</button>
+        </div>
+      </nav>
     </div>
   );
 }
