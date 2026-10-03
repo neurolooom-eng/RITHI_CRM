@@ -286,6 +286,12 @@ against the call it was fitted to.
    > request in line, open it and press **↻ Update from call**, or tick several
    > in the register and press it once. Lines already past RM approval keep the
    > approval route they were given; only what the request shows changes.
+   > **A request on a call with no visit adds the visit.** When the call has no
+   > visit yet, saving the request files one: **Unsolved**, the requesting
+   > engineer, the request date, pending reason **SPARES NOT AVAILABLE** (the
+   > Call Pending Reason list's spelling of it), Update Visit Work Details
+   > **No** — and the call reads Unsolved. If the call already has a visit,
+   > nothing is added. A HandStock request never adds one.
    > Item Status always reads the call's — it cannot be set to anything else.
    > **Once the RM has approved or rejected a spare, its part and quantity are
    > fixed.** To ask for a different part or more of it, raise a new request.

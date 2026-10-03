@@ -3649,7 +3649,7 @@ export async function refreshSpareRequestsFromCall(uids: string[]): Promise<{ ok
 export async function addSpareRequest(
   req: Record<string, unknown>,
   lines: { part: string; qty: number }[],
-): Promise<{ ok: boolean; uid?: string; orNo?: string; error?: string }> {
+): Promise<{ ok: boolean; uid?: string; orNo?: string; error?: string; visitError?: string }> {
   const c = must();
   // or_no / or_req_date are assigned by the database (0011_spare_intake.sql).
   const { data, error } = await c.from('spare_requests').insert(req).select('uid, or_no').single();
@@ -3667,6 +3667,14 @@ export async function addSpareRequest(
       await c.from('spare_requests').delete().eq('uid', uid);
       return { ok: false, error: errMsg(le) };
     }
+  }
+  // A call with no visit yet gets one: Unsolved, "spare not available",
+  // Update Visit Work Details = No (0333). Only now, once the lines are in, so
+  // a request that failed to save never turns its call Unsolved. The database
+  // decides whether a visit is due; the request is saved either way.
+  if (String(req.req_type ?? '') === 'Call Based' && String(req.ucn ?? '').trim()) {
+    const { error: ve } = await c.rpc('file_visit_for_spare_request', { p_uid: uid });
+    if (ve) return { ok: true, uid, orNo, visitError: errMsg(ve) };
   }
   return { ok: true, uid, orNo };
 }

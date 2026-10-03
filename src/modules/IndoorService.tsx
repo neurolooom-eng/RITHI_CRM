@@ -1533,7 +1533,7 @@ function IndoorJobDrawer({
 
       {spareCall ? (
         <SpareRequestDrawer call={spareCall} open={!!spareCall} onClose={() => setSpareCall(null)}
-          onSaved={(u) => { setSpareCall(null); setMsg(`Spare request raised for ${u} — track it under Spares → Spare Requests.`); }} />
+          onSaved={(u, _uid, _orNo, visitError) => { setSpareCall(null); setMsg(visitError ? `Spare request raised for ${u}, but its visit entry was not added: ${visitError}` : `Spare request raised for ${u} — track it under Spares → Spare Requests.`); }} />
       ) : null}
 
       <p className="ind-foot">Last changed by {job.updated_by_name || '—'}.</p>

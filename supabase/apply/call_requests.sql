@@ -44,7 +44,7 @@
 --   0260_rename_passes_the_request_freeze.sql
 --   0287_call_keys_per_register.sql
 --   0311_cancel_needs_an_open_call.sql
---   0333_call_actions_need_sight_of_the_call.sql
+--   0341_call_actions_need_sight_of_the_call.sql
 --   0164_cr_read_initplan.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -3802,11 +3802,11 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0333_call_actions_need_sight_of_the_call.sql
+-- 0341_call_actions_need_sight_of_the_call.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0333 — A CALL IS RE-OPENED, CLOSED, CANCELLED OR RESTORED ONLY BY SOMEBODY
+-- 0341 — A CALL IS RE-OPENED, CLOSED, CANCELLED OR RESTORED ONLY BY SOMEBODY
 --        WHO CAN SEE IT  (second re-review, 2026-10-03: D-127)
 --
 -- reopen_call, close_call, close_reopened_call, cancel_call and restore_call are

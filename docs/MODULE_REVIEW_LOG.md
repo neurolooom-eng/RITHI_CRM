@@ -161,15 +161,15 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-10-03 — The whole Product Database crashed the browser; the Declaration named one fixed person (v0.10.69–0.10.70, D-154, D-155, on the branch, not merged)
+### 2026-10-03 — The whole Product Database crashed the browser; the Declaration named one fixed person (v0.10.70–0.10.71, D-154, D-155, on the branch, not merged)
 - **Your reports:**
   - *"In Declaration as part of Stock holds Jagadeesh name, I think it's hard coded -- it has to be updated to the person doing the stock out."*
   - *"When I load the complete product database the browser is crashing."*
-- **D-154 (v0.10.69):** the Declaration printed `JAGADEESAN C`, written into `src/lib/declaration.ts`, on every sheet.
+- **D-154 (v0.10.70):** the Declaration printed `JAGADEESAN C`, written into `src/lib/declaration.ts`, on every sheet.
   - It now prints the stock out's `dispatched_by`, the same field the Delivery Challan uses, stamped from the session (0211).
   - An old stock out that recorded nobody leaves the line blank and says so.
   - Related and still open: D-125 (`dispatched_by` can be rewritten after issue).
-- **D-155 (v0.10.70):** the shared table drew every loaded row.
+- **D-155 (v0.10.71):** the shared table drew every loaded row.
   - **Measured** in Chromium on a production build, with the real `DataTable` and 12 columns:
     - 10,000 rows: ~8 s frozen, 160,000 elements.
     - 20,000 rows: ~19 s frozen, 320,000 elements, ~170 MB script heap, 580,000 page nodes.
@@ -179,14 +179,14 @@ checked.
   - **Checked in the browser:** no pager below 2,000 rows; Load more opens rows 2,001–3,000; Previous / Next work; the footer still counts every row.
 - **Not checked:** the live screen with your real data and sign-in. The harness rendered the real table with synthetic rows shaped like the install base.
 
-### 2026-10-03 — High-rated batch 2: twelve defects from the second re-review fixed (v0.10.68, 0333–0340, on the branch, not merged)
+### 2026-10-03 — High-rated batch 2: twelve defects from the second re-review fixed (v0.10.69, 0334–0341, on the branch, not merged)
 - **Your ask:** *"Start fixing the High defects. Ensure it doesn't insert any breaking changes. Update the documents / how rithi works / how to RITHI appropriately"*.
 - **How "no breaking change" was made true, not assumed:**
   - Every fix began by reading the rule's LIVE definition and every app and database path that writes those columns.
   - The honest paths are named in each migration's header: the importers, the screens, renames, receipts, Change engineer, the follow-the-call refresh, the DCCR upload, and 0324's own deletion.
   - Where a writer was only ever an importer, the importer keeps the old rule (`bulk.upload` / `import.panel`, or no signed-in user).
   - Where a client value could only be honest or forged, it is **discarded, not refused** (the 0113/0114 rule): a forged import marker, and an Item Status other than the call's.
-  - **`high_batch_2_test` proves both halves in every section**: the hole is closed AND the honest path beside it still works. 25 refusals, every one labelled. Run on a database WITHOUT 0333–0340, 22 of the 25 expectations go unmet.
+  - **`high_batch_2_test` proves both halves in every section**: the hole is closed AND the honest path beside it still works. 25 refusals, every one labelled. Run on a database WITHOUT 0334–0341, 22 of the 25 expectations go unmet.
 - **Fixed:**
   - **D-118 (0339):** an import marker is the importer's alone. Anyone else's is dropped before the stock guards read it.
   - **D-119 (0339):** a recorded transfer is not re-pointed or back-dated.
@@ -194,14 +194,14 @@ checked.
   - **D-123 (0339):** a lower stock-out quantity or opening balance, or a delete, never leaves an engineer below zero. Both tables are imaged.
   - **D-120 (0340):** part and quantity are fixed once the RM has decided. This is a trigger of its own; `spare_request_lines_guard` is untouched.
   - **D-121 (0340):** the engineer moves only by Change engineer. Item Status follows the call; the request type is kept.
-  - **D-127 (0333):** re-open, close, close-again, cancel and restore need sight of the call. The five functions were redefined from their live bodies with one check added.
+  - **D-127 (0341):** re-open, close, close-again, cancel and restore need sight of the call. The five functions were redefined from their live bodies with one check added.
   - **D-135 (0335):** a party name, part code and product code change only through a rename.
   - **D-141 (0336):** a verified, PDT-signed, reported, condemned or report-uploaded Indoor job is not deleted.
   - **D-126 (0337):** Product Database 2.0's stored copy is closed to the public key.
   - **D-133 (0338):** three helpers are closed to the public key.
 - **Partly fixed:** D-128 (0334). A review needs a real call the writer can see; reading every review is still open to every signed-in user, because narrowing it changes counts on screens.
 - **Two bugs the suite caught in my own first drafts, both fixed before anything was recorded:**
-  - **The sight check answered NULL, not false, for a call with no creator recorded,** so it waved such calls through. Fixed with `coalesce`, and the reason is written in 0333.
+  - **The sight check answered NULL, not false, for a call with no creator recorded,** so it waved such calls through. Fixed with `coalesce`, and the reason is written in 0341.
   - **The Indoor delete counted the empty re-verifier text as "re-verified"** and refused a job received in error. Fixed.
 - **One rule narrowed to keep your decision:** 0324's own suite deletes a job carrying a QC result, checks, parts and an unsigned PDT as a duplicate intake. So none of those is a trace, and that deletion works exactly as before.
 - **Existing suites changed, because what they assumed is now refused:**
@@ -216,12 +216,12 @@ checked.
   - How RITHI Functions: hand stock, spares, calls, masters and quality, plus the Spare module schema.
   - A stale line corrected: the Change engineer "Why" was described as optional; it has been required since 0313.
   - Eleven requirement texts amended.
-  - OQ-239 added.
-  - `_status.sql` rows 265–272.
+  - OQ-240 added.
+  - `_status.sql` rows 266–273.
   - DATABASE_SCHEMA.md regenerated.
-- **Merged `main` twice on the way:** #520 took 0331 and v0.10.65, so the stock migration is 0339 and the re-review v0.10.66; then #521 took 0332 and v0.10.66 too, so the spare migration is 0340, the re-review v0.10.67 and this batch v0.10.68, with status rows 265–272 and the test OQ-239 (#521 took OQ-238).
+- **Merged `main` twice on the way:** #520 took 0331 and v0.10.65, so the stock migration is 0339 and the re-review v0.10.66; then #521 took 0332 and v0.10.66 too, so the spare migration is 0340; then #522 took 0333, OQ-239, row 265 and v0.10.67, so the call migration is 0341, the re-review v0.10.68, this batch v0.10.69, the status rows 266–273 and the test OQ-240.
 
-### 2026-10-03 — Second re-review: every open defect re-checked at `1cdceb0`, and a fresh pass over every module (v0.10.67, on the branch, not merged)
+### 2026-10-03 — Second re-review: every open defect re-checked at `1cdceb0`, and a fresh pass over every module (v0.10.68, on the branch, not merged)
 - **Your ask:** *"Re-review all the modules"*.
 - **Method:** seven readers in parallel, each on its own copy of a database built from all 344 migrations, every write tried as a signed-in user. Two re-checked the 59 open or partly fixed defects; five read every module fresh — Masters, Indoor Service, Cover and sales (including the dealer workflow, #515, and the transferred-machine address, #516), Service Calls with Quality and Overview, and Spares with Reports and Administration.
 - **Every High finding below was reproduced again before it was recorded,** from the readers' own scripts or tests written for the purpose. One claim did not reproduce at first and did on a second look: the dealer re-load refusal fires only for a signed-in user, which is how an upload runs.

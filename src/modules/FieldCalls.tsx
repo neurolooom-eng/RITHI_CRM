@@ -1587,7 +1587,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         call={spareFor}
         open={!!spareFor}
         onClose={() => setSpareFor(null)}
-        onSaved={(ucn) => setBanner({ tone: 'ok', text: `Spare request submitted for ${ucn}. Track it under Spares → Spare Requests.` })}
+        onSaved={(ucn, _uid, _orNo, visitError) => setBanner(visitError
+          ? { tone: 'error', text: `Spare request submitted for ${ucn}, but its visit entry was not added: ${visitError}` }
+          : { tone: 'ok', text: `Spare request submitted for ${ucn}. Track it under Spares → Spare Requests.` })}
       />
     </div>
   );

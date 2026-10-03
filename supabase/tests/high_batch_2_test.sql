@@ -1,5 +1,5 @@
 -- ===========================================================================
--- THE SECOND BATCH OF HIGH-RATED DEFECTS, PROVED ON A DATABASE (0333-0340).
+-- THE SECOND BATCH OF HIGH-RATED DEFECTS, PROVED ON A DATABASE (0334-0341).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works -- the batch was asked for with
 -- "ensure it doesn't insert any breaking changes".
@@ -10,7 +10,7 @@
 --   4. D-123  a cut never takes stock below zero, and is imaged (0339)
 --   5. D-120  part and quantity are fixed once the RM decides (0340)
 --   6. D-121  the engineer moves only by Change engineer; cover follows the call (0340)
---   7. D-127  re-open / close need sight of the call (0333)
+--   7. D-127  re-open / close need sight of the call (0341)
 --   8. D-128  a review needs a real call the writer can see (0334)
 --   9. D-135  a master key changes only through a rename (0335)
 --  10. D-141  an Indoor job that has been worked on is not deleted (0336)
