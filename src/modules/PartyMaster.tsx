@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useColumns } from '../components/ui/useColumns';
 import { useLocation } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, Drawer, Modal } from '../components/ui/ui';
@@ -93,7 +94,7 @@ const COLUMNS: Column<Row>[] = [
 // and contract — and there is no foreign key to `parties`, so renaming it from
 // a text box would strand all of them. Same reason a part is renamed by a
 // function that carries its history (0196) and not by typing over it.
-const EDIT_GROUPS: { title: string; note?: string; fields: { key: keyof PartyPatch; label: string }[] }[] = [
+const EDIT_GROUPS: { title: string; note?: string; fields: { key: keyof PartyPatch; label: string; wide?: boolean }[] }[] = [
   { title: 'The customer', fields: [
     { key: 'party_type', label: 'Type' },
     { key: 'profile', label: 'Profile' },
@@ -101,7 +102,7 @@ const EDIT_GROUPS: { title: string; note?: string; fields: { key: keyof PartyPat
     { key: 'route', label: 'Route' },
   ] },
   { title: 'Where the machine is', note: 'The installation address — this is what a call sends somebody to.', fields: [
-    { key: 'address', label: 'Address' },
+    { key: 'address', label: 'Address', wide: true },
     { key: 'city', label: 'City' },
     { key: 'state', label: 'State' },
     { key: 'pincode', label: 'Pincode' },
@@ -111,7 +112,7 @@ const EDIT_GROUPS: { title: string; note?: string; fields: { key: keyof PartyPat
     { key: 'email', label: 'Email' },
   ] },
   { title: 'Where the bill goes', note: 'Left blank means the same as above.', fields: [
-    { key: 'billing_address', label: 'Address' },
+    { key: 'billing_address', label: 'Address', wide: true },
     { key: 'billing_pincode', label: 'Pincode' },
     { key: 'billing_phone', label: 'Phone' },
     { key: 'billing_phone_2', label: 'Phone 2' },
@@ -132,6 +133,29 @@ const KycChip = ({ status }: { status: unknown }) => (
 );
 
 const toRows = (data: Record<string, unknown>[], base: number): Row[] => data.map((p, i) => ({ ...p, id: String(p.id ?? base + i) } as Row));
+
+/** One section of the party form: its full-width fields (an address), then
+ *  the rest in the 2/3-column grid. Shared by Add entry and the Edit panel so
+ *  the two lay a party out the same way. */
+function PartyGroupFields({ fields, value, set }: {
+  fields: { key: keyof PartyPatch; label: string; wide?: boolean }[];
+  value: (k: string) => string;
+  set: (k: string, v: string) => void;
+}) {
+  const field = ({ key, label }: { key: keyof PartyPatch; label: string }) => (
+    <div className="ml-field" key={key}>
+      <label className="field-label">{label}</label>
+      <input className="input" value={value(key as string)} onChange={(e) => set(key as string, e.target.value)} />
+    </div>
+  );
+  const narrow = fields.filter((f) => !f.wide);
+  return (
+    <>
+      {fields.filter((f) => f.wide).map(field)}
+      {narrow.length > 0 && <div className="pf-grid">{narrow.map(field)}</div>}
+    </>
+  );
+}
 
 export function PartyMaster() {
   const cached = loadCache<Row>(CACHE_KEY);
@@ -173,6 +197,8 @@ export function PartyMaster() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
   const [saving, setSaving] = useState(false);
+  const [addRef, addCols] = useColumns();
+  const [editRef, editCols] = useColumns();
 
   // ---- Add entry: a pop-up form, the same as Part Master's ------------------
   // NAME, CITY AND STATE ARE REQUIRED (the user, 2026-10-03); everything else
@@ -559,60 +585,56 @@ export function PartyMaster() {
         </Drawer>
       )}
       {edit && (
-        <Drawer open title={String(edit.party_name ?? 'Party')} onClose={() => setEdit(null)} width={620} storeKey="partyEdit">
-          <div className="kb-form">
+        <Drawer open title={String(edit.party_name ?? 'Party')} onClose={() => setEdit(null)} width={820} storeKey="partyEdit">
+          <div className={`kb-form pf-section pf-c${editCols}`} ref={editRef}>
             <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
               The <b>party name</b> is not editable here. Every machine, call and contract names this
               customer by it, so changing it would strand them — ask for a rename rather than typing over it.
             </p>
 
             {EDIT_GROUPS.map((g) => (
-              <div key={g.title}>
-                <h4 style={{ margin: '14px 0 4px' }}>{g.title}</h4>
-                {g.note && <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{g.note}</div>}
-                {g.fields.map(({ key, label }) => (
-                  <div className="field" key={key}>
-                    <label className="field-label">{label}</label>
-                    <input className="input" value={String(edit[key as string] ?? '')}
-                      onChange={(e) => setEditField(key as string, e.target.value)} />
-                  </div>
-                ))}
+              <div key={g.title} className="pf-section">
+                <h4>{g.title}</h4>
+                {g.note && <div className="muted" style={{ fontSize: 12 }}>{g.note}</div>}
+                <PartyGroupFields fields={g.fields} value={(k) => String(edit[k] ?? '')} set={setEditField} />
               </div>
             ))}
 
-            <h4 style={{ margin: '14px 0 4px' }}>KYC</h4>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+            <h4>KYC</h4>
+            <div className="muted" style={{ fontSize: 12 }}>
               Every customer starts <b>Pending</b>. Marking one <b>Verified</b> records who did it and
               when, from your sign-in — and sending it back to Pending clears that again.
             </div>
-            <div className="field">
-              <label className="field-label">GSTIN</label>
-              <input className="input" value={String(edit.gstin ?? '')}
-                onChange={(e) => setEditField('gstin', e.target.value)} />
-              <span className="muted" style={{ fontSize: 12 }}>
-                15 characters. A GSTIN contains a PAN, so filling this fills the PAN too.
-              </span>
+            <div className="pf-grid">
+              <div className="ml-field">
+                <label className="field-label">GSTIN</label>
+                <input className="input" value={String(edit.gstin ?? '')}
+                  onChange={(e) => setEditField('gstin', e.target.value)} />
+                <span className="muted" style={{ fontSize: 12 }}>
+                  15 characters. A GSTIN contains a PAN, so filling this fills the PAN too.
+                </span>
+              </div>
+              <div className="ml-field">
+                <label className="field-label">PAN</label>
+                <input className="input" value={String(edit.pan ?? '')}
+                  onChange={(e) => setEditField('pan', e.target.value)} />
+              </div>
+              <div className="ml-field">
+                <label className="field-label">Status</label>
+                {/* THREE OPTIONS, SO NO SEARCH BOX — PickList shows just the list
+                    under eight, and making somebody type to reach "Verified" is
+                    worse than the dropdown it replaced. */}
+                <PickList
+                  value={String(edit.kyc_status ?? 'Pending')}
+                  options={KYC_STATUSES}
+                  onPick={(v) => setEditField('kyc_status', v)}
+                  placeholder="Pending, Verified or Rejected…"
+                  disabled={!mayKyc}
+                />
+                {!mayKyc && <div className="muted" style={{ fontSize: 12 }}>Changing the status needs the “Verify a party’s KYC” permission.</div>}
+              </div>
             </div>
-            <div className="field">
-              <label className="field-label">PAN</label>
-              <input className="input" value={String(edit.pan ?? '')}
-                onChange={(e) => setEditField('pan', e.target.value)} />
-            </div>
-            <div className="field">
-              <label className="field-label">Status</label>
-              {/* THREE OPTIONS, SO NO SEARCH BOX — PickList shows just the list
-                  under eight, and making somebody type to reach "Verified" is
-                  worse than the dropdown it replaced. */}
-              <PickList
-                value={String(edit.kyc_status ?? 'Pending')}
-                options={KYC_STATUSES}
-                onPick={(v) => setEditField('kyc_status', v)}
-                placeholder="Pending, Verified or Rejected…"
-                disabled={!mayKyc}
-              />
-              {!mayKyc && <div className="muted" style={{ fontSize: 12 }}>Changing the status needs the “Verify a party’s KYC” permission.</div>}
-            </div>
-            <div className="field">
+            <div className="ml-field">
               <label className="field-label">Notes</label>
               <textarea className="input" rows={3} value={String(edit.kyc_notes ?? '')}
                 onChange={(e) => setEditField('kyc_notes', e.target.value)} />
@@ -673,37 +695,44 @@ export function PartyMaster() {
         </Drawer>
       )}
       {adding && (
-        <Modal open title="Add to Party Master" onClose={() => setAdding(null)} width={620}>
-          <form className="kb-form ml-form" onSubmit={(e) => { e.preventDefault(); void saveAdd(); }}>
-            {([['party_name', 'Party Name'], ['city', 'City'], ['state', 'State']] as const).map(([k, l]) => (
-              <div className="ml-field" key={k}>
-                <label className="field-label">{l} <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
-                <input className="input" value={adding[k] ?? ''} autoFocus={k === 'party_name'}
-                  onChange={(e) => setAdding((a) => ({ ...(a ?? {}), [k]: e.target.value }))} />
-              </div>
-            ))}
+        <Modal open title="Add to Party Master" onClose={() => setAdding(null)} width={900}>
+          <form className={`kb-form pf-section pf-c${addCols}`} ref={addRef} onSubmit={(e) => { e.preventDefault(); void saveAdd(); }}>
+            <div className="ml-field">
+              <label className="field-label">Party Name <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
+              <input className="input" value={adding.party_name ?? ''} autoFocus
+                onChange={(e) => setAdding((a) => ({ ...(a ?? {}), party_name: e.target.value }))} />
+            </div>
+            <div className="pf-grid">
+              {([['city', 'City'], ['state', 'State']] as const).map(([k, l]) => (
+                <div className="ml-field" key={k}>
+                  <label className="field-label">{l} <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
+                  <input className="input" value={adding[k] ?? ''}
+                    onChange={(e) => setAdding((a) => ({ ...(a ?? {}), [k]: e.target.value }))} />
+                </div>
+              ))}
+            </div>
             <div className="muted ml-hint">Everything below is optional and can be filled in later from the party's Edit form. The Party Key is given when it is saved.</div>
             {EDIT_GROUPS.map((g) => (
-              <div key={g.title} className="ml-form">
-                <h4 style={{ margin: '6px 0 0' }}>{g.title}</h4>
+              <div key={g.title} className="pf-section">
+                <h4>{g.title}</h4>
                 {g.note && <div className="muted ml-hint">{g.note}</div>}
-                {g.fields.filter(({ key }) => key !== 'city' && key !== 'state').map(({ key, label }) => (
-                  <div className="ml-field" key={key}>
-                    <label className="field-label">{label}</label>
-                    <input className="input" value={adding[key] ?? ''}
-                      onChange={(e) => setAdding((a) => ({ ...(a ?? {}), [key]: e.target.value }))} />
+                <PartyGroupFields fields={g.fields.filter(({ key }) => key !== 'city' && key !== 'state')}
+                  value={(k) => adding[k] ?? ''}
+                  set={(k, v) => setAdding((a) => ({ ...(a ?? {}), [k]: v }))} />
+              </div>
+            ))}
+            <div className="pf-section">
+              <h4>Tax</h4>
+              <div className="pf-grid">
+                {([['gstin', 'GSTIN'], ['pan', 'PAN']] as const).map(([k, l]) => (
+                  <div className="ml-field" key={k}>
+                    <label className="field-label">{l}</label>
+                    <input className="input" value={adding[k] ?? ''}
+                      onChange={(e) => setAdding((a) => ({ ...(a ?? {}), [k]: e.target.value }))} />
                   </div>
                 ))}
               </div>
-            ))}
-            <h4 style={{ margin: '6px 0 0' }}>Tax</h4>
-            {([['gstin', 'GSTIN'], ['pan', 'PAN']] as const).map(([k, l]) => (
-              <div className="ml-field" key={k}>
-                <label className="field-label">{l}</label>
-                <input className="input" value={adding[k] ?? ''}
-                  onChange={(e) => setAdding((a) => ({ ...(a ?? {}), [k]: e.target.value }))} />
-              </div>
-            ))}
+            </div>
             {(addErr || (addTried && addMissing(adding).length > 0)) && (
               <div className="field-err">{addErr || `Fill ${addMissing(adding).join(', ')}.`}</div>
             )}

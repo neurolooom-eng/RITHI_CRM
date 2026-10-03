@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.56',
+    date: '2026-10-03',
+    title: 'Party Master: the forms in columns',
+    changes: [
+      'PARTY MASTER: Add entry and the Edit panel lay the fields out in 3 columns (2 on a narrower window, 1 on a phone). Addresses and notes take a full row, and a field left on its own at the end of a section stretches across the empty space.',
+    ],
+  },
+  {
     version: '0.10.55',
     date: '2026-10-03',
     title: 'Product Master: Add entry form',
