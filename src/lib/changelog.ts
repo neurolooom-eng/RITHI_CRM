@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.55',
+    date: '2026-10-03',
+    title: 'Product Master: Add entry form',
+    changes: [
+      'PRODUCT MASTER: "+ Add entry" adds a product line from a pop-up form. Product Code and Product Name are required (marked *); Item Detail, Type, Category, Short Form, Still sold? and Imported are optional. Type and Category offer the values already in use, or take a new one.',
+      'A code already on the Product Master is refused rather than overwritten — correct an existing line through the bulk upload. The line records today as Added and you as Added by.',
+    ],
+  },
+  {
     version: '0.10.54',
     date: '2026-10-03',
     title: 'Party Master: Add entry form',

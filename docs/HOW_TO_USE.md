@@ -734,7 +734,9 @@ typed into a form that reads it.
   > starts blank (*not known*); set it on this screen if you may edit master
   > records, or with an **Imported** column in the upload — a blank cell there
   > leaves what is set alone.
-  Load it under **Bulk Uploads → Product Master (product lines)**.
+  Load it under **Bulk Uploads → Product Master (product lines)**, or add one
+  line with **＋ Add entry** — Product Code and Product Name are required, and a
+  code already there is refused rather than overwritten.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
   > **HSN Code** has its own column: set it on *＋ Add part* or the edit drawer
