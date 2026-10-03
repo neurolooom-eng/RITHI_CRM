@@ -1011,7 +1011,10 @@ const MODULES = {
             '0330_registers_fill_product_database.sql',
             // The installing engineer's "Warranty Start Date?" answer decides
             // the Product Database warranty start (the user, 2026-10-03).
-            '0331_install_solved_date_starts_warranty.sql'],
+            '0331_install_solved_date_starts_warranty.sql',
+            // The installation's warranty decision in a table of its own, with
+            // a bulk upload for calls from 2018 (the user, 2026-10-03).
+            '0332_installation_warranty_starts.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -1103,8 +1106,8 @@ const MODULES = {
       // as the single-spare Approve (0311, D-081). Redefines 0118's function.
       '0311_tick_box_rm_auto_approves.sql',
       // A request on a call with no visit files the visit it implies:
-      // Unsolved, "spare not available", Update Visit Work Details = No (0332).
-      '0332_spare_request_files_visit.sql',
+      // Unsolved, "spare not available", Update Visit Work Details = No (0333).
+      '0333_spare_request_files_visit.sql',
       // LAST, and it must stay last: it re-asserts `dispatch_spare_lines()` and
       // `sd_read`, which handstock owns, so a replay of Spare_1.sql alone stops
       // reverting them. Guarded, so a fresh apply skips it.

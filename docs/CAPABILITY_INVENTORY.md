@@ -660,7 +660,7 @@ Purpose: records one visit against a call, plus its spare consumption and, when 
 | 7 | Pending Reason: mandatory from the master when Unsolved; locked to "Report Pending" for a pending report | CallReporting.tsx:226-227, 378, 667-682 | none | GAP | Medium |
 | 8 | Update Visit Work Details? Yes/No, forced Yes on a completed report; No skips the service report fields | CallReporting.tsx:183, 228-229, 379, 662-666 | none | GAP | Medium |
 | 9 | Service report fields: complaint picked from master, observation, job done, hour meter, software version (required), maintenance done, filter changed (required), accessory serial from the party's CPX/ASU units | CallReporting.tsx:54-66, 236-249, 379-383, 484-575 | none | URS-004, SR-005, FRS-053; accessory serial — GAP | |
-| 10 | Installation: Warranty Start Date mandatory, defaulted to today, stored on the feedback | CallReporting.tsx:62, 230-234, 460 | none | URS-006, URS-070, FRS-082 | The default to today is not stated. Medium |
+| 10 | Installation: Warranty Start Date? mandatory, a choice of Installation Call Solved Date or Invoice Date (no default), stored on the feedback and the installation warranty record; the machine's warranty now and after the report shown beneath it | CallReporting.tsx | none | URS-006, URS-070, URS-178, FRS-136.8, FRS-245, FRS-246 | Covered (Rev 3.2) |
 | 11 | Manual report: upload a PDF or photo up to 10 MB to the call type's Drive folder (no pasting), show, open, replace or remove it | CallReporting.tsx:344-358, 487-531, 832-835 | CallReg bridge | GAP | Medium. Evidence file for the visit |
 | 12 | Manual report mandatory for Solved - Report Completed | CallReporting.tsx:387-388 | none | GAP | Medium |
 | 13 | Add Consumption? Yes or None Consumed; Yes needs at least one line; setting it back drops the lines | CallReporting.tsx:47-53, 251-255, 384-385 | none | URS-054, FRS-062, OQ-48 | |
@@ -858,7 +858,7 @@ Risk: High = could create, alter, lose or misattribute a quality or stock record
 - Visit Entry — Manual report is an upload (no pasted link), mandatory on Solved - Report Completed — Medium
 - Visit Entry — customer feedback mandatory on a solved call — Medium
 - Visit Entry — a second completed visit on a re-opened call cannot record feedback (one feedback per UCN) — Medium
-- Visit Entry — Warranty Start Date defaults to today — Medium
+- Visit Entry — Warranty Start Date defaults to today — Medium (closed Rev 3.2: a choice, no default)
 - Visit Entry — hand-stock picker narrowed to the call's product — Low
 - Visit Entry — GRIR/traceability per line exists, while SR-015 still reads "lot not recorded" — Medium
 - Visit Entry — call status stamp after the visit is best-effort — Medium

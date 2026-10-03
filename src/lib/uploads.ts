@@ -1080,6 +1080,30 @@ export const UPLOADS: UploadDef[] = [
       // obsolete SOP would come in active. Status is kept in `extra` as written.
       { to: 'active', from: ['active', 'active?'], type: 'bool' },
     ] },
+  // THE INSTALLATION'S WARRANTY DECISION (0332, the user, 2026-10-03: "I have
+  // details for calls from 2018, I will upload it in one go"). One row per
+  // installation call, matched on the UCN so a corrected file updates rather
+  // than adds. The headings below are the table's own and the obvious
+  // spellings; the user's file's exact headings are mapped when they are
+  // given. The warranty START and END are NOT loaded: the database works them
+  // out from the choice and the solved date and writes them back.
+  { key: 'installation_warranty', label: 'Installation Warranty Start (old installation calls)', group: 'Cover',
+    table: 'installation_warranty_starts', extraInto: 'extra', conflict: 'ucn_key', conflictFrom: ['ucn'],
+    note: 'One row per installation call, from 2018 onwards. Warranty Start Date? says where that machine\u2019s warranty starts: "Installation Call Solved Date" makes the Product Database warranty of that product + serial start on the Call Solved Date and end one warranty period (from its Warranty Sale Entry) later; "Invoice Date" keeps the start on the PO / Warranty Sale Entry. The resulting start and end are worked out by the system and shown on the row \u2014 they are not loaded from the file. Matched on the UCN, so re-loading a corrected file updates those rows. Every other column is kept on the row.',
+    cols: [
+      { to: 'ucn', required: true, from: ['ucn', 'uc number', 'uc no', 'call no'] },
+      TEXT('call_number', 'call number', 'wi number', 'installation call number'),
+      { to: 'product_name', required: true, from: ['product_name', 'product name', 'item name', 'product'] },
+      { to: 'serial', required: true, from: ['serial', 'product serial number', 'serial no', 'serial number', 'item serial number'] },
+      TEXT('party_name', 'party name', 'customer name', 'party'),
+      DATE('reg_date', 'registration date', 'call registration date', 'reg date', 'complaint date'),
+      TEXT('warranty_choice', 'warranty start date?', 'warranty start date basis', 'warranty start'),
+      TS('call_solved_at', 'call solved date & time', 'call solved date and time', 'call solved date', 'solved date', 'installation date'),
+      TEXT('engineer', 'visiting service engineer', 'service engineer', 'engineer name', 'engineer', 'installed by'),
+      TS('visit_at', 'visit date & time', 'visit date and time', 'visit date'),
+      TEXT('remarks', 'remarks if any', 'remarks', 'installation/pm/field-remarks if any'),
+      { to: 'source', from: ['__source__'], derive: () => 'Upload' },
+    ] },
   { key: 'feedback', label: 'Customer Feedback', group: 'Quality', table: 'feedback',
     requires: 'Field Calls', extraInto: 'answers', conflict: 'ucn_key', conflictFrom: ['ucn'],
     // `imported_from` marks every row as migrated (0190), so the register can

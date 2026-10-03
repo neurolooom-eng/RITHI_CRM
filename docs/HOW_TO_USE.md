@@ -86,6 +86,9 @@ different totals. An empty register usually means access, not emptiness.
 
 - **Field Call Register** `/field-calls` — breakdown calls.
 - **Installation Calls** `/installations` — new machines going in.
+  > Under the choice the report shows the machine's warranty **now** and where it
+  > will **start and end after this report**. Every installation's choice, solved
+  > date and resulting warranty are kept in the **installation warranty record**.
   > **Warranty Start Date?** on the installation report is a choice, not a date:
   > **Installation Call Solved Date** — the machine's warranty in the Product
   > Database then starts the day this call is solved and ends a warranty period
@@ -127,6 +130,12 @@ the visit that happened, or cancel a call that should not have been raised.
   heading row even under a letterhead, reads tab-separated files, and lists what
   it kept and what it held back. Unrecognised columns are **kept on the row**
   where the register allows it.
+  > **Installation Warranty Start (old installation calls)** loads past
+  > installations — back to 2018 — one row per installation call, matched on the
+  > UCN. Each row's *Warranty Start Date?* (Installation Call Solved Date or
+  > Invoice Date) and call solved date decide that product + serial's warranty in
+  > the Product Database exactly as a report filed today does; the resulting start
+  > and end are worked out by the system and shown on the row, not loaded.
 - **Device Cache Status** `/device-cache` — which phones and laptops hold the
   machine register and Party Master for offline search: one row per person per
   device, how many machines and customers it holds, when each was downloaded and

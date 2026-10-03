@@ -41,7 +41,7 @@
 --   0268_spare_request_follows_call.sql
 --   0310_rename_passes_the_line_guard.sql
 --   0311_tick_box_rm_auto_approves.sql
---   0332_spare_request_files_visit.sql
+--   0333_spare_request_files_visit.sql
 --   0122_spare_requests_replay_tail.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -3817,7 +3817,7 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
--- 0332_spare_request_files_visit.sql
+-- 0333_spare_request_files_visit.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -3949,7 +3949,7 @@ revoke execute on function public.file_visit_for_spare_request(text) from public
 grant execute on function public.file_visit_for_spare_request(text) to authenticated;
 
 comment on function public.file_visit_for_spare_request(text) is
-  'Called by the Spare Request form after a call-based request and its lines are saved: when the call has no visit yet, files one -- Unsolved, the requesting engineer, the request date, pending reason "spare not available" from the master, Update Visit Work Details = No (0332).';
+  'Called by the Spare Request form after a call-based request and its lines are saved: when the call has no visit yet, files one -- Unsolved, the requesting engineer, the request date, pending reason "spare not available" from the master, Update Visit Work Details = No (0333).';
 
 -- ------------------------------------------------------------------------
 -- 0122_spare_requests_replay_tail.sql

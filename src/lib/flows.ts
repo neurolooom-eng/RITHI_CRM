@@ -448,7 +448,7 @@ export const FLOWS: Flow[] = [
         records: ['reports', 'feedback'], reqs: ['FRS-136', 'FRS-007', 'URS-111', 'OQ-127'] },
       { id: 'wty', label: 'Warranty runs from installation', area: 'cover', automatic: true,
         detail: 'Where the engineer answered Installation Call Solved Date, the Product Database warranty of that product + serial starts the day the call was solved and ends a warranty period later; Invoice Date keeps the PO / Warranty Sale Entry start. Product Database 2.0 reads the same answer. Its end is computed exactly as the application computes it.',
-        records: ['products', 'product_database_v2'], reqs: ['FRS-245', 'FRS-082', 'URS-070', 'CW-006', 'OQ-237', 'OQ-66'] },
+        records: ['products', 'installation_warranty_starts', 'product_database_v2'], reqs: ['FRS-245', 'FRS-246', 'FRS-082', 'URS-070', 'URS-178', 'CW-006', 'OQ-237', 'OQ-238', 'OQ-66'] },
       { id: 'pd2', label: 'Machine record — Product Database 2.0', route: '/product-database-2', area: 'master', automatic: true,
         detail: 'One row per machine, keyed on model and serial, assembled from the sale, the contract, the additional entries, the ownership transfers and the installation call, each value naming the register that decided it. It is rebuilt within five minutes of a source register changing.',
         records: ['product_database_v2', 'product_database_v2_mv'], reqs: ['FRS-080', 'FRS-183', 'URS-068', 'OQ-64'] },

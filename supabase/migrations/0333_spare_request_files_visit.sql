@@ -127,4 +127,4 @@ revoke execute on function public.file_visit_for_spare_request(text) from public
 grant execute on function public.file_visit_for_spare_request(text) to authenticated;
 
 comment on function public.file_visit_for_spare_request(text) is
-  'Called by the Spare Request form after a call-based request and its lines are saved: when the call has no visit yet, files one -- Unsolved, the requesting engineer, the request date, pending reason "spare not available" from the master, Update Visit Work Details = No (0332).';
+  'Called by the Spare Request form after a call-based request and its lines are saved: when the call has no visit yet, files one -- Unsolved, the requesting engineer, the request date, pending reason "spare not available" from the master, Update Visit Work Details = No (0333).';
