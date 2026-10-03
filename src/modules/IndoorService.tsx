@@ -239,6 +239,45 @@ export function IndoorService() {
   const registerRows = useMemo<RegisterRow[]>(() => sheetRows.map((j, i) => ({
     ...registerRow(j, i + 1), Stage: stageOf(j).label, _job: j,
   })), [sheetRows, dcStatus]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const workshopColumns: Column<IndoorJob>[] = [
+    ...(mayDispatch ? [{
+      key: '_dc', header: 'DC', width: 70, sortable: false, wrap: false,
+      render: (j: IndoorJob) => (
+        <span onClick={(e) => e.stopPropagation()}>
+          {dcEligible(j)
+            ? <input type="checkbox" checked={picked.includes(j.id)} onChange={() => togglePick(j)}
+                aria-label={`Put ${j.job_no} on an Indoor DC`} title="Tick Ready units for one Indoor DC" />
+            : (j.dispatch_ref ?? '').trim() ? <span className="mono ind-hint">{j.dispatch_ref}</span> : null}
+        </span>
+      ),
+    } as Column<IndoorJob>] : []),
+    { key: 'job_no', header: 'Job', width: 120, wrap: false, accessor: (j) => j.job_no,
+      render: (j) => <span className="mono">{j.job_no}</span> },
+    { key: 'kind', header: 'Kind', width: 100, accessor: (j) => j.kind,
+      // A DEMO unit is marked because the custody duties do NOT apply to it
+      // -- the distinction the procedure gives a different tag (4.5.5).
+      render: (j) => (j.kind === 'DEMO unit'
+        ? <span className="ind-demo">DEMO</span> : <span className="ind-cust">Customer</span>) },
+    { key: 'activity', header: 'Activity', width: 120, accessor: (j) => j.activity },
+    { key: 'product_name', header: 'Product', width: 140, accessor: (j) => j.product_name },
+    { key: 'serial', header: 'Serial', width: 130, accessor: (j) => j.serial,
+      render: (j) => <span className="mono">{j.serial}</span> },
+    { key: 'party_name', header: 'Customer', width: 200, accessor: (j) => j.party_name ?? '' },
+    { key: 'stage', header: 'Stage', width: 150, accessor: (j) => stageOf(j).label,
+      render: (j) => {
+        const st = stageOf(j);
+        return <span className={`ind-stagechip ${st.current < STAGES_DONE && !st.offPath ? 'is-now' : ''}`}>{st.label}</span>;
+      } },
+    { key: 'status', header: 'Status', width: 140, accessor: (j) => j.status,
+      render: (j) => <>
+        <span className={`ind-chip ${STATUS_TONE[j.status] ?? ''}`}>{j.status}</span>
+        {j.demo_overdue === true ? <span className="ind-late">overdue</span> : null}
+      </> },
+    { key: 'tag_no', header: 'Tag', width: 100, accessor: (j) => j.tag_no,
+      render: (j) => <span className="mono">{j.tag_no}</span> },
+    { key: 'received_at', header: 'Received', width: 170, accessor: (j) => j.received_at,
+      render: (j) => formatDayTime(j.received_at) },
+  ];
   const registerColumns = useMemo<Column<RegisterRow>[]>(() => [
     { key: 'Stage', header: 'Stage', width: 150,
       render: (r) => {
@@ -429,52 +468,20 @@ export function IndoorService() {
       ) : null}
 
       {view === 'jobs' ? (
-      <div className="table-wrap">
-        <table className="table">
-          <thead>
-            <tr>
-              {mayDispatch ? <th title="Tick Ready units for one Indoor DC">DC</th> : null}
-              <th>Job</th><th>Kind</th><th>Activity</th><th>Product</th>
-              <th>Serial</th><th>Customer</th><th>Stage</th><th>Status</th><th>Tag</th><th>Received</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((j) => (
-              <tr key={j.id} className="row-click" onClick={() => { setOpenPage(undefined); setOpenId(j.id); }}>
-                {mayDispatch ? (
-                  <td onClick={(e) => e.stopPropagation()}>
-                    {dcEligible(j)
-                      ? <input type="checkbox" checked={picked.includes(j.id)} onChange={() => togglePick(j)}
-                          aria-label={`Put ${j.job_no} on an Indoor DC`} />
-                      : (j.dispatch_ref ?? '').trim() ? <span className="mono ind-hint">{j.dispatch_ref}</span> : null}
-                  </td>
-                ) : null}
-                <td className="mono">{j.job_no}</td>
-                <td>{j.kind === 'DEMO unit'
-                  // A DEMO unit is marked because the custody duties do NOT
-                  // apply to it — the distinction the procedure gives a
-                  // different tag (4.5.5).
-                  ? <span className="ind-demo">DEMO</span>
-                  : <span className="ind-cust">Customer</span>}</td>
-                <td>{j.activity}</td>
-                <td>{j.product_name}</td>
-                <td className="mono">{j.serial}</td>
-                <td>{j.party_name ?? ''}</td>
-                <td><span className={`ind-stagechip ${stageOf(j).current < STAGES_DONE && !stageOf(j).offPath ? 'is-now' : ''}`}>{stageOf(j).label}</span></td>
-                <td><span className={`ind-chip ${STATUS_TONE[j.status] ?? ''}`}>{j.status}</span>
-                  {j.demo_overdue === true ? <span className="ind-late">overdue</span> : null}</td>
-                <td className="mono">{j.tag_no}</td>
-                <td>{formatDayTime(j.received_at)}</td>
-              </tr>
-            ))}
-            {shown.length === 0 ? (
-              <tr><td colSpan={mayDispatch ? 11 : 10} className="ind-empty">
-                Nothing in the workshop matching this filter.
-              </td></tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+        // THE STANDARD TABLE, as the register uses (the user, 2026-10-03:
+        // "Convert the Workshop view table to the standard table too") --
+        // widths, re-arranging, wrap and the column picker. The DC tick box
+        // stays the first column, outside the row click.
+        <DataTable<IndoorJob>
+          columns={workshopColumns}
+          rows={shown}
+          getRowId={(j) => String(j.id)}
+          storageKey="indoorRegister.workshop"
+          rowsBeforeScroll={14}
+          dense
+          onRowClick={(j) => { setOpenPage(undefined); setOpenId(j.id); }}
+          emptyText="Nothing in the workshop matching this filter."
+        />
       ) : null}
 
       {/* THE TICKED UNITS' DC (Workshop view) -- no job is open, so nothing

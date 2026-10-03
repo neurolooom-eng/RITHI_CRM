@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.51',
+    date: '2026-10-03',
+    title: 'Indoor Service: the Workshop view uses the standard table',
+    changes: [
+      'WORKSHOP VIEW: the job list now uses the standard table, as the R/SER/07 register does. You can drag column widths, drag headings to reorder, wrap text, and pick columns. The DC tick box for choosing units stays as the first column.',
+    ],
+  },
+  {
     version: '0.10.50',
     date: '2026-10-03',
     title: 'Indoor Service: a pop-up job window, the DC side by side, delete, and the standard table',
