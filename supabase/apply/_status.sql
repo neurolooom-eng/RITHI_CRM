@@ -1815,7 +1815,19 @@ with checks(sort_order, bundle, provides, present) as (
                         where p.oid = to_regprocedure('public.ownership_transfer_move()')), false)
          and to_regclass('public.products_resync_backup') is not null
          and not has_table_privilege('authenticated', to_regclass('public.products_resync_backup'), 'SELECT')
-         and exists (select 1 from public.one_time_fixes_done where name = '0330_product_database_resync')))
+         and exists (select 1 from public.one_time_fixes_done where name = '0330_product_database_resync'))),
+    (263, 'The installing engineer''s Warranty Start Date? answer decides the Product Database warranty', 'machine_install_warranty_start() reads the latest installation call''s feedback; "Installation Call Solved Date" on a Solved call makes sync_product_machine() start that product + serial''s warranty on the solved day (IST) and end it a warranty period later; zz_install_start_to_product on feedback and installation_calls re-syncs it; the one-time apply has run, its old values in products_install_start_backup (0331). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0331)',
+        (to_regprocedure('public.machine_install_warranty_start(text,text)') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.machine_install_warranty_start(text,text)'), 'EXECUTE')
+         and coalesce((select p.prosrc like '%machine_install_warranty_start%' from pg_proc p
+                        where p.oid = to_regprocedure('public.sync_product_machine(text,text)')), false)
+         and exists (select 1 from pg_trigger where tgname = 'zz_install_start_to_product'
+                      and tgrelid = to_regclass('public.feedback') and not tgisinternal)
+         and exists (select 1 from pg_trigger where tgname = 'zz_install_start_to_product'
+                      and tgrelid = to_regclass('public.installation_calls') and not tgisinternal)
+         and to_regclass('public.products_install_start_backup') is not null
+         and not has_table_privilege('authenticated', to_regclass('public.products_install_start_backup'), 'SELECT')
+         and exists (select 1 from public.one_time_fixes_done where name = '0331_install_warranty_start')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

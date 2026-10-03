@@ -111,10 +111,14 @@ against the application rather than assumed.
 **CW-006 — A warranty starts when the machine was installed.**
 *§7.5.4, §7.2.1.* Where an installation was recorded, its date shall start the
 warranty, in preference to the selling register's.
-**Status: Partial.** The installation report captures `Warranty Start Date?` and
-stores it on the feedback row; **nothing read it back into cover** before 2.0.
-`product_database_v2` now reads it, falling back to the installation call's
-solved date and then to the registers.
+**Status: Partial.** The installation report asks `Warranty Start Date?` as a
+choice — **Installation Call Solved Date** or **Invoice Date**, the feedback's own
+two answers — and stores it on the feedback row. Since 0331 (2026-10-03) the
+Product Database reads it: *Installation Call Solved Date* starts that product +
+serial's warranty on the day the call was solved and ends it a warranty period
+later; *Invoice Date* keeps the PO / Warranty Sale Entry start (FRS-245).
+`product_database_v2` reads the same answer, falling back to the installation
+call's solved date and then to the registers.
 
 **CW-007 — An unreadable answer is not a date.**
 *§4.2.5.* A cell holding something that is not a date shall yield no date, and
@@ -291,7 +295,7 @@ inferred from nothing.
 whatever the import said. A warranty that expired last month still reads WGP
 until something rewrites the row.
 
-**7. The warranty start captured at installation is never read back.** *(CW-006)*
+**7. ~~The warranty start captured at installation is never read back.~~** *(CW-006 — the Product Database reads it since 0331, 2026-10-03)*
 The engineer is asked for it, it is mandatory, it is stored on the feedback row
 — and no cover record uses it.
 

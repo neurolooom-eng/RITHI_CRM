@@ -1008,7 +1008,10 @@ const MODULES = {
             // The sale, the contract and the transfer fill the Product Database
             // by product + serial (the user, 2026-10-03); after 0329, whose two
             // functions it extends.
-            '0330_registers_fill_product_database.sql'],
+            '0330_registers_fill_product_database.sql',
+            // The installing engineer's "Warranty Start Date?" answer decides
+            // the Product Database warranty start (the user, 2026-10-03).
+            '0331_install_solved_date_starts_warranty.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
