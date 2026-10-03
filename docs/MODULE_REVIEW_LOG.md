@@ -161,6 +161,24 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-10-03 — The whole Product Database crashed the browser; the Declaration named one fixed person (v0.10.69–0.10.70, D-154, D-155, on the branch, not merged)
+- **Your reports:**
+  - *"In Declaration as part of Stock holds Jagadeesh name, I think it's hard coded -- it has to be updated to the person doing the stock out."*
+  - *"When I load the complete product database the browser is crashing."*
+- **D-154 (v0.10.69):** the Declaration printed `JAGADEESAN C`, written into `src/lib/declaration.ts`, on every sheet.
+  - It now prints the stock out's `dispatched_by`, the same field the Delivery Challan uses, stamped from the session (0211).
+  - An old stock out that recorded nobody leaves the line blank and says so.
+  - Related and still open: D-125 (`dispatched_by` can be rewritten after issue).
+- **D-155 (v0.10.70):** the shared table drew every loaded row.
+  - **Measured** in Chromium on a production build, with the real `DataTable` and 12 columns:
+    - 10,000 rows: ~8 s frozen, 160,000 elements.
+    - 20,000 rows: ~19 s frozen, 320,000 elements, ~170 MB script heap, 580,000 page nodes.
+    - Every Load more redrew everything loaded so far.
+  - **Fixed:** the table draws at most 2,000 rows at a time, with ‹ Previous / Next ›. A Load more that adds rows beyond the page opens the page holding them, and an open group is capped the same way.
+  - **Measured again:** 20,000 rows take ~1.3 s with 32,000 elements and ~60 MB, flat from 5,000 rows up. Below 2,000 rows nothing changes.
+  - **Checked in the browser:** no pager below 2,000 rows; Load more opens rows 2,001–3,000; Previous / Next work; the footer still counts every row.
+- **Not checked:** the live screen with your real data and sign-in. The harness rendered the real table with synthetic rows shaped like the install base.
+
 ### 2026-10-03 — High-rated batch 2: twelve defects from the second re-review fixed (v0.10.68, 0333–0340, on the branch, not merged)
 - **Your ask:** *"Start fixing the High defects. Ensure it doesn't insert any breaking changes. Update the documents / how rithi works / how to RITHI appropriately"*.
 - **How "no breaking change" was made true, not assumed:**

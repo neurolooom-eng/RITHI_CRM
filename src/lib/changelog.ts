@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.70',
+    date: '2026-10-03',
+    title: 'Loading the whole Product Database no longer crashes the browser',
+    changes: [
+      'EVERY REGISTER: a table holding more than 2,000 rows now shows them 2,000 at a time, with ‹ Previous and Next › beside the count. Loading the whole Product Database (about 20,000 machines) used to put every row on the page at once and froze or crashed the browser.',
+      'Nothing is lost: the count, search, filters, sort, grouping, "tick everything listed" and every export still cover all the rows loaded. Load more opens the page that holds the new rows. Below 2,000 rows nothing changes.',
+    ],
+  },
+  {
     version: '0.10.69',
     date: '2026-10-03',
     title: 'The Declaration names whoever booked the stock out',

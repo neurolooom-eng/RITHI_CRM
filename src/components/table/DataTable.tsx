@@ -605,6 +605,47 @@ export function DataTable<T>({
   // Groups are alphabetical with the blank one last: "not allotted yet" is a
   // real answer and belongs at the end, not first under an empty heading.
   const liveKeys = groupKeys.filter((k) => groupable?.some((g) => g.key === k));
+  // ---- on-screen pages (D-155) ---------------------------------------------
+  //
+  // EVERY LOADED ROW WAS DRAWN, and a register can hold the whole install base
+  // (the user, 2026-10-03: "When I load the complete product database the
+  // browser is crashing"). Measured on a production build in Chromium, one
+  // table of 12 columns: 1,000 rows -> 16,000 page elements in under a second;
+  // 10,000 -> 160,000 and ~8 s; 20,000 -> 320,000 elements, ~19 s with the
+  // screen frozen and ~170 MB of script heap before the browser's own layout
+  // memory -- and every Load more redrew everything loaded so far.
+  //
+  // So the table DRAWS at most SCREEN_PAGE rows at a time. Everything else is
+  // unchanged and still covers EVERY loaded row: the count, search, filters,
+  // sort, grouping, the tick-all box and every export read `sortedRows`, never
+  // the page. Below SCREEN_PAGE rows nothing about the table changes at all.
+  const SCREEN_PAGE = 2000;
+  const [screenPage, setScreenPage] = useState(0);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const pageCount = Math.max(1, Math.ceil(sortedRows.length / SCREEN_PAGE));
+  const page = Math.min(screenPage, pageCount - 1);
+  // A LOAD MORE THAT ADDS ROWS BEYOND THE PAGE ON SCREEN OPENS THE PAGE THAT
+  // HOLDS THEM -- pressing it and seeing nothing change would read as broken.
+  // A shorter list (a new search, a filter) starts again at the first page.
+  const prevCount = useRef(sortedRows.length);
+  useEffect(() => {
+    const before = prevCount.current;
+    prevCount.current = sortedRows.length;
+    if (sortedRows.length > before && before > 0 && Math.floor(before / SCREEN_PAGE) > page) {
+      setScreenPage(Math.floor(before / SCREEN_PAGE));
+    } else if (sortedRows.length < before) {
+      setScreenPage(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortedRows.length]);
+  const goToPage = (n: number) => {
+    setScreenPage(Math.max(0, Math.min(n, pageCount - 1)));
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  };
+  const pageRows = pageCount > 1
+    ? sortedRows.slice(page * SCREEN_PAGE, (page + 1) * SCREEN_PAGE)
+    : sortedRows;
+
   const groups = useMemo(
     () => (liveKeys.length ? groupTree(sortedRows, liveKeys) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -750,7 +791,20 @@ export function DataTable<T>({
           ? []
           : n.children
             ? renderGroups(n.children)
-            : n.rows.map((row) => renderRow(row))),
+            : [
+              // An open group is drawn up to SCREEN_PAGE rows too (D-155); the
+              // heading still counts all of them, and filters reach the rest.
+              ...n.rows.slice(0, SCREEN_PAGE).map((row) => renderRow(row)),
+              ...(n.rows.length > SCREEN_PAGE
+                ? [
+                  <tr key={`gmore:${n.path}`} className="dt-group-more">
+                    <td colSpan={Math.max(1, visibleCols.length + (selectable ? 1 : 0))} className="muted">
+                      {`The first ${SCREEN_PAGE.toLocaleString()} of ${n.rows.length.toLocaleString()} in this group are shown — search or filter to narrow it; exports include them all.`}
+                    </td>
+                  </tr>,
+                ]
+                : []),
+            ]),
       ];
     });
 
@@ -828,6 +882,7 @@ export function DataTable<T>({
         </div>
       )}
       <div
+        ref={scrollRef}
         className="dt-scroll"
         style={{
           maxHeight: maxBodyHeight,
@@ -914,7 +969,7 @@ export function DataTable<T>({
             )}
             {groups
               ? renderGroups(groups)
-              : sortedRows.map((row) => renderRow(row))}
+              : pageRows.map((row) => renderRow(row))}
           </tbody>
         </table>
       </div>
@@ -924,6 +979,15 @@ export function DataTable<T>({
           <button className="btn btn-sm dt-loadmore" onClick={() => void onLoadMore()} disabled={loadingMore}>
             {loadingMore ? 'Loading…' : '↓ Load more'}
           </button>
+        )}
+        {!groups && pageCount > 1 && (
+          <span className="dt-pager" title={`Search, filters, sort, totals and exports cover all ${sortedRows.length.toLocaleString()} rows; the screen shows ${SCREEN_PAGE.toLocaleString()} at a time so the browser stays responsive.`}>
+            <button className="btn btn-sm" onClick={() => goToPage(page - 1)} disabled={page === 0}>‹ Previous</button>
+            <span className="muted">
+              {' '}Rows {(page * SCREEN_PAGE + 1).toLocaleString()}–{Math.min((page + 1) * SCREEN_PAGE, sortedRows.length).toLocaleString()} of {sortedRows.length.toLocaleString()}{moreAvailable ? '+' : ''} on screen{' '}
+            </span>
+            <button className="btn btn-sm" onClick={() => goToPage(page + 1)} disabled={page >= pageCount - 1}>Next ›</button>
+          </span>
         )}
         {viewMsg && <span className="muted dt-viewmsg">{viewMsg}</span>}
         <div className="spacer" />

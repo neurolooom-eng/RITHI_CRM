@@ -27,6 +27,13 @@ guessing — a wrong colour on a code is worse than no colour.
 **A number ending in `+` is a lower bound.** Registers load in pages, so "90+"
 means *at least* 90. A number without one is exact.
 
+**A table shows 2,000 rows at a time.** Load as much as you like — the whole
+Product Database included — and the table puts 2,000 on the screen, with
+**‹ Previous** and **Next ›** beside the count. The count, search, filters,
+sorting, grouping, "tick everything listed" and every export still cover every
+row loaded; **Load more** opens the page holding the rows it adds. Drawing all
+20,000 machines at once used to freeze or crash the browser.
+
 **Every dropdown is type-and-pick.** Type to filter, click or Enter to commit;
 nothing commits on a keystroke. Under eight options there is no search box. Where
 a list comes from a master you cannot type a value that is not on it.
