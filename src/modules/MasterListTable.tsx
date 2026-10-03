@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { Toolbar } from '../components/ui/ui';
+import { Toolbar, Modal } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
 import { csvExport, fmtDate } from '../lib/format';
 import { listMaster, dataConfigured } from '../lib/sheets';
@@ -13,7 +13,8 @@ import { useMaster } from '../lib/masters';
 import { MultiPick } from '../components/ui/MultiPick';
 import { complaintProducts, productsLabel, applyBulkProducts, matchesProductFilter, ALL_PRODUCTS_FILTER, type BulkProductsMode } from '../lib/complaints';
 import { SelectPicker } from '../components/ui/SelectPicker';
-import { updateMasterItem } from '../lib/supabase';
+import { updateMasterItem, listProductMasterNames } from '../lib/supabase';
+import { COMMON_PRODUCT } from '../lib/dccr';
 
 // ===========================================================================
 // One master value list as its own table: every entry, with Add and Remove.
@@ -36,6 +37,19 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
+  // ADD ENTRY IS A FORM (the user, 2026-10-03: "people don't understand that
+  // they should type and click on Add"). A button opens it; required fields
+  // say so; a DCCR list's Product is picked from the Product Master.
+  const [adding, setAdding] = useState(false);
+  const [formErr, setFormErr] = useState('');
+  // The DCCR lists tag each value with ONE product (extra.product), COMM being
+  // common to every product (src/lib/dccr.ts). Their Product is required.
+  const productColumn = list.columns.find((c) => c.key === 'product');
+  const [pmNames, setPmNames] = useState<string[]>([]);
+  useEffect(() => {
+    if (!productColumn || !adding || pmNames.length) return;
+    listProductMasterNames().then(setPmNames).catch(() => setPmNames([]));
+  }, [productColumn, adding, pmNames.length]);
   // STANDARD COMPLAINT ONLY: which products each complaint applies to (the
   // user, 2026-09-29: "a Product Field -- Multi Select ... Also a provision to
   // map the Complaint to all Products"). Stored as `extra.products`; EMPTY
@@ -73,15 +87,17 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
 
   const add = async () => {
     const value = (draft.value ?? '').trim();
-    if (!value) return;
+    if (!value) { setFormErr(`${list.value_label} is required.`); return; }
+    if (productColumn && !(draft.product ?? '').trim()) { setFormErr(`${productColumn.label} is required — pick a product, or ${COMMON_PRODUCT} for every product.`); return; }
+    setFormErr('');
     const extra: Record<string, string> = {};
     list.columns.forEach((c) => { const v = (draft[c.key] ?? '').trim(); if (v) extra[c.key] = v; });
     const withProducts = byProduct && draftProducts.length
       ? { ...extra, products: draftProducts } as unknown as Record<string, string> : extra;
     setBusy(true);
     const r = await addMasterItem(list.key, value, withProducts, user?.fullName || user?.email || '');
-    if (r.ok) { setDraft({}); setDraftProducts([]); await reload(); setMsg({ tone: 'ok', text: `Added “${value}”.` }); }
-    else { setMsg({ tone: 'error', text: r.error ?? 'Could not add that entry.' }); setBusy(false); }
+    if (r.ok) { setDraft({}); setDraftProducts([]); setAdding(false); await reload(); setMsg({ tone: 'ok', text: `Added “${value}”.` }); }
+    else { setFormErr(r.error ?? 'Could not add that entry.'); setBusy(false); }
   };
 
   // A value already used on calls, reports and spare requests is deactivated,
@@ -254,33 +270,54 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
       )}
 
       {editable ? (
-        <div className="call-add-row">
-          <input
-            className="input"
-            placeholder={`New ${list.value_label.toLowerCase()}`}
-            value={draft.value ?? ''}
-            onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))}
-            onKeyDown={(e) => { if (e.key === 'Enter') void add(); }}
-          />
-          {list.columns.map((c) => (
-            <input key={c.key} className="input" placeholder={c.label}
-              value={draft[c.key] ?? ''}
-              onChange={(e) => setDraft((d) => ({ ...d, [c.key]: e.target.value }))}
-              onKeyDown={(e) => { if (e.key === 'Enter') void add(); }} />
-          ))}
-          {byProduct && (
-            <div style={{ minWidth: 220 }} title="Leave empty for all products">
-              <MultiPick values={draftProducts} options={productOptions} noun="products" allLabel="All products"
-                onChange={setDraftProducts} />
-            </div>
-          )}
-          <button className="btn btn-primary btn-sm" onClick={() => void add()} disabled={busy || !(draft.value ?? '').trim()}>+ Add</button>
+        <div className="row" style={{ gap: 8, margin: '4px 0 10px' }}>
+          <button className="btn btn-primary" onClick={() => { setDraft({}); setDraftProducts([]); setFormErr(''); setAdding(true); }}>
+            + Add entry
+          </button>
         </div>
       ) : (
         <p className="muted" style={{ marginTop: 0 }}>
           {live ? `You need the “Add / edit values” permission for ${list.label} to change this list.` : 'Connect the database to add or remove entries.'}
         </p>
       )}
+
+      <Modal open={adding} onClose={() => setAdding(false)} title={`Add to ${list.label}`} width={520}>
+        <form className="ml-form" onSubmit={(e) => { e.preventDefault(); void add(); }}>
+          <label className="ml-field">
+            <span className="field-label">{list.value_label} *</span>
+            <input className="input" autoFocus value={draft.value ?? ''}
+              onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))} />
+          </label>
+          {list.columns.map((c) => (
+            <label key={c.key} className="ml-field">
+              <span className="field-label">{c.label}{c.key === 'product' ? ' *' : ''}</span>
+              {c.key === 'product' ? (
+                <SelectPicker value={draft.product ?? ''} placeholder="— pick a product —"
+                  onChange={(v) => setDraft((d) => ({ ...d, product: v }))}
+                  options={[{ value: COMMON_PRODUCT, label: `${COMMON_PRODUCT} — common to every product` },
+                    ...pmNames.map((n) => ({ value: n, label: n }))]} />
+              ) : (
+                <input className="input" value={draft[c.key] ?? ''}
+                  onChange={(e) => setDraft((d) => ({ ...d, [c.key]: e.target.value }))} />
+              )}
+              {c.key === 'product' ? <span className="muted ml-hint">From the Product Master.</span> : null}
+            </label>
+          ))}
+          {byProduct && (
+            <label className="ml-field">
+              <span className="field-label">Products</span>
+              <MultiPick values={draftProducts} options={productOptions} noun="products" allLabel="All products"
+                onChange={setDraftProducts} />
+              <span className="muted ml-hint">Leave empty for all products.</span>
+            </label>
+          )}
+          {formErr ? <div className="field-err">{formErr}</div> : null}
+          <div className="row" style={{ gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
+            <button type="button" className="btn btn-ghost" onClick={() => setAdding(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Adding…' : 'Add entry'}</button>
+          </div>
+        </form>
+      </Modal>
 
       <DataTable<MasterItem & Record<string, unknown>>
         columns={columns}

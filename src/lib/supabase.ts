@@ -3340,6 +3340,19 @@ export async function listMasterItems(key: string, cap = 5000): Promise<MasterIt
 // them. Until 2026-09-07 this offered the product's own PLUS everything tagged
 // COMM, which buried a Monnal's alarm codes in the common list and left every
 // other product with only the handful of COMM values.
+/** The product lines on the Product Master, for a pick list (the DCCR lists'
+ *  Product, the user 2026-10-03: "products should be listed from Product
+ *  Master"). Every line, active or retired, so a grouping can still be kept
+ *  for a product no longer sold; names de-duplicated and sorted. */
+export async function listProductMasterNames(): Promise<string[]> {
+  const c = getSupabase(); if (!c) return [];
+  const { data, error } = await c.from('product_master').select('product_name').order('product_name');
+  if (error) throw new Error(errMsg(error));
+  const seen = new Set<string>();
+  return (data ?? []).map((r) => String((r as { product_name?: string }).product_name ?? '').trim())
+    .filter((v) => v && !seen.has(v.toUpperCase()) && seen.add(v.toUpperCase()));
+}
+
 export async function listMasterValuesForProduct(key: string, product: string, limit = 5000): Promise<string[]> {
   const items = await listMasterItems(key, limit);
   const seen = new Set<string>();
