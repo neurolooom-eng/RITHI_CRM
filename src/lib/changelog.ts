@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.66',
+    date: '2026-10-03',
+    title: 'Installation warranty record, its bulk upload, and a version on every requirement',
+    changes: [
+      'INSTALLATION VISIT ENTRY: under Warranty Start Date? you now see the machine\'s warranty as it stands in the Product Database, and where it will start and end after this report.',
+      'Every installation\'s warranty decision — the machine, customer, engineer, the choice, the solved date and the warranty it produced — is kept in its own record, one row per installation call. The installation feedback already on file was copied in.',
+      'BULK UPLOADS: a new register, Installation Warranty Start (old installation calls), loads past installations back to 2018 in one file. Each row decides its machine\'s warranty exactly as a report filed today does; re-loading a corrected file updates the same rows.',
+      'SOFTWARE VALIDATION (Rev 3.2): every requirement now carries a version and a date — v0.10.66, 03-Oct-2026 for all of them to start with, changed whenever a requirement changes.',
+    ],
+  },
+  {
     version: '0.10.65',
     date: '2026-10-03',
     title: 'Installation: the engineer chooses where the warranty starts',

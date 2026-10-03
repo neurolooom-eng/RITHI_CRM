@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**101 tables · 37 views · 2852 columns · 202 policies · 63 foreign keys.**
+**102 tables · 37 views · 2879 columns · 205 policies · 63 foreign keys.**
 
 ## How to read this
 
@@ -73,6 +73,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [indoor_pdt](#indoor-pdt)
 - [inst_call_repair_log](#inst-call-repair-log)
 - [installation_calls](#installation-calls)
+- [installation_warranty_starts](#installation-warranty-starts)
 - [kb_articles](#kb-articles)
 - [master_lists](#master-lists)
 - [masters](#masters)
@@ -1898,6 +1899,54 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | INSERT | `calls_insert` | — | `has_perm('install.create'::text)` |
 | SELECT | `calls_scoped_read` | `(( SELECT has_perm('calls.view'::text) AS has_perm) AND (( SELECT can_view_all_calls() AS can_view_all_calls) OR (created_by = ( SELECT auth.uid() AS uid)) OR (actual_created_by = …` | — |
 | UPDATE | `calls_update` | `(( SELECT (has_perm('install.edit.complaint'::text) OR has_perm('install.edit.customer'::text) OR has_perm('install.edit.vigilance'::text) OR has_perm('install.edit.contact'::text)…` | `(( SELECT (has_perm('install.edit.complaint'::text) OR has_perm('install.edit.customer'::text) OR has_perm('install.edit.vigilance'::text) OR has_perm('install.edit.contact'::text)…` |
+
+---
+
+## installation_warranty_starts
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('installation_warranty_starts_id_seq'::regclass)` |  |
+| 2 | `ucn` | text | **no** |  |  |
+| 3 | `ucn_key` | text _(generated)_ | yes |  |  |
+| 4 | `call_number` | text | **no** | `''::text` |  |
+| 5 | `product_name` | text | **no** | `''::text` |  |
+| 6 | `serial` | text | **no** | `''::text` |  |
+| 7 | `machine_key` | text _(generated)_ | yes |  |  |
+| 8 | `party_name` | text | **no** | `''::text` |  |
+| 9 | `reg_date` | date | yes |  |  |
+| 10 | `warranty_choice` | text | **no** | `''::text` |  |
+| 11 | `call_solved_at` | timestamp with time zone | yes |  |  |
+| 12 | `solved_date` | date | yes |  |  |
+| 13 | `warranty_start` | date | yes |  |  |
+| 14 | `warranty_end` | date | yes |  |  |
+| 15 | `period_months` | numeric | yes |  |  |
+| 16 | `engineer` | text | **no** | `''::text` |  |
+| 17 | `visit_at` | timestamp with time zone | yes |  |  |
+| 18 | `remarks` | text | **no** | `''::text` |  |
+| 19 | `source` | text | **no** | `'RITHI'::text` |  |
+| 20 | `extra` | jsonb | **no** | `'{}'::jsonb` |  |
+| 21 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 22 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 23 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 24 | `sys_created_by` | uuid | yes |  |  |
+| 25 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 26 | `sys_updated_by` | uuid | yes |  |  |
+| 27 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(installation_warranty_starts_sys_id_key)_ · `ucn_key` _(installation_warranty_starts_ucn_key)_
+
+**Triggers:** `installation_warranty_starts_biu` → `installation_warranty_starts_biu()` · `zz_installation_warranty_to_product` → `installation_warranty_to_product()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `iws_insert` | — | `( SELECT has_perm('bulk.upload'::text) AS has_perm)` |
+| SELECT | `iws_read` | `(auth.role() = 'authenticated'::text)` | — |
+| UPDATE | `iws_update` | `( SELECT has_perm('bulk.upload'::text) AS has_perm)` | `( SELECT has_perm('bulk.upload'::text) AS has_perm)` |
 
 ---
 

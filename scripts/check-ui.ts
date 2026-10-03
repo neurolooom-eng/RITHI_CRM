@@ -10084,5 +10084,26 @@ console.log('\n-- High batch 1: what a screen could not read, and what it leaves
     /startsWith\(PREFIX\)/.test(cache) && /startsWith\('rithi\.sync\.'\)/.test(cache), true);
 }
 
+console.log('\n-- every requirement carries a version and a date (Rev 3.2, 2026-10-03) --');
+{
+  // The user: "Add a version no n date to every requirement." A requirement
+  // added without them is refused here, so the baseline does not decay.
+  const { NON_AUDITABLE: NA } = await import('../src/lib/validation');
+  const bad = [...URS, ...FRS, ...NA].filter((r) => !/^\d+\.\d+\.\d+$/.test(String((r as { version?: string }).version ?? ''))
+    || !/^\d{4}-\d{2}-\d{2}$/.test(String((r as { date?: string }).date ?? ''))).map((r) => r.id);
+  eq('every URS, FRS and non-auditable requirement has a version and a date', bad, []);
+  for (const [f, pre] of [['docs/CALL_REQUEST_REQUIREMENTS.md', 'CR'], ['docs/ISO13485_SERVICING.md', 'SR'], ['docs/COVER_REQUIREMENTS.md', 'CW']] as const) {
+    const raw = readFileSync(f, 'utf8');
+    const seen = new Set<string>(); const missing: string[] = [];
+    const re = new RegExp(`\\*\\*(${pre}-\\d{3})\\s*[—-]\\s*[\\s\\S]*?\\*\\*`, 'g');
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(raw))) {
+      if (seen.has(m[1])) continue; seen.add(m[1]);
+      if (!/^ · \*v\d+\.\d+\.\d+ · \d{2}-[A-Z][a-z]{2}-\d{4}\*/.test(raw.slice(m.index + m[0].length))) missing.push(m[1]);
+    }
+    eq(`every ${pre} requirement in ${f} has a version and a date`, missing, []);
+  }
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

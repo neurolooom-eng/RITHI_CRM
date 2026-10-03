@@ -1,3 +1,4 @@
+import { formatDay } from '../lib/dates';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader } from '../components/ui/ui';
@@ -74,6 +75,13 @@ const TABS: { key: TabKey; label: string }[] = [
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return <section className="sv-sec"><h3 className="sv-h3">{title}</h3>{children}</section>;
 }
+
+
+// EVERY REQUIREMENT CARRIES ITS VERSION AND DATE (Rev 3.2, the user,
+// 2026-10-03). Shown under the ID wherever a requirement is listed.
+const verTag = (r: { version?: string; date?: string }) => (r.version
+  ? <span className="sv-ref" style={{ display: 'block', fontWeight: 400 }}>v{r.version} · {formatDay(r.date ?? '')}</span>
+  : null);
 
 export function SoftwareValidation() {
   const { can } = useAuth();
@@ -178,7 +186,7 @@ export function SoftwareValidation() {
         const Urs = ({ e }: { e: UrsEntry }) => (
           <div className="sv-req">
             <div className="sv-req-head">
-              <span className="sv-id">{e.req.id}</span> <b>{e.req.title}</b> {riskBadge(e.req.risk)}
+              <span className="sv-id">{e.req.id}</span> <b>{e.req.title}</b> {riskBadge(e.req.risk)}{verTag(e.req)}
               {/* WHICH KIND OF CLAIM FILED IT HERE. "The text says so" and
                   "somebody said so" are different kinds of evidence, and a
                   reader cannot tell them apart from an absence. */}
@@ -388,7 +396,7 @@ export function SoftwareValidation() {
       {show('urs') && (
         <Section title="User Requirements Specification (URS)">
           <table className="sv-table"><thead><tr><th style={{ width: 84 }}>ID</th><th>Requirement</th><th style={{ width: 80 }}>Risk</th></tr></thead>
-            <tbody>{URS.map((u) => <tr key={u.id}><td className="sv-id">{u.id}</td><td><b>{u.title}.</b> {u.text}{u.refs ? <span className="sv-ref"> [{u.refs.join('; ')}]</span> : null}</td><td>{riskBadge(u.risk)}</td></tr>)}</tbody>
+            <tbody>{URS.map((u) => <tr key={u.id}><td className="sv-id">{u.id}{verTag(u)}</td><td><b>{u.title}.</b> {u.text}{u.refs ? <span className="sv-ref"> [{u.refs.join('; ')}]</span> : null}</td><td>{riskBadge(u.risk)}</td></tr>)}</tbody>
           </table>
         </Section>
       )}
@@ -397,7 +405,7 @@ export function SoftwareValidation() {
       {show('srs') && (
         <Section title="System / Functional Requirements Specification (FRS)">
           <table className="sv-table"><thead><tr><th style={{ width: 84 }}>ID</th><th>Requirement</th><th style={{ width: 90 }}>Traces to</th><th style={{ width: 80 }}>Risk</th></tr></thead>
-            <tbody>{FRS.map((f) => <tr key={f.id}><td className="sv-id">{f.id}</td><td><b>{f.title}.</b> {f.text}</td><td className="sv-ref">{f.urs.join(', ')}</td><td>{riskBadge(f.risk)}</td></tr>)}</tbody>
+            <tbody>{FRS.map((f) => <tr key={f.id}><td className="sv-id">{f.id}{verTag(f)}</td><td><b>{f.title}.</b> {f.text}</td><td className="sv-ref">{f.urs.join(', ')}</td><td>{riskBadge(f.risk)}</td></tr>)}</tbody>
           </table>
         </Section>
       )}

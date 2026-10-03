@@ -583,7 +583,7 @@ console.log('\n-- a column the register was told it does not want --');
 // 32 since the Product Master (the catalogue of product LINES) joined the
 // Product Database (the machines) — the two are different registers and this
 // number is what catches one being added without a test beside it.
-eq('registers defined', UPLOADS.length, 34);  // + QMS Master List (0265), Technical / Service Notes (0272)
+eq('registers defined', UPLOADS.length, 35);  // + Installation Warranty Start (0332)  // + QMS Master List (0265), Technical / Service Notes (0272)
 
 console.log('\n-- the Part Master upload fills the HSN code (0309) --');
 {

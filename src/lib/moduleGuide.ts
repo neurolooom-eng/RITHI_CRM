@@ -420,13 +420,15 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'The same register for installation calls — new machines going in.',
     does: [
       'Register a new installation call (customer may be typed as new)',
-      'File the installation visit, including the Warranty Start Date',
+      'File the installation visit, choosing where the warranty starts: Installation Call Solved Date or Invoice Date',
+      'See, under that choice, the machine\'s warranty now and after this report',
       'Everything else as on the Field Call Register',
     ],
     records: ['calls', 'reports', 'feedback', 'spare_consumption', 'parties', 'products'],
     rules: [
       'New installation calls are for the Commercial function (and others only by grant)',
       'Installation calls have their own permission ticks, separate from Field calls',
+      'Installation Call Solved Date starts that product + serial\'s warranty on the day the call is solved and ends it one warranty period later; each choice is kept in the installation warranty record',
     ],
   },
   {
@@ -1073,7 +1075,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Read the preview: rows ready, rows held back with the reason, columns kept and ignored',
       'Confirm and write in batches',
     ],
-    records: ['field_calls', 'installation_calls', 'pm_calls', 'reports', 'call_requests', 'spare_requests', 'spare_request_lines', 'spare_dispatches', 'spare_issue_history', 'spare_consumption', 'spare_consumption_history', 'handstock_opening', 'material_returns', 'stock_transfers', 'stock_transfer_lines', 'feedback', 'field_failure_reports', 'call_reviews', 'parties', 'products', 'product_master', 'parts', 'ownership_transfers', 'product_additional_entries', 'sale_entries', 'sale_items', 'contract_entries', 'contract_items', 'documents', 'masters'],
+    records: ['field_calls', 'installation_calls', 'pm_calls', 'reports', 'call_requests', 'spare_requests', 'spare_request_lines', 'spare_dispatches', 'spare_issue_history', 'spare_consumption', 'spare_consumption_history', 'handstock_opening', 'material_returns', 'stock_transfers', 'stock_transfer_lines', 'feedback', 'field_failure_reports', 'call_reviews', 'parties', 'products', 'product_master', 'parts', 'ownership_transfers', 'product_additional_entries', 'sale_entries', 'sale_items', 'contract_entries', 'contract_items', 'documents', 'masters', 'installation_warranty_starts'],
     rules: [
       'A row missing a required column is held back and named, never loaded as a fragment',
       'A register with a key is corrected by a re-load; one without (MRN Register, Stock Transfer Lines) is duplicated, and the screen warns you',

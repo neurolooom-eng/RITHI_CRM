@@ -6649,3 +6649,26 @@ export async function deleteProductAccessories(id: number): Promise<{ ok: boolea
   const { error } = await must().from('product_accessories').delete().eq('id', id);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
+
+/** THE VISIT ENTRY'S WARRANTY PREVIEW (0332): one product + serial's warranty
+ *  as the Product Database holds it now, the period on its sale, and -- for a
+ *  given solved day -- where it would start and end if the engineer chooses
+ *  "Installation Call Solved Date". The database does the arithmetic
+ *  (cover_period_end), so the preview and the result agree. */
+export interface WarrantyPreview {
+  nowStart: string | null; nowEnd: string | null; periodMonths: number | null;
+  solvedStart: string | null; solvedEnd: string | null;
+}
+export async function sbWarrantyPreview(product: string, serial: string, solvedOn: string | null): Promise<WarrantyPreview | null> {
+  const c = getSupabase();
+  if (!c || !product.trim() || !serial.trim()) return null;
+  const { data, error } = await c.rpc('machine_warranty_preview', { p_item: product, p_serial: serial, p_solved_on: solvedOn });
+  if (error) throw new Error(errMsg(error));
+  const r = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined;
+  if (!r) return null;
+  const d = (v: unknown) => (v ? String(v) : null);
+  return { nowStart: d(r.now_start), nowEnd: d(r.now_end),
+    periodMonths: r.period_months === null || r.period_months === undefined ? null : Number(r.period_months),
+    solvedStart: d(r.solved_start), solvedEnd: d(r.solved_end) };
+}
+
