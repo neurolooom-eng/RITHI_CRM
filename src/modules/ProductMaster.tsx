@@ -56,6 +56,9 @@ const ALL_FIELDS = [
   'PM Visits', 'Other Details', 'Service Engineer', 'Item Status', 'ProdFinal',
   'Installation Completed?', 'INST Call', 'INST Date', 'INST Call Status', 'Report',
   'Associated Accessory',
+  // Filled by the sale, contract and transfer registers (0330).
+  'Invoice No.', 'Invoice Date', 'Warranty Years', 'Warranty Months', 'Accessories Included',
+  'Transfer Ref', 'Transfer Date',
 ].map((k) => ({ key: k, header: k }));
 
 // ONE MESSAGE FOR BOTH READS. A timeout says what to narrow; anything else is

@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**99 tables · 37 views · 2827 columns · 202 policies · 63 foreign keys.**
+**100 tables · 37 views · 2843 columns · 202 policies · 63 foreign keys.**
 
 ## How to read this
 
@@ -97,6 +97,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [product_master](#product-master)
 - [products](#products)
 - [products_new_owner_address_backup](#products-new-owner-address-backup)
+- [products_resync_backup](#products-resync-backup)
 - [profiles](#profiles)
 - [quality_objectives](#quality-objectives)
 - [record_audit](#record-audit)
@@ -2804,6 +2805,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 41 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 42 | `sys_updated_by` | uuid | yes |  |  |
 | 43 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 44 | `invoice_no` | text | yes |  |  |
+| 45 | `invoice_date` | date | yes |  |  |
+| 46 | `warranty_years` | numeric | yes |  |  |
+| 47 | `warranty_months` | integer | yes |  |  |
+| 48 | `accessories_included` | boolean | yes |  |  |
+| 49 | `transfer_ref` | text | yes |  |  |
+| 50 | `transfer_date` | date | yes |  |  |
 
 **Unique:** `machine_key` _(products_machine_key_uniq)_ · `sys_id` _(products_sys_id_key)_
 
@@ -2836,6 +2844,32 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 10 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
 **Unique:** `sys_id` _(products_new_owner_address_backup_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
+
+---
+
+## products_resync_backup
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('products_resync_backup_id_seq'::regclass)` |  |
+| 2 | `machine_key` | text | **no** |  |  |
+| 3 | `before` | jsonb | **no** |  |  |
+| 4 | `saved_at` | timestamp with time zone | **no** | `now()` |  |
+| 5 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 6 | `sys_created_by` | uuid | yes |  |  |
+| 7 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 8 | `sys_updated_by` | uuid | yes |  |  |
+| 9 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(products_resync_backup_sys_id_key)_
 
 **Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 

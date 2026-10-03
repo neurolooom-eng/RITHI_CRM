@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.64',
+    date: '2026-10-03',
+    title: 'Product Database: filled by the sale, the contract and the transfer, machine by machine',
+    changes: [
+      'SALE ENTRY: each product + serial goes into the Product Database with its Warranty No., start and end dates, PM visits, Invoice No., Invoice Date, Warranty Years and Months, and Accessories Included.',
+      'CONTRACT ENTRY: that product + serial gets the Contract No., start and end dates, type, status and PM visits — the contract\'s PM visits replace the sale\'s. A contract for a machine not yet in the Product Database adds it.',
+      'OWNERSHIP TRANSFER: that product + serial gets the new owner, their address, and the Transfer Ref and Transfer Date.',
+      'FIXED: a contract or a transfer used to reach EVERY machine sharing the serial — two different products numbered 219 wore each other\'s contract and changed owner together. Now only the product + serial it names. Every machine was re-checked once, and contract numbers that belonged to another product were cleared (the old values are kept).',
+      'The new columns are in ⚙ Columns on the Product Database and in its export.',
+    ],
+  },
+  {
     version: '0.10.63',
     date: '2026-10-03',
     title: 'Product Database: a transferred machine shows its new owner\'s address',
