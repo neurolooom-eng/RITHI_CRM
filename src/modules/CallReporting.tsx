@@ -244,6 +244,14 @@ export interface IndoorDraftMode {
   reportLink: string;
   upload: (file: File, reportNo: string) => Promise<{ ok: boolean; url?: string; error?: string }>;
   onSave: (d: VisitDraft, reportNo: string, link: string) => Promise<{ ok: boolean; error?: string }>;
+  /** INLINE (the user, 2026-10-03: no second drawer): the form renders as part
+   *  of the Indoor job's Report page instead of in a Drawer of its own. The
+   *  call, the visit entry date and the fixed status are not repeated there. */
+  inline?: boolean;
+  /** ASK EACH THING ONCE: Service Report fields the Indoor job already holds
+   *  (e.g. Job Done <- the job's Work done). Shown read-only with where they
+   *  come from; their value goes into the draft on save. */
+  linked?: Record<string, { value: string; from: string; edit?: () => void }>;
 }
 
 export function CallReportDrawer({
@@ -524,6 +532,15 @@ export function CallReportDrawer({
     [isInstall],
   );
 
+  // The linked fields' values come from the Indoor job, never from this form.
+  const workWithLinked = (): Record<string, string> => {
+    const l = indoor?.linked;
+    if (!l) return work;
+    const out = { ...work };
+    for (const [k, v] of Object.entries(l)) out[k] = v.value;
+    return out;
+  };
+
   const validate = (): string => {
     if (!ucn) return 'This call has no UC Number to report against.';
     // Checked here as well as on the input: `min`/`max` stop the PICKER, not a
@@ -538,9 +555,10 @@ export function CallReportDrawer({
     if (!status) return 'Choose a Call Status.';
     if (unsolved && !pendingReason.trim()) return 'Call Pending Reason is mandatory for an unsolved call.';
     if (workOpen) {
+      const all = workWithLinked();
       const miss = workFields
-        .filter((f) => f.req && f.kind !== 'manual' && !String(work[f.key] ?? '').trim())
-        .map((f) => f.key);
+        .filter((f) => f.req && f.kind !== 'manual' && !String(all[f.key] ?? '').trim())
+        .map((f) => (indoor?.linked?.[f.key] ? `${f.key} (${indoor.linked[f.key].from})` : f.key));
       if (miss.length) return `Fill the Service Report: ${miss.join(', ')}.`;
       const consProblem = consumptionProblem(String(work['Add Consumption?'] ?? ''), spares.length, spareDraft.part);
       if (consProblem) return consProblem;
@@ -579,7 +597,7 @@ export function CallReportDrawer({
     if (d) { setSpares(allSpares); setSpareDraft({ part: '', qty: '1', grir: '' }); }
     const draft: VisitDraft = {
       visitDate, engineer, engineerEmail: user?.email ?? '', status, pendingReason, updateWork,
-      work, signoff: solved ? signoff : {}, spares: allSpares, feedback, manualLink,
+      work: workWithLinked(), signoff: solved ? signoff : {}, spares: allSpares, feedback, manualLink,
     };
     setBusy(true); setErr('');
     if (indoor) {
@@ -601,6 +619,18 @@ export function CallReportDrawer({
   // One Service Report field, rendered by kind.
   const renderWorkField = (f: WorkField) => {
     const val = work[f.key] ?? '';
+    const link = indoor?.linked?.[f.key];
+    if (link) {
+      return (
+        <div className={`rep-field rep-linked ${f.span ? 'rep-span2' : ''}`} key={f.key}>
+          <span className="field-label">{f.key}{f.req ? ' *' : ''}
+            <span className="rep-linked-from"> · from {link.from}</span>
+            {link.edit ? <button type="button" className="rep-linked-edit" onClick={link.edit}>edit</button> : null}
+          </span>
+          <span className={`rep-linked-value${link.value.trim() ? '' : ' is-blank'}`}>{link.value.trim() || `Not filled in yet — fill it on the ${link.from} page.`}</span>
+        </div>
+      );
+    }
     const label = <span className="field-label">{f.key}{f.req ? ' *' : ''}</span>;
     if (f.kind === 'manual') {
       // UPLOADED, NEVER PASTED (the user, 2026-09-08: "pasting link shouldnt be
@@ -699,14 +729,17 @@ export function CallReportDrawer({
     );
   };
 
-  return (
-    <Drawer open={open} onClose={onClose} title={indoor ? `Indoor Service Report — ${ucn}` : ucn ? `Visit Entry — ${ucn}` : 'Visit Entry'} width={820}>
-      {indoor ? (
+  const inline = !!indoor?.inline;
+  const body = (
+    <>
+      {inline ? (
+        <div className="rep-inline-note">Drafted now, filed against <b>{ucn}</b> as you when the Indoor DC is approved — nothing is written to the call yet.</div>
+      ) : indoor ? (
         <div className="detail-hint">📝 The Visit Entry for <b>{ucn}</b>, drafted with the Indoor Service Report. <b>Nothing is written to the call now</b> — the visit is filed against the call, as you, when the Indoor DC is approved.</div>
       ) : (
         <div className="detail-hint">📝 Each save is a new <b>visit</b> in the report history. Spares → <b>spare_consumption</b>, feedback → <b>feedback</b>.</div>
       )}
-      {priorVisits.length > 0 && (
+      {!inline && priorVisits.length > 0 && (
         <div className="detail-hint" style={{ background: 'var(--surface-2, #f4f6f8)' }}>
           🕓 {priorVisits.length} previous visit{priorVisits.length === 1 ? '' : 's'} — last: {String(priorVisits[0].call_status ?? '—')} by {String(priorVisits[0].engineer ?? '—')} on {fmtLongDate(priorVisits[0].visit_at) || '—'}
           {!!lastManualReport && (
@@ -722,7 +755,7 @@ export function CallReportDrawer({
       ) : (
         <div className="rep-form">
           {/* The call — all fetched from the call being updated. */}
-          <section className="rep-sec">
+          {!inline && <section className="rep-sec">
             <div className="rep-sec-title">Call</div>
             <div className="rep-grid">
               <label className="rep-field">
@@ -742,17 +775,17 @@ export function CallReportDrawer({
                 <input className="input" value={user?.email ?? ''} readOnly />
               </label>
             </div>
-          </section>
+          </section>}
 
           {/* Visit */}
           <section className="rep-sec">
             <div className="rep-sec-title">Visit</div>
             <div className="rep-grid">
-              <label className="rep-field">
+              {!inline && <label className="rep-field">
                 <span className="field-label">Visit Entry Date</span>
                 <input className="input" value={indoor ? 'When the visit is filed' : visitEntry} readOnly />
                 <span className="muted rep-hint">{indoor ? 'Auto — stamped when the Indoor DC is approved and the visit is filed.' : 'Auto — when this report is entered.'}</span>
-              </label>
+              </label>}
               <label className="rep-field">
                 <span className="field-label">Visit Date &amp; Time</span>
                 <input
@@ -767,19 +800,29 @@ export function CallReportDrawer({
                     : <>Not in the future.</>}
                 </span>
               </label>
-              <label className="rep-field">
+              {inline ? (
+                <div className="rep-field">
+                  <span className="field-label">Visiting Service Engineer</span>
+                  <span className="rep-linked-value">{selfName || '—'}</span>
+                </div>
+              ) : <label className="rep-field">
                 <span className="field-label">Visiting Service Engineer *</span>
                 <SelectPicker value={engineer} onChange={setEngineer} options={fixedIndoor ? [selfName] : engineerOptions} disabled={fixedIndoor}
                               emptyHint="Only engineers on your team are listed." />
                 <span className="muted rep-hint">
                   {isAdmin || scope.isManager ? 'Defaults to you; you can report for an engineer.' : 'You — the user filing this report.'}
                 </span>
-              </label>
+              </label>}
             </div>
           </section>
 
-          {/* Status — with the work-details switch it drives, side by side */}
-          <section className="rep-sec">
+          {/* Status — with the work-details switch it drives, side by side.
+              Inline (Indoor) it is fixed, so it is one line, not three boxes. */}
+          {inline ? (
+            <div className="rep-inline-fixed">
+              Call status <b>{INDOOR_VISIT_FIXED.status}</b> · pending <b>{INDOOR_VISIT_FIXED.pendingReason}</b> · work details updated — fixed for a unit going back to the field.
+            </div>
+          ) : <section className="rep-sec">
             <div className="rep-sec-title">Call Status</div>
             <div className="rep-grid">
               <label className="rep-field">
@@ -817,7 +860,7 @@ export function CallReportDrawer({
                 <b> {INDOOR_VISIT_FIXED.status}</b>, pending <b>{INDOOR_VISIT_FIXED.pendingReason}</b>, with the work details updated.
               </div>
             )}
-          </section>
+          </section>}
 
           {/* Service Report */}
           {status && workOpen && (
@@ -956,8 +999,8 @@ export function CallReportDrawer({
           )}
 
           <div className="rep-actions">
-            <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
-            <button className="btn btn-primary" onClick={() => void save()} disabled={busy || uploading || !status}>{busy ? 'Saving…' : uploading ? 'Uploading…' : indoor ? 'Save the report and the visit draft' : 'Save Report'}</button>
+            {!inline && <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>}
+            <button className="btn btn-primary" onClick={() => void save()} disabled={busy || uploading || !status}>{busy ? 'Saving…' : uploading ? 'Uploading…' : inline ? 'Save report & visit details' : indoor ? 'Save the report and the visit draft' : 'Save Report'}</button>
           </div>
         </div>
       )}
@@ -973,6 +1016,12 @@ export function CallReportDrawer({
                     subtitle={`Previous visit${priorVisits[0]?.visit_at ? ` · ${fmtLongDate(priorVisits[0].visit_at)}` : ''}`}
                     onClose={() => setShowPrior(false)} />
       )}
+    </>
+  );
+  if (inline) return <div className="rep-inline">{body}</div>;
+  return (
+    <Drawer open={open} onClose={onClose} title={indoor ? `Indoor Service Report — ${ucn}` : ucn ? `Visit Entry — ${ucn}` : 'Visit Entry'} width={820}>
+      {body}
     </Drawer>
   );
 }

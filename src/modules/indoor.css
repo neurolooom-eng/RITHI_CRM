@@ -508,3 +508,57 @@ td.ind-rows-empty { text-align: left; }
 .ind-stage-now { font-size: 11.5px; font-weight: 650; padding: 3px 10px; border-radius: 999px; background: var(--text); color: var(--surface); white-space: nowrap; }
 .ind-stagechip { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 9px; border: 1px solid var(--border); white-space: nowrap; }
 .ind-stagechip.is-now { background: var(--text); color: var(--surface); border-color: var(--text); }
+
+/* ---- the Report page: the report form and the Visit Entry INLINE ----------
+   CallReportDrawer in its inline Indoor mode renders inside .rep-inline; these
+   rules are scoped to it, so the Visit Entry on calls keeps its own look. */
+.ind-reportstate { margin: 12px 0 0; }
+.ind-filepick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 37px; }
+.ind-filepick .btn { cursor: pointer; }
+.ind-filepick .btn.is-off { opacity: 0.5; pointer-events: none; }
+.ind-formactions { display: flex; justify-content: flex-end; margin-top: 18px; }
+
+.rep-inline { display: flex; flex-direction: column; margin-top: 10px; }
+.rep-inline .rep-inline-note { font-size: 12px; color: var(--text-muted); line-height: 1.45; padding: 4px 0 2px; }
+.rep-inline .rep-inline-note b { color: var(--text); font-weight: 600; }
+.rep-inline .rep-inline-fixed {
+  font-size: 12px; color: var(--text-muted); line-height: 1.45;
+  padding: 0 0 18px; margin-top: -6px;
+}
+.rep-inline .rep-inline-fixed b { color: var(--text); font-weight: 600; }
+.rep-inline .rep-form { display: flex; flex-direction: column; gap: 0; }
+.rep-inline .rep-sec {
+  border: 0; border-radius: 0; background: transparent;
+  padding: 18px 0 20px; border-top: 1px solid var(--border);
+}
+.rep-inline .rep-sec-title {
+  margin: 0 0 12px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.rep-inline .rep-sec-title .muted { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.rep-inline .rep-grid { gap: 14px 18px; }
+.rep-inline .rep-field { gap: 5px; }
+.rep-inline .field-label { font-size: 12px; font-weight: 550; color: var(--text-muted); margin-bottom: 0; }
+.rep-inline .rep-hint { font-size: 11.5px; }
+.rep-inline .input { border-color: var(--border); }
+.rep-inline .input:hover:not(:disabled):not([readonly]) { border-color: var(--border-strong); }
+.rep-inline .rep-actions {
+  position: static; background: transparent; padding: 16px 0 0;
+  border-top: 1px solid var(--border);
+}
+.rep-inline .rep-actions .btn-primary { padding: 8px 18px; }
+.rep-inline .sheet-banner { margin: 10px 0 0; }
+@container (max-width: 500px) { .rep-inline .rep-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* ASKED ONCE: a value the job already holds, shown as text with its source. */
+.rep-inline .rep-linked-from { font-weight: 500; color: var(--text-muted); opacity: 0.85; }
+.rep-inline .rep-linked-edit {
+  all: unset; margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--primary); cursor: pointer;
+}
+.rep-inline .rep-linked-edit:hover { text-decoration: underline; text-underline-offset: 3px; }
+.rep-inline .rep-linked-edit:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 3px; }
+.rep-inline .rep-linked-value {
+  font-size: 13.5px; line-height: 1.45; padding: 6px 0 2px; color: var(--text);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.rep-inline .rep-linked-value.is-blank { color: var(--text-muted); font-style: italic; font-size: 12.5px; }

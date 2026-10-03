@@ -25,7 +25,7 @@ import { useAuth } from '../lib/auth';
 import { IndoorDcDrawer, IndoorDcList } from './IndoorDcPanel';
 import { consigneeKey, jobConsignee, jobStage, INDOOR_STAGES, indoorReportFileName, type StageState } from '../lib/indoorforms';
 import { IndoorIntake } from './IndoorIntake';
-import { CallReportDrawer, type VisitDraft } from './CallReporting';
+import { CallReportDrawer, type IndoorDraftMode, type VisitDraft } from './CallReporting';
 import { SpareRequestDrawer } from './SpareRequests';
 import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { logAudit } from '../lib/audit';
@@ -139,7 +139,9 @@ export function IndoorService() {
   // ARRIVING FROM MY WORKLOAD's Indoor DC cards opens the DC list, once.
   useArrivingFilter<string>('indoorView', (v) => { if (v === 'dcs') setView('dcs'); });
   const [intakeOpen, setIntakeOpen] = useState(false);
-  const [reportFor, setReportFor] = useState<number | null>(null);
+  // Which page the job drawer opens on: undefined = the job's current stage;
+  // the register's Upload opens it on the Report page.
+  const [openPage, setOpenPage] = useState<number | undefined>(undefined);
   // Each IDC number's approval status, for the stage of a job carrying it.
   const [dcStatus, setDcStatus] = useState<Record<string, string>>({});
   // INDOOR_DC: the Ready units ticked for one challan.
@@ -170,7 +172,6 @@ export function IndoorService() {
   const dcEligible = (j: IndoorJob) => j.status === 'Ready' && !(j.dispatch_ref ?? '').trim()
     && !!(j.report_file_url ?? '').trim();
   const stageOf = (j: IndoorJob) => jobStage(j, dcStatus[(j.dispatch_ref ?? '').trim()]);
-  const reportJob = jobs.find((j) => j.id === reportFor) ?? null;
   const [dcFor, setDcFor] = useState<IndoorJob[] | null>(null);
   const pickedJobs = useMemo(() => picked.map((id) => jobs.find((j) => j.id === id)).filter((j): j is IndoorJob => !!j),
     [picked, jobs]);
@@ -355,7 +356,7 @@ export function IndoorService() {
                   const r = registerRow(j, i + 1);
                   const st = stageOf(j);
                   return (
-                    <tr key={j.id} className="row-click" onClick={() => setOpenId(j.id)}>
+                    <tr key={j.id} className="row-click" onClick={() => { setOpenPage(undefined); setOpenId(j.id); }}>
                       <td><span className={`ind-stagechip ${st.current < 5 && !st.offPath ? 'is-now' : ''}`}>{st.label}</span></td>
                       {REGISTER_COLUMNS.map((c) => (
                         <td key={c}>{c === 'Indoor Service Report No'
@@ -365,7 +366,7 @@ export function IndoorService() {
                               ? <a href={j.report_file_url} target="_blank" rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()} title={j.report_file_name}>{j.indoor_report_no || 'report'} ↗</a>
                               : j.cleaned_at && mayWork
-                                ? <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); setReportFor(j.id); }}>⭱ Upload</button>
+                                ? <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); setOpenPage(3); setOpenId(j.id); }}>⭱ Upload</button>
                                 : <span className="ind-hint">{j.indoor_report_no || (j.cleaned_at ? '' : 'after cleaning')}</span>)
                           : REGISTER_DATE_COLUMNS.includes(c) ? formatDay(r[c]) : String(r[c] ?? '')}</td>
                       ))}
@@ -403,7 +404,7 @@ export function IndoorService() {
           </thead>
           <tbody>
             {shown.map((j) => (
-              <tr key={j.id} className="row-click" onClick={() => setOpenId(j.id)}>
+              <tr key={j.id} className="row-click" onClick={() => { setOpenPage(undefined); setOpenId(j.id); }}>
                 {mayDispatch ? (
                   <td onClick={(e) => e.stopPropagation()}>
                     {dcEligible(j)
@@ -451,14 +452,10 @@ export function IndoorService() {
       <Drawer open={intakeOpen} onClose={() => setIntakeOpen(false)} storeKey="indoor-intake" title="Receive equipment — intake">
         {intakeOpen ? (
           <IndoorIntake onCancel={() => setIntakeOpen(false)}
-            onFiled={(id, no) => { setIntakeOpen(false); setMsg(`Filed as ${no}`); load(); setOpenId(id); }} />
+            onFiled={(id, no) => { setIntakeOpen(false); setMsg(`Filed as ${no}`); load(); setOpenPage(undefined); setOpenId(id); }} />
         ) : null}
       </Drawer>
 
-      {reportJob ? (
-        <ReportUpload job={reportJob} onClose={() => setReportFor(null)}
-          onDone={() => { setReportFor(null); setMsg(`Indoor Service Report saved on ${reportJob.job_no}.`); load(); }} />
-      ) : null}
 
       <Drawer open={!!job} onClose={() => setOpenId(null)} storeKey="indoor-job"
         title={job ? `${job.job_no} — ${job.product_name || 'equipment'}` : ''}>
@@ -476,7 +473,8 @@ export function IndoorService() {
             setMsg={setMsg}
             stage={stageOf(job)}
             dcStatus={dcStatus[(job.dispatch_ref ?? '').trim()]}
-            onUpload={() => setReportFor(job.id)}
+            startAt={openPage}
+            onReportSaved={() => { setMsg(`Indoor Service Report saved on ${job.job_no}.`); load(); }}
             onCreateDc={dcEligible(job) && mayDispatch ? () => setDcFor([job]) : undefined}
           />
         ) : null}
@@ -546,7 +544,7 @@ function Group({ title, aside, children }: { title: string; aside?: React.ReactN
 
 function IndoorJobDrawer({
   job, accessories, parts, checks, pdt, reloadChildren, reload, patch, uid, rights, msg, setMsg,
-  stage, dcStatus, onUpload, onCreateDc,
+  stage, dcStatus, startAt, onReportSaved, onCreateDc,
 }: {
   job: IndoorJob;
   accessories: IndoorAccessory[];
@@ -563,7 +561,9 @@ function IndoorJobDrawer({
   setMsg: (s: string) => void;
   stage: StageState;
   dcStatus?: string;
-  onUpload: () => void;
+  /** The page to open on; the job's current stage when absent. */
+  startAt?: number;
+  onReportSaved: () => void;
   onCreateDc?: () => void;
 }) {
   const { mayWork, mayQc, mayDispatch, mayCondemn, mayVerify } = rights;
@@ -581,7 +581,7 @@ function IndoorJobDrawer({
     reported || stage.done[4] || stage.offPath,
   ];
   const [view, setView] = useState(() => {
-    const want = Math.min(stage.current, 4);
+    const want = Math.min(startAt ?? stage.current, 4);
     let v = want;
     while (v > 0 && !reach[v]) v -= 1;
     return v;
@@ -657,12 +657,16 @@ function IndoorJobDrawer({
     else { setMsg(''); reload(); }
   };
   const mayVerifyNow = verifiable && !job.verified_at && mayVerify;
+  // The report and its visit are written on the Report page itself while the
+  // unit is not yet on a DC (the same gate the Upload button had).
+  const reportEditable = mayWork && cleaned && !(job.dispatch_ref ?? '').trim();
   const dcName = dcStatus === 'Pending approval' ? 'DC pending approval' : 'DC / Dispatched';
 
   // ---- THE PAGER'S RIGHT-HAND SIDE: Next, else the page's action, else why.
   const nextSlot = (() => {
     if (view < 4 && reach[view + 1]) {
-      return <button type="button" className="btn btn-primary" onClick={() => go(view + 1)}>
+      // The Report page's form carries its own solid button; Next stays quiet there.
+      return <button type="button" className={`btn ${view === 3 && reportEditable ? '' : 'btn-primary'}`} onClick={() => go(view + 1)}>
         Next · {view + 1 === 4 ? 'DC' : INDOOR_STAGES[view + 1]} →</button>;
     }
     if (view === 1) {
@@ -670,11 +674,7 @@ function IndoorJobDrawer({
         ? <button type="button" className="btn btn-primary" onClick={() => void markCleaned()}>Mark cleaning done</button>
         : <span className="ind-pager-note">Repair opens once the unit is cleaned.</span>;
     }
-    if (view === 3) {
-      return mayWork && !(job.dispatch_ref ?? '').trim()
-        ? <button type="button" className="btn btn-primary" onClick={onUpload}>⭱ Upload the report</button>
-        : <span className="ind-pager-note">The DC opens once the report is uploaded.</span>;
-    }
+    if (view === 3) return <span className="ind-pager-note">The DC opens once the report is saved.</span>;
     if (view === 4) {
       if (onCreateDc) return <button type="button" className="btn btn-primary" onClick={onCreateDc}>Create Indoor DC</button>;
       if (mayVerifyNow) return <button type="button" className="btn btn-primary" onClick={() => void verify()}>Verify this register entry</button>;
@@ -1178,36 +1178,43 @@ function IndoorJobDrawer({
       </>) : null}
 
       {/* ================= 4. REPORT (0323) =================
-          For a job with a UCN the upload form drafts the Visit Entry; it is
-          filed against the call when the Indoor DC is approved. */}
-      {view === 3 ? (
-        <Group title="Report"
-          aside={reported && mayWork && !(job.dispatch_ref ?? '').trim()
-            ? <button type="button" className="btn btn-ghost btn-sm" onClick={onUpload}>Change the report / visit details</button>
-            : null}>
-          <div className="ind-grid">
-            <Value label="Indoor Service Report No">
-              {reported ? <span className="mono">{job.indoor_report_no || '—'}</span> : <span className="ind-muted">Not uploaded yet</span>}
-            </Value>
-            <Value label="File">
-              {reported
-                ? <a href={job.report_file_url} target="_blank" rel="noopener noreferrer">{job.report_file_name || 'open'} ↗</a>
-                : <span className="ind-muted">—</span>}
-            </Value>
-            {reported && job.report_uploaded_at ? (
-              <Value label="Uploaded" wide>{job.report_uploaded_by_name || '—'} · {formatDayTime(job.report_uploaded_at)}</Value>
-            ) : null}
-          </div>
-          <h5 className="ind-subhead">Visit against the call</h5>
-          {(job.ucn ?? '').trim() ? (
-            job.visit_filed_at
-              ? <p className="ind-meta">Visit <b className="mono">{job.visit_uid}</b> filed against {job.ucn} · {formatDayTime(job.visit_filed_at)} (at the Indoor DC’s approval).</p>
-              : job.visit_draft
-                ? <p className="ind-meta">The visit against <b>{job.ucn}</b> is <b>drafted</b>{job.visit_date ? <> (visit date {formatDay(job.visit_date)})</> : null} — Unsolved, pending Return to Field. Filed when the Indoor DC is approved.</p>
-                : <p className="ind-warn">The visit against {job.ucn} is not drafted yet — the upload form asks for it.</p>
-          ) : <p className="ind-meta">No call — a DEMO / new device files no visit.</p>}
-        </Group>
-      ) : null}
+          THE PAGE IS THE FORM (the user, 2026-10-03: no second drawer): the
+          report number, the file and, for a job with a UCN, the visit's work
+          details, inline. Fields the job already holds are not asked again.
+          The visit is filed against the call when the Indoor DC is approved. */}
+      {view === 3 ? (<>
+        {reported || (job.ucn ?? '').trim() ? (
+          <p className="ind-meta ind-reportstate">
+            {reported
+              ? <>Report <b className="mono">{job.indoor_report_no}</b> saved{job.report_uploaded_at ? <> by <b>{job.report_uploaded_by_name || '—'}</b> · {formatDayTime(job.report_uploaded_at)}</> : null}. </>
+              : null}
+            {(job.ucn ?? '').trim()
+              ? job.visit_filed_at
+                ? <>Visit <b className="mono">{job.visit_uid}</b> filed against {job.ucn} · {formatDayTime(job.visit_filed_at)}.</>
+                : job.visit_draft
+                  ? <>Visit against <b>{job.ucn}</b> drafted{job.visit_date ? <> (visit date {formatDay(job.visit_date)})</> : null} — filed when the Indoor DC is approved.</>
+                  : <>The visit against <b>{job.ucn}</b> is not drafted yet.</>
+              : null}
+          </p>
+        ) : null}
+        {reportEditable ? (
+          <IndoorReportForm job={job} goTo={go} onDone={onReportSaved} />
+        ) : (
+          <Group title="Report">
+            <div className="ind-grid">
+              <Value label="Indoor Service Report No">
+                {reported ? <span className="mono">{job.indoor_report_no || '—'}</span> : <span className="ind-muted">Not uploaded yet</span>}
+              </Value>
+              <Value label="File">
+                {reported
+                  ? <a href={job.report_file_url} target="_blank" rel="noopener noreferrer">{job.report_file_name || 'open'} ↗</a>
+                  : <span className="ind-muted">—</span>}
+              </Value>
+            </div>
+            {!(job.ucn ?? '').trim() ? <p className="ind-meta">No call — a DEMO / new device files no visit.</p> : null}
+          </Group>
+        )}
+      </>) : null}
 
       {/* ================= 5. DC & DISPATCH (4.5.7) ================= */}
       {view === 4 ? (<>
@@ -1307,7 +1314,23 @@ async function uploadIndoorReportFile(file: File, reportNo: string): Promise<{ o
   return r.ok && r.url ? { ok: true, url: r.url, name: named.name } : { ok: false, error: r.error ?? 'Upload failed.' };
 }
 
-function ReportUpload({ job, onClose, onDone }: { job: IndoorJob; onClose: () => void; onDone: () => void }) {
+/** The Service Report fields the Indoor job already holds, so the visit never
+ *  asks them a second time (the user, 2026-10-03: "ask each thing once"). The
+ *  job's value is the visit's value; the Report page shows it read-only with a
+ *  link back to the page where it is entered. */
+function linkedVisitFields(job: IndoorJob, goTo: (page: number) => void): IndoorDraftMode['linked'] {
+  const l: NonNullable<IndoorDraftMode['linked']> = {
+    'Complaint Observation': { value: job.findings ?? '', from: 'Repair', edit: () => goTo(2) },
+    'Job Done': { value: job.work_done ?? '', from: 'Repair', edit: () => goTo(2) },
+  };
+  // The job's Standard Complaint is the call's, read-only on the job too; a job
+  // whose call carries none still has it asked on the visit.
+  if ((job.standard_complaint ?? '').trim()) l['Standard Complaint'] = { value: job.standard_complaint, from: 'Intake' };
+  return l;
+}
+
+/** THE REPORT PAGE'S FORM — inline, no second drawer. */
+function IndoorReportForm({ job, goTo, onDone }: { job: IndoorJob; goTo: (page: number) => void; onDone: () => void }) {
   const ucn = (job.ucn ?? '').trim();
   const [call, setCall] = useState<Record<string, unknown> | null | undefined>(ucn ? undefined : null);
   const [reportNo, setReportNo] = useState(job.indoor_report_no ?? '');
@@ -1324,26 +1347,22 @@ function ReportUpload({ job, onClose, onDone }: { job: IndoorJob; onClose: () =>
   }, [ucn]);
 
   if (!job.cleaned_at) {
-    return (
-      <Modal open onClose={onClose} title="Indoor Service Report">
-        <p className="ind-warn">The report is uploaded after the unit is cleaned (WI/SER/01). Mark cleaning done first.</p>
-      </Modal>
-    );
+    return <p className="ind-warn">The report is uploaded after the unit is cleaned (WI/SER/01). Mark cleaning done first.</p>;
   }
 
   if (ucn) {
-    if (call === undefined) return <Modal open onClose={onClose} title="Indoor Service Report"><p className="ind-note">Reading call {ucn}…</p></Modal>;
+    if (call === undefined) return <p className="ind-meta">Reading call {ucn}…</p>;
     if (call === null) {
       return (
-        <Modal open onClose={onClose} title="Indoor Service Report">
-          <p className="ind-warn">Call {ucn} was not found, or you cannot view it — the visit details cannot be drafted without the call.
-            Ask an administrator for sight of the call (the Field / Installation / PM register’s view right).</p>
-        </Modal>
+        <p className="ind-warn">Call {ucn} was not found, or you cannot view it — the visit details cannot be drafted without the call.
+          Ask an administrator for sight of the call (the Field / Installation / PM register’s view right).</p>
       );
     }
     return (
-      <CallReportDrawer call={call} open onClose={onClose}
+      <CallReportDrawer call={call} open onClose={() => { /* inline: stays on the page */ }}
         indoor={{
+          inline: true,
+          linked: linkedVisitFields(job, goTo),
           initial: (job.visit_draft as unknown as VisitDraft | null) ?? null,
           reportNo: job.indoor_report_no ?? '',
           reportLink: job.report_file_url ?? '',
@@ -1383,26 +1402,28 @@ function ReportUpload({ job, onClose, onDone }: { job: IndoorJob; onClose: () =>
     onDone();
   };
   return (
-    <Modal open onClose={onClose} title={`Indoor Service Report — ${job.job_no}`}>
-      <div className="ind-form">
-        {err ? <div className="ind-warn">{err}</div> : null}
-        <p className="ind-hint">No call — a DEMO / new device files no visit. The report number and the file are all this stage asks.</p>
-        <div className="ind-grid">
-          <Field label="Indoor Service Report No *" wide>
-            <input className="mono" value={reportNo} onChange={(e) => setReportNo(e.target.value)} /></Field>
-          <Field label="The report" wide hint={`Saved in Drive as “${reportNo.trim() || '<report no>'}_<file name>”. PDF or photo, up to 10 MB.`}>
+    <>
+      {err ? <div className="ind-warn">{err}</div> : null}
+      <p className="ind-hint">No call — a DEMO / new device files no visit. The report number and the file are all this stage asks.</p>
+      <div className="ind-grid">
+        <Field label="Indoor Service Report No *">
+          <input className="mono" value={reportNo} onChange={(e) => setReportNo(e.target.value)} /></Field>
+        <div className="ind-field">
+          <span className="ind-label">The report *</span>
+          <span className="ind-filepick">
             {link ? <a href={link} target="_blank" rel="noopener noreferrer">{name || 'uploaded'} ↗</a> : null}
-            <input type="file" accept=".pdf,image/*" disabled={busy || !reportNo.trim()}
-              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void pick(f); }} />
-          </Field>
+            <label className={`btn btn-sm${busy || !reportNo.trim() ? ' is-off' : ''}`}>
+              {busy ? 'Uploading…' : link ? 'Replace' : '⭱ Choose the file'}
+              <input type="file" hidden accept=".pdf,image/*" disabled={busy || !reportNo.trim()}
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void pick(f); }} />
+            </label>
+          </span>
+          <span className="ind-hint">Saved in Drive as “{reportNo.trim() || '<report no>'}_&lt;file name&gt;”. PDF or photo, up to 10 MB.</span>
         </div>
-        <nav className="ind-pager">
-          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
-          <div className="ind-pager-end">
-            <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={busy || !link}>{busy ? 'Saving…' : 'Save the report'}</button>
-          </div>
-        </nav>
       </div>
-    </Modal>
+      <div className="ind-formactions">
+        <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={busy || !link}>{busy ? 'Saving…' : 'Save the report'}</button>
+      </div>
+    </>
   );
 }
