@@ -1827,7 +1827,22 @@ with checks(sort_order, bundle, provides, present) as (
                       and tgrelid = to_regclass('public.installation_calls') and not tgisinternal)
          and to_regclass('public.products_install_start_backup') is not null
          and not has_table_privilege('authenticated', to_regclass('public.products_install_start_backup'), 'SELECT')
-         and exists (select 1 from public.one_time_fixes_done where name = '0331_install_warranty_start')))
+         and exists (select 1 from public.one_time_fixes_done where name = '0331_install_warranty_start'))),
+    (264, 'The installation''s warranty decision has a table of its own, and the Product Database reads it', 'installation_warranty_starts: one row per installation call (UCN key), the choice, solved date, the system-written result and the engineer; machine_install_warranty_start() reads it; a saved row re-syncs its product + serial; a RITHI installation fills its row; loading needs Bulk Uploads (bulk.upload); machine_warranty_preview() for the Visit Entry; filled once from the feedback on file (0332). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0332)',
+        (to_regclass('public.installation_warranty_starts') is not null
+         and exists (select 1 from pg_indexes where schemaname = 'public' and tablename = 'installation_warranty_starts'
+                      and indexname = 'installation_warranty_starts_ucn_key')
+         and coalesce((select p.prosrc like '%installation_warranty_starts%' from pg_proc p
+                        where p.oid = to_regprocedure('public.machine_install_warranty_start(text,text)')), false)
+         and coalesce((select p.prosrc like '%installation_warranty_starts%' from pg_proc p
+                        where p.oid = to_regprocedure('public.install_start_to_product()')), false)
+         and exists (select 1 from pg_trigger where tgname = 'zz_installation_warranty_to_product'
+                      and tgrelid = to_regclass('public.installation_warranty_starts') and not tgisinternal)
+         and coalesce((select with_check like '%bulk.upload%' from pg_policies where schemaname = 'public'
+                        and tablename = 'installation_warranty_starts' and policyname = 'iws_insert'), false)
+         and to_regprocedure('public.machine_warranty_preview(text,text,date)') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.machine_warranty_preview(text,text,date)'), 'EXECUTE')
+         and exists (select 1 from public.one_time_fixes_done where name = '0332_installation_warranty_filled')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

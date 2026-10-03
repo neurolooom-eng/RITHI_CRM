@@ -57,7 +57,7 @@ be controlled today on paper.
 
 ## A. Identifying the machine
 
-**CW-001 — A machine is identified by its model together with its serial.**
+**CW-001 — A machine is identified by its model together with its serial.** · *v0.10.66 · 03-Oct-2026*
 *§7.5.8.* Every cover record shall identify the machine by model **and** serial.
 A serial number alone shall never identify a machine, because serials repeat
 across models.
@@ -67,14 +67,14 @@ across models.
 so machines that share a serial under different models are merged into one row
 wearing one machine's cover. The install base has eleven machines numbered 219.
 
-**CW-002 — One machine is one row.**
+**CW-002 — One machine is one row.** · *v0.10.66 · 03-Oct-2026*
 *§7.5.8.* A machine known to more than one register shall appear once, not once
 per register.
 **Status: Met (2.0).** `product_database_v2` unions the three registers on the
 machine key. The stored `products` table can hold the same machine more than
 once where the spelling of the model differs.
 
-**CW-003 — The identifier is normalised the same way everywhere.**
+**CW-003 — The identifier is normalised the same way everywhere.** · *v0.10.66 · 03-Oct-2026*
 *§7.5.8.* Two records of the same machine shall match whatever the punctuation
 and spacing of the model.
 **Status: Partial.** The client and 0218 squash to letters and digits, so
@@ -84,7 +84,7 @@ so those two keys disagree with the other two by punctuation alone.
 
 ## B. Warranty
 
-**CW-004 — A warranty has a recorded start, a recorded period and a derived end.**
+**CW-004 — A warranty has a recorded start, a recorded period and a derived end.** · *v0.10.66 · 03-Oct-2026*
 *§7.2.1, §4.2.5.* The end of a warranty shall be derived from its start and its
 period, not typed independently of them.
 **Status: Met (2.0), and now met on the FORM as well (2026-09-22).** The
@@ -100,7 +100,7 @@ and Period (Years) are worked out from the start and the Period (Months) and
 are not typeable, on the entry and on the Renew panel. The earlier allowance for
 an end typed for a part-month contract is withdrawn with it.
 
-**CW-005 — The end of a period is computed the same way everywhere.**
+**CW-005 — The end of a period is computed the same way everywhere.** · *v0.10.66 · 03-Oct-2026*
 *§4.2.5.* One arithmetic, one answer.
 **Status: Met (2.0).** `cover_period_end()` reproduces `addPeriod()` in
 `src/lib/dates.ts`, **including its JavaScript month overflow** — 31 January
@@ -108,7 +108,7 @@ plus one month is 2 March, where Postgres's own interval arithmetic clamps to 27
 February. 26 of 458 start/period combinations differ between the two; proved
 against the application rather than assumed.
 
-**CW-006 — A warranty starts when the machine was installed.**
+**CW-006 — A warranty starts when the machine was installed.** · *v0.10.66 · 03-Oct-2026*
 *§7.5.4, §7.2.1.* Where an installation was recorded, its date shall start the
 warranty, in preference to the selling register's.
 **Status: Partial.** The installation report asks `Warranty Start Date?` as a
@@ -117,10 +117,13 @@ two answers — and stores it on the feedback row. Since 0331 (2026-10-03) the
 Product Database reads it: *Installation Call Solved Date* starts that product +
 serial's warranty on the day the call was solved and ends it a warranty period
 later; *Invoice Date* keeps the PO / Warranty Sale Entry start (FRS-245).
+Since 0332 each installation's choice, solved date and resulting warranty are kept
+in `installation_warranty_starts`, one row per call, which Bulk Uploads can fill for
+installations back to 2018 and which the rule reads (FRS-246).
 `product_database_v2` reads the same answer, falling back to the installation
 call's solved date and then to the registers.
 
-**CW-007 — An unreadable answer is not a date.**
+**CW-007 — An unreadable answer is not a date.** · *v0.10.66 · 03-Oct-2026*
 *§4.2.5.* A cell holding something that is not a date shall yield no date, and
 shall not prevent the rest of the register being read.
 **Status: Met (2.0).** Read through `imported_ts()`, which returns nothing
@@ -129,18 +132,18 @@ whole view.
 
 ## C. Contract
 
-**CW-008 — A contract's type is one of two families, and is never guessed.**
+**CW-008 — A contract's type is one of two families, and is never guessed.** · *v0.10.66 · 03-Oct-2026*
 *§7.2.1.* Labour shall be AMC and comprehensive shall be CMC. A type that is not
 recognised shall be carried through unchanged, never bucketed into either.
 **Status: Met (2.0).** `contract_cover_code()`. **`machine_cover` defaults a
 blank type to CMC**, which silently promotes a labour contract to comprehensive
 on the strength of an empty cell.
 
-**CW-009 — A contract covering today with no recorded type is reported, not assumed.**
+**CW-009 — A contract covering today with no recorded type is reported, not assumed.** · *v0.10.66 · 03-Oct-2026*
 *§4.2.5, §8.2.1.* The record needs correcting and must say so.
 **Status: Met (2.0).** Such a machine reads `CONTRACT (TYPE NOT RECORDED)`.
 
-**CW-010 — Cover is continuous across a renewal.**
+**CW-010 — Cover is continuous across a renewal.** · *v0.10.66 · 03-Oct-2026*
 *§7.2.2.* A successor contract shall begin the day after its predecessor ends,
 so no day resolves to two contracts or none.
 **Status: Met.** FRS-056 and the renewal flow; `machine_cover` has one answer
@@ -148,66 +151,66 @@ per day.
 
 ## D. Ownership
 
-**CW-011 — A change of owner is a dated record, and it is read.**
+**CW-011 — A change of owner is a dated record, and it is read.** · *v0.10.66 · 03-Oct-2026*
 *§7.5.9.* Who owns a machine shall be derived from the ownership transfer
 register where one exists, not left at whoever first bought it.
 **Status: Partial.** `ownership_transfers` records it (0072), Machine History shows it and Product Database 2.0 reads it (CW-012). The stored owner on `public.products` is moved by the latest transfer for that PRODUCT + SERIAL only since 0330 (2026-10-03), with the transfer's Ref and Date and the new owner's Party Master address (0329); the form still identifies the machine by serial alone (FRS-188; D-060 partly fixed).
 
-**CW-012 — The most recently dated evidence decides the party.**
+**CW-012 — The most recently dated evidence decides the party.** · *v0.10.66 · 03-Oct-2026*
 *§7.5.9.* Where the registers disagree about who owns a machine, the latest
 dated claim shall win — a transfer is one dated claim among several, not
 permanently the last word.
 **Status: Met (2.0).** A machine sold in 2020, transferred in 2021 and put under
 a new contract in 2024 belongs to whoever the 2024 contract names.
 
-**CW-013 — A machine may not be transferred to the party that already owns it.**
+**CW-013 — A machine may not be transferred to the party that already owns it.** · *v0.10.66 · 03-Oct-2026*
 *§4.2.5.* A transfer from a party to itself is not a transfer.
 **Status: Met.** 0182 / 0183 refuse it.
 
 ## E. The assembled record
 
-**CW-014 — Every register that names a machine contributes to its record.**
+**CW-014 — Every register that names a machine contributes to its record.** · *v0.10.66 · 03-Oct-2026*
 *§7.5.9.* The warranty sale, the contract, the additional entries, the ownership
 transfer and the installation call shall all be consulted.
 **Status: Met (2.0).** `machine_cover` consults two of the five.
 
-**CW-015 — A machine recovered by hand is a machine.**
+**CW-015 — A machine recovered by hand is a machine.** · *v0.10.66 · 03-Oct-2026*
 *§7.5.8.* Additional Entries exist because the two registers missed machines;
 those machines shall appear in the record.
 **Status: Met (2.0) for entries loaded through Bulk Uploads, which upsert on `machine_key`.** The Additional Entry Details form on the Ownership Transfer screen upserts on `serial_number`, a target 0185 removed, and asks for no model, so a hand-entered recovery cannot be saved (FRS-188.6; OPEN until D-054 is fixed).
 
-**CW-016 — What a machine is covered by today is derived, not stored.**
+**CW-016 — What a machine is covered by today is derived, not stored.** · *v0.10.66 · 03-Oct-2026*
 *§7.5.4.* The status shall be computed from the periods, not held as a value
 that ages.
 **Status: Partial.** `products.item_status` is **stored** — normalised by a
 trigger (0208) but never recomputed, so it is whatever the import said.
 `product_database_v2.item_status` is derived on every read.
 
-**CW-017 — Warranty decides before contract.**
+**CW-017 — Warranty decides before contract.** · *v0.10.66 · 03-Oct-2026*
 *§7.5.4, §7.2.1.* A machine inside its warranty is under warranty, even where a
 contract also covers it.
 **Status: Met (2.0).** **`machine_cover` asks the contract first**, so a machine
 inside both reads as its contract type. This changes the answer for every
 machine inside both.
 
-**CW-018 — A derived value names the register that decided it.**
+**CW-018 — A derived value names the register that decided it.** · *v0.10.66 · 03-Oct-2026*
 *§4.2.5.* A value assembled from five sources shall say which one it came from,
 or it cannot be checked.
 **Status: Met (2.0).** `party_from`, `warranty_from`, `contract_from` and
 `item_status_reason` are columns on every row.
 
-**CW-019 — The derived record does not overwrite the registers.**
+**CW-019 — The derived record does not overwrite the registers.** · *v0.10.66 · 03-Oct-2026*
 *§4.2.5.* The assembled view shall be a reading of the records, not a rewrite of
 them.
 **Status: Met (2.0).** `product_database_v2` reads `product_database_v2_mv`, a materialised view rebuilt by `refresh_product_database_2_if_stale()` every five minutes (0223) or on demand by masters.edit / cover.edit / admin; the rebuild writes only the materialised view, never a register, and `public.products` and `machine_cover` are untouched. The screen states when it was last assembled (FRS-183).
 
-**CW-020 — The record is readable only by those entitled to the underlying rows.**
+**CW-020 — The record is readable only by those entitled to the underlying rows.** · *v0.10.66 · 03-Oct-2026*
 *§4.2.5.* The assembled record shall not widen access to what it assembles.
 **Status: NOT MET AS WRITTEN —** decision pending. Since 0221 the assembled record is readable by every signed-in user granted `mod:/product-database-2`, wider than the warranty and contract registers it assembles; 0221 records this as a decision for the system owner. Either confirm it (and restate this requirement as "readable by the audience of the screen") or restore the gate (one predicate and one grant). FRS-183.5, R-85.
 
 ---
 
-**CW-021 — The terms of a sale or a contract reach every machine under it.**
+**CW-021 — The terms of a sale or a contract reach every machine under it.** · *v0.10.66 · 03-Oct-2026*
 *§4.2.4, §7.5.4.* A machine under an entry shall follow that entry's terms
 unless it states one of its own, and there shall be a way of returning every
 machine to the entry's terms.
@@ -221,7 +224,7 @@ decision somebody made about one machine and there is no undo. It never touches
 the model, the serial or the machine's own supplied-with answers — those are the
 machine's facts, not the entry's. FRS-084; `check:cover-party`.
 
-**CW-022 — The installation work for a sold machine is raised from its sale.**
+**CW-022 — The installation work for a sold machine is raised from its sale.** · *v0.10.66 · 03-Oct-2026*
 *§7.5.1, §7.5.4.* The customer and the machine on an installation call shall
 come from the sale record rather than be re-keyed.
 **Status: Met (2026-09-22).** **+ Installation calls** on a Sale Entry raises one

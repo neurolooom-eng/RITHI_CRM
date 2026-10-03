@@ -596,6 +596,12 @@ footer code{font-size:12.5px}
         <i>"Load … first — these rows point at it."</i> Choose a <b>.csv</b> file on the register's row.
       </p>
       <p>
+        Under <b>Cover</b>, <b>Installation Warranty Start (old installation calls)</b> loads past installations — back to
+        2018 — one row per call, matched on the UCN. Each row's <i>Warranty Start Date?</i> choice and solved date decide
+        that machine's warranty in the Product Database exactly as an installation report does; the resulting start and
+        end are worked out by the database, not taken from the file.
+      </p>
+      <p>
         The heading row is <b>found</b>, not assumed to be the first, using the register's own column names — so a sheet
         printed with a letterhead above its headings still reads. <b>Dates are read day-first</b> (03/04/2026 = 3 April). A
         column is read month-first only where its own values prove it (a number above 12 where the month would be), and

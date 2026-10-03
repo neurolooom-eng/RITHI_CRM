@@ -3,7 +3,7 @@ import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { Drawer } from '../components/ui/ui';
-import { reportsByCall, saveReport, updateCall, addConsumptionRows, addFeedback, sbListPartyItems, handstockForEngineer, supabaseConfigured } from '../lib/supabase';
+import { reportsByCall, saveReport, updateCall, addConsumptionRows, addFeedback, sbListPartyItems, handstockForEngineer, supabaseConfigured, sbWarrantyPreview, type WarrantyPreview } from '../lib/supabase';
 import { num, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
 import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { driveFolderForCall } from '../lib/drivefolders';
@@ -17,7 +17,7 @@ import { todayISO, fmtLongDateTime, fmtLongDate } from '../lib/format';
 import { visitDateProblem } from '../lib/visitdate';
 import { manualReportLink } from '../lib/reports';
 import { DocPreview } from '../components/doc/DocPreview';
-import { localIsoDate, toIsoDate } from '../lib/dates';
+import { localIsoDate, toIsoDate, formatDay } from '../lib/dates';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -419,6 +419,23 @@ export function CallReportDrawer({
   // Warranty start is asked on installations only, and the engineer CHOOSES its
   // basis -- no default, because a default is an answer nobody gave.
 
+  // THE RESULT, SHOWN WHERE THE CHOICE IS MADE (the user, 2026-10-03: "And
+  // also on the visit entry"). The warranty the Product Database holds for this
+  // product + serial now, and -- if the engineer chooses Installation Call
+  // Solved Date -- where it will start and end, the start being this visit's
+  // date when it solves the call. Read only; the database writes the result.
+  const productName = String(call?.productName ?? call?.['product_name'] ?? '');
+  const serialNo = String(call?.serial ?? call?.['serial'] ?? '');
+  const [wPreview, setWPreview] = useState<WarrantyPreview | null>(null);
+  useEffect(() => {
+    if (!open || !isInstall || !workOpen || !supabaseConfigured()) { setWPreview(null); return; }
+    let alive = true;
+    sbWarrantyPreview(productName, serialNo, visitDate || null)
+      .then((p) => { if (alive) setWPreview(p); })
+      .catch(() => { if (alive) setWPreview(null); });
+    return () => { alive = false; };
+  }, [open, isInstall, workOpen, productName, serialNo, visitDate]);
+
   // Accessory Serial No — the CPX / ASU units already on this party's account.
   const [accessories, setAccessories] = useState<{ serial: string; item: string }[]>([]);
   useEffect(() => {
@@ -715,8 +732,22 @@ export function CallReportDrawer({
         ) : f.kind === 'yesno' ? (
           <SelectPicker value={val} onChange={(v) => setField(f.key, v)} options={[...(f.opts ?? YESNO)]} />
         ) : f.kind === 'warranty' ? (
-          <SelectPicker value={WARRANTY_START_CHOICES.includes(val) ? val : ''} options={WARRANTY_START_CHOICES}
-            placeholder="Where does the warranty start?" onChange={(v) => setField(f.key, v)} />
+          <>
+            <SelectPicker value={WARRANTY_START_CHOICES.includes(val) ? val : ''} options={WARRANTY_START_CHOICES}
+              placeholder="Where does the warranty start?" onChange={(v) => setField(f.key, v)} />
+            {wPreview && (
+              <span className="muted" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                Product Database now: {wPreview.nowStart ? `${formatDay(wPreview.nowStart)} to ${formatDay(wPreview.nowEnd) || '—'}` : 'no warranty recorded'}.{' '}
+                {val === WARRANTY_START_CHOICES[0]
+                  ? (solved
+                    ? (wPreview.solvedEnd
+                      ? <>After this report: <b>{formatDay(wPreview.solvedStart)} to {formatDay(wPreview.solvedEnd)}</b> ({wPreview.periodMonths} months).</>
+                      : <>After this report it starts <b>{formatDay(wPreview.solvedStart)}</b>; no warranty period is on its sale, so the end stays.</>)
+                    : <>It will start on the day this call is solved.</>)
+                  : val === WARRANTY_START_CHOICES[1] ? <>Invoice Date keeps the start on the PO / Warranty Sale Entry.</> : null}
+              </span>
+            )}
+          </>
         ) : f.kind === 'complaint' ? (
           // TYPE, SEARCH, SELECT — and NO free text (the user, 2026-09-09).
           // This was a datalist, which only SUGGESTS: it accepted anything
