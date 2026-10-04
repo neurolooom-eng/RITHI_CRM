@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.71',
+    date: '2026-10-04',
+    title: 'New CallReg address (Save as Google Sheet)',
+    changes: [
+      'The CallReg (Google Apps Script) address was updated to the deployment that carries Save as Google Sheet; every device switches to it automatically on the next load.',
+    ],
+  },
+  {
     version: '0.10.70',
     date: '2026-10-04',
     title: 'Save any download as a Google Sheet',
