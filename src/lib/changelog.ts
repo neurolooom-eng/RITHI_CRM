@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.90',
+    date: '2026-10-04',
+    title: 'Indoor Service intake: “From a call” is now “Field Return”',
+    changes: [
+      'INDOOR SERVICE → Receive equipment: the first option is renamed from “From a call” to “Field Return”. It works exactly as before — the unit comes in on its call.',
+    ],
+  },
+  {
     version: '0.10.89',
     date: '2026-10-04',
     title: 'Objective Re-Calculate no longer times out; Frequent Failure and Technical Support on SLA / Objective Configuration',
