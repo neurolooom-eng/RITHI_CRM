@@ -108,6 +108,9 @@ const EMPTY: Draft = { title: '', product: '', doc_no: '', revision: '', effecti
 // database marked (latest_for, 0354). A note naming no product is the
 // "Every product" group, which the database spells ''.
 const EVERY_PRODUCT = 'Every product';
+// ALWAYS grouped by product (the user, 2026-10-04: "Group it by Product always.
+// Default.") -- locked, so an earlier "no grouping" a reader saved cannot undo it.
+const GROUP_BY_PRODUCT = ['_product'];
 type ShelfRow = DocRow & { _key: string; _product: string; _latest: boolean };
 const perProduct = (r: DocRow): ShelfRow[] => {
   const marks = new Set((r.latest_for ?? []).map((p) => p.trim().toLowerCase()));
@@ -540,7 +543,7 @@ function Library({ cfg }: { cfg: Cfg }) {
         rows={shelf as (ShelfRow & Record<string, unknown>)[]}
         getRowId={(r) => r._key}
         groupable={cfg.latestByProduct ? [{ key: '_product', label: 'Product' }] : undefined}
-        defaultGroup={cfg.latestByProduct ? ['_product'] : undefined}
+        lockGroup={cfg.latestByProduct ? GROUP_BY_PRODUCT : undefined}
         storageKey={`documents-${cfg.kind}`}
         rowsBeforeScroll={14}
         dense

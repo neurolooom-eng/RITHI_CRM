@@ -1022,7 +1022,7 @@ typed into a form that reads it.
 - **Technical / Service Notes** `/service-manuals/notes` — technical bulletins and
   service notes, by product, kept the same way as the manuals. Whoever can open
   Service Manuals can open these; adding them needs the same permission.
-  > **Grouped per product, newest first.** A note covering several products is
+  > **Always grouped per product, newest first** (the grouping cannot be turned off). A note covering several products is
   > listed under each of them; a note with none is under **Every product**.
   > Inside a group the notes run by **Dated** — the note's own date, which you
   > type in on the form (or the **Dated** column of the upload) — newest first.

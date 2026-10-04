@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.86',
+    version: '0.10.87',
     date: '2026-10-04',
     title: 'SLA / Objective Configuration — Product Failure is a failure within 3 months, over a rolling 12 months',
     changes: [
@@ -23,6 +23,14 @@ export const CHANGELOG: ChangeEntry[] = [
       'Both numbers (3 and 12) can be changed on the page. A change applies from the next Re-Calculate on the Objective page; figures already written stay as they are until then.',
       'The evidence file now lists one row per failed machine, with its installation date, how many days later it failed and how many calls fell in the window, and Sheet 2 lists only the machines installed in the rolling period.',
       'Only the Admin role has the page to begin with. Grant it to other roles on Roles & Permissions → Administration → SLA / Objective Configuration.',
+    ],
+  },
+  {
+    version: '0.10.86',
+    date: '2026-10-04',
+    title: 'Technical / Service Notes: always grouped by product',
+    changes: [
+      'TECHNICAL / SERVICE NOTES always open grouped by product, for everybody — the grouping can no longer be switched off or changed, even by someone who had turned it off before.',
     ],
   },
   {
