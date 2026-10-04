@@ -82,10 +82,15 @@ up)_
   in the exporter's own folder inside the export folder
   (`1qZ0ri-iP2hovCsLEko6TeuOYwYHloFy5`), created once and reused (script property
   `exportfolder_<email>`). Audit action `export.google_sheet`. FRS-249, OQ-241.
-- **PENDING (user):** copy the new `apps-script/CallReg.gs` into the Apps Script
-  project and redeploy the SAME deployment as a new version. Until then *Save as
-  Google Sheet* times out and offers the download instead. The deploying account
-  needs edit access to the export folder.
+- **Redeployed by the user** (new `/exec` …`D6s/exec`, baked in v0.10.71,
+  `DEFAULT_URL_VERSION` 14). Not probed from here (script.google.com blocked):
+  the first save confirms it. The deploying account needs edit access to the
+  export folder.
+- **DCCR MIRROR IS FAILING (read 04-Oct from its own status tab):** the four
+  triggers fire, but the run reads `FAILED · Script Property SUPABASE_URL is not
+  set` and the `DCCR_Mirror` tab is empty — it has never written a row. PENDING
+  (user): set SUPABASE_URL, SUPABASE_ANON_KEY and DCCR_EMAIL / DCCR_PASSWORD in
+  the script's Project Settings → Script Properties, then run `dccrMirror` once.
 
 ## 2026-10-03 — Indoor Service: the job as a window, the DC beside it, the visit engineer picked, a job deleted (0324)
 
