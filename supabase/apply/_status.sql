@@ -1977,7 +1977,25 @@ with checks(sort_order, bundle, provides, present) as (
     (285, 'An uploaded Indoor Service Report keeps its number', 'The trigger indoor_report_keeps_its_number refuses a blank Indoor Service Report No on a job that carries a report file; a correction to another number, and a job with no report, are not stopped (0352, D-115). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0352)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.indoor_jobs')
                  and tgname = 'indoor_report_keeps_its_number')),
-    (286, 'Objective: product failure is a call within 3 months of installation, over a rolling 12 months', 'objective_settings holds the two numbers (failure_window_months, failure_rolling_months), edited on Admin -> SLA / Objective Configuration by a holder of objective.manage, and objective_value() reads them (0354): a machine of the product whose WARRANTY START is in the rolling window is in the denominator, and it has failed when a field call on its serial falls within the window months of that date. Checked on the function body naming the setting, not on the table alone -- a table beside the old calculation would answer yes and compute the old figure. NO means the Recent Failure Rate objectives still count every field call over the whole fleet. Restore: objective.sql',
+    (286, 'Technical / Service Notes: Dated, and the latest note per product tagged', 'documents.dated and documents.latest_for; refresh_service_note_latest_all() marks the newest dated live note of each product, run by the zz_service_note_latest_ins / _upd statement triggers and by the Refresh Latest tags button through refresh_service_note_latest() (docs.manage; not the public key) (0354). Restore: documents.sql (0354)',
+        ((select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'documents'
+            and column_name in ('dated', 'latest_for')) = 2
+         and to_regprocedure('public.refresh_service_note_latest_all()') is not null
+         and not has_function_privilege('authenticated', to_regprocedure('public.refresh_service_note_latest_all()'), 'EXECUTE')
+         and to_regprocedure('public.refresh_service_note_latest()') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.refresh_service_note_latest()'), 'EXECUTE')
+         and has_function_privilege('authenticated', to_regprocedure('public.refresh_service_note_latest()'), 'EXECUTE')
+         and exists (select 1 from pg_trigger where tgname = 'zz_service_note_latest_ins'
+                      and tgrelid = to_regclass('public.documents') and not tgisinternal)
+         and exists (select 1 from pg_trigger where tgname = 'zz_service_note_latest_upd'
+                      and tgrelid = to_regclass('public.documents') and not tgisinternal))),
+    (287, 'Spare Recycling: its own track, hidden in Audit Mode', 'Asked for 2026-10-04: a parallel track under Indoor Service -- recycle_requests (RCY/YY/NNNN), recycle_mrs + lines (RMRS/YY/NNNN, no approval), recycle_issues (Stores stock out WITH unit cost), recycle_consumption (capped at the RECYCLING hand stock), recycle_other_costs -- none of it touching the regular spare or hand-stock tables, and every policy refusing while Audit Mode is on. NO means a table, the guard on requests or the audit-mode rule is missing. Restore: recycling.sql (0355)',
+        (to_regclass('public.recycle_requests') is not null
+     and to_regclass('public.recycle_consumption') is not null
+     and to_regclass('public.recycle_request_list') is not null
+     and exists (select 1 from pg_trigger where tgname = 'recycle_consumption_guard' and not tgisinternal)
+     and coalesce((select p.prosrc like '%audit_mode%' from pg_proc p where p.oid = to_regprocedure('public.recycle_may_see()')), false))),
+    (288, 'Objective: product failure is a call within 3 months of installation, over a rolling 12 months', 'objective_settings holds the two numbers (failure_window_months, failure_rolling_months), edited on Admin -> SLA / Objective Configuration by a holder of objective.manage, and objective_value() reads them (0356): a machine of the product whose WARRANTY START is in the rolling window is in the denominator, and it has failed when a field call on its serial falls within the window months of that date. Checked on the function body naming the setting, not on the table alone -- a table beside the old calculation would answer yes and compute the old figure. NO means the Recent Failure Rate objectives still count every field call over the whole fleet. Restore: objective.sql',
         (to_regclass('public.objective_settings') is not null
          and to_regprocedure('public.objective_setting(text,integer)') is not null
          and coalesce((select p.prosrc like '%failure_window_months%'

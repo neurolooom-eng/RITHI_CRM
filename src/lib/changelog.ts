@@ -8,9 +8,34 @@ export interface ChangeEntry {
   date: string; // yyyy-MM-dd
   title: string;
   changes: string[];
+  /** Left out of Version History while Audit Mode is on (a non-auditable track). */
+  auditHidden?: boolean;
 }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '0.10.83',
+    date: '2026-10-04',
+    title: 'Spare Recycling — a separate track under Indoor Service',
+    auditHidden: true,
+    changes: [
+      'INDOOR SERVICE → SPARE RECYCLING: register a defective spare for recycling (RCY/26/0001), with an optional call reference that never touches the call.',
+      'Raise an MRS for the spares you need (RMRS/26/0001) — no approval. Stores books it out with the unit cost, and it lands in your RECYCLING hand stock, kept apart from the regular hand stock.',
+      'Open a request to record the job done, consume spares from your recycling hand stock and add other costs (labour, courier, vendor, other). Close it as Returned to the Service Store (as R<PartNo>) or Not recyclable.',
+      'Every request shows what it cost — parts at their stock-out cost plus other costs — and the Cost tab totals everything spent on recycling.',
+      'Hidden while Audit Mode is on. Its keys are given to no role: grant them on Roles & Permissions → Indoor Service.',
+    ],
+  },
+  {
+    version: '0.10.82',
+    date: '2026-10-04',
+    title: 'Technical / Service Notes: grouped per product, Dated, and the Latest tag',
+    changes: [
+      'TECHNICAL / SERVICE NOTES: grouped per product — a note for several products shows under each one; a note for none is under Every product.',
+      'New DATED field on the note (type it on the form, or a Dated column in the bulk upload). Notes run newest Dated first.',
+      'LATEST is tagged by itself on the newest dated, live note of each product, and moves when a newer note is added, a Dated changes or a note is retired. ↻ Refresh Latest tags re-does them all on demand.',
+    ],
+  },
   {
     version: '0.10.81',
     date: '2026-10-04',

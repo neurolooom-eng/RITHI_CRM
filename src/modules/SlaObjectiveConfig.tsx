@@ -16,7 +16,7 @@ import { formatDayTime } from '../lib/dates';
 //
 // Two cards: the SLA Targets (moved here from Admin Config) and the Product
 // Failure rule the Objective page's "Recent Failure Rate" figures are worked
-// out by (0354). Opened by mod:/sla-objective-config, which only the Admin role
+// out by (0356). Opened by mod:/sla-objective-config, which only the Admin role
 // is given by default; every other role is ticked on Roles & Permissions.
 // ===========================================================================
 
@@ -46,7 +46,7 @@ function ProductFailureRuleCard() {
       const r = await listObjectiveSettings();
       if (!r.length) {
         setRows(DEFAULTS);
-        setMsg({ tone: 'info', text: 'The rule is not on this project yet — run objective.sql (0354), then Refresh. The figures use 3 and 12 until then.' });
+        setMsg({ tone: 'info', text: 'The rule is not on this project yet — run objective.sql (0356), then Refresh. The figures use 3 and 12 until then.' });
         return;
       }
       setRows(r);
@@ -55,7 +55,7 @@ function ProductFailureRuleCard() {
     } catch (e) {
       setRows(DEFAULTS);
       setMsg({ tone: 'error', text: isMissingTable(e, 'objective_settings')
-        ? 'The rule is not on this project yet — run objective.sql (0354), then Refresh.'
+        ? 'The rule is not on this project yet — run objective.sql (0356), then Refresh.'
         : `Load failed: ${e instanceof Error ? e.message : String(e)}` });
     }
   };

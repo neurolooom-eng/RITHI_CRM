@@ -1022,6 +1022,16 @@ typed into a form that reads it.
 - **Technical / Service Notes** `/service-manuals/notes` — technical bulletins and
   service notes, by product, kept the same way as the manuals. Whoever can open
   Service Manuals can open these; adding them needs the same permission.
+  > **Grouped per product, newest first.** A note covering several products is
+  > listed under each of them; a note with none is under **Every product**.
+  > Inside a group the notes run by **Dated** — the note's own date, which you
+  > type in on the form (or the **Dated** column of the upload) — newest first.
+  > **Latest** is added by itself to the newest *dated*, *live* note of each
+  > product. Add a newer note, change a Dated or retire a note and the tags move
+  > on their own; **↻ Refresh Latest tags** re-does them for every product if
+  > they ever look wrong. A note with no Dated, or a retired one, is never Latest;
+  > two notes on the same newest date are both Latest. A note for two products
+  > can be Latest under one and not the other.
   > **A note can cover several products** — tick them all. None ticked means it
   > applies to every product. **A call's 📄 Supporting documents lists every
   > active note for its product** beside the manuals; a retired note is not offered.
@@ -1030,7 +1040,7 @@ typed into a form that reads it.
   > it was entered in RITHI is under **Record details** when you edit it.
   > **Many at once:** Bulk Uploads → **Technical / Service Notes** — Title,
   > Product (spelled as the Product Database spells it; several products
-  > comma-separated), the Drive Link, and optionally Document No, Tags, Notes,
+  > comma-separated), the Drive Link, and optionally Dated, Document No, Tags, Notes,
   > and the listing's Created, Last Modified and Last Modified By. Matched on the
   > Drive link, so loading the list again corrects those notes rather than
   > adding them twice.
@@ -1412,6 +1422,25 @@ typed into a form that reads it.
   > check, a DEMO unit of an imported product without its Pre-Delivery Testing)
   > — the message says which. Units for two consignees cannot share a DC. A DC
   > is never deleted; **Indoor DCs** lists them all and prints any of them again.
+- **Spare Recycling** `/indoor/recycling` — a **separate track** for recycling
+  defective spares, with its own stock. Nothing here touches calls, Spare
+  Requests, Stock Out or the regular Hand Stock. **Hidden while Audit Mode is
+  on.**
+  - **Register** a defective spare (RCY/26/0001): the part, serial, quantity,
+    received on and from, and an optional call reference (text only).
+  - **Raise MRS** (RMRS/26/0001) for the spares you need — **no approval**.
+    Stores presses **Stock Out** on the line, enters the quantity and **unit
+    cost**, and it goes into **your recycling hand stock**.
+  - **Open** a request to record the **job done**, **consume** from your
+    recycling hand stock (never more than you hold) and add **other costs**
+    (labour, courier, vendor, other).
+  - **Close** it as **Returned to Service Store** — recorded as **R<PartNo>**;
+    the Part Master is not changed — or **Not recyclable** with a reason. The
+    job done must be filled first; a closed request cannot be changed.
+  - **Cost**: each request shows parts (at their stock-out cost) + other
+    costs; the Cost tab totals everything spent on recycling.
+  - Its keys are given to no role — grant them on **Roles & Permissions →
+    Indoor Service**.
 - **Solved Without a Report** `/missing-visit-reports` — **administrators
   only.** Every call that reads Solved while its visit record is incomplete —
   the list of what to re-upload.

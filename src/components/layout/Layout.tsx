@@ -13,6 +13,7 @@ import { RITHI_LOGO } from '../../lib/brand';
 import { watchMachineRegister } from '../../lib/machinestore';
 import { clearMasterCache } from '../../lib/masters';
 import { supabaseConfigured, globalSearchKind } from '../../lib/supabase';
+import { useAuditMode } from '../../lib/auditMode';
 import { HIT_GROUPS, MIN_CHARS, PER_KIND, searchTerm, shownHits, type HitKind, type SearchHit } from '../../lib/globalSearch';
 
 interface NavItem {
@@ -20,6 +21,10 @@ interface NavItem {
   label: string;
   icon: string;
   adminOnly?: boolean;
+  // A NON-AUDITABLE screen (Spare Recycling, 0355): left out of the menu while
+  // Audit Mode is on. The database refuses its rows then too; this is the
+  // courtesy, that is the rule.
+  hideInAudit?: boolean;
   alwaysOpen?: boolean; // visible to every role, not RBAC-gated (e.g. help pages)
   // THE PERMISSION, where the path is not it. Reports is one page with a tab
   // per report, so its entries are `/exports/consumption` and `/exports/kpi` —
@@ -205,6 +210,9 @@ export const NAV: NavGroup[] = [
     title: 'Indoor Service',
     items: [
       { to: '/indoor', label: 'Indoor Service Register', icon: '🏭' },
+      // A parallel track of its own (the user, 2026-10-04): its own MRS, stock
+      // out with cost, hand stock and consumption -- never the regular ones.
+      { to: '/indoor/recycling', label: 'Spare Recycling', icon: '♻️', hideInAudit: true },
     ],
   },
   {
@@ -306,11 +314,11 @@ export const NAV: NavGroup[] = [
 // 2026-09-30: the admin actions are tickable per role). Its own page key opens
 // it at the route guard already; without this a role given Bulk Uploads could
 // reach it only by typing the address.
-const navItemVisible = (it: NavItem, can: (a: string) => boolean): boolean =>
-  !!it.alwaysOpen
+const navItemVisible = (it: NavItem, can: (a: string) => boolean, auditOn = false): boolean =>
+  !(it.hideInAudit && auditOn) && (!!it.alwaysOpen
   || (it.adminOnly
     ? (USER_ADMIN_KEYS.some((k) => can(k)) || can('admin.view') || can(it.perm ?? actionForPath(it.to)))
-    : can(it.perm ?? actionForPath(it.to)));
+    : can(it.perm ?? actionForPath(it.to))));
 
 // GLOBAL SEARCH (the user, 2026-10-01: "This has to search Modules / Content /
 // Calls / Spare Request -- basically all Content"). Screen names first, as
@@ -324,6 +332,7 @@ const navItemVisible = (it: NavItem, can: (a: string) => boolean): boolean =>
 function ModuleSearch() {
   const navigate = useNavigate();
   const { can } = useAuth();
+  const auditOn = useAuditMode().on;
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [hits, setHits] = useState<Partial<Record<HitKind, SearchHit[]>>>({});
@@ -331,8 +340,8 @@ function ModuleSearch() {
   const [failed, setFailed] = useState<Set<HitKind>>(new Set());
   const [hi, setHi] = useState(0);
   const items = useMemo(
-    () => NAV.flatMap((g) => g.items.filter((it) => navItemVisible(it, can)).map((it) => ({ ...it, group: g.title }))),
-    [can],
+    () => NAV.flatMap((g) => g.items.filter((it) => navItemVisible(it, can, auditOn)).map((it) => ({ ...it, group: g.title }))),
+    [can, auditOn],
   );
   const modules = q.trim()
     ? items.filter((it) => `${it.label} ${it.group}`.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 6)
@@ -482,6 +491,7 @@ function ThemeMenu() {
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout, can, managerViewMode, setManagerViewMode } = useAuth();
+  const auditOn = useAuditMode().on;
   // FROM THE USER MASTER, and blank for anybody whose row does not carry one —
   // which is most of a part-filled directory. The chip then shows the name and
   // the permission alone rather than an empty line where a job title should be.
@@ -678,7 +688,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </button>
           )}
           {NAV.map((group) => {
-            const items = group.items.filter((i) => navItemVisible(i, can));
+            const items = group.items.filter((i) => navItemVisible(i, can, auditOn));
             if (items.length === 0) return null;
             const open = openGroups[group.title] !== false; // default open
             const flashing = !!group.flash && !seenGroups[group.title];

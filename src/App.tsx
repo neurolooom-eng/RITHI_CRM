@@ -62,6 +62,7 @@ import { SpareInsights } from './modules/SpareInsights';
 import { Workload } from './modules/Workload';
 import { ProductFailureAnalysis } from './modules/ProductFailureAnalysis';
 import { IndoorService } from './modules/IndoorService';
+import { SpareRecycling } from './modules/SpareRecycling';
 import { Tracker } from './modules/Tracker';
 // User Access folded into User Master; /users now redirects there.
 import { Settings } from './modules/Settings';
@@ -255,6 +256,7 @@ function Shell() {
             instead of hiding it behind a tab strip. */}
         <Route path="/exports/:tab" element={<ReportsHub />} />
         <Route path="/indoor" element={<IndoorService />} />
+        <Route path="/indoor/recycling" element={<SpareRecycling />} />
         <Route path="/missing-visit-reports" element={<SolvedWithoutReport />} />
         <Route path="/device-cache" element={<DeviceCacheStatus />} />
         <Route path="/handstock-report" element={<HandStockReport />} />
