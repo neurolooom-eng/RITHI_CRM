@@ -12,16 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.71',
-    date: '2026-10-03',
-    title: 'Loading the whole Product Database no longer crashes the browser',
-    changes: [
-      'EVERY REGISTER: a table holding more than 2,000 rows now shows them 2,000 at a time, with ‹ Previous and Next › beside the count. Loading the whole Product Database (about 20,000 machines) used to put every row on the page at once and froze or crashed the browser.',
-      'Nothing is lost: the count, search, filters, sort, grouping, "tick everything listed" and every export still cover all the rows loaded. Load more opens the page that holds the new rows. Below 2,000 rows nothing changes.',
-    ],
-  },
-  {
-    version: '0.10.70',
+    version: '0.10.72',
     date: '2026-10-03',
     title: 'The Declaration names whoever booked the stock out',
     changes: [
@@ -29,7 +20,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.69',
+    version: '0.10.71',
     date: '2026-10-03',
     title: 'Twelve High-rated defects fixed: hand stock, spare approvals, calls, reviews, masters, Indoor',
     changes: [
@@ -42,13 +33,31 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.68',
+    version: '0.10.70',
     date: '2026-10-03',
     title: 'Second re-review of every module',
     changes: [
-      'SOFTWARE VALIDATION: every open defect re-checked against the current release and every module read again from scratch. 36 new defects are in the register (D-118 to D-153), five are now partly fixed, and fourteen entries were corrected or widened.',
+      'SOFTWARE VALIDATION: every open defect re-checked against the current release and every module read again from scratch. 36 new defects are in the register (D-119 to D-154), five are now partly fixed, and fourteen entries were corrected or widened.',
       'The most serious: hand stock can be pushed below zero, or created, by six routes; a spare\'s part, quantity and cover can be changed after it is approved; calls can be re-opened or closed, and reviews written, by people who cannot see them; the master delete guard can be got round by renaming first; and four faults in the new dealer workflow.',
       'A new read-only check, _review_findings_on_live_data.sql, says whether any of these has already left a mark on the live data. Nothing in how the application works was changed.',
+    ],
+  },
+  {
+    version: '0.10.69',
+    date: '2026-10-04',
+    title: 'Indoor Service emptied for a fresh start; new CallReg address',
+    changes: [
+      'INDOOR SERVICE: all the test data was removed — every job, accessory, harvested part, check, pre-delivery test and Indoor DC — together with the visits and spares that Indoor DC approvals had filed on calls (each call goes back to its previous visit). The next job and the next Indoor DC start from number 1 again. Report files already in Drive are left there.',
+      'The CallReg (Google Apps Script) address was updated to the new deployment; every device switches to it automatically on the next load.',
+    ],
+  },
+  {
+    version: '0.10.68',
+    date: '2026-10-04',
+    title: 'Big registers no longer freeze the screen',
+    changes: [
+      'FIXED: registers with thousands of rows — the Product Database, the call registers, spares, parties and the rest — froze while opening, sorting or filtering, because every row was drawn at once. They now draw what you can see and add more as you scroll ("Showing 1,050 of 20,000 — scroll for more", with a Show more button). Measured: a 20,000-row table opens in a tenth of a second instead of 16 seconds, and sorts in a fifth of a second instead of 11.',
+      'Nothing is left out: sorting, filters, grouping, the counts, select-all and Export still work on every row, not just the ones on screen.',
     ],
   },
   {

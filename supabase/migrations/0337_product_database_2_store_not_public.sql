@@ -1,6 +1,6 @@
 -- ===========================================================================
 -- 0337 — PRODUCT DATABASE 2.0'S STORED COPY IS NOT READABLE WITHOUT SIGNING IN
---        (second re-review, 2026-10-03: D-126)
+--        (second re-review, 2026-10-03: D-127)
 --
 -- 0220 revoked product_database_v2_mv from anon. 0222 drops and re-creates the
 -- materialised view, grants authenticated, and never revokes anon again -- so

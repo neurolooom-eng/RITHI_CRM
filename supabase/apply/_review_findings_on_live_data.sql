@@ -6,11 +6,11 @@
 -- CAN happen on a database built from every migration. It could not say what
 -- HAS happened on the live project. This file counts that, for the findings a
 -- wrong record would show up in:
---   D-118  a stock movement marked "imported" by somebody who may not upload
---   D-118, D-119, D-122, D-123  a hand-stock balance below zero
---   D-126  Product Database 2.0's stored copy readable without signing in
---   D-128  a review or a Field Failure Report on a call that does not exist
---   D-149  two installation calls with the same call number
+--   D-119  a stock movement marked "imported" by somebody who may not upload
+--   D-119, D-120, D-123, D-124  a hand-stock balance below zero
+--   D-127  Product Database 2.0's stored copy readable without signing in
+--   D-129  a review or a Field Failure Report on a call that does not exist
+--   D-150  two installation calls with the same call number
 -- A count here is a lead, not a verdict: a negative balance can also be an
 -- honest load in the wrong order. Rows 101+ list up to 100 of each kind.
 -- Nothing here writes.
@@ -57,17 +57,17 @@ dup_ic as (
    where btrim(coalesce(call_number, '')) <> ''
    group by call_number having count(*) > 1
 )
-select 1 as row, 'D-126: Product Database 2.0 stored copy readable WITHOUT signing in (anon)' as check,
+select 1 as row, 'D-127: Product Database 2.0 stored copy readable WITHOUT signing in (anon)' as check,
        case when to_regclass('public.product_database_v2_mv') is null then 'not on this project'
             when has_table_privilege('anon', 'public.product_database_v2_mv', 'select') then 'YES -- exposed'
             else 'no' end as answer
-union all select 2, 'D-118: consumption lines with an import reference, written by a non-uploader', count(*)::text from odd_cons
-union all select 3, 'D-118: stock transfers marked import, written by a non-uploader', count(*)::text from odd_st
-union all select 4, 'D-118: material returns marked import, written by a non-uploader', count(*)::text from odd_mr
+union all select 2, 'D-119: consumption lines with an import reference, written by a non-uploader', count(*)::text from odd_cons
+union all select 3, 'D-119: stock transfers marked import, written by a non-uploader', count(*)::text from odd_st
+union all select 4, 'D-119: material returns marked import, written by a non-uploader', count(*)::text from odd_mr
 union all select 5, 'hand-stock balances below zero (engineer x part)', count(*)::text from neg
-union all select 6, 'D-128: reviews on a call that does not exist', count(*)::text from orphan_rev
-union all select 7, 'D-128: Field Failure Reports naming a call that does not exist', count(*)::text from orphan_ffr
-union all select 8, 'D-149: installation call numbers carried by more than one call', count(*)::text from dup_ic
+union all select 6, 'D-129: reviews on a call that does not exist', count(*)::text from orphan_rev
+union all select 7, 'D-129: Field Failure Reports naming a call that does not exist', count(*)::text from orphan_ffr
+union all select 8, 'D-150: installation call numbers carried by more than one call', count(*)::text from dup_ic
 union all
 select * from (
   select 100 + row_number() over (order by o, d)::int, k, d from (

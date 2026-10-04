@@ -1,22 +1,22 @@
 -- ===========================================================================
 -- 0339 — HAND STOCK MOVES ONLY WITHIN WHAT IS HELD, ON EVERY ROUTE
---        (second re-review, 2026-10-03: D-118, D-119, D-122, D-123)
+--        (second re-review, 2026-10-03: D-119, D-120, D-123, D-124)
 --
 -- Hand stock is derived, never stored, and the consumption cap is the control
 -- point (CLAUDE.md). The re-review measured four routes round it, each with a
 -- signed-in user and no special key:
 --
---   D-118  An "imported" marker skips every stock limit -- spare_consumption.
+--   D-119  An "imported" marker skips every stock limit -- spare_consumption.
 --          source_ref, stock_transfers.source = 'import', material_returns.
 --          source = 'import' -- and nothing asked who set it. A consumption of
 --          999 with a made-up source_ref was accepted; a transfer marked import
 --          moved 50 from an engineer holding nothing.
---   D-119  A transfer's HEADER could be re-pointed after the fact (st_update is
+--   D-120  A transfer's HEADER could be re-pointed after the fact (st_update is
 --          the permission alone and the stock check lives on the lines), which
 --          took a third engineer from 1 to -9.
---   D-122  A return took ANOTHER engineer's stock: mr_insert compares the email,
+--   D-123  A return took ANOTHER engineer's stock: mr_insert compares the email,
 --          while stock is counted by the NAME.
---   D-123  Stores could cut a stock-out line's quantity, or delete an opening
+--   D-124  Stores could cut a stock-out line's quantity, or delete an opening
 --          balance, with no check and no record (-25 and -12, nothing audited).
 --
 -- WHAT EACH FIX KEEPS WORKING -- read from the code, not assumed:
@@ -35,7 +35,7 @@
 --   * The database's own writers. Receiving a shipment (0056) touches stock-out
 --     lines without changing their quantity; renaming a part (rename_part) or a
 --     person (0259/0267) changes the part or the engineer with the quantity
---     untouched. The D-123 guard reacts ONLY to a lower quantity or a delete,
+--     untouched. The D-124 guard reacts ONLY to a lower quantity or a delete,
 --     so none of them is affected.
 --
 -- HOW: a marker sent by somebody who may not load history is DISCARDED, not
@@ -54,7 +54,7 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 revoke execute on function public.stock_import_allowed() from public, anon, authenticated;
 
--- ---- D-118: the marker is the importer's alone --------------------------------
+-- ---- D-119: the marker is the importer's alone --------------------------------
 -- Named a_… so it fires BEFORE consumption_reconcile_guard and
 -- consumption_adjust_guard, which read the marker it settles.
 create or replace function public.import_marker_needs_importer()
@@ -133,7 +133,7 @@ begin
   end if;
 
   -- The one exemption: the same imported line, re-loaded from its source --
-  -- by somebody who may load history (0339, D-118).
+  -- by somebody who may load history (0339, D-119).
   if coalesce(btrim(new.source_ref), '') <> ''
      and btrim(new.source_ref) is not distinct from btrim(old.source_ref)
      and public.stock_import_allowed() then
@@ -173,7 +173,7 @@ begin
   return new;
 end $$;
 
--- ---- D-119: a recorded transfer is not re-pointed ----------------------------
+-- ---- D-120: a recorded transfer is not re-pointed ----------------------------
 create or replace function public.stock_transfer_header_fixed()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -194,7 +194,7 @@ drop trigger if exists stock_transfer_header_fixed on public.stock_transfers;
 create trigger stock_transfer_header_fixed before update on public.stock_transfers
   for each row execute function public.stock_transfer_header_fixed();
 
--- ---- D-122: a return is the returner's own stock --------------------------------
+-- ---- D-123: a return is the returner's own stock --------------------------------
 -- The policy's email test stays; this adds the test on what the stock is
 -- counted by. The name sent by Material Returns is the profile's full name; the
 -- User Master's name is accepted too, since hand stock may be keyed by either.
@@ -222,7 +222,7 @@ drop trigger if exists material_return_is_own_stock on public.material_returns;
 create trigger material_return_is_own_stock before insert on public.material_returns
   for each row execute function public.material_return_is_own_stock();
 
--- ---- D-123: a cut or a delete never takes stock below zero, and is recorded ----
+-- ---- D-124: a cut or a delete never takes stock below zero, and is recorded ----
 create or replace function public.stock_cut_keeps_balance()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare v_eng text; v_part text; v_bal numeric;

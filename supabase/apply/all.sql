@@ -85,6 +85,7 @@
 --   0323_indoor_stages.sql
 --   0324_indoor_delete_job.sql
 --   0327_indoor_dc_approver_from_user_master.sql
+--   0334_indoor_testing_data_emptied.sql
 --   0336_indoor_job_worked_on_is_kept.sql
 --   0021_master_lists.sql
 --   0066_master_values_active.sql
@@ -173,7 +174,7 @@
 --   0269_dccr_auto_review_switch.sql
 --   0302_review_dates_and_imports_have_keys.sql
 --   0285_auto_review_by_role.sql
---   0334_review_needs_a_call_you_can_see.sql
+--   0342_review_needs_a_call_you_can_see.sql
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
 --   0115_visit_date_sanity.sql
@@ -9574,12 +9575,126 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0334_indoor_testing_data_emptied.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0334 — THE INDOOR SERVICE TEST DATA, EMPTIED ONCE
+--
+-- The user, 2026-10-04: "Empty all data in Indoor" -- "Indoor is in Testing
+-- Phase, so deleting is not a problem." Asked: no backup; the numbering
+-- restarts; and the visits and spares an Indoor DC approval filed on calls go
+-- too, each call's status falling back to its previous visit.
+--
+-- What goes, in this order, ONCE (one_time_fixes_done '0334_indoor_emptied'):
+--   1. spare_consumption lines an Indoor DC approval booked. They carry no
+--      Indoor marker, but approve_indoor_dc() writes them in the SAME
+--      transaction that stamps the job's visit_filed_at, so their created_at
+--      is that exact instant -- matched on the job's UCN AND that instant, so
+--      no other spare on the call is touched. Their hand stock returns.
+--   2. the visits those approvals filed (reports.uid = indoor_jobs.visit_uid);
+--      sync_call_last_visit() puts each call back on its previous visit.
+--   3. every Indoor DC line, DC and release ticket; every pre-delivery test,
+--      check, harvested part, accessory and job.
+--   4. the job and IDC number counters, so the next of each is the first.
+-- no_hard_delete is lifted BY NAME on the four tables that carry it, for these
+-- statements only, and put back before the block ends. Files in Drive stay.
+-- ===========================================================================
+
+do $$
+declare n_sp integer := 0; n_vis integer := 0; n_jobs integer := 0; n_dcs integer := 0;
+begin
+  if to_regclass('public.indoor_jobs') is null then
+    raise notice '0334: no Indoor tables here -- nothing to empty';
+    return;
+  end if;
+  -- Created here when absent: on a fresh build this module runs before the one
+  -- that first makes it, and a bare reference would not even plan.
+  create table if not exists public.one_time_fixes_done (
+    name text primary key, applied_at timestamptz not null default now(), detail text);
+  alter table public.one_time_fixes_done enable row level security;
+  revoke all on public.one_time_fixes_done from anon, authenticated;
+  if exists (select 1 from public.one_time_fixes_done where name = '0334_indoor_emptied') then
+    raise notice '0334: the Indoor test data was emptied before -- not touched again';
+    return;
+  end if;
+  -- Nothing to empty (a fresh build): record it and stop, so the guards on
+  -- tables later modules create are not reached for nothing.
+  if not exists (select 1 from public.indoor_jobs) and not exists (select 1 from public.indoor_dcs) then
+    delete from public.indoor_job_counters;
+    delete from public.indoor_dc_counters;
+    insert into public.one_time_fixes_done (name, detail) values ('0334_indoor_emptied', 'nothing to empty');
+    raise notice '0334: no Indoor data -- nothing to empty';
+    return;
+  end if;
+
+  if exists (select 1 from pg_trigger where tgname = 'no_hard_delete' and tgrelid = 'public.spare_consumption'::regclass) then
+    alter table public.spare_consumption disable trigger no_hard_delete;
+  end if;
+  delete from public.spare_consumption c
+   using public.indoor_jobs j
+   where j.visit_filed_at is not null
+     and btrim(c.ucn) = btrim(j.ucn)
+     and c.created_at = j.visit_filed_at;
+  get diagnostics n_sp = row_count;
+  if exists (select 1 from pg_trigger where tgname = 'no_hard_delete' and tgrelid = 'public.spare_consumption'::regclass) then
+    alter table public.spare_consumption enable trigger no_hard_delete;
+  end if;
+
+  if exists (select 1 from pg_trigger where tgname = 'no_hard_delete' and tgrelid = 'public.reports'::regclass) then
+    alter table public.reports disable trigger no_hard_delete;
+  end if;
+  delete from public.reports r
+   using public.indoor_jobs j
+   where j.visit_uid is not null and r.uid = j.visit_uid;
+  get diagnostics n_vis = row_count;
+  if exists (select 1 from pg_trigger where tgname = 'no_hard_delete' and tgrelid = 'public.reports'::regclass) then
+    alter table public.reports enable trigger no_hard_delete;
+  end if;
+
+  select count(*) into n_dcs from public.indoor_dcs;
+  if exists (select 1 from pg_trigger where tgname = 'no_hard_delete' and tgrelid = 'public.indoor_dc_lines'::regclass) then
+    alter table public.indoor_dc_lines disable trigger no_hard_delete;
+  end if;
+  if exists (select 1 from pg_trigger where tgname = 'no_hard_delete' and tgrelid = 'public.indoor_dcs'::regclass) then
+    alter table public.indoor_dcs disable trigger no_hard_delete;
+  end if;
+  delete from public.indoor_dc_lines;
+  delete from public.indoor_dcs;
+  if exists (select 1 from pg_trigger where tgname = 'no_hard_delete' and tgrelid = 'public.indoor_dc_lines'::regclass) then
+    alter table public.indoor_dc_lines enable trigger no_hard_delete;
+  end if;
+  if exists (select 1 from pg_trigger where tgname = 'no_hard_delete' and tgrelid = 'public.indoor_dcs'::regclass) then
+    alter table public.indoor_dcs enable trigger no_hard_delete;
+  end if;
+  if to_regclass('public.indoor_dc_release_tickets') is not null then
+    delete from public.indoor_dc_release_tickets;
+  end if;
+
+  select count(*) into n_jobs from public.indoor_jobs;
+  delete from public.indoor_pdt;
+  delete from public.indoor_job_checks;
+  delete from public.indoor_job_parts;
+  delete from public.indoor_job_accessories;
+  delete from public.indoor_jobs;
+
+  delete from public.indoor_job_counters;
+  delete from public.indoor_dc_counters;
+
+  insert into public.one_time_fixes_done (name, detail)
+  values ('0334_indoor_emptied',
+          format('%s job(s), %s DC(s), %s visit(s) and %s spare line(s) removed; numbering restarted', n_jobs, n_dcs, n_vis, n_sp));
+  raise notice '0334: % Indoor job(s), % Indoor DC(s), % visit(s) and % spare line(s) filed by DC approvals removed; job and IDC numbering restarted',
+    n_jobs, n_dcs, n_vis, n_sp;
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0336_indoor_job_worked_on_is_kept.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
 -- 0336 — AN INDOOR JOB THAT HAS BEEN WORKED ON IS NOT DELETED
---        (second re-review, 2026-10-03: D-141)
+--        (second re-review, 2026-10-03: D-142)
 --
 -- 0324 lets an Indoor Service job be deleted PERMANENTLY -- the user's choice,
 -- for a job "received in error (the wrong unit, a duplicate intake, a test
@@ -9654,7 +9769,7 @@ begin
       using errcode = '23514';
   end if;
 
-  -- 0336 (D-141): a job that has been worked on is a quality record, not a job
+  -- 0336 (D-142): a job that has been worked on is a quality record, not a job
   -- "received in error" (URS-175). Any one of these is a trace of its own.
   v_trace := concat_ws(', ',
     case when j.status = 'Condemned' or j.condemned_at is not null
@@ -16261,7 +16376,7 @@ end $$;
 
 -- ===========================================================================
 -- 0341 — A CALL IS RE-OPENED, CLOSED, CANCELLED OR RESTORED ONLY BY SOMEBODY
---        WHO CAN SEE IT  (second re-review, 2026-10-03: D-127)
+--        WHO CAN SEE IT  (second re-review, 2026-10-03: D-128)
 --
 -- reopen_call, close_call, close_reopened_call, cancel_call and restore_call are
 -- SECURITY DEFINER and asked only the permission (call_perm), never whether the
@@ -16307,7 +16422,7 @@ begin
   if not public.call_perm(p_ucn, 'reopen') then
     raise exception 'RBAC: your role cannot re-open a call';
   end if;
-  -- 0333 (D-127): and only on a call the caller can see -- the read rule, so
+  -- 0333 (D-128): and only on a call the caller can see -- the read rule, so
   -- every call a screen shows passes and a call outside it is refused.
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
@@ -16339,7 +16454,7 @@ begin
   if not public.call_perm(p_ucn, 'reopen') then
     raise exception 'RBAC: your role cannot close a call';
   end if;
-  -- 0333 (D-127): and only on a call the caller can see -- the read rule, so
+  -- 0333 (D-128): and only on a call the caller can see -- the read rule, so
   -- every call a screen shows passes and a call outside it is refused.
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
@@ -16375,7 +16490,7 @@ begin
   if not public.call_perm(p_ucn, 'reopen') then
     raise exception 'RBAC: your role cannot close a re-opened call';
   end if;
-  -- 0333 (D-127): and only on a call the caller can see -- the read rule, so
+  -- 0333 (D-128): and only on a call the caller can see -- the read rule, so
   -- every call a screen shows passes and a call outside it is refused.
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
@@ -16407,7 +16522,7 @@ begin
   if not public.call_perm(p_ucn, 'cancel') then
     raise exception 'RBAC: your role cannot cancel a call';
   end if;
-  -- 0333 (D-127): and only on a call the caller can see -- the read rule, so
+  -- 0333 (D-128): and only on a call the caller can see -- the read rule, so
   -- every call a screen shows passes and a call outside it is refused.
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
@@ -16447,7 +16562,7 @@ begin
   if not public.call_perm(p_ucn, 'cancel') then
     raise exception 'RBAC: your role cannot restore a call';
   end if;
-  -- 0333 (D-127): and only on a call the caller can see -- the read rule, so
+  -- 0333 (D-128): and only on a call the caller can see -- the read rule, so
   -- every call a screen shows passes and a call outside it is refused.
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
@@ -22158,12 +22273,12 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0334_review_needs_a_call_you_can_see.sql
+-- 0342_review_needs_a_call_you_can_see.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0334 — A REVIEW IS WRITTEN ONLY ON A CALL THAT EXISTS AND THAT THE REVIEWER
---        CAN SEE  (second re-review, 2026-10-03: D-128)
+-- 0342 — A REVIEW IS WRITTEN ONLY ON A CALL THAT EXISTS AND THAT THE REVIEWER
+--        CAN SEE  (second re-review, 2026-10-03: D-129)
 --
 -- call_reviews_write (0044) is FOR ALL on has_perm('review.edit') alone, with
 -- no test that the call exists or that the writer may see it. Measured as an
@@ -22186,7 +22301,7 @@ end $$;
 --
 -- NOT CHANGED HERE: call_reviews_read is still every signed-in user. Narrowing
 -- what people READ changes counts on screens and is left for its own change;
--- D-128 records it as the remaining half.
+-- D-129 records it as the remaining half.
 --
 -- Both predicates are wrapped in (select ...) so they are asked once per
 -- statement, not once per row (the 0250 lesson).
@@ -32364,23 +32479,23 @@ end $function$;
 
 -- ===========================================================================
 -- 0339 — HAND STOCK MOVES ONLY WITHIN WHAT IS HELD, ON EVERY ROUTE
---        (second re-review, 2026-10-03: D-118, D-119, D-122, D-123)
+--        (second re-review, 2026-10-03: D-119, D-120, D-123, D-124)
 --
 -- Hand stock is derived, never stored, and the consumption cap is the control
 -- point (CLAUDE.md). The re-review measured four routes round it, each with a
 -- signed-in user and no special key:
 --
---   D-118  An "imported" marker skips every stock limit -- spare_consumption.
+--   D-119  An "imported" marker skips every stock limit -- spare_consumption.
 --          source_ref, stock_transfers.source = 'import', material_returns.
 --          source = 'import' -- and nothing asked who set it. A consumption of
 --          999 with a made-up source_ref was accepted; a transfer marked import
 --          moved 50 from an engineer holding nothing.
---   D-119  A transfer's HEADER could be re-pointed after the fact (st_update is
+--   D-120  A transfer's HEADER could be re-pointed after the fact (st_update is
 --          the permission alone and the stock check lives on the lines), which
 --          took a third engineer from 1 to -9.
---   D-122  A return took ANOTHER engineer's stock: mr_insert compares the email,
+--   D-123  A return took ANOTHER engineer's stock: mr_insert compares the email,
 --          while stock is counted by the NAME.
---   D-123  Stores could cut a stock-out line's quantity, or delete an opening
+--   D-124  Stores could cut a stock-out line's quantity, or delete an opening
 --          balance, with no check and no record (-25 and -12, nothing audited).
 --
 -- WHAT EACH FIX KEEPS WORKING -- read from the code, not assumed:
@@ -32399,7 +32514,7 @@ end $function$;
 --   * The database's own writers. Receiving a shipment (0056) touches stock-out
 --     lines without changing their quantity; renaming a part (rename_part) or a
 --     person (0259/0267) changes the part or the engineer with the quantity
---     untouched. The D-123 guard reacts ONLY to a lower quantity or a delete,
+--     untouched. The D-124 guard reacts ONLY to a lower quantity or a delete,
 --     so none of them is affected.
 --
 -- HOW: a marker sent by somebody who may not load history is DISCARDED, not
@@ -32418,7 +32533,7 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 revoke execute on function public.stock_import_allowed() from public, anon, authenticated;
 
--- ---- D-118: the marker is the importer's alone --------------------------------
+-- ---- D-119: the marker is the importer's alone --------------------------------
 -- Named a_… so it fires BEFORE consumption_reconcile_guard and
 -- consumption_adjust_guard, which read the marker it settles.
 create or replace function public.import_marker_needs_importer()
@@ -32497,7 +32612,7 @@ begin
   end if;
 
   -- The one exemption: the same imported line, re-loaded from its source --
-  -- by somebody who may load history (0339, D-118).
+  -- by somebody who may load history (0339, D-119).
   if coalesce(btrim(new.source_ref), '') <> ''
      and btrim(new.source_ref) is not distinct from btrim(old.source_ref)
      and public.stock_import_allowed() then
@@ -32537,7 +32652,7 @@ begin
   return new;
 end $$;
 
--- ---- D-119: a recorded transfer is not re-pointed ----------------------------
+-- ---- D-120: a recorded transfer is not re-pointed ----------------------------
 create or replace function public.stock_transfer_header_fixed()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -32558,7 +32673,7 @@ drop trigger if exists stock_transfer_header_fixed on public.stock_transfers;
 create trigger stock_transfer_header_fixed before update on public.stock_transfers
   for each row execute function public.stock_transfer_header_fixed();
 
--- ---- D-122: a return is the returner's own stock --------------------------------
+-- ---- D-123: a return is the returner's own stock --------------------------------
 -- The policy's email test stays; this adds the test on what the stock is
 -- counted by. The name sent by Material Returns is the profile's full name; the
 -- User Master's name is accepted too, since hand stock may be keyed by either.
@@ -32586,7 +32701,7 @@ drop trigger if exists material_return_is_own_stock on public.material_returns;
 create trigger material_return_is_own_stock before insert on public.material_returns
   for each row execute function public.material_return_is_own_stock();
 
--- ---- D-123: a cut or a delete never takes stock below zero, and is recorded ----
+-- ---- D-124: a cut or a delete never takes stock below zero, and is recorded ----
 create or replace function public.stock_cut_keeps_balance()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare v_eng text; v_part text; v_bal numeric;
@@ -32647,14 +32762,14 @@ end $$;
 
 -- ===========================================================================
 -- 0340 — A SPARE REQUEST IS WHAT WAS APPROVED  (second re-review, 2026-10-03:
---        D-120, D-121)
+--        D-121, D-122)
 --
--- D-120  The parts rule in spare_request_lines_guard() exempts the requester
+-- D-121  The parts rule in spare_request_lines_guard() exempts the requester
 --        at EVERY stage, though 0016 says "the part and quantity are the
 --        request; they are fixed once submitted". Measured: a line at Stores
 --        (approved for 1 x GP-1) was changed by its requester to 40 of another
 --        part, and Stores booked out 40.
--- D-121  spare_request_engineer_guard() refused a change of engineer only AFTER
+-- D-122  spare_request_engineer_guard() refused a change of engineer only AFTER
 --        dispatch, so before it a plain UPDATE moved the request to anybody,
 --        with no key, no reason and nothing in the engineer log -- the path
 --        reassign_spare_request() exists to be. And item_status / req_type,
@@ -32686,7 +32801,7 @@ end $$;
 -- is left exactly as it is; these rules sit beside it.
 -- ===========================================================================
 
--- ---- D-120: part and quantity are fixed once the RM has decided --------------
+-- ---- D-121: part and quantity are fixed once the RM has decided --------------
 create or replace function public.spare_line_fixed_once_decided()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -32714,7 +32829,7 @@ drop trigger if exists spare_line_fixed_once_decided on public.spare_request_lin
 create trigger spare_line_fixed_once_decided before update on public.spare_request_lines
   for each row execute function public.spare_line_fixed_once_decided();
 
--- ---- D-121: the engineer moves only by Change engineer; the cover follows the call
+-- ---- D-122: the engineer moves only by Change engineer; the cover follows the call
 -- Named spare_requests_z… so it runs after spare_requests_cover_code has spelled
 -- the value, and after spare_request_engineer_guard (which still says the clearer
 -- thing once the parts have gone out).
@@ -32770,7 +32885,7 @@ create trigger spare_requests_zz_header_rules before insert or update on public.
 
 -- ===========================================================================
 -- 0335 — A PARTY'S NAME, A PART'S CODE AND A PRODUCT LINE'S CODE CHANGE ONLY
---        THROUGH A RENAME  (second re-review, 2026-10-03: D-135)
+--        THROUGH A RENAME  (second re-review, 2026-10-03: D-136)
 --
 -- master_delete_guard (0325) refuses deleting a party, part or product line that
 -- records still name -- by the OLD key. parties_update, parts_update and
@@ -47549,7 +47664,7 @@ grant execute on function public.call_refresh_allowed() to authenticated;
 
 -- ===========================================================================
 -- 0337 — PRODUCT DATABASE 2.0'S STORED COPY IS NOT READABLE WITHOUT SIGNING IN
---        (second re-review, 2026-10-03: D-126)
+--        (second re-review, 2026-10-03: D-127)
 --
 -- 0220 revoked product_database_v2_mv from anon. 0222 drops and re-creates the
 -- materialised view, grants authenticated, and never revokes anon again -- so
@@ -49119,7 +49234,7 @@ end $$;
 
 -- ===========================================================================
 -- 0338 — THREE DEFINER HELPERS ARE NOT CALLABLE WITHOUT SIGNING IN
---        (second re-review, 2026-10-03: D-133)
+--        (second re-review, 2026-10-03: D-134)
 --
 -- Postgres grants EXECUTE to PUBLIC and Supabase grants it to anon, so these
 -- ran with the owner's rights for anybody holding the web key (CLAUDE.md, the

@@ -1,6 +1,6 @@
 -- ===========================================================================
 -- 0335 — A PARTY'S NAME, A PART'S CODE AND A PRODUCT LINE'S CODE CHANGE ONLY
---        THROUGH A RENAME  (second re-review, 2026-10-03: D-135)
+--        THROUGH A RENAME  (second re-review, 2026-10-03: D-136)
 --
 -- master_delete_guard (0325) refuses deleting a party, part or product line that
 -- records still name -- by the OLD key. parties_update, parts_update and

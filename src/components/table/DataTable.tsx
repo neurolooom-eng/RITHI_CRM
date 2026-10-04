@@ -532,16 +532,23 @@ export function DataTable<T>({
     if (!col) return filteredRows;
     const get = (r: T) =>
       col.accessor ? col.accessor(r) : ((r as Record<string, unknown>)[col.key] as string | number);
-    return [...filteredRows].sort((a, b) => {
-      const av = get(a);
-      const bv = get(b);
+    // ONE COLLATOR, AND EACH ROW'S VALUE READ ONCE. localeCompare with options
+    // builds a collator on every comparison -- some 300,000 of them for 20,000
+    // rows -- and the accessor ran twice per comparison. Same order as before:
+    // blanks last, numbers by value, text with its digits read as numbers.
+    const collator = new Intl.Collator(undefined, { numeric: true });
+    const keyed = filteredRows.map((r) => ({ r, v: get(r) }));
+    keyed.sort((x, y) => {
+      const av = x.v;
+      const bv = y.v;
       if (av == null) return 1;
       if (bv == null) return -1;
       const cmp = typeof av === 'number' && typeof bv === 'number'
         ? av - bv
-        : String(av).localeCompare(String(bv), undefined, { numeric: true });
+        : collator.compare(String(av), String(bv));
       return sort.dir === 'asc' ? cmp : -cmp;
     });
+    return keyed.map((k) => k.r);
   }, [filteredRows, sort, colMap]);
 
   const toggleSort = (col: Column<T>) => {
@@ -605,52 +612,43 @@ export function DataTable<T>({
   // Groups are alphabetical with the blank one last: "not allotted yet" is a
   // real answer and belongs at the end, not first under an empty heading.
   const liveKeys = groupKeys.filter((k) => groupable?.some((g) => g.key === k));
-  // ---- on-screen pages (D-155) ---------------------------------------------
-  //
-  // EVERY LOADED ROW WAS DRAWN, and a register can hold the whole install base
-  // (the user, 2026-10-03: "When I load the complete product database the
-  // browser is crashing"). Measured on a production build in Chromium, one
-  // table of 12 columns: 1,000 rows -> 16,000 page elements in under a second;
-  // 10,000 -> 160,000 and ~8 s; 20,000 -> 320,000 elements, ~19 s with the
-  // screen frozen and ~170 MB of script heap before the browser's own layout
-  // memory -- and every Load more redrew everything loaded so far.
-  //
-  // So the table DRAWS at most SCREEN_PAGE rows at a time. Everything else is
-  // unchanged and still covers EVERY loaded row: the count, search, filters,
-  // sort, grouping, the tick-all box and every export read `sortedRows`, never
-  // the page. Below SCREEN_PAGE rows nothing about the table changes at all.
-  const SCREEN_PAGE = 2000;
-  const [screenPage, setScreenPage] = useState(0);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const pageCount = Math.max(1, Math.ceil(sortedRows.length / SCREEN_PAGE));
-  const page = Math.min(screenPage, pageCount - 1);
-  // A LOAD MORE THAT ADDS ROWS BEYOND THE PAGE ON SCREEN OPENS THE PAGE THAT
-  // HOLDS THEM -- pressing it and seeing nothing change would read as broken.
-  // A shorter list (a new search, a filter) starts again at the first page.
-  const prevCount = useRef(sortedRows.length);
-  useEffect(() => {
-    const before = prevCount.current;
-    prevCount.current = sortedRows.length;
-    if (sortedRows.length > before && before > 0 && Math.floor(before / SCREEN_PAGE) > page) {
-      setScreenPage(Math.floor(before / SCREEN_PAGE));
-    } else if (sortedRows.length < before) {
-      setScreenPage(0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortedRows.length]);
-  const goToPage = (n: number) => {
-    setScreenPage(Math.max(0, Math.min(n, pageCount - 1)));
-    if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  };
-  const pageRows = pageCount > 1
-    ? sortedRows.slice(page * SCREEN_PAGE, (page + 1) * SCREEN_PAGE)
-    : sortedRows;
-
   const groups = useMemo(
     () => (liveKeys.length ? groupTree(sortedRows, liveKeys) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [liveKeys.join('|'), sortedRows],
   );
+
+  // ---- drawing only what can be seen --------------------------------------
+  //
+  // THE TABLE DREW EVERY ROW IT HELD (the user, 2026-10-04: "It is freezing up
+  // and hanging a lot in pages when the table size is big. Not just the product
+  // database"). Measured: 20,000 rows took 16.2 s to open and 11.2 s to sort,
+  // and every keystroke in a filter re-drew all of them. So the body draws the
+  // first FIRST_ROWS and adds ROW_STEP more each time the bottom comes within
+  // reach of the scroll -- sorting, filtering, grouping, the counts, select-all
+  // and the export still work on EVERY row, because they run on the data and
+  // not on what is drawn. A new sort, filter or grouping starts from the top.
+  const FIRST_ROWS = 150;
+  const ROW_STEP = 300;
+  const [drawLimit, setDrawLimit] = useState(FIRST_ROWS);
+  useEffect(() => { setDrawLimit(FIRST_ROWS); },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sort?.key, sort?.dir, filters, liveKeys.join('|')]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const moreRowRef = useRef<HTMLTableRowElement>(null);
+  const drawnRef = useRef(0);
+  const heldBackRef = useRef(0);
+  // The "more" row coming within reach draws the next step. Watched against the
+  // table's own scroll box where it has one, else the page.
+  useEffect(() => {
+    const el = moreRowRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver((es) => {
+      if (es.some((e) => e.isIntersecting)) setDrawLimit((l) => l + ROW_STEP);
+    }, { root: rowsBeforeScroll > 0 ? scrollRef.current : null, rootMargin: '600px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  });
   // Every path in the tree, at every depth — what "expand all" has to mean
   // when the grouping is nested.
   const allGroupPaths = (nodes: GroupNode<T>[]): Set<string> => {
@@ -791,20 +789,13 @@ export function DataTable<T>({
           ? []
           : n.children
             ? renderGroups(n.children)
-            : [
-              // An open group is drawn up to SCREEN_PAGE rows too (D-155); the
-              // heading still counts all of them, and filters reach the rest.
-              ...n.rows.slice(0, SCREEN_PAGE).map((row) => renderRow(row)),
-              ...(n.rows.length > SCREEN_PAGE
-                ? [
-                  <tr key={`gmore:${n.path}`} className="dt-group-more">
-                    <td colSpan={Math.max(1, visibleCols.length + (selectable ? 1 : 0))} className="muted">
-                      {`The first ${SCREEN_PAGE.toLocaleString()} of ${n.rows.length.toLocaleString()} in this group are shown — search or filter to narrow it; exports include them all.`}
-                    </td>
-                  </tr>,
-                ]
-                : []),
-            ]),
+            : (() => {
+              // The same drawing budget across the groups, in their order.
+              const take = Math.max(0, Math.min(n.rows.length, drawLimit - drawnRef.current));
+              drawnRef.current += take;
+              if (take < n.rows.length) heldBackRef.current += n.rows.length - take;
+              return n.rows.slice(0, take).map((row) => renderRow(row));
+            })()),
       ];
     });
 
@@ -882,8 +873,8 @@ export function DataTable<T>({
         </div>
       )}
       <div
-        ref={scrollRef}
         className="dt-scroll"
+        ref={scrollRef}
         style={{
           maxHeight: maxBodyHeight,
           width: tableWidth === 'auto' ? '100%' : tableWidth,
@@ -967,9 +958,27 @@ export function DataTable<T>({
                 </td>
               </tr>
             )}
-            {groups
-              ? renderGroups(groups)
-              : pageRows.map((row) => renderRow(row))}
+            {(() => {
+              drawnRef.current = 0; heldBackRef.current = 0;
+              const body = groups ? renderGroups(groups) : sortedRows.slice(0, drawLimit).map((row) => renderRow(row));
+              const held = groups ? heldBackRef.current : Math.max(0, sortedRows.length - drawLimit);
+              return (
+                <>
+                  {body}
+                  {held > 0 && (
+                    <tr ref={moreRowRef} className="dt-more-row">
+                      <td colSpan={Math.max(1, visibleCols.length + (selectable ? 1 : 0))}>
+                        Showing {(sortedRows.length - held).toLocaleString()} of {sortedRows.length.toLocaleString()} — scroll for more
+                        {' '}
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDrawLimit((l) => l + ROW_STEP * 5)}>
+                          Show more
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })()}
           </tbody>
         </table>
       </div>
@@ -979,15 +988,6 @@ export function DataTable<T>({
           <button className="btn btn-sm dt-loadmore" onClick={() => void onLoadMore()} disabled={loadingMore}>
             {loadingMore ? 'Loading…' : '↓ Load more'}
           </button>
-        )}
-        {!groups && pageCount > 1 && (
-          <span className="dt-pager" title={`Search, filters, sort, totals and exports cover all ${sortedRows.length.toLocaleString()} rows; the screen shows ${SCREEN_PAGE.toLocaleString()} at a time so the browser stays responsive.`}>
-            <button className="btn btn-sm" onClick={() => goToPage(page - 1)} disabled={page === 0}>‹ Previous</button>
-            <span className="muted">
-              {' '}Rows {(page * SCREEN_PAGE + 1).toLocaleString()}–{Math.min((page + 1) * SCREEN_PAGE, sortedRows.length).toLocaleString()} of {sortedRows.length.toLocaleString()}{moreAvailable ? '+' : ''} on screen{' '}
-            </span>
-            <button className="btn btn-sm" onClick={() => goToPage(page + 1)} disabled={page >= pageCount - 1}>Next ›</button>
-          </span>
         )}
         {viewMsg && <span className="muted dt-viewmsg">{viewMsg}</span>}
         <div className="spacer" />

@@ -27,7 +27,7 @@ alter table auth.users add column if not exists updated_at timestamptz;
 insert into public.app_roles (role, label, permissions) values
  ('ak_keyholder', 'AK Keyholder', '["review.edit","calls.view","data.view_all","review.correct_date","objective.lock","spare.reassign",
    "users.reset_password","bulk.upload","pm.bulk_upload","import.panel","export.tables","export.schedules","audit.mode"]'::jsonb),
- -- calls.view + data.view_all: since 0334 (D-128) a review is written only on a call
+ -- calls.view + data.view_all: since 0334 (D-129) a review is written only on a call
  -- the writer can see, as on every review screen; a reviewer who sees nothing reviews nothing.
  ('ak_plain', 'AK Plain', '["review.edit", "calls.view", "data.view_all"]'::jsonb),
  ('ak_granter', 'AK Granter', '["users.manage.access"]'::jsonb)

@@ -3807,7 +3807,7 @@ end $$;
 
 -- ===========================================================================
 -- 0341 — A CALL IS RE-OPENED, CLOSED, CANCELLED OR RESTORED ONLY BY SOMEBODY
---        WHO CAN SEE IT  (second re-review, 2026-10-03: D-127)
+--        WHO CAN SEE IT  (second re-review, 2026-10-03: D-128)
 --
 -- reopen_call, close_call, close_reopened_call, cancel_call and restore_call are
 -- SECURITY DEFINER and asked only the permission (call_perm), never whether the
@@ -3853,7 +3853,7 @@ begin
   if not public.call_perm(p_ucn, 'reopen') then
     raise exception 'RBAC: your role cannot re-open a call';
   end if;
-  -- 0333 (D-127): and only on a call the caller can see -- the read rule, so
+  -- 0333 (D-128): and only on a call the caller can see -- the read rule, so
   -- every call a screen shows passes and a call outside it is refused.
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
@@ -3885,7 +3885,7 @@ begin
   if not public.call_perm(p_ucn, 'reopen') then
     raise exception 'RBAC: your role cannot close a call';
   end if;
-  -- 0333 (D-127): and only on a call the caller can see -- the read rule, so
+  -- 0333 (D-128): and only on a call the caller can see -- the read rule, so
   -- every call a screen shows passes and a call outside it is refused.
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
@@ -3921,7 +3921,7 @@ begin
   if not public.call_perm(p_ucn, 'reopen') then
     raise exception 'RBAC: your role cannot close a re-opened call';
   end if;
-  -- 0333 (D-127): and only on a call the caller can see -- the read rule, so
+  -- 0333 (D-128): and only on a call the caller can see -- the read rule, so
   -- every call a screen shows passes and a call outside it is refused.
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
@@ -3953,7 +3953,7 @@ begin
   if not public.call_perm(p_ucn, 'cancel') then
     raise exception 'RBAC: your role cannot cancel a call';
   end if;
-  -- 0333 (D-127): and only on a call the caller can see -- the read rule, so
+  -- 0333 (D-128): and only on a call the caller can see -- the read rule, so
   -- every call a screen shows passes and a call outside it is refused.
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
@@ -3993,7 +3993,7 @@ begin
   if not public.call_perm(p_ucn, 'cancel') then
     raise exception 'RBAC: your role cannot restore a call';
   end if;
-  -- 0333 (D-127): and only on a call the caller can see -- the read rule, so
+  -- 0333 (D-128): and only on a call the caller can see -- the read rule, so
   -- every call a screen shows passes and a call outside it is refused.
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';

@@ -56,7 +56,7 @@
 --   0269_dccr_auto_review_switch.sql
 --   0302_review_dates_and_imports_have_keys.sql
 --   0285_auto_review_by_role.sql
---   0334_review_needs_a_call_you_can_see.sql
+--   0342_review_needs_a_call_you_can_see.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -5710,12 +5710,12 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0334_review_needs_a_call_you_can_see.sql
+-- 0342_review_needs_a_call_you_can_see.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0334 — A REVIEW IS WRITTEN ONLY ON A CALL THAT EXISTS AND THAT THE REVIEWER
---        CAN SEE  (second re-review, 2026-10-03: D-128)
+-- 0342 — A REVIEW IS WRITTEN ONLY ON A CALL THAT EXISTS AND THAT THE REVIEWER
+--        CAN SEE  (second re-review, 2026-10-03: D-129)
 --
 -- call_reviews_write (0044) is FOR ALL on has_perm('review.edit') alone, with
 -- no test that the call exists or that the writer may see it. Measured as an
@@ -5738,7 +5738,7 @@ end $$;
 --
 -- NOT CHANGED HERE: call_reviews_read is still every signed-in user. Narrowing
 -- what people READ changes counts on screens and is left for its own change;
--- D-128 records it as the remaining half.
+-- D-129 records it as the remaining half.
 --
 -- Both predicates are wrapped in (select ...) so they are asked once per
 -- statement, not once per row (the 0250 lesson).

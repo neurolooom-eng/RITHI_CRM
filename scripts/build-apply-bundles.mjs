@@ -353,7 +353,7 @@ const MODULES = {
       // rule of the Cancel button, in the function 0108 defines and 0242 loops.
       '0311_cancel_needs_an_open_call.sql',
       // Re-open, close, close-again, cancel and restore ask whether the caller
-      // can SEE the call (D-127). Redefines 0287's and 0311's functions, so after both.
+      // can SEE the call (D-128). Redefines 0287's and 0311's functions, so after both.
       '0341_call_actions_need_sight_of_the_call.sql',
       '0164_cr_read_initplan.sql',
     ],
@@ -479,9 +479,9 @@ const MODULES = {
             // Who may switch it is a ROLE (admin, nsm, technical_support),
             // not two names; after 0269, whose by-name grant it takes back.
             '0285_auto_review_by_role.sql',
-            // D-128: a review is written only on a call that exists and the writer
+            // D-129: a review is written only on a call that exists and the writer
             // can see (bulk.upload keeps loading history). Replaces 0044's policy.
-            '0334_review_needs_a_call_you_can_see.sql'],
+            '0342_review_needs_a_call_you_can_see.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -726,7 +726,10 @@ const MODULES = {
             // role; approving files the visit and its spares in the database;
             // only the approval marks a visit filed (D-108, D-109, D-110).
             '0327_indoor_dc_approver_from_user_master.sql',
-            // D-141: a job that has been worked on is a quality record and is not
+            // The Indoor test data emptied once, with the visits and spares its
+            // DC approvals filed (the user, 2026-10-04).
+            '0334_indoor_testing_data_emptied.sql',
+            // D-142: a job that has been worked on is a quality record and is not
             // deleted. Redefines 0324's delete_indoor_job().
             '0336_indoor_job_worked_on_is_kept.sql'],
   },
@@ -923,15 +926,15 @@ const MODULES = {
             // An amended or voided consumption line keeps its original quantity
             // and adjustment time again (0317, D-082). Redefines 0316's guard.
             '0317_void_keeps_original_qty.sql',
-            // Second re-review (D-118, D-119, D-122, D-123): an import marker is the
+            // Second re-review (D-119, D-120, D-123, D-124): an import marker is the
             // importer's alone, a transfer header is not re-pointed, a return is one's
             // own stock, a cut never goes below zero. Redefines 0317's adjust guard.
             '0339_stock_moves_only_within_what_is_held.sql',
-            // D-120, D-121: part and quantity fixed once the RM decides; the engineer
+            // D-121, D-122: part and quantity fixed once the RM decides; the engineer
             // moves only by Change engineer; the cover follows the call. Reads
             // stock_import_allowed() from 0339.
             '0340_spare_request_fixed_once_decided.sql',
-            // D-135: a master key changes only through a rename. Reads
+            // D-136: a master key changes only through a rename. Reads
             // part_rename_ticket (0196) and stock_import_allowed() (0339).
             '0335_master_key_changes_only_by_rename.sql'],
     tail: () => cookbook(),
@@ -1188,7 +1191,7 @@ const MODULES = {
             // and split keys; see 0286 for the parent rule. AFTER 0271, whose gate it widens
             // to every register.
             '0294_product_database_2_rebuild_key.sql',
-            // D-126: the stored copy is not readable without signing in. LAST, so a
+            // D-127: the stored copy is not readable without signing in. LAST, so a
             // re-run of this bundle (which re-creates the view) closes it again.
             '0337_product_database_2_store_not_public.sql'],
   },
@@ -1301,7 +1304,7 @@ const MODULES = {
             '_status.sql rows 188 and 189 say whether it holds.'],
     needs: [],
     files: ['0248_lock_down_internal_functions.sql',
-            // D-133: three more helpers the public key could run.
+            // D-134: three more helpers the public key could run.
             '0338_helpers_not_public.sql'],
   },
 };

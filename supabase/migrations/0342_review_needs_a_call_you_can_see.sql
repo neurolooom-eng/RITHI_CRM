@@ -1,6 +1,6 @@
 -- ===========================================================================
--- 0334 — A REVIEW IS WRITTEN ONLY ON A CALL THAT EXISTS AND THAT THE REVIEWER
---        CAN SEE  (second re-review, 2026-10-03: D-128)
+-- 0342 — A REVIEW IS WRITTEN ONLY ON A CALL THAT EXISTS AND THAT THE REVIEWER
+--        CAN SEE  (second re-review, 2026-10-03: D-129)
 --
 -- call_reviews_write (0044) is FOR ALL on has_perm('review.edit') alone, with
 -- no test that the call exists or that the writer may see it. Measured as an
@@ -23,7 +23,7 @@
 --
 -- NOT CHANGED HERE: call_reviews_read is still every signed-in user. Narrowing
 -- what people READ changes counts on screens and is left for its own change;
--- D-128 records it as the remaining half.
+-- D-129 records it as the remaining half.
 --
 -- Both predicates are wrapped in (select ...) so they are asked once per
 -- statement, not once per row (the 0250 lesson).

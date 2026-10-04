@@ -10070,25 +10070,13 @@ console.log('\n-- High batch 1: what a screen could not read, and what it leaves
       /spareDispatchByNo\(stockOut\)/.test(src) && !/listSpareDispatches/.test(src), true);
   }
 
-  // D-154: THE DECLARATION IS SIGNED BY WHOEVER BOOKED THE STOCK OUT, not by a
+  // D-155: THE DECLARATION IS SIGNED BY WHOEVER BOOKED THE STOCK OUT, not by a
   // name written into the form. It printed JAGADEESAN C on every declaration.
   {
     const decl = code(readFileSync('src/modules/Declaration.tsx', 'utf8'));
     const form = code(readFileSync('src/lib/declaration.ts', 'utf8'));
     eq('the Declaration names whoever booked the stock out', /\{doc\.dispatchedBy\}/.test(decl), true);
     eq('...and the form carries no fixed sender name', /senderName/.test(form + decl), false);
-  }
-
-  // D-155: THE TABLE DRAWS A PAGE, NOT EVERY LOADED ROW. Loading the whole
-  // install base drew 20,000 rows -- 320,000 page elements, ~19 s frozen -- and
-  // crashed the browser. Counts, filters, sort and exports still read sortedRows.
-  {
-    const dtSrc = code(readFileSync('src/components/table/DataTable.tsx', 'utf8'));
-    eq('the table draws one on-screen page of rows, not all of them',
-      /const SCREEN_PAGE = \d+/.test(dtSrc) && /pageRows\.map\(\(row\) => renderRow\(row\)\)/.test(dtSrc)
-        && !/:\s*sortedRows\.map\(\(row\) => renderRow\(row\)\)/.test(dtSrc), true);
-    eq('...an open group is capped the same way', /n\.rows\.slice\(0, SCREEN_PAGE\)/.test(dtSrc), true);
-    eq('...and the footer still counts every row', /\{sortedRows\.length\} row/.test(dtSrc), true);
   }
 
   // D-070: ONE PERSON'S DATA DOES NOT OUTLIVE THEIR SESSION. The cached
@@ -10103,6 +10091,19 @@ console.log('\n-- High batch 1: what a screen could not read, and what it leaves
   const cache = code(readFileSync('src/lib/cache.ts', 'utf8'));
   eq('...both rithi.cache.* and rithi.sync.*',
     /startsWith\(PREFIX\)/.test(cache) && /startsWith\('rithi\.sync\.'\)/.test(cache), true);
+}
+
+console.log('\n-- a big register draws what can be seen (D-118, 2026-10-04) --');
+{
+  // 20,000 rows took 16 s to open and 11 s to sort while the table drew them
+  // all. The body draws a slice and grows as the scroll reaches its end; the
+  // counts and the sort still run on every row.
+  const dt = code(readFileSync('src/components/table/DataTable.tsx', 'utf8'));
+  eq('the flat body draws a slice, not every row', /sortedRows\.slice\(0, drawLimit\)/.test(dt) && !/: sortedRows\.map\(\(row\) => renderRow\(row\)\)/.test(dt), true);
+  eq('...the grouped body shares the same budget', /drawLimit - drawnRef\.current/.test(dt), true);
+  eq('...more is drawn as the end comes within reach', /new IntersectionObserver\(/.test(dt) && /setDrawLimit\(\(l\) => l \+ ROW_STEP\)/.test(dt), true);
+  eq('...the footer still counts every row', /\{sortedRows\.length\} row/.test(dt), true);
+  eq('...and the sort compares with one collator', /new Intl\.Collator\(/.test(dt) && !/localeCompare\(String\(bv\)/.test(dt), true);
 }
 
 console.log('\n-- every requirement carries a version and a date (Rev 3.2, 2026-10-03) --');

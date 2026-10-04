@@ -26,7 +26,7 @@ export const DECLARATION_FORM = {
   forCompany: 'FOR AIR LIQUIDE MEDICAL SYSTEMS PVT LTD',
   // The sender's NAME is not here: it is whoever booked the stock out
   // (spare_dispatches.dispatched_by, stamped from the session, 0211), read per
-  // document. A fixed name signed every declaration as one person (D-154).
+  // document. A fixed name signed every declaration as one person (D-155).
   senderDept: 'SERVICE STORES',
 } as const;
 

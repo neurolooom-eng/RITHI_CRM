@@ -1,6 +1,6 @@
 -- ===========================================================================
 -- 0336 — AN INDOOR JOB THAT HAS BEEN WORKED ON IS NOT DELETED
---        (second re-review, 2026-10-03: D-141)
+--        (second re-review, 2026-10-03: D-142)
 --
 -- 0324 lets an Indoor Service job be deleted PERMANENTLY -- the user's choice,
 -- for a job "received in error (the wrong unit, a duplicate intake, a test
@@ -75,7 +75,7 @@ begin
       using errcode = '23514';
   end if;
 
-  -- 0336 (D-141): a job that has been worked on is a quality record, not a job
+  -- 0336 (D-142): a job that has been worked on is a quality record, not a job
   -- "received in error" (URS-175). Any one of these is a trace of its own.
   v_trace := concat_ws(', ',
     case when j.status = 'Condemned' or j.condemned_at is not null

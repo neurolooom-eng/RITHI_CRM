@@ -1,13 +1,13 @@
 -- ===========================================================================
 -- 0340 — A SPARE REQUEST IS WHAT WAS APPROVED  (second re-review, 2026-10-03:
---        D-120, D-121)
+--        D-121, D-122)
 --
--- D-120  The parts rule in spare_request_lines_guard() exempts the requester
+-- D-121  The parts rule in spare_request_lines_guard() exempts the requester
 --        at EVERY stage, though 0016 says "the part and quantity are the
 --        request; they are fixed once submitted". Measured: a line at Stores
 --        (approved for 1 x GP-1) was changed by its requester to 40 of another
 --        part, and Stores booked out 40.
--- D-121  spare_request_engineer_guard() refused a change of engineer only AFTER
+-- D-122  spare_request_engineer_guard() refused a change of engineer only AFTER
 --        dispatch, so before it a plain UPDATE moved the request to anybody,
 --        with no key, no reason and nothing in the engineer log -- the path
 --        reassign_spare_request() exists to be. And item_status / req_type,
@@ -39,7 +39,7 @@
 -- is left exactly as it is; these rules sit beside it.
 -- ===========================================================================
 
--- ---- D-120: part and quantity are fixed once the RM has decided --------------
+-- ---- D-121: part and quantity are fixed once the RM has decided --------------
 create or replace function public.spare_line_fixed_once_decided()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -67,7 +67,7 @@ drop trigger if exists spare_line_fixed_once_decided on public.spare_request_lin
 create trigger spare_line_fixed_once_decided before update on public.spare_request_lines
   for each row execute function public.spare_line_fixed_once_decided();
 
--- ---- D-121: the engineer moves only by Change engineer; the cover follows the call
+-- ---- D-122: the engineer moves only by Change engineer; the cover follows the call
 -- Named spare_requests_z… so it runs after spare_requests_cover_code has spelled
 -- the value, and after spare_request_engineer_guard (which still says the clearer
 -- thing once the parts have gone out).

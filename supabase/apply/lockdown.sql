@@ -137,7 +137,7 @@ end $$;
 
 -- ===========================================================================
 -- 0338 — THREE DEFINER HELPERS ARE NOT CALLABLE WITHOUT SIGNING IN
---        (second re-review, 2026-10-03: D-133)
+--        (second re-review, 2026-10-03: D-134)
 --
 -- Postgres grants EXECUTE to PUBLIC and Supabase grants it to anon, so these
 -- ran with the owner's rights for anybody holding the web key (CLAUDE.md, the

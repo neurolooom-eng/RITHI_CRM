@@ -74,7 +74,7 @@ insert into public.material_returns (mrn_no, mrn_date, engineer, engineer_email,
 select part_code, stock_out, returned, on_hand from public.handstock_balance where part_code='MR-100';
 
 \echo '--- 8. imported history is exempt — it predates the ledger it would be checked against ---'
--- A LOAD, so nobody is signed in: since 0331 (D-118) the import marker is honoured
+-- A LOAD, so nobody is signed in: since 0331 (D-119) the import marker is honoured
 -- only for an importer (bulk.upload / import.panel) or a write with no session --
 -- an engineer who sends it gets an ordinary, checked return instead.
 update public.harness set uid = null, email = null;

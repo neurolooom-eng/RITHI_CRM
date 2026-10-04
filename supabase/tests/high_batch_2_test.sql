@@ -1,20 +1,20 @@
 -- ===========================================================================
--- THE SECOND BATCH OF HIGH-RATED DEFECTS, PROVED ON A DATABASE (0334-0341).
+-- THE SECOND BATCH OF HIGH-RATED DEFECTS, PROVED ON A DATABASE (0335-0342).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works -- the batch was asked for with
 -- "ensure it doesn't insert any breaking changes".
 --
---   1. D-118  an import marker is the importer's alone (0339)
---   2. D-119  a recorded transfer is not re-pointed (0339)
---   3. D-122  a return is the returner's own stock (0339)
---   4. D-123  a cut never takes stock below zero, and is imaged (0339)
---   5. D-120  part and quantity are fixed once the RM decides (0340)
---   6. D-121  the engineer moves only by Change engineer; cover follows the call (0340)
---   7. D-127  re-open / close need sight of the call (0341)
---   8. D-128  a review needs a real call the writer can see (0334)
---   9. D-135  a master key changes only through a rename (0335)
---  10. D-141  an Indoor job that has been worked on is not deleted (0336)
---  11. D-126, D-133  the public key reads and runs less (0337, 0338)
+--   1. D-119  an import marker is the importer's alone (0339)
+--   2. D-120  a recorded transfer is not re-pointed (0339)
+--   3. D-123  a return is the returner's own stock (0339)
+--   4. D-124  a cut never takes stock below zero, and is imaged (0339)
+--   5. D-121  part and quantity are fixed once the RM decides (0340)
+--   6. D-122  the engineer moves only by Change engineer; cover follows the call (0340)
+--   7. D-128  re-open / close need sight of the call (0341)
+--   8. D-129  a review needs a real call the writer can see (0342)
+--   9. D-136  a master key changes only through a rename (0335)
+--  10. D-142  an Indoor job that has been worked on is not deleted (0336)
+--  11. D-127, D-134  the public key reads and runs less (0337, 0338)
 --
 -- Every check that matters runs as `authenticated`; a superuser ignores
 -- row-level security and EXECUTE grants. Run ONCE after _stub.sql + every
@@ -82,7 +82,7 @@ select engineer, qty from public.engineer_stock where part = 'HP-1|HB2 PART' ord
 
 -- ===========================================================================
 \echo ''
-\echo '--- 1. D-118: an import marker is the importer''s alone ---'
+\echo '--- 1. D-119: an import marker is the importer''s alone ---'
 call public.be('hb2-eng-a@x.com');
 \echo 'expect ERROR: HB2 ENG A has 5 of HP-1 in hand, so 999 cannot be consumed (the made-up source_ref is discarded)'
 begin; set local role authenticated;
@@ -119,7 +119,7 @@ commit;
 
 -- ===========================================================================
 \echo ''
-\echo '--- 2. D-119: a recorded transfer is not re-pointed ---'
+\echo '--- 2. D-120: a recorded transfer is not re-pointed ---'
 call public.be('hb2-eng-b@x.com');
 begin; set local role authenticated;
   insert into public.stock_transfers (uid, from_engineer, to_engineer) values ('HB2-T-OK', 'HB2 ENG B', 'HB2 ENG A');
@@ -142,7 +142,7 @@ select uid, from_engineer, remarks from public.stock_transfers where uid = 'HB2-
 
 -- ===========================================================================
 \echo ''
-\echo '--- 3. D-122: a return is the returner''s own stock ---'
+\echo '--- 3. D-123: a return is the returner''s own stock ---'
 call public.be('hb2-eng-a@x.com');
 \echo 'expect ERROR: A return is your own stock: HB2 ENG B is not you'
 begin; set local role authenticated;
@@ -164,7 +164,7 @@ select uid, engineer from public.material_returns where uid like 'HB2-MR-%' orde
 
 -- ===========================================================================
 \echo ''
-\echo '--- 4. D-123: a cut never takes stock below zero, and is imaged ---'
+\echo '--- 4. D-124: a cut never takes stock below zero, and is imaged ---'
 call public.be('hb2-eng-c@x.com');
 begin; set local role authenticated;
   insert into public.spare_consumption (ucn, call_number, part, qty, engineer, engineer_email)
@@ -191,7 +191,7 @@ select count(*) as dispatch_line_triggers from pg_trigger
 
 -- ===========================================================================
 \echo ''
-\echo '--- 5. D-120: part and quantity are fixed once the RM decides ---'
+\echo '--- 5. D-121: part and quantity are fixed once the RM decides ---'
 call public.be('hb2-eng-a@x.com');
 begin; set local role authenticated;
   insert into public.spare_requests (uid, engineer, engineer_email, ucn, item_status, req_type)
@@ -217,7 +217,7 @@ select qty, rm_approval from public.spare_request_lines where request_uid = 'HB2
 
 -- ===========================================================================
 \echo ''
-\echo '--- 6. D-121: the engineer moves only by Change engineer; the cover follows the call ---'
+\echo '--- 6. D-122: the engineer moves only by Change engineer; the cover follows the call ---'
 call public.be('hb2-eng-a@x.com');
 \echo 'expect ERROR: The engineer on … is changed with "Change engineer"'
 begin; set local role authenticated;
@@ -248,7 +248,7 @@ select uid, item_status from public.spare_requests where uid = 'HB2-SR1';
 
 -- ===========================================================================
 \echo ''
-\echo '--- 7. D-127: re-open and close need sight of the call ---'
+\echo '--- 7. D-128: re-open and close need sight of the call ---'
 call public.be('hb2-rm@x.com');
 begin; set local role authenticated;
   select ucn from public.calls where ucn like 'HB2-%' order by ucn;
@@ -264,7 +264,7 @@ begin; set local role authenticated; select public.reopen_call('NO-SUCH-CALL', '
 
 -- ===========================================================================
 \echo ''
-\echo '--- 8. D-128: a review needs a real call the writer can see ---'
+\echo '--- 8. D-129: a review needs a real call the writer can see ---'
 call public.be('hb2-rm@x.com');
 \echo 'expect ERROR: new row violates row-level security policy for table "call_reviews" (a call he cannot see)'
 begin; set local role authenticated;
@@ -288,7 +288,7 @@ select count(*) as ffrs_on_unseen_or_missing_calls from public.field_failure_rep
 
 -- ===========================================================================
 \echo ''
-\echo '--- 9. D-135: a master key changes only through a rename ---'
+\echo '--- 9. D-136: a master key changes only through a rename ---'
 call public.nobody();
 insert into public.parties (party_name, city, state) values ('HB2 NAMED HOSP', 'X', 'Y');
 insert into public.products (item_name, serial_number, party_name) values ('HB2 VENT', 'HB2-S1', 'HB2 NAMED HOSP');
@@ -323,7 +323,7 @@ commit;
 
 -- ===========================================================================
 \echo ''
-\echo '--- 10. D-141: an Indoor job that has been worked on is not deleted ---'
+\echo '--- 10. D-142: an Indoor job that has been worked on is not deleted ---'
 call public.nobody();
 insert into public.indoor_jobs (kind, activity, product_name, serial, party_name, demo_for_party, status) values
   ('Customer property', 'Repair', 'HB2 VENT', 'HB2-IN-ERR', 'HB2 HOSP', '', 'Received');
@@ -353,7 +353,7 @@ select serial from public.indoor_jobs where serial like 'HB2-IN-%' order by seri
 
 -- ===========================================================================
 \echo ''
-\echo '--- 11. D-126, D-133: the public key reads and runs less ---'
+\echo '--- 11. D-127, D-134: the public key reads and runs less ---'
 \echo 'expect ERROR: permission denied for materialized view product_database_v2_mv'
 begin; set local role anon; select count(*) from public.product_database_v2_mv; rollback;
 \echo 'expect ERROR: permission denied for function notify_resolve_uid'
