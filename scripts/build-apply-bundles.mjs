@@ -559,7 +559,13 @@ const MODULES = {
             // A figure typed over a calculated month is a manual override;
             // Re-Calculate keeps or discards them (the user, 2026-10-04).
             // Redefines 0292's recalc_quality_objectives.
-            '0349_objective_manual_overrides.sql'],
+            '0349_objective_manual_overrides.sql',
+            // Product failure = within 3 months of installation (warranty
+            // start) over the machines installed in a rolling 12 months, both
+            // set on Admin -> SLA / Objective Configuration (the user,
+            // 2026-10-04). Redefines 0142's objective_value / objective_notes
+            // and 0251's objective_evidence, so it stays after both.
+            '0354_failure_within_months_of_install.sql'],
   },
   validation: {
     title: 'Software Validation',

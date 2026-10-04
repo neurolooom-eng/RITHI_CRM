@@ -1141,17 +1141,33 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
   // (`audit.mode`, `import.panel`); the handbook was corrected to match (2026-10-02).
   {
     route: '/admin-config',
-    purpose: 'The settings the rules read: SLA targets, the Call Registration desk, the frequent-failure rule, and Audit Mode.',
+    purpose: 'The settings the rules read: the Call Registration desk, the frequent-failure rule, and Audit Mode. The SLA targets are on SLA / Objective Configuration.',
     does: [
-      'Set each SLA target in hours and turn it on or off',
       'Choose which Hotline desk new calls are filed to',
       'Tune frequent-failure Rule 1 (same machine) and Rule 2 (different serials, same complaint)',
       'Switch Audit Mode on or off with a reason',
     ],
-    records: ['sla_rules', 'app_settings', 'rpc:frequent_failure_rule', 'rpc:registrant_desks', 'rpc:audit_mode', 'rpc:set_audit_mode', 'audit_mode_changes'],
+    records: ['app_settings', 'rpc:frequent_failure_rule', 'rpc:registrant_desks', 'rpc:audit_mode', 'rpc:set_audit_mode', 'audit_mode_changes'],
     rules: [
       'A rule change applies from now on; recorded answers are unchanged',
       'While Audit Mode is ON, Update Party / Product Details on a call are hidden and refused',
+    ],
+  },
+  // SLA / OBJECTIVE CONFIGURATION (0354, the user, 2026-10-04).
+  {
+    route: '/sla-objective-config',
+    purpose: 'The targets the service is measured against: the SLA hours for open calls, and the Product Failure rule the Objective page works its failure rates out by.',
+    does: [
+      'Set each SLA target in hours and turn it on or off',
+      'Set how many months after installation a field call counts as a product failure (3 by default)',
+      'Set the rolling period the failure rate is measured over (12 months by default)',
+    ],
+    records: ['sla_rules', 'objective_settings'],
+    rules: [
+      'Installation is the machine’s warranty start; a machine with no warranty start is in neither number',
+      'A machine with several calls inside its window is one failure',
+      'A change applies from the next Re-Calculate on the Objective page; figures already written are not rewritten',
+      'Only the Admin role is given this page by default; other roles are granted on Roles & Permissions',
     ],
   },
   {

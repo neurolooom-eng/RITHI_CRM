@@ -209,6 +209,8 @@ export function Objective() {
     ['Contract no.', 'contract_number'], ['Contract from', 'contract_start'],
     ['Contract to', 'contract_end'], ['Contract type', 'contract_type'],
   ];
+  // What 0354 says about each failed machine, carried in `details`.
+  const RATE_DETAILS = ['Installed (warranty start)', 'Days after installation', 'Field calls in the window'];
   const baseRow = (r: Record<string, unknown>) =>
     Object.fromEntries(BASE_COLUMNS.map(([head, key]) => [head, r[key]]));
 
@@ -293,10 +295,13 @@ export function Objective() {
         : fam === 'pm' ? 'List of PM Calls'
         : fam.startsWith('install') ? 'List of Installation Calls'
         : 'List of Field Calls';
-      const numeratorLabel = isRate ? 'Failures (Sheet 1)'
+      // SINCE 0354 a failure is a MACHINE that had a field call within the
+      // window of its installation, over the machines installed in the rolling
+      // period -- Sheet 1 is one row per failed machine (its first call).
+      const numeratorLabel = isRate ? 'Machines that failed within the window after installation (Sheet 1)'
         : isAttended ? `Attended inside the limit (Sheet 1)`
         : `Still open at the end of ${over} (Sheet 1)`;
-      const denominatorLabel = isRate ? 'Machines in the field (Sheet 2)'
+      const denominatorLabel = isRate ? 'Machines installed in the rolling period (Sheet 2)'
         : `Calls registered in ${over} (Sheet 1)`;
       // A count IS its own result. A rate is numerator over denominator, and
       // dividing a count by anything would invent a figure.
@@ -358,6 +363,7 @@ export function Objective() {
         { Item: 'Installation base from', Value: 'Product Database (Product Register)' },
         { Item: 'Product filter', Value: filterRow.product_name },
         { Item: 'Serial filter', Value: filterRow.serial },
+        ...(isRate && filterRow.after_cutoff ? [{ Item: 'Rule', Value: filterRow.after_cutoff }] : []),
       );
       calc.push({ Item: 'Downloaded', Value: new Date().toISOString() });
 
@@ -381,7 +387,10 @@ export function Objective() {
       xlsxDownload(`evidence-${safe}-${YEAR}-${MONTHS[monthIndex]}.xlsx`, [
         isCount
           ? { name: sheet1Name, columns: FFR_HEADINGS, rows: calls.map(ffrRow) }
-          : { name: sheet1Name, columns: ['role', ...CALL_COLUMNS], rows: calls },
+          : isRate
+            ? { name: sheet1Name, columns: ['role', ...CALL_COLUMNS, ...RATE_DETAILS],
+                rows: calls.map((r) => ({ ...r, ...((r.details ?? {}) as Record<string, unknown>) })) }
+            : { name: sheet1Name, columns: ['role', ...CALL_COLUMNS], rows: calls },
         {
           name: 'Installation Base',
           columns: filterRow ? BASE_COLUMNS.map(([head]) => head) : ['Note'],
@@ -744,7 +753,7 @@ export function Objective() {
                 onChange={(v) => setDefDraft((d) => ({ ...d, calc_key: v }))}
                 placeholder="— typed, not computed —"
                 options={[
-                  { value: 'failure_rate_12m', label: 'failure_rate_12m — failures in 12 months ÷ machines' },
+                  { value: 'failure_rate_12m', label: 'failure_rate_12m — machines failed within 3 months of installation ÷ installed in a rolling 12 months (set on SLA / Objective Configuration)' },
                   { value: 'open_rate_monthly', label: "open_rate_monthly — still open at the cut-off ÷ that period's calls" },
                   { value: 'attended_within_days', label: "attended_within_days — attended inside the limit ÷ that period's calls" },
                 ]} />

@@ -197,6 +197,12 @@ export const MODULES: ModuleDef[] = [
   { path: '/roles', label: 'Roles & Permissions', admin: true },
   { path: '/audit', label: 'Audit Log', admin: true },
   { path: '/admin-config', label: 'Admin Config', admin: true },
+  // SLA / OBJECTIVE CONFIGURATION (0354) -- the Admin role only by default,
+  // with every action on it (the user, 2026-10-04: "By Default Grant Permission
+  // to Admin - All Actions, Rest let the Admin Decide through the App").
+  // `admin: true` keeps the key out of NON_ADMIN_MODULES; 0354 merges it into
+  // the admin row of `app_roles`, because a code default reaches nobody.
+  { path: '/sla-objective-config', label: 'SLA / Objective Configuration', admin: true },
   { path: '/software-validation', label: 'Software Validation', admin: true },
   { path: '/settings', label: 'Settings' },
   { path: '/version-history', label: 'Version History' },
@@ -778,6 +784,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/device-cache', label: 'Device Cache Status', actions: [] },
     { path: '/pm-bulk-upload', label: 'PM Bulk Upload', actions: ['pm.bulk_upload'] },
     { path: '/admin-config', label: 'Admin Config', actions: ['config.manage', 'import.panel', 'audit.mode'] },
+    { path: '/sla-objective-config', label: 'SLA / Objective Configuration', actions: ['config.manage', 'objective.manage'] },
     { path: '/software-validation', label: 'Software Validation', actions: ['validation.manage'] },
     { path: '/settings', label: 'Settings', actions: ['users.manage.settings'] },
     { path: '/version-history', label: 'Version History', actions: [] },

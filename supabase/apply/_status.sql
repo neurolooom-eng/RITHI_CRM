@@ -1976,7 +1976,12 @@ with checks(sort_order, bundle, provides, present) as (
                    where p.oid = to_regprocedure('public.installation_call_not_for_dealer()')), false)),
     (285, 'An uploaded Indoor Service Report keeps its number', 'The trigger indoor_report_keeps_its_number refuses a blank Indoor Service Report No on a job that carries a report file; a correction to another number, and a job with no report, are not stopped (0352, D-115). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0352)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.indoor_jobs')
-                 and tgname = 'indoor_report_keeps_its_number'))
+                 and tgname = 'indoor_report_keeps_its_number')),
+    (286, 'Objective: product failure is a call within 3 months of installation, over a rolling 12 months', 'objective_settings holds the two numbers (failure_window_months, failure_rolling_months), edited on Admin -> SLA / Objective Configuration by a holder of objective.manage, and objective_value() reads them (0354): a machine of the product whose WARRANTY START is in the rolling window is in the denominator, and it has failed when a field call on its serial falls within the window months of that date. Checked on the function body naming the setting, not on the table alone -- a table beside the old calculation would answer yes and compute the old figure. NO means the Recent Failure Rate objectives still count every field call over the whole fleet. Restore: objective.sql',
+        (to_regclass('public.objective_settings') is not null
+         and to_regprocedure('public.objective_setting(text,integer)') is not null
+         and coalesce((select p.prosrc like '%failure_window_months%'
+                         from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
