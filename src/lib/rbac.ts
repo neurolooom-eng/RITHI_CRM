@@ -203,7 +203,8 @@ export const MODULES: ModuleDef[] = [
   // with every action on it (the user, 2026-10-04: "By Default Grant Permission
   // to Admin - All Actions, Rest let the Admin Decide through the App").
   // `admin: true` keeps the key out of NON_ADMIN_MODULES; 0357 merges it into
-  // the admin row of `app_roles`, because a code default reaches nobody.
+  // the admin row of `app_roles`, because a code default reaches nobody, and
+  // 0358 gives Technical Support the page alone (the user, same day).
   { path: '/sla-objective-config', label: 'SLA / Objective Configuration', admin: true },
   { path: '/software-validation', label: 'Software Validation', admin: true },
   { path: '/settings', label: 'Settings' },
@@ -258,7 +259,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // key each, children of all three registers' report keys (perm_parents, 0286).
   { group: 'Calls', key: 'calls.report.visit', label: ' File a visit on a Field call' },
   { group: 'Calls', key: 'visit.spares', label: ' Book spares used on a visit (any register)' },
-  // D-125 (0359, the user, 2026-10-04): given per person in Extra Access, to nobody by role.
+  // D-125 (0369, the user, 2026-10-04): given per person in Extra Access, to nobody by role.
   { group: 'Calls', key: 'visit.others', label: 'Report a visit and its spares in another engineer\u2019s name (not only your team)' },
   { group: 'Calls', key: 'visit.feedback', label: ' Record customer feedback on a visit (any register)' },
   { group: 'Calls', key: 'calls.cancel', label: 'Cancel a Field call (and restore it)' },
@@ -328,7 +329,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'spare.drop', label: 'Drop a spare (any stage)' },
   { group: 'Spares', key: 'spare.receive', label: 'Acknowledge spare receipt' },
   { group: 'Spares', key: 'spare.reassign', label: 'Change the engineer on a spare request (before dispatch)' },
-  // D-125 (0359): RM / RGM / NSM raise for their team without it; Admins and Technical Support hold it.
+  // D-125 (0369): RM / RGM / NSM raise for their team without it; Admins and Technical Support hold it.
   { group: 'Spares', key: 'spare.request.others', label: 'Raise a spare request in any engineer\u2019s name (not only your team)' },
   { group: 'Spares', key: 'stock.return', label: 'Return spares to Stores (MRN)' },
   // Returning stock IN ANOTHER ENGINEER'S NAME (finding 64): the screen asked
@@ -517,7 +518,7 @@ FUNCTIONAL_DEFAULTS.zoho_migration = [...FUNCTIONAL_DEFAULTS.technical_support];
 // role holds, given knowingly ("Yes, include it"), not a widening to copy.
 FUNCTIONAL_DEFAULTS.technical_support.push('review.auto');
 // Spare requests in ANY engineer's name (D-125, the user, 2026-10-04: "Admins +
-// Technical Support"); 0359 gives it once in app_roles. After the Zoho clone,
+// Technical Support"); 0369 gives it once in app_roles. After the Zoho clone,
 // which must not inherit it.
 FUNCTIONAL_DEFAULTS.technical_support.push('spare.request.others');
 FUNCTIONAL_DEFAULTS.nsm.push('review.auto');

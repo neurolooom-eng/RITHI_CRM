@@ -64,7 +64,7 @@
 --   0339_stock_moves_only_within_what_is_held.sql
 --   0340_spare_request_fixed_once_decided.sql
 --   0335_master_key_changes_only_by_rename.sql
---   0359_filed_under_own_name_unless_granted.sql
+--   0369_filed_under_own_name_unless_granted.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -5997,11 +5997,11 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0359_filed_under_own_name_unless_granted.sql
+-- 0369_filed_under_own_name_unless_granted.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0359 — A VISIT, ITS SPARES AND A SPARE REQUEST ARE FILED UNDER YOUR OWN
+-- 0369 — A VISIT, ITS SPARES AND A SPARE REQUEST ARE FILED UNDER YOUR OWN
 --        NAME, YOUR TEAM'S, OR ANYBODY'S ONLY WITH A KEY GIVEN FOR IT
 --        (second re-review D-125; the user's decision, 2026-10-04)
 --
@@ -6165,14 +6165,14 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 
 do $$
 begin
-  if not exists (select 1 from public.one_time_fixes_done where name = '0359_spare_request_others_to_technical_support') then
+  if not exists (select 1 from public.one_time_fixes_done where name = '0369_spare_request_others_to_technical_support') then
     update public.app_roles
        set permissions = coalesce(permissions, '[]'::jsonb) || '["spare.request.others"]'::jsonb
      where role = 'technical_support'
        and jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
        and not (coalesce(permissions, '[]'::jsonb) ? 'spare.request.others');
     insert into public.one_time_fixes_done (name, detail)
-    values ('0359_spare_request_others_to_technical_support', 'spare.request.others given to technical_support once');
+    values ('0369_spare_request_others_to_technical_support', 'spare.request.others given to technical_support once');
   end if;
 end $$;
 

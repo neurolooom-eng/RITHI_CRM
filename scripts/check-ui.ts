@@ -2904,7 +2904,7 @@ console.log('\n-- Zoho Migration is a clone, and stays one --');
   // ...but for the Auto Review switch, which the user gave Technical Support
   // and not this role (0285): a clone that inherited a WRITE would stop being
   // read-only without anybody deciding it. The same holds for
-  // spare.request.others (0359, D-125: "Admins + Technical Support").
+  // spare.request.others (0369, D-125: "Admins + Technical Support").
   const a = [...(DEFAULT_PERMS.technical_support ?? [])].filter((k) => k !== 'review.auto' && k !== 'spare.request.others').sort();
   const b = [...(DEFAULT_PERMS.zoho_migration ?? [])].sort();
   eq('the two roles default to the same rights, but for the Auto Review switch and spare requests for anyone', b, a);

@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.90',
+    version: '0.10.91',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -28,7 +28,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.89',
+    version: '0.10.90',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -42,6 +42,16 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    version: '0.10.89',
+    date: '2026-10-04',
+    title: 'Objective Re-Calculate no longer times out; Frequent Failure and Technical Support on SLA / Objective Configuration',
+    changes: [
+      'OBJECTIVE: Re-calculate stopped with "canceling statement due to statement timeout" after the new Product Failure rule. The failure rate is now worked out in one pass and Re-calculate finishes well inside the limit — same rule, same figures.',
+      'SLA / OBJECTIVE CONFIGURATION now also holds the FREQUENT FAILURE rule Review 2 applies (moved from Admin Config). Nothing about the rule itself changed.',
+      'TECHNICAL SUPPORT can open SLA / Objective Configuration. It reads the page only, until an administrator ticks Admin config or the objective permission for the role on Roles & Permissions.',
+    ],
+  },
+  {
     version: '0.10.88',
     date: '2026-10-04',
     title: 'Spare Recycling: Start Work and SLA, one request per spare, import from MRN',
@@ -49,7 +59,7 @@ export const CHANGELOG: ChangeEntry[] = [
     changes: [
       'FIXED: switching Audit Mode on now takes Spare Recycling away at once — the menu entry goes, and an open page returns to the home screen. Other devices follow within a minute (or when the tab is next opened).',
       'START WORK: open a request and press Start Work with the date and time. The SLA starts only then — due 3 working days later, Saturday and Sunday skipped. The list shows Work Started, SLA Due and On track / Due today / Breached (Met once closed in time).',
-      'Set the working days and which weekdays are holidays on Admin Config → SLA Targets → Spare Recycling SLA.',
+      'Set the working days and which weekdays are holidays on SLA / Objective Configuration → SLA Targets → Spare Recycling SLA.',
       'A quantity of more than one is registered as that many requests, one per spare; give each its serial on its own request.',
       'IMPORT FROM MRN: search any MRN, pick a line and import its good and defective quantity as requests — the MRN No is kept on each. A line can be imported again; the MRN is not changed.',
     ],

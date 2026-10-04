@@ -6,7 +6,7 @@ import { useAuditMode } from '../lib/auditMode';
 import { DEFAULT_SLA_RULES } from '../lib/sla';
 import { useAuth } from '../lib/auth';
 
-// Admin Config → SLA targets. Each rule's hours and on/off are editable; the
+// SLA / Objective Configuration → SLA targets (Admin Config until 2026-10-04). Each rule's hours and on/off are editable; the
 // app highlights open calls against the active rules.
 const asDays = (h: number) => (h % 24 === 0 ? `${h / 24} day${h / 24 === 1 ? '' : 's'}` : `${h} h`);
 

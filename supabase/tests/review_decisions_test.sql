@@ -1,11 +1,11 @@
 -- ===========================================================================
--- THE USER'S DECISIONS OF 2026-10-04, PROVED ON A DATABASE (0359-0363).
+-- THE USER'S DECISIONS OF 2026-10-04, PROVED ON A DATABASE (0360-0363, 0369).
 -- Each section proves BOTH halves: what the decision refuses is refused, AND
 -- the honest path beside it still works.
 --
 --   1. D-125  a visit, its spares and a spare request are filed under your own
---             name, your team's, or anybody's only with the key (0359)
---   2. D-125  created_by on a consumption line is the session (0359)
+--             name, your team's, or anybody's only with the key (0369)
+--   2. D-125  created_by on a consumption line is the session (0369)
 --   3. D-145  approving an Indoor DC skips the visit of a call already Solved (0360)
 --   4. D-112  the dispatch date is when the unit is marked Dispatched (0363)
 --   5. D-114  a cleaning time may be earlier, never later; who is the session (0363)
@@ -17,7 +17,7 @@
 -- section 7; the definer and Reconciliation exemptions of D-125 are exercised
 -- by indoor_stages_test (the approver files the unit's visit in the
 -- engineer's name) and reconciliation_needs_no_visit_test (the coordinator
--- books in the engineer's name) -- both pass with 0359 in.
+-- books in the engineer's name) -- both pass with 0369 in.
 --
 -- Superuser bypasses RLS and is not `authenticated`, so every check that
 -- matters runs `set role authenticated`. Run ONCE after _stub.sql + every
@@ -33,7 +33,7 @@ insert into public.app_roles (role, label, permissions) values
  ('d5_loader', 'D5 Loader',   '["calls.view", "calls.report", "visit.spares", "bulk.upload"]'::jsonb),
  ('d5_indoor', 'D5 Indoor',   '["mod:/indoor", "indoor.receive", "indoor.work", "indoor.qc", "indoor.dispatch"]'::jsonb)
 on conflict (role) do update set permissions = excluded.permissions;
--- Technical Support is given spare.request.others ONCE by 0359; it needs
+-- Technical Support is given spare.request.others ONCE by 0369; it needs
 -- spare.request to raise anything at all. MERGED, so the migration's grant stays.
 update public.app_roles set permissions = permissions || '["spare.request"]'::jsonb
  where role = 'technical_support' and not (permissions ? 'spare.request');
