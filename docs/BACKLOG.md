@@ -75,6 +75,18 @@ up)_
 
 ---
 
+## 2026-10-04 — Save any download as a Google Sheet (v0.10.70)
+
+- **Shipped:** every CSV / Excel download asks *Download* or *Save as Google
+  Sheet* (`deliverExport` in the three writers + `ExportChooser`). The sheet goes
+  in the exporter's own folder inside the export folder
+  (`1qZ0ri-iP2hovCsLEko6TeuOYwYHloFy5`), created once and reused (script property
+  `exportfolder_<email>`). Audit action `export.google_sheet`. FRS-249, OQ-241.
+- **PENDING (user):** copy the new `apps-script/CallReg.gs` into the Apps Script
+  project and redeploy the SAME deployment as a new version. Until then *Save as
+  Google Sheet* times out and offers the download instead. The deploying account
+  needs edit access to the export folder.
+
 ## 2026-10-03 — Indoor Service: the job as a window, the DC beside it, the visit engineer picked, a job deleted (0324)
 
 The user asked for five things on the Indoor Service screen: the Visiting

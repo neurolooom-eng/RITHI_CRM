@@ -1,5 +1,6 @@
 import { download } from './zip';
-import { mayExport, type ExportScope } from './exportscope';
+import { mayExport, deliverExport, type ExportScope } from './exportscope';
+import { gsheetFrom } from './xlsx';
 import { excelSerial, formatDayTime, hasClockTime } from './dates';
 
 // ===========================================================================
@@ -107,5 +108,9 @@ export function xlsDownload(filename: string, sheets: XlsSheet[], scope: ExportS
   // Same rule as the other two writers: a file taken from a half-loaded table
   // says nothing about what it is missing, so the caller is asked first.
   if (!mayExport(scope, sheets[0]?.rows.length ?? 0)) return;
-  download(filename, new TextEncoder().encode(buildXls(sheets)), 'application/vnd.ms-excel');
+  deliverExport({
+    filename, kind: 'Excel',
+    sheets: () => sheets.map((s) => gsheetFrom(s.name, s.columns, s.rows)),
+    saveFile: () => download(filename, new TextEncoder().encode(buildXls(sheets)), 'application/vnd.ms-excel'),
+  });
 }

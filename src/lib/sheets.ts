@@ -10,6 +10,7 @@
 
 import { recordToRow, rowToRecord } from './fieldcall';
 import type { DriveFolder } from './drivefolders';
+import type { GSheet } from './exportscope';
 import * as sb from './supabase';
 
 const URL_KEY = 'rithi.sheets.url';
@@ -720,4 +721,61 @@ export async function updateFieldCall(ucn: string, patch: Record<string, unknown
   const r = await getJson(params);
   if (!r.ok) return { ok: false, error: String(r.error ?? 'update failed') };
   return { ok: true, ucn };
+}
+
+// ---------------------------------------------------------------------------
+// SAVE AN EXPORT AS A GOOGLE SHEET (the user, 2026-10-04), in the export
+// folder on Drive, inside a folder of the exporter's own — made on their first
+// export and reused on every one after it (the bridge remembers it by email).
+//
+// The same round trip as `uploadToDrive`: the browser cannot read a no-cors
+// POST's answer, so it sends a `ref` and polls `driveref` for the link. The
+// bridge stores `ERROR: <reason>` under the ref when it fails, so a refusal is
+// reported as itself rather than as a timeout.
+//
+// WHO THE FOLDER BELONGS TO is the signed-in user's name and email as the app
+// knows them; the bridge has no sign-in of its own, which is the same footing
+// every upload through it already stands on.
+// ---------------------------------------------------------------------------
+/** A Google Sheet holds 10 million cells; refuse before sending, not after. */
+export const GSHEET_MAX_CELLS = 10_000_000;
+
+export async function saveAsGoogleSheet(
+  title: string,
+  sheets: GSheet[],
+  user: { name: string; email: string },
+  onWait?: (seconds: number) => void,
+): Promise<{ ok: boolean; url?: string; error?: string }> {
+  const base = getSheetsUrl();
+  if (!base) return { ok: false, error: 'No Google Apps Script URL is configured (Settings).' };
+  if (!user.email) return { ok: false, error: 'Your sign-in has no email, so no folder can be named for you.' };
+  const cells = sheets.reduce((n, s) => n + (s.rows.length + 1) * Math.max(1, s.columns.length), 0);
+  if (cells > GSHEET_MAX_CELLS) return { ok: false, error: `${cells.toLocaleString()} cells is more than a Google Sheet holds (10 million). Download the file instead, or narrow the export.` };
+  const ref = `gs-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  const started = Date.now();
+  try {
+    await fetch(base, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify({ action: 'sheetexport', ref, title, user, sheets }),
+      redirect: 'follow',
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  // A large register takes the bridge a while to write; wait up to six
+  // minutes, which is as long as Apps Script lets one run last.
+  for (let i = 0; i < 120; i++) {
+    await new Promise((r) => setTimeout(r, i === 0 ? 800 : 3000));
+    onWait?.(Math.round((Date.now() - started) / 1000));
+    try {
+      const r = await getJson({ action: 'driveref', ref });
+      if (r.ok && r.url) {
+        const v = String(r.url);
+        if (v.startsWith('ERROR:')) return { ok: false, error: v.slice(6).trim() };
+        return { ok: true, url: v };
+      }
+    } catch { /* keep polling */ }
+  }
+  return { ok: false, error: 'The Google Sheet was not confirmed in time — look in your folder in the export folder before trying again.' };
 }

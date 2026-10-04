@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import { db, type BaseRecord } from './db';
 import { parseAnyDate, formatDayTime, todayLocal } from './dates';
 import type { FieldOption } from '../components/form/Form';
-import { mayExport, type ExportScope } from './exportscope';
+import { mayExport, deliverExport, type ExportScope } from './exportscope';
+import { gsheetCell } from './xlsx';
 
 export const fmtCurrency = (n: unknown): string => {
   const v = Number(n);
@@ -166,13 +167,23 @@ export function csvExport(filename: string, columns: { key: string; header: stri
     const v = s == null ? '' : typeof s === 'string' ? formatDayTime(s) : String(s);
     return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
   };
-  const head = columns.map((c) => esc(c.header)).join(',');
-  const body = rows.map((r) => columns.map((c) => esc(r[c.key])).join(',')).join('\n');
-  const blob = new Blob([head + '\n' + body], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  deliverExport({
+    filename, kind: 'CSV',
+    sheets: () => [{
+      name: filename.replace(/\.csv$/i, ''),
+      columns: columns.map((c) => c.header),
+      rows: rows.map((r) => columns.map((c) => gsheetCell(r[c.key]))),
+    }],
+    saveFile: () => {
+      const head = columns.map((c) => esc(c.header)).join(',');
+      const body = rows.map((r) => columns.map((c) => esc(r[c.key])).join(',')).join('\n');
+      const blob = new Blob([head + '\n' + body], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+  });
 }
