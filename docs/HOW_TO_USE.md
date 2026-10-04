@@ -385,7 +385,9 @@ against the call it was fitted to.
   > **A return is your own stock.** Returning for another engineer needs *Return
   > stock for another engineer* (Stores and the approvers hold it).
 - **Stock Transfer** `/stock-transfer` — hand stock between engineers. A transfer
-  to the same person is held back and named. Each part can carry a **reason of
+  to the same person is held back and named. A transfer (or a return) cannot be
+  dated in the future, nor on or before the last day hand stock was closed —
+  it would then be counted nowhere. Each part can carry a **reason of
   its own** besides the common Remarks. **🖨 MTN** on a transfer prints the
   **Material Transfer Note R/SER/STR/003**: issuer and receiver with their
   places, the MTN No. (the transfer number) and date, each part with its own
@@ -966,6 +968,9 @@ typed into a form that reads it.
   > regardless.
 - **User Master** `/user-master` — people, roles and the reporting line. A
   manager's team is worked out from here.
+  > **A leaver is set inactive, not deleted.** 🗑 Delete removes only an entry
+  > made by mistake: one with a profile, Roles & Responsibilities or training
+  > history is refused, so that history stays — set Active to No instead.
   > **Department** comes from its own list (**Masters → Department** — add the
   > departments there first), so it is spelled one way everywhere.
   > **Many at once:** tick people (the header box ticks everyone the search is
@@ -1013,7 +1018,9 @@ typed into a form that reads it.
   > of the two is theirs.
 - **All Masters** `/masters` — the value lists behind the dropdowns. Rights are
   **per list**.
-  > Each list has its own **Add**, **Edit** and **Delete** permission. **✎ Edit**
+  > Each list has its own **Add**, **Edit** and **Delete** permission. *Add /
+  > edit master records* adds and edits values on every list but does not
+  > delete them — deleting needs the list's own Delete permission. **✎ Edit**
   > on a row can **rename** a value: calls and reports already saved keep the old
   > wording, so a count or filter on the new wording does not include them.
   > A value in use is **deactivated**, not deleted, so records that used it keep

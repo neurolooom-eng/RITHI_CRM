@@ -895,6 +895,10 @@ export const parentActions = (key: string): string[] => {
   // edit master records" -- exactly who masters_insert admits (0325).
   const add = /^master\.(.+)\.add$/.exec(key);
   if (add) out.push(`master.${add[1]}.edit`, 'masters.edit.records');
+  // ...and its edit key by "Add / edit master records", exactly as
+  // masters_update admits (D-086). Not its delete key: masters_delete asks the
+  // list's own delete key or masters.edit (0371).
+  if (/^master\.(.+)\.edit$/.test(key)) out.push('masters.edit.records');
   return out;
 };
 

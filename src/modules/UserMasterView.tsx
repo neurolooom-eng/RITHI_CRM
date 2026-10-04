@@ -298,7 +298,9 @@ export function UserMasterView() {
   // login and history are untouched; a leaver is handled with 🔒 Disable.
   const removeRow = async (r: DirectoryRow) => {
     if (r.id === 0) return;
-    if (!confirm(`Delete ${r.name || r.email || 'this user'} from the User Master?\n\nThis removes their directory entry only. Their login (if any) and all history are kept — use 🔒 Disable login to lock out a leaver.`)) return;
+    // D-059: an entry with a profile or R&R history is refused by the database
+    // (0372) -- the person is set inactive instead, and their history stays.
+    if (!confirm(`Delete ${r.name || r.email || 'this user'} from the User Master?\n\nOnly an entry made by mistake can be deleted. An entry with a profile, Roles & Responsibilities or training history is refused — set Active to No instead. Their login (if any) is not affected — use 🔒 Disable login to lock out a leaver.`)) return;
     setBusy(true);
     const res = await deleteDirectoryRow(r.id);
     logAudit({ action: 'user.directory.delete', target: r.name || r.email, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error });

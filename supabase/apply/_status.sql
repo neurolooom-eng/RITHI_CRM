@@ -2053,7 +2053,18 @@ with checks(sort_order, bundle, provides, present) as (
     (301, 'An Indoor DC is approved by the login its User Master row carries', 'indoor_dc_may_approve() accepts the login whose sign-in address is the Mail ID or Gmail of a User Master row with the Authorised By name, and a profile name only where no such row carries an address -- another login with the same profile name is refused (0367, D-143). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0367)',
         coalesce((select p.prosrc like '%d.gmail%' from pg_proc p where p.oid = to_regprocedure('public.indoor_dc_may_approve(text)')), false)),
     (302, 'A QMS document''s revision is a new entry, and a QMS document is retired, never deleted', 'qms_document_controlled on documents: a new QMS document needs its number, revision and effective date; once recorded, number, revision, effective date and file are fixed; a QMS document is not deleted or moved off the QMS shelf. Service manuals and notes, and imports, are untouched (0368, D-061). NO means documents.sql has not been re-run since. Restore: documents.sql (0368)',
-        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.documents') and tgname = 'qms_document_controlled'))
+        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.documents') and tgname = 'qms_document_controlled')),
+    (308, 'record_indoor_visit() is not a signed-in user''s, and the indoor visit columns say the visit is filed at approval', 'No screen calls record_indoor_visit(); it is kept for a repair in the SQL editor and the DC approval files the visit itself. The comments on indoor_jobs.visit_draft / visit_uid / visit_filed_at say the visit is filed when the DC is approved (0370, D-108, D-116). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0370)',
+        (to_regprocedure('public.record_indoor_visit(bigint,text,boolean)') is null
+         or not has_function_privilege('authenticated', to_regprocedure('public.record_indoor_visit(bigint,text,boolean)'), 'EXECUTE'))),
+    (309, 'Deleting a master list value needs that list''s delete key', 'masters_delete asks master.<list>.delete or masters.edit -- not "Add / edit master records" (masters.edit.records), which edits and adds but never deleted on any screen (0371, D-086). NO means masters.sql has not been re-run since. Restore: masters.sql (0371)',
+        exists (select 1 from pg_policy where polrelid = to_regclass('public.masters') and polname = 'masters_delete'
+                 and pg_get_expr(polqual, polrelid) not like '%masters.edit.records%')),
+    (310, 'A User Master entry with a profile or R&R history is not deleted', 'user_directory_keeps_history refuses a signed-in delete of an entry that has a profile or a Roles & Responsibilities period -- set Active to No instead; an entry with neither can still be deleted (0372, D-059). NO means training.sql has not been re-run since. Restore: training.sql (0372)',
+        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.user_directory') and tgname = 'user_directory_keeps_history')),
+    (311, 'A stock transfer or return is not dated into a closed hand-stock period or the future', 'stock_movement_date_open on stock_transfers and material_returns refuses, for a signed-in non-importer, a date on or before the last closed day or after today (0373, D-050). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0373)',
+        (select count(*) from pg_trigger where tgname = 'stock_movement_date_open' and not tgisinternal
+          and tgrelid in (to_regclass('public.stock_transfers'), to_regclass('public.material_returns'))) = 2)
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

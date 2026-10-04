@@ -4295,8 +4295,10 @@ begin
     with check (public.has_perm('masters.edit.records')
              or public.has_perm('master.' || coalesce(name, '') || '.edit'));
 
+  -- masters_delete is 0371_master_list_delete_key's (a list's own delete key,
+  -- or masters.edit -- not "Add / edit master records", D-086).
   create policy masters_delete on public.masters for delete
-    using      (public.has_perm('masters.edit.records')
+    using      (public.has_perm('masters.edit')
              or public.has_perm('master.' || coalesce(name, '') || '.delete'));
 end $$;
 

@@ -803,7 +803,10 @@ const MODULES = {
             // D-143: an Indoor DC is approved by the login its User Master row
             // carries, not a profile with the same name (0367). Redefines
             // 0323's indoor_dc_may_approve(), so after it.
-            '0367_indoor_dc_approver_is_the_login.sql'],
+            '0367_indoor_dc_approver_is_the_login.sql',
+            // D-108 / D-116: record_indoor_visit() is no signed-in user's, and
+            // the visit columns say the visit is filed at approval (0370).
+            '0370_indoor_record_visit_closed_and_comments.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -848,7 +851,10 @@ const MODULES = {
     files: ['0264_people_and_training.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
             // and split keys; see 0286 for the parent rule.
-            '0295_user_profile_details_key.sql'],
+            '0295_user_profile_details_key.sql',
+            // D-059: a User Master entry with a profile or R&R history is not
+            // deleted -- set Active to No instead (0372).
+            '0372_user_master_keeps_history.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -903,7 +909,11 @@ const MODULES = {
             // D-140 / D-058 / D-138: required fields and case-variant codes on
             // the three masters, the KYC verifier kept, a product line named by
             // indoor jobs not deleted (0366). Triggers of its own.
-            '0366_masters_required_kyc_and_line_names.sql'],
+            '0366_masters_required_kyc_and_line_names.sql',
+            // D-086: deleting a list value needs that list's delete key or
+            // masters.edit, not "Add / edit master records" (0371). 0121's tail
+            // mirrors it.
+            '0371_master_list_delete_key.sql'],
   },
   reports: {
     title: 'Reports',
@@ -1026,7 +1036,10 @@ const MODULES = {
             // spare request are filed under your own name, your team's, or
             // anybody's with visit.others / spare.request.others; created_by
             // stamped from the session (0369).
-            '0369_filed_under_own_name_unless_granted.sql'],
+            '0369_filed_under_own_name_unless_granted.sql',
+            // D-050: a transfer or return is not dated into a closed hand-stock
+            // period or the future (0373).
+            '0373_stock_movement_dates.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {

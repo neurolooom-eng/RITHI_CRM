@@ -95,6 +95,7 @@
 --   0360_indoor_approval_skips_a_solved_call.sql
 --   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 --   0367_indoor_dc_approver_is_the_login.sql
+--   0370_indoor_record_visit_closed_and_comments.sql
 --   0355_spare_recycling.sql
 --   0365_spare_recycling_start_sla_mrn.sql
 --   0021_master_lists.sql
@@ -116,6 +117,7 @@
 --   0325_product_line_and_list_add_edit_delete.sql
 --   0326_party_country.sql
 --   0366_masters_required_kyc_and_line_names.sql
+--   0371_master_list_delete_key.sql
 --   0070_documents.sql
 --   0265_qms_document_key.sql
 --   0272_service_note_upload_key.sql
@@ -125,6 +127,7 @@
 --   0368_qms_revision_is_a_new_entry.sql
 --   0264_people_and_training.sql
 --   0295_user_profile_details_key.sql
+--   0372_user_master_keeps_history.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
@@ -275,6 +278,7 @@
 --   0340_spare_request_fixed_once_decided.sql
 --   0335_master_key_changes_only_by_rename.sql
 --   0369_filed_under_own_name_unless_granted.sql
+--   0373_stock_movement_dates.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
 --   0072_ownership_transfer.sql
@@ -5902,8 +5906,10 @@ begin
     with check (public.has_perm('masters.edit.records')
              or public.has_perm('master.' || coalesce(name, '') || '.edit'));
 
+  -- masters_delete is 0371_master_list_delete_key's (a list's own delete key,
+  -- or masters.edit -- not "Add / edit master records", D-086).
   create policy masters_delete on public.masters for delete
-    using      (public.has_perm('masters.edit.records')
+    using      (public.has_perm('masters.edit')
              or public.has_perm('master.' || coalesce(name, '') || '.delete'));
 end $$;
 
@@ -10552,6 +10558,40 @@ revoke execute on function public.indoor_dc_may_approve(text) from anon;
 grant execute on function public.indoor_dc_may_approve(text) to authenticated;
 
 -- ------------------------------------------------------------------------
+-- 0370_indoor_record_visit_closed_and_comments.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0370 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
+--        COLUMNS SAY WHEN THE VISIT IS ACTUALLY FILED
+--        (second re-review D-108, D-116)
+--
+-- D-108 -- 0327 stopped the engineer marking a unit's visit filed, but
+-- record_indoor_visit() stayed executable by authenticated, and no screen calls
+-- it (read: src/ -- only an unused wrapper names it). Measured: the DC's named
+-- approver pointed a repair at a 200-day-old visit with it and approved; the DC
+-- read Approved and nothing of this repair was filed. The approval files the
+-- visit itself (approve_indoor_dc(), 0327), running as its owner, so it does
+-- not need the grant. The function is KEPT for a repair in the SQL editor,
+-- where its own checks still apply.
+--
+-- D-116 -- the column comments 0323 wrote say the visit is filed when the DC is
+-- ISSUED and that create_indoor_dc() requires it; since 0327 the visit is filed
+-- at APPROVAL and create_indoor_dc() asks neither. DATABASE_SCHEMA.md carries
+-- the comments, so it said the same.
+-- In the indoor module, after 0367.
+-- ===========================================================================
+
+revoke execute on function public.record_indoor_visit(bigint, text, boolean) from public, anon, authenticated;
+
+comment on column public.indoor_jobs.visit_draft is
+  'For a job with a UCN: the Visit Entry answers captured with the report upload, a DRAFT. Filed against the UCN when the Indoor DC is APPROVED -- by approve_indoor_dc(), as the approver (0327) -- not when it is issued.';
+comment on column public.indoor_jobs.visit_uid is
+  'The reports row (visit) filed against the UCN from this job''s draft, written by the DC''s approval (0327). Must name a visit of this job''s UCN; no signed-in write may change it.';
+comment on column public.indoor_jobs.visit_filed_at is
+  'When the drafted visit was filed in full -- the visit, its spares and its feedback -- by the DC''s approval (0327). create_indoor_dc() does not ask for it; approve_indoor_dc() files it.';
+
+-- ------------------------------------------------------------------------
 -- 0355_spare_recycling.sql
 -- ------------------------------------------------------------------------
 
@@ -13734,6 +13774,33 @@ create trigger product_line_delete_by_name_guard
   for each row execute function public.product_line_delete_by_name_guard();
 
 -- ------------------------------------------------------------------------
+-- 0371_master_list_delete_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0371 — DELETING A VALUE FROM A MASTER LIST NEEDS THAT LIST'S DELETE KEY,
+--        NOT "ADD / EDIT MASTER RECORDS"
+--        (second re-review D-086)
+--
+-- masters_delete (0290, re-asserted by 0121's tail) admitted
+-- masters.edit.records -- labelled "Add / edit master records (parties, parts,
+-- products, lists)" -- while the list screen offers Delete only to
+-- master.<list>.delete, whose parent is masters.edit. Measured: a role holding
+-- masters.edit.records alone deleted a value (DELETE 1) through the API that no
+-- screen offered it. A key named add / edit does not delete: the policy now
+-- asks the list's own delete key or masters.edit, exactly whom the screen
+-- offers it to. Add and Edit are unchanged in the database; the screen now also
+-- offers Edit to masters.edit.records, as masters_update already admits.
+-- 0121's guarded tail carries the same text (it is checked word for word).
+-- In the masters module, after 0366.
+-- ===========================================================================
+
+drop policy if exists masters_delete on public.masters;
+create policy masters_delete on public.masters for delete
+    using      (public.has_perm('masters.edit')
+             or public.has_perm('master.' || coalesce(name, '') || '.delete'));
+
+-- ------------------------------------------------------------------------
 -- 0070_documents.sql
 -- ------------------------------------------------------------------------
 
@@ -14742,6 +14809,55 @@ AS $function$
                  or (btrim(coalesce(d.gmail, '')) <> '' and lower(d.gmail) = lower(auth.email()))
                  or d.name in (select public.visible_engineer_names()) ));
 $function$;
+
+-- ------------------------------------------------------------------------
+-- 0372_user_master_keeps_history.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0372 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
+--        (second re-review D-059)
+--
+-- 0264 declares user_profile.dir_id and user_rr.dir_id ON DELETE CASCADE, so
+-- deleting a User Master row took the person's profile and every Roles &
+-- Responsibilities period with it -- measured: the row, its R&R periods and
+-- its profile all went -- while the screen's confirmation says "all history
+-- are kept", FRS-093 says nothing in the person's record is deletable and
+-- URS-079 says a new R&R period ends the previous one without deleting it.
+-- (Training attendance and assignments already refuse the delete: their keys
+-- do not cascade.)
+-- A signed-in delete of a row that has a profile or an R&R period is now
+-- refused, saying to mark the person inactive (Active = No) instead; a row with
+-- neither -- an entry made by mistake -- can still be deleted. A connection
+-- with no session (a repair) is not stopped.
+-- In the training module, after 0295.
+-- ===========================================================================
+
+create or replace function public.user_directory_keeps_history()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_what text[] := '{}';
+begin
+  if auth.uid() is null then return old; end if;
+  if to_regclass('public.user_profile') is not null
+     and exists (select 1 from public.user_profile p where p.dir_id = old.id) then
+    v_what := v_what || 'a profile'::text;
+  end if;
+  if to_regclass('public.user_rr') is not null
+     and exists (select 1 from public.user_rr r where r.dir_id = old.id) then
+    v_what := v_what || 'Roles & Responsibilities history'::text;
+  end if;
+  if array_length(v_what, 1) > 0 then
+    raise exception '% has % on the User Master, which is kept: set Active to No instead of deleting the entry',
+      coalesce(nullif(btrim(old.name), ''), 'This person'), array_to_string(v_what, ' and ')
+      using errcode = '23503';
+  end if;
+  return old;
+end $$;
+revoke execute on function public.user_directory_keeps_history() from public, anon, authenticated;
+drop trigger if exists user_directory_keeps_history on public.user_directory;
+create trigger user_directory_keeps_history
+  before delete on public.user_directory
+  for each row execute function public.user_directory_keeps_history();
 
 -- ------------------------------------------------------------------------
 -- 0008_calls_creator_read.sql
@@ -35560,6 +35676,71 @@ begin
     values ('0369_spare_request_others_to_technical_support', 'spare.request.others given to technical_support once');
   end if;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0373_stock_movement_dates.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0373 — A STOCK TRANSFER OR RETURN IS NOT DATED INTO A CLOSED PERIOD OR THE
+--        FUTURE (second re-review D-050)
+--
+-- handstock_movements (0096) dates a transfer by transfer_date and a return by
+-- mrn_date, both typed on the form, and drops every movement dated before
+-- handstock_cutoff() -- right for a movement recorded BEFORE the period was
+-- closed, which the closing figure holds; but a movement recorded AFTER the
+-- close and dated before it is held by neither, so it moves stock that is then
+-- counted nowhere. Nothing refused such a date, nor one in the future.
+-- Now, for a signed-in caller who is not an importer (stock_import_allowed()'s
+-- rule, 0339): a transfer_date or mrn_date on or before the last closed day
+-- (handstock_period.closed_through, which handstock_cutoff() reads) or after
+-- today (India) is refused, on insert and on a change of the date. Imports
+-- load history as it was; with no period closed only the future is refused.
+-- In the handstock module, after 0369.
+-- ===========================================================================
+
+create or replace function public.stock_movement_date_open()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_date  date;
+  v_old   date;
+  v_closed date;
+  v_today date := (now() at time zone 'Asia/Kolkata')::date;
+  v_what  text;
+begin
+  if public.stock_import_allowed() then return new; end if;
+  -- The last closed day, as handstock_cutoff() reads it (its day after is the
+  -- first open one). No row, no period closed.
+  select hp.closed_through into v_closed from public.handstock_period hp limit 1;
+  if tg_table_name = 'stock_transfers' then
+    v_date := new.transfer_date; v_what := 'A stock transfer';
+    if tg_op = 'UPDATE' then v_old := old.transfer_date; end if;
+  else
+    v_date := new.mrn_date; v_what := 'A material return';
+    if tg_op = 'UPDATE' then v_old := old.mrn_date; end if;
+  end if;
+  if v_date is null or (tg_op = 'UPDATE' and v_date is not distinct from v_old) then return new; end if;
+  if v_date > v_today then
+    raise exception '% cannot be dated in the future (%)', v_what, to_char(v_date, 'DD-Mon-YYYY')
+      using errcode = '23514';
+  end if;
+  if v_closed is not null and v_date <= v_closed then
+    raise exception '% cannot be dated % -- hand stock is closed through %, so it would be counted nowhere',
+      v_what, to_char(v_date, 'DD-Mon-YYYY'), to_char(v_closed, 'DD-Mon-YYYY')
+      using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.stock_movement_date_open() from public, anon, authenticated;
+
+drop trigger if exists stock_movement_date_open on public.stock_transfers;
+create trigger stock_movement_date_open
+  before insert or update of transfer_date on public.stock_transfers
+  for each row execute function public.stock_movement_date_open();
+drop trigger if exists stock_movement_date_open on public.material_returns;
+create trigger stock_movement_date_open
+  before insert or update of mrn_date on public.material_returns
+  for each row execute function public.stock_movement_date_open();
 
 -- ------------------------------------------------------------------------
 -- 0036_sales_contracts.sql

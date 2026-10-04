@@ -33,6 +33,7 @@
 --   0325_product_line_and_list_add_edit_delete.sql
 --   0326_party_country.sql
 --   0366_masters_required_kyc_and_line_names.sql
+--   0371_master_list_delete_key.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -2356,5 +2357,32 @@ drop trigger if exists product_line_delete_by_name_guard on public.product_maste
 create trigger product_line_delete_by_name_guard
   before delete on public.product_master
   for each row execute function public.product_line_delete_by_name_guard();
+
+-- ------------------------------------------------------------------------
+-- 0371_master_list_delete_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0371 — DELETING A VALUE FROM A MASTER LIST NEEDS THAT LIST'S DELETE KEY,
+--        NOT "ADD / EDIT MASTER RECORDS"
+--        (second re-review D-086)
+--
+-- masters_delete (0290, re-asserted by 0121's tail) admitted
+-- masters.edit.records -- labelled "Add / edit master records (parties, parts,
+-- products, lists)" -- while the list screen offers Delete only to
+-- master.<list>.delete, whose parent is masters.edit. Measured: a role holding
+-- masters.edit.records alone deleted a value (DELETE 1) through the API that no
+-- screen offered it. A key named add / edit does not delete: the policy now
+-- asks the list's own delete key or masters.edit, exactly whom the screen
+-- offers it to. Add and Edit are unchanged in the database; the screen now also
+-- offers Edit to masters.edit.records, as masters_update already admits.
+-- 0121's guarded tail carries the same text (it is checked word for word).
+-- In the masters module, after 0366.
+-- ===========================================================================
+
+drop policy if exists masters_delete on public.masters;
+create policy masters_delete on public.masters for delete
+    using      (public.has_perm('masters.edit')
+             or public.has_perm('master.' || coalesce(name, '') || '.delete'));
 
 commit;

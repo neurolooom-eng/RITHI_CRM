@@ -148,9 +148,11 @@ insert into public.reports (uid, ucn, call_status, pending_reason, engineer, eng
   '{"Update Visit Work Details?": "Yes"}'::jsonb);
 
 \echo '--- 5. THE VISIT MAY NAME AN ENGINEER WHO IS NOT THE SESSION ---'
+-- Recorded as a repair in the SQL editor would (no signed-in caller may run
+-- record_indoor_visit() since 0370, D-108); the approval is the approver's.
 begin;
-  set local role authenticated;
   select public.record_indoor_visit((select id from public.indoor_jobs where serial = 'D4'), 'VIS-DEL-4', true);
+  set local role authenticated;
   select public.approve_indoor_dc(:'dc4') = :'dc4' as approved;
 commit;
 \echo 'expect: VIS-DEL-4 | filed | Del Field Engineer | del_field@x.com | Approved'
