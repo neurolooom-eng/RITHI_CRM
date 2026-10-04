@@ -10680,7 +10680,11 @@ grant select on public.recycle_consumption_list to authenticated;
 -- stock ISSUED on its MRSs is shown beside it, because issued is not used.
 -- Columns NAMED, never r.*: `*` is expanded at creation, and the system
 -- columns 0244 adds later would make a replay of this bundle a different view.
-create or replace view public.recycle_request_list as
+-- DROPPED FIRST: 0365 appends columns to this view, so a replay of this
+-- bundle would otherwise try to remove them ("cannot drop columns from
+-- view"). Nothing is built on it.
+drop view if exists public.recycle_request_list;
+create view public.recycle_request_list as
 select r.id, r.rcy_no, r.received_on, r.part_code, r.part_description, r.serial, r.qty,
        r.received_from, r.call_ref, r.remarks, r.job_done, r.status,
        r.returned_part_code, r.returned_qty, r.returned_on, r.not_recyclable_reason,
