@@ -100,6 +100,7 @@ export function Declaration() {
         <button className="btn btn-sm" onClick={() => navigate(`/dc/${encodeURIComponent(doc.stockOutNo)}`)}>📄 Challan</button>
         <button className="btn btn-sm btn-primary" onClick={() => window.print()}>🖨 Print</button>
         {!!missing.length && <span className="badge badge-warning">Still to fill in: {missing.join(' · ')}</span>}
+        {!doc.dispatchedBy && <span className="badge badge-warning">This stock out does not record who booked it out, so the sender's name is left blank.</span>}
       </div>
 
       {/* Not printed — what the form needs and the app cannot know. */}
@@ -217,7 +218,9 @@ function DeclarationSheet({ doc, page, input }: { doc: DcDocument; page: DcPage;
         <div className="decl-from">
           <div className="dc-strong">{DECLARATION_FORM.forCompany}</div>
           <div className="dc-sign-space" />
-          <div>{DECLARATION_FORM.senderName}</div>
+          {/* Whoever booked this stock out (0211 stamps it from the session) --
+              never a fixed name. Blank where an old stock out recorded nobody. */}
+          <div>{doc.dispatchedBy}</div>
           <div>{DECLARATION_FORM.senderDept}</div>
         </div>
       </div>

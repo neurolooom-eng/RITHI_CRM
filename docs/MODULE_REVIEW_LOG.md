@@ -161,6 +161,117 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-10-03 — The Declaration named one fixed person; the whole Product Database crashed the browser (v0.10.73, D-155, on the branch, not merged)
+- **Your reports:**
+  - *"In Declaration as part of Stock holds Jagadeesh name, I think it's hard coded -- it has to be updated to the person doing the stock out."*
+  - *"When I load the complete product database the browser is crashing."*
+- **D-155 (v0.10.73):** the Declaration printed `JAGADEESAN C`, written into `src/lib/declaration.ts`, on every sheet.
+  - It now prints the stock out's `dispatched_by`, the same field the Delivery Challan uses, stamped from the session (0211).
+  - An old stock out that recorded nobody leaves the line blank and says so.
+  - Related and still open: D-126 (`dispatched_by` can be rewritten after issue).
+- **The crash:** the shared table drew every loaded row.
+  - **Measured** in Chromium on a production build: 20,000 rows put 320,000 elements on the page, froze it ~19 s and used ~170 MB of script heap.
+  - **I fixed it here by drawing 2,000 rows a page,** but another session fixed the same fault first, and it is on `main` as **D-118 (#523)**: the table draws what can be seen and adds rows as you scroll, and sorting is faster.
+  - **Two mechanisms in one table would fight,** so `main`'s is kept and mine was withdrawn before this merged: its check, its handbook paragraph, its FRS-182 clause and its changelog entry went with it. Nothing of it is on `main`.
+
+### 2026-10-03 — High-rated batch 2: twelve defects from the second re-review fixed (v0.10.72, 0335–0342, on the branch, not merged)
+- **Your ask:** *"Start fixing the High defects. Ensure it doesn't insert any breaking changes. Update the documents / how rithi works / how to RITHI appropriately"*.
+- **How "no breaking change" was made true, not assumed:**
+  - Every fix began by reading the rule's LIVE definition and every app and database path that writes those columns.
+  - The honest paths are named in each migration's header: the importers, the screens, renames, receipts, Change engineer, the follow-the-call refresh, the DCCR upload, and 0324's own deletion.
+  - Where a writer was only ever an importer, the importer keeps the old rule (`bulk.upload` / `import.panel`, or no signed-in user).
+  - Where a client value could only be honest or forged, it is **discarded, not refused** (the 0113/0114 rule): a forged import marker, and an Item Status other than the call's.
+  - **`high_batch_2_test` proves both halves in every section**: the hole is closed AND the honest path beside it still works. 25 refusals, every one labelled. Run on a database WITHOUT 0335–0342, 22 of the 25 expectations go unmet.
+- **Fixed:**
+  - **D-119 (0339):** an import marker is the importer's alone. Anyone else's is dropped before the stock guards read it.
+  - **D-120 (0339):** a recorded transfer is not re-pointed or back-dated.
+  - **D-123 (0339):** a return is the returner's own stock, checked on the name the stock is counted by.
+  - **D-124 (0339):** a lower stock-out quantity or opening balance, or a delete, never leaves an engineer below zero. Both tables are imaged.
+  - **D-121 (0340):** part and quantity are fixed once the RM has decided. This is a trigger of its own; `spare_request_lines_guard` is untouched.
+  - **D-122 (0340):** the engineer moves only by Change engineer. Item Status follows the call; the request type is kept.
+  - **D-128 (0341):** re-open, close, close-again, cancel and restore need sight of the call. The five functions were redefined from their live bodies with one check added.
+  - **D-136 (0335):** a party name, part code and product code change only through a rename.
+  - **D-142 (0336):** a verified, PDT-signed, reported, condemned or report-uploaded Indoor job is not deleted.
+  - **D-127 (0337):** Product Database 2.0's stored copy is closed to the public key.
+  - **D-134 (0338):** three helpers are closed to the public key.
+- **Partly fixed:** D-129 (0342). A review needs a real call the writer can see; reading every review is still open to every signed-in user, because narrowing it changes counts on screens.
+- **Two bugs the suite caught in my own first drafts, both fixed before anything was recorded:**
+  - **The sight check answered NULL, not false, for a call with no creator recorded,** so it waved such calls through. Fixed with `coalesce`, and the reason is written in 0341.
+  - **The Indoor delete counted the empty re-verifier text as "re-verified"** and refused a job received in error. Fixed.
+- **One rule narrowed to keep your decision:** 0324's own suite deletes a job carrying a QC result, checks, parts and an unsigned PDT as a duplicate intake. So none of those is a trace, and that deletion works exactly as before.
+- **Existing suites changed, because what they assumed is now refused:**
+  - `material_returns_test` section 8 loads its imported history with no session.
+  - `admin_keys_grantable_test`'s two reviewer roles now see the call they review.
+  - Both say why in the file.
+- **Not in this batch:**
+  - **D-143** (namesake approval) — FRS-235.3 itself specifies the name match, so it needs your decision.
+  - The rest of the open High defects need a decision, as listed under each.
+- **Documents updated:**
+  - `docs/HOW_TO_USE.md`: calls, spare requests, hand stock, returns, transfers, review, Product and Part Master, Indoor deletion.
+  - How RITHI Functions: hand stock, spares, calls, masters and quality, plus the Spare module schema.
+  - A stale line corrected: the Change engineer "Why" was described as optional; it has been required since 0313.
+  - Eleven requirement texts amended.
+  - OQ-242 added.
+  - `_status.sql` rows 267–274.
+  - DATABASE_SCHEMA.md regenerated.
+- **Merged `main` twice on the way:** #520 took 0331 and v0.10.65, so the stock migration is 0339 and the re-review v0.10.66; then #521 took 0332 and v0.10.66 too, so the spare migration is 0340; then #522 took 0333, OQ-239, row 265 and v0.10.67, so the call migration is 0341; then #523/#524 took D-118, OQ-240, row 266, 0334 and v0.10.69, so the review migration is 0342, every new defect moved up one (D-119 – D-155), the re-review is v0.10.70, this batch v0.10.71, the status rows 267–274 and the test OQ-241; then #525 took v0.10.70 and OQ-241, so the re-review is v0.10.71, this batch v0.10.72, the Declaration v0.10.73 and the test OQ-242.
+
+### 2026-10-03 — Second re-review: every open defect re-checked at `1cdceb0`, and a fresh pass over every module (v0.10.71, on the branch, not merged)
+- **Your ask:** *"Re-review all the modules"*.
+- **Method:** seven readers in parallel, each on its own copy of a database built from all 344 migrations, every write tried as a signed-in user. Two re-checked the 59 open or partly fixed defects; five read every module fresh — Masters, Indoor Service, Cover and sales (including the dealer workflow, #515, and the transferred-machine address, #516), Service Calls with Quality and Overview, and Spares with Reports and Administration.
+- **Every High finding below was reproduced again before it was recorded,** from the readers' own scripts or tests written for the purpose. One claim did not reproduce at first and did on a second look: the dealer re-load refusal fires only for a signed-in user, which is how an upload runs.
+- **The open defects:**
+  - **None is fixed by the merges since the last review,** except the ones that said so: D-098 (0329) and D-109, D-110 (0327) hold as a signed-in user.
+  - **Moved to PARTLY FIXED:**
+    - **D-040:** item 4 never worked. The four call helpers swallow an error, so the "could not be read" banner cannot fire.
+    - **D-086:** Add is right now; Edit and Delete still disagree with the database.
+    - **D-097:** 0328 put Sold Through back. The warranty dates are still cleared.
+    - **D-108:** the engineer can no longer point a repair at an old visit, but the DC's approver still can, through `record_indoor_visit()`.
+    - **D-116:** the handbook is right now; the column comments are not.
+  - **Wider or corrected:** D-018, D-039, D-049, D-053, D-055, D-058, D-059, D-060, D-084, D-085, D-099, D-104 (its Renew half contradicts FRS-220.4 — your decision), D-105, D-107.
+  - **Five requirement texts named old keys and are corrected:** FRS-120.8 and FRS-133.4 (re-open), FRS-180.1, FRS-240.1 and FRS-241.1 (add).
+- **New, 36 defects (D-119 – D-154), the serious ones first:**
+  - **Hand stock can be driven below zero, or created from nothing, by six routes** — the control point CLAUDE.md names:
+    - **D-119:** marking a consumption, transfer or return "imported" skips the limit, and anybody can set the marker. Found by two readers independently.
+    - **D-120:** editing a transfer's header moves stock unchecked.
+    - **D-123:** a return can take another engineer's stock; the policy checks the email and stock is counted by name.
+    - **D-124:** Stores can cut an issued quantity or delete an opening balance, with nothing audited.
+    - **D-125:** consumption can be booked off any engineer's stock.
+  - **Spare approvals can be walked around:**
+    - **D-121:** the requester can change the part and quantity after every approval (measured: approved for 1 × GP-1, booked out 40 × another part).
+    - **D-122:** a plain update moves the engineer and changes the cover, so Commercial is skipped.
+    - **D-126:** the challan's "dispatched by" can be rewritten after issue.
+  - **Calls and quality:**
+    - **D-127:** Product Database 2.0's stored copy is readable with the public web key, without signing in.
+    - **D-128:** an RM can re-open or close calls they cannot see (measured: an Unattended call of another team closed as Solved).
+    - **D-129:** a review can be written on any call, even one that does not exist, and raises a Field Failure Report in the writer's name.
+    - Also: D-130 (searching the review register zeroes its counts), D-131 (visits filed under the UCN alone are missed), D-132 (feedback read takes 12 s), D-133 (Product & Party Search can show another party), D-134 (three helpers callable without signing in), D-135.
+  - **Masters (0325, merged in #513):**
+    - **D-136:** renaming a party, part or product line first lets it be deleted while records name it, and skips the rename carry.
+    - **D-137:** the guard misses Sold Through, Indoor consignees and five other columns.
+    - Also D-138 – D-141.
+  - **Indoor Service:**
+    - **D-142:** a condemned, verified, PDT-signed job can be deleted outright.
+    - **D-143:** anyone sharing the authoriser's name can read and approve a DC. Found by two readers.
+    - Also: D-144 (renaming the authoriser strands their DCs), D-145 (approval silently puts back to Unsolved a call solved since), D-146, D-147.
+  - **The dealer workflow (0328, mine, merged in #515):**
+    - **D-148:** re-loading the Installation Calls register is refused for calls already raised on a dealer.
+    - **D-149:** correcting a transfer leaves a no-sale machine on the old dealer.
+    - **D-150:** "+ Installation call" is offered on every transfer and a second OT- call is not refused.
+    - **D-151:** the screen decides "dealer" from the sale's copy, the database from the Party Master.
+    - Also D-152 – D-154.
+- **Checked and clean:**
+  - 0325's keys each do one thing, and the buttons ask the keys the database asks.
+  - The live project ends up the same as a fresh build after the edits to 0121 and 0286.
+  - 0326's Country fill.
+  - 0327: an issuer cannot approve their own DC, double approval is refused, no Indoor function is open to the web key, and the filed visit and spares pass the visit-first rule and the hand-stock cap.
+  - 0328 → 0329 dropped no rule.
+  - Every spare guard still carries all six rules.
+  - `check:ui`, `check:dberror`, `check:reports`, `check:upserts`, `check:views`, `check:bundles` and `check:generated` pass.
+- **New read-only check for the live project:** `supabase/apply/_review_findings_on_live_data.sql` says, in one grid, whether these holes have already left a mark — negative balances, import markers set by non-uploaders, reviews and Field Failure Reports on calls that do not exist, duplicate installation call numbers, and whether the stored copy is open to the web key.
+- **Needs your decision:** D-104 (Renew against FRS-220.4) and D-143 (FRS-235.3 itself states the name match). Everything else has a stated fix that needs no decision.
+- **Nothing in the code was changed.** The register, five requirement texts, this entry, the live-data check and the version are the whole change.
+
 ### 2026-10-03 — Sold Through is the dealer; the dealer's customer gets the installation call (v0.10.62, 0328)
 - **Carried back and merged at your word** (*"Finish the work and merge it to main and deploy"*), after it had been taken out of the review branch for the dev branch; cherry-picked from `470855d`.
 - **Your explanation:** *"Sold through -- it is to monitor the equipments sold through Dealer. Only party identified as dealer should be listed ... we can not have an installation call for a dealer ... we do a Ownership transfer and then generate an installation call from the ownership transfer entry ... OT-PRODUCT-SERIAL NO"*.

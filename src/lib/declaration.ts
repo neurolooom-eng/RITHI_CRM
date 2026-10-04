@@ -24,7 +24,9 @@ export const DECLARATION_FORM = {
   valueLabel: 'Approximate value for the below list is Rs. ',
   noTransaction: 'This does not involve any financial transaction',
   forCompany: 'FOR AIR LIQUIDE MEDICAL SYSTEMS PVT LTD',
-  senderName: 'JAGADEESAN C',
+  // The sender's NAME is not here: it is whoever booked the stock out
+  // (spare_dispatches.dispatched_by, stamped from the session, 0211), read per
+  // document. A fixed name signed every declaration as one person (D-155).
   senderDept: 'SERVICE STORES',
 } as const;
 
