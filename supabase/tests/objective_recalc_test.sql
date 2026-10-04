@@ -40,7 +40,9 @@ grant select on public.harness to authenticated;
 -- A fleet of 10 machines and 4 calls in January 2026, of which 1 was still open
 -- at the end of January and closed in March. So:
 --   January open rate  = 1/4 = 0.25   (NOT 0/4, which is what "today" would say)
---   failure rate       = 4/10 = 0.4   at any cutoff within 12 months of them
+--   failure rate       = 4/10 = 0.4   all ten installed (warranty start) on
+--                                      1 Dec 2025, the four failures inside
+--                                      their first 3 months (0354's rule)
 -- EVERY fixture this suite makes, cleared before ANYTHING is measured. The
 -- serial-filter rows further down are also January FIELD calls, so on a second
 -- run they would be counted by the open-rate objective above and its figure
@@ -50,13 +52,16 @@ delete from public.reports     where ucn like 'OB-%' or ucn like 'SF-%';
 delete from public.field_calls where ucn like 'OB-%' or ucn like 'SF-%';
 delete from public.products    where party_name in ('OBJ FLEET', 'SF FLEET');
 delete from public.quality_objectives where year = 2026 and (parameter like 'TEST %' or parameter like 'TESTSF %');
-insert into public.products (item_name, serial_number, party_name)
-select 'TESTVENT X1', 'OBJ-' || g, 'OBJ FLEET' from generate_series(1,10) g;
+-- INSTALLED 1 DEC 2025 (warranty start): since 0354 a machine is in the rate
+-- only when it was installed in the rolling window, and a call is a failure
+-- only within 3 months of that.
+insert into public.products (item_name, serial_number, party_name, warranty_start)
+select 'TESTVENT X1', 'OBJ-' || g, 'OBJ FLEET', date '2025-12-01' from generate_series(1,10) g;
 -- Two of them carry a warranty and a contract, so the evidence can be seen to
 -- bring the Product Master ROW across and not merely four columns of it.
 update public.products
    set warranty_number = 'W-' || serial_number,
-       warranty_start = date '2025-06-01', warranty_end = date '2026-05-31',
+       warranty_start = date '2025-12-01', warranty_end = date '2026-11-30',
        contract_number = 'CT-' || serial_number,
        contract_start = date '2026-01-01', contract_end = date '2026-12-31',
        contract_type = 'CMC', item_status = 'CMC'
@@ -98,8 +103,8 @@ select public.objective_value(
 select coalesce(public.objective_value(
   (select id from public.quality_objectives where year=2026 and parameter='TEST open rate'), 2)::text, '(blank)') as feb;
 
-\echo '--- 3. the failure rate is the trailing 12 months over the fleet ---'
-\echo 'expect: 0.400000 — 4 calls, 10 machines'
+\echo '--- 3. the failure rate: machines failed within 3 months of installation, over those installed in 12 months ---'
+\echo 'expect: 0.400000 — 4 failed machines, 10 installed'
 select public.objective_value(
   (select id from public.quality_objectives where year=2026 and parameter='TEST failure rate'), 1) as jan_rate;
 
@@ -181,10 +186,11 @@ delete from public.field_calls where ucn like 'SF-%';
 delete from public.products    where party_name = 'SF FLEET';
 
 -- 4 Indian machines (INXT) and 6 imported (EXTD). 2 Indian failures, 3 imported.
-insert into public.products (item_name, serial_number, party_name)
-select 'EXTEND-XT', 'INXT ' || g, 'SF FLEET' from generate_series(1,4) g;
-insert into public.products (item_name, serial_number, party_name)
-select 'EXTEND-XT', 'EXTD ' || g, 'SF FLEET' from generate_series(1,6) g;
+-- All installed 15 Dec 2025, so every January call is inside its 3 months.
+insert into public.products (item_name, serial_number, party_name, warranty_start)
+select 'EXTEND-XT', 'INXT ' || g, 'SF FLEET', date '2025-12-15' from generate_series(1,4) g;
+insert into public.products (item_name, serial_number, party_name, warranty_start)
+select 'EXTEND-XT', 'EXTD ' || g, 'SF FLEET', date '2025-12-15' from generate_series(1,6) g;
 
 insert into public.field_calls (ucn, call_number, call_type, product_name, serial, reg_date,
                                 complaint_date, party_name, city, state, item_status,
@@ -273,7 +279,7 @@ select serial, status, warranty_number, warranty_start, warranty_end,
     (select id from public.quality_objectives where year=2026 and parameter='TEST failure rate'), 1)
  where role = 'machine' and serial in ('OBJ-1', 'OBJ-2') order by serial;
 
-\echo 'expect: 10 — the untouched eight come through too, blank rather than absent'
+\echo 'expect: 10 — the other eight come through too, warranty and contract numbers blank rather than absent'
 select count(*) from public.objective_evidence(
     (select id from public.quality_objectives where year=2026 and parameter='TEST failure rate'), 1)
  where role = 'machine';

@@ -49,6 +49,7 @@ import { CallReview } from './modules/CallReview';
 import { FieldFailureReport } from './modules/FieldFailureReport';
 import { KpiAnalytics } from './modules/KpiAnalytics';
 import { Objective } from './modules/Objective';
+import { SlaObjectiveConfig } from './modules/SlaObjectiveConfig';
 import { MachineHistory } from './modules/MachineHistory';
 import { PartSearch } from './modules/PartSearch';
 import { SolvedWithoutReport } from './modules/SolvedWithoutReport';
@@ -276,6 +277,7 @@ function Shell() {
         <Route path="/pm-bulk-upload" element={<PmBulkUpload />} />
         <Route path="/software-validation" element={<SoftwareValidation />} />
         <Route path="/admin-config" element={<AdminConfig />} />
+        <Route path="/sla-objective-config" element={<SlaObjectiveConfig />} />
         <Route path="/roles" element={<RolePermissions />} />
         <Route path="/audit" element={<AuditLog />} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -295,6 +295,9 @@ export const NAV: NavGroup[] = [
       { to: '/device-cache', label: 'Device Cache Status', icon: '📶', adminOnly: true },
       { to: '/pm-bulk-upload', label: 'PM Bulk Upload', icon: '⬆️', adminOnly: true },
       { to: '/admin-config', label: 'Admin Config', icon: '🛠️', adminOnly: true },
+      // THE SERVICE'S TARGETS (the user, 2026-10-04): SLA hours and the
+      // Product Failure rule, beside Admin Config which they came from.
+      { to: '/sla-objective-config', label: 'SLA / Objective Configuration', icon: '🎯', adminOnly: true },
       { to: '/software-validation', label: 'Software Validation', icon: '🧪', adminOnly: true },
       { to: '/settings', label: 'Settings', icon: '⚙️', adminOnly: true },
       { to: '/version-history', label: 'Version History', icon: '🗂️' },

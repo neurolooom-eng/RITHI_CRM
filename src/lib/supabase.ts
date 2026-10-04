@@ -5635,6 +5635,30 @@ export async function saveSlaRule(key: string, patch: { target_hours?: number; a
   return { ok: true };
 }
 
+// THE PRODUCT FAILURE RULE'S TWO NUMBERS (0357): a field call within
+// `failure_window_months` of installation (warranty start) is a failure, over
+// the machines installed in the `failure_rolling_months` to the cut-off.
+// Edited on Admin -> SLA / Objective Configuration; objective_value() reads them.
+export interface ObjectiveSettingRow {
+  key: string; label: string; value: number; unit: string; sort_order: number;
+  updated_at?: string | null;
+}
+export async function listObjectiveSettings(): Promise<ObjectiveSettingRow[]> {
+  const { data, error } = await must().from('objective_settings')
+    .select('key, label, value, unit, sort_order, updated_at').order('sort_order');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as ObjectiveSettingRow[];
+}
+export async function saveObjectiveSetting(key: string, value: number): Promise<{ ok: boolean; error?: string }> {
+  // Rows counted, as saveSlaRule does: a refused UPDATE matches nothing and is
+  // not an error.
+  const { data, error } = await must().from('objective_settings').update({ value }).eq('key', key).select('key');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0)
+    return { ok: false, error: 'Not saved — your role cannot change the objective rules (it needs “Edit, recalculate and cut off the quality objectives”).' };
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // WHOSE DESK A CALL IS REGISTERED TO (0114).
 //
