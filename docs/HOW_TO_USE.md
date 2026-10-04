@@ -1308,7 +1308,10 @@ typed into a form that reads it.
     **Ready** (after the QC Pass for a Repair, Rework or Troubleshooting);
     Unsolved with spares not available → **Awaiting spares**; other Unsolved →
     **Under repair**. A Demo / new device keeps its Status box.
-  1. **Intake** — **Receive equipment** opens the intake form. A **Field
+  1. **Intake** — **Receive equipment** opens the intake form, with three
+     options: **Field Return**, **Demo** and **New Device** (Demo → activity
+     Demo; New Device → Troubleshooting, its own kind, its own **New Devices**
+     register sheet, sent on the DC to where it is going). A **Field
      Return** (a unit that came in on a call) is always a **Troubleshooting**
      job — it follows the Repair rule, so it cannot leave until its quality
      check is recorded. The **Identification tag** is **Yes, Identified** or

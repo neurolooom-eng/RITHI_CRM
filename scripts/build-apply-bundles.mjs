@@ -798,7 +798,10 @@ const MODULES = {
             // The job's Call Status / Call Pending Reason (2026-10-04): the
             // visit files with them and the job's status is derived from them.
             // Re-states 0370's guard and 0327's approve_indoor_dc, so AFTER both.
-            '0372_indoor_call_status.sql'],
+            '0372_indoor_call_status.sql',
+            // "New device" as its own kind (2026-10-04); re-states 0327's
+            // create_indoor_dc(), so after it.
+            '0374_indoor_new_device_kind.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',

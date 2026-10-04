@@ -266,7 +266,8 @@ export function IndoorService() {
       // A DEMO unit is marked because the custody duties do NOT apply to it
       // -- the distinction the procedure gives a different tag (4.5.5).
       render: (j) => (j.kind === 'DEMO unit'
-        ? <span className="ind-demo">DEMO</span> : <span className="ind-cust">Customer</span>) },
+        ? <span className="ind-demo">DEMO</span>
+        : j.kind === 'New device' ? <span className="ind-demo">NEW DEVICE</span> : <span className="ind-cust">Customer</span>) },
     { key: 'activity', header: 'Activity', width: 120, accessor: (j) => j.activity },
     { key: 'product_name', header: 'Product', width: 140, accessor: (j) => j.product_name },
     { key: 'serial', header: 'Serial', width: 130, accessor: (j) => j.serial,
@@ -326,7 +327,7 @@ export function IndoorService() {
     // REFUSED HERE AS csvExport REFUSES: xlsxDownload does not test the export
     // permission itself (D-018), so the screen must.
     if (!mayExport || !canExportData()) { setMsg('Exporting / downloading data is not permitted for your role.'); return; }
-    const sheets = (['customer', 'demo'] as RegisterSheet[]).map((k) => ({
+    const sheets = (['customer', 'demo', 'newdevice'] as RegisterSheet[]).map((k) => ({
       name: REGISTER_SHEETS[k].xlsxName,
       columns: [...REGISTER_COLUMNS],
       rows: registerJobs(jobs, k, from, to).map((j, i) => {
@@ -446,10 +447,14 @@ export function IndoorService() {
               <input type="radio" checked={sheet === 'demo'} onChange={() => setSheet('demo')} />
               Demo
             </label>
+            <label className="ind-toggle">
+              <input type="radio" checked={sheet === 'newdevice'} onChange={() => setSheet('newdevice')} />
+              New Devices
+            </label>
             <label className="ind-toggle">Incoming from <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
             <label className="ind-toggle">to <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
             {mayExport ? <>
-              <button className="btn" onClick={downloadRegister}>⭳ Excel (both sheets)</button>
+              <button className="btn" onClick={downloadRegister}>⭳ Excel (all sheets)</button>
               <button className="btn" onClick={printRegister}>🖨 Print this sheet</button>
             </> : null}
           </div>
@@ -901,7 +906,7 @@ function IndoorJobDrawer({
   // A job turned into a DEMO unit with no engineer named gets the paper's own
   // entry: the Demo sheet of R/SER/07 reads "Indoor Service" in Engineer Name.
   const set = (p: Partial<IndoorJob>) => void patch(job.id,
-    p.kind === 'DEMO unit' && !job.engineer_name?.trim() ? { ...p, engineer_name: 'Indoor Service' } : p);
+    (p.kind === 'DEMO unit' || p.kind === 'New device') && !job.engineer_name?.trim() ? { ...p, engineer_name: 'Indoor Service' } : p);
 
   // THE SEGREGATION WARNING (4.5.6). Not a block — the procedure does not say
   // the check must be somebody else's, so the register records both names and

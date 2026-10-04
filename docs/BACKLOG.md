@@ -78,6 +78,16 @@ up)_
 
 ---
 
+## 2026-10-04 — Indoor intake: Field Return / Demo / New Device (0374, v0.10.95)
+
+- Intake split three ways (`INTAKE_MODES`), each fixing kind + activity: Field
+  Return = Customer property / Troubleshooting, Demo = DEMO unit / Demo, New
+  Device = New device / Troubleshooting (the user's answers). 0374 admits the
+  kind and makes `create_indoor_dc()` consign it like a DEMO unit; the client
+  `jobConsignee()` matches. R/SER/07 gains a New Devices sheet. The PDT
+  (R/SER/QC/007) rule stays the DEMO unit's. `_status.sql` row 307;
+  `indoor_call_status_test` §9; FRS-232.14.
+
 ## 2026-10-04 — Indoor job: Call Status / Pending Reason replace the job Status; MIRN off the DC form (0372, v0.10.93)
 
 - User's answers: one value (the job's choice IS the visit's), the job status

@@ -60,3 +60,12 @@ select 'job choice, and the old fixed values for a job with none',
        (select (call_status, pending_reason) = ('Unsolved', 'SPARES NOT AVAILABLE') from public.indoor_visit_status('Unsolved', 'SPARES NOT AVAILABLE'))
    and (select (call_status, pending_reason) = ('Unsolved', 'Return to Field') from public.indoor_visit_status('', ''))
    and (select (call_status, pending_reason) = ('Solved - Report Completed', '') from public.indoor_visit_status('Solved - Report Completed', 'X')) as ok;
+
+\echo '--- 9. NEW DEVICE IS ITS OWN KIND (0374), CONSIGNED WHERE IT IS GOING ---'
+insert into public.indoor_jobs (kind, activity, product_name, serial, demo_for_party, status)
+values ('New device', 'Troubleshooting', 'CS NEW', 'CS5', 'CS DEALER', 'Received');
+select 'a New device job is accepted' as t,
+       exists (select 1 from public.indoor_jobs where serial = 'CS5' and kind = 'New device') as ok;
+\echo 'expect ERROR: violates check constraint indoor_jobs_kind_check'
+insert into public.indoor_jobs (kind, activity, product_name, serial, status)
+values ('Loan', 'Demo', 'CS X', 'CS6', 'Received');

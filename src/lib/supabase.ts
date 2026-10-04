@@ -5793,7 +5793,8 @@ export async function saveValidationResult(testId: string, patch: { result?: str
 // unit is, which turns the custody duties of §7.5.10 on or off; `activity` says
 // what is being done to it. A DEMO unit in for repair is still a DEMO unit.
 // ===========================================================================
-export const INDOOR_KINDS = ['Customer property', 'DEMO unit'] as const;
+// 'New device' (0374): its own kind, split from DEMO on the intake.
+export const INDOOR_KINDS = ['Customer property', 'DEMO unit', 'New device'] as const;
 export const INDOOR_ACTIVITIES = [
   // Troubleshooting (0370): what a Field Return is, held to the Repair rule.
   'Repair', 'Rework', 'Troubleshooting', 'Salvage', 'Pre-delivery inspection', 'Demo', 'Other',

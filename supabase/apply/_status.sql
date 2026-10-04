@@ -2026,7 +2026,12 @@ with checks(sort_order, bundle, provides, present) as (
         (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'indoor_jobs' and column_name = 'call_pending_reason')
      and exists (select 1 from pg_trigger where tgname = 'zy_indoor_jobs_call_status' and not tgisinternal)
      and coalesce((select p.prosrc like '%indoor_visit_status%' from pg_proc p where p.oid = to_regprocedure('public.approve_indoor_dc(text,boolean)')), false)
-     and coalesce((select p.prosrc like '%indoor_visit_status%' from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false)))
+     and coalesce((select p.prosrc like '%indoor_visit_status%' from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false))),
+    (307, 'Indoor Service: New device is its own kind', 'Asked for 2026-10-04. indoor_jobs_kind_check admits New device, and create_indoor_dc() consigns it, like a DEMO unit, to the party it is going to (0374). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0374)',
+        (coalesce((select pg_get_constraintdef(c.oid) like '%New device%' from pg_constraint c
+                    where c.conrelid = to_regclass('public.indoor_jobs') and c.conname = 'indoor_jobs_kind_check'), false)
+     and coalesce((select p.prosrc like '%''New device''%' from pg_proc p
+                    where p.oid = to_regprocedure('public.create_indoor_dc(bigint[],text,text,date,text,text,jsonb,text)')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
