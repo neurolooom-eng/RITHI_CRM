@@ -10,7 +10,7 @@ import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod, todayLocal } from '../src/lib/dates';
-import { configFor, contractStatusText, yearsHint, proposeConversion, conversionHeader, conversionItem } from '../src/lib/cover';
+import { configFor, contractStatusText, yearsHint, proposeConversion, conversionHeader, conversionItem, headerChanges, withSavedMachine } from '../src/lib/cover';
 import { localIsoDate, formatDayTime, excelSerial, hasClockTime } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
@@ -1668,7 +1668,8 @@ console.log('\n-- the evidence workbook --');
     eq('...says the user\'s sentence beside a machine it leaves out',
       /\{TRANSFERRED_AWAY\}/.test(cov), true);
     eq('...and cannot create the contract until the check has answered',
-      /disabled=\{busy \|\| checking \|\| !!awayErr \|\| !machines\.length\}/.test(cov), true);
+      // `|| !!blocked` since D-100: nor while the entry holds an unsaved change.
+      /disabled=\{busy \|\| checking \|\| !!awayErr \|\| !machines\.length \|\| !!blocked\}/.test(cov), true);
     {
       const cl = readFileSync(`${process.cwd()}/src/lib/cover.ts`, 'utf8');
       eq('...and the write asks again, so a draft cannot carry one past it',
@@ -8724,6 +8725,9 @@ console.log('\n-- an installation call is raised the same way from either place 
     && /kind === 'sale' && isDealerParty\(r\.party_name, dealers\) && !isCallNumber\(r\.inst_call\)/.test(cr)
     && /&& !isDealerParty\(r\.party_name, dealers\);/.test(cr)
     && /if \(isDealerParty\(header\.party_name, await dealerParties\(\)\)\) return \{ created: \[\], error: DEALER_NO_INSTALL \};/.test(code(readFileSync('src/lib/cover.ts', 'utf8'))), true);
+  eq('D-052: Stock Transfer says stock comes from DISPATCH, not an acknowledged receipt',
+    /acknowledged receiving/.test(code(readFileSync('src/modules/StockTransfer.tsx', 'utf8'))) === false
+    && /DISPATCHED to them/.test(readFileSync('src/modules/StockTransfer.tsx', 'utf8')), true);
   eq('D-151: no dealer test reads the sale\'s own Type any more',
     /isDealerType\(/.test(cr + code(readFileSync('src/lib/cover.ts', 'utf8'))), false);
   {
@@ -10213,6 +10217,51 @@ console.log('\n-- a big register draws what can be seen (D-118, 2026-10-04) --')
   eq('...more is drawn as the end comes within reach', /new IntersectionObserver\(/.test(dt) && /setDrawLimit\(\(l\) => l \+ ROW_STEP\)/.test(dt), true);
   eq('...the footer still counts every row', /\{sortedRows\.length\} row/.test(dt), true);
   eq('...and the sort compares with one collator', /new Intl\.Collator\(/.test(dt) && !/localeCompare\(String\(bv\)/.test(dt), true);
+}
+
+console.log('\n-- the cover pop-up and the additional entry (D-099, D-100, D-106, D-054, 2026-10-04) --');
+{
+  const cr = code(readFileSync('src/modules/CoverRegister.tsx', 'utf8'));
+  // D-099: a machine added with + Add machine has no id until it is saved, so
+  // replacing it BY ID never found it and the card stayed "unsaved".
+  const fresh = { sa_number: 'SA1' };
+  const kept = { id: 1, sa_number: 'SA1', serial_number: 'A' };
+  eq('D-099: a machine just added is replaced by its saved row, not left beside it',
+    withSavedMachine([kept, fresh], fresh, { id: 2, serial_number: 'B' }).map((r) => r.id), [1, 2]);
+  eq('...a saved machine is still found by its id after the list was re-read',
+    withSavedMachine([{ id: 1, rate: 1 }], { id: 1 }, { id: 1, rate: 2 }), [{ id: 1, rate: 2 }]);
+  eq('...and the card hands back its own line, and the bar says Save machine',
+    /onSaved=\{\(r\) => setItems\(\(cur\) => withSavedMachine\(cur, it, r\)\)\}/.test(cr)
+      && !/Press Save entry first/.test(cr) && /Press Save machine on the new line/.test(cr), true);
+  // D-100: Renew and Convert work from the SAVED entry and close through the
+  // unsaved-changes check, never by setOpen(null) directly.
+  const panels = cr.slice(cr.indexOf('const unsavedEntry = entryDirty'), cr.indexOf('const machineList = open'));
+  eq('D-100: Renew and Convert are given the entry as saved, not the draft',
+    /<ConvertPanel sale=\{open\}/.test(panels) && /header=\{open\}/.test(panels) && !/=\{draft\}/.test(panels), true);
+  eq('...cannot be opened, or create anything, over unsaved changes',
+    (panels.match(/disabled=\{loadingItems \|\| !!unsavedEntry\}/g) ?? []).length === 2
+      && (panels.match(/blocked=\{unsavedEntry\}/g) ?? []).length === 2, true);
+  eq('...and on success close through closeEntry, which asks first',
+    (panels.match(/closeRef\.current\(\)/g) ?? []).length === 2 && !/setOpen\(null\)/.test(panels), true);
+  // D-106: an UPDATE of an entry sends only what this screen changed.
+  const loaded = { id: 7, sa_number: 'SA7', party_name: 'APOLLO', invoice_no: 'INV-1', item_count: 3 };
+  eq('D-106: only the fields that differ from what was loaded are written',
+    headerChanges('sale', { ...loaded, invoice_no: 'INV-2', item_count: 4 }, loaded), { invoice_no: 'INV-2' });
+  eq('...a cleared box is a change, and null is the same as absent',
+    headerChanges('sale', { ...loaded, party_name: null, remarks: null }, loaded), { party_name: null });
+  eq('...and the Save entry button passes the entry as loaded',
+    /saveHeader\(kind, toSave, open \?\? undefined\)/.test(cr), true);
+  // D-054: 0185 keyed the table on machine_key (model + serial); the screen
+  // upserted on the serial alone and every save was refused.
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+  const sae = sb.slice(sb.indexOf('export async function saveAdditionalEntry'), sb.indexOf('\nexport ', sb.indexOf('export async function saveAdditionalEntry') + 10));
+  eq('D-054: an additional entry upserts on machine_key, never the serial alone',
+    /onConflict: 'machine_key'/.test(sae) && !/onConflict: 'serial_number'/.test(sae), true);
+  eq('...never sends the generated machine_key, and refuses a blank model',
+    !/machine_key:/.test(code(sae)) && /if \(!item_name\) return \{ ok: false/.test(sae), true);
+  const ot = code(readFileSync('src/modules/OwnershipTransfer.tsx', 'utf8'));
+  eq('...and the form asks for the model, from the Product Database, before the serial',
+    /label="Machine model \*"/.test(ot) && /sbListProductNames\(\)/.test(ot) && /sbListProductSerials\(entryModel\)/.test(ot), true);
 }
 
 console.log('\n-- every requirement carries a version and a date (Rev 3.2, 2026-10-03) --');

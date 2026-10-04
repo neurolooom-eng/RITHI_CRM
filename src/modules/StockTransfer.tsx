@@ -162,8 +162,9 @@ function TransferDrawer({
 
           {nothingToSend && (
             <div className="muted" style={{ fontSize: 13 }}>
-              <b>{from}</b> is not holding any stock. Stock comes from a HandStock spare
-              request they have acknowledged receiving, less what they have consumed.
+              <b>{from}</b> is not holding any stock. Stock is what has been DISPATCHED to them
+              (on any spare request), opening stock and transfers to them, less what they have
+              consumed, transferred or returned — acknowledging receipt does not change it.
             </div>
           )}
 

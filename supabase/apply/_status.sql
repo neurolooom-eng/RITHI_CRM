@@ -2041,7 +2041,17 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regprocedure('public.recycle_sla_due(timestamptz)') is not null
      and to_regprocedure('public.register_recycle_requests(text,text,text,integer,date,text,text,text,text)') is not null
      and to_regprocedure('public.recycle_mrn_lines(text,integer)') is not null
-     and coalesce((select p.prosrc like '%recycle_start%' from pg_proc p where p.oid = to_regprocedure('public.recycle_requests_guard()')), false)))
+     and coalesce((select p.prosrc like '%recycle_start%' from pg_proc p where p.oid = to_regprocedure('public.recycle_requests_guard()')), false))),
+    (300, 'The masters keep their own rules: required fields, one spelling of a code, the KYC verifier, a product line indoor jobs name', 'master_required_fields on parties, parts and product_master refuses a new party with no name, city or state, a part with no code or description, a product line with no code or name, blanking any of them, and a code that differs from an existing one only in case or spaces; parties_kyc_stamp_kept keeps the KYC verifier when the status is unchanged; product_line_delete_by_name_guard refuses deleting a line indoor jobs name by product name. Imports are not stopped (0366, D-140, D-058, D-138). NO means masters.sql has not been re-run since. Restore: masters.sql (0366)',
+        ((select count(*) from pg_trigger where tgname = 'master_required_fields' and not tgisinternal
+           and tgrelid in (to_regclass('public.parties'), to_regclass('public.parts'), to_regclass('public.product_master'))) = 3
+         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.parties') and tgname = 'parties_kyc_stamp_kept')
+         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.product_master') and tgname = 'product_line_delete_by_name_guard')
+         and to_regprocedure('public.product_line_name_uses(text,text)') is not null)),
+    (301, 'An Indoor DC is approved by the login its User Master row carries', 'indoor_dc_may_approve() accepts the login whose sign-in address is the Mail ID or Gmail of a User Master row with the Authorised By name, and a profile name only where no such row carries an address -- another login with the same profile name is refused (0367, D-143). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0367)',
+        coalesce((select p.prosrc like '%d.gmail%' from pg_proc p where p.oid = to_regprocedure('public.indoor_dc_may_approve(text)')), false)),
+    (302, 'A QMS document''s revision is a new entry, and a QMS document is retired, never deleted', 'qms_document_controlled on documents: a new QMS document needs its number, revision and effective date; once recorded, number, revision, effective date and file are fixed; a QMS document is not deleted or moved off the QMS shelf. Service manuals and notes, and imports, are untouched (0368, D-061). NO means documents.sql has not been re-run since. Restore: documents.sql (0368)',
+        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.documents') and tgname = 'qms_document_controlled'))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

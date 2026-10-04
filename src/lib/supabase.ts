@@ -4851,11 +4851,26 @@ export async function listAdditionalEntries(serial = ''): Promise<AdditionalEntr
     return q.range(a, b);
   }, 20000);
 }
-// Upserts on the machine: a second entry for a serial is a CORRECTION of the
+// Upserts on the machine: a second entry for a machine is a CORRECTION of the
 // first, not another record.
+//
+// THE MACHINE IS ITS MODEL AND ITS SERIAL (D-054). This upserted on
+// `serial_number`, and 0185 dropped the serial-only key for `machine_key` --
+// lower(btrim(item_name)) || '|' || lower(btrim(serial_number)), GENERATED and
+// STORED, unique -- so every save from the screen was refused with "no unique
+// or exclusion constraint matching the ON CONFLICT specification". It now
+// names the key the bulk load uses. `machine_key` itself is never sent: a
+// generated column refuses a value, and Postgres works it out from the two
+// columns that are. Both are required, because a blank model is half a key --
+// it would make every machine sharing that serial the same row.
 export async function saveAdditionalEntry(e: Partial<AdditionalEntry>): Promise<{ ok: boolean; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
-  const { error } = await c.from('product_additional_entries').upsert(e, { onConflict: 'serial_number' });
+  const item_name = String(e.item_name ?? '').trim();
+  const serial_number = String(e.serial_number ?? '').trim();
+  if (!item_name) return { ok: false, error: 'Give the machine model — a serial alone does not name one machine.' };
+  if (!serial_number) return { ok: false, error: 'Give the machine serial number.' };
+  const { error } = await c.from('product_additional_entries')
+    .upsert({ ...e, item_name, serial_number }, { onConflict: 'machine_key' });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 

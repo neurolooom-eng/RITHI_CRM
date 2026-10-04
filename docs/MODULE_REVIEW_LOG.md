@@ -161,6 +161,22 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-10-04 — Review batch 5: ten defects fixed (v0.10.90, 0366–0368)
+- **Your ask:** *"Next batch"*. I took the open defects that need no decision.
+- **Database:**
+  - **D-140, D-058, D-138 (0366):** the masters' required fields and case-variant codes; the KYC verifier kept when the status is unchanged (the rename half was already closed by 0335); a product line that Indoor jobs name is not deleted, and `product_line_name_uses()` backs the rename warning. These are triggers, not a unique index, so the migration cannot fail on a pair the live data already holds.
+  - **D-143 (0367):** the Indoor DC approver is the login whose User Master row of that name carries their address. A profile name counts only where no such row has an address.
+  - **D-061 (0368):** a QMS document's number, revision, effective date and file are fixed once recorded; it is retired, never deleted.
+- **Screens:**
+  - **D-054:** the Additional Entry asks for the model and saves on model + serial.
+  - **D-099, D-100, D-106:** cover entries, done by a helper agent and reviewed: a saved machine replaces its own line; Renew and Convert use the saved entry; a save sends only the changed fields.
+  - **D-052:** Stock Transfer wording.
+  - The QMS form shows its fixed fields read-only; the product-line rename asks first.
+- **Sent to you, not built:**
+  - **D-102:** the mapping's own test says the WI- number wins over the call's serial.
+  - **D-107:** a real fix means only an issued Indoor DC can send a unit out.
+- **Checked:** `review_batch_5_test` is clean with the migrations. On a database built without 0366–0368, every section fails. `_status.sql` rows 300–302; OQ-252.
+
 ### 2026-10-04 — Your decisions built: ten defects (v0.10.89, 0359–0363)
 - **Your answers**, one question at a time: D-125 (own name, team for RM/RGM, anybody else by a key ticked per person; spare requests also Technical Support), D-145 (approve, skip that visit), D-149 (blank only if a transfer set it), D-150 (button only on dealer transfers; the database refuses a duplicate call number and a second installation call), D-151 (Party Master decides), D-152 (just flag it for now), D-154 (at the Call Request), D-111 (lock once signed; a new key to un-sign), D-112 (the date it is marked Dispatched), D-114 (allow an earlier time).
 - **Database:**

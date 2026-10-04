@@ -7,10 +7,11 @@ import { useAuth } from '../lib/auth';
 import { fmtLongDate, todayISO } from '../lib/format';
 // dd-MMM-yyyy at rest, the native picker while editing (FRS-089.1, D-064).
 import { LongDateInput } from '../components/ui/LongDate';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import {
   listOwnershipTransfers, addOwnershipTransfer, listAdditionalEntries, saveAdditionalEntry,
   supabaseConfigured, type OwnershipTransfer as OT, type AdditionalEntry as AE,
-  addCall, sbPartyInfo, installCallByNumber, machineCover,
+  addCall, sbPartyInfo, installCallByNumber, machineCover, sbListProductNames, sbListProductSerials,
 } from '../lib/supabase';
 import { installCallFromTransfer, transferCallNumber } from '../lib/coverspec';
 
@@ -32,6 +33,19 @@ import { installCallFromTransfer, transferCallNumber } from '../lib/coverspec';
 // ===========================================================================
 
 type Tab = 'transfers' | 'entries';
+
+// ONE FIELD OF A DRAWER FORM. Declared HERE, outside the screen: declared
+// inside it, it was a new component on every render, so React threw the input
+// away with each keystroke and the box lost focus after one character.
+function F({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+  return (
+    <label className="field">
+      <span className="field-label">{label}</span>
+      {children}
+      {hint && <span className="muted" style={{ fontSize: 12 }}>{hint}</span>}
+    </label>
+  );
+}
 
 export function OwnershipTransfer() {
   const { user, can } = useAuth();
@@ -93,14 +107,39 @@ export function OwnershipTransfer() {
     await load();
   };
 
+  // THE MODEL, THEN ITS SERIAL (D-054). An additional entry is keyed on the
+  // machine -- model and serial, `machine_key` (0185) -- so the form asks for
+  // both, in that order, the way Machine History does: the models the Product
+  // Database holds, then that model's serials. Read when the drawer opens.
+  const [models, setModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [serials, setSerials] = useState<string[]>([]);
+  const entryOpen = !!entryForm;
+  useEffect(() => {
+    if (!entryOpen || !live || models.length) return;
+    setModelsLoading(true);
+    void sbListProductNames().then((p) => setModels(p.map((x) => x.name)))
+      .catch(() => setModels([])).finally(() => setModelsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entryOpen, live]);
+  const entryModel = entryForm?.item_name ?? '';
+  useEffect(() => {
+    setSerials([]);
+    if (!live || !entryModel) return;
+    let on = true;
+    void sbListProductSerials(entryModel).then((s) => { if (on) setSerials(s); }).catch(() => { /* typed instead */ });
+    return () => { on = false; };
+  }, [entryModel, live]);
+
   const saveEntry = async () => {
-    if (!entryForm?.serial_number?.trim()) { setMsg({ tone: 'error', text: 'Give the machine serial number.' }); return; }
+    if (!entryForm?.item_name?.trim()) { setMsg({ tone: 'error', text: 'Choose the machine model — a serial alone does not name one machine.' }); return; }
+    if (!entryForm.serial_number?.trim()) { setMsg({ tone: 'error', text: 'Give the machine serial number.' }); return; }
     setBusy(true);
     const res = await saveAdditionalEntry({ ...entryForm, recorded_by_name: user?.fullName || user?.email || '' });
     setBusy(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not save the entry.' }); return; }
     setEntryForm(null);
-    setMsg({ tone: 'ok', text: `Recorded for ${entryForm.serial_number}. It shows in Product Database unless a real Sale Entry exists for that machine.` });
+    setMsg({ tone: 'ok', text: `Recorded for ${entryForm.item_name} ${entryForm.serial_number}. It shows in Product Database unless a real Sale Entry exists for that machine.` });
     await load();
   };
 
@@ -167,14 +206,6 @@ export function OwnershipTransfer() {
     { key: 'source_note', header: 'Where it came from', width: 240 },
     { key: 'recorded_by_name', header: 'Recorded By', width: 150 },
   ];
-
-  const F = ({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) => (
-    <label className="field">
-      <span className="field-label">{label}</span>
-      {children}
-      {hint && <span className="muted" style={{ fontSize: 12 }}>{hint}</span>}
-    </label>
-  );
 
   return (
     <div>
@@ -257,8 +288,24 @@ export function OwnershipTransfer() {
       <Drawer open={!!entryForm} onClose={() => setEntryForm(null)} title="Additional entry details">
         {entryForm && (
           <div className="rep-form">
-            <F label="Machine serial number *" hint="One entry per machine — saving again corrects the existing one.">
-              <input className="input" value={entryForm.serial_number ?? ''} onChange={(e) => setEntryForm({ ...entryForm, serial_number: e.target.value })} />
+            {/* NO FREE TEXT ON THE MODEL: it is half the key, and a model
+                typed differently is a different machine. A NEW MODEL CLEARS
+                THE SERIAL, so a serial of another model is not left behind. */}
+            <F label="Machine model *" hint="One entry per machine — the model and the serial together. Saving again corrects the existing one.">
+              <SelectPicker value={entryForm.item_name ?? ''} options={models} loading={modelsLoading}
+                placeholder="— choose the model —"
+                emptyHint="Models come from the Product Database."
+                onChange={(v) => setEntryForm((f) => (f && f.item_name !== v ? { ...f, item_name: v, serial_number: '' } : f))} />
+            </F>
+            {/* FREE TEXT ALLOWED ON THE SERIAL: this register exists for
+                machines whose paperwork was lost, which may not be on the
+                Product Database yet. */}
+            <F label="Machine serial number *">
+              <SelectPicker value={entryForm.serial_number ?? ''} options={serials} allowFreeText
+                disabled={!entryForm.item_name}
+                placeholder={entryForm.item_name ? '— find the serial —' : 'Choose the model first'}
+                emptyHint="Serials of this model on the Product Database. A serial not on it can be typed."
+                onChange={(v) => setEntryForm((f) => (f ? { ...f, serial_number: v } : f))} />
             </F>
             <F label="Warranty / invoice number"><input className="input" value={entryForm.warranty_number ?? ''} onChange={(e) => setEntryForm({ ...entryForm, warranty_number: e.target.value })} /></F>
             <F label="Warranty start"><LongDateInput value={entryForm.warranty_start ?? ''} onChange={(v) => setEntryForm({ ...entryForm, warranty_start: v })} /></F>

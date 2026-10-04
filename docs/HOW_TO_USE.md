@@ -682,7 +682,11 @@ written as `dd-MMM-yyyy` text.
 
 **Renew this contract** and **⇢ Convert to Contract** open in a **third column**
 beside the details and the products, so the machines being carried over stay in
-view.
+view. Both work from the entry **as saved**: while it has unsaved changes they
+are not offered — save the entry first.
+> **Saving an entry writes only what you changed**, so a field a colleague
+> changed meanwhile is not put back. If you both changed the same field, the
+> later save wins.
 
 **⇢ Convert to Contract** (on a saved sale, in the Warranty Register) raises a
 contract from it. The **customer** and every **machine with a serial** carry
@@ -861,7 +865,11 @@ typed into a form that reads it.
   code already there is refused rather than overwritten.
   **✎ Edit** on a row changes everything but the code — the code cannot be
   changed any other way either; **🗑 Delete** is refused while any machine, sale
-  or contract carries the code — mark it Inactive instead.
+  or contract carries the code, or any Indoor Service job names the line by its
+  name — mark it Inactive instead. **Renaming** a line that Indoor Service jobs
+  name asks first and says how many: those jobs find the line's code, and
+  whether it is imported, by its name. A code that differs from one already
+  there only in capitals or spaces is refused.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
   > **✎ Edit**, **⊘ Deactivate** and **🗑 Delete** are on every row, each with
@@ -869,7 +877,9 @@ typed into a form that reads it.
   > stock, consumption record or Indoor Service job names the part — deactivate
   > it instead.
   > A part's **code and description change only with Rename part**, which moves
-  > every record that names it; they cannot be changed any other way.
+  > every record that names it; they cannot be changed any other way. A part
+  > needs both, and a code that differs from one already there only in capitals
+  > or spaces is refused.
   > **HSN Code** has its own column: set it on *＋ Add part* or the edit drawer
   > (digits only), or with an **HSN Code** column in the Part Master upload. The
   > 29 parts that used to carry "(HSN:…)" in their description had it moved
@@ -1082,6 +1092,12 @@ typed into a form that reads it.
   > Drive link, so loading the list again corrects those notes rather than
   > adding them twice.
 - **QMS Documents** `/qms` — with number and revision.
+  > **A new revision is a new document.** A QMS document is added with its
+  > Document No, Revision and Effective date. Once recorded, those and the file
+  > cannot be changed — add the new revision as a new document and **Retire** the
+  > old one, which stays on the shelf as the record of what was in force. A QMS
+  > document is never deleted. Title, tags and notes can still be edited, and a
+  > field left blank can be filled once.
   > **Adding a document asks who must be trained on it** — roles,
   > designations, departments, regions or named people (anyone matching any of
   > them, active on the User Master). Each gets it on their training list.

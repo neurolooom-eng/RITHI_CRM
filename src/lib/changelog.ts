@@ -14,6 +14,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.90',
+    date: '2026-10-04',
+    title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
+    changes: [
+      'PARTY, PART and PRODUCT MASTER: the required fields are now required by the system too (a party\'s name, city and state; a part\'s code and description; a line\'s code and name), and a code that differs from an existing one only in capitals or spaces is refused. Verifying KYC records who verified it; that can no longer be written by hand.',
+      'PRODUCT MASTER: a product line that Indoor Service jobs name cannot be deleted, and renaming it asks first, saying how many jobs it affects.',
+      'QMS DOCUMENTS: a new revision is a new document. Once recorded, the number, revision, effective date and file cannot be changed — retire the old one. A QMS document cannot be deleted.',
+      'INDOOR DC: only the person the User Master names as Authorised By can approve — another login with the same name cannot.',
+      'WARRANTY and CONTRACT entries: a machine just saved now shows as saved and is counted; Renew and Convert work from the saved entry only; saving writes only the fields you changed.',
+      'ADDITIONAL ENTRY (Ownership Transfer): it saves again — it now asks for the machine\'s model as well as its serial.',
+      'STOCK TRANSFER: the message for an engineer holding nothing now says stock comes from what was dispatched to them.',
+    ],
+  },
+  {
     version: '0.10.89',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',

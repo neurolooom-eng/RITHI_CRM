@@ -22,7 +22,7 @@ import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from 
 import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
-  configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit,
+  configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit, withSavedMachine,
   raiseInstallCalls, missingRequired, yearsHint, getHeader, countPendingSales,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   proposeConversion, conversionHeader, convertWarrantyToContract, contractsFromSale, suggestedContractPmVisits,
@@ -360,7 +360,12 @@ function ItemCard({
 // its own old rate — visibly, and each one still editable. A machine with no
 // old rate stays empty rather than becoming 0.
 // ===========================================================================
-function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDone: (mc: string) => void }) {
+function RenewPanel({ header, items, onDone, blocked }: {
+  /** The contract AS SAVED, never the window's draft (D-100). */
+  header: Row; items: Row[]; onDone: (mc: string) => void;
+  /** Why Create may not be pressed now — the entry holds an unsaved change. */
+  blocked?: string;
+}) {
   const [d, setD] = useState<RenewalDraft>(() => proposeRenewal(header, items));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -575,9 +580,11 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
 
       {msg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{msg}</span></div>}
       <div className="row" style={{ gap: 8, marginTop: 10 }}>
-        <button className="btn btn-primary" disabled={busy || badRate} onClick={() => void go()}>
+        <button className="btn btn-primary" disabled={busy || badRate || !!blocked} onClick={() => void go()}
+          title={blocked || undefined}>
           {busy ? 'Creating…' : 'Create the renewal'}
         </button>
+        {blocked && <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>{blocked}</span>}
         {badRate && (
           <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>
             One of the rates is not a number — clear it or correct it.
@@ -595,8 +602,11 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
 // mapping itself is in cover.ts (proposeConversion / conversionHeader /
 // conversionItem), so this panel only collects and shows.
 // ===========================================================================
-function ConvertPanel({ sale, items, onDone, onCancel }: {
+function ConvertPanel({ sale, items, onDone, onCancel, blocked }: {
+  /** The sale AS SAVED, never the window's draft (D-100). */
   sale: Row; items: Row[]; onDone: (mc: string, machines: number) => void; onCancel: () => void;
+  /** Why Create may not be pressed now — the entry holds an unsaved change. */
+  blocked?: string;
 }) {
   const [d, setD] = useState<ConversionDraft>(() => proposeConversion(sale, items));
   const [pmTyped, setPmTyped] = useState(false);
@@ -782,10 +792,12 @@ function ConvertPanel({ sale, items, onDone, onCancel }: {
 
       {msg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{msg}</span></div>}
       <div className="row" style={{ gap: 8, marginTop: 10 }}>
-        <button className="btn btn-primary" disabled={busy || checking || !!awayErr || !machines.length} onClick={() => void go()}>
+        <button className="btn btn-primary" disabled={busy || checking || !!awayErr || !machines.length || !!blocked}
+          onClick={() => void go()} title={blocked || undefined}>
           {busy ? 'Creating…' : 'Create the contract'}
         </button>
         <button className="btn" disabled={busy} onClick={onCancel}>Cancel</button>
+        {blocked && <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>{blocked}</span>}
       </div>
     </div>
   );
@@ -1121,7 +1133,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       const toSave = (!draft.id && kind === 'sale' && !draft.entry_at)
         ? { ...draft, entry_at: new Date().toISOString() }
         : draft;
-      const saved = await saveHeader(kind, toSave);
+      // AGAINST THE ENTRY AS IT WAS READ (D-106): only what changed here is
+      // written, so a field somebody else changed meanwhile is not put back.
+      const saved = await saveHeader(kind, toSave, open ?? undefined);
       setOpen(saved); setDraft(saved);
       setFeed('entries', { rows: feeds.entries.rows.map((r) => (r.id === saved.id ? { ...r, ...saved } : r)) });
       // The header moved, so every machine that inherits from it moved too.
@@ -1176,11 +1190,14 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // no row id to write the UCN back to. Saying "every machine here has its
   // installation call" over that line would be flatly untrue, which is the
   // message this project keeps having to correct; it says what to do instead.
+  //
+  // EVERY LINE WITH NO ROW, whatever has been typed into it (D-099). What is
+  // typed lives in the card until Save machine, never in `items`, so testing
+  // `items` for a product and a serial counted nothing that was really
+  // unsaved; and a machine just saved is replaced by its saved row in `items`
+  // (onSaved below), so it stops counting the moment it is saved.
   const unsavedMachines = useMemo(
-    () => (kind === 'sale'
-      ? items.filter((i) => !isPinnedValue(i.id)
-          && isPinnedValue(i.product_name) && isPinnedValue(i.serial_number)).length
-      : 0), [kind, items]);
+    () => (kind === 'sale' ? items.filter((i) => !isPinnedValue(i.id)).length : 0), [kind, items]);
   const raiseCalls = async () => {
     const list = needCalls.map((i) => `  · ${str(i.product_name)} · ${str(i.serial_number)}`).join('\n');
     if (!window.confirm(
@@ -1406,14 +1423,21 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // machine added and never saved counts too.
   const dirtyCards = useRef(new Set<string>());
   const entryDirty = !!open && JSON.stringify(draft) !== JSON.stringify(open);
-  const closeEntry = () => {
+  /** Close the window, asking first over unsaved work. Says whether it closed. */
+  const closeEntry = (): boolean => {
     const cards = dirtyCards.current.size + items.filter((i) => !isPinnedValue(i.id)).length;
     const what = [entryDirty ? 'the entry' : '', cards ? `${cards} machine(s)` : ''].filter(Boolean).join(' and ');
-    if (what && !window.confirm(`Unsaved changes to ${what} will be lost. Close anyway?`)) return;
+    if (what && !window.confirm(`Unsaved changes to ${what} will be lost. Close anyway?`)) return false;
     dirtyCards.current.clear();
     setRenewing(false); setConverting(false); setFocusId(null);
     setOpen(null);
+    return true;
   };
+  // THE LATEST closeEntry, for a renewal or conversion finishing after an
+  // await: the one it captured when Create was pressed would judge "unsaved"
+  // by the window as it was then.
+  const closeRef = useRef(closeEntry);
+  closeRef.current = closeEntry;
   // A machine added from the TOP of the window lands at the BOTTOM of the
   // product list, so the list is scrolled to it -- otherwise the button
   // appears to do nothing on a contract with twenty machines.
@@ -1519,8 +1543,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
               ＋ Installation calls ({needCalls.length})
             </button>
           : <span className="muted" style={{ fontSize: 12 }}>
+              {/* SAVE MACHINE, NOT SAVE ENTRY (D-099): a machine line is saved
+                  by its own button, and Save entry re-reads the machines --
+                  pressing it as this used to say would drop the unsaved line. */}
               {unsavedMachines
-                ? `Press Save entry first — ${unsavedMachines} machine${unsavedMachines === 1 ? ' is' : 's are'} not saved yet, and a call can only be mapped to a saved machine.`
+                ? `Press Save machine on the new line${unsavedMachines === 1 ? '' : 's'} first — ${unsavedMachines} machine${unsavedMachines === 1 ? ' is' : 's are'} not saved yet, and a call can only be mapped to a saved machine.`
                 : items.length ? 'Every machine here has its installation call.' : ''}
             </span>
       )}
@@ -1547,14 +1574,25 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
      contract rather than only an expiring one, because renewals are
      raised in advance and a register that hides the button until the
      cover has lapsed is asking people to work around it. */
+  // RENEW AND CONVERT WORK FROM THE SAVED ENTRY (D-100). They were handed the
+  // DRAFT, so a new contract took its party, type and billing from edits
+  // nobody had saved -- and then the window was closed directly, throwing
+  // those edits away without the question ✕ Close asks. Now: the panels are
+  // given `open` (the entry as saved), neither can be opened or create
+  // anything while the entry holds an unsaved change, and on success the
+  // window closes through closeEntry, so anything still unsaved (a machine
+  // card, or an edit made after Create was pressed) is asked about first.
+  const unsavedEntry = entryDirty
+    ? 'Save the entry first — this works from the entry as saved, and it has unsaved changes.'
+    : '';
   const canRenew = canEdit && kind === 'contract' && !!open?.id;
   const renewButton = canRenew ? (
     renewing
       ? <button className="btn" onClick={() => setRenewing(false)}
           title="Close the renewal without creating anything">✕ Cancel renewal</button>
-      : <button className="btn" disabled={loadingItems}
+      : <button className="btn" disabled={loadingItems || !!unsavedEntry}
           onClick={() => setRenewing(true)}
-          title={loadingItems ? 'Waiting for this contract’s machines to load' : undefined}>
+          title={loadingItems ? 'Waiting for this contract’s machines to load' : unsavedEntry || undefined}>
           {loadingItems ? 'Loading machines…' : '↻ Renew this contract'}
         </button>
   ) : null;
@@ -1564,29 +1602,35 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     converting
       ? <button className="btn" onClick={() => setConverting(false)}
           title="Close without creating anything">✕ Cancel conversion</button>
-      : <button className="btn" disabled={loadingItems} onClick={() => setConverting(true)}
-          title={loadingItems ? 'Waiting for this sale’s machines to load' : 'Raise a contract from this warranty, carrying its customer and machines'}>
+      : <button className="btn" disabled={loadingItems || !!unsavedEntry} onClick={() => setConverting(true)}
+          title={loadingItems ? 'Waiting for this sale’s machines to load' : unsavedEntry || 'Raise a contract from this warranty, carrying its customer and machines'}>
           {loadingItems ? 'Loading machines…' : '⇢ Convert to Contract'}
         </button>
   ) : null;
   const convertPanel = canConvert && converting && open ? (
-    <ConvertPanel sale={draft} items={items}
+    <ConvertPanel sale={open} items={items} blocked={unsavedEntry}
       onCancel={() => setConverting(false)}
       onDone={(mc, n) => {
+        const sa = str(open.sa_number);
         setConverting(false);
-        setOpen(null);
-        setMsg({ tone: 'ok', text: `Contract ${mc} created with ${n} machine(s) from ${str(draft.sa_number)}. Opening the Contract Register…` });
+        if (!closeRef.current()) {
+          // KEPT OPEN AT THE READER'S WORD: the contract exists all the same.
+          setMsg({ tone: 'ok', text: `Contract ${mc} created with ${n} machine(s) from ${sa}. It is on the Contract Register; this entry stays open with its unsaved changes.` });
+          return;
+        }
+        setMsg({ tone: 'ok', text: `Contract ${mc} created with ${n} machine(s) from ${sa}. Opening the Contract Register…` });
         // TO THE NEW CONTRACT, already searched, so it is one click away.
         navigate('/contracts', { state: { search: mc, tab: 'entries' } });
       }} />
   ) : null;
-  const renewPanel = canRenew && renewing ? (
+  const renewPanel = canRenew && renewing && open ? (
     <RenewPanel
-      header={draft}
+      header={open}
       items={items}
+      blocked={unsavedEntry}
       onDone={(mc) => {
         setRenewing(false);
-        setOpen(null);
+        closeRef.current();
         setMsg({ tone: 'ok', text: `Contract ${mc} created, carrying its machines over. Open it to check the rates, or set any you left blank.` });
         void refresh();
       }}
@@ -1621,7 +1665,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
             if (!k) return;
             if (d) dirtyCards.current.add(k); else dirtyCards.current.delete(k);
           }}
-          onSaved={(r) => setItems((cur) => cur.map((x) => (x.id === r.id ? r : x)))}
+          // BY THE LINE, NOT THE ID (D-099): a machine just added has no id
+          // until this save, so it is replaced as the object the card was given.
+          onSaved={(r) => setItems((cur) => withSavedMachine(cur, it, r))}
           onDeleted={(id) => setItems((cur) => cur.filter((x) => x.id !== id))} />
       ))}
     </>
@@ -1649,7 +1695,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           {renewButton}
           {convertButton}
           {machineButtons}
-          <button className="btn btn-sm" onClick={closeEntry} title="Close this entry">✕ Close</button>
+          <button className="btn btn-sm" onClick={() => { closeEntry(); }} title="Close this entry">✕ Close</button>
         </div>
         {msg && (
           <div className={`sheet-banner sheet-banner-${msg.tone}`} style={{ margin: '8px 14px 0' }}>

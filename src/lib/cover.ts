@@ -515,14 +515,45 @@ export async function countMachines(
   return count ?? 0;
 }
 
-export async function saveHeader(kind: CoverKind, row: Row): Promise<Row> {
+/** The writable fields of `row` whose value differs from `loaded` — what an
+ *  UPDATE of an entry sends (D-106).
+ *
+ *  ONLY WHAT THIS SCREEN CHANGED. Sending the whole draft put back every field
+ *  somebody else had changed since this screen loaded the entry — a colleague's
+ *  corrected invoice number reverted by a typo fix to the address, with no
+ *  warning to either of them. Nothing else has to travel: the row is addressed
+ *  by `id`, the database stamps its own columns, and a BEFORE trigger sees the
+ *  whole merged row whichever columns the statement named. A value derived on
+ *  the screen (an end date from a period) differs from the loaded one exactly
+ *  when its driver changed, so it goes with the field that moved it.
+ *
+ *  null, undefined and absent are the same value here: the form writes null
+ *  for a cleared box, and the loaded row may simply not carry the key. */
+export function headerChanges(kind: CoverKind, row: Row, loaded: Row): Row {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const writable = onlyWritable(row, writableFor(configFor(kind), 'header'));
+  return Object.fromEntries(Object.entries(writable).filter(([k, v]) => !same(v, loaded[k])));
+}
+
+/** Save an entry. `loaded` is the entry as this screen READ it: given on an
+ *  update, only the fields that differ from it are written (headerChanges,
+ *  D-106). Without it — the renewal and the conversion, which only ever
+ *  INSERT — the whole whitelisted row is sent, as before. */
+export async function saveHeader(kind: CoverKind, row: Row, loaded?: Row): Promise<Row> {
   const cfg = configFor(kind);
   // The same whitelist as saveItem. It used to name the two fields to DROP
   // (item_count, items) — which worked until a third arrived, and a derived
   // value with no column behind it loses the whole save rather than itself.
   const { id, ...all } = row as Row & { id?: number };
-  const rest = onlyWritable(all, writableFor(cfg, 'header'));
+  const rest = id && loaded ? headerChanges(kind, all, loaded) : onlyWritable(all, writableFor(cfg, 'header'));
   const c = client();
+  // NOTHING CHANGED IS NOT AN EMPTY UPDATE: the entry is read back instead, so
+  // the caller still gets the row as the database holds it.
+  if (id && !Object.keys(rest).length) {
+    const { data, error } = await c.from(cfg.headerTable).select().eq('id', id).single();
+    if (error) throw err(error);
+    return data as Row;
+  }
   const { data, error } = id
     ? await c.from(cfg.headerTable).update(rest).eq('id', id).select().single()
     : await c.from(cfg.headerTable).insert(rest).select().single();
@@ -560,6 +591,23 @@ export async function saveItem(kind: CoverKind, key: string, row: Row): Promise<
     : await c.from(cfg.itemTable).insert({ ...rest, [cfg.key]: key }).select().single();
   if (error) throw err(error);
   return data as Row;
+}
+
+/** The entry's machine list once `before` has been saved as `saved` (D-099).
+ *
+ *  BY THE LINE, NOT BY ITS ID. A machine added with + Add machine has no id
+ *  until it is saved, so matching on the id never found it: the saved row
+ *  never replaced the line, the card went on offering Save machine (a second
+ *  press failed on sale_items_uid_key), ✕ Close warned of an unsaved machine
+ *  and the installation-call count left it out. The line is the object the
+ *  card was given; the id is the fallback for a list re-read meanwhile, and a
+ *  machine found by neither is added rather than lost. */
+export function withSavedMachine(cur: Row[], before: Row, saved: Row): Row[] {
+  const hasId = (r: Row) => r.id != null && r.id !== '';
+  let i = cur.indexOf(before);
+  if (i < 0 && hasId(before)) i = cur.findIndex((x) => x.id === before.id);
+  if (i < 0 && hasId(saved)) i = cur.findIndex((x) => x.id === saved.id);
+  return i < 0 ? [...cur, saved] : cur.map((x, j) => (j === i ? saved : x));
 }
 
 export async function deleteItem(kind: CoverKind, id: number): Promise<void> {

@@ -793,7 +793,11 @@ const MODULES = {
             // and un-signed only with indoor.pdt_unsign and a reason; the dispatch
             // date is when the unit is marked Dispatched; a cleaning time may be
             // earlier, never later, and names who (0363).
-            '0363_indoor_pdt_lock_dispatch_and_cleaning.sql'],
+            '0363_indoor_pdt_lock_dispatch_and_cleaning.sql',
+            // D-143: an Indoor DC is approved by the login its User Master row
+            // carries, not a profile with the same name (0367). Redefines
+            // 0323's indoor_dc_may_approve(), so after it.
+            '0367_indoor_dc_approver_is_the_login.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -818,7 +822,11 @@ const MODULES = {
             // product marked (stored, recalculated, and by a button).
             '0354_service_note_dated_latest.sql',
             // Beta Edit: many notes edited, one save, all or nothing (0356).
-            '0356_service_notes_batch_save.sql'],
+            '0356_service_notes_batch_save.sql',
+            // D-061: a QMS document's number, revision, effective date and file
+            // are fixed once recorded, and a QMS document is retired, never
+            // deleted (0368).
+            '0368_qms_revision_is_a_new_entry.sql'],
   },
   training: {
     title: 'People: profile, Roles & Responsibilities, Training',
@@ -885,7 +893,11 @@ const MODULES = {
             // it; reads master_delete_guard() from 0325 in rbac, which runs first.
             '0325_product_line_and_list_add_edit_delete.sql',
             // A party's Country (2026-10-03), a plain column, blank by default.
-            '0326_party_country.sql'],
+            '0326_party_country.sql',
+            // D-140 / D-058 / D-138: required fields and case-variant codes on
+            // the three masters, the KYC verifier kept, a product line named by
+            // indoor jobs not deleted (0366). Triggers of its own.
+            '0366_masters_required_kyc_and_line_names.sql'],
   },
   reports: {
     title: 'Reports',
