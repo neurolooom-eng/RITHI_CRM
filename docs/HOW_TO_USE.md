@@ -835,7 +835,8 @@ typed into a form that reads it.
   that use it but is not offered in pickers.
   > **✎ Edit**, **⊘ Deactivate** and **🗑 Delete** are on every row, each with
   > its own Part Master permission. Delete is refused while any spare request,
-  > stock or consumption record names the part — deactivate it instead.
+  > stock, consumption record or Indoor Service job names the part — deactivate
+  > it instead.
   > A part's **code and description change only with Rename part**, which moves
   > every record that names it; they cannot be changed any other way.
   > **HSN Code** has its own column: set it on *＋ Add part* or the edit drawer
@@ -899,7 +900,9 @@ typed into a form that reads it.
   > editable: every machine, call and contract names the customer by it.
   > **✎ Edit** and **🗑 Delete** are on every row (each needs its own Party
   > Master permission). A party any machine, call, sale or contract still names
-  > cannot be deleted — the message says how many records name it.
+  > cannot be deleted — nor one named as a machine's **Sold Through**, an Indoor
+  > DC's consignee, or the customer on a Field Failure Report or a material
+  > return. The message says how many records name it.
   > **City, State and Country** are on one row; Country is optional and is
   > filled from a *Country* column in the upload.
   > **＋ Add entry** adds a new customer: **Party Name, City and State** are

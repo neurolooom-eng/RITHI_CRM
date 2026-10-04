@@ -286,6 +286,10 @@ const MODULES = {
             // 0286's policies, so after it; before the tail, which does not
             // touch them.
             '0347_feedback_read_once_and_no_machine_delete.sql',
+            // D-137: the delete guard counts Sold Through, consignees, demo
+            // parties, FFR and return customers, and indoor job parts (0350).
+            // Redefines 0325's master_delete_guard(), so after it.
+            '0350_delete_guard_counts_every_name.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -494,7 +498,11 @@ const MODULES = {
             '0285_auto_review_by_role.sql',
             // D-129: a review is written only on a call that exists and the writer
             // can see (bulk.upload keeps loading history). Replaces 0044's policy.
-            '0342_review_needs_a_call_you_can_see.sql'],
+            '0342_review_needs_a_call_you_can_see.sql',
+            // D-130: the summary view carries the five columns the register's
+            // search names, so a search no longer zeroes the counts (0349).
+            // Redefines 0111's view, appending only.
+            '0349_review_summary_carries_the_searched_columns.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -746,7 +754,10 @@ const MODULES = {
             '0334_indoor_testing_data_emptied.sql',
             // D-142: a job that has been worked on is a quality record and is not
             // deleted. Redefines 0324's delete_indoor_job().
-            '0336_indoor_job_worked_on_is_kept.sql'],
+            '0336_indoor_job_worked_on_is_kept.sql',
+            // D-115: a job with an uploaded report keeps its report number --
+            // a trigger of its own beside the stage guard (0352).
+            '0352_indoor_report_keeps_its_number.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -1052,7 +1063,10 @@ const MODULES = {
             '0331_install_solved_date_starts_warranty.sql',
             // The installation's warranty decision in a table of its own, with
             // a bulk upload for calls from 2018 (the user, 2026-10-03).
-            '0332_installation_warranty_starts.sql'],
+            '0332_installation_warranty_starts.sql',
+            // D-148: the dealer guard stands aside for a re-load of a call that
+            // is already there, party unchanged (0351). Redefines 0328's.
+            '0351_dealer_guard_stands_aside_on_reload.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

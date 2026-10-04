@@ -988,12 +988,19 @@ export async function sbSearchParties(query: string, limit = 50): Promise<string
  *  DEALER, searched on the server. */
 export async function sbSearchDealers(query: string, limit = 50): Promise<string[]> {
   const c = getSupabase(); if (!c) return [];
-  let q = c.from('parties').select('party_name').ilike('party_type', 'dealer').order('party_name').limit(limit);
+  // DEALER the way party_is_dealer() reads it -- upper(btrim(party_type)) --
+  // so a type typed " dealer " is offered here too (D-152). PostgREST cannot
+  // trim, so the read is a contains match and the exact test is made here; a
+  // page of 1,000 is far more than the dealers there are.
+  let q = c.from('parties').select('party_name, party_type').ilike('party_type', '%dealer%').order('party_name').limit(1000);
   const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
   if (term) q = q.ilike('party_name', `%${term}%`);
   const { data, error } = await q;
   if (error) throw new Error(errMsg(error));
-  return (data ?? []).map((r) => String(r.party_name ?? '')).filter(Boolean);
+  return (data ?? [])
+    .filter((r) => String(r.party_type ?? '').trim().toUpperCase() === 'DEALER')
+    .map((r) => String(r.party_name ?? '')).filter(Boolean)
+    .slice(0, limit);
 }
 
 /** The installation call already carrying this call number, if any -- so a
@@ -1258,6 +1265,19 @@ export async function deleteSavedChart(id: number): Promise<{ ok: boolean; error
   const m = errMsg(error);
   return { ok: false, error: /row-level security|0 rows/i.test(m)
     ? 'That chart was shared by somebody else — removing it needs the “Manage configuration” permission.' : m };
+}
+
+/** ONE party, by its exact name -- the register's natural key (`name_key`,
+ *  lower(btrim(party_name)), 0076), so case and outer spaces are ignored and
+ *  nothing else is. Not a contains search: picking from the first few contains
+ *  matches showed ANOTHER party's details when five other names sorted first
+ *  (D-133). Null when no party has that name. */
+export async function partyByExactName(name: string): Promise<Record<string, unknown> | null> {
+  const key = String(name ?? '').trim().toLowerCase();
+  if (!key) return null;
+  const { data, error } = await must().from('parties').select('*').eq('name_key', key).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return (data as Record<string, unknown> | null) ?? null;
 }
 
 export async function queryParties(filter: PartyFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
@@ -4120,9 +4140,21 @@ export async function listStockTransfers(limit = 100000): Promise<Record<string,
 }
 
 // Everything associated with one call — keyed by CALL NUMBER (server-side).
-export async function reportsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('reports').select('*').eq('call_number', callNumber).order('updated_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
-  if (error) return [];
+/** A call's visits, matched on the UCN OR the call number (D-131): 0048 lets a
+ *  visit carry only one of the two, and the visit upload makes the call number
+ *  optional, so asking by call number alone missed visits filed under the UCN.
+ *  Each key given is tried against BOTH columns, as consumptionForCall does.
+ *  A failed read THROWS: an empty list here is read as "no visit on record",
+ *  which on a solved call is itself a finding, so it must never stand in for a
+ *  read that did not happen. */
+export async function reportsByCall(callNumber: string, ucn = ''): Promise<Record<string, unknown>[]> {
+  const keys = [...new Set([callNumber, ucn].map((v) => String(v ?? '').trim()).filter(Boolean))];
+  if (!keys.length) return [];
+  const q = (k: string) => `"${k.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  const or = keys.map((k) => `ucn.eq.${q(k)},call_number.eq.${q(k)}`).join(',');
+  const { data, error } = await must().from('reports').select('*').or(or)
+    .order('updated_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 // ---------------------------------------------------------------------------
@@ -5196,11 +5228,15 @@ export async function attachReportsToVisits(
   const c = getSupabase(); if (!c) return { ok: false, written: 0, error: 'Database not connected.' };
   let written = 0;
   for (const r of rows) {
-    const { error } = await c.from('reports')
+    // Rows COUNTED (D-091): row-level security refuses an update by matching
+    // nothing, and no error is not "attached" (finding 48).
+    const { data, error } = await c.from('reports')
       .update({ manual_report: r.manual_report, source_ref: r.source_ref, call_status: status,
                 mapped_at: new Date().toISOString() })
-      .eq('uid', r.uid);
+      .eq('uid', r.uid).select('uid');
     if (error) return { ok: false, written, error: errMsg(error) };
+    if (!data || data.length === 0)
+      return { ok: false, written, error: `Visit ${r.uid} was not changed — your role may not edit it, or it is no longer in the register` };
     written += 1;
     onProgress?.(written, rows.length);
   }
@@ -6288,7 +6324,9 @@ export async function listCallReportReviews(): Promise<Record<string, { status: 
       // Ordered by ucn, the table's key (finding 8): paging without an order can
       // still drop the row at position 1001.
       .select('ucn,status,remarks,reviewed_by_name,reviewed_at').order('ucn', { ascending: true }).range(from, from + PAGE - 1);
-    if (error) break;
+    // A refused or failed read THROWS (D-135): stopping quietly made every
+    // solved call read "Awaiting review", a claim nobody had checked.
+    if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
     rows.forEach((r) => {
       out[String(r.ucn)] = {

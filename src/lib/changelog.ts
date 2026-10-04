@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.80',
+    date: '2026-10-04',
+    title: 'Review fixes: review search counts, visits by UCN, party lookup, delete guard, dealer re-loads',
+    changes: [
+      'DAILY COMPLAINT REVIEW: searching no longer turns every count to 0 and disables Export; the Export button counts the calls the file will carry when a Review Status is chosen.',
+      'CALL REVIEW and the review drawer: a visit filed under the UCN alone now shows on its call; if the visits cannot be read, the screen says so instead of "No visit on record".',
+      'PRODUCT & PARTY SEARCH: opening a party always shows that party\'s own details, never another one whose name sorts first; the party list says when it shows only the first 50.',
+      'PARTY and PART MASTER: a party named as a machine\'s Sold Through, an Indoor DC consignee, or a Field Failure Report or return customer, and a part used on an Indoor job, can no longer be deleted.',
+      'INSTALLATION CALLS upload: re-loading the register no longer stops on a call already raised on a dealer; a new installation call for a dealer is still refused. The Sold Through picker also offers dealers whose type has stray spaces.',
+      'BULK REPORT MAPPING: a visit your role may not change is no longer counted as attached.',
+      'FIELD FAILURE REGISTER: the count shows + when it reaches the 5,000 the register reads. INDOOR SERVICE: an uploaded report\'s number can no longer be blanked.',
+    ],
+  },
+  {
     version: '0.10.79',
     date: '2026-10-04',
     title: 'Review fixes: search, transfers, masters, Indoor DCs and feedback speed',

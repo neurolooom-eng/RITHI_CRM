@@ -66,6 +66,8 @@ export function CallReview() {
   // The selected call's context, loaded on demand: a register of thousands
   // cannot carry every visit and every spare line with it.
   const [visits, setVisits] = useState<Record<string, unknown>[]>([]);
+  // A failed read of the visits is said as such, never as "no visit" (D-131).
+  const [visitsErr, setVisitsErr] = useState('');
   const [spares, setSpares] = useState<Record<string, unknown>[]>([]);
   const [ctxBusy, setCtxBusy] = useState(false);
 
@@ -150,13 +152,13 @@ export function CallReview() {
   useEffect(() => {
     if (!sel || !current) { setVisits([]); setSpares([]); return; }
     let alive = true;
-    setVisits([]); setSpares([]); setCtxBusy(true);
+    setVisits([]); setSpares([]); setVisitsErr(''); setCtxBusy(true);
     setRecoOpen(false); setReopenOpen(false); setRecoPart(''); setRecoQty('1'); setRecoGrir('');
     setRecoWhy(''); setReopenWhy(''); setRemarks(currentReview?.remarks ?? '');
     const callNo = g(current, 'callNumber');
-    Promise.all([reportsByCall(callNo || sel), consumptionForCall(sel, callNo)])
+    Promise.all([reportsByCall(callNo || sel, sel), consumptionForCall(sel, callNo)])
       .then(([v, s]) => { if (alive) { setVisits(v); setSpares(s); } })
-      .catch(() => { if (alive) { setVisits([]); setSpares([]); } })
+      .catch((e) => { if (alive) { setVisits([]); setSpares([]); setVisitsErr(e instanceof Error ? e.message : String(e)); } })
       .finally(() => { if (alive) setCtxBusy(false); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -419,7 +421,9 @@ export function CallReview() {
                 visits={visits}
                 spares={spares}
                 busy={ctxBusy}
-                noVisitsNote="No visit on record — which on a solved call is itself the finding."
+                noVisitsNote={visitsErr
+                  ? `The visits could not be read, so nothing here says whether there were any: ${visitsErr}`
+                  : 'No visit on record — which on a solved call is itself the finding.'}
               />
             </>
           )}
