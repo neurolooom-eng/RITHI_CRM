@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.85',
+    date: '2026-10-04',
+    title: 'Spare Recycling in Data Flows',
+    auditHidden: true,
+    changes: [
+      'DATA FLOWS: Spare Recycling has its own flow — registered → MRS (no approval) → Stores stock out with cost → recycling hand stock → job done, consumption and other costs → Returned as R<PartNo> or Not recyclable. Like the screen, it is hidden while Audit Mode is on.',
+    ],
+  },
+  {
     version: '0.10.84',
     date: '2026-10-04',
     title: 'Technical / Service Notes: every field on Edit, and Beta Edit',

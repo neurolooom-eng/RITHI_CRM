@@ -91,8 +91,9 @@ up)_
 - **PENDING (user):** create the recycling user's login and grant it
   `recycle.view/register/request/close` (and Stores `recycle.issue`) on
   Roles & Permissions.
-- Not added to Data Flows on purpose: the flow diagrams are not hidden in
-  Audit Mode.
+- Data Flows: the  flow (v{nv}, the user's ask), marked
+   — FlowGallery leaves it out while Audit Mode is on; flows
+  may now cite a NAR id.
 
 ## 2026-10-04 — Objective: manual overrides kept or discarded on Re-calculate (0349, v0.10.80)
 

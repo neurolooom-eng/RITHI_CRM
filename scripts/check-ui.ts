@@ -9945,11 +9945,13 @@ console.log('\n-- the Daily Complaint Review: auto review is a role’s switch (
 console.log('\n-- data flows name real screens, requirements and tests --');
 {
   const { FLOWS, rankSteps, layoutFlow, wrapLabel } = await import('../src/lib/flows');
-  const { URS: U, FRS: F, TESTS: T } = await import('../src/lib/validation');
+  const { URS: U, FRS: F, TESTS: T, NON_AUDITABLE: NAR } = await import('../src/lib/validation');
   const { MODULES: M } = await import('../src/lib/rbac');
   const docIds = (f: string, re: RegExp) => new Set([...readFileSync(f, 'utf8').matchAll(re)].map((m) => m[1]));
   const known = new Set<string>([
     ...U.map((r) => r.id), ...F.map((r) => r.id), ...T.map((t) => t.id),
+    // A non-auditable flow cites its NAR (Spare Recycling, NAR-008).
+    ...NAR.map((r) => r.id),
     ...docIds('docs/CALL_REQUEST_REQUIREMENTS.md', /\*\*(CR-\d{3})\b/g),
     ...docIds('docs/ISO13485_SERVICING.md', /\b(SR-\d{3})\b/g),
     ...docIds('docs/COVER_REQUIREMENTS.md', /\b(CW-\d{3})\b/g),

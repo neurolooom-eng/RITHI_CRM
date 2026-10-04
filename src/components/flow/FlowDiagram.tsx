@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { FLOWS, layoutFlow, type Flow, type FlowStep } from '../../lib/flows';
+import { FLOWS as ALL_FLOWS, layoutFlow, type Flow, type FlowStep } from '../../lib/flows';
+import { useAuditMode } from '../../lib/auditMode';
 import { URS, FRS, TESTS } from '../../lib/validation';
 import { MODULES } from '../../lib/rbac';
 import './flow.css';
@@ -201,6 +202,9 @@ export function FlowDiagram({ flow, printAll = false }: { flow: Flow; printAll?:
 
 /** Every flow, one chosen at a time — or all of them, for printing. */
 export function FlowGallery({ printAll = false, pick }: { printAll?: boolean; pick?: string }) {
+  // A non-auditable flow (auditHidden) is left out while Audit Mode is on.
+  const auditOn = useAuditMode().on;
+  const FLOWS = ALL_FLOWS.filter((f) => !(f.auditHidden && auditOn));
   const [id, setId] = useState<string>(pick && FLOWS.some((f) => f.id === pick) ? pick : (FLOWS[0]?.id ?? ''));
   // Opened from elsewhere on a named flow (the module guide's "Part of" chips).
   useEffect(() => { if (pick && FLOWS.some((f) => f.id === pick)) setId(pick); }, [pick]);
