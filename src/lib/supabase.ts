@@ -5470,9 +5470,11 @@ export interface DocRow {
   // the products it is currently the latest for ('' = every product) -- the
   // second written only by the database.
   dated?: string | null; latest_for?: string[];
+  // Every column the source file carried that has no field of its own (0265).
+  extra?: Record<string, unknown>;
 }
 export type DocInput = Pick<DocRow, 'kind' | 'title' | 'product' | 'doc_no' | 'revision' | 'tags' | 'url' | 'file_name' | 'notes'>
-  & { effective_date?: string | null; uploaded_by_name?: string; dated?: string | null };
+  & { effective_date?: string | null; uploaded_by_name?: string; dated?: string | null; extra?: Record<string, unknown> };
 
 export async function listDocuments(kind?: DocKind, includeInactive = true): Promise<DocRow[]> {
   const c = getSupabase(); if (!c) return [];
@@ -5524,6 +5526,16 @@ export async function refreshServiceNoteLatest(): Promise<{ ok: boolean; changed
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
   const { data, error } = await c.rpc('refresh_service_note_latest');
   return error ? { ok: false, error: errMsg(error) } : { ok: true, changed: Number(data ?? 0) };
+}
+// TECHNICAL / SERVICE NOTES BETA EDIT (0355): every edited note in one
+// transaction, under the caller's own rights -- all saved, or none.
+export type NotePatch = { id: number } & Partial<Pick<DocRow,
+  'title' | 'product' | 'doc_no' | 'revision' | 'effective_date' | 'dated' | 'tags' | 'notes' | 'url' | 'file_name' | 'extra'>>;
+export async function saveServiceNotes(rows: NotePatch[]): Promise<{ ok: boolean; saved?: number; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  if (!rows.length) return { ok: true, saved: 0 };
+  const { data, error } = await c.rpc('save_service_notes', { p_rows: rows });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, saved: Number(data ?? 0) };
 }
 // A superseded manual is DEACTIVATED, never deleted: calls already worked from
 // it, and the shelf is a record of what the field was told.

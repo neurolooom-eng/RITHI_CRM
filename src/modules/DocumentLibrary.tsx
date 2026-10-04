@@ -12,7 +12,7 @@ import { formatDay, formatDayTime } from '../lib/dates';
 import { MultiPick } from '../components/ui/MultiPick';
 import { MAX_UPLOAD_BYTES, uploadToDrive, sheetsConfigured } from '../lib/sheets';
 import {
-  listDocuments, addDocument, updateDocument, setDocumentActive, refreshServiceNoteLatest,
+  listDocuments, addDocument, updateDocument, setDocumentActive, refreshServiceNoteLatest, saveServiceNotes, type NotePatch,
   supabaseConfigured, type DocRow, type DocKind,
   listDirectory, type DirectoryRow,
 } from '../lib/supabase';
@@ -53,6 +53,10 @@ interface Cfg {
   // product tagged Latest -- stored by the database (0354), recalculated on
   // every save and by the Refresh Latest tags button.
   latestByProduct?: boolean;
+  // TECHNICAL / SERVICE NOTES ONLY (the user, 2026-10-04: "Edit is not showing
+  // all the fields ... Give me a Beta Edit"): the form shows every field a note
+  // carries, and Beta Edit edits many notes in a grid saved by one click (0355).
+  allFields?: boolean;
 }
 
 // The products on a note, however the cell separated them.
@@ -75,7 +79,7 @@ const NOTES: Cfg = {
   kind: 'service_note', title: 'Technical / Service Notes', icon: '📝',
   subtitle: 'Technical bulletins and service notes, by product — the field fixes and advisories that are not in the manual.',
   perm: 'docs.manage', drivePrefix: 'Service Note', controlled: false,
-  multiProduct: true, driveDetails: true, latestByProduct: true,
+  multiProduct: true, driveDetails: true, latestByProduct: true, allFields: true,
 };
 const QMS: Cfg = {
   kind: 'qms', title: 'QMS Documents', icon: '📗',
@@ -87,6 +91,9 @@ type Draft = {
   title: string; product: string; doc_no: string; revision: string;
   effective_date: string; tags: string; notes: string;
   url: string; file_name: string; dated: string;
+  // The upload's other columns (documents.extra) -- text values only; anything
+  // else in extra is kept exactly as it is.
+  extra: Record<string, string>;
 };
 // Where a link points, for the File column. A Drive URL carries no filename —
 // `/file/d/<id>/view` — so the host is the most it can honestly be labelled.
@@ -94,7 +101,7 @@ const hostOf = (url: string) => {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'link'; }
 };
 
-const EMPTY: Draft = { title: '', product: '', doc_no: '', revision: '', effective_date: '', tags: '', notes: '', url: '', file_name: '', dated: '' };
+const EMPTY: Draft = { title: '', product: '', doc_no: '', revision: '', effective_date: '', tags: '', notes: '', url: '', file_name: '', dated: '', extra: {} };
 
 // ONE ROW PER NOTE PER PRODUCT, for the grouped notes shelf: a note covering
 // two products is listed under both, and is Latest for whichever of them the
@@ -109,6 +116,27 @@ const perProduct = (r: DocRow): ShelfRow[] => {
     ...r, _key: `${r.id}|${p.toLowerCase()}`, _product: p || EVERY_PRODUCT, _latest: marks.has(p.toLowerCase()),
   }));
 };
+// The fields Beta Edit offers, in grid order. The upload's extra columns stay
+// on the Edit form: they differ from note to note and would not fit a grid.
+type BetaField = 'title' | 'dated' | 'product' | 'doc_no' | 'revision' | 'effective_date' | 'tags' | 'notes' | 'url' | 'file_name';
+const BETA_COLS: { key: BetaField; label: string; kind: 'text' | 'date' | 'products'; width: number }[] = [
+  { key: 'title', label: 'Title *', kind: 'text', width: 240 },
+  { key: 'dated', label: 'Dated', kind: 'date', width: 140 },
+  { key: 'product', label: 'Products', kind: 'products', width: 220 },
+  { key: 'doc_no', label: 'Document No', kind: 'text', width: 130 },
+  { key: 'revision', label: 'Revision', kind: 'text', width: 80 },
+  { key: 'effective_date', label: 'Issue / Effective', kind: 'date', width: 140 },
+  { key: 'tags', label: 'Tags', kind: 'text', width: 180 },
+  { key: 'notes', label: 'Notes', kind: 'text', width: 200 },
+  { key: 'url', label: 'Link *', kind: 'text', width: 220 },
+  { key: 'file_name', label: 'File name', kind: 'text', width: 180 },
+];
+
+// The text values of a note's extra columns, for the form to offer.
+const textExtra = (x: Record<string, unknown> | undefined): Record<string, string> =>
+  Object.fromEntries(Object.entries(x ?? {}).filter(([, v]) => typeof v === 'string' || typeof v === 'number')
+    .map(([k, v]) => [k, String(v)]));
+
 // Newest Dated first; an undated note after every dated one, then by title.
 const byDatedDesc = (a: DocRow, b: DocRow) =>
   (b.dated ?? '').localeCompare(a.dated ?? '') || a.title.localeCompare(b.title);
@@ -128,6 +156,10 @@ function Library({ cfg }: { cfg: Cfg }) {
   const [editing, setEditing] = useState<DocRow | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // BETA EDIT: the notes as an editable grid; nothing is written until Save,
+  // and Save writes every changed note in one transaction (0355).
+  const [beta, setBeta] = useState(false);
+  const [edits, setEdits] = useState<Record<number, Partial<NotePatch>>>({});
 
   // WHO MUST BE TRAINED ON A NEW QMS DOCUMENT -- chosen here, at upload (the
   // user, 2026-09-30: "Trigger Training if a New QMS document is Uploaded").
@@ -212,6 +244,8 @@ function Library({ cfg }: { cfg: Cfg }) {
       notes: draft.notes.trim(),
       uploaded_by_name: user?.fullName || user?.email || '',
       ...(cfg.latestByProduct ? { dated: draft.dated || null } : {}),
+      // Only the text values were offered; everything else in extra is kept.
+      ...(cfg.allFields && editing ? { extra: { ...(editing.extra ?? {}), ...draft.extra } } : {}),
     };
     const res = editing ? await updateDocument(editing.id, payload) : await addDocument(payload);
     if (!res.ok) { setBusy(false); setMsg({ tone: 'error', text: res.error ?? 'Could not save the document.' }); return; }
@@ -246,6 +280,7 @@ function Library({ cfg }: { cfg: Cfg }) {
       title: r.title, product: r.product, doc_no: r.doc_no, revision: r.revision,
       effective_date: r.effective_date ?? '', tags: r.tags, notes: r.notes,
       url: r.url, file_name: r.file_name, dated: r.dated ?? '',
+      extra: textExtra(r.extra),
     });
   };
 
@@ -259,6 +294,46 @@ function Library({ cfg }: { cfg: Cfg }) {
     setMsg({ tone: 'ok', text: res.changed
       ? `Latest tags refreshed — ${res.changed} ${res.changed === 1 ? 'note' : 'notes'} changed.`
       : 'Latest tags checked — they were already right.' });
+    await load();
+  };
+
+  // Only what differs from the stored note counts as a change, so typing a
+  // value back to what it was un-marks it.
+  const setCell = (r: DocRow, field: BetaField, value: string) => {
+    setEdits((all) => {
+      const mine = { ...(all[r.id] ?? {}) } as Record<string, string>;
+      if (value === String(r[field] ?? '')) delete mine[field]; else mine[field] = value;
+      const next = { ...all };
+      if (Object.keys(mine).length) next[r.id] = mine as Partial<NotePatch>; else delete next[r.id];
+      return next;
+    });
+  };
+  const changedCount = Object.keys(edits).length;
+  const leaveBeta = () => {
+    if (changedCount && !confirm(`Discard the changes to ${changedCount} ${changedCount === 1 ? 'note' : 'notes'}?`)) return;
+    setEdits({}); setBeta(false);
+  };
+  const saveBeta = async () => {
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    for (const [id, e] of Object.entries(edits)) {
+      const r = byId.get(Number(id));
+      const title = e.title ?? r?.title ?? '';
+      const url = e.url ?? r?.url ?? '';
+      if (!String(title).trim() || !String(url).trim()) {
+        setMsg({ tone: 'error', text: `“${r?.title || id}” needs a title and a link. Nothing was saved.` });
+        return;
+      }
+    }
+    const patches: NotePatch[] = Object.entries(edits).map(([id, e]) => ({
+      id: Number(id), ...e,
+      ...(e.product !== undefined ? { product: splitProducts(String(e.product)).join(', ') } : {}),
+    }));
+    setBusy(true);
+    const res = await saveServiceNotes(patches);
+    setBusy(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: `Nothing was saved: ${res.error}` }); return; }
+    setMsg({ tone: 'ok', text: `${res.saved} ${res.saved === 1 ? 'note' : 'notes'} saved.` });
+    setEdits({}); setBeta(false);
     await load();
   };
 
@@ -385,15 +460,27 @@ function Library({ cfg }: { cfg: Cfg }) {
         onRefresh={() => void load()}
         refreshing={busy}
         title={cfg.title} subtitle={cfg.subtitle} icon={cfg.icon} count={visible.length}
-        actions={mayEdit && (
+        actions={mayEdit && (beta ? (
           <>
+            <span className="muted">{changedCount ? `${changedCount} ${changedCount === 1 ? 'note' : 'notes'} changed` : 'No changes yet'}</span>
+            <button className="btn" disabled={busy} onClick={leaveBeta}>Cancel</button>
+            <button className="btn btn-primary" disabled={busy || !changedCount} onClick={() => void saveBeta()}>
+              {busy ? 'Saving…' : `💾 Save all${changedCount ? ` (${changedCount})` : ''}`}
+            </button>
+          </>
+        ) : (
+          <>
+            {cfg.allFields && (
+              <button className="btn" disabled={busy || !rows.length} onClick={() => { setEdits({}); setBeta(true); }}
+                title="Edit many notes in a grid; one Save writes them all">✏️ Beta Edit</button>
+            )}
             {cfg.latestByProduct && (
               <button className="btn" disabled={busy} onClick={() => void refreshLatest()}
                 title="Re-mark the newest dated live note of every product as Latest">↻ Refresh Latest tags</button>
             )}
             <button className="btn btn-primary" onClick={() => { setEditing(null); setDraft({ ...EMPTY }); }}>＋ Add document</button>
           </>
-        )}
+        ))}
       />
 
       {msg && (
@@ -403,6 +490,51 @@ function Library({ cfg }: { cfg: Cfg }) {
         </div>
       )}
 
+      {beta ? (
+        <div>
+          <div className="toolbar" style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '8px 0', flexWrap: 'wrap' }}>
+            <input className="input" placeholder="Search title, product, tags…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <span className="muted" style={{ fontSize: 13 }}>
+              Beta Edit — change any cell; nothing is saved until <b>Save all</b>, which saves every change together or none of them.
+              The upload's other columns are on each note's Edit form.
+            </span>
+          </div>
+          <div style={{ overflowX: 'auto', maxHeight: '70vh', overflowY: 'auto' }}>
+            <table className="table" style={{ minWidth: BETA_COLS.reduce((n, c) => n + c.width, 0) }}>
+              <thead>
+                <tr>{BETA_COLS.map((c) => <th key={c.key} style={{ minWidth: c.width, position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>{c.label}</th>)}</tr>
+              </thead>
+              <tbody>
+                {[...visible].sort(byDatedDesc).map((r) => (
+                  <tr key={r.id} style={edits[r.id] ? { boxShadow: 'inset 4px 0 0 var(--text)' } : undefined}>
+                    {BETA_COLS.map((c) => {
+                      const e = edits[r.id] as Record<string, string> | undefined;
+                      const changed = !!e && c.key in e;
+                      const value = changed ? e![c.key] : String(r[c.key] ?? '');
+                      const mark = changed ? { outline: '2px solid var(--text)' } : undefined;
+                      return (
+                        <td key={c.key} style={{ minWidth: c.width, verticalAlign: 'top' }}>
+                          {c.kind === 'products' ? (
+                            <div style={mark}>
+                              <MultiPick values={splitProducts(value)}
+                                options={Array.from(new Set([...products, ...splitProducts(value)]))}
+                                onChange={(v) => setCell(r, 'product', v.join(', '))}
+                                noun="products" allLabel="Every product" />
+                            </div>
+                          ) : (
+                            <input className="input" style={{ width: '100%', ...mark }} type={c.kind === 'date' ? 'date' : 'text'}
+                              value={value} onChange={(ev) => setCell(r, c.key, ev.target.value)} />
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
       <DataTable<ShelfRow & Record<string, unknown>>
         columns={columns}
         rows={shelf as (ShelfRow & Record<string, unknown>)[]}
@@ -425,6 +557,7 @@ function Library({ cfg }: { cfg: Cfg }) {
           </Toolbar>
         }
       />
+      )}
 
       <Drawer open={!!draft} onClose={() => { setDraft(null); setEditing(null); }} title={editing ? `Edit — ${editing.title}` : `Add ${cfg.controlled ? 'a QMS document' : cfg.kind === 'service_note' ? 'a technical note' : 'a service manual'}`}>
         {draft && (
@@ -483,6 +616,23 @@ function Library({ cfg }: { cfg: Cfg }) {
               </label>
             )}
 
+            {cfg.allFields && (
+              <>
+                <label className="field">
+                  <span className="field-label">Document No</span>
+                  <input className="input" value={draft.doc_no} onChange={(e) => setDraft({ ...draft, doc_no: e.target.value })} placeholder="e.g. TN-2024-012" />
+                </label>
+                <label className="field">
+                  <span className="field-label">Revision</span>
+                  <input className="input" value={draft.revision} onChange={(e) => setDraft({ ...draft, revision: e.target.value })} />
+                </label>
+                <label className="field">
+                  <span className="field-label">Issue / Effective date</span>
+                  <input className="input" type="date" value={draft.effective_date} onChange={(e) => setDraft({ ...draft, effective_date: e.target.value })} />
+                </label>
+              </>
+            )}
+
             <label className="field">
               <span className="field-label">Tags</span>
               <input className="input" value={draft.tags} onChange={(e) => setDraft({ ...draft, tags: e.target.value })} placeholder="Comma separated — e.g. ventilator, oxygen sensor, calibration" />
@@ -532,6 +682,26 @@ function Library({ cfg }: { cfg: Cfg }) {
                 </>
               )}
             </div>
+
+            {cfg.allFields && draft.url && (
+              <label className="field">
+                <span className="field-label">File name</span>
+                <input className="input" value={draft.file_name} onChange={(e) => setDraft({ ...draft, file_name: e.target.value })} />
+              </label>
+            )}
+
+            {cfg.allFields && Object.keys(draft.extra).length > 0 && (
+              <div className="field">
+                <span className="field-label">More fields (from the upload)</span>
+                {Object.keys(draft.extra).sort().map((k) => (
+                  <label key={k} className="field" style={{ marginTop: 4 }}>
+                    <span className="muted" style={{ fontSize: 12 }}>{k}</span>
+                    <input className="input" value={draft.extra[k]}
+                      onChange={(e) => setDraft({ ...draft, extra: { ...draft.extra, [k]: e.target.value } })} />
+                  </label>
+                ))}
+              </div>
+            )}
 
             {cfg.controlled && !editing && (
               <div className="field">

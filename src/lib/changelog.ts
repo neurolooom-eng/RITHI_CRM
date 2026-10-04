@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.83',
+    date: '2026-10-04',
+    title: 'Technical / Service Notes: every field on Edit, and Beta Edit',
+    changes: [
+      'EDIT now shows every field of a note — Document No, Revision, Issue / Effective date and File name as well — and each column the bulk upload kept with the note, under its own heading.',
+      'BETA EDIT: one click at the top turns the notes into a grid. Change as many notes as you like — changed cells are marked — and one Save all saves every change together. If any change cannot be saved, none is, and the screen says which note stopped it.',
+    ],
+  },
+  {
     version: '0.10.82',
     date: '2026-10-04',
     title: 'Technical / Service Notes: grouped per product, Dated, and the Latest tag',

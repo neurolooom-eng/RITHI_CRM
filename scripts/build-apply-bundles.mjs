@@ -784,7 +784,9 @@ const MODULES = {
             '0299_document_drive_details.sql',
             // Technical / Service Notes: Dated, and the latest note per
             // product marked (stored, recalculated, and by a button).
-            '0354_service_note_dated_latest.sql'],
+            '0354_service_note_dated_latest.sql',
+            // Beta Edit: many notes edited, one save, all or nothing (0355).
+            '0355_service_notes_batch_save.sql'],
   },
   training: {
     title: 'People: profile, Roles & Responsibilities, Training',

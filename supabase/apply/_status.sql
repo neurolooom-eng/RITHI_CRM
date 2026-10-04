@@ -1988,7 +1988,12 @@ with checks(sort_order, bundle, provides, present) as (
          and exists (select 1 from pg_trigger where tgname = 'zz_service_note_latest_ins'
                       and tgrelid = to_regclass('public.documents') and not tgisinternal)
          and exists (select 1 from pg_trigger where tgname = 'zz_service_note_latest_upd'
-                      and tgrelid = to_regclass('public.documents') and not tgisinternal)))
+                      and tgrelid = to_regclass('public.documents') and not tgisinternal))),
+    (287, 'Technical / Service Notes: Beta Edit saves many notes at once', 'save_service_notes(jsonb) writes every edited note in one transaction, all or nothing, as SECURITY INVOKER so documents_update decides; callable by a signed-in user, never the public key (0355). Restore: documents.sql (0355)',
+        (to_regprocedure('public.save_service_notes(jsonb)') is not null
+         and not coalesce((select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.save_service_notes(jsonb)')), true)
+         and not has_function_privilege('anon', to_regprocedure('public.save_service_notes(jsonb)'), 'EXECUTE')
+         and has_function_privilege('authenticated', to_regprocedure('public.save_service_notes(jsonb)'), 'EXECUTE')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
