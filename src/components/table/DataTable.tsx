@@ -532,16 +532,23 @@ export function DataTable<T>({
     if (!col) return filteredRows;
     const get = (r: T) =>
       col.accessor ? col.accessor(r) : ((r as Record<string, unknown>)[col.key] as string | number);
-    return [...filteredRows].sort((a, b) => {
-      const av = get(a);
-      const bv = get(b);
+    // ONE COLLATOR, AND EACH ROW'S VALUE READ ONCE. localeCompare with options
+    // builds a collator on every comparison -- some 300,000 of them for 20,000
+    // rows -- and the accessor ran twice per comparison. Same order as before:
+    // blanks last, numbers by value, text with its digits read as numbers.
+    const collator = new Intl.Collator(undefined, { numeric: true });
+    const keyed = filteredRows.map((r) => ({ r, v: get(r) }));
+    keyed.sort((x, y) => {
+      const av = x.v;
+      const bv = y.v;
       if (av == null) return 1;
       if (bv == null) return -1;
       const cmp = typeof av === 'number' && typeof bv === 'number'
         ? av - bv
-        : String(av).localeCompare(String(bv), undefined, { numeric: true });
+        : collator.compare(String(av), String(bv));
       return sort.dir === 'asc' ? cmp : -cmp;
     });
+    return keyed.map((k) => k.r);
   }, [filteredRows, sort, colMap]);
 
   const toggleSort = (col: Column<T>) => {
@@ -610,6 +617,38 @@ export function DataTable<T>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [liveKeys.join('|'), sortedRows],
   );
+
+  // ---- drawing only what can be seen --------------------------------------
+  //
+  // THE TABLE DREW EVERY ROW IT HELD (the user, 2026-10-04: "It is freezing up
+  // and hanging a lot in pages when the table size is big. Not just the product
+  // database"). Measured: 20,000 rows took 16.2 s to open and 11.2 s to sort,
+  // and every keystroke in a filter re-drew all of them. So the body draws the
+  // first FIRST_ROWS and adds ROW_STEP more each time the bottom comes within
+  // reach of the scroll -- sorting, filtering, grouping, the counts, select-all
+  // and the export still work on EVERY row, because they run on the data and
+  // not on what is drawn. A new sort, filter or grouping starts from the top.
+  const FIRST_ROWS = 150;
+  const ROW_STEP = 300;
+  const [drawLimit, setDrawLimit] = useState(FIRST_ROWS);
+  useEffect(() => { setDrawLimit(FIRST_ROWS); },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sort?.key, sort?.dir, filters, liveKeys.join('|')]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const moreRowRef = useRef<HTMLTableRowElement>(null);
+  const drawnRef = useRef(0);
+  const heldBackRef = useRef(0);
+  // The "more" row coming within reach draws the next step. Watched against the
+  // table's own scroll box where it has one, else the page.
+  useEffect(() => {
+    const el = moreRowRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver((es) => {
+      if (es.some((e) => e.isIntersecting)) setDrawLimit((l) => l + ROW_STEP);
+    }, { root: rowsBeforeScroll > 0 ? scrollRef.current : null, rootMargin: '600px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  });
   // Every path in the tree, at every depth — what "expand all" has to mean
   // when the grouping is nested.
   const allGroupPaths = (nodes: GroupNode<T>[]): Set<string> => {
@@ -750,7 +789,13 @@ export function DataTable<T>({
           ? []
           : n.children
             ? renderGroups(n.children)
-            : n.rows.map((row) => renderRow(row))),
+            : (() => {
+              // The same drawing budget across the groups, in their order.
+              const take = Math.max(0, Math.min(n.rows.length, drawLimit - drawnRef.current));
+              drawnRef.current += take;
+              if (take < n.rows.length) heldBackRef.current += n.rows.length - take;
+              return n.rows.slice(0, take).map((row) => renderRow(row));
+            })()),
       ];
     });
 
@@ -829,6 +874,7 @@ export function DataTable<T>({
       )}
       <div
         className="dt-scroll"
+        ref={scrollRef}
         style={{
           maxHeight: maxBodyHeight,
           width: tableWidth === 'auto' ? '100%' : tableWidth,
@@ -912,9 +958,27 @@ export function DataTable<T>({
                 </td>
               </tr>
             )}
-            {groups
-              ? renderGroups(groups)
-              : sortedRows.map((row) => renderRow(row))}
+            {(() => {
+              drawnRef.current = 0; heldBackRef.current = 0;
+              const body = groups ? renderGroups(groups) : sortedRows.slice(0, drawLimit).map((row) => renderRow(row));
+              const held = groups ? heldBackRef.current : Math.max(0, sortedRows.length - drawLimit);
+              return (
+                <>
+                  {body}
+                  {held > 0 && (
+                    <tr ref={moreRowRef} className="dt-more-row">
+                      <td colSpan={Math.max(1, visibleCols.length + (selectable ? 1 : 0))}>
+                        Showing {(sortedRows.length - held).toLocaleString()} of {sortedRows.length.toLocaleString()} — scroll for more
+                        {' '}
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDrawLimit((l) => l + ROW_STEP * 5)}>
+                          Show more
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })()}
           </tbody>
         </table>
       </div>

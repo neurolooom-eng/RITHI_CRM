@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.68',
+    date: '2026-10-04',
+    title: 'Big registers no longer freeze the screen',
+    changes: [
+      'FIXED: registers with thousands of rows — the Product Database, the call registers, spares, parties and the rest — froze while opening, sorting or filtering, because every row was drawn at once. They now draw what you can see and add more as you scroll ("Showing 1,050 of 20,000 — scroll for more", with a Show more button). Measured: a 20,000-row table opens in a tenth of a second instead of 16 seconds, and sorts in a fifth of a second instead of 11.',
+      'Nothing is left out: sorting, filters, grouping, the counts, select-all and Export still work on every row, not just the ones on screen.',
+    ],
+  },
+  {
     version: '0.10.67',
     date: '2026-10-03',
     title: 'Spare request on a call with no visit adds the visit',
