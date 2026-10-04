@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0358 — A SIGNED PDT IS LOCKED; THE DISPATCH DATE IS WHEN THE UNIT LEAVES;
+-- 0363 — A SIGNED PDT IS LOCKED; THE DISPATCH DATE IS WHEN THE UNIT LEAVES;
 --        A CLEANING TIME MAY BE EARLIER BUT NEVER LATER, AND NAMES WHO
 --        (second re-review D-111, D-112, D-114; the user's decisions, 2026-10-04)
 --
@@ -38,7 +38,7 @@
 -- It is named to run AFTER zz_indoor_jobs_guard and zz_indoor_jobs_stamp
 -- (zzy_ sorts between them and zzz_sys_stamp), so its stamps are the last word.
 -- A connection with no session (a repair, an import) is not stopped.
--- In the indoor module, after 0355.
+-- In the indoor module, after 0360.
 -- ===========================================================================
 
 -- ---- D-111 ------------------------------------------------------------------
@@ -162,7 +162,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0358_premature_dispatch_stamps_cleared') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0363_premature_dispatch_stamps_cleared') then return; end if;
   -- Lifted for this ONE statement and put straight back (the 0210 rule).
   alter table public.indoor_jobs disable trigger zz_indoor_jobs_guard;
   update public.indoor_jobs
@@ -172,6 +172,6 @@ begin
   get diagnostics n = row_count;
   alter table public.indoor_jobs enable trigger zz_indoor_jobs_guard;
   insert into public.one_time_fixes_done (name, detail)
-  values ('0358_premature_dispatch_stamps_cleared', n || ' unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared');
-  raise notice '0358: % unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared', n;
+  values ('0363_premature_dispatch_stamps_cleared', n || ' unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared');
+  raise notice '0363: % unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared', n;
 end $$;

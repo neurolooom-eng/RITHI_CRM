@@ -8,11 +8,13 @@ export interface ChangeEntry {
   date: string; // yyyy-MM-dd
   title: string;
   changes: string[];
+  /** Left out of Version History while Audit Mode is on (a non-auditable track). */
+  auditHidden?: boolean;
 }
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.82',
+    version: '0.10.88',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -23,6 +25,67 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.87',
+    date: '2026-10-04',
+    title: 'SLA / Objective Configuration — Product Failure is a failure within 3 months, over a rolling 12 months',
+    changes: [
+      'NEW PAGE under Administration: SLA / OBJECTIVE CONFIGURATION. The SLA Targets moved here from Admin Config, beside the new Product Failure Rate setting.',
+      'PRODUCT FAILURE RATE: a machine counts as failed when a field call on it is registered within 3 months of its installation (warranty start). The rate is over the machines of that product installed in the last 12 months (rolling, up to each month\u2019s cut-off). A machine with several calls in its window counts once.',
+      'Both numbers (3 and 12) can be changed on the page. A change applies from the next Re-Calculate on the Objective page; figures already written stay as they are until then.',
+      'The evidence file now lists one row per failed machine, with its installation date, how many days later it failed and how many calls fell in the window, and Sheet 2 lists only the machines installed in the rolling period.',
+      'Only the Admin role has the page to begin with. Grant it to other roles on Roles & Permissions → Administration → SLA / Objective Configuration.',
+    ],
+  },
+  {
+    version: '0.10.86',
+    date: '2026-10-04',
+    title: 'Technical / Service Notes: always grouped by product',
+    changes: [
+      'TECHNICAL / SERVICE NOTES always open grouped by product, for everybody — the grouping can no longer be switched off or changed, even by someone who had turned it off before.',
+    ],
+  },
+  {
+    version: '0.10.85',
+    date: '2026-10-04',
+    title: 'Spare Recycling in Data Flows',
+    auditHidden: true,
+    changes: [
+      'DATA FLOWS: Spare Recycling has its own flow — registered → MRS (no approval) → Stores stock out with cost → recycling hand stock → job done, consumption and other costs → Returned as R<PartNo> or Not recyclable. Like the screen, it is hidden while Audit Mode is on.',
+    ],
+  },
+  {
+    version: '0.10.84',
+    date: '2026-10-04',
+    title: 'Technical / Service Notes: every field on Edit, and Beta Edit',
+    changes: [
+      'EDIT now shows every field of a note — Document No, Revision, Issue / Effective date and File name as well — and each column the bulk upload kept with the note, under its own heading.',
+      'BETA EDIT: one click at the top turns the notes into a grid. Change as many notes as you like — changed cells are marked — and one Save all saves every change together. If any change cannot be saved, none is, and the screen says which note stopped it.',
+    ],
+  },
+  {
+    version: '0.10.83',
+    date: '2026-10-04',
+    title: 'Spare Recycling — a separate track under Indoor Service',
+    auditHidden: true,
+    changes: [
+      'INDOOR SERVICE → SPARE RECYCLING: register a defective spare for recycling (RCY/26/0001), with an optional call reference that never touches the call.',
+      'Raise an MRS for the spares you need (RMRS/26/0001) — no approval. Stores books it out with the unit cost, and it lands in your RECYCLING hand stock, kept apart from the regular hand stock.',
+      'Open a request to record the job done, consume spares from your recycling hand stock and add other costs (labour, courier, vendor, other). Close it as Returned to the Service Store (as R<PartNo>) or Not recyclable.',
+      'Every request shows what it cost — parts at their stock-out cost plus other costs — and the Cost tab totals everything spent on recycling.',
+      'Hidden while Audit Mode is on. Its keys are given to no role: grant them on Roles & Permissions → Indoor Service.',
+    ],
+  },
+  {
+    version: '0.10.82',
+    date: '2026-10-04',
+    title: 'Technical / Service Notes: grouped per product, Dated, and the Latest tag',
+    changes: [
+      'TECHNICAL / SERVICE NOTES: grouped per product — a note for several products shows under each one; a note for none is under Every product.',
+      'New DATED field on the note (type it on the form, or a Dated column in the bulk upload). Notes run newest Dated first.',
+      'LATEST is tagged by itself on the newest dated, live note of each product, and moves when a newer note is added, a Dated changes or a note is retired. ↻ Refresh Latest tags re-does them all on demand.',
     ],
   },
   {

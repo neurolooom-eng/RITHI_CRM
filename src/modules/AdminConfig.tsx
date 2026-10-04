@@ -1,5 +1,4 @@
 import { PageHeader } from '../components/ui/ui';
-import { SlaRulesCard } from './SlaRulesCard';
 import { CallRegistrationCard } from './CallRegistrationCard';
 import { AuditModeCard } from './AuditModeCard';
 import { FrequentFailureCard } from './FrequentFailureCard';
@@ -17,6 +16,10 @@ import { DataImport } from './DataImport';
 //
 // The sheet URL the bridge still uses (Drive uploads, and reads when Supabase
 // is not connected) is in Settings, where the connection itself is set.
+//
+// THE SLA TARGETS MOVED to Admin -> SLA / Objective Configuration (the user,
+// 2026-10-04), beside the Product Failure rule, the other target the service
+// is measured against.
 // ===========================================================================
 
 export function AdminConfig() {
@@ -24,13 +27,11 @@ export function AdminConfig() {
     <div>
       <PageHeader
         title="Admin Config"
-        subtitle="Bulk data loads, the service-level targets, the frequent-failure rule, and the two switches with their own permissions (Audit Mode, the Data Import panel)."
+        subtitle="Bulk data loads, the Call Registration desk, the frequent-failure rule, and the two switches with their own permissions (Audit Mode, the Data Import panel). The SLA targets are on SLA / Objective Configuration."
         icon="🛠️"
       />
 
       <DataImport />
-      <div style={{ height: 16 }} />
-      <SlaRulesCard />
       <div style={{ height: 16 }} />
       <CallRegistrationCard />
       <div style={{ height: 16 }} />

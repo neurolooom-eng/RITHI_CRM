@@ -675,6 +675,29 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Deleting a job needs its own right (no role holds it until an administrator ticks it), a reason and the job number typed; it is refused once the job has been on any Indoor DC or its visit is filed, and it is recorded with who, when and why',
     ],
   },
+  {
+    route: '/indoor/recycling',
+    purpose: 'Recycle defective spares on a track of their own — registration, an MRS with no approval, stock out with cost into a separate recycling hand stock, consumption, job done and the cost of each recycling. Hidden while Audit Mode is on.',
+    does: [
+      'Register a defective spare for recycling (RCY/YY/NNNN): the part from the Part Master, serial, quantity, received on and from, and an optional call reference kept as text',
+      'Raise an MRS (RMRS/YY/NNNN) for the spares needed — no approval — optionally against an open recycling request',
+      'Stores books an MRS line out with its unit cost, in one go or in parts; the quantity goes to the raiser\'s recycling hand stock',
+      'See the recycling hand stock per person and part: issued, consumed, balance and average unit cost',
+      'On a request: record the job done, consume spares from your recycling hand stock, add other costs (labour, courier, vendor, other)',
+      'Close a request as Returned to the Service Store (as R<PartNo>) or Not recyclable, with a reason',
+      'See what each request cost — parts consumed at their stock-out cost plus other costs — and the total spent on recycling',
+      'Download the requests and the MRS lines',
+    ],
+    records: ['recycle_requests', 'recycle_request_list', 'recycle_mrs', 'recycle_mrs_lines', 'recycle_mrs_list', 'recycle_issues', 'recycle_hand_stock', 'recycle_consumption', 'recycle_consumption_list', 'recycle_other_costs', 'parts'],
+    rules: [
+      'A parallel track: nothing here reads or writes calls, spare requests, stock outs, consumption or the regular hand stock',
+      'While Audit Mode is on the screen is hidden and the database returns nothing and refuses every write',
+      'A part cannot be consumed beyond your recycling hand stock; an MRS line cannot be booked out beyond what it asked for',
+      'A request closes only once its job done is recorded; Not recyclable needs a reason; a closed request cannot be changed',
+      'The returned spare is recorded as R<PartNo>; the Part Master and the regular stock are not changed',
+      'Its five keys are granted to no role (the administrator passes anyway); give them on Roles & Permissions → Indoor Service',
+    ],
+  },
 
   // ──────────────────────────────── Reports ───────────────────────────────
   {
@@ -1141,17 +1164,33 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
   // (`audit.mode`, `import.panel`); the handbook was corrected to match (2026-10-02).
   {
     route: '/admin-config',
-    purpose: 'The settings the rules read: SLA targets, the Call Registration desk, the frequent-failure rule, and Audit Mode.',
+    purpose: 'The settings the rules read: the Call Registration desk, the frequent-failure rule, and Audit Mode. The SLA targets are on SLA / Objective Configuration.',
     does: [
-      'Set each SLA target in hours and turn it on or off',
       'Choose which Hotline desk new calls are filed to',
       'Tune frequent-failure Rule 1 (same machine) and Rule 2 (different serials, same complaint)',
       'Switch Audit Mode on or off with a reason',
     ],
-    records: ['sla_rules', 'app_settings', 'rpc:frequent_failure_rule', 'rpc:registrant_desks', 'rpc:audit_mode', 'rpc:set_audit_mode', 'audit_mode_changes'],
+    records: ['app_settings', 'rpc:frequent_failure_rule', 'rpc:registrant_desks', 'rpc:audit_mode', 'rpc:set_audit_mode', 'audit_mode_changes'],
     rules: [
       'A rule change applies from now on; recorded answers are unchanged',
       'While Audit Mode is ON, Update Party / Product Details on a call are hidden and refused',
+    ],
+  },
+  // SLA / OBJECTIVE CONFIGURATION (0357, the user, 2026-10-04).
+  {
+    route: '/sla-objective-config',
+    purpose: 'The targets the service is measured against: the SLA hours for open calls, and the Product Failure rule the Objective page works its failure rates out by.',
+    does: [
+      'Set each SLA target in hours and turn it on or off',
+      'Set how many months after installation a field call counts as a product failure (3 by default)',
+      'Set the rolling period the failure rate is measured over (12 months by default)',
+    ],
+    records: ['sla_rules', 'objective_settings'],
+    rules: [
+      'Installation is the machine’s warranty start; a machine with no warranty start is in neither number',
+      'A machine with several calls inside its window is one failure',
+      'A change applies from the next Re-Calculate on the Objective page; figures already written are not rewritten',
+      'Only the Admin role is given this page by default; other roles are granted on Roles & Permissions',
     ],
   },
   {

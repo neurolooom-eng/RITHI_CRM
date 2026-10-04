@@ -604,6 +604,11 @@ with checks(sort_order, bundle, provides, present) as (
      and not exists (
            select 1 from public.app_roles a, lateral jsonb_array_elements_text(a.permissions) m(v)
             where a.role = 'admin' and m.v like 'mod:%'
+              -- THE ONE NAMED EXCEPTION (0357, the user, 2026-10-04): SLA /
+              -- Objective Configuration goes to Admin alone by default -- "Rest
+              -- let the Admin Decide through the App" -- so Technical Support
+              -- holds it only if somebody ticks it.
+              and m.v <> 'mod:/sla-objective-config'
               and not exists (select 1 from public.app_roles ts
                                where ts.role = 'technical_support' and ts.permissions ? m.v))))),
     (115, 'Part category: free text, so a bulk upload cannot be refused over it', 'A CHECK on parts.category can ABORT AN IMPORT PART-WRITTEN -- it did, on the Item Master: 173 rows written, then "violates check constraint parts_category_check" and a half-updated table. 0148 named the right four words but put them in the wrong place. 0152 drops the constraint and replaces it with nothing: a word the vocabulary does not know now lands in the data and shows in Spare Insights as its own bar, which is how somebody notices it, rather than the row never arriving. Blank still means "nobody has said" and still reads as Unclassified. NO means the constraint is still there and a non-standard category will stop the next Part Master upload. Restore: performance.sql',
@@ -1790,7 +1795,7 @@ with checks(sort_order, bundle, provides, present) as (
                          from pg_proc p where p.oid = to_regprocedure('public.approve_indoor_dc(text,boolean)')), false)
          and coalesce((select p.prosrc like '%rithi.indoor_visit%'
                          from pg_proc p where p.oid = to_regprocedure('public.record_indoor_visit(bigint,text,boolean)')), false))),
-    (260, 'Sold Through is the dealer, and a dealer gets no installation call', 'party_is_dealer() (a Party Master entry typed DEALER); ownership_transfers.sold_through stamped from a dealer From party (ownership_transfer_sold_through); the Product Database''s Sold Through follows the latest dealer transfer (machine_sold_through, inside upsert_product_from_sale and transfer_to_product -> transfer_resync_machine since 0356); installation_call_not_for_dealer refuses a signed-in installation call for a dealer; the Sold Through 0318 cleared put back once (one_time_fixes_done 0328_sold_through_restored) (0328). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0328)',
+    (260, 'Sold Through is the dealer, and a dealer gets no installation call', 'party_is_dealer() (a Party Master entry typed DEALER); ownership_transfers.sold_through stamped from a dealer From party (ownership_transfer_sold_through); the Product Database''s Sold Through follows the latest dealer transfer (machine_sold_through, inside upsert_product_from_sale and transfer_to_product -> transfer_resync_machine since 0361); installation_call_not_for_dealer refuses a signed-in installation call for a dealer; the Sold Through 0318 cleared put back once (one_time_fixes_done 0328_sold_through_restored) (0328). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0328)',
         (to_regprocedure('public.party_is_dealer(text)') is not null
          and not has_function_privilege('anon', to_regprocedure('public.party_is_dealer(text)'), 'EXECUTE')
          and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'ownership_transfers' and column_name = 'sold_through')
@@ -1810,7 +1815,7 @@ with checks(sort_order, bundle, provides, present) as (
                     else coalesce((xpath('/row/c/text()', query_to_xml(
                       'select count(*) as c from public.one_time_fixes_done where name = ''0318_warranty_party_refresh''',
                       false, true, '')))[1]::text::int > 0, false) end)))),
-    (261, 'A transferred machine carries its new owner''s address', 'upsert_product_from_sale() and transfer_to_product() (its body in transfer_resync_machine() since 0356) take the address, city, state and Service Engineer of a machine now with somebody other than its buyer from that owner''s Party Master entry, a blank there keeping the machine''s own value; the one-time repair has run, its old values in products_new_owner_address_backup, which the API cannot read (0329, D-098). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0329)',
+    (261, 'A transferred machine carries its new owner''s address', 'upsert_product_from_sale() and transfer_to_product() (its body in transfer_resync_machine() since 0361) take the address, city, state and Service Engineer of a machine now with somebody other than its buyer from that owner''s Party Master entry, a blank there keeping the machine''s own value; the one-time repair has run, its old values in products_new_owner_address_backup, which the API cannot read (0329, D-098). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0329)',
         (coalesce((select p.prosrc like '%v_moved%' and p.prosrc like '%o_address%'
                      from pg_proc p where p.oid = to_regprocedure('public.upsert_product_from_sale(bigint)')), false)
          and coalesce((select p.prosrc like '%pm.address%'
@@ -1977,27 +1982,55 @@ with checks(sort_order, bundle, provides, present) as (
     (285, 'An uploaded Indoor Service Report keeps its number', 'The trigger indoor_report_keeps_its_number refuses a blank Indoor Service Report No on a job that carries a report file; a correction to another number, and a job with no report, are not stopped (0352, D-115). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0352)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.indoor_jobs')
                  and tgname = 'indoor_report_keeps_its_number')),
-    (286, 'A visit, its spares and a spare request are filed under your own name, your team''s, or anybody''s only with the key', 'The trigger filed_under_own_name on reports, spare_consumption and spare_requests refuses an engineer who is not you or in your team in the User Master, unless you hold visit.others (visits and spares, ticked per person in Extra Access) or spare.request.others (spare requests; given to Technical Support once); imports, Reconciliation and functions that file for somebody by design are not stopped. created_by on consumption, returns and transfers is the session (0354, D-125). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0354)',
+    (286, 'Technical / Service Notes: Dated, and the latest note per product tagged', 'documents.dated and documents.latest_for; refresh_service_note_latest_all() marks the newest dated live note of each product, run by the zz_service_note_latest_ins / _upd statement triggers and by the Refresh Latest tags button through refresh_service_note_latest() (docs.manage; not the public key) (0354). Restore: documents.sql (0354)',
+        ((select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'documents'
+            and column_name in ('dated', 'latest_for')) = 2
+         and to_regprocedure('public.refresh_service_note_latest_all()') is not null
+         and not has_function_privilege('authenticated', to_regprocedure('public.refresh_service_note_latest_all()'), 'EXECUTE')
+         and to_regprocedure('public.refresh_service_note_latest()') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.refresh_service_note_latest()'), 'EXECUTE')
+         and has_function_privilege('authenticated', to_regprocedure('public.refresh_service_note_latest()'), 'EXECUTE')
+         and exists (select 1 from pg_trigger where tgname = 'zz_service_note_latest_ins'
+                      and tgrelid = to_regclass('public.documents') and not tgisinternal)
+         and exists (select 1 from pg_trigger where tgname = 'zz_service_note_latest_upd'
+                      and tgrelid = to_regclass('public.documents') and not tgisinternal))),
+    (287, 'Spare Recycling: its own track, hidden in Audit Mode', 'Asked for 2026-10-04: a parallel track under Indoor Service -- recycle_requests (RCY/YY/NNNN), recycle_mrs + lines (RMRS/YY/NNNN, no approval), recycle_issues (Stores stock out WITH unit cost), recycle_consumption (capped at the RECYCLING hand stock), recycle_other_costs -- none of it touching the regular spare or hand-stock tables, and every policy refusing while Audit Mode is on. NO means a table, the guard on requests or the audit-mode rule is missing. Restore: recycling.sql (0355)',
+        (to_regclass('public.recycle_requests') is not null
+     and to_regclass('public.recycle_consumption') is not null
+     and to_regclass('public.recycle_request_list') is not null
+     and exists (select 1 from pg_trigger where tgname = 'recycle_consumption_guard' and not tgisinternal)
+     and coalesce((select p.prosrc like '%audit_mode%' from pg_proc p where p.oid = to_regprocedure('public.recycle_may_see()')), false))),
+    (288, 'Technical / Service Notes: Beta Edit saves many notes at once', 'save_service_notes(jsonb) writes every edited note in one transaction, all or nothing, as SECURITY INVOKER so documents_update decides; callable by a signed-in user, never the public key (0356). Restore: documents.sql (0356)',
+        (to_regprocedure('public.save_service_notes(jsonb)') is not null
+         and not coalesce((select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.save_service_notes(jsonb)')), true)
+         and not has_function_privilege('anon', to_regprocedure('public.save_service_notes(jsonb)'), 'EXECUTE')
+         and has_function_privilege('authenticated', to_regprocedure('public.save_service_notes(jsonb)'), 'EXECUTE'))),
+    (289, 'Objective: product failure is a call within 3 months of installation, over a rolling 12 months', 'objective_settings holds the two numbers (failure_window_months, failure_rolling_months), edited on Admin -> SLA / Objective Configuration by a holder of objective.manage, and objective_value() reads them (0357): a machine of the product whose WARRANTY START is in the rolling window is in the denominator, and it has failed when a field call on its serial falls within the window months of that date. Checked on the function body naming the setting, not on the table alone -- a table beside the old calculation would answer yes and compute the old figure. NO means the Recent Failure Rate objectives still count every field call over the whole fleet. Restore: objective.sql',
+        (to_regclass('public.objective_settings') is not null
+         and to_regprocedure('public.objective_setting(text,integer)') is not null
+         and coalesce((select p.prosrc like '%failure_window_months%'
+                         from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false))),
+    (290, 'A visit, its spares and a spare request are filed under your own name, your team''s, or anybody''s only with the key', 'The trigger filed_under_own_name on reports, spare_consumption and spare_requests refuses an engineer who is not you or in your team in the User Master, unless you hold visit.others (visits and spares, ticked per person in Extra Access) or spare.request.others (spare requests; given to Technical Support once); imports, Reconciliation and functions that file for somebody by design are not stopped. created_by on consumption, returns and transfers is the session (0359, D-125). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0359)',
         (to_regprocedure('public.is_me(text)') is not null
          and (select count(*) from pg_trigger where tgname = 'filed_under_own_name' and not tgisinternal
                and tgrelid in (to_regclass('public.reports'), to_regclass('public.spare_consumption'), to_regclass('public.spare_requests'))) = 3
          and exists (select 1 from pg_trigger where tgname = 'a_created_by_is_the_session'
                       and tgrelid = to_regclass('public.spare_consumption')))),
-    (287, 'Approving an Indoor DC does not file a visit on a call already Solved', 'approve_indoor_dc() skips the drafted visit of a unit whose call''s last status is Solved, writes indoor.visit_skipped to the audit log and says which calls in its answer; every other unit files its visit as before (0355, D-145). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0355)',
+    (291, 'Approving an Indoor DC does not file a visit on a call already Solved', 'approve_indoor_dc() skips the drafted visit of a unit whose call''s last status is Solved, writes indoor.visit_skipped to the audit log and says which calls in its answer; every other unit files its visit as before (0360, D-145). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0360)',
         coalesce((select p.prosrc like '%indoor.visit_skipped%' from pg_proc p
                    where p.oid = to_regprocedure('public.approve_indoor_dc(text,boolean)')), false)),
-    (288, 'A corrected transfer blanks Sold Through only where a transfer set it, and re-reads the machine it left', 'products.sold_through_from_transfer records that the transfer path wrote the Sold Through; transfer_resync_machine() blanks it, with no dealer transfer left, only then, and transfer_to_product re-reads OLD''s machine when a transfer moves (0356, D-149). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0356)',
+    (292, 'A corrected transfer blanks Sold Through only where a transfer set it, and re-reads the machine it left', 'products.sold_through_from_transfer records that the transfer path wrote the Sold Through; transfer_resync_machine() blanks it, with no dealer transfer left, only then, and transfer_to_product re-reads OLD''s machine when a transfer moves (0361, D-149). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0361)',
         (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'products'
                   and column_name = 'sold_through_from_transfer')
          and to_regprocedure('public.transfer_resync_machine(text,text)') is not null
          and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.products')
                       and tgname = 'products_sold_through_source'))),
-    (289, 'One installation call per call number and per machine; no installation request for a dealer', 'installation_call_once refuses a second live installation call with the same call number or the same product and serial (a cancelled call does not count, a re-load of the same UCN is not stopped); call_request_not_installation_for_dealer refuses an installation request whose party the Party Master types DEALER (0357, D-150, D-154). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0357)',
+    (293, 'One installation call per call number and per machine; no installation request for a dealer', 'installation_call_once refuses a second live installation call with the same call number or the same product and serial (a cancelled call does not count, a re-load of the same UCN is not stopped); call_request_not_installation_for_dealer refuses an installation request whose party the Party Master types DEALER (0362, D-150, D-154). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0362)',
         (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.installation_calls')
                   and tgname = 'installation_call_once')
          and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.call_requests')
                       and tgname = 'call_request_not_installation_for_dealer'))),
-    (290, 'A signed PDT is locked; the dispatch date is when the unit is marked Dispatched; a cleaning time is never in the future', 'indoor_pdt_locked_once_signed refuses a change to a signed Pre-Delivery Testing record, which is un-signed with unsign_indoor_pdt() by a holder of indoor.pdt_unsign, with a reason; zzy_indoor_dispatch_and_cleaning stamps dispatched_at / dispatched_by when the unit is marked Dispatched and records who marked it cleaned, refusing a future cleaning time (0358, D-111, D-112, D-114). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0358)',
+    (294, 'A signed PDT is locked; the dispatch date is when the unit is marked Dispatched; a cleaning time is never in the future', 'indoor_pdt_locked_once_signed refuses a change to a signed Pre-Delivery Testing record, which is un-signed with unsign_indoor_pdt() by a holder of indoor.pdt_unsign, with a reason; zzy_indoor_dispatch_and_cleaning stamps dispatched_at / dispatched_by when the unit is marked Dispatched and records who marked it cleaned, refusing a future cleaning time (0363, D-111, D-112, D-114). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0363)',
         (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.indoor_pdt')
                   and tgname = 'indoor_pdt_locked_once_signed')
          and to_regprocedure('public.unsign_indoor_pdt(bigint,text)') is not null

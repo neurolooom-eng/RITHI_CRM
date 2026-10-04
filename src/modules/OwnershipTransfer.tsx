@@ -147,7 +147,7 @@ export function OwnershipTransfer() {
       // ONLY ON A TRANSFER FROM A DEALER (D-150, the user's decision of
       // 2026-10-04): that is the sale the button exists for. A customer-to-
       // customer transfer moves a machine that is already installed, and the
-      // database refuses a second installation call for it anyway (0357).
+      // database refuses a second installation call for it anyway (0362).
       render: (r: OT & Record<string, unknown>) => (!String(r.sold_through ?? '').trim()
         ? <span className="muted" title="Not a transfer from a dealer, so the machine is already installed">—</span>
         : <button className="btn btn-sm" disabled={raising !== null} onClick={(e) => { e.stopPropagation(); void raiseInstall(r); }}

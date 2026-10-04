@@ -1045,7 +1045,7 @@ export const UPLOADS: UploadDef[] = [
   // ---------------------------------------------------------------------------
   { key: 'service_notes', label: 'Technical / Service Notes', group: 'Quality', table: 'documents',
     extraInto: 'extra', conflict: 'url_key', conflictFrom: ['url'], stamp: { kind: 'service_note' },
-    note: 'One row per note: Title, Product (as the Product Database spells it; several products comma-separated, e.g. "MONNAL T60, MONNAL T75"), the Drive Link, and optionally Document No, Revision, Tags, Notes and the Drive listing\u2019s Created, Last Modified and Last Modified By — shown on the shelf as Added, Updated and Added By. Matched on the Drive link, so a corrected list updates those notes instead of adding them again. Every other column is kept with the note under its own heading.',
+    note: 'One row per note: Title, Product (as the Product Database spells it; several products comma-separated, e.g. "MONNAL T60, MONNAL T75"), the Drive Link, and optionally Dated (the note\u2019s own date, which decides the Latest tag per product), Document No, Revision, Tags, Notes and the Drive listing\u2019s Created, Last Modified and Last Modified By — shown on the shelf as Added, Updated and Added By. Matched on the Drive link, so a corrected list updates those notes instead of adding them again. Every other column is kept with the note under its own heading.',
     cols: [
       { to: 'title', from: ['title', 'name', 'document title', 'note title'], required: true },
       TEXT('product', 'product', 'product name', 'model'),
@@ -1053,6 +1053,8 @@ export const UPLOADS: UploadDef[] = [
       TEXT('doc_no', 'document no', 'doc no', 'note no', 'tn no'),
       TEXT('revision', 'rev', 'rev no', 'revision no', 'version'),
       DATE('effective_date', 'effective date', 'issue date'),
+      // The note's own date (0354): orders the shelf and decides Latest.
+      DATE('dated', 'dated', 'note date'),
       TEXT('file_name', 'file name', 'filename'),
       TEXT('tags', 'tags', 'tag'),
       TEXT('notes', 'remarks', 'comments'),

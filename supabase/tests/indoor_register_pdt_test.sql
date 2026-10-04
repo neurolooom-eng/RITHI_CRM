@@ -46,7 +46,7 @@ insert into public.app_roles (role, permissions) values
  ('nsm', '["mod:/indoor","indoor.receive","indoor.work","indoor.qc","indoor.dispatch","indoor.verify","indoor.pdt_unsign"]'::jsonb)
 on conflict (role) do update set permissions =
   '["mod:/indoor","indoor.receive","indoor.work","indoor.qc","indoor.dispatch","indoor.verify","indoor.pdt_unsign"]'::jsonb;
--- ...and indoor.pdt_unsign (0358, D-111), also granted HERE: nobody holds it by migration.
+-- ...and indoor.pdt_unsign (0363, D-111), also granted HERE: nobody holds it by migration.
 
 create or replace procedure public.be(p text) language plpgsql as $$
 begin update public.harness set uid = (select id from auth.users where email = p), email = p; end $$;
@@ -168,7 +168,7 @@ begin;
 commit;
 
 \echo '--- 7. ...AND WITH A COMPLETE, ALL-OK, SIGNED PDT IT LEAVES ---'
--- 0358 (D-111, the user's decision "Lock once signed"): the signed PDT is not
+-- 0363 (D-111, the user's decision "Lock once signed"): the signed PDT is not
 -- corrected in place. It is un-signed with a reason by a holder of
 -- indoor.pdt_unsign, corrected, and signed again.
 \echo 'expect ERROR: This Pre-Delivery Testing record is signed by Pdt Worker and locked'

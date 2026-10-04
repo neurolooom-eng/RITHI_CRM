@@ -161,19 +161,19 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-10-04 — Your decisions built: ten defects (v0.10.82, 0354–0358)
+### 2026-10-04 — Your decisions built: ten defects (v0.10.88, 0359–0363)
 - **Your answers**, one question at a time: D-125 (own name, team for RM/RGM, anybody else by a key ticked per person; spare requests also Technical Support), D-145 (approve, skip that visit), D-149 (blank only if a transfer set it), D-150 (button only on dealer transfers; the database refuses a duplicate call number and a second installation call), D-151 (Party Master decides), D-152 (just flag it for now), D-154 (at the Call Request), D-111 (lock once signed; a new key to un-sign), D-112 (the date it is marked Dispatched), D-114 (allow an earlier time).
 - **Database:**
-  - **D-125 (0354):** `filed_under_own_name` on visits, consumption and spare requests; `created_by` stamped from the session. Before writing it I read every path that files in somebody else's name: imports, Reconciliation and the functions that do it by design are exempt.
-  - **D-145 (0355):** the approval skips the visit of a Solved call and logs `indoor.visit_skipped`.
-  - **D-149 (0356):** `products.sold_through_from_transfer`, and the old machine is re-read when a transfer moves.
-  - **D-150, D-154 (0357):** one live installation call per call number and per machine; no installation request for a dealer.
-  - **D-111, D-112, D-114 (0358):** the PDT lock and `unsign_indoor_pdt()`; the dispatch stamp on the move into Dispatched; the cleaning time never in the future, and who from the session.
+  - **D-125 (0359):** `filed_under_own_name` on visits, consumption and spare requests; `created_by` stamped from the session. Before writing it I read every path that files in somebody else's name: imports, Reconciliation and the functions that do it by design are exempt.
+  - **D-145 (0360):** the approval skips the visit of a Solved call and logs `indoor.visit_skipped`.
+  - **D-149 (0361):** `products.sold_through_from_transfer`, and the old machine is re-read when a transfer moves.
+  - **D-150, D-154 (0362):** one live installation call per call number and per machine; no installation request for a dealer.
+  - **D-111, D-112, D-114 (0363):** the PDT lock and `unsign_indoor_pdt()`; the dispatch stamp on the move into Dispatched; the cleaning time never in the future, and who from the session.
 - **Screens:** the engineer pickers offer only names the database accepts; the Warranty Register asks the Party Master about dealers (D-151); the transfer button only with a Sold Through; the PDT locks and offers Un-sign; a cleaning time field; the D-152 upload flag; the approval message names the skipped calls.
 - **Checked:**
-  - `review_decisions_test` is clean with the migrations. On a database built without 0354–0358 every section fails.
+  - `review_decisions_test` is clean with the migrations. On a database built without 0359–0363 every section fails.
   - `indoor_register_pdt_test` was updated for the lock; status rows 260–262 now read `transfer_resync_machine`.
-  - `_status.sql` rows 286–290; FRS-158/225/226/233/235/243 amended; OQ-248 added.
+  - `_status.sql` rows 290–294; FRS-158/225/226/233/235/243 amended; OQ-251 added.
 
 ### 2026-10-04 — Review batch 4: eight defects fixed, one half-fixed (v0.10.81, 0350–0353)
 - **Your ask:** *"take up the next batch of work"*, again.

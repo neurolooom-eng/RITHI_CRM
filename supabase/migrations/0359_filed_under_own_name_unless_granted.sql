@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0354 — A VISIT, ITS SPARES AND A SPARE REQUEST ARE FILED UNDER YOUR OWN
+-- 0359 — A VISIT, ITS SPARES AND A SPARE REQUEST ARE FILED UNDER YOUR OWN
 --        NAME, YOUR TEAM'S, OR ANYBODY'S ONLY WITH A KEY GIVEN FOR IT
 --        (second re-review D-125; the user's decision, 2026-10-04)
 --
@@ -163,13 +163,13 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 
 do $$
 begin
-  if not exists (select 1 from public.one_time_fixes_done where name = '0354_spare_request_others_to_technical_support') then
+  if not exists (select 1 from public.one_time_fixes_done where name = '0359_spare_request_others_to_technical_support') then
     update public.app_roles
        set permissions = coalesce(permissions, '[]'::jsonb) || '["spare.request.others"]'::jsonb
      where role = 'technical_support'
        and jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
        and not (coalesce(permissions, '[]'::jsonb) ? 'spare.request.others');
     insert into public.one_time_fixes_done (name, detail)
-    values ('0354_spare_request_others_to_technical_support', 'spare.request.others given to technical_support once');
+    values ('0359_spare_request_others_to_technical_support', 'spare.request.others given to technical_support once');
   end if;
 end $$;

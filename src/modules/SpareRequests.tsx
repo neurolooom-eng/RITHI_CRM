@@ -135,7 +135,7 @@ export function SpareRequestDrawer({
   // Engineers raise requests for themselves; an RM / RGM / NSM for the
   // engineers below them in the User Master; anybody only with
   // spare.request.others (Admins, Technical Support, or per person) -- the
-  // user's rule of 2026-10-04, which the database enforces (0354, D-125).
+  // user's rule of 2026-10-04, which the database enforces (0359, D-125).
   // `canPick` is the list having more than one name in it, so the rule lives
   // in ONE place.
   const team = useFilingNames('spare.request.others', engineer);

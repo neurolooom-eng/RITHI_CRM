@@ -1053,6 +1053,22 @@ typed into a form that reads it.
 - **Technical / Service Notes** `/service-manuals/notes` — technical bulletins and
   service notes, by product, kept the same way as the manuals. Whoever can open
   Service Manuals can open these; adding them needs the same permission.
+  > **Always grouped per product, newest first** (the grouping cannot be turned off). A note covering several products is
+  > listed under each of them; a note with none is under **Every product**.
+  > Inside a group the notes run by **Dated** — the note's own date, which you
+  > type in on the form (or the **Dated** column of the upload) — newest first.
+  > **Latest** is added by itself to the newest *dated*, *live* note of each
+  > product. Add a newer note, change a Dated or retire a note and the tags move
+  > on their own; **↻ Refresh Latest tags** re-does them for every product if
+  > they ever look wrong. A note with no Dated, or a retired one, is never Latest;
+  > two notes on the same newest date are both Latest. A note for two products
+  > can be Latest under one and not the other.
+  > **Edit shows every field** — Document No, Revision, Issue / Effective date,
+  > File name, and each column the upload kept with the note (under **More
+  > fields**). **✏️ Beta Edit** turns the list into a grid: change any cells on
+  > any notes (changed ones are marked), then **💾 Save all** saves them all at
+  > once. If one cannot be saved, none are, and the message names the note.
+  > **Cancel** asks before throwing changes away.
   > **A note can cover several products** — tick them all. None ticked means it
   > applies to every product. **A call's 📄 Supporting documents lists every
   > active note for its product** beside the manuals; a retired note is not offered.
@@ -1061,7 +1077,7 @@ typed into a form that reads it.
   > it was entered in RITHI is under **Record details** when you edit it.
   > **Many at once:** Bulk Uploads → **Technical / Service Notes** — Title,
   > Product (spelled as the Product Database spells it; several products
-  > comma-separated), the Drive Link, and optionally Document No, Tags, Notes,
+  > comma-separated), the Drive Link, and optionally Dated, Document No, Tags, Notes,
   > and the listing's Created, Last Modified and Last Modified By. Matched on the
   > Drive link, so loading the list again corrects those notes rather than
   > adding them twice.
@@ -1198,6 +1214,10 @@ typed into a form that reads it.
     asks: **Keep** them (the default — they stay exactly as typed, every run) or
     **Discard** them (those months are recalculated and the ✎ goes).
   - Each month is measured as at the end of that month.
+  - A **Recent Failure Rate** is the machines installed (warranty start) in the
+    last 12 months that had a field call within 3 months of installation, over
+    all the machines installed in those 12 months. Both numbers are set on
+    SLA / Objective Configuration.
   - A quarterly objective reports in its quarter's last month; the others read NA,
     not zero.
   - It shows its working on three tabs, the third counted from the first two.
@@ -1456,6 +1476,25 @@ typed into a form that reads it.
   > check, a DEMO unit of an imported product without its Pre-Delivery Testing)
   > — the message says which. Units for two consignees cannot share a DC. A DC
   > is never deleted; **Indoor DCs** lists them all and prints any of them again.
+- **Spare Recycling** `/indoor/recycling` — a **separate track** for recycling
+  defective spares, with its own stock. Nothing here touches calls, Spare
+  Requests, Stock Out or the regular Hand Stock. **Hidden while Audit Mode is
+  on.**
+  - **Register** a defective spare (RCY/26/0001): the part, serial, quantity,
+    received on and from, and an optional call reference (text only).
+  - **Raise MRS** (RMRS/26/0001) for the spares you need — **no approval**.
+    Stores presses **Stock Out** on the line, enters the quantity and **unit
+    cost**, and it goes into **your recycling hand stock**.
+  - **Open** a request to record the **job done**, **consume** from your
+    recycling hand stock (never more than you hold) and add **other costs**
+    (labour, courier, vendor, other).
+  - **Close** it as **Returned to Service Store** — recorded as **R<PartNo>**;
+    the Part Master is not changed — or **Not recyclable** with a reason. The
+    job done must be filled first; a closed request cannot be changed.
+  - **Cost**: each request shows parts (at their stock-out cost) + other
+    costs; the Cost tab totals everything spent on recycling.
+  - Its keys are given to no role — grant them on **Roles & Permissions →
+    Indoor Service**.
 - **Solved Without a Report** `/missing-visit-reports` — **administrators
   only.** Every call that reads Solved while its visit record is incomplete —
   the list of what to re-upload.
@@ -1536,15 +1575,28 @@ typed into a form that reads it.
   and how long they took. It records all the time, whatever Audit Mode says. The
   history of Audit Mode being turned on and off, each with its reason, is on
   Admin Config.
-- **Admin Config** `/admin-config` — the settings the rules read: the SLA
-  targets, the Call Registration desk, the frequent-failure window and threshold,
-  and audit mode. (The objective cut-offs and their lock are on the Objective
-  screen.) The SLA targets, the desk
+- **Admin Config** `/admin-config` — the settings the rules read: the Call
+  Registration desk, the frequent-failure window and threshold, and audit mode.
+  (The SLA targets are on SLA / Objective Configuration; the objective cut-offs
+  and their lock are on the Objective screen.) The desk
   and the frequent-failure rule are open to anybody given *Admin config*;
   switching Audit Mode and the Data Import panel each have their own tick on
   Roles & Permissions (*audit.mode*, *import.panel*). **While Audit Mode is
   ON** a call's Update Party Details and Update Product Details are hidden (and
   refused).
+- **SLA / Objective Configuration** `/sla-objective-config` — the targets the
+  service is measured against. **SLA Targets**: the hours for first visit and
+  closure, each switchable. **Product Failure Rate**: a machine has *failed*
+  when a field call on it is registered within **3 months** of its installation
+  (its **warranty start**); the rate is over the machines of that product
+  installed in the last **12 months** (rolling, up to each month's cut-off). A
+  machine with several calls in its window counts once; one with no warranty
+  start is in neither number. Both numbers can be changed here — the change
+  applies from the next **Re-Calculate** on the Objective screen, and figures
+  already written stay until then.
+  > Only the **Admin** role has this page to begin with. Give it to another
+  > role on Roles & Permissions → Administration → SLA / Objective
+  > Configuration.
 - **Software Validation** `/software-validation` — the ISO 13485 §4.1.6 package:
   intended use, regulatory basis, requirements and the tests that answer them.
   > Not the servicing process requirements. Software validation does not discharge

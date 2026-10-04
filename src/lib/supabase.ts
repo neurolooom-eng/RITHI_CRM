@@ -5466,9 +5466,15 @@ export interface DocRow {
   // What the Drive listing said about the FILE (0299) -- only a note loaded
   // from one has them. Not the same facts as created_at / updated_at above.
   source_created_at?: string | null; source_modified_at?: string | null; source_modified_by?: string;
+  // TECHNICAL / SERVICE NOTES (0354): the note's own date, entered by hand, and
+  // the products it is currently the latest for ('' = every product) -- the
+  // second written only by the database.
+  dated?: string | null; latest_for?: string[];
+  // Every column the source file carried that has no field of its own (0265).
+  extra?: Record<string, unknown>;
 }
 export type DocInput = Pick<DocRow, 'kind' | 'title' | 'product' | 'doc_no' | 'revision' | 'tags' | 'url' | 'file_name' | 'notes'>
-  & { effective_date?: string | null; uploaded_by_name?: string };
+  & { effective_date?: string | null; uploaded_by_name?: string; dated?: string | null; extra?: Record<string, unknown> };
 
 export async function listDocuments(kind?: DocKind, includeInactive = true): Promise<DocRow[]> {
   const c = getSupabase(); if (!c) return [];
@@ -5512,6 +5518,24 @@ export async function updateDocument(id: number, patch: Partial<DocInput>): Prom
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
   const { error } = await c.from('documents').update(patch).eq('id', id);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+// THE "REFRESH LATEST TAGS" BUTTON (0354): re-marks the latest Technical Note
+// of every product. The database also does this on every save; the button is
+// for whenever the marks are in doubt. Returns how many notes changed.
+export async function refreshServiceNoteLatest(): Promise<{ ok: boolean; changed?: number; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  const { data, error } = await c.rpc('refresh_service_note_latest');
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, changed: Number(data ?? 0) };
+}
+// TECHNICAL / SERVICE NOTES BETA EDIT (0356): every edited note in one
+// transaction, under the caller's own rights -- all saved, or none.
+export type NotePatch = { id: number } & Partial<Pick<DocRow,
+  'title' | 'product' | 'doc_no' | 'revision' | 'effective_date' | 'dated' | 'tags' | 'notes' | 'url' | 'file_name' | 'extra'>>;
+export async function saveServiceNotes(rows: NotePatch[]): Promise<{ ok: boolean; saved?: number; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  if (!rows.length) return { ok: true, saved: 0 };
+  const { data, error } = await c.rpc('save_service_notes', { p_rows: rows });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, saved: Number(data ?? 0) };
 }
 // A superseded manual is DEACTIVATED, never deleted: calls already worked from
 // it, and the shelf is a record of what the field was told.
@@ -5608,6 +5632,30 @@ export async function saveSlaRule(key: string, patch: { target_hours?: number; a
   if (error) return { ok: false, error: errMsg(error) };
   if (!data || data.length === 0)
     return { ok: false, error: 'Not saved — your role cannot change the SLA targets (it needs “Admin config”).' };
+  return { ok: true };
+}
+
+// THE PRODUCT FAILURE RULE'S TWO NUMBERS (0357): a field call within
+// `failure_window_months` of installation (warranty start) is a failure, over
+// the machines installed in the `failure_rolling_months` to the cut-off.
+// Edited on Admin -> SLA / Objective Configuration; objective_value() reads them.
+export interface ObjectiveSettingRow {
+  key: string; label: string; value: number; unit: string; sort_order: number;
+  updated_at?: string | null;
+}
+export async function listObjectiveSettings(): Promise<ObjectiveSettingRow[]> {
+  const { data, error } = await must().from('objective_settings')
+    .select('key, label, value, unit, sort_order, updated_at').order('sort_order');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as ObjectiveSettingRow[];
+}
+export async function saveObjectiveSetting(key: string, value: number): Promise<{ ok: boolean; error?: string }> {
+  // Rows counted, as saveSlaRule does: a refused UPDATE matches nothing and is
+  // not an error.
+  const { data, error } = await must().from('objective_settings').update({ value }).eq('key', key).select('key');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0)
+    return { ok: false, error: 'Not saved — your role cannot change the objective rules (it needs “Edit, recalculate and cut off the quality objectives”).' };
   return { ok: true };
 }
 
@@ -5989,7 +6037,7 @@ export async function markIndoorCleaned(
 ): Promise<{ ok: boolean; error?: string }> {
   // `when` is an EARLIER time for a cleaning recorded after it was done (D-114,
   // the user's decision); the database refuses a future one and writes WHO
-  // from the session whatever `cleaned_by` says (0358).
+  // from the session whatever `cleaned_by` says (0363).
   const at = when ? new Date(when) : new Date();
   if (Number.isNaN(at.getTime())) return { ok: false, error: 'That cleaning time is not a date and time.' };
   const { error } = await must().from('indoor_jobs')
@@ -6108,7 +6156,7 @@ export async function listIndoorDcAuthorisers(): Promise<{ name: string; basis: 
 export async function approveIndoorDc(dcNo: string, checkOnly = false): Promise<{ ok: boolean; error?: string; skipped?: string }> {
   const { data, error } = await must().rpc('approve_indoor_dc', { p_dc_no: dcNo, p_check_only: checkOnly });
   if (error) return { ok: false, error: errMsg(error) };
-  // D-145 (0355): a unit whose call was SOLVED since its visit was drafted is
+  // D-145 (0360): a unit whose call was SOLVED since its visit was drafted is
   // not filed; the function names those calls after a " | ".
   const out = String(data ?? '');
   const i = out.indexOf(' | ');
@@ -6222,7 +6270,7 @@ export async function signIndoorPdt(
   return { ok: true };
 }
 
-/** UN-SIGN a signed PDT (0358, D-111): a signed record is locked, and this is
+/** UN-SIGN a signed PDT (0363, D-111): a signed record is locked, and this is
  *  the only way to withdraw the signature -- it needs indoor.pdt_unsign and a
  *  reason, which the database writes to the audit log with who and when. */
 export async function unsignIndoorPdt(jobId: number, reason: string): Promise<{ ok: boolean; error?: string }> {
@@ -6757,3 +6805,108 @@ export async function sbWarrantyPreview(product: string, serial: string, solvedO
     solvedStart: d(r.solved_start), solvedEnd: d(r.solved_end) };
 }
 
+
+// ===========================================================================
+// SPARE RECYCLING (0356) — a parallel track under Indoor Service, with its own
+// tables and its own hand stock. Nothing here reads or writes the call, spare
+// or regular hand-stock tables. While Audit Mode is on every read comes back
+// empty and every write is refused, by the database.
+// ===========================================================================
+export interface RecycleRequest {
+  id: number; rcy_no: string; received_on: string; part_code: string; part_description: string;
+  serial: string; qty: number; received_from: string; call_ref: string; remarks: string;
+  job_done: string; status: 'Open' | 'Returned' | 'Not recyclable';
+  returned_part_code: string; returned_qty: number | null; returned_on: string | null;
+  not_recyclable_reason: string; closed_at: string | null; closed_by_name: string;
+  created_at: string; created_by_name: string;
+  parts_cost: number; other_cost: number; total_cost: number; issued_cost: number;
+}
+export interface RecycleMrsLine {
+  line_id: number; mrs_id: number; mrs_no: string; request_id: number | null; rcy_no: string | null;
+  requested_for_name: string; remarks: string; created_at: string;
+  part_code: string; part_description: string; qty_requested: number; qty_issued: number;
+  qty_pending: number; cost_issued: number; last_issued_at: string | null;
+  status: 'Pending' | 'Partly issued' | 'Issued';
+}
+export interface RecycleHandStock {
+  holder: string; holder_name: string; part_code: string; part_description: string;
+  issued: number; consumed: number; balance: number; avg_unit_cost: number | null;
+}
+export interface RecycleConsumption {
+  id: number; request_id: number; rcy_no: string; holder_name: string; part_code: string;
+  qty: number; consumed_at: string; avg_unit_cost: number | null; value: number;
+}
+export interface RecycleCost {
+  id: number; request_id: number; cost_type: string; description: string; amount: number;
+  created_at: string; created_by_name: string;
+}
+
+type Res<T = undefined> = { ok: boolean; error?: string; data?: T };
+
+export async function listRecycleRequests(): Promise<RecycleRequest[]> {
+  const c = must();
+  return allRows<RecycleRequest>((a, b) => c.from('recycle_request_list').select('*').order('id', { ascending: false }).range(a, b));
+}
+export async function addRecycleRequest(row: Partial<RecycleRequest>): Promise<Res<RecycleRequest>> {
+  const { data, error } = await must().from('recycle_requests').insert(row).select('*').single();
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, data: data as RecycleRequest };
+}
+// The row count is asked for: row-level security refuses an UPDATE by matching
+// nothing, which is not an error and must not read as "saved".
+export async function updateRecycleRequest(id: number, patch: Partial<RecycleRequest>): Promise<Res> {
+  const { data, error } = await must().from('recycle_requests').update(patch).eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  return (data ?? []).length ? { ok: true } : { ok: false, error: 'Not saved — you may not change this request.' };
+}
+export async function listRecycleMrs(): Promise<RecycleMrsLine[]> {
+  const c = must();
+  return allRows<RecycleMrsLine>((a, b) => c.from('recycle_mrs_list').select('*').order('line_id', { ascending: false }).range(a, b));
+}
+export async function raiseRecycleMrs(
+  requestId: number | null, remarks: string, lines: { part_code: string; part_description: string; qty: number }[],
+): Promise<Res<string>> {
+  const c = must();
+  const { data, error } = await c.from('recycle_mrs').insert({ request_id: requestId, remarks }).select('id, mrs_no').single();
+  if (error) return { ok: false, error: errMsg(error) };
+  const m = data as { id: number; mrs_no: string };
+  const { error: lErr } = await c.from('recycle_mrs_lines').insert(lines.map((l) => ({ ...l, mrs_id: m.id })));
+  if (lErr) return { ok: false, error: `MRS ${m.mrs_no} was raised, but its lines were not saved: ${errMsg(lErr)}` };
+  return { ok: true, data: m.mrs_no };
+}
+export async function issueRecycleLine(lineId: number, qty: number, unitCost: number): Promise<Res> {
+  const { error } = await must().from('recycle_issues').insert({ mrs_line_id: lineId, qty, unit_cost: unitCost });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+export async function listRecycleHandStock(): Promise<RecycleHandStock[]> {
+  const c = must();
+  return allRows<RecycleHandStock>((a, b) => c.from('recycle_hand_stock').select('*')
+    .order('holder_name', { ascending: true }).order('part_code', { ascending: true }).range(a, b));
+}
+export async function listRecycleConsumption(requestId: number): Promise<RecycleConsumption[]> {
+  const { data, error } = await must().from('recycle_consumption_list').select('*').eq('request_id', requestId).order('id');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as RecycleConsumption[];
+}
+export async function addRecycleConsumption(requestId: number, partCode: string, qty: number): Promise<Res> {
+  const { error } = await must().from('recycle_consumption').insert({ request_id: requestId, part_code: partCode, qty });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+export async function deleteRecycleConsumption(id: number): Promise<Res> {
+  const { data, error } = await must().from('recycle_consumption').delete().eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  return (data ?? []).length ? { ok: true } : { ok: false, error: 'Not removed — you may not change this request.' };
+}
+export async function listRecycleCosts(requestId: number): Promise<RecycleCost[]> {
+  const { data, error } = await must().from('recycle_other_costs').select('*').eq('request_id', requestId).order('id');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as RecycleCost[];
+}
+export async function addRecycleCost(requestId: number, costType: string, description: string, amount: number): Promise<Res> {
+  const { error } = await must().from('recycle_other_costs').insert({ request_id: requestId, cost_type: costType, description, amount });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+export async function deleteRecycleCost(id: number): Promise<Res> {
+  const { data, error } = await must().from('recycle_other_costs').delete().eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  return (data ?? []).length ? { ok: true } : { ok: false, error: 'Not removed — you may not change this request.' };
+}

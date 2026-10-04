@@ -33,6 +33,7 @@ const NEEDS = {
   visibleEngineers: [`to_regprocedure('public.visible_engineer_names()')`, 'visible_engineer_names()', '0004_user_directory.sql (apply bundle: user_directory)'],
   spareTables: [`to_regclass('public.spare_requests')`, 'the spare_requests table', '0001_init.sql (apply bundle: base)'],
   callRequestTable: [`to_regclass('public.call_requests')`, 'the call_requests table', '0003_call_requests.sql (apply bundle: base)'],
+  auditMode: [`to_regprocedure('public.audit_mode()')`, 'audit_mode()', '0114_audit_mode.sql (apply bundle: audit)'],
   rbac: [`to_regprocedure('public.has_perm(text)')`, 'has_perm()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
   isAdmin: [`to_regprocedure('public.is_admin()')`, 'is_admin()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
   approvers: [`to_regprocedure('public.can_approve_spares()')`, 'can_approve_spares()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
@@ -559,7 +560,13 @@ const MODULES = {
             // A figure typed over a calculated month is a manual override;
             // Re-Calculate keeps or discards them (the user, 2026-10-04).
             // Redefines 0292's recalc_quality_objectives.
-            '0349_objective_manual_overrides.sql'],
+            '0349_objective_manual_overrides.sql',
+            // Product failure = within 3 months of installation (warranty
+            // start) over the machines installed in a rolling 12 months, both
+            // set on Admin -> SLA / Objective Configuration (the user,
+            // 2026-10-04). Redefines 0142's objective_value / objective_notes
+            // and 0251's objective_evidence, so it stays after both.
+            '0357_failure_within_months_of_install.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -705,6 +712,18 @@ const MODULES = {
             '0296_tracker_delete_key.sql',
             '0162_tracker_nl_team.sql'],
   },
+  recycling: {
+    title: 'Spare Recycling (a parallel track under Indoor Service)',
+    blurb: ['A defective spare registered for recycling (RCY/YY/NNNN), the spares used',
+            'raised on an MRS without approval (RMRS/YY/NNNN), booked out by Stores',
+            'with a unit cost into the requester\'s RECYCLING hand stock, consumed on',
+            'closing, and closed Returned (as R<PartNo>, recorded only) or Not',
+            'recyclable. Its own tables and ledger: nothing in it touches calls, the',
+            'spare module or the regular hand stock. Every read and write is refused',
+            'while Audit Mode is on (a non-auditable requirement).'],
+    needs: ['profiles', 'rbac', 'auditMode'],
+    files: ['0355_spare_recycling.sql'],
+  },
   indoor: {
     title: 'Indoor Service (the workshop register, §4.5)',
     blurb: ['indoor_jobs --- the Indoor Service Register: one row per piece of equipment',
@@ -763,14 +782,14 @@ const MODULES = {
             // a trigger of its own beside the stage guard (0352).
             '0352_indoor_report_keeps_its_number.sql',
             // D-145 (the user's decision): approving a DC skips filing the visit
-            // of a unit whose call is already Solved, and says so (0355).
+            // of a unit whose call is already Solved, and says so (0360).
             // Redefines 0327's approve_indoor_dc(), so after it.
-            '0355_indoor_approval_skips_a_solved_call.sql',
+            '0360_indoor_approval_skips_a_solved_call.sql',
             // D-111 / D-112 / D-114 (the user's decisions): a signed PDT is locked
             // and un-signed only with indoor.pdt_unsign and a reason; the dispatch
             // date is when the unit is marked Dispatched; a cleaning time may be
-            // earlier, never later, and names who (0358).
-            '0358_indoor_pdt_lock_dispatch_and_cleaning.sql'],
+            // earlier, never later, and names who (0363).
+            '0363_indoor_pdt_lock_dispatch_and_cleaning.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -790,7 +809,12 @@ const MODULES = {
             '0272_service_note_upload_key.sql',
             // A note's Drive details -- Created, Last Modified, Last Modified By
             // -- kept beside RITHI's own created_at / updated_at (0299).
-            '0299_document_drive_details.sql'],
+            '0299_document_drive_details.sql',
+            // Technical / Service Notes: Dated, and the latest note per
+            // product marked (stored, recalculated, and by a button).
+            '0354_service_note_dated_latest.sql',
+            // Beta Edit: many notes edited, one save, all or nothing (0356).
+            '0356_service_notes_batch_save.sql'],
   },
   training: {
     title: 'People: profile, Roles & Responsibilities, Training',
@@ -979,8 +1003,8 @@ const MODULES = {
             // D-125 (the user's decision, 2026-10-04): a visit, its spares and a
             // spare request are filed under your own name, your team's, or
             // anybody's with visit.others / spare.request.others; created_by
-            // stamped from the session (0354).
-            '0354_filed_under_own_name_unless_granted.sql'],
+            // stamped from the session (0359).
+            '0359_filed_under_own_name_unless_granted.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -1086,13 +1110,13 @@ const MODULES = {
             // is already there, party unchanged (0351). Redefines 0328's.
             '0351_dealer_guard_stands_aside_on_reload.sql',
             // D-149 (the user's decision): Sold Through is cleared only where a
-            // transfer set it; a corrected transfer's old machine is re-read (0356).
+            // transfer set it; a corrected transfer's old machine is re-read (0361).
             // Redefines transfer_to_product() (0329), so after it.
-            '0356_sold_through_cleared_only_if_a_transfer_set_it.sql',
+            '0361_sold_through_cleared_only_if_a_transfer_set_it.sql',
             // D-150 / D-154 (the user's decisions): one installation call per
             // machine and per call number; no installation call request for a
-            // dealer (0357).
-            '0357_installation_once_and_no_dealer_request.sql'],
+            // dealer (0362).
+            '0362_installation_once_and_no_dealer_request.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -1496,7 +1520,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'training', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'device_cache', 'permissions', 'sys_columns', 'lockdown'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'recycling', 'masters', 'documents', 'training', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'device_cache', 'permissions', 'sys_columns', 'lockdown'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

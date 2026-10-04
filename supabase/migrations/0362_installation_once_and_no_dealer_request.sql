@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0357 — ONE INSTALLATION CALL PER MACHINE AND PER CALL NUMBER; NO
+-- 0362 — ONE INSTALLATION CALL PER MACHINE AND PER CALL NUMBER; NO
 --        INSTALLATION REQUEST FOR A DEALER
 --        (second re-review D-150, D-154; the user's decisions, 2026-10-04)
 --
@@ -27,7 +27,7 @@
 -- 0328; a re-load of the same request line (reqid + product + serial) under the
 -- same party stands aside, as 0351 does for the Installation Calls upload.
 --
--- In the sales_contracts module, after 0356: party_is_dealer() is 0328's.
+-- In the sales_contracts module, after 0361: party_is_dealer() is 0328's.
 -- ===========================================================================
 
 -- ---- D-150 ------------------------------------------------------------------

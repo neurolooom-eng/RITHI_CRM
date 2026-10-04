@@ -49,8 +49,8 @@
 --   0331_install_solved_date_starts_warranty.sql
 --   0332_installation_warranty_starts.sql
 --   0351_dealer_guard_stands_aside_on_reload.sql
---   0356_sold_through_cleared_only_if_a_transfer_set_it.sql
---   0357_installation_once_and_no_dealer_request.sql
+--   0361_sold_through_cleared_only_if_a_transfer_set_it.sql
+--   0362_installation_once_and_no_dealer_request.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -4663,11 +4663,11 @@ end $$;
 revoke execute on function public.installation_call_not_for_dealer() from public, anon, authenticated;
 
 -- ------------------------------------------------------------------------
--- 0356_sold_through_cleared_only_if_a_transfer_set_it.sql
+-- 0361_sold_through_cleared_only_if_a_transfer_set_it.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0356 — A MACHINE'S SOLD THROUGH IS CLEARED ONLY WHERE A TRANSFER SET IT, AND
+-- 0361 — A MACHINE'S SOLD THROUGH IS CLEARED ONLY WHERE A TRANSFER SET IT, AND
 --        A CORRECTED TRANSFER'S OLD MACHINE IS RE-READ TOO
 --        (second re-review D-149; the user's decision, 2026-10-04)
 --
@@ -4702,7 +4702,7 @@ revoke execute on function public.installation_call_not_for_dealer() from public
 
 alter table public.products add column if not exists sold_through_from_transfer boolean not null default false;
 comment on column public.products.sold_through_from_transfer is
-  'True when the Sold Through was written by an ownership transfer (0356); a transfer correction that leaves no dealer transfer blanks it only then.';
+  'True when the Sold Through was written by an ownership transfer (0361); a transfer correction that leaves no dealer transfer blanks it only then.';
 
 -- ---- 1. any other change of sold_through says it is not the transfer's --------
 create or replace function public.products_sold_through_source()
@@ -4735,7 +4735,7 @@ begin
   -- the only thing that knows who owns it -- and, since 0328, which dealer it
   -- came through; since 0329, it takes that owner's Party Master address, city,
   -- state and Service Engineer, a blank there keeping what the row has.
-  -- Since 0356: with no dealer transfer left, Sold Through is blanked only if
+  -- Since 0361: with no dealer transfer left, Sold Through is blanked only if
   -- a transfer had set it; a value from anywhere else is kept.
   v_st := public.machine_sold_through(p_item, p_serial);
   perform set_config('rithi.sold_through_by_transfer', 'on', true);
@@ -4789,7 +4789,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0356_sold_through_from_transfer_marked') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0361_sold_through_from_transfer_marked') then return; end if;
   perform set_config('rithi.sold_through_by_transfer', 'on', true);
   update public.products p
      set sold_through_from_transfer = true
@@ -4801,16 +4801,16 @@ begin
   get diagnostics n = row_count;
   perform set_config('rithi.sold_through_by_transfer', 'off', true);
   insert into public.one_time_fixes_done (name, detail)
-  values ('0356_sold_through_from_transfer_marked', n || ' machine(s) marked as having their Sold Through from a transfer');
-  raise notice '0356: % machine(s) marked as having their Sold Through from a transfer', n;
+  values ('0361_sold_through_from_transfer_marked', n || ' machine(s) marked as having their Sold Through from a transfer');
+  raise notice '0361: % machine(s) marked as having their Sold Through from a transfer', n;
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0357_installation_once_and_no_dealer_request.sql
+-- 0362_installation_once_and_no_dealer_request.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0357 — ONE INSTALLATION CALL PER MACHINE AND PER CALL NUMBER; NO
+-- 0362 — ONE INSTALLATION CALL PER MACHINE AND PER CALL NUMBER; NO
 --        INSTALLATION REQUEST FOR A DEALER
 --        (second re-review D-150, D-154; the user's decisions, 2026-10-04)
 --
@@ -4838,7 +4838,7 @@ end $$;
 -- 0328; a re-load of the same request line (reqid + product + serial) under the
 -- same party stands aside, as 0351 does for the Installation Calls upload.
 --
--- In the sales_contracts module, after 0356: party_is_dealer() is 0328's.
+-- In the sales_contracts module, after 0361: party_is_dealer() is 0328's.
 -- ===========================================================================
 
 -- ---- D-150 ------------------------------------------------------------------

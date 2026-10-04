@@ -188,6 +188,8 @@ export const MODULES: ModuleDef[] = [
   // nobody.
   { path: '/part-search', label: 'Part Search' },
   { path: '/indoor', label: 'Indoor Service Register' },
+  // SPARE RECYCLING (0355): a non-auditable parallel track, hidden in Audit Mode.
+  { path: '/indoor/recycling', label: 'Spare Recycling' },
   // SOLVED WITHOUT A REPORT — administrators only (the user, 2026-09-20:
   // "View only for Admins and Super Admins"). `admin: true` keeps the key out
   // of NON_ADMIN_MODULES, leaving SEES_EVERY_MODULE's three; 0224 is the other
@@ -197,6 +199,12 @@ export const MODULES: ModuleDef[] = [
   { path: '/roles', label: 'Roles & Permissions', admin: true },
   { path: '/audit', label: 'Audit Log', admin: true },
   { path: '/admin-config', label: 'Admin Config', admin: true },
+  // SLA / OBJECTIVE CONFIGURATION (0357) -- the Admin role only by default,
+  // with every action on it (the user, 2026-10-04: "By Default Grant Permission
+  // to Admin - All Actions, Rest let the Admin Decide through the App").
+  // `admin: true` keeps the key out of NON_ADMIN_MODULES; 0357 merges it into
+  // the admin row of `app_roles`, because a code default reaches nobody.
+  { path: '/sla-objective-config', label: 'SLA / Objective Configuration', admin: true },
   { path: '/software-validation', label: 'Software Validation', admin: true },
   { path: '/settings', label: 'Settings' },
   { path: '/version-history', label: 'Version History' },
@@ -250,7 +258,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // key each, children of all three registers' report keys (perm_parents, 0286).
   { group: 'Calls', key: 'calls.report.visit', label: ' File a visit on a Field call' },
   { group: 'Calls', key: 'visit.spares', label: ' Book spares used on a visit (any register)' },
-  // D-125 (0354, the user, 2026-10-04): given per person in Extra Access, to nobody by role.
+  // D-125 (0359, the user, 2026-10-04): given per person in Extra Access, to nobody by role.
   { group: 'Calls', key: 'visit.others', label: 'Report a visit and its spares in another engineer\u2019s name (not only your team)' },
   { group: 'Calls', key: 'visit.feedback', label: ' Record customer feedback on a visit (any register)' },
   { group: 'Calls', key: 'calls.cancel', label: 'Cancel a Field call (and restore it)' },
@@ -320,7 +328,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'spare.drop', label: 'Drop a spare (any stage)' },
   { group: 'Spares', key: 'spare.receive', label: 'Acknowledge spare receipt' },
   { group: 'Spares', key: 'spare.reassign', label: 'Change the engineer on a spare request (before dispatch)' },
-  // D-125 (0354): RM / RGM / NSM raise for their team without it; Admins and Technical Support hold it.
+  // D-125 (0359): RM / RGM / NSM raise for their team without it; Admins and Technical Support hold it.
   { group: 'Spares', key: 'spare.request.others', label: 'Raise a spare request in any engineer\u2019s name (not only your team)' },
   { group: 'Spares', key: 'stock.return', label: 'Return spares to Stores (MRN)' },
   // Returning stock IN ANOTHER ENGINEER'S NAME (finding 64): the screen asked
@@ -345,13 +353,21 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // register row. Its own key, asked by the database and stamped from the
   // session; granted to NOBODY by the migration -- an administrator ticks it.
   { group: 'Indoor Service', key: 'indoor.verify', label: 'Verify an Indoor Service register entry' },
-  // D-111 (0358, the user, 2026-10-04): a signed PDT is locked; given per person, to nobody by role.
+  // D-111 (0363, the user, 2026-10-04): a signed PDT is locked; given per person, to nobody by role.
   { group: 'Indoor Service', key: 'indoor.pdt_unsign', label: 'Un-sign a Pre-Delivery Testing record (with a reason)' },
   // DELETING A JOB PERMANENTLY (0324, the user, 2026-10-03: "Allow Admin by
   // default, rest I will update from Roles & Permissions"). Asked by
   // delete_indoor_job(), which refuses a job any DC or filed visit names;
   // granted to NO role by the migration -- an administrator passes anyway.
   { group: 'Indoor Service', key: 'indoor.delete', label: 'Delete an Indoor Service job' },
+  // SPARE RECYCLING (0355, the user, 2026-10-04): a parallel track with its own
+  // stock. Granted to NOBODY by the migration (an administrator passes anyway);
+  // every one is refused by the database while Audit Mode is on.
+  { group: 'Indoor Service', key: 'recycle.view', label: 'See Spare Recycling' },
+  { group: 'Indoor Service', key: 'recycle.register', label: 'Register a defective spare for recycling, record job done' },
+  { group: 'Indoor Service', key: 'recycle.request', label: 'Raise a recycling MRS (no approval)' },
+  { group: 'Indoor Service', key: 'recycle.issue', label: 'Book out a recycling MRS with cost (Stores)' },
+  { group: 'Indoor Service', key: 'recycle.close', label: 'Consume, add costs and close a recycling request' },
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
   { group: 'Spares', key: 'consumption.reconcile', label: 'Add consumption against a call (reconciliation)' },
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
@@ -501,7 +517,7 @@ FUNCTIONAL_DEFAULTS.zoho_migration = [...FUNCTIONAL_DEFAULTS.technical_support];
 // role holds, given knowingly ("Yes, include it"), not a widening to copy.
 FUNCTIONAL_DEFAULTS.technical_support.push('review.auto');
 // Spare requests in ANY engineer's name (D-125, the user, 2026-10-04: "Admins +
-// Technical Support"); 0354 gives it once in app_roles. After the Zoho clone,
+// Technical Support"); 0359 gives it once in app_roles. After the Zoho clone,
 // which must not inherit it.
 FUNCTIONAL_DEFAULTS.technical_support.push('spare.request.others');
 FUNCTIONAL_DEFAULTS.nsm.push('review.auto');
@@ -745,6 +761,8 @@ export const PERM_TREE: PermHeader[] = [
   { title: 'Indoor Service', pages: [
     { path: '/indoor', label: 'Indoor Service Register',
       actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn', 'indoor.verify', 'indoor.delete', 'indoor.pdt_unsign'] },
+    { path: '/indoor/recycling', label: 'Spare Recycling',
+      actions: ['recycle.view', 'recycle.register', 'recycle.request', 'recycle.issue', 'recycle.close'] },
   ] },
   { title: 'Reports', pages: [
     // The parent GRANTS ALL THREE below it, so a role that only needs one is
@@ -788,6 +806,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/device-cache', label: 'Device Cache Status', actions: [] },
     { path: '/pm-bulk-upload', label: 'PM Bulk Upload', actions: ['pm.bulk_upload'] },
     { path: '/admin-config', label: 'Admin Config', actions: ['config.manage', 'import.panel', 'audit.mode'] },
+    { path: '/sla-objective-config', label: 'SLA / Objective Configuration', actions: ['config.manage', 'objective.manage'] },
     { path: '/software-validation', label: 'Software Validation', actions: ['validation.manage'] },
     { path: '/settings', label: 'Settings', actions: ['users.manage.settings'] },
     { path: '/version-history', label: 'Version History', actions: [] },

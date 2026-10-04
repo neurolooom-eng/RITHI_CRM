@@ -92,8 +92,9 @@
 --   0334_indoor_testing_data_emptied.sql
 --   0336_indoor_job_worked_on_is_kept.sql
 --   0352_indoor_report_keeps_its_number.sql
---   0355_indoor_approval_skips_a_solved_call.sql
---   0358_indoor_pdt_lock_dispatch_and_cleaning.sql
+--   0360_indoor_approval_skips_a_solved_call.sql
+--   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
+--   0355_spare_recycling.sql
 --   0021_master_lists.sql
 --   0066_master_values_active.sql
 --   0067_master_list_permissions.sql
@@ -116,6 +117,8 @@
 --   0265_qms_document_key.sql
 --   0272_service_note_upload_key.sql
 --   0299_document_drive_details.sql
+--   0354_service_note_dated_latest.sql
+--   0356_service_notes_batch_save.sql
 --   0264_people_and_training.sql
 --   0295_user_profile_details_key.sql
 --   0008_calls_creator_read.sql
@@ -267,7 +270,7 @@
 --   0339_stock_moves_only_within_what_is_held.sql
 --   0340_spare_request_fixed_once_decided.sql
 --   0335_master_key_changes_only_by_rename.sql
---   0354_filed_under_own_name_unless_granted.sql
+--   0359_filed_under_own_name_unless_granted.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
 --   0072_ownership_transfer.sql
@@ -299,8 +302,8 @@
 --   0331_install_solved_date_starts_warranty.sql
 --   0332_installation_warranty_starts.sql
 --   0351_dealer_guard_stands_aside_on_reload.sql
---   0356_sold_through_cleared_only_if_a_transfer_set_it.sql
---   0357_installation_once_and_no_dealer_request.sql
+--   0361_sold_through_cleared_only_if_a_transfer_set_it.sql
+--   0362_installation_once_and_no_dealer_request.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -328,6 +331,7 @@
 --   0292_objective_manage_key.sql
 --   0303_objective_lock_key.sql
 --   0349_objective_manual_overrides.sql
+--   0357_failure_within_months_of_install.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0103_record_audit_not_bulk.sql
@@ -10157,11 +10161,11 @@ create trigger indoor_report_keeps_its_number
   for each row execute function public.indoor_report_keeps_its_number();
 
 -- ------------------------------------------------------------------------
--- 0355_indoor_approval_skips_a_solved_call.sql
+-- 0360_indoor_approval_skips_a_solved_call.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0355 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
+-- 0360 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
 --        (second re-review D-145; the user's decision, 2026-10-04)
 --
 -- approve_indoor_dc files each unit's drafted visit as Unsolved / Return to
@@ -10310,11 +10314,11 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
--- 0358_indoor_pdt_lock_dispatch_and_cleaning.sql
+-- 0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0358 — A SIGNED PDT IS LOCKED; THE DISPATCH DATE IS WHEN THE UNIT LEAVES;
+-- 0363 — A SIGNED PDT IS LOCKED; THE DISPATCH DATE IS WHEN THE UNIT LEAVES;
 --        A CLEANING TIME MAY BE EARLIER BUT NEVER LATER, AND NAMES WHO
 --        (second re-review D-111, D-112, D-114; the user's decisions, 2026-10-04)
 --
@@ -10353,7 +10357,7 @@ end $function$;
 -- It is named to run AFTER zz_indoor_jobs_guard and zz_indoor_jobs_stamp
 -- (zzy_ sorts between them and zzz_sys_stamp), so its stamps are the last word.
 -- A connection with no session (a repair, an import) is not stopped.
--- In the indoor module, after 0355.
+-- In the indoor module, after 0360.
 -- ===========================================================================
 
 -- ---- D-111 ------------------------------------------------------------------
@@ -10477,7 +10481,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0358_premature_dispatch_stamps_cleared') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0363_premature_dispatch_stamps_cleared') then return; end if;
   -- Lifted for this ONE statement and put straight back (the 0210 rule).
   alter table public.indoor_jobs disable trigger zz_indoor_jobs_guard;
   update public.indoor_jobs
@@ -10487,8 +10491,574 @@ begin
   get diagnostics n = row_count;
   alter table public.indoor_jobs enable trigger zz_indoor_jobs_guard;
   insert into public.one_time_fixes_done (name, detail)
-  values ('0358_premature_dispatch_stamps_cleared', n || ' unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared');
-  raise notice '0358: % unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared', n;
+  values ('0363_premature_dispatch_stamps_cleared', n || ' unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared');
+  raise notice '0363: % unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0355_spare_recycling.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0355 — SPARE RECYCLING: A PARALLEL TRACK UNDER INDOOR SERVICE.
+--
+-- The user, 2026-10-04: "Create a Complete Work Flow for Spare Recycling,
+-- Like Registration, spare request, job done details, consumption, handstock
+-- -- This is a Parallel Track and should not collide with Regular Calls or
+-- Spare or Handstock. Even the Stock should be maintained Separately. This is
+-- Non Auditable Requirement and when i enable the Audit mode, it should not
+-- show. Keep all this under Indoor Service. In Spare Request, there is no need
+-- for approval. But during Stock out, Give a Provision to add Cost. I want to
+-- be able to track how much i am spending for Recycling the Said spare."
+--
+-- And the answers that shaped it:
+--   * a request is a DEFECTIVE SPARE, with an OPTIONAL call reference kept as
+--     TEXT -- so nothing here ever reads or writes a call;
+--   * the spares used come from the regular stores through an MRS (Material
+--     Request Slip), raised WITHOUT approval; STORES books the stock out IN
+--     THIS MODULE, with a unit cost, and the quantity lands in the requester's
+--     RECYCLING hand stock -- a ledger of its own, never the regular one;
+--   * closing the request consumes from that hand stock and records the job
+--     done; it closes RETURNED (to the Service Store as R<PartNo>, recorded
+--     only -- Part Master and the regular stock are untouched) or NOT
+--     RECYCLABLE (with a reason);
+--   * cost per request = the parts consumed, valued at their stock-out cost,
+--     plus any other costs (labour, courier, vendor, other);
+--   * numbering RCY/26/0001 and RMRS/26/0001, restarting each year.
+--
+-- NOTHING HERE TOUCHES calls, spare_requests, spare_dispatches,
+-- spare_consumption, stock_transfers or any hand-stock function: separate
+-- tables, separate ledger, separate keys.
+--
+-- HIDDEN IN AUDIT MODE, BY THE DATABASE. Every policy below adds
+-- `not audit_mode()`: while Audit Mode is on, the screen is hidden AND every
+-- read returns nothing and every write is refused -- the NAR pattern (a
+-- non-auditable requirement).
+--
+-- THE KEYS ARE GRANTED TO NOBODY (the user's standing rule: Roles &
+-- Permissions are theirs). An administrator passes has_perm() anyway; anyone
+-- else is given them on Roles & Permissions -> Indoor Service.
+--   recycle.view      see the recycling track
+--   recycle.register  register a defective spare, record job done
+--   recycle.request   raise an MRS
+--   recycle.issue     book the stock out of an MRS, with cost (Stores)
+--   recycle.close     consume, add other costs, close a request
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1. THE TABLES
+-- ---------------------------------------------------------------------------
+create table if not exists public.recycle_requests (
+  id                    bigint generated always as identity primary key,
+  rcy_no                text unique,
+  received_on           date not null default ((now() at time zone 'Asia/Kolkata')::date),
+  part_code             text not null,
+  part_description      text not null default '',
+  serial                text not null default '',
+  qty                   numeric not null default 1 check (qty > 0),
+  received_from         text not null default '',
+  call_ref              text not null default '',
+  remarks               text not null default '',
+  job_done              text not null default '',
+  status                text not null default 'Open'
+                          check (status in ('Open', 'Returned', 'Not recyclable')),
+  returned_part_code    text not null default '',
+  returned_qty          numeric check (returned_qty is null or returned_qty > 0),
+  returned_on           date,
+  not_recyclable_reason text not null default '',
+  closed_at             timestamptz,
+  closed_by             uuid,
+  closed_by_name        text not null default '',
+  created_at            timestamptz not null default now(),
+  created_by            uuid,
+  created_by_name       text not null default '',
+  updated_at            timestamptz not null default now()
+);
+
+create table if not exists public.recycle_mrs (
+  id                  bigint generated always as identity primary key,
+  mrs_no              text unique,
+  request_id          bigint references public.recycle_requests (id),
+  requested_for       uuid,
+  requested_for_name  text not null default '',
+  remarks             text not null default '',
+  created_at          timestamptz not null default now(),
+  created_by          uuid
+);
+
+create table if not exists public.recycle_mrs_lines (
+  id                bigint generated always as identity primary key,
+  mrs_id            bigint not null references public.recycle_mrs (id) on delete cascade,
+  part_code         text not null,
+  part_description  text not null default '',
+  qty               numeric not null check (qty > 0),
+  created_at        timestamptz not null default now()
+);
+
+-- THE STOCK OUT, one row per booking, so a line can be issued in parts.
+create table if not exists public.recycle_issues (
+  id              bigint generated always as identity primary key,
+  mrs_line_id     bigint not null references public.recycle_mrs_lines (id),
+  qty             numeric not null check (qty > 0),
+  unit_cost       numeric not null check (unit_cost >= 0),
+  issued_at       timestamptz not null default now(),
+  issued_by       uuid,
+  issued_by_name  text not null default ''
+);
+
+create table if not exists public.recycle_consumption (
+  id           bigint generated always as identity primary key,
+  request_id   bigint not null references public.recycle_requests (id),
+  holder       uuid,
+  holder_name  text not null default '',
+  part_code    text not null,
+  qty          numeric not null check (qty > 0),
+  consumed_at  timestamptz not null default now()
+);
+
+create table if not exists public.recycle_other_costs (
+  id           bigint generated always as identity primary key,
+  request_id   bigint not null references public.recycle_requests (id),
+  cost_type    text not null default 'Other' check (cost_type in ('Labour', 'Courier', 'Vendor', 'Other')),
+  description  text not null default '',
+  amount       numeric not null check (amount >= 0),
+  created_at   timestamptz not null default now(),
+  created_by   uuid,
+  created_by_name text not null default ''
+);
+
+create index if not exists recycle_mrs_lines_mrs_idx on public.recycle_mrs_lines (mrs_id);
+create index if not exists recycle_issues_line_idx on public.recycle_issues (mrs_line_id);
+create index if not exists recycle_consumption_req_idx on public.recycle_consumption (request_id);
+create index if not exists recycle_consumption_holder_idx on public.recycle_consumption (holder, part_code);
+create index if not exists recycle_other_costs_req_idx on public.recycle_other_costs (request_id);
+
+-- THE FIVE SYSTEM COLUMNS (0244) on each new table now, rather than waiting
+-- for sys_columns.sql to be re-run -- the pattern 0332 uses.
+do $$
+declare t text;
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    foreach t in array array['recycle_requests', 'recycle_mrs', 'recycle_mrs_lines', 'recycle_issues',
+                             'recycle_consumption', 'recycle_other_costs'] loop
+      perform public.sys_columns_attach(('public.' || t)::regclass);
+    end loop;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 2. WHO IS SIGNED IN, BY NAME -- the profile's name, else its email.
+-- ---------------------------------------------------------------------------
+create or replace function public.recycle_me_name()
+returns text language sql stable security definer set search_path = public as $$
+  select coalesce((select coalesce(nullif(btrim(p.full_name), ''), nullif(btrim(p.email), ''))
+                     from public.profiles p where p.id = auth.uid()), coalesce(auth.email(), ''));
+$$;
+revoke execute on function public.recycle_me_name() from public, anon, authenticated;
+
+-- The next number of a series for this year: PREFIX/YY/0001, restarting each
+-- year. Under an advisory lock so two at once cannot take the same number --
+-- and no counter table, so nothing here needs the counters' exceptions.
+create or replace function public.recycle_next_no(p_prefix text, p_table regclass, p_col text)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  yy  text := to_char(now() at time zone 'Asia/Kolkata', 'YY');
+  n   integer;
+begin
+  perform pg_advisory_xact_lock(hashtext('recycle_no:' || p_prefix || ':' || yy));
+  execute format(
+    'select coalesce(max(nullif(split_part(%I, ''/'', 3), '''')::int), 0) from %s where %I like $1',
+    p_col, p_table, p_col)
+    into n using p_prefix || '/' || yy || '/%';
+  return p_prefix || '/' || yy || '/' || lpad((n + 1)::text, 4, '0');
+end $$;
+revoke execute on function public.recycle_next_no(text, regclass, text) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 3. THE GUARDS -- stamped columns are the database's, and the rules a
+--    screen could skip are refused here.
+-- ---------------------------------------------------------------------------
+create or replace function public.recycle_requests_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    new.rcy_no := public.recycle_next_no('RCY', 'public.recycle_requests', 'rcy_no');
+    new.created_by := auth.uid();
+    new.created_by_name := public.recycle_me_name();
+    new.status := 'Open';
+    new.returned_part_code := ''; new.returned_qty := null; new.returned_on := null;
+    new.closed_at := null; new.closed_by := null; new.closed_by_name := '';
+    new.part_code := btrim(new.part_code);
+    if new.part_code = '' then raise exception 'Part code is required.'; end if;
+    return new;
+  end if;
+
+  -- UPDATE
+  new.rcy_no := old.rcy_no; new.created_by := old.created_by;
+  new.created_by_name := old.created_by_name; new.created_at := old.created_at;
+  new.updated_at := now();
+  if old.status <> 'Open' then
+    raise exception 'Recycling request % is closed (%) and cannot be changed.', old.rcy_no, old.status;
+  end if;
+  if new.status = 'Open' then
+    new.returned_part_code := ''; new.returned_qty := null; new.returned_on := null;
+    new.closed_at := null; new.closed_by := null; new.closed_by_name := '';
+    return new;
+  end if;
+
+  -- CLOSING
+  if not coalesce(public.has_perm('recycle.close'), false) then
+    raise exception 'RBAC: closing a recycling request needs "Consume, add costs and close a recycling request"';
+  end if;
+  if btrim(coalesce(new.job_done, '')) = '' then
+    raise exception 'Record the job done before closing %.', old.rcy_no;
+  end if;
+  new.closed_at := now();
+  new.closed_by := auth.uid();
+  new.closed_by_name := public.recycle_me_name();
+  if new.status = 'Returned' then
+    -- RETURNED TO THE SERVICE STORE AS R<PartNo>, recorded here only.
+    new.returned_part_code := 'R' || old.part_code;
+    new.returned_qty := coalesce(new.returned_qty, old.qty);
+    new.returned_on := coalesce(new.returned_on, (now() at time zone 'Asia/Kolkata')::date);
+    new.not_recyclable_reason := '';
+  else
+    if btrim(coalesce(new.not_recyclable_reason, '')) = '' then
+      raise exception 'Say why % is not recyclable.', old.rcy_no;
+    end if;
+    new.returned_part_code := ''; new.returned_qty := null; new.returned_on := null;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.recycle_requests_guard() from public, anon, authenticated;
+drop trigger if exists recycle_requests_guard on public.recycle_requests;
+create trigger recycle_requests_guard before insert or update on public.recycle_requests
+  for each row execute function public.recycle_requests_guard();
+
+create or replace function public.recycle_mrs_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    new.mrs_no := public.recycle_next_no('RMRS', 'public.recycle_mrs', 'mrs_no');
+    -- THE SPARES GO TO THE HAND STOCK OF WHOEVER RAISED IT.
+    new.requested_for := auth.uid();
+    new.requested_for_name := public.recycle_me_name();
+    new.created_by := auth.uid();
+  else
+    new.mrs_no := old.mrs_no; new.requested_for := old.requested_for;
+    new.requested_for_name := old.requested_for_name; new.created_by := old.created_by;
+    new.created_at := old.created_at;
+  end if;
+  if new.request_id is not null
+     and exists (select 1 from public.recycle_requests r where r.id = new.request_id and r.status <> 'Open') then
+    raise exception 'That recycling request is closed; raise the MRS against an open one, or none.';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.recycle_mrs_guard() from public, anon, authenticated;
+drop trigger if exists recycle_mrs_guard on public.recycle_mrs;
+create trigger recycle_mrs_guard before insert or update on public.recycle_mrs
+  for each row execute function public.recycle_mrs_guard();
+
+-- A LINE CANNOT BE ISSUED BEYOND WHAT IT ASKED FOR, and a line already issued
+-- from cannot have its part or quantity changed under the issue.
+create or replace function public.recycle_mrs_lines_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.part_code := btrim(new.part_code);
+  if new.part_code = '' then raise exception 'Part code is required.'; end if;
+  if tg_op = 'UPDATE' and exists (select 1 from public.recycle_issues i where i.mrs_line_id = old.id) then
+    if new.part_code <> old.part_code then
+      raise exception 'Stock has been issued against this line; its part cannot change.';
+    end if;
+    if new.qty < (select sum(i.qty) from public.recycle_issues i where i.mrs_line_id = old.id) then
+      raise exception 'Stock has been issued against this line; its quantity cannot go below what was issued.';
+    end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.recycle_mrs_lines_guard() from public, anon, authenticated;
+drop trigger if exists recycle_mrs_lines_guard on public.recycle_mrs_lines;
+create trigger recycle_mrs_lines_guard before insert or update on public.recycle_mrs_lines
+  for each row execute function public.recycle_mrs_lines_guard();
+
+create or replace function public.recycle_issues_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  asked   numeric;
+  given   numeric;
+begin
+  if tg_op = 'UPDATE' then
+    raise exception 'A stock out is not edited. Book another for the remainder.';
+  end if;
+  select l.qty into asked from public.recycle_mrs_lines l where l.id = new.mrs_line_id for update;
+  if asked is null then raise exception 'No such MRS line.'; end if;
+  select coalesce(sum(i.qty), 0) into given from public.recycle_issues i where i.mrs_line_id = new.mrs_line_id;
+  if given + new.qty > asked then
+    raise exception 'Only % more can be issued against this line (asked %, issued %).', asked - given, asked, given;
+  end if;
+  new.issued_at := now();
+  new.issued_by := auth.uid();
+  new.issued_by_name := public.recycle_me_name();
+  return new;
+end $$;
+revoke execute on function public.recycle_issues_guard() from public, anon, authenticated;
+drop trigger if exists recycle_issues_guard on public.recycle_issues;
+create trigger recycle_issues_guard before insert or update on public.recycle_issues
+  for each row execute function public.recycle_issues_guard();
+
+-- ---------------------------------------------------------------------------
+-- 4. THE RECYCLING HAND STOCK -- issued to a holder, less what the holder
+--    consumed. Derived, never stored, like the regular one; and kept apart
+--    from it entirely.
+-- ---------------------------------------------------------------------------
+create or replace function public.recycle_balance(p_holder uuid, p_part text)
+returns numeric language sql stable security definer set search_path = public as $$
+  select coalesce((select sum(i.qty)
+                     from public.recycle_issues i
+                     join public.recycle_mrs_lines l on l.id = i.mrs_line_id
+                     join public.recycle_mrs m on m.id = l.mrs_id
+                    where m.requested_for = p_holder and l.part_code = p_part), 0)
+       - coalesce((select sum(c.qty) from public.recycle_consumption c
+                    where c.holder = p_holder and c.part_code = p_part), 0);
+$$;
+revoke execute on function public.recycle_balance(uuid, text) from public, anon, authenticated;
+
+create or replace function public.recycle_consumption_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  st   text;
+  bal  numeric;
+begin
+  if tg_op = 'UPDATE' then
+    raise exception 'A consumption line is not edited. Remove it and enter it again.';
+  end if;
+  if tg_op = 'DELETE' then
+    select r.status into st from public.recycle_requests r where r.id = old.request_id;
+    if st <> 'Open' then raise exception 'The request is closed; its consumption stays.'; end if;
+    return old;
+  end if;
+  select r.status into st from public.recycle_requests r where r.id = new.request_id;
+  if st is null then raise exception 'No such recycling request.'; end if;
+  if st <> 'Open' then raise exception 'The request is closed; nothing more can be consumed on it.'; end if;
+  -- FROM THE CONSUMER'S OWN RECYCLING HAND STOCK, and never more than it holds.
+  new.holder := auth.uid();
+  new.holder_name := public.recycle_me_name();
+  new.part_code := btrim(new.part_code);
+  perform pg_advisory_xact_lock(hashtext('recycle_bal:' || coalesce(new.holder::text, '') || ':' || new.part_code));
+  bal := public.recycle_balance(new.holder, new.part_code);
+  if new.qty > bal then
+    raise exception 'Your recycling hand stock of % is %; % cannot be consumed.', new.part_code, bal, new.qty;
+  end if;
+  new.consumed_at := now();
+  return new;
+end $$;
+revoke execute on function public.recycle_consumption_guard() from public, anon, authenticated;
+drop trigger if exists recycle_consumption_guard on public.recycle_consumption;
+create trigger recycle_consumption_guard before insert or update or delete on public.recycle_consumption
+  for each row execute function public.recycle_consumption_guard();
+
+create or replace function public.recycle_other_costs_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  st text;
+begin
+  select r.status into st from public.recycle_requests r
+   where r.id = case when tg_op = 'DELETE' then old.request_id else new.request_id end;
+  if st is distinct from 'Open' then raise exception 'The request is closed; its costs stay as they are.'; end if;
+  if tg_op = 'DELETE' then return old; end if;
+  if tg_op = 'INSERT' then
+    new.created_by := auth.uid();
+    new.created_by_name := public.recycle_me_name();
+    new.created_at := now();
+  else
+    new.request_id := old.request_id; new.created_by := old.created_by;
+    new.created_by_name := old.created_by_name; new.created_at := old.created_at;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.recycle_other_costs_guard() from public, anon, authenticated;
+drop trigger if exists recycle_other_costs_guard on public.recycle_other_costs;
+create trigger recycle_other_costs_guard before insert or update or delete on public.recycle_other_costs
+  for each row execute function public.recycle_other_costs_guard();
+
+-- ---------------------------------------------------------------------------
+-- 5. ROW-LEVEL SECURITY -- the keys, and NOT IN AUDIT MODE.
+-- ---------------------------------------------------------------------------
+create or replace function public.recycle_may_see()
+returns boolean language sql stable security definer set search_path = public as $$
+  select not coalesce(public.audit_mode(), false)
+     and (coalesce(public.has_perm('recycle.view'), false)
+       or coalesce(public.has_perm('recycle.register'), false)
+       or coalesce(public.has_perm('recycle.request'), false)
+       or coalesce(public.has_perm('recycle.issue'), false)
+       or coalesce(public.has_perm('recycle.close'), false));
+$$;
+revoke execute on function public.recycle_may_see() from public, anon;
+grant execute on function public.recycle_may_see() to authenticated;
+
+create or replace function public.recycle_may(p_key text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select not coalesce(public.audit_mode(), false) and coalesce(public.has_perm(p_key), false);
+$$;
+revoke execute on function public.recycle_may(text) from public, anon;
+grant execute on function public.recycle_may(text) to authenticated;
+
+alter table public.recycle_requests    enable row level security;
+alter table public.recycle_mrs         enable row level security;
+alter table public.recycle_mrs_lines   enable row level security;
+alter table public.recycle_issues      enable row level security;
+alter table public.recycle_consumption enable row level security;
+alter table public.recycle_other_costs enable row level security;
+
+drop policy if exists rr_read on public.recycle_requests;
+create policy rr_read on public.recycle_requests for select using ((select public.recycle_may_see()));
+drop policy if exists rr_insert on public.recycle_requests;
+create policy rr_insert on public.recycle_requests for insert with check ((select public.recycle_may('recycle.register')));
+drop policy if exists rr_update on public.recycle_requests;
+create policy rr_update on public.recycle_requests for update
+  using ((select public.recycle_may('recycle.register')) or (select public.recycle_may('recycle.close')))
+  with check ((select public.recycle_may('recycle.register')) or (select public.recycle_may('recycle.close')));
+
+drop policy if exists rm_read on public.recycle_mrs;
+create policy rm_read on public.recycle_mrs for select using ((select public.recycle_may_see()));
+drop policy if exists rm_insert on public.recycle_mrs;
+create policy rm_insert on public.recycle_mrs for insert with check ((select public.recycle_may('recycle.request')));
+
+drop policy if exists rml_read on public.recycle_mrs_lines;
+create policy rml_read on public.recycle_mrs_lines for select using ((select public.recycle_may_see()));
+drop policy if exists rml_insert on public.recycle_mrs_lines;
+create policy rml_insert on public.recycle_mrs_lines for insert with check ((select public.recycle_may('recycle.request')));
+
+drop policy if exists ri_read on public.recycle_issues;
+create policy ri_read on public.recycle_issues for select using ((select public.recycle_may_see()));
+drop policy if exists ri_insert on public.recycle_issues;
+create policy ri_insert on public.recycle_issues for insert with check ((select public.recycle_may('recycle.issue')));
+
+drop policy if exists rc_read on public.recycle_consumption;
+create policy rc_read on public.recycle_consumption for select using ((select public.recycle_may_see()));
+drop policy if exists rc_insert on public.recycle_consumption;
+create policy rc_insert on public.recycle_consumption for insert with check ((select public.recycle_may('recycle.close')));
+drop policy if exists rc_delete on public.recycle_consumption;
+create policy rc_delete on public.recycle_consumption for delete using ((select public.recycle_may('recycle.close')));
+
+drop policy if exists roc_read on public.recycle_other_costs;
+create policy roc_read on public.recycle_other_costs for select using ((select public.recycle_may_see()));
+drop policy if exists roc_insert on public.recycle_other_costs;
+create policy roc_insert on public.recycle_other_costs for insert with check ((select public.recycle_may('recycle.close')));
+drop policy if exists roc_delete on public.recycle_other_costs;
+create policy roc_delete on public.recycle_other_costs for delete using ((select public.recycle_may('recycle.close')));
+
+grant select, insert, update on public.recycle_requests to authenticated;
+grant select, insert on public.recycle_mrs, public.recycle_mrs_lines, public.recycle_issues to authenticated;
+grant select, insert, delete on public.recycle_consumption, public.recycle_other_costs to authenticated;
+revoke all on public.recycle_requests, public.recycle_mrs, public.recycle_mrs_lines, public.recycle_issues,
+              public.recycle_consumption, public.recycle_other_costs from anon;
+
+-- ---------------------------------------------------------------------------
+-- 6. THE VIEWS THE SCREEN READS (security_invoker: the policies above apply).
+-- ---------------------------------------------------------------------------
+
+-- An MRS line with what has been issued against it, and at what cost.
+create or replace view public.recycle_mrs_list as
+select l.id as line_id, m.id as mrs_id, m.mrs_no, m.request_id, r.rcy_no,
+       m.requested_for, m.requested_for_name, m.remarks, m.created_at,
+       l.part_code, l.part_description, l.qty as qty_requested,
+       coalesce(i.qty_issued, 0) as qty_issued,
+       l.qty - coalesce(i.qty_issued, 0) as qty_pending,
+       coalesce(i.cost_issued, 0) as cost_issued,
+       i.last_issued_at,
+       case when coalesce(i.qty_issued, 0) = 0 then 'Pending'
+            when i.qty_issued < l.qty then 'Partly issued'
+            else 'Issued' end as status
+  from public.recycle_mrs_lines l
+  join public.recycle_mrs m on m.id = l.mrs_id
+  left join public.recycle_requests r on r.id = m.request_id
+  left join lateral (
+    select sum(x.qty) as qty_issued, sum(x.qty * x.unit_cost) as cost_issued, max(x.issued_at) as last_issued_at
+      from public.recycle_issues x where x.mrs_line_id = l.id
+  ) i on true;
+alter view public.recycle_mrs_list set (security_invoker = on);
+grant select on public.recycle_mrs_list to authenticated;
+
+-- THE RECYCLING HAND STOCK, per holder and part, with the average stock-out
+-- cost -- what a consumed unit is valued at.
+create or replace view public.recycle_hand_stock as
+with iss as (
+  select m.requested_for as holder, max(m.requested_for_name) as holder_name, l.part_code,
+         max(l.part_description) as part_description,
+         sum(i.qty) as issued, sum(i.qty * i.unit_cost) as issued_cost
+    from public.recycle_issues i
+    join public.recycle_mrs_lines l on l.id = i.mrs_line_id
+    join public.recycle_mrs m on m.id = l.mrs_id
+   group by m.requested_for, l.part_code
+), con as (
+  select c.holder, c.part_code, sum(c.qty) as consumed
+    from public.recycle_consumption c group by c.holder, c.part_code
+)
+select iss.holder, iss.holder_name, iss.part_code, iss.part_description,
+       iss.issued, coalesce(con.consumed, 0) as consumed,
+       iss.issued - coalesce(con.consumed, 0) as balance,
+       case when iss.issued > 0 then round(iss.issued_cost / iss.issued, 4) end as avg_unit_cost
+  from iss left join con on con.holder = iss.holder and con.part_code = iss.part_code;
+alter view public.recycle_hand_stock set (security_invoker = on);
+grant select on public.recycle_hand_stock to authenticated;
+
+-- A consumption line with its value: the holder's average stock-out cost for
+-- that part.
+create or replace view public.recycle_consumption_list as
+select c.id, c.request_id, r.rcy_no, c.holder, c.holder_name, c.part_code, c.qty, c.consumed_at,
+       h.avg_unit_cost, round(c.qty * coalesce(h.avg_unit_cost, 0), 2) as value
+  from public.recycle_consumption c
+  join public.recycle_requests r on r.id = c.request_id
+  left join public.recycle_hand_stock h on h.holder = c.holder and h.part_code = c.part_code;
+alter view public.recycle_consumption_list set (security_invoker = on);
+grant select on public.recycle_consumption_list to authenticated;
+
+-- THE REQUEST WITH WHAT IT COST: parts consumed + other costs. The cost of
+-- stock ISSUED on its MRSs is shown beside it, because issued is not used.
+-- Columns NAMED, never r.*: `*` is expanded at creation, and the system
+-- columns 0244 adds later would make a replay of this bundle a different view.
+create or replace view public.recycle_request_list as
+select r.id, r.rcy_no, r.received_on, r.part_code, r.part_description, r.serial, r.qty,
+       r.received_from, r.call_ref, r.remarks, r.job_done, r.status,
+       r.returned_part_code, r.returned_qty, r.returned_on, r.not_recyclable_reason,
+       r.closed_at, r.closed_by, r.closed_by_name, r.created_at, r.created_by, r.created_by_name,
+       r.updated_at,
+       coalesce(pc.parts_cost, 0) as parts_cost,
+       coalesce(oc.other_cost, 0) as other_cost,
+       coalesce(pc.parts_cost, 0) + coalesce(oc.other_cost, 0) as total_cost,
+       coalesce(ic.issued_cost, 0) as issued_cost
+  from public.recycle_requests r
+  left join lateral (select sum(v.value) as parts_cost from public.recycle_consumption_list v where v.request_id = r.id) pc on true
+  left join lateral (select sum(o.amount) as other_cost from public.recycle_other_costs o where o.request_id = r.id) oc on true
+  left join lateral (select sum(x.cost_issued) as issued_cost from public.recycle_mrs_list x where x.request_id = r.id) ic on true;
+alter view public.recycle_request_list set (security_invoker = on);
+grant select on public.recycle_request_list to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 7. THE SCREEN'S KEY, IN THE ADMIN AND TECHNICAL SUPPORT ROLES ONLY (the
+--    0241 pattern). An administrator passes every check anyway; Technical
+--    Support holds every screen key the admin does (0145, _status.sql row
+--    114) -- and the key only OPENS the page: every row needs a recycle.* key,
+--    which no role is given, so it sees an empty page. Every other role is
+--    given access -- or not -- on Roles & Permissions (the user's rule).
+-- ---------------------------------------------------------------------------
+do $$
+declare n integer;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (select jsonb_array_elements_text(ar.permissions) as v
+                   union select unnest(array['mod:/indoor/recycling']) as v) u),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and ar.role in ('admin', 'technical_support')
+     and not (ar.permissions ? 'mod:/indoor/recycling');
+  get diagnostics n = row_count;
+  raise notice '0355: Spare Recycling screen key given to admin + technical_support (% of 2 rows) -- grant the rest on Roles & Permissions', n;
 end $$;
 
 -- ------------------------------------------------------------------------
@@ -12863,6 +13433,212 @@ alter table public.documents add column if not exists source_modified_by text no
 comment on column public.documents.source_created_at  is 'Drive''s Created date-time of the file, from the listing it was loaded from (0299). Not when it was entered here -- that is created_at.';
 comment on column public.documents.source_modified_at is 'Drive''s Last Modified date-time of the file (0299). Not when the row was last changed here -- that is updated_at.';
 comment on column public.documents.source_modified_by is 'Drive''s Last Modified By, as the listing wrote it (0299). Not who entered it here -- that is uploaded_by.';
+
+-- ------------------------------------------------------------------------
+-- 0354_service_note_dated_latest.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- TECHNICAL / SERVICE NOTES: A DATE OF THEIR OWN, AND THE LATEST ONE PER
+-- PRODUCT MARKED.
+--
+-- The user, 2026-10-04: "Group it as Per Product. Add a Column [Dated], which
+-- I will update manually. Sort it by Dated, Newest to Oldest. Automatically add
+-- a Tag as Latest. When I add a new Technical Note for the Product, these Auto
+-- Tags should reset and update according to the Latest. I should have a Button
+-- to Trigger this correction."  Settled with the user the same day:
+--   * a note covering several products is listed under EACH of them, and may
+--     be the latest for one and not another -- so the mark is PER PRODUCT;
+--   * a note with no product is the "Every product" group (token '');
+--   * only a LIVE note with a Dated can be the latest -- a note not yet dated,
+--     or retired, is never marked; two live notes on the same newest date are
+--     both marked;
+--   * the mark is STORED, recalculated automatically, and on demand by a button.
+--
+-- documents.dated       the date the user gives the note, by hand. Not
+--                       effective_date (the QMS field) and not created_at (when
+--                       it was entered here) -- a note entered today may be
+--                       dated years ago.
+-- documents.latest_for  the products this note is currently the latest for,
+--                       spelled as on the note; '' stands for "Every product".
+--                       Written ONLY by refresh_service_note_latest_all().
+--
+-- WHEN IT RECALCULATES: a statement-level trigger after any insert or delete of
+-- a document, and after an update of kind / product / dated / active -- so a
+-- bulk upload of 300 notes recalculates once, and the recalculation's own write
+-- (latest_for only) does not fire it again. The Refresh button calls
+-- refresh_service_note_latest(), which asks for docs.manage and does the same.
+-- Only rows whose mark actually changes are written.
+-- ===========================================================================
+
+alter table public.documents add column if not exists dated date;
+alter table public.documents add column if not exists latest_for text[] not null default '{}';
+
+comment on column public.documents.dated is
+  'Technical / Service Notes: the note''s own date, entered by hand. Orders the shelf (newest first) and decides which note is the latest per product (0354).';
+comment on column public.documents.latest_for is
+  'Technical / Service Notes: the products this note is the latest for ('''' = every product). Written only by refresh_service_note_latest_all() (0354).';
+
+create index if not exists documents_dated_idx on public.documents (kind, dated desc);
+
+-- THE RECALCULATION. Products are split exactly as the screen splits them
+-- (comma, semicolon, bar, newline; trimmed; blanks dropped) and compared
+-- case-insensitively, so "MONNAL T60" and "Monnal T60" are one product.
+create or replace function public.refresh_service_note_latest_all()
+returns integer language plpgsql security definer set search_path = public as $$
+declare v_changed integer;
+begin
+  with note_products as (
+    select d.id, d.dated,
+           coalesce(nullif(btrim(p.prod), ''), '') as prod
+      from public.documents d
+      left join lateral regexp_split_to_table(coalesce(d.product, ''), '[,;|\n]') as p(prod) on true
+     where d.kind = 'service_note' and d.active and d.dated is not null
+  ),
+  -- A note with products listed has '' rows only from blank pieces; drop
+  -- those unless the note names no product at all.
+  cleaned as (
+    select np.* from note_products np
+     where np.prod <> ''
+        or not exists (select 1 from note_products o where o.id = np.id and o.prod <> '')
+  ),
+  newest as (
+    select lower(prod) as k, max(dated) as top from cleaned group by lower(prod)
+  ),
+  marks as (
+    select c.id, array_agg(distinct c.prod order by c.prod) as latest
+      from cleaned c join newest n on n.k = lower(c.prod) and n.top = c.dated
+     group by c.id
+  ),
+  target as (
+    select d.id, coalesce(m.latest, '{}'::text[]) as latest
+      from public.documents d left join marks m on m.id = d.id
+     where d.kind = 'service_note'
+  )
+  update public.documents d set latest_for = t.latest
+    from target t
+   where t.id = d.id and d.latest_for is distinct from t.latest;
+  get diagnostics v_changed = row_count;
+  return v_changed;
+end $$;
+
+revoke execute on function public.refresh_service_note_latest_all() from public, anon, authenticated;
+
+-- THE BUTTON. The same work, for whoever may maintain the shelf.
+create or replace function public.refresh_service_note_latest()
+returns integer language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_perm('docs.manage') then
+    raise exception 'Your role does not have permission for this action' using errcode = '42501';
+  end if;
+  return public.refresh_service_note_latest_all();
+end $$;
+
+revoke execute on function public.refresh_service_note_latest() from public, anon;
+grant execute on function public.refresh_service_note_latest() to authenticated;
+
+create or replace function public.documents_refresh_latest()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.refresh_service_note_latest_all();
+  return null;
+end $$;
+
+revoke execute on function public.documents_refresh_latest() from public, anon, authenticated;
+
+drop trigger if exists zz_service_note_latest_ins on public.documents;
+create trigger zz_service_note_latest_ins after insert or delete on public.documents
+  for each statement execute function public.documents_refresh_latest();
+drop trigger if exists zz_service_note_latest_upd on public.documents;
+create trigger zz_service_note_latest_upd after update of kind, product, dated, active on public.documents
+  for each statement execute function public.documents_refresh_latest();
+
+-- The notes already on the shelf: none has a Dated yet, so this marks nothing
+-- today; it is here so a re-run after dates were loaded by hand lands right.
+select public.refresh_service_note_latest_all();
+
+-- ------------------------------------------------------------------------
+-- 0356_service_notes_batch_save.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- TECHNICAL / SERVICE NOTES: MANY EDITS, ONE SAVE.
+--
+-- The user, 2026-10-04: "Give me a Beta Edit -- like one click at the top,
+-- make all changes and 1 Save saves all the changes done."
+--
+-- save_service_notes(p_rows jsonb) takes an array of {id, <field>: <value>...}
+-- and writes every one in ONE transaction: all of it, or -- on the first
+-- refusal -- none of it, so a half-applied batch cannot happen.
+--
+-- SECURITY INVOKER, deliberately: the documents_update policy (0070) decides
+-- exactly as it does for one edit -- docs.manage for a note. A row the policy
+-- refuses matches nothing and Postgres raises no error (finding 48), so each
+-- UPDATE is counted and a miss STOPS the batch with the note's id, instead of
+-- the batch reporting a refused edit as saved.
+--
+-- Only the fields a note carries are written, and only those present in the
+-- element: title, product, doc_no, revision, effective_date, dated, tags,
+-- notes, url, file_name, extra. A date sent blank is cleared. Title and link
+-- may not be blanked -- the same rule as the form. kind, active and the Drive
+-- facts are not writable here. Changing dated or product fires 0354's trigger
+-- and the Latest marks follow.
+-- ===========================================================================
+
+create or replace function public.save_service_notes(p_rows jsonb)
+returns integer language plpgsql security invoker set search_path = public as $$
+declare
+  r     jsonb;
+  v_id  bigint;
+  v_n   integer := 0;
+  v_hit integer;
+begin
+  if jsonb_typeof(p_rows) is distinct from 'array' then
+    raise exception 'save_service_notes expects an array of notes' using errcode = '22023';
+  end if;
+
+  for r in select * from jsonb_array_elements(p_rows) loop
+    v_id := nullif(r->>'id', '')::bigint;
+    if v_id is null then
+      raise exception 'A note in the batch has no id' using errcode = '22023';
+    end if;
+    if (r ? 'title' and btrim(coalesce(r->>'title', '')) = '')
+       or (r ? 'url' and btrim(coalesce(r->>'url', '')) = '') then
+      raise exception 'Note % needs a title and a link -- nothing was saved', v_id using errcode = '23514';
+    end if;
+    if r ? 'extra' and jsonb_typeof(r->'extra') is distinct from 'object' then
+      raise exception 'Note %: extra must be an object', v_id using errcode = '22023';
+    end if;
+
+    update public.documents d set
+      title          = case when r ? 'title'          then btrim(r->>'title')                          else d.title end,
+      product        = case when r ? 'product'        then coalesce(r->>'product', '')                 else d.product end,
+      doc_no         = case when r ? 'doc_no'         then coalesce(btrim(r->>'doc_no'), '')           else d.doc_no end,
+      revision       = case when r ? 'revision'       then coalesce(btrim(r->>'revision'), '')         else d.revision end,
+      effective_date = case when r ? 'effective_date' then nullif(r->>'effective_date', '')::date      else d.effective_date end,
+      dated          = case when r ? 'dated'          then nullif(r->>'dated', '')::date               else d.dated end,
+      tags           = case when r ? 'tags'           then coalesce(btrim(r->>'tags'), '')             else d.tags end,
+      notes          = case when r ? 'notes'          then coalesce(btrim(r->>'notes'), '')            else d.notes end,
+      url            = case when r ? 'url'            then btrim(r->>'url')                            else d.url end,
+      file_name      = case when r ? 'file_name'      then coalesce(btrim(r->>'file_name'), '')        else d.file_name end,
+      extra          = case when r ? 'extra'          then r->'extra'                                  else d.extra end,
+      updated_at     = now()
+     where d.id = v_id and d.kind = 'service_note';
+    get diagnostics v_hit = row_count;
+    if v_hit = 0 then
+      raise exception 'Note % was not saved -- it no longer exists, or your role may not edit it. Nothing in this batch was saved.', v_id
+        using errcode = '42501';
+    end if;
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+
+revoke execute on function public.save_service_notes(jsonb) from public, anon;
+grant execute on function public.save_service_notes(jsonb) to authenticated;
+
+comment on function public.save_service_notes(jsonb) is
+  'Technical / Service Notes Beta Edit: writes every edited note in one transaction under the caller''s own rights (documents_update), all or nothing (0356).';
 
 -- ------------------------------------------------------------------------
 -- 0264_people_and_training.sql
@@ -33949,11 +34725,11 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0354_filed_under_own_name_unless_granted.sql
+-- 0359_filed_under_own_name_unless_granted.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0354 — A VISIT, ITS SPARES AND A SPARE REQUEST ARE FILED UNDER YOUR OWN
+-- 0359 — A VISIT, ITS SPARES AND A SPARE REQUEST ARE FILED UNDER YOUR OWN
 --        NAME, YOUR TEAM'S, OR ANYBODY'S ONLY WITH A KEY GIVEN FOR IT
 --        (second re-review D-125; the user's decision, 2026-10-04)
 --
@@ -34117,14 +34893,14 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 
 do $$
 begin
-  if not exists (select 1 from public.one_time_fixes_done where name = '0354_spare_request_others_to_technical_support') then
+  if not exists (select 1 from public.one_time_fixes_done where name = '0359_spare_request_others_to_technical_support') then
     update public.app_roles
        set permissions = coalesce(permissions, '[]'::jsonb) || '["spare.request.others"]'::jsonb
      where role = 'technical_support'
        and jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
        and not (coalesce(permissions, '[]'::jsonb) ? 'spare.request.others');
     insert into public.one_time_fixes_done (name, detail)
-    values ('0354_spare_request_others_to_technical_support', 'spare.request.others given to technical_support once');
+    values ('0359_spare_request_others_to_technical_support', 'spare.request.others given to technical_support once');
   end if;
 end $$;
 
@@ -38714,11 +39490,11 @@ end $$;
 revoke execute on function public.installation_call_not_for_dealer() from public, anon, authenticated;
 
 -- ------------------------------------------------------------------------
--- 0356_sold_through_cleared_only_if_a_transfer_set_it.sql
+-- 0361_sold_through_cleared_only_if_a_transfer_set_it.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0356 — A MACHINE'S SOLD THROUGH IS CLEARED ONLY WHERE A TRANSFER SET IT, AND
+-- 0361 — A MACHINE'S SOLD THROUGH IS CLEARED ONLY WHERE A TRANSFER SET IT, AND
 --        A CORRECTED TRANSFER'S OLD MACHINE IS RE-READ TOO
 --        (second re-review D-149; the user's decision, 2026-10-04)
 --
@@ -38753,7 +39529,7 @@ revoke execute on function public.installation_call_not_for_dealer() from public
 
 alter table public.products add column if not exists sold_through_from_transfer boolean not null default false;
 comment on column public.products.sold_through_from_transfer is
-  'True when the Sold Through was written by an ownership transfer (0356); a transfer correction that leaves no dealer transfer blanks it only then.';
+  'True when the Sold Through was written by an ownership transfer (0361); a transfer correction that leaves no dealer transfer blanks it only then.';
 
 -- ---- 1. any other change of sold_through says it is not the transfer's --------
 create or replace function public.products_sold_through_source()
@@ -38786,7 +39562,7 @@ begin
   -- the only thing that knows who owns it -- and, since 0328, which dealer it
   -- came through; since 0329, it takes that owner's Party Master address, city,
   -- state and Service Engineer, a blank there keeping what the row has.
-  -- Since 0356: with no dealer transfer left, Sold Through is blanked only if
+  -- Since 0361: with no dealer transfer left, Sold Through is blanked only if
   -- a transfer had set it; a value from anywhere else is kept.
   v_st := public.machine_sold_through(p_item, p_serial);
   perform set_config('rithi.sold_through_by_transfer', 'on', true);
@@ -38840,7 +39616,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0356_sold_through_from_transfer_marked') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0361_sold_through_from_transfer_marked') then return; end if;
   perform set_config('rithi.sold_through_by_transfer', 'on', true);
   update public.products p
      set sold_through_from_transfer = true
@@ -38852,16 +39628,16 @@ begin
   get diagnostics n = row_count;
   perform set_config('rithi.sold_through_by_transfer', 'off', true);
   insert into public.one_time_fixes_done (name, detail)
-  values ('0356_sold_through_from_transfer_marked', n || ' machine(s) marked as having their Sold Through from a transfer');
-  raise notice '0356: % machine(s) marked as having their Sold Through from a transfer', n;
+  values ('0361_sold_through_from_transfer_marked', n || ' machine(s) marked as having their Sold Through from a transfer');
+  raise notice '0361: % machine(s) marked as having their Sold Through from a transfer', n;
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0357_installation_once_and_no_dealer_request.sql
+-- 0362_installation_once_and_no_dealer_request.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0357 — ONE INSTALLATION CALL PER MACHINE AND PER CALL NUMBER; NO
+-- 0362 — ONE INSTALLATION CALL PER MACHINE AND PER CALL NUMBER; NO
 --        INSTALLATION REQUEST FOR A DEALER
 --        (second re-review D-150, D-154; the user's decisions, 2026-10-04)
 --
@@ -38889,7 +39665,7 @@ end $$;
 -- 0328; a re-load of the same request line (reqid + product + serial) under the
 -- same party stands aside, as 0351 does for the Installation Calls upload.
 --
--- In the sales_contracts module, after 0356: party_is_dealer() is 0328's.
+-- In the sales_contracts module, after 0361: party_is_dealer() is 0328's.
 -- ===========================================================================
 
 -- ---- D-150 ------------------------------------------------------------------
@@ -44145,6 +44921,760 @@ language sql security invoker set search_path = public as $$
 $$;
 revoke all on function public.recalc_quality_objectives(integer) from public, anon;
 grant execute on function public.recalc_quality_objectives(integer) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0357_failure_within_months_of_install.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- PRODUCT FAILURE RATE = FAILURE WITHIN 3 MONTHS OF INSTALLATION, MEASURED
+-- OVER A ROLLING 12 MONTHS — and both numbers are set on a page.
+--
+-- The user, 2026-10-04: "For Product Failures, The Concept is - Failure Within
+-- 3 Months, But a Rolling Average for 12 Months - Add this to a Page under
+-- Admin, Call the page - SLA / Objective Configuration". Asked and answered the
+-- same day:
+--   * 3 months from WARRANTY START -- the date this system already treats as
+--     the installation date (0141's Reliability template, the FFR);
+--   * the rate is over the MACHINES INSTALLED in the rolling window -- of the
+--     machines of that product whose warranty started in the 12 months to the
+--     cut-off, the share that had a field call within 3 months of it;
+--   * it REPLACES what `failure_rate_12m` measured (every field call in 12
+--     months over the whole install base), for every objective computed by it;
+--   * the page also takes the SLA Targets, which leave Admin Config.
+--
+-- WHAT CHANGES IN THE FIGURE, said plainly because it is a quality record:
+--   NUMERATOR   was every field call on the product in the 12 months;
+--               is the MACHINES installed in the window with at least one field
+--               call registered on or after their warranty start and no later
+--               than <window> months after it (and not after the cut-off).
+--               A machine with three such calls is ONE failure.
+--   DENOMINATOR was every machine of the product in Product Master, today;
+--               is the machines of the product whose WARRANTY START falls in
+--               the rolling window. A machine with no warranty start cannot be
+--               placed in any window and is in neither number.
+--   A call is tied to a machine by SERIAL (trimmed, case-blind) and by the same
+--   product pattern on both sides -- the serial alone is not unique (eleven
+--   machines share 219).
+--
+-- MONTHS ALREADY WRITTEN ARE NOT REWRITTEN BY THIS FILE. They change when
+-- somebody presses Re-Calculate, which still keeps a typed override (0349).
+--
+-- THE TWO NUMBERS ARE SETTINGS, not literals: `objective_settings`, edited on
+-- Admin -> SLA / Objective Configuration by a holder of objective.manage (its
+-- parent config.manage grants it). A number missing from the table falls back
+-- to 3 and 12, so a project that has the functions and not the rows still
+-- computes the agreed rule.
+-- ===========================================================================
+
+create table if not exists public.objective_settings (
+  key        text primary key,
+  label      text    not null,
+  value      integer not null check (value between 1 and 120),
+  unit       text    not null default 'months',
+  sort_order integer not null default 0,
+  updated_by uuid,
+  updated_at timestamptz not null default now()
+);
+
+-- ON CONFLICT DO NOTHING: re-running must not undo what an administrator set.
+insert into public.objective_settings (key, label, value, unit, sort_order) values
+  ('failure_window_months',  'Product failure: a field call counts as a failure if it is within this many months of installation (warranty start)', 3, 'months', 1),
+  ('failure_rolling_months', 'Product failure: measured over the machines installed in this rolling window, ending at the month''s cut-off', 12, 'months', 2)
+on conflict (key) do nothing;
+
+alter table public.objective_settings enable row level security;
+
+-- Readable by anyone signed in: two numbers that say how a published figure is
+-- worked out are not a secret, and the Objective page names them.
+drop policy if exists os_read on public.objective_settings;
+create policy os_read on public.objective_settings for select to authenticated
+  using (true);
+-- Changed only by whoever may change the objectives themselves. No insert or
+-- delete policy: the rows are fixed, and a missing row would silently fall
+-- back to the default rather than to what was set.
+drop policy if exists os_update on public.objective_settings;
+create policy os_update on public.objective_settings for update to authenticated
+  using ((select public.has_perm('objective.manage')))
+  with check ((select public.has_perm('objective.manage')));
+
+grant select, update on public.objective_settings to authenticated;
+revoke all on public.objective_settings from anon;
+
+create or replace function public.objective_settings_stamp()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.updated_at := now();
+  -- STAMPED, a caller-supplied value discarded (the 0113/0114 rule).
+  new.updated_by := auth.uid();
+  return new;
+end $$;
+revoke execute on function public.objective_settings_stamp() from public, anon, authenticated;
+drop trigger if exists zz_objective_settings_stamp on public.objective_settings;
+create trigger zz_objective_settings_stamp before insert or update on public.objective_settings
+  for each row execute function public.objective_settings_stamp();
+
+-- Every change is on the record with its old and new value (URS-159's reason:
+-- a figure computed under one rule and read months later under another can
+-- only be explained if the change is recorded).
+do $on$
+begin
+  if to_regproc('public.record_audit_fn') is null then
+    raise notice '0357: record_audit_fn() is missing -- objective_settings is not audited.';
+    return;
+  end if;
+  drop trigger if exists record_audit_u on public.objective_settings;
+  create trigger record_audit_u after update on public.objective_settings
+    referencing old table as old_rows new table as new_rows for each statement
+    execute function public.record_audit_fn();
+end $on$;
+
+-- The value, or the agreed default when the row is missing.
+create or replace function public.objective_setting(p_key text, p_default integer)
+returns integer language sql stable set search_path = public as $$
+  select coalesce((select s.value from public.objective_settings s where s.key = p_key), p_default);
+$$;
+revoke all on function public.objective_setting(text, integer) from public, anon;
+grant execute on function public.objective_setting(text, integer) to authenticated;
+
+-- A table created after 0244 attaches the five system columns itself.
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.objective_settings'::regclass);
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- THE PAGE, TO THE ADMIN ROLE ONLY, WITH EVERY ACTION ON IT (the user,
+-- 2026-10-04: "By Default Grant Permission to Admin - All Actions, Rest let the
+-- Admin Decide through the App"). Every other role is decided on Roles &
+-- Permissions -> Administration -> SLA / Objective Configuration. That includes
+-- the roles that could open Admin Config, where the SLA Targets used to be:
+-- they are NOT carried across, by the user's instruction.
+-- MERGED, never overwritten; a role with no stored permissions is left alone.
+-- ---------------------------------------------------------------------------
+do $$
+declare n int;
+begin
+  if to_regclass('public.app_roles') is null then
+    raise notice '0357: app_roles is missing -- run rbac.sql first. The key is not granted.';
+    return;
+  end if;
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (
+               select jsonb_array_elements_text(ar.permissions) as v
+               union
+               select unnest(array['mod:/sla-objective-config', 'config.manage', 'objective.manage'])
+             ) u
+         ),
+         updated_at = now()
+   where ar.role = 'admin'
+     and jsonb_array_length(ar.permissions) > 0
+     and not (ar.permissions @> '["mod:/sla-objective-config","config.manage","objective.manage"]'::jsonb);
+  get diagnostics n = row_count;
+  raise notice '0357: % of 1 role (admin) given mod:/sla-objective-config and its actions', n;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- objective_value, objective_evidence, objective_notes: each is the definition
+-- read out of a database built from every migration (pg_get_functiondef --
+-- 0142's value and notes, 0251's evidence), with ONLY the failure_rate_12m
+-- branch changed. Not re-typed from an older file: that is how two guards here
+-- lost rules before. `create or replace` keeps the grants 0142 set.
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.objective_value(p_id bigint, p_month integer)
+ RETURNS numeric
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  o        public.quality_objectives;
+  p        record;
+  v_serial text;
+  v_prod   text;
+  v_days   integer;
+  n_num    integer;
+  n_den    integer;
+begin
+  select * into o from public.quality_objectives where id = p_id;
+  if not found or o.calc_key = '' then return null; end if;
+
+  select * into p from public.objective_period(p_id, p_month);
+  if not found or not p.applies then return null; end if;
+
+  -- FAILURE WITHIN <window> MONTHS OF INSTALLATION, over the machines installed
+  -- in the rolling <rolling> months to the cut-off (0357). Installation is the
+  -- WARRANTY START. Counted in MACHINES, so a machine called out three times
+  -- inside its window is one failure.
+  if o.calc_key = 'failure_rate_12m' then
+    v_prod   := o.calc_params->>'product';
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+    select count(*),
+           count(*) filter (where exists (
+             select 1 from public.field_calls c
+              where c.cancelled_at is null
+                and c.product_name ilike v_prod
+                and upper(btrim(coalesce(c.serial, ''))) = upper(btrim(pr.serial_number))
+                and c.reg_date >= pr.warranty_start
+                and c.reg_date <= (pr.warranty_start
+                      + make_interval(months => public.objective_setting('failure_window_months', 3)))::date
+                and c.reg_date <= p.period_end))
+      into n_den, n_num
+      from public.products pr
+     where pr.item_name ilike v_prod
+       and coalesce(pr.serial_number, '') ilike v_serial
+       and btrim(coalesce(pr.serial_number, '')) <> ''
+       and pr.warranty_start > (p.period_end
+             - make_interval(months => public.objective_setting('failure_rolling_months', 12)))::date
+       and pr.warranty_start <= p.period_end;
+    if coalesce(n_den, 0) = 0 then return null; end if;   -- nothing installed, no rate
+    return round(n_num::numeric / n_den, 6);
+  end if;
+
+  if o.calc_key = 'open_rate_monthly' then
+    -- THE VISIT DATE decides, not the entry date. A solving report with no
+    -- visit date recorded falls back to when it was entered, so a missing
+    -- keystroke cannot push a closed call back into the open column.
+    execute format($q$
+      select count(*),
+             count(*) filter (where not exists (
+               select 1 from public.reports r
+                where r.ucn = c.ucn and r.call_status ilike 'solved%%'
+                  and coalesce(r.visit_at::date, r.updated_at::date) <= $4))
+        from %s c
+       where c.cancelled_at is null
+         and c.call_type ilike $3
+         and c.reg_date >= $1 and c.reg_date <= $2
+    $q$, public.objective_call_table(o.calc_params))
+      into n_den, n_num
+     using p.period_start, p.period_end,
+           coalesce(nullif(btrim(o.calc_params->>'call_type'), ''), '%'),
+           p.solve_cutoff;
+    if coalesce(n_den, 0) = 0 then return null; end if;   -- no calls, no rate
+    return round(n_num::numeric / n_den, 6);
+  end if;
+
+  if o.calc_key = 'attended_within_days' then
+    v_days := coalesce((o.calc_params->>'days')::integer, 3);
+    execute format($q$
+      with c as (
+        select cc.ucn,
+               greatest(cc.complaint_date, coalesce(cc.reg_at::date, cc.reg_date)) as counts_from
+          from %s cc
+         where cc.cancelled_at is null
+           and cc.call_type ilike $3
+           and cc.reg_date >= $1 and cc.reg_date <= $2
+      ),
+      fv as (select ucn, min(visit_at)::date as on_date from public.reports
+              where visit_at is not null group by ucn),
+      fs as (select ucn, min(coalesce(or_req_date, created_at::date)) as on_date
+               from public.spare_requests
+              where coalesce(btrim(ucn), '') <> '' group by ucn)
+      select count(*),
+             count(*) filter (
+               where least(fv.on_date, fs.on_date) is not null
+                 and c.counts_from is not null
+                 and greatest((least(fv.on_date, fs.on_date) - c.counts_from)::int, 0) <= $4)
+        from c left join fv on fv.ucn = c.ucn left join fs on fs.ucn = c.ucn
+    $q$, public.objective_call_table(o.calc_params))
+      into n_den, n_num
+     using p.period_start, p.period_end,
+           coalesce(nullif(btrim(o.calc_params->>'call_type'), ''), '%'), v_days;
+    if coalesce(n_den, 0) = 0 then return null; end if;   -- no calls, no rate
+    return round(n_num::numeric / n_den, 6);
+  end if;
+
+  -- -------------------------------------------------------------------------
+  -- ffr_count_monthly -- HOW MANY FIELD FAILURE REPORTS WERE RAISED.
+  --
+  -- A COUNT, not a rate, and the first objective here that is one. Three things
+  -- follow from that and none of them is incidental:
+  --
+  --   * it counts DISTINCT FFR NUMBERS, not rows. 0181 made the register one
+  --     row per MACHINE precisely because one report can cover several -- eight
+  --     FFR numbers over twelve machines, measured -- so counting rows would
+  --     report twelve failures where four reports exist. A report with no
+  --     number counts as itself (`row-<id>`) rather than collapsing with every
+  --     other unnumbered one.
+  --   * ZERO IS AN ANSWER. Every rate above returns null on an empty
+  --     denominator because a rate over nothing is undefined; a count over
+  --     nothing is nought, and that is the whole point of an objective whose
+  --     target is "To Monitor". A blank would read as "not measured yet",
+  --     which is a different and worse claim.
+  --   * the month is the FFR DATE and there is no fallback, because none is
+  --     reachable: 0165 declares `ffr_date date not null default (now() at time
+  --     zone 'Asia/Kolkata')::date`. The first draft here carried a
+  --     coalesce to created_at and a note explaining it -- dead code, and a
+  --     note describing a rule that can never fire is worse than no note in a
+  --     record somebody signs. The test found it by inserting a null.
+  -- -------------------------------------------------------------------------
+  if o.calc_key = 'ffr_count_monthly' then
+    v_prod   := coalesce(nullif(btrim(o.calc_params->>'product'), ''), '%');
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+    select count(distinct coalesce(nullif(btrim(f.ffr_no), ''), 'row-' || f.id))
+      into n_num
+      from public.field_failure_reports f
+     where coalesce(f.product_name, '') ilike v_prod
+       and coalesce(f.product_serial, '') ilike v_serial
+       and f.ffr_date >= p.period_start
+       and f.ffr_date <= p.period_end;
+    return coalesce(n_num, 0);
+  end if;
+
+  return null;
+end $function$
+
+;
+
+CREATE OR REPLACE FUNCTION public.objective_evidence(p_id bigint, p_month integer)
+ RETURNS TABLE(role text, ucn text, call_number text, reg_date date, product_name text, serial text, party_name text, call_type text, status text, allocated_to text, warranty_number text, warranty_start date, warranty_end date, contract_number text, contract_start date, contract_end date, contract_type text, closure_date date, closure_recorded_on date, after_cutoff text, details jsonb)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  o        public.quality_objectives;
+  p        record;
+  v_serial text;
+  v_prod   text;
+  v_type   text;
+  v_days   integer;
+begin
+  select * into o from public.quality_objectives where id = p_id;
+  if not found then return; end if;
+  -- THE GATE FOLLOWS THE REGISTER THE FIGURE IS COUNTED FROM. An FFR objective
+  -- reads the Field Failure Register, which has had its own right since 0176
+  -- (`ffr.view`); asking for `calls.view` instead would let somebody who may
+  -- not open that register read every report through this door, and refuse
+  -- somebody who may.
+  if o.calc_key = 'ffr_count_monthly' then
+    if not (public.has_perm('ffr.view') or public.has_perm('ffr.manage')) then
+      raise exception 'RBAC: you cannot read the Field Failure Reports behind this figure';
+    end if;
+  elsif not (public.has_perm('calls.view') or public.has_perm('reports.view')) then
+    raise exception 'RBAC: you cannot read the calls behind this figure';
+  end if;
+  select * into p from public.objective_period(p_id, p_month);
+  if not found or not p.applies then return; end if;
+  v_type := coalesce(nullif(btrim(o.calc_params->>'call_type'), ''), '%');
+
+  if o.calc_key = 'failure_rate_12m' then
+    v_prod   := o.calc_params->>'product';
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+
+    -- (The outer alias is `c`, as on every call branch, so _status.sql row
+    -- 193's tiebreak check -- `reg_date desc, c.ucn` -- reads it.)
+    -- SHEET 1: ONE ROW PER FAILED MACHINE -- its FIRST field call inside the
+    -- window -- so the sheet counts to the numerator. `details` says when the
+    -- machine was installed, how many days later it failed, and how many calls
+    -- fell inside the window.
+    return query
+      with base as (
+        select pr.*
+          from public.products pr
+         where pr.item_name ilike v_prod
+           and coalesce(pr.serial_number, '') ilike v_serial
+           and btrim(coalesce(pr.serial_number, '')) <> ''
+           and pr.warranty_start > (p.period_end
+                 - make_interval(months => public.objective_setting('failure_rolling_months', 12)))::date
+           and pr.warranty_start <= p.period_end
+      ),
+      hits as (
+        select b.id as machine_id, b.warranty_start as installed_on, c.*,
+               count(*) over (partition by b.id) as calls_in_window,
+               row_number() over (partition by b.id order by c.reg_date, c.ucn) as rn
+          from base b
+          join public.field_calls c
+            on c.cancelled_at is null
+           and c.product_name ilike v_prod
+           and upper(btrim(coalesce(c.serial, ''))) = upper(btrim(b.serial_number))
+           and c.reg_date >= b.warranty_start
+           and c.reg_date <= (b.warranty_start
+                 + make_interval(months => public.objective_setting('failure_window_months', 3)))::date
+           and c.reg_date <= p.period_end
+      )
+      select 'failure'::text, c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             coalesce(c.open_state, ''), coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on, ''::text,
+             jsonb_build_object(
+               'Installed (warranty start)', c.installed_on,
+               'Days after installation', (c.reg_date - c.installed_on),
+               'Field calls in the window', c.calls_in_window)
+        from hits c
+        left join lateral (
+              select r.visit_at::date as closed_on, r.updated_at::date as recorded_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%'
+               order by coalesce(r.visit_at::date, r.updated_at::date), r.id limit 1) cl on true
+       where c.rn = 1
+       order by c.reg_date desc, c.ucn;
+
+    return query
+      select 'filter'::text, ''::text, ''::text, p.period_end,
+             'Product Master, Product like ' || v_prod,
+             case when v_serial = '%' then '(no serial filter -- product only)'
+                  else 'Serial like ' || v_serial end,
+             p.label, 'Field calls'::text, ''::text, ''::text,
+             ''::text, null::date, null::date, ''::text, null::date, null::date, ''::text,
+             null::date, null::date,
+             'Installed (warranty start) in the '
+               || public.objective_setting('failure_rolling_months', 12)
+               || ' months to ' || p.period_end
+               || '; failed = a field call within '
+               || public.objective_setting('failure_window_months', 3)
+               || ' months of installation',
+             null::jsonb;
+
+    -- SHEET 2: THE MACHINES INSTALLED IN THE WINDOW -- the denominator -- each
+    -- carrying its whole Product Master row.
+    return query
+      select 'machine'::text, ''::text, ''::text, null::date,
+             pr.item_name, pr.serial_number, pr.party_name, ''::text,
+             coalesce(pr.item_status, ''), ''::text,
+             pr.warranty_number, pr.warranty_start, pr.warranty_end,
+             pr.contract_number, pr.contract_start, pr.contract_end, pr.contract_type,
+             null::date, null::date, ''::text,
+             coalesce(pr.extra, '{}'::jsonb)
+        from public.products pr
+       where pr.item_name ilike v_prod
+         and coalesce(pr.serial_number, '') ilike v_serial
+         and btrim(coalesce(pr.serial_number, '')) <> ''
+         and pr.warranty_start > (p.period_end
+               - make_interval(months => public.objective_setting('failure_rolling_months', 12)))::date
+         and pr.warranty_start <= p.period_end
+       order by pr.serial_number, pr.item_name, pr.id;
+    return;
+  end if;
+
+  if o.calc_key = 'open_rate_monthly' then
+    return query execute format($q$
+      select case when cl.counts_on is not null and cl.counts_on <= $4
+                  then 'closed' else 'open' end,
+             c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             coalesce(c.open_state, ''), coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on,
+             concat_ws(' ',
+               case when cl.counts_on is not null and cl.counts_on > $4
+                    then 'YES -- solved on ' || cl.counts_on
+                         || ', after the cut-off of ' || $4 || ', so it is counted as OPEN'
+               end,
+               case when cl.counts_on is not null and cl.closed_on is null
+                    then 'NOTE -- no visit date on the solving report; the date it was '
+                         'ENTERED (' || cl.recorded_on || ') was used instead'
+               end),
+             null::jsonb
+        from %s c
+        left join lateral (
+              select r.visit_at::date as closed_on, r.updated_at::date as recorded_on,
+                     coalesce(r.visit_at::date, r.updated_at::date) as counts_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%%'
+               order by coalesce(r.visit_at::date, r.updated_at::date), r.id limit 1) cl on true
+       where c.cancelled_at is null
+         and c.call_type ilike $3
+         and c.reg_date >= $1 and c.reg_date <= $2
+       order by c.reg_date, c.ucn
+    $q$, public.objective_call_table(o.calc_params))
+      using p.period_start, p.period_end, v_type, p.solve_cutoff;
+    return;
+  end if;
+
+  if o.calc_key = 'attended_within_days' then
+    v_days := coalesce((o.calc_params->>'days')::integer, 3);
+    return query execute format($q$
+      with c as (
+        select cc.*, greatest(cc.complaint_date,
+                              coalesce(cc.reg_at::date, cc.reg_date)) as counts_from
+          from %s cc
+         where cc.cancelled_at is null
+           and cc.call_type ilike $3
+           and cc.reg_date >= $1 and cc.reg_date <= $2
+      ),
+      fv as (select ucn, min(visit_at)::date as on_date from public.reports
+              where visit_at is not null group by ucn),
+      fs as (select ucn, min(coalesce(or_req_date, created_at::date)) as on_date
+               from public.spare_requests
+              where coalesce(btrim(ucn), '') <> '' group by ucn)
+      select case when least(fv.on_date, fs.on_date) is not null
+                   and c.counts_from is not null
+                   and greatest((least(fv.on_date, fs.on_date) - c.counts_from)::int, 0) <= $4
+                  then 'attended' else 'late' end,
+             c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             case when least(fv.on_date, fs.on_date) is null then 'never attended'
+                  else 'attended on ' || least(fv.on_date, fs.on_date)
+                       || ' -- ' || greatest((least(fv.on_date, fs.on_date) - c.counts_from)::int, 0)
+                       || ' day(s) from ' || c.counts_from end,
+             coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on, ''::text, null::jsonb
+        from c
+        left join fv on fv.ucn = c.ucn
+        left join fs on fs.ucn = c.ucn
+        left join lateral (
+              select r.visit_at::date as closed_on, r.updated_at::date as recorded_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%%'
+               order by coalesce(r.visit_at::date, r.updated_at::date), r.id limit 1) cl on true
+       order by c.reg_date, c.ucn
+    $q$, public.objective_call_table(o.calc_params))
+      using p.period_start, p.period_end, v_type, v_days;
+    return;
+  end if;
+
+  if o.calc_key = 'ffr_count_monthly' then
+    v_prod   := coalesce(nullif(btrim(o.calc_params->>'product'), ''), '%');
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+
+    -- ONE ROW PER MACHINE, because that is how the register stores it -- so the
+    -- sheet has MORE rows than the figure and every row says which report it
+    -- belongs to. Collapsing to one row per report here would hide which
+    -- machines it covered, which is the thing 0181 exists to keep.
+    return query
+      select 'ffr'::text, f.ucn, f.ffr_no,
+             f.ffr_date,
+             f.product_name, f.product_serial, f.customer_name,
+             coalesce(f.call_type, ''), coalesce(f.ffr_status, ''),
+             coalesce(f.raised_by_name, ''),
+             ''::text, null::date, null::date, ''::text, null::date, null::date,
+             coalesce(f.cover, ''),
+             f.crn_date, f.created_at::date,
+             ''::text,
+             jsonb_strip_nulls(jsonb_build_object(
+               'FFR No', f.ffr_no, 'Source', f.source,
+               'Problem Reported', f.problem_reported,
+               'Service Observation', f.service_observation,
+               'Problem Status', f.problem_status,
+               'CAPA No', f.capa_no, 'CAPA Status', f.capa_status,
+               'Item Code', f.item_code, 'Place', f.place))
+        from public.field_failure_reports f
+       where coalesce(f.product_name, '') ilike v_prod
+         and coalesce(f.product_serial, '') ilike v_serial
+         and f.ffr_date >= p.period_start
+         and f.ffr_date <= p.period_end
+       order by f.ffr_date, f.ffr_no, f.id;
+    return;
+  end if;
+end $function$
+
+;
+
+CREATE OR REPLACE FUNCTION public.objective_notes(p_id bigint, p_month integer)
+ RETURNS TABLE(kind text, note text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  o  public.quality_objectives;
+  p  record;
+  q  boolean;
+begin
+  select * into o from public.quality_objectives where id = p_id;
+  if not found then return; end if;
+  select * into p from public.objective_period(p_id, p_month);
+  q := public.objective_is_quarterly(o.frequency);
+
+  kind := 'ASSUMPTION';
+  note := 'Measured ' || case when q then 'QUARTERLY' else 'MONTHLY' end
+          || ', taken from this objective''s Monitoring Frequency ('
+          || coalesce(nullif(btrim(o.frequency), ''), 'not set') || ').';
+  return next;
+
+  if q then
+    note := 'A quarterly figure is CUMULATIVE over the three months -- one fraction '
+            'over the whole window, NOT the average of three monthly rates. Averaging '
+            'would give a month with four calls the same weight as a month with ninety.';
+    return next;
+    note := 'It is reported in the LAST month of the quarter, and takes THAT month''s '
+            'cut-off. The other two months are NA (blank), which is not zero.';
+    return next;
+  end if;
+
+  if o.calc_key = '' then
+    kind := 'HARD STOP';
+    note := 'This objective is NOT computed -- the figure on the page was TYPED by a '
+            'person, and Re-Calculate never touches it. There are no rows behind it.';
+    return next;
+    return;
+  end if;
+
+  if o.calc_key = 'ffr_count_monthly' then
+    note := 'Counted from the FIELD FAILURE REGISTER (field_failure_reports), not from '
+            'the call register. A call is not a field failure until somebody raises a '
+            'report for it.';
+    return next;
+    note := 'The figure counts FFR NUMBERS, not rows. One report can cover several '
+            'machines -- the register stores a row for each -- so the evidence sheet has '
+            'MORE rows than the figure, and that is not a disagreement.';
+    return next;
+    note := 'A report belongs to the month by its FFR DATE -- the date on the report, not '
+            'the date it was typed in, and not the date of the call behind it. There is no '
+            'fallback because none is reachable: the register requires an FFR date and '
+            'defaults it to the day the report is raised.';
+    return next;
+    if coalesce(btrim(o.calc_params->>'product'), '') <> '' then
+      note := 'Narrowed to products matching "' || (o.calc_params->>'product')
+              || '" -- an administrator set this on the screen.';
+      return next;
+    end if;
+    if coalesce(btrim(o.calc_params->>'serial'), '') <> '' then
+      note := 'Narrowed to serials matching "' || (o.calc_params->>'serial') || '".';
+      return next;
+    end if;
+    kind := 'HARD STOP';
+    note := 'ZERO IS AN ANSWER HERE, not a blank. A month with no field failures reads 0; '
+            'a month that has not been measured is blank. The rate objectives on this page '
+            'do the opposite -- a rate over no machines is undefined and stays blank -- so '
+            'the two are deliberately not the same.';
+    return next;
+    note := 'This is a COUNT, so there is no denominator and nothing to express as a '
+            'percentage. The target is "To Monitor": no line has been drawn, so the figure '
+            'is never coloured pass or fail.';
+    return next;
+    kind := 'ASSUMPTION';
+  end if;
+
+  if o.calc_key in ('open_rate_monthly', 'attended_within_days') then
+    note := 'Counted from the ' || public.objective_register_name(o.calc_params)
+            || ' register (' || public.objective_call_table(o.calc_params) || ').';
+    return next;
+    if coalesce(btrim(o.calc_params->>'call_type'), '') <> '' then
+      note := 'Narrowed further to call types matching "' || (o.calc_params->>'call_type')
+              || '" -- an administrator set this on the screen.';
+      return next;
+    end if;
+    note := 'A call belongs to the period by its CALL REGISTRATION DATE, not by when '
+            'it was attended or solved. The cut-off below never changes WHICH calls '
+            'are counted, only how many of them were closed in time.';
+    return next;
+  end if;
+
+  if o.calc_key = 'open_rate_monthly' then
+    note := 'CUT-OFF: ' || coalesce(p.cutoff_note, 'the end of the period.');
+    return next;
+    note := 'EACH MONTH CARRIES ITS OWN CUT-OFF. Setting this month''s does not touch '
+            'any other month, so a figure already reported cannot be re-based by a '
+            'later round.';
+    return next;
+    note := 'A call counts as CLOSED once any visit records a status beginning "Solved" '
+            '-- so "Solved - Report Pending" is closed, per the sheet.';
+    return next;
+    note := 'The cut-off tests the VISIT DATE of that report -- when the engineer '
+            'attended -- NOT the date it was typed up. Both are on Sheet 1 (Call '
+            'closure date / Closure recorded on).';
+    return next;
+    note := 'Where a solving report carries NO visit date, the date it was ENTERED is '
+            'used instead, and Sheet 1 says so on that row. Treating a blank as "never '
+            'solved" would move a closed call into the open column for a missing '
+            'keystroke, making the figure worse for a data-entry lapse.';
+    return next;
+  end if;
+
+  if o.calc_key = 'attended_within_days' then
+    note := 'ATTENDED is the EARLIER of the first visit date and the first spare-request '
+            'date -- the same Call Attended rule the KPI export uses, so the two agree.';
+    return next;
+    note := 'The clock runs from the LATER of the complaint date and the registration '
+            'date, again matching the KPI export''s "Attended in Days".';
+    return next;
+  end if;
+
+  if o.calc_key = 'failure_rate_12m' then
+    note := 'Failures are FIELD calls on products matching "'
+            || coalesce(o.calc_params->>'product', '(none set)') || '".';
+    return next;
+    note := case when coalesce(btrim(o.calc_params->>'serial'), '') = ''
+                 then 'No serial filter -- every machine of that product is counted.'
+                 else 'Narrowed to serial numbers matching "' || (o.calc_params->>'serial')
+                      || '" -- how the Indian Extend is told from the rest, since no '
+                      'column says Indian.' end;
+    return next;
+    note := 'A machine is INSTALLED on its WARRANTY START. The rate is over the machines '
+            'of that product whose warranty started in the '
+            || public.objective_setting('failure_rolling_months', 12)
+            || ' months ending at the cut-off (Sheet 2); a machine with no warranty start, '
+               'or no serial, is in neither number.';
+    return next;
+    note := 'A machine has FAILED when a field call on its serial was registered on or '
+            'after its warranty start and within '
+            || public.objective_setting('failure_window_months', 3)
+            || ' months of it. It is counted ONCE however many calls it had; Sheet 1 '
+               'shows its first, and how many fell inside the window.';
+    return next;
+    note := 'Both numbers are set on Admin -> SLA / Objective Configuration. A figure '
+            'already written keeps the rule it was calculated under until Re-Calculate.';
+    return next;
+    note := 'Product Master keeps no history, so a machine whose warranty start or serial '
+            'has since been corrected is counted as it reads TODAY.';
+    return next;
+    note := 'Product Master''s "active" flag is NOT honoured: nothing in this system '
+            'maintains it, and filtering on it would move every rate on the strength of '
+            'data that has never been kept.';
+    return next;
+  end if;
+
+  kind := 'HARD STOP';
+  note := 'CANCELLED CALLS ARE NEVER COUNTED -- not in the numerator, not in the '
+          'denominator.';
+  return next;
+  -- A failure rate is not windowed by REGISTRATION in the period; it says its
+  -- own window above, and this line would contradict it (0357).
+  if o.calc_key <> 'failure_rate_12m' then
+    note := 'Calls are those REGISTERED between '
+            || coalesce(p.period_start::text, '(period not reached)') || ' and '
+            || coalesce(p.period_end::text, '(period not reached)')
+            || ' -- the last day of the period or TODAY, whichever is earlier.';
+    return next;
+  end if;
+  if o.calc_key = 'open_rate_monthly' then
+    note := 'A CUT-OFF IS NEVER LATER THAN TODAY, whatever is set. A future cut-off '
+            'would count a month the record cannot yet know about, and it can only ever '
+            'move a call from open to closed -- so it would flatter the figure, which '
+            'is the direction nobody questions.';
+    return next;
+    note := 'A call solved AFTER the cut-off is counted as OPEN. It is marked on Sheet 1 '
+            'rather than hidden, because "still open" and "solved, but later" are '
+            'different facts and only one of them is a problem.';
+    return next;
+  end if;
+  note := case when o.calc_key = 'failure_rate_12m'
+               then 'A window with NO machines installed gives NO rate -- the cell stays '
+                    'blank. It is never written as 0%, which would read as "nothing failed".'
+               else 'A period with NO calls gives NO rate -- the cell stays blank. It is never '
+                    'written as 0%, which would read as "nothing was open".' end;
+  return next;
+  note := 'Figures are written ONLY by an explicit Re-Calculate. Nothing on this page '
+          'changes because somebody opened it.';
+  return next;
+  note := 'Re-Calculate never overwrites a TYPED figure, and never writes a month that '
+          'has not been reached.';
+  return next;
+
+  if o.calc_key = 'failure_rate_12m' then
+    note := 'The window is ROLLING and ends at the cut-off: it does not shorten for an '
+            'early month. A machine installed shortly before the cut-off has not yet had '
+            'its full ' || public.objective_setting('failure_window_months', 3)
+            || ' months, so the most recent months read LOWER than they will once those '
+               'machines have run their window -- and they will not look wrong. Re-Calculate '
+               'a month again later to see it settle.';
+    return next;
+  end if;
+end $function$
+
+;
 
 -- ------------------------------------------------------------------------
 -- 0048_record_audit.sql

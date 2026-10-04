@@ -49,6 +49,7 @@ import { CallReview } from './modules/CallReview';
 import { FieldFailureReport } from './modules/FieldFailureReport';
 import { KpiAnalytics } from './modules/KpiAnalytics';
 import { Objective } from './modules/Objective';
+import { SlaObjectiveConfig } from './modules/SlaObjectiveConfig';
 import { MachineHistory } from './modules/MachineHistory';
 import { PartSearch } from './modules/PartSearch';
 import { SolvedWithoutReport } from './modules/SolvedWithoutReport';
@@ -61,6 +62,7 @@ import { SpareInsights } from './modules/SpareInsights';
 import { Workload } from './modules/Workload';
 import { ProductFailureAnalysis } from './modules/ProductFailureAnalysis';
 import { IndoorService } from './modules/IndoorService';
+import { SpareRecycling } from './modules/SpareRecycling';
 import { Tracker } from './modules/Tracker';
 // User Access folded into User Master; /users now redirects there.
 import { Settings } from './modules/Settings';
@@ -254,6 +256,7 @@ function Shell() {
             instead of hiding it behind a tab strip. */}
         <Route path="/exports/:tab" element={<ReportsHub />} />
         <Route path="/indoor" element={<IndoorService />} />
+        <Route path="/indoor/recycling" element={<SpareRecycling />} />
         <Route path="/missing-visit-reports" element={<SolvedWithoutReport />} />
         <Route path="/device-cache" element={<DeviceCacheStatus />} />
         <Route path="/handstock-report" element={<HandStockReport />} />
@@ -274,6 +277,7 @@ function Shell() {
         <Route path="/pm-bulk-upload" element={<PmBulkUpload />} />
         <Route path="/software-validation" element={<SoftwareValidation />} />
         <Route path="/admin-config" element={<AdminConfig />} />
+        <Route path="/sla-objective-config" element={<SlaObjectiveConfig />} />
         <Route path="/roles" element={<RolePermissions />} />
         <Route path="/audit" element={<AuditLog />} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -124,7 +124,7 @@ export function IndoorService() {
   const mayDispatch = can('indoor.dispatch');
   const mayCondemn  = can('indoor.condemn');
   const mayVerify   = can('indoor.verify');
-  // D-111 (0358): withdrawing a PDT signature is its own key.
+  // D-111 (0363): withdrawing a PDT signature is its own key.
   const mayUnsign   = can('indoor.pdt_unsign');
   // DELETING A JOB (0324): its own key, granted to no role by migration; the
   // database asks it again and refuses a job a DC or a filed visit names.

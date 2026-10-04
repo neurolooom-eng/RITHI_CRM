@@ -78,6 +78,11 @@ export interface DataTableProps<T> {
   // deliberately ungroups stays ungrouped rather than having it put back on
   // every visit.
   defaultGroup?: string[];
+  /** A grouping the register ALWAYS uses (the user, 2026-10-04, Technical /
+   *  Service Notes: "Group it by Product always. Default."). Overrides the
+   *  stored choice and a saved view's grouping, and hides the grouping control,
+   *  so nobody's earlier "no grouping" can switch it off. */
+  lockGroup?: string[];
 }
 
 // A cell value straight from the data may not be a primitive: a jsonb column
@@ -158,6 +163,7 @@ export function DataTable<T>({
   allFields,
   groupable,
   defaultGroup,
+  lockGroup,
   selectable,
   selected,
   onSelectedChange,
@@ -253,7 +259,7 @@ export function DataTable<T>({
   const groupKeyStore = persistKey ? `${persistKey}.group.${user?.id ?? 'anon'}` : null;
   // LEVELS, in order: Region, then Engineer, then Call Status. Stored as a list
   // so an older single-key value still reads.
-  const [groupKeys, setGroupKeys] = useState<string[]>(() => {
+  const [chosenGroupKeys, setGroupKeys] = useState<string[]>(() => {
     try {
       const raw = groupKeyStore ? localStorage.getItem(groupKeyStore) : null;
       // NOTHING STORED is different from STORED AS EMPTY. The first is a reader
@@ -264,7 +270,9 @@ export function DataTable<T>({
       return Array.isArray(v) ? v.filter((k) => typeof k === 'string' && k) : [];
     } catch { return defaultGroup ?? []; }
   });
+  const groupKeys = lockGroup ?? chosenGroupKeys;
   const saveGroupKeys = (ks: string[]) => {
+    if (lockGroup) return;
     const clean = ks.filter(Boolean);
     setGroupKeys(clean);
     setExpanded(new Set());
@@ -667,7 +675,7 @@ export function DataTable<T>({
   // One select per level, and the next appears once the one before it is set —
   // up to three, which is as deep as a heading can be read at a glance.
   const MAX_LEVELS = 3;
-  const groupControl = groupable && groupable.length ? (
+  const groupControl = groupable && groupable.length && !lockGroup ? (
     <span className="dt-group-pick" title="Group the rows — pick a second and a third to nest them">
       <span className="muted">Group</span>
       {Array.from({ length: Math.min(MAX_LEVELS, groupable.length) }, (_, i) => i)

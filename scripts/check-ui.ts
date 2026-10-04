@@ -2903,7 +2903,7 @@ console.log('\n-- Zoho Migration is a clone, and stays one --');
   // ...but for the Auto Review switch, which the user gave Technical Support
   // and not this role (0285): a clone that inherited a WRITE would stop being
   // read-only without anybody deciding it. The same holds for
-  // spare.request.others (0354, D-125: "Admins + Technical Support").
+  // spare.request.others (0359, D-125: "Admins + Technical Support").
   const a = [...(DEFAULT_PERMS.technical_support ?? [])].filter((k) => k !== 'review.auto' && k !== 'spare.request.others').sort();
   const b = [...(DEFAULT_PERMS.zoho_migration ?? [])].sort();
   eq('the two roles default to the same rights, but for the Auto Review switch and spare requests for anyone', b, a);
@@ -9950,11 +9950,13 @@ console.log('\n-- the Daily Complaint Review: auto review is a role’s switch (
 console.log('\n-- data flows name real screens, requirements and tests --');
 {
   const { FLOWS, rankSteps, layoutFlow, wrapLabel } = await import('../src/lib/flows');
-  const { URS: U, FRS: F, TESTS: T } = await import('../src/lib/validation');
+  const { URS: U, FRS: F, TESTS: T, NON_AUDITABLE: NAR } = await import('../src/lib/validation');
   const { MODULES: M } = await import('../src/lib/rbac');
   const docIds = (f: string, re: RegExp) => new Set([...readFileSync(f, 'utf8').matchAll(re)].map((m) => m[1]));
   const known = new Set<string>([
     ...U.map((r) => r.id), ...F.map((r) => r.id), ...T.map((t) => t.id),
+    // A non-auditable flow cites its NAR (Spare Recycling, NAR-008).
+    ...NAR.map((r) => r.id),
     ...docIds('docs/CALL_REQUEST_REQUIREMENTS.md', /\*\*(CR-\d{3})\b/g),
     ...docIds('docs/ISO13485_SERVICING.md', /\b(SR-\d{3})\b/g),
     ...docIds('docs/COVER_REQUIREMENTS.md', /\b(CW-\d{3})\b/g),

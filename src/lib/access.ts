@@ -244,7 +244,7 @@ export function useActivePeople(current?: Person): { people: Person[]; ready: bo
 }
 
 // ---------------------------------------------------------------------------
-// WHOSE NAME MAY I FILE THIS UNDER? -- exactly what the database accepts (0354,
+// WHOSE NAME MAY I FILE THIS UNDER? -- exactly what the database accepts (0359,
 // D-125, the user's decision of 2026-10-04):
 //   • with `key` (visit.others for a visit and its spares, spare.request.others
 //     for a spare request; an administrator holds every key) -- every ACTIVE

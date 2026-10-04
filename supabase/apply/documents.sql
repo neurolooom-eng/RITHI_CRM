@@ -17,6 +17,8 @@
 --   0265_qms_document_key.sql
 --   0272_service_note_upload_key.sql
 --   0299_document_drive_details.sql
+--   0354_service_note_dated_latest.sql
+--   0356_service_notes_batch_save.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -311,5 +313,211 @@ alter table public.documents add column if not exists source_modified_by text no
 comment on column public.documents.source_created_at  is 'Drive''s Created date-time of the file, from the listing it was loaded from (0299). Not when it was entered here -- that is created_at.';
 comment on column public.documents.source_modified_at is 'Drive''s Last Modified date-time of the file (0299). Not when the row was last changed here -- that is updated_at.';
 comment on column public.documents.source_modified_by is 'Drive''s Last Modified By, as the listing wrote it (0299). Not who entered it here -- that is uploaded_by.';
+
+-- ------------------------------------------------------------------------
+-- 0354_service_note_dated_latest.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- TECHNICAL / SERVICE NOTES: A DATE OF THEIR OWN, AND THE LATEST ONE PER
+-- PRODUCT MARKED.
+--
+-- The user, 2026-10-04: "Group it as Per Product. Add a Column [Dated], which
+-- I will update manually. Sort it by Dated, Newest to Oldest. Automatically add
+-- a Tag as Latest. When I add a new Technical Note for the Product, these Auto
+-- Tags should reset and update according to the Latest. I should have a Button
+-- to Trigger this correction."  Settled with the user the same day:
+--   * a note covering several products is listed under EACH of them, and may
+--     be the latest for one and not another -- so the mark is PER PRODUCT;
+--   * a note with no product is the "Every product" group (token '');
+--   * only a LIVE note with a Dated can be the latest -- a note not yet dated,
+--     or retired, is never marked; two live notes on the same newest date are
+--     both marked;
+--   * the mark is STORED, recalculated automatically, and on demand by a button.
+--
+-- documents.dated       the date the user gives the note, by hand. Not
+--                       effective_date (the QMS field) and not created_at (when
+--                       it was entered here) -- a note entered today may be
+--                       dated years ago.
+-- documents.latest_for  the products this note is currently the latest for,
+--                       spelled as on the note; '' stands for "Every product".
+--                       Written ONLY by refresh_service_note_latest_all().
+--
+-- WHEN IT RECALCULATES: a statement-level trigger after any insert or delete of
+-- a document, and after an update of kind / product / dated / active -- so a
+-- bulk upload of 300 notes recalculates once, and the recalculation's own write
+-- (latest_for only) does not fire it again. The Refresh button calls
+-- refresh_service_note_latest(), which asks for docs.manage and does the same.
+-- Only rows whose mark actually changes are written.
+-- ===========================================================================
+
+alter table public.documents add column if not exists dated date;
+alter table public.documents add column if not exists latest_for text[] not null default '{}';
+
+comment on column public.documents.dated is
+  'Technical / Service Notes: the note''s own date, entered by hand. Orders the shelf (newest first) and decides which note is the latest per product (0354).';
+comment on column public.documents.latest_for is
+  'Technical / Service Notes: the products this note is the latest for ('''' = every product). Written only by refresh_service_note_latest_all() (0354).';
+
+create index if not exists documents_dated_idx on public.documents (kind, dated desc);
+
+-- THE RECALCULATION. Products are split exactly as the screen splits them
+-- (comma, semicolon, bar, newline; trimmed; blanks dropped) and compared
+-- case-insensitively, so "MONNAL T60" and "Monnal T60" are one product.
+create or replace function public.refresh_service_note_latest_all()
+returns integer language plpgsql security definer set search_path = public as $$
+declare v_changed integer;
+begin
+  with note_products as (
+    select d.id, d.dated,
+           coalesce(nullif(btrim(p.prod), ''), '') as prod
+      from public.documents d
+      left join lateral regexp_split_to_table(coalesce(d.product, ''), '[,;|\n]') as p(prod) on true
+     where d.kind = 'service_note' and d.active and d.dated is not null
+  ),
+  -- A note with products listed has '' rows only from blank pieces; drop
+  -- those unless the note names no product at all.
+  cleaned as (
+    select np.* from note_products np
+     where np.prod <> ''
+        or not exists (select 1 from note_products o where o.id = np.id and o.prod <> '')
+  ),
+  newest as (
+    select lower(prod) as k, max(dated) as top from cleaned group by lower(prod)
+  ),
+  marks as (
+    select c.id, array_agg(distinct c.prod order by c.prod) as latest
+      from cleaned c join newest n on n.k = lower(c.prod) and n.top = c.dated
+     group by c.id
+  ),
+  target as (
+    select d.id, coalesce(m.latest, '{}'::text[]) as latest
+      from public.documents d left join marks m on m.id = d.id
+     where d.kind = 'service_note'
+  )
+  update public.documents d set latest_for = t.latest
+    from target t
+   where t.id = d.id and d.latest_for is distinct from t.latest;
+  get diagnostics v_changed = row_count;
+  return v_changed;
+end $$;
+
+revoke execute on function public.refresh_service_note_latest_all() from public, anon, authenticated;
+
+-- THE BUTTON. The same work, for whoever may maintain the shelf.
+create or replace function public.refresh_service_note_latest()
+returns integer language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_perm('docs.manage') then
+    raise exception 'Your role does not have permission for this action' using errcode = '42501';
+  end if;
+  return public.refresh_service_note_latest_all();
+end $$;
+
+revoke execute on function public.refresh_service_note_latest() from public, anon;
+grant execute on function public.refresh_service_note_latest() to authenticated;
+
+create or replace function public.documents_refresh_latest()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.refresh_service_note_latest_all();
+  return null;
+end $$;
+
+revoke execute on function public.documents_refresh_latest() from public, anon, authenticated;
+
+drop trigger if exists zz_service_note_latest_ins on public.documents;
+create trigger zz_service_note_latest_ins after insert or delete on public.documents
+  for each statement execute function public.documents_refresh_latest();
+drop trigger if exists zz_service_note_latest_upd on public.documents;
+create trigger zz_service_note_latest_upd after update of kind, product, dated, active on public.documents
+  for each statement execute function public.documents_refresh_latest();
+
+-- The notes already on the shelf: none has a Dated yet, so this marks nothing
+-- today; it is here so a re-run after dates were loaded by hand lands right.
+select public.refresh_service_note_latest_all();
+
+-- ------------------------------------------------------------------------
+-- 0356_service_notes_batch_save.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- TECHNICAL / SERVICE NOTES: MANY EDITS, ONE SAVE.
+--
+-- The user, 2026-10-04: "Give me a Beta Edit -- like one click at the top,
+-- make all changes and 1 Save saves all the changes done."
+--
+-- save_service_notes(p_rows jsonb) takes an array of {id, <field>: <value>...}
+-- and writes every one in ONE transaction: all of it, or -- on the first
+-- refusal -- none of it, so a half-applied batch cannot happen.
+--
+-- SECURITY INVOKER, deliberately: the documents_update policy (0070) decides
+-- exactly as it does for one edit -- docs.manage for a note. A row the policy
+-- refuses matches nothing and Postgres raises no error (finding 48), so each
+-- UPDATE is counted and a miss STOPS the batch with the note's id, instead of
+-- the batch reporting a refused edit as saved.
+--
+-- Only the fields a note carries are written, and only those present in the
+-- element: title, product, doc_no, revision, effective_date, dated, tags,
+-- notes, url, file_name, extra. A date sent blank is cleared. Title and link
+-- may not be blanked -- the same rule as the form. kind, active and the Drive
+-- facts are not writable here. Changing dated or product fires 0354's trigger
+-- and the Latest marks follow.
+-- ===========================================================================
+
+create or replace function public.save_service_notes(p_rows jsonb)
+returns integer language plpgsql security invoker set search_path = public as $$
+declare
+  r     jsonb;
+  v_id  bigint;
+  v_n   integer := 0;
+  v_hit integer;
+begin
+  if jsonb_typeof(p_rows) is distinct from 'array' then
+    raise exception 'save_service_notes expects an array of notes' using errcode = '22023';
+  end if;
+
+  for r in select * from jsonb_array_elements(p_rows) loop
+    v_id := nullif(r->>'id', '')::bigint;
+    if v_id is null then
+      raise exception 'A note in the batch has no id' using errcode = '22023';
+    end if;
+    if (r ? 'title' and btrim(coalesce(r->>'title', '')) = '')
+       or (r ? 'url' and btrim(coalesce(r->>'url', '')) = '') then
+      raise exception 'Note % needs a title and a link -- nothing was saved', v_id using errcode = '23514';
+    end if;
+    if r ? 'extra' and jsonb_typeof(r->'extra') is distinct from 'object' then
+      raise exception 'Note %: extra must be an object', v_id using errcode = '22023';
+    end if;
+
+    update public.documents d set
+      title          = case when r ? 'title'          then btrim(r->>'title')                          else d.title end,
+      product        = case when r ? 'product'        then coalesce(r->>'product', '')                 else d.product end,
+      doc_no         = case when r ? 'doc_no'         then coalesce(btrim(r->>'doc_no'), '')           else d.doc_no end,
+      revision       = case when r ? 'revision'       then coalesce(btrim(r->>'revision'), '')         else d.revision end,
+      effective_date = case when r ? 'effective_date' then nullif(r->>'effective_date', '')::date      else d.effective_date end,
+      dated          = case when r ? 'dated'          then nullif(r->>'dated', '')::date               else d.dated end,
+      tags           = case when r ? 'tags'           then coalesce(btrim(r->>'tags'), '')             else d.tags end,
+      notes          = case when r ? 'notes'          then coalesce(btrim(r->>'notes'), '')            else d.notes end,
+      url            = case when r ? 'url'            then btrim(r->>'url')                            else d.url end,
+      file_name      = case when r ? 'file_name'      then coalesce(btrim(r->>'file_name'), '')        else d.file_name end,
+      extra          = case when r ? 'extra'          then r->'extra'                                  else d.extra end,
+      updated_at     = now()
+     where d.id = v_id and d.kind = 'service_note';
+    get diagnostics v_hit = row_count;
+    if v_hit = 0 then
+      raise exception 'Note % was not saved -- it no longer exists, or your role may not edit it. Nothing in this batch was saved.', v_id
+        using errcode = '42501';
+    end if;
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+
+revoke execute on function public.save_service_notes(jsonb) from public, anon;
+grant execute on function public.save_service_notes(jsonb) to authenticated;
+
+comment on function public.save_service_notes(jsonb) is
+  'Technical / Service Notes Beta Edit: writes every edited note in one transaction under the caller''s own rights (documents_update), all or nothing (0356).';
 
 commit;

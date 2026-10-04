@@ -64,6 +64,9 @@ export interface Flow {
   purpose: string;
   steps: FlowStep[];
   edges: FlowEdge[];
+  /** A NON-AUDITABLE flow (Spare Recycling, NAR-008): left out of every flow
+   *  view while Audit Mode is on, with the screen it describes. */
+  auditHidden?: boolean;
 }
 
 // ---- layout ----------------------------------------------------------------
@@ -642,6 +645,43 @@ export const FLOWS: Flow[] = [
       { from: 'qc', to: 'job', label: 'Fail', loop: true, optional: true },
       { from: 'job', to: 'condemn', label: 'unfit', optional: true },
       { from: 'gate', to: 'condemn', label: 'parts recovered', optional: true },
+    ],
+  },
+  {
+    id: 'recycling',
+    title: 'Spare Recycling — a separate track (non-auditable)',
+    purpose: 'A defective spare recycled on a track of its own: registered, the spares it needs requested without approval, booked out by Stores with their cost into a separate recycling hand stock, consumed when the job is done, and closed as returned to the Service Store or not recyclable — with what it cost. Nothing on this track touches calls, spare requests, stock outs or the regular hand stock, and all of it is hidden while Audit Mode is on.',
+    auditHidden: true,
+    steps: [
+      { id: 'reg', label: 'Defective spare registered', route: '/indoor/recycling', area: 'stock',
+        detail: 'The part from the Part Master, serial, quantity, received on and from, and an optional call reference held as text only. The database numbers it RCY/YY/NNNN and stamps who registered it.',
+        records: ['recycle_requests'], reqs: ['NAR-008'] },
+      { id: 'mrs', label: 'MRS raised — no approval', route: '/indoor/recycling', area: 'stock',
+        detail: 'One or more parts, optionally against an open request. Numbered RMRS/YY/NNNN; its spares belong to the person who raised it.',
+        records: ['recycle_mrs', 'recycle_mrs_lines'], reqs: ['NAR-008'] },
+      { id: 'issue', label: 'Stores books it out with cost', route: '/indoor/recycling', area: 'stock',
+        detail: 'Quantity and unit cost per booking, in one go or in parts; refused beyond what the line asked for. Stamped with who booked it and when.',
+        records: ['recycle_issues', 'recycle_mrs_list'], reqs: ['NAR-008'] },
+      { id: 'stock', label: 'Recycling hand stock', route: '/indoor/recycling', area: 'stock',
+        detail: 'Issued less consumed, per person and part, with the average unit cost — derived, never stored, and kept apart from the regular hand stock.',
+        records: ['recycle_hand_stock'], reqs: ['NAR-008'], automatic: true },
+      { id: 'work', label: 'Job done, consumption, other costs', route: '/indoor/recycling', area: 'stock',
+        detail: 'On the open request: the job done, spares consumed from your own recycling hand stock (never more than it holds) and other costs — labour, courier, vendor, other.',
+        records: ['recycle_consumption', 'recycle_other_costs', 'recycle_request_list'], reqs: ['NAR-008'] },
+      { id: 'ret', label: 'Returned to Service Store as R<PartNo>', route: '/indoor/recycling', area: 'stock',
+        detail: 'Closes the request with the job done recorded; the returned part is recorded as R plus the part code, the Part Master and regular stock unchanged. A closed request cannot change.',
+        records: ['recycle_requests'], reqs: ['NAR-008'] },
+      { id: 'scrap', label: 'Not recyclable', route: '/indoor/recycling', area: 'stock',
+        detail: 'Closes the request with a reason; nothing is returned, and the parts consumed and costs spent stay recorded against it.',
+        records: ['recycle_requests'], reqs: ['NAR-008'] },
+    ],
+    edges: [
+      { from: 'reg', to: 'mrs', label: 'spares needed' },
+      { from: 'mrs', to: 'issue' },
+      { from: 'issue', to: 'stock', label: 'qty + cost' },
+      { from: 'stock', to: 'work', label: 'consumed' },
+      { from: 'work', to: 'ret', label: 'recycled' },
+      { from: 'work', to: 'scrap', label: 'cannot be', optional: true },
     ],
   },
   {

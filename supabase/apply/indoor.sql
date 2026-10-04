@@ -25,8 +25,8 @@
 --   0334_indoor_testing_data_emptied.sql
 --   0336_indoor_job_worked_on_is_kept.sql
 --   0352_indoor_report_keeps_its_number.sql
---   0355_indoor_approval_skips_a_solved_call.sql
---   0358_indoor_pdt_lock_dispatch_and_cleaning.sql
+--   0360_indoor_approval_skips_a_solved_call.sql
+--   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -3406,11 +3406,11 @@ create trigger indoor_report_keeps_its_number
   for each row execute function public.indoor_report_keeps_its_number();
 
 -- ------------------------------------------------------------------------
--- 0355_indoor_approval_skips_a_solved_call.sql
+-- 0360_indoor_approval_skips_a_solved_call.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0355 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
+-- 0360 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
 --        (second re-review D-145; the user's decision, 2026-10-04)
 --
 -- approve_indoor_dc files each unit's drafted visit as Unsolved / Return to
@@ -3559,11 +3559,11 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
--- 0358_indoor_pdt_lock_dispatch_and_cleaning.sql
+-- 0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0358 — A SIGNED PDT IS LOCKED; THE DISPATCH DATE IS WHEN THE UNIT LEAVES;
+-- 0363 — A SIGNED PDT IS LOCKED; THE DISPATCH DATE IS WHEN THE UNIT LEAVES;
 --        A CLEANING TIME MAY BE EARLIER BUT NEVER LATER, AND NAMES WHO
 --        (second re-review D-111, D-112, D-114; the user's decisions, 2026-10-04)
 --
@@ -3602,7 +3602,7 @@ end $function$;
 -- It is named to run AFTER zz_indoor_jobs_guard and zz_indoor_jobs_stamp
 -- (zzy_ sorts between them and zzz_sys_stamp), so its stamps are the last word.
 -- A connection with no session (a repair, an import) is not stopped.
--- In the indoor module, after 0355.
+-- In the indoor module, after 0360.
 -- ===========================================================================
 
 -- ---- D-111 ------------------------------------------------------------------
@@ -3726,7 +3726,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0358_premature_dispatch_stamps_cleared') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0363_premature_dispatch_stamps_cleared') then return; end if;
   -- Lifted for this ONE statement and put straight back (the 0210 rule).
   alter table public.indoor_jobs disable trigger zz_indoor_jobs_guard;
   update public.indoor_jobs
@@ -3736,8 +3736,8 @@ begin
   get diagnostics n = row_count;
   alter table public.indoor_jobs enable trigger zz_indoor_jobs_guard;
   insert into public.one_time_fixes_done (name, detail)
-  values ('0358_premature_dispatch_stamps_cleared', n || ' unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared');
-  raise notice '0358: % unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared', n;
+  values ('0363_premature_dispatch_stamps_cleared', n || ' unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared');
+  raise notice '0363: % unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared', n;
 end $$;
 
 commit;
