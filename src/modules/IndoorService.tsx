@@ -748,9 +748,16 @@ function DeleteJobAction({ job, onDeleted }: { job: IndoorJob; onDeleted: (jobNo
     setBusy(true); setErr('');
     const r = await deleteIndoorJob(job.id, reason.trim());
     setBusy(false);
-    logAudit({ action: 'indoor.job_delete', target: job.job_no, status: r.ok ? 'ok' : 'error', error: r.ok ? undefined : r.error,
-               meta: { via: 'screen', product: job.product_name, serial: job.serial, ucn: job.ucn ?? '' } });
-    if (!r.ok) { setErr(r.error ?? 'Not deleted.'); return; }
+    // A DELETION IS AUDITED ONCE, by delete_indoor_job() in the same
+    // transaction (D-147): a second browser row doubled every count of
+    // deletions. Only a REFUSED attempt is recorded here -- the database rolls
+    // back and writes nothing then -- under its own name, so it is never
+    // counted as a deletion.
+    if (!r.ok) {
+      logAudit({ action: 'indoor.job_delete_refused', target: job.job_no, status: 'error', error: r.error,
+                 meta: { via: 'screen', product: job.product_name, serial: job.serial, ucn: job.ucn ?? '' } });
+      setErr(r.error ?? 'Not deleted.'); return;
+    }
     close();
     onDeleted(r.jobNo || job.job_no);
   };

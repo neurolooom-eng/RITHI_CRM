@@ -21,6 +21,7 @@
 --   0257_directory_rename_carries_the_team.sql
 --   0259_directory_rename_carries_the_records.sql
 --   0267_rename_carries_adjustments.sql
+--   0346_rename_carries_pending_indoor_dc.sql
 --   0122_user_directory_replay_tail.sql
 --   0005_rbac.sql
 --   0007_user_access.sql
@@ -65,6 +66,8 @@
 --   0305_reset_password_key.sql
 --   0308_part_search_key.sql
 --   0325_party_part_add_edit_delete.sql
+--   0347_feedback_read_once_and_no_machine_delete.sql
+--   0350_delete_guard_counts_every_name.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
@@ -88,6 +91,7 @@
 --   0327_indoor_dc_approver_from_user_master.sql
 --   0334_indoor_testing_data_emptied.sql
 --   0336_indoor_job_worked_on_is_kept.sql
+--   0352_indoor_report_keeps_its_number.sql
 --   0021_master_lists.sql
 --   0066_master_values_active.sql
 --   0067_master_list_permissions.sql
@@ -177,6 +181,7 @@
 --   0302_review_dates_and_imports_have_keys.sql
 --   0285_auto_review_by_role.sql
 --   0342_review_needs_a_call_you_can_see.sql
+--   0353_review_summary_carries_the_searched_columns.sql
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
 --   0115_visit_date_sanity.sql
@@ -290,6 +295,7 @@
 --   0330_registers_fill_product_database.sql
 --   0331_install_solved_date_starts_warranty.sql
 --   0332_installation_warranty_starts.sql
+--   0351_dealer_guard_stands_aside_on_reload.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -333,6 +339,7 @@
 --   0190_feedback_dates_and_origin.sql
 --   0208_cover_code_normalised.sql
 --   0288_feedback_update_visit_key.sql
+--   0348_feedback_update_once_per_query.sql
 --   0052_search_indexes.sql
 --   0098_product_register_names.sql
 --   0099_no_jit.sql
@@ -1557,6 +1564,88 @@ begin
         using new_nm, old_key;
     end if;
   end loop;
+
+  delete from public.engineer_rename_ticket where txid = txid_current();
+  return null;
+end $$;
+revoke execute on function public.user_directory_carry_rename_records() from public, anon, authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0346_rename_carries_pending_indoor_dc.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0346 — A USER MASTER RENAME CARRIES THE INDOOR DCs WAITING FOR THAT PERSON
+--        (second re-review, 2026-10-03: D-144)
+--
+-- user_directory_carry_rename_records() (0259, 0267) moves every record filed
+-- under a person's old name to the new one. indoor_dcs.authorised_by_name was
+-- not on its list, and it is how an Indoor DC finds its approver (0327:
+-- indoor_dc_may_approve, the read policy and approve_indoor_dc all match it).
+-- Measured: after the authoriser was renamed they saw 0 DCs and could not reach
+-- the one naming them, which stayed Pending approval with its units held.
+--
+-- ONLY A PENDING DC MOVES. On an approved, rejected or "issued before
+-- approval" DC the name is what the printed document says authorised it, and
+-- re-printing it must say the same thing.
+--
+-- The function below is 0267's VERBATIM with that one statement added, read
+-- from a database built from every migration. Same module (user_directory),
+-- after 0267, so a replay of user_directory.sql ends on this definition.
+-- ===========================================================================
+
+create or replace function public.user_directory_carry_rename_records()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  old_key text := lower(btrim(coalesce(old.name, '')));
+  new_nm  text := btrim(coalesce(new.name, ''));
+  target  record;
+begin
+  if old_key = '' or new_nm = '' or old_key = lower(new_nm) then
+    return null;
+  end if;
+  if exists (select 1 from public.user_directory d
+              where d.id <> new.id and lower(btrim(d.name)) = old_key) then
+    return null;
+  end if;
+
+  insert into public.engineer_rename_ticket (txid, old_key, new_name)
+  values (txid_current(), old_key, new_nm)
+  on conflict (txid) do update set old_key = excluded.old_key,
+                                   new_name = excluded.new_name, at = now();
+
+  for target in
+    select * from (values
+      ('field_calls', 'allocated_to'), ('installation_calls', 'allocated_to'), ('pm_calls', 'allocated_to'),
+      ('call_requests', 'engineer'), ('pending_registrations', 'engineer'),
+      ('spare_requests', 'engineer'), ('spare_dispatches', 'engineer'),
+      ('spare_consumption', 'engineer'), ('spare_consumption_history', 'engineer'),
+      ('handstock_opening', 'engineer'), ('spare_issue_history', 'engineer'),
+      ('material_returns', 'engineer'), ('handstock_adjustments', 'engineer'),
+      ('stock_transfers', 'from_engineer'), ('stock_transfers', 'to_engineer'),
+      ('parties', 'service_engineer'), ('products', 'service_engineer')
+    ) v(tbl, col)
+  loop
+    if to_regclass('public.' || target.tbl) is not null
+       and exists (select 1 from information_schema.columns c
+                    where c.table_schema = 'public' and c.table_name = target.tbl
+                      and c.column_name = target.col) then
+      execute format('update public.%I set %I = $1 where lower(btrim(%I)) = $2',
+                     target.tbl, target.col, target.col)
+        using new_nm, old_key;
+    end if;
+  end loop;
+
+  -- An Indoor DC still WAITING for its authoriser follows the rename (D-144):
+  -- the approver finds the DC by this name, so without it the DC stays Pending
+  -- approval with its units held and nobody able to reach it. A DC already
+  -- approved, rejected or issued before approval keeps the name it was printed
+  -- with -- who authorised a document is history, as dispatched_by is (0259).
+  if to_regclass('public.indoor_dcs') is not null then
+    update public.indoor_dcs set authorised_by_name = new_nm
+     where lower(btrim(authorised_by_name)) = old_key
+       and approval_status = 'Pending approval';
+  end if;
 
   delete from public.engineer_rename_ticket where txid = txid_current();
   return null;
@@ -5477,6 +5566,146 @@ begin
                    'for each row execute function public.master_delete_guard()', t);
   end loop;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0347_feedback_read_once_and_no_machine_delete.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0347 — CUSTOMER FEEDBACK ASKS THE PERMISSION ONCE PER QUERY (D-132), AND NO
+--        SIGNED-IN USER DELETES A MACHINE THROUGH THE API (D-139)
+--        (second re-review, 2026-10-03)
+--
+-- D-132. fb_read and fb_write (0286) call has_perm() bare, so Postgres asks it
+-- once per ROW -- the 0250 fault. Measured over 30,000 feedback rows as an
+-- engineer: 12,356 ms; with the checks wrapped, 4.9 ms. Wrapped here in a
+-- sub-select, which is asked once per query. WHO may read and write is
+-- unchanged, word for word. fb_update is owned by data_integrity (0288) and is
+-- wrapped there by 0348, so a replay of either bundle keeps its own.
+--
+-- D-139. products_write (0286) is FOR ALL under masters.edit.records, so the
+-- records key could DELETE machines -- measured: DELETE 1 -- although 0325
+-- took the API delete away from that key on parties and parts. Split here
+-- into INSERT and UPDATE on the same key, with NO delete policy: no screen
+-- deletes a machine (deleteMasterRecord covers parties, parts and product
+-- lines only), and the Product Database clean-ups that do
+-- (_rebuild_product_database.sql, _dedupe_part_product_keys.sql) run in the
+-- SQL editor, where row-level security does not apply. The uploads upsert,
+-- which is an INSERT and an UPDATE, and keep working.
+--
+-- 0250 alters products_write only where it exists, so a replay of this bundle
+-- re-creates it at 0286 and this file then splits it again.
+-- In the rbac module, after 0325 and before the policy tail.
+-- ===========================================================================
+
+drop policy if exists fb_read  on public.feedback;
+drop policy if exists fb_write on public.feedback;
+create policy fb_read on public.feedback for select
+  using ((select public.has_perm('feedback.view')) or (select public.has_perm('visit.feedback')));
+create policy fb_write on public.feedback for insert
+  with check ((select public.has_perm('visit.feedback')) or (select public.has_perm('feedback.view')));
+
+do $$
+begin
+  if to_regclass('public.products') is null then return; end if;
+  drop policy if exists products_write  on public.products;
+  drop policy if exists products_insert on public.products;
+  drop policy if exists products_update on public.products;
+  create policy products_insert on public.products for insert
+    with check ((select public.has_perm('masters.edit.records')));
+  create policy products_update on public.products for update
+    using ((select public.has_perm('masters.edit.records')))
+    with check ((select public.has_perm('masters.edit.records')));
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0350_delete_guard_counts_every_name.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0350 — THE MASTER DELETE GUARD COUNTS EVERY PLACE A PARTY OR A PART IS NAMED
+--        (second re-review, 2026-10-03: D-137)
+--
+-- master_delete_guard (0325) refuses deleting a party or part that records
+-- still name, but its lists left out:
+--   * a party named as SOLD THROUGH -- on products, sale_entries, sale_items
+--     and ownership_transfers (made dealer-only from the Party Master by 0328
+--     the same day) -- as an Indoor DC's CONSIGNEE, an indoor job's DEMO FOR
+--     party, a Field Failure Report's CUSTOMER and a material return's CUSTOMER;
+--   * a part named on indoor_job_parts.part_code, which part_rename_impact()
+--     and rename_part() both list.
+-- Measured: a dealer named only as Sold Through, and a party named only as an
+-- Indoor DC consignee, were each deleted (DELETE 1), and the machine went on
+-- reading that Sold Through.
+--
+-- 0325's function VERBATIM with those columns added; a table or column a
+-- project lacks is skipped exactly as before. It only ever REFUSES more
+-- deletes -- nothing that could be deleted before and is still unnamed is
+-- refused. In the rbac module (0325's), after 0347, before the policy tail.
+-- ===========================================================================
+
+create or replace function public.master_delete_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  refs text[];
+  r text; tbl text; col text; n bigint;
+  key text;
+  found text[] := '{}';
+  total bigint := 0;
+begin
+  if tg_table_name = 'parties' then
+    key := lower(btrim(old.party_name));
+    refs := array['products.party_name', 'field_calls.party_name', 'installation_calls.party_name',
+      'pm_calls.party_name', 'call_requests.party_name', 'pending_registrations.party_name',
+      'sale_entries.party_name', 'contract_entries.party_name', 'contract_items.party_name',
+      'ownership_transfers.from_party', 'ownership_transfers.to_party',
+      'product_additional_entries.party_name', 'feedback.party_name', 'spare_requests.party_name',
+      'spare_consumption_history.party_name', 'indoor_jobs.party_name',
+      -- 0350 (D-137): the other places a party is named.
+      'products.sold_through', 'sale_entries.sold_through', 'sale_items.sold_through',
+      'ownership_transfers.sold_through', 'indoor_dcs.consignee', 'indoor_jobs.demo_for_party',
+      'field_failure_reports.customer_name', 'material_returns.customer_name'];
+  elsif tg_table_name = 'parts' then
+    key := lower(btrim(old.item_detail));
+    refs := array['spare_request_lines.part', 'spare_dispatch_lines.part', 'spare_consumption.part',
+      'spare_consumption_history.part', 'spare_issue_history.part', 'handstock_opening.part',
+      'handstock_adjustments.part', 'stock_transfer_lines.part', 'material_returns.part',
+      -- 0350 (D-137): part_rename_impact() lists it, so the guard does too.
+      'indoor_job_parts.part_code'];
+  elsif tg_table_name = 'product_master' then
+    key := lower(btrim(old.product_code));
+    refs := array['products.item_code', 'sale_items.product_code', 'contract_items.product_code'];
+  else
+    return old;
+  end if;
+  if coalesce(key, '') = '' then return old; end if;
+
+  foreach r in array refs loop
+    tbl := split_part(r, '.', 1);
+    col := split_part(r, '.', 2);
+    if to_regclass('public.' || tbl) is null then continue; end if;
+    if not exists (select 1 from information_schema.columns
+                    where table_schema = 'public' and table_name = tbl and column_name = col) then
+      continue;
+    end if;
+    execute format('select count(*) from public.%I where lower(btrim(%I)) = $1', tbl, col) into n using key;
+    if n > 0 then
+      found := found || format('%s %s', n, case tbl when 'products' then 'machines' else replace(tbl, '_', ' ') end);
+      total := total + n;
+    end if;
+  end loop;
+
+  if total > 0 then
+    raise exception '% is still named on % record(s) — %. It cannot be deleted while they name it.',
+      case tg_table_name when 'parties' then 'This party'
+                         when 'parts' then 'This part'
+                         else 'This product line' end,
+      total, array_to_string(found, ', ')
+      using errcode = '23503';
+  end if;
+  return old;
+end $$;
+revoke execute on function public.master_delete_guard() from public, anon, authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0121_rbac_policy_tail.sql
@@ -9878,6 +10107,49 @@ exception when undefined_object then null; end $$;
 do $$ begin
   execute 'revoke delete on public.indoor_jobs, public.indoor_pdt from anon, authenticated';
 exception when undefined_object then null; end $$;
+
+-- ------------------------------------------------------------------------
+-- 0352_indoor_report_keeps_its_number.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0352 — AN UPLOADED INDOOR SERVICE REPORT KEEPS ITS NUMBER
+--        (second re-review, 2026-10-03: D-115)
+--
+-- The stage guard (0323) refuses UPLOADING the report without its Indoor
+-- Service Report No, but nothing refused BLANKING the number afterwards.
+-- Measured: setting indoor_report_no to empty on a job with a report file
+-- succeeded, and the register then shows a report with no number.
+--
+-- A TRIGGER OF ITS OWN, not another rule in indoor_jobs_guard: that function
+-- has been rebuilt more than once, and a rebuild from an old revision is how
+-- this project has lost rules before (0210 / 0217). This one says one thing:
+-- while the job carries a report file, its number is not blank.
+--
+-- What keeps working: re-uploading a report sets the number and the file in
+-- the same update (saveIndoorReport); correcting the number to another
+-- non-blank value is still allowed; a connection with no session (a repair
+-- in the SQL editor) is not stopped.
+-- In the indoor module, after 0336.
+-- ===========================================================================
+
+create or replace function public.indoor_report_keeps_its_number()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;          -- a migration, a repair
+  if btrim(coalesce(new.report_file_url, '')) <> ''
+     and btrim(coalesce(new.indoor_report_no, '')) = '' then
+    raise exception 'This job has an uploaded Indoor Service Report, so its Indoor Service Report No cannot be blank'
+      using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.indoor_report_keeps_its_number() from public, anon, authenticated;
+
+drop trigger if exists indoor_report_keeps_its_number on public.indoor_jobs;
+create trigger indoor_report_keeps_its_number
+  before update on public.indoor_jobs
+  for each row execute function public.indoor_report_keeps_its_number();
 
 -- ------------------------------------------------------------------------
 -- 0021_master_lists.sql
@@ -22575,6 +22847,61 @@ create policy call_reviews_write on public.call_reviews
     and ((select public.has_perm('bulk.upload'))
          or exists (select 1 from public.calls c where c.ucn = call_reviews.ucn))
   );
+
+-- ------------------------------------------------------------------------
+-- 0353_review_summary_carries_the_searched_columns.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0353 — THE REVIEW SUMMARY CARRIES THE COLUMNS THE REGISTER SEARCHES
+--        (second re-review, 2026-10-03: D-130)
+--
+-- The Daily Complaint Review Register's search (applyReviewFilter) ORs over
+-- ten columns, and countCallReviews applies the same filter to this view to
+-- count the register, its tabs and the Export. Five of the ten were not here
+-- -- call_number, standard_complaint, complaint_reported, complaint_grouping,
+-- root_cause_keyword -- so ANY search failed the count with "column
+-- call_number does not exist": the title and menu read 0 beside the rows, the
+-- tab badges vanished and Export read "Export 0 calls", disabled.
+--
+-- 0111's definition VERBATIM, with the five APPENDED (create or replace can
+-- only add columns at the end), taken from where field_call_review takes
+-- them: the call's own three, and the review's two with the same coalesce.
+-- security_invoker re-asserted -- create or replace drops it -- and the grant
+-- kept. Same module (daily_review), after 0111.
+-- ===========================================================================
+
+create or replace view public.field_call_review_summary as
+select
+  c.id,
+  c.ucn,
+  c.reg_date,
+  c.product_name,
+  c.allocated_to,
+  c.party_name,
+  c.serial,
+  coalesce(r.any_potential_effect, '') as any_potential_effect,
+  case
+    when not (btrim(coalesce(c.public_health_threat, '')) <> ''
+              and btrim(coalesce(c.death, '')) <> ''
+              and btrim(coalesce(c.serious_incident, '')) <> '') then 'Review 1 Pending'
+    when not coalesce(r.review2_done, false) then 'Review 2 Pending'
+    when not coalesce(r.review3_done, false) then 'Review 3 Pending'
+    else 'Review Completed'
+  end as review_status,
+  c.open_state,
+  c.cancelled_at,
+  -- Appended (D-130): the columns the register's search names.
+  c.call_number,
+  c.standard_complaint,
+  c.complaint_reported,
+  coalesce(r.complaint_grouping, '') as complaint_grouping,
+  coalesce(r.root_cause_keyword, '') as root_cause_keyword
+from public.field_calls c
+left join public.call_reviews r on r.ucn = c.ucn;
+
+alter view public.field_call_review_summary set (security_invoker = on);
+grant select on public.field_call_review_summary to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0010_reports_ordering.sql
@@ -37820,6 +38147,53 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0351_dealer_guard_stands_aside_on_reload.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0351 — RE-LOADING THE INSTALLATION CALLS REGISTER IS NOT REFUSED FOR A CALL
+--        ALREADY RAISED ON A DEALER  (second re-review, 2026-10-03: D-148)
+--
+-- installation_call_not_for_dealer (0328) is BEFORE INSERT OR UPDATE, and the
+-- Installation Calls upload upserts on ucn. Postgres fires the BEFORE INSERT
+-- trigger BEFORE it finds the conflict, so a call that already exists was
+-- refused as if it were new. 0328 says calls already raised are left as they
+-- are -- true for a plain UPDATE (measured: allowed), not for a re-load
+-- (measured, signed in: refused with the dealer message), and one such row
+-- stopped the whole upload.
+--
+-- THE RULE IS UNCHANGED for a new call and for a change of party: on INSERT
+-- the guard now stands aside only when a call with that UCN ALREADY EXISTS
+-- under the SAME party (case and outer spaces ignored) -- which is exactly
+-- the row the upsert will turn into an UPDATE that leaves the party alone, the
+-- case the UPDATE branch already lets through. A re-load that changes the
+-- party to a dealer is still refused.
+--
+-- 0328's function VERBATIM with that one test added. Same module
+-- (sales_contracts), after 0328.
+-- ===========================================================================
+
+create or replace function public.installation_call_not_for_dealer()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;          -- a migration, a repair
+  if tg_op = 'UPDATE' and new.party_name is not distinct from old.party_name then return new; end if;
+  -- An upsert of a call that is already there, party unchanged (D-148).
+  if tg_op = 'INSERT' and btrim(coalesce(new.ucn, '')) <> ''
+     and exists (select 1 from public.installation_calls ic
+                  where ic.ucn = new.ucn
+                    and lower(btrim(coalesce(ic.party_name, ''))) = lower(btrim(coalesce(new.party_name, '')))) then
+    return new;
+  end if;
+  if public.party_is_dealer(new.party_name) then
+    raise exception '% is a dealer: an installation call is not raised for a dealer -- it is raised from the Ownership Transfer when the dealer sells the machine (OT-PRODUCT-SERIAL)', btrim(new.party_name)
+      using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.installation_call_not_for_dealer() from public, anon, authenticated;
+
+-- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql
 -- ------------------------------------------------------------------------
 
@@ -44220,6 +44594,25 @@ drop policy if exists fb_update on public.feedback;
 create policy fb_update on public.feedback for update
   using (public.has_perm('visit.feedback') or public.has_perm('feedback.view'))
   with check (public.has_perm('visit.feedback') or public.has_perm('feedback.view'));
+
+-- ------------------------------------------------------------------------
+-- 0348_feedback_update_once_per_query.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0348 — fb_update ASKS THE PERMISSION ONCE PER QUERY  (D-132)
+--
+-- fb_update (0288) is has_perm('visit.feedback') OR has_perm('feedback.view')
+-- unwrapped, so an UPDATE is checked once per row, and a FOR UPDATE policy is
+-- also consulted when the rows to update are read -- the 0250 fault 0347 fixes
+-- on fb_read and fb_write. Same audience, word for word; only wrapped.
+-- Owned by data_integrity (0288), so it is here, after 0288.
+-- ===========================================================================
+
+drop policy if exists fb_update on public.feedback;
+create policy fb_update on public.feedback for update
+  using ((select public.has_perm('visit.feedback')) or (select public.has_perm('feedback.view')))
+  with check ((select public.has_perm('visit.feedback')) or (select public.has_perm('feedback.view')));
 
 -- ------------------------------------------------------------------------
 -- 0052_search_indexes.sql

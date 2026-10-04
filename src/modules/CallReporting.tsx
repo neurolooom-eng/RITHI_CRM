@@ -402,7 +402,7 @@ export function CallReportDrawer({
         setSpares(d.spares ?? []); setFeedback(d.feedback ?? {});
       }
     }
-    reportsByCall(callNumber || ucn).then((rows) => {
+    reportsByCall(callNumber || ucn, ucn).then((rows) => {
       if (cancelled) return;
       setPriorVisits(rows);
     }).catch(() => { /* history is best-effort */ })

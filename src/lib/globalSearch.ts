@@ -53,8 +53,13 @@ export const HIT_GROUPS: { kind: HitKind; label: string; icon: string }[] = [
   { kind: 'ffr', label: 'Field Failure Reports', icon: '⚠️' },
 ];
 
-/** How many of each kind are fetched and shown. */
+/** How many of each kind are SHOWN. One more is fetched (`PER_KIND + 1`) so the
+ *  panel can say a group has more rather than let five read as all (D-117). */
 export const PER_KIND = 5;
+/** The hits a group shows, and whether the register holds more than that. */
+export function shownHits<T>(list: T[]): { shown: T[]; more: boolean } {
+  return { shown: list.slice(0, PER_KIND), more: list.length > PER_KIND };
+}
 /** Below this many characters nothing is searched: two letters match half a
  *  register, and every keystroke would be a round trip to all ten. */
 export const MIN_CHARS = 3;

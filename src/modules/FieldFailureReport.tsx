@@ -273,7 +273,9 @@ export function FieldFailureReport() {
         subtitle="Raised automatically when a call is answered YES for Any Potential Effect in the Daily Complaint Review Register. The format is the Field Failure Register sheet; the report is R-SER-03 Rev 02."
         icon="🧪"
         count={tab === 'insights' ? inYear.length : visible.length}
-        countMore={false}
+        // listFfrs stops at 5,000, as the Insights and the CSV below already
+        // say; the title count is a lower bound once it got there (D-135).
+        countMore={rows.length >= 5000}
         onRefresh={() => void load()}
         refreshing={busy}
         actions={mayRaise

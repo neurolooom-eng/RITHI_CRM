@@ -563,17 +563,21 @@ export function DailyCallReview() {
   // Export covers the WHOLE filtered set, not the pages that happen to be on
   // screen — so it is read here rather than taken from `rows`.
   const [exporting, setExporting] = useState(false);
+  // What the export will WRITE (D-130): it reads with the register's filter,
+  // Review Status included, while counts.total is across every status -- so
+  // the button counted calls the file would not carry.
+  const exportCount = applied.status ? (counts.byStatus[applied.status] ?? 0) : counts.total;
   const exportRows = async () => {
     if (exporting) return;
     setExporting(true);
-    setMsg({ tone: 'info', text: `Reading ${counts.total.toLocaleString()} calls for the export…` });
+    setMsg({ tone: 'info', text: `Reading ${exportCount.toLocaleString()} calls for the export…` });
     try {
       const all: ReviewRow[] = [];
       for (let off = 0; ; off += PAGE) {
         const page = (await listCallReviews(applied, off, PAGE)) as ReviewRow[];
         all.push(...page);
         if (page.length < PAGE) break;
-        setMsg({ tone: 'info', text: `Read ${all.length.toLocaleString()} of ${counts.total.toLocaleString()}…` });
+        setMsg({ tone: 'info', text: `Read ${all.length.toLocaleString()} of ${exportCount.toLocaleString()}…` });
       }
       csvExport(`dccr-${todayLocal()}.csv`, DCCR_EXPORT_COLUMNS, all.map((r, i) => toExportRow(r, i)),
         // Every page was read into `all` above before this line runs.
@@ -1013,8 +1017,8 @@ export function DailyCallReview() {
             the filters there first.
           </p>
           <div className="row" style={{ marginBottom: 14 }}>
-            <button className="btn btn-primary" onClick={() => void exportRows()} disabled={exporting || !counts.total}>
-              {exporting ? 'Exporting…' : `⭳ Export ${counts.total.toLocaleString()} ${counts.total === 1 ? 'call' : 'calls'}`}
+            <button className="btn btn-primary" onClick={() => void exportRows()} disabled={exporting || !exportCount}>
+              {exporting ? 'Exporting…' : `⭳ Export ${exportCount.toLocaleString()} ${exportCount === 1 ? 'call' : 'calls'}`}
             </button>
             <button className="btn" onClick={() => setTab('register')}>Change the filters</button>
           </div>
@@ -1148,6 +1152,7 @@ function ReviewDrawer({
   // The visits and the spares as ROWS rather than the view's pre-joined text,
   // so the report can be a link and the spares can be a table.
   const [visits, setVisits] = useState<Record<string, unknown>[] | null>(null);
+  const [visitsErr, setVisitsErr] = useState('');
   const [spares, setSpares] = useState<Record<string, unknown>[] | null>(null);
 
   // THE REVIEW DATES, EDITABLE BY AN ADMINISTRATOR (the user's ask,
@@ -1228,7 +1233,11 @@ function ReviewDrawer({
       // NULL, not an empty answer. "No earlier failures" is a finding; a failed
       // read must never be allowed to say it.
       .catch(() => { /* stays null — the panel says it could not be read */ });
-    void reportsByCall(cn).then((v) => { if (!cancelled) setVisits(v); }).catch(() => { if (!cancelled) setVisits([]); });
+    setVisitsErr('');
+    // Matched on the UCN as well as the call number (D-131); a failed read says
+    // so rather than reading as "no visit".
+    void reportsByCall(cn, ucn).then((v) => { if (!cancelled) setVisits(v); })
+      .catch((e) => { if (!cancelled) { setVisits([]); setVisitsErr(e instanceof Error ? e.message : String(e)); } });
     void spareConsumptionByCall(cn).then((v) => { if (!cancelled) setSpares(v); }).catch(() => { if (!cancelled) setSpares([]); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1466,7 +1475,9 @@ function ReviewDrawer({
           {visits === null
             ? <div className="muted">Loading the visits…</div>
             : visits.length === 0
-              ? <div className="muted">{stale
+              ? <div className="muted">{visitsErr
+                  ? `The visits could not be read: ${visitsErr}`
+                  : stale
                   ? 'Run supabase/apply/daily_review.sql to bring the visits onto the review.'
                   : 'No visit has been reported against this call yet.'}</div>
               : (
