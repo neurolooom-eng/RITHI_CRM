@@ -22,6 +22,7 @@ export const CHANGELOG: ChangeEntry[] = [
       'They are the visit’s values: the visit filed when the Indoor DC is approved carries what you chose (no longer always Unsolved / Return to Field). An Unsolved job with no reason cannot have its DC approved.',
       'The job status now follows the Call Status: Solved → Ready (a Repair, Rework or Troubleshooting needs its QC Pass first); Unsolved with spares not available → Awaiting spares; any other Unsolved → Under repair. A Demo / new device keeps its Status box.',
       'CREATE INDOOR DC: the MIRN No. / Customer Ref No., its date and the Mode of despatch are removed from the form.',
+      'PRINTED INDOOR DC: “SERVICE CENTER” is gone from the letterhead, “ISSUED BY (Stores)” now reads “ISSUED BY”, and the “PACKED & DESPATCH BY” box is removed.',
     ],
   },
   {

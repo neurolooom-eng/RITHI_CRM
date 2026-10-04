@@ -181,7 +181,8 @@ export function pdtOwed(j: Pick<IndoorJob, 'kind' | 'product_imported'>): boolea
 // ---------------------------------------------------------------------------
 export const INDOOR_DC_FORM = {
   org: 'AIR LIQUIDE MEDICAL SYSTEMS PVT. LTD.',
-  dept: 'SERVICE CENTER',
+  // No department line (the user, 2026-10-04: "Service Center can be Removed").
+  dept: '',
   address: [
     '5th Floor, Tower-B, “Tek Meadows”, 51, Rajiv Gandhi Salai,',
     'Sholinganallur, Chennai - 600 119. India.',
@@ -191,7 +192,9 @@ export const INDOOR_DC_FORM = {
   title: 'DELIVERY CHALLAN (DC)',
   gstin: 'GSTIN : 33AAACE8420F1Z3',
   columns: ['S.No.', 'PART No.', 'DESCRIPTION', 'QTY.', 'PURPOSE'],
-  signBoxes: ['ISSUED BY (Stores)', 'AUTHORISED BY', 'RECEIVED BY (WITH DATE)', 'PACKED & DESPATCH BY'],
+  // The user, 2026-10-04: "Issued By (Stores) - Rename to Issued By", and
+  // "Packed & Despatch By" removed.
+  signBoxes: ['ISSUED BY', 'AUTHORISED BY', 'RECEIVED BY (WITH DATE)'],
   note: 'Note : Kindly return us one copy of DC duly signed',
 } as const;
 

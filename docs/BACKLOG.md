@@ -90,6 +90,8 @@ up)_
   `indoor_call_status_test`; `_status.sql` row 306; FRS-232.11/.12.
 - MIRN No. / Customer Ref No., its date and Mode of despatch removed from
   Create Indoor DC (sent empty; the printed DC keeps its blank lines).
+- Printed Indoor DC: no SERVICE CENTER line; ISSUED BY (was "(Stores)");
+  PACKED & DESPATCH BY box removed (three signature boxes).
 
 ## 2026-10-04 — Indoor job: Checks table removed, QC kept (v0.10.92)
 
