@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**102 tables · 37 views · 2883 columns · 205 policies · 63 foreign keys.**
+**102 tables · 37 views · 2884 columns · 205 policies · 63 foreign keys.**
 
 ## How to read this
 
@@ -3038,10 +3038,11 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 31 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 32 | `sys_updated_by` | uuid | yes |  |  |
 | 33 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 34 | `overrides` | jsonb | **no** | `'{}'::jsonb` | Months of a computed objective typed over by hand: {"m03": {"by": email, "at": timestamp, "calculated": the figure it replaced}}. Written only by quality_objectives_mark_override(); Re-Calculate keeps these months unless told to discard them (0345). |
 
 **Unique:** `sys_id` _(quality_objectives_sys_id_key)_ · `year, lower(btrim(parameter))` _(quality_objectives_year_param_uniq)_
 
-**Triggers:** `zz_quality_objectives_cutoff_guard` → `quality_objectives_cutoff_guard()` · `zz_quality_objectives_stamp` → `quality_objectives_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `zy_quality_objectives_mark_override` → `quality_objectives_mark_override()` · `zz_quality_objectives_cutoff_guard` → `quality_objectives_cutoff_guard()` · `zz_quality_objectives_stamp` → `quality_objectives_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 

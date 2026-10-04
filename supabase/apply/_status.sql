@@ -1906,7 +1906,11 @@ with checks(sort_order, bundle, provides, present) as (
     (276, 'DCCR Updated By / Updated Date: the import''s, else the call''s registrant and registration date', 'Asked for 2026-10-04 (the DCCR Google Sheet mirror). call_reviews keeps the imported register''s Updated By / Updated Date (imported_updated_by, imported_updated_date) and field_call_review reads dccr_updated_by / dccr_updated_date: the file''s values where it had them, else the email of the login that registered the call (call_registrant_email(), which answers only for somebody who registered a call) and the call''s reg_date. NO means a column, the function or the view''s two columns are missing. Restore: daily_review.sql (0344)',
         (to_regprocedure('public.call_registrant_email(uuid)') is not null
      and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'call_reviews' and column_name = 'imported_updated_by')
-     and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'field_call_review' and column_name = 'dccr_updated_date')))
+     and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'field_call_review' and column_name = 'dccr_updated_date'))),
+    (277, 'Objective: a figure typed over a calculated month is a manual override', 'Asked for 2026-10-04. quality_objectives.overrides marks a month of a computed objective typed over by hand -- who, when, the calculated figure -- written only by the trigger zy_quality_objectives_mark_override; recalc_quality_objectives(year, keep_overrides) keeps or discards them, and the one-argument call keeps them. NO means the column, the trigger or the two-argument function is missing. Restore: objective.sql (0345)',
+        (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'quality_objectives' and column_name = 'overrides')
+     and to_regprocedure('public.recalc_quality_objectives(integer,boolean)') is not null
+     and exists (select 1 from pg_trigger where tgname = 'zy_quality_objectives_mark_override' and not tgisinternal)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

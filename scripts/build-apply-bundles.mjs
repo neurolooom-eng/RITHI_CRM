@@ -539,7 +539,11 @@ const MODULES = {
             // and split keys; see 0286 for the parent rule.
             '0292_objective_manage_key.sql',
             // The objective cut-off lock is objective.lock. Redefines 0138/0139/0292 above.
-            '0303_objective_lock_key.sql'],
+            '0303_objective_lock_key.sql',
+            // A figure typed over a calculated month is a manual override;
+            // Re-Calculate keeps or discards them (the user, 2026-10-04).
+            // Redefines 0292's recalc_quality_objectives.
+            '0345_objective_manual_overrides.sql'],
   },
   validation: {
     title: 'Software Validation',

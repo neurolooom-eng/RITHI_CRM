@@ -1155,6 +1155,11 @@ typed into a form that reads it.
   month-by-month actual.
   - **Re-Calculate is explicit**, never on opening the page. Only objectives with
     a formula, only up to this month, never a typed figure.
+  - **You can type over a calculated (ƒ) month.** It becomes a **manual
+    override** and shows **✎**; hover it to see who typed it, when, and what the
+    calculation had said. Every Re-Calculate that finds overrides lists them and
+    asks: **Keep** them (the default — they stay exactly as typed, every run) or
+    **Discard** them (those months are recalculated and the ✎ goes).
   - Each month is measured as at the end of that month.
   - A quarterly objective reports in its quarter's last month; the others read NA,
     not zero.

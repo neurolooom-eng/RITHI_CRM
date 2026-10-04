@@ -225,8 +225,14 @@ select ucn, reg_date, role from public.objective_evidence(
 
 \echo '--- 7. RE-CALC CLEARS THE OFF-QUARTER MONTHS OF A COMPUTED OBJECTIVE ---'
 call public.be('op_admin@x.com');
+-- STALE figures, as an earlier MONTHLY Re-Calc would have left them -- so
+-- written the way Re-Calc writes, not typed. A figure a PERSON types over a
+-- computed month is a manual override and is KEPT (0345,
+-- objective_overrides_test); that is a different case from this one.
+select set_config('rithi.objective_recalc', 'on', false);
 update public.quality_objectives set m01 = 0.99, m02 = 0.98
  where year = 2026 and parameter = 'TESTQ quarterly field';
+select set_config('rithi.objective_recalc', '', false);
 select count(*) from public.recalc_quality_objectives(2026);
 \echo 'expect: blank blank 0.100000 — the two stale monthly figures are gone.'
 \echo 'expect: A February number sitting beside a Q1 total is what an auditor'

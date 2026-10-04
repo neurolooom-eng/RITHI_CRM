@@ -1542,7 +1542,8 @@ console.log('\n-- Re-Calc, evidence, and nothing hardcoded --');
   // EXPLICIT. A figure that moves because somebody opened a screen is not one
   // anybody can stand behind at an audit, so Re-Calc must never be in an effect.
   eq('Re-Calc is a button, never a page load',
-    /onClick=\{\(\) => setConfirmRecalc\(true\)\}/.test(obj)
+    // (the button also resets the manual-override choice to Keep, 0345)
+    /onClick=\{\(\) => \{ setKeepOverrides\(true\); setConfirmRecalc\(true\); \}\}/.test(obj)
     && /useEffect\([^)]*recalcObjectives/.test(obj) === false, true);
   // The dialog's promises moved with the rules: closure is now the VISIT date,
   // and a cut-off never changes which calls are counted. Both are things
@@ -1853,8 +1854,14 @@ console.log('\n-- the evidence workbook --');
   // Re-Calculate READS them; setting is its own act. Two ways to set one thing
   // is how a figure ends up disagreeing with the setting behind it.
   eq('Re-calculate reads the cut-offs and does not set one',
-    /recalcObjectives\(YEAR\)/.test(obj)
-    && !/recalcObjectives\(YEAR,/.test(obj), true);
+    // Its only other argument is the manual-override choice (0345) -- never a date.
+    /recalcObjectives\(YEAR, keepOverrides\)/.test(obj)
+    && !/recalcObjectives\(YEAR, (?!keepOverrides\))/.test(obj), true);
+  // MANUAL OVERRIDES ARE ASKED ABOUT (0345, the user: "prompt the user if
+  // Manually Overrides should be considered or discarded during every re-run").
+  eq('Re-calculate lists the manual overrides and asks Keep or Discard, Keep by default',
+    /Keep the manual overrides/.test(obj) && /Discard them/.test(obj)
+    && /useState\(true\);\n\s*const doRecalc/.test(obj), true);
   // Clearing a date must put the month back — otherwise the first mistyped
   // date is permanent.
   eq('a blank date clears the month rather than storing an empty one',

@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../lib/auth';
 import { xlsxDownload } from '../lib/xlsx';
 import { logAudit } from '../lib/audit';
+import { formatDayTime } from '../lib/dates';
 import { useAccessScope, scopeLabel } from '../lib/access';
 import './dccr.css';
 import './fieldcalls.css';
@@ -57,6 +58,14 @@ const showValue = (target: string, v: number | null): string => {
     ? `${(v * 100).toFixed(v * 100 < 10 ? 1 : 0)}%`
     : String(Number(v.toFixed(3)));
 };
+
+// What a ✎ cell says on hover: that it was typed over the calculation, by whom
+// and when, what the calculation had said, and what Re-Calculate will do.
+const overrideTitle = (target: string, d: { by?: string; at?: string; calculated?: number | null }): string =>
+  'Manual override — typed over the calculated figure'
+  + (d.by ? ` by ${d.by}` : '') + (d.at ? ` on ${formatDayTime(d.at)}` : '')
+  + (d.calculated != null ? `. The calculation gave ${showValue(target, d.calculated)}.` : '.')
+  + ' Re-calculate keeps it unless you choose to discard the overrides.';
 
 export function Objective() {
   const live = supabaseConfigured();
@@ -136,9 +145,17 @@ export function Objective() {
       loadCutoffs();
     });
   };
+  // MANUAL OVERRIDES (0345): months of a computed objective somebody typed
+  // over. Re-Calculate asks, on every run that finds one, whether to keep them
+  // or discard them -- KEEP is the default, so a run nobody thought about
+  // changes nothing anybody typed.
+  const overrideList = objectives.flatMap((o) => (o.calc_key
+    ? Object.entries(o.overrides ?? {}).map(([k, d]) => ({ o, k, d }))
+    : [])).sort((a, b) => a.o.sort_order - b.o.sort_order || a.k.localeCompare(b.k));
+  const [keepOverrides, setKeepOverrides] = useState(true);
   const doRecalc = async () => {
     setRecalcing(true);
-    const res = await recalcObjectives(YEAR);
+    const res = await recalcObjectives(YEAR, keepOverrides);
     setRecalcing(false);
     setConfirmRecalc(false);
     if (!res.ok) { setOMsg(`Could not re-calculate: ${res.error}`); return; }
@@ -151,7 +168,12 @@ export function Objective() {
             ? `, using the cut-off set for ${Object.keys(cutoffs).length} month`
               + `${Object.keys(cutoffs).length === 1 ? '' : 's'}`
             : '')
-        + '. Typed figures were left alone.');
+        + '. Typed figures were left alone'
+        + (overrideList.length
+            ? (keepOverrides
+                ? `; ${(res.written ?? []).reduce((a, w) => a + Number(w.months_kept ?? 0), 0)} manual override(s) kept as typed.`
+                : `; ${overrideList.length} manual override(s) discarded and recalculated.`)
+            : '.'));
     loadObjectives();
   };
 
@@ -484,7 +506,7 @@ export function Objective() {
         </p>
         {mayEdit && (
           <div className="row" style={{ gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-            <button className="btn btn-primary" disabled={recalcing} onClick={() => setConfirmRecalc(true)}>
+            <button className="btn btn-primary" disabled={recalcing} onClick={() => { setKeepOverrides(true); setConfirmRecalc(true); }}>
               {recalcing ? 'Re-calculating…' : '↻ Re-calculate'}
             </button>
             <button className="btn" onClick={() => void addObjective(YEAR, (objectives.length ? objectives[objectives.length - 1].sort_order : 0) + 1).then(loadObjectives)}>
@@ -550,10 +572,12 @@ export function Objective() {
                     const v = o[k];
                     const verdict = meets(o.yearly_target, v);
                     const isEditing = editing?.id === o.id && editing.field === k;
+                    const ovr = o.calc_key ? o.overrides?.[k] : undefined;
                     return (
                       <td
                         key={k}
-                        className={`obj-num obj-${verdict || 'none'}${mayEdit ? ' obj-edit' : ''}`}
+                        className={`obj-num obj-${verdict || 'none'}${mayEdit ? ' obj-edit' : ''}${ovr ? ' obj-overridden' : ''}`}
+                        title={ovr ? overrideTitle(o.yearly_target, ovr) : undefined}
                         onClick={() => { if (mayEdit && !isEditing) { setEditing({ id: o.id, field: k }); setDraft(v == null ? '' : showValue(o.yearly_target, v)); } }}
                       >
                         {isEditing
@@ -568,6 +592,7 @@ export function Objective() {
                           : (
                             <>
                               {showValue(o.yearly_target, v)}
+                              {ovr && <span className="obj-ovr-mark" aria-label="Manual override">✎</span>}
                               {/* The rows behind the figure, for whoever asks how
                                   it was arrived at. Only where we computed it —
                                   a typed number has no evidence to give. */}
@@ -652,8 +677,33 @@ export function Objective() {
             <li>Calls are still those <b>registered</b> in the period — a cut-off never changes which calls
               are counted, only how many of them were closed in time.</li>
             <li>A month with nothing to measure stays <b>blank</b>, not zero.</li>
-            <li>It replaces whatever those months currently hold, including a figure typed over a computed one.</li>
+            <li>A month marked <b>✎</b> was typed over the calculated figure — a <b>manual override</b>. You choose below whether this run keeps them.</li>
           </ul>
+          {overrideList.length > 0 && (
+            <div className="obj-ovr-box">
+              <div className="field-label">
+                {overrideList.length} manual override{overrideList.length === 1 ? '' : 's'} — keep them, or recalculate them?
+              </div>
+              <ul className="obj-ovr-list">
+                {overrideList.map(({ o, k, d }) => (
+                  <li key={`${o.id}-${k}`}>
+                    <b>{o.parameter}</b> · {MONTHS[MONTH_KEYS.indexOf(k as never)]}: typed{' '}
+                    <b>{showValue(o.yearly_target, o[k as keyof QualityObjective] as number | null)}</b>
+                    {d.calculated != null && <> over calculated {showValue(o.yearly_target, d.calculated)}</>}
+                    {d.by && <> · by {d.by}</>}{d.at && <> on {formatDayTime(d.at)}</>}
+                  </li>
+                ))}
+              </ul>
+              <label className="obj-ovr-choice">
+                <input type="radio" name="ovr" checked={keepOverrides} disabled={recalcing} onChange={() => setKeepOverrides(true)} />
+                {' '}<b>Keep the manual overrides</b> — those months stay exactly as typed.
+              </label>
+              <label className="obj-ovr-choice">
+                <input type="radio" name="ovr" checked={!keepOverrides} disabled={recalcing} onChange={() => setKeepOverrides(false)} />
+                {' '}<b>Discard them</b> — recalculate those months too and remove the ✎ marks.
+              </label>
+            </div>
+          )}
           <div className="row" style={{ gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
             <button className="btn" disabled={recalcing} onClick={() => setConfirmRecalc(false)}>Cancel</button>
             <button className="btn btn-primary" disabled={recalcing} onClick={() => void doRecalc()}>

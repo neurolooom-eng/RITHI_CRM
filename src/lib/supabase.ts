@@ -431,6 +431,9 @@ export interface QualityObjective {
   m09: number | null; m10: number | null; m11: number | null; m12: number | null;
   total: number | null; source: string; notes: string; updated_at: string;
   calc_key: string; calc_params: Record<string, unknown>;
+  /** Months of a computed objective typed over by hand (0345), written by the
+   *  database: who, when, and the calculated figure it replaced. */
+  overrides?: Record<string, { by?: string; at?: string; calculated?: number | null }>;
 }
 
 export async function listQualityObjectives(year: number): Promise<QualityObjective[]> {
@@ -444,13 +447,17 @@ export async function listQualityObjectives(year: number): Promise<QualityObject
 // somebody opened a screen is not a figure anybody can defend.
 export async function recalcObjectives(
   year: number,
-): Promise<{ ok: boolean; written?: { objective: string; months_written: number }[]; error?: string }> {
+  keepOverrides: boolean,
+): Promise<{ ok: boolean; written?: { objective: string; months_written: number; months_kept: number }[]; error?: string }> {
   // Re-Calculate READS the months' cut-offs; it does not set one. Two ways to
   // set the same thing is how a figure ends up disagreeing with the setting
   // that supposedly produced it.
-  const { data, error } = await must().rpc('recalc_quality_objectives', { p_year: year });
+  //
+  // THE OVERRIDES ARE THE CALLER'S CHOICE, asked on every run (0345): keep the
+  // months typed over a calculated figure, or discard them and recalculate.
+  const { data, error } = await must().rpc('recalc_quality_objectives', { p_year: year, p_keep_overrides: keepOverrides });
   if (error) return { ok: false, error: errMsg(error) };
-  return { ok: true, written: (data ?? []) as { objective: string; months_written: number }[] };
+  return { ok: true, written: (data ?? []) as { objective: string; months_written: number; months_kept: number }[] };
 }
 
 // ONE CUT-OFF PER MONTH, shared by every objective. A month with no row
