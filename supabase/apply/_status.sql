@@ -1994,7 +1994,12 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regclass('public.recycle_consumption') is not null
      and to_regclass('public.recycle_request_list') is not null
      and exists (select 1 from pg_trigger where tgname = 'recycle_consumption_guard' and not tgisinternal)
-     and coalesce((select p.prosrc like '%audit_mode%' from pg_proc p where p.oid = to_regprocedure('public.recycle_may_see()')), false)))
+     and coalesce((select p.prosrc like '%audit_mode%' from pg_proc p where p.oid = to_regprocedure('public.recycle_may_see()')), false))),
+    (288, 'Technical / Service Notes: Beta Edit saves many notes at once', 'save_service_notes(jsonb) writes every edited note in one transaction, all or nothing, as SECURITY INVOKER so documents_update decides; callable by a signed-in user, never the public key (0356). Restore: documents.sql (0356)',
+        (to_regprocedure('public.save_service_notes(jsonb)') is not null
+         and not coalesce((select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.save_service_notes(jsonb)')), true)
+         and not has_function_privilege('anon', to_regprocedure('public.save_service_notes(jsonb)'), 'EXECUTE')
+         and has_function_privilege('authenticated', to_regprocedure('public.save_service_notes(jsonb)'), 'EXECUTE')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
