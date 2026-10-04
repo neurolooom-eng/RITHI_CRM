@@ -307,15 +307,18 @@ export async function pmLatestRegAt(month: string): Promise<string | null> {
   return v ? String(v) : null;
 }
 
-export interface AddResult { ok: boolean; ucn?: string; record?: Record<string, unknown>; error?: string }
+/** `offline` is true ONLY when the request never reached the database
+ *  (isNetworkFailure, D-032) — the one failure a screen may keep on the device
+ *  to send later. A refusal is an answer and is shown as one. */
+export interface AddResult { ok: boolean; ucn?: string; record?: Record<string, unknown>; error?: string; offline?: boolean }
 export async function addCall(rec: Record<string, unknown>): Promise<AddResult> {
   const c = must();
   const payload = callToDb(rec);
   delete payload.ucn; // server assigns via trigger
   // Insert without .single(): a genuine failure sets `error`; an RLS-hidden
   // returning just yields an empty array (the row was still inserted).
-  const { data, error } = await c.from('calls').insert(payload).select('*');
-  if (error) return { ok: false, error: error.message };
+  const { data, error, status } = await c.from('calls').insert(payload).select('*');
+  if (error) return { ok: false, error: errMsg(error), offline: isNetworkFailure(error, status) };
   const row = data?.[0];
   if (row) return { ok: true, ucn: String(row.ucn ?? ''), record: dbToCall(row) };
   // Returning hidden by RLS — read back the row we just created.
@@ -2325,7 +2328,7 @@ export async function listProductDatabaseV2(): Promise<Record<string, unknown>[]
 // the inequality runs the safe way: the screen can say "at least N of these
 // carry no model", never more than is true.
 // ---------------------------------------------------------------------------
-import type { RegisterCount } from './dberror';
+import { isNetworkFailure, type RegisterCount } from './dberror';
 import { todayLocal } from './dates';
 export type RegisterGap = RegisterCount & { register: string; table: string };
 
@@ -2423,18 +2426,38 @@ export async function listCallRequestsAsPending(): Promise<Record<string, unknow
 // Close a request out with a UCN: 'Registered' (a new call was created from it)
 // or 'Mapped' (it belongs to a call that already existed). Either way it leaves
 // the pending list, which only lists requests with no UCN.
+//
+// COUNTED, LIKE updateCallRequest (D-031). Row-level security refuses an
+// UPDATE by matching NO rows, which PostgREST reports as success — so a
+// request the reader may see but not write was reported "mapped" or
+// "cancelled" and stayed exactly as it was. Counted rather than read back for
+// updateCallRequest's reason; a null count (none sent) is left as success.
+export const CALL_REQUEST_NOT_SAVED = 'Nothing was saved — your role may not change this request, so it is still pending. '
+  + 'Hotline, or the person who raised it, can.';
 export async function setCallRequestUcn(id: number, ucn: string, status: 'Registered' | 'Mapped' = 'Registered', by = ''): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('call_requests')
-    .update({ ucn, status, actioned_by: by, actioned_at: new Date().toISOString() }).eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  const { error, count } = await must().from('call_requests')
+    .update({ ucn, status, actioned_by: by, actioned_at: new Date().toISOString() }, { count: 'exact' }).eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  return count === 0 ? { ok: false, error: CALL_REQUEST_NOT_SAVED } : { ok: true };
 }
 
 // Cancel a request — it stops being pending without ever becoming a call.
 export async function cancelCallRequest(id: number, reason: string, by = ''): Promise<{ ok: boolean; error?: string }> {
   const now = new Date().toISOString();
-  const { error } = await must().from('call_requests')
-    .update({ status: 'Cancelled', cancel_reason: reason, cancelled_at: now, actioned_by: by, actioned_at: now }).eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  const { error, count } = await must().from('call_requests')
+    .update({ status: 'Cancelled', cancel_reason: reason, cancelled_at: now, actioned_by: by, actioned_at: now }, { count: 'exact' }).eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  return count === 0 ? { ok: false, error: CALL_REQUEST_NOT_SAVED } : { ok: true };
+}
+
+/** Whether a call with this UCN exists AND the reader can see it — asked
+ *  before a request is mapped to a typed UCN (D-031). Throws on a failed read,
+ *  so "could not check" is never mistaken for "no such call". */
+export async function callExists(ucn: string): Promise<boolean> {
+  const { count, error } = await must().from('calls')
+    .select('ucn', { count: 'exact', head: true }).eq('ucn', ucn.trim());
+  if (error) throw new Error(errMsg(error));
+  return (count ?? 0) > 0;
 }
 
 // ---- call state / open calls ------------------------------------------------
@@ -4213,6 +4236,10 @@ export async function serviceReportForCall(ucn: string, callNumber = ''): Promis
   return (await pick('ucn', ucn)) ?? (callNumber && callNumber !== ucn ? await pick('call_number', callNumber) : null);
 }
 
+// A FAILED READ THROWS, in all three below as in reportsByCall (D-040). They
+// returned [] on an error, so CallAssociations' "could not be read" banner
+// could never fire and a refused read showed "no spares" / "no feedback" — a
+// claim about the call, made by an error. Every caller catches.
 export async function spareRequestsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
     // `or_no` IS THE OR NUMBER and it was not selected, so the call's spares
@@ -4222,7 +4249,7 @@ export async function spareRequestsByCall(callNumber: string): Promise<Record<st
     // so it is the one identifier on this row somebody can act on.
     .select('*, spare_requests!inner(uid, or_no, call_number, req_type, status, engineer, item_status, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, received_at, created_at)')
     .eq('spare_requests.call_number', callNumber).order('created_at', { ascending: false }).limit(200);
-  if (error) return [];
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => {
     const { spare_requests: req, ...line } = r as Record<string, unknown> & { spare_requests?: Record<string, unknown> };
     // Approvals / dispatch are PER LINE (0016), so the line's workflow columns
@@ -4237,12 +4264,12 @@ export async function spareRequestsByCall(callNumber: string): Promise<Record<st
 }
 export async function spareConsumptionByCall(callNumber: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_consumption').select('*').eq('call_number', callNumber).order('created_at', { ascending: false }).limit(200);
-  if (error) return [];
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 export async function feedbackByCall(callNumber: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('feedback').select('*').eq('call_number', callNumber).order('created_at', { ascending: false }).limit(50);
-  if (error) return [];
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 
@@ -6033,7 +6060,7 @@ export async function saveIndoorJob(
     'indoor_report_no', 'dc_date', 'remarks', 'cover',
     // The stages (0323). The report FILE and its stamps are not here: the
     // upload is saveIndoorReport(), and the database stamps who and when.
-    // visit_uid / visit_filed_at are recordIndoorVisit()'s.
+    // visit_uid / visit_filed_at are the DC approval's (0327, 0370).
     'standard_complaint',
   ] as const;
   const rest = Object.fromEntries(
@@ -6184,13 +6211,6 @@ export async function rejectIndoorDc(dcNo: string, reason: string): Promise<{ ok
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
-/** Record on an Indoor job the visit filed from its draft at approval (0323):
- *  `complete` once the spares and feedback are in too. The database checks the
- *  visit is this call's and reads Unsolved / Return to Field / Yes. */
-export async function recordIndoorVisit(jobId: number, visitUid: string, complete: boolean): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().rpc('record_indoor_visit', { p_job_id: jobId, p_visit_uid: visitUid, p_complete: complete });
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
-}
 
 /** Delete an Indoor Service job PERMANENTLY with its accessories, parts,
  *  checks and PDT (0324). The database asks indoor.delete, needs the reason,

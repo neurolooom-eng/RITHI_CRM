@@ -384,7 +384,8 @@ export function Objective() {
       }
 
       const safe = o.parameter.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-      xlsxDownload(`evidence-${safe}-${YEAR}-${MONTHS[monthIndex]}.xlsx`, [
+      // Announced and audited only once the file was WRITTEN (D-018).
+      const written = await xlsxDownload(`evidence-${safe}-${YEAR}-${MONTHS[monthIndex]}.xlsx`, [
         isCount
           ? { name: sheet1Name, columns: FFR_HEADINGS, rows: calls.map(ffrRow) }
           : isRate
@@ -406,6 +407,7 @@ export function Objective() {
         },
         { name: 'Calculation', columns: ['Item', 'Value'], rows: calc },
       ], COMPLETE);
+      if (!written) { setOMsg('Nothing was downloaded.'); return; }
       // A ROUND THOUSAND IS WHAT A CAP LOOKS LIKE, and this banner printed one
       // (2026-09-24: "Sep: 1000 calls", and "i think it is calculating only for
       // the first 1000 calls"). The read is paged now, so the number is the

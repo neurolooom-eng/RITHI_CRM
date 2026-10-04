@@ -164,10 +164,13 @@ export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec
         Object.fromEntries(columns.map((c) => [c, asCell(r[c])])));
       const stamp = todayLocal();
 
-      if (kind === 'csv') {
-        csvExport(`${spec.key}-${stamp}.csv`, columns.map((c) => ({ key: c, header: c })), shapedText, COMPLETE);
-      } else {
-        xlsxDownload(`${spec.key}-${stamp}.xlsx`, [
+      // WRITTEN, OR NOT (D-018). The writers refuse a role without
+      // `export.data` and the chooser can be closed with nothing taken; the
+      // audit entry and the "Downloaded" line below were written either way,
+      // so the trail recorded files that never left. They wait for `true` now.
+      const written = kind === 'csv'
+        ? await csvExport(`${spec.key}-${stamp}.csv`, columns.map((c) => ({ key: c, header: c })), shapedText, COMPLETE)
+        : await xlsxDownload(`${spec.key}-${stamp}.xlsx`, [
           { name: spec.title.slice(0, 28), columns, rows: shapedCells },
           {
             name: 'Filter',
@@ -185,7 +188,7 @@ export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec
             ],
           },
         ], COMPLETE);
-      }
+      if (!written) { setMsg('Nothing was downloaded.'); return; }
       setMsg(`Downloaded ${rows.length.toLocaleString()} row${rows.length === 1 ? '' : 's'}, ${columns.length} columns.`);
       logAudit({ action: `report.${spec.key}`, target: `${rows.length} rows`,
                  meta: { rows: rows.length, columns: columns.length, filter: spec.describe(filter) } });

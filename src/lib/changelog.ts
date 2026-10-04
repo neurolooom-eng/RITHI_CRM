@@ -14,6 +14,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.92',
+    date: '2026-10-04',
+    title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
+    changes: [
+      'EXPORTS: the export permission now covers Excel and every workbook button, not only CSV, and Data Export too. A download is recorded and announced only when a file was actually saved. Data Export reads each table in a fixed order and says when a table hit its row limit.',
+      'PENDING REGISTRATIONS: a request can be mapped only to a call that exists; a map or cancel your role cannot make says so; if a registered call\'s request could not be marked, the screen names the UCN.',
+      'FIELD CALL REGISTER: a call is kept on the device only when there is no connection; a call the system refuses shows the reason instead of a "saved locally" number.',
+      'A CALL\'S HISTORY: spares or feedback that could not be read now say so instead of showing nothing.',
+      'WARRANTY and CONTRACT: Renew and Convert tell machines apart by product and serial; a machine line added and not yet saved is no longer lost when the entry is saved.',
+      'USER MASTER: an entry with a profile or R&R history cannot be deleted — set it inactive. MASTER LISTS: "Add / edit master records" edits but does not delete list values.',
+      'STOCK TRANSFER and RETURNS: cannot be dated in the future or inside a closed hand-stock period.',
+    ],
+  },
+  {
     version: '0.10.91',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',

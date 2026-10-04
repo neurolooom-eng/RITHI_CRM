@@ -30,6 +30,7 @@ import {
   updateFieldCall,
 } from '../lib/sheets';
 import { formatDay } from '../lib/dates';
+import { isNetworkFailure } from '../lib/dberror';
 import { supabaseConfigured, searchCalls, callByUcn, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, refreshCallsParty, refreshCallsProduct, type CallServiceReport } from '../lib/supabase';
 import { useAuditMode } from '../lib/auditMode';
 import { useCallFieldMasters } from './callFields';
@@ -634,6 +635,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const allotBlocked = !can(`${P}.allot`) && allotTeam.canPick;
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
+  // A refused registration, shown inside the drawer (D-032); gone with it.
+  const [createErr, setCreateErr] = useState('');
+  useEffect(() => { if (!drawer) setCreateErr(''); }, [drawer]);
   const [report, setReport] = useState<Rec | null>(null); // "Visit Entry" → a new visit row
 
   // ---- THE SERVICE REPORT ON A CLOSED CALL -------------------------------
@@ -875,12 +879,30 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       _pending: true,
       ownerId: user?.id,
     });
-    setBanner({ tone: 'info', text: `${note} Saved locally as ${ucn}.` });
+    // A PLACEHOLDER, AND IT SAYS SO (D-032). Sync strips this number and the
+    // database assigns the real UCN, so a message reading "Saved locally as
+    // F-…" was a number somebody could write on a job card and never see again.
+    setBanner({ tone: 'info', text: `${note} Kept on this device only — NOT registered yet. ${ucn} is a temporary placeholder, not the call's UCN: `
+      + 'press Sync once the connection is back and the database will give the call its real UCN.' });
+  };
+
+  // A REFUSAL IS AN ANSWER, NOT AN OUTAGE (D-032). Every failure of
+  // addFieldCall used to fall to saveLocal(): a call the insert policy refused
+  // was kept on the device under a placeholder UCN, announced as saved, and
+  // re-sent by Sync to be refused again. Only a request that never reached the
+  // database (`offline`, isNetworkFailure) may be kept to send later; anything
+  // else is shown, in the drawer the person is looking at, with the form left
+  // as they filled it.
+  const refuseCreate = (error: string) => {
+    const text = `Not registered — ${error}`;
+    setCreateErr(text);
+    setBanner({ tone: 'error', text });
   };
 
   const handleCreate = async (values: FormValues) => {
     const rec = buildPayload(values, config.callType);
     setBusy(true);
+    setCreateErr('');
     const t0 = performance.now();
     const dur = () => Math.round(performance.now() - t0);
     try {
@@ -905,22 +927,35 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
           }
           db.insert(config.collection, { ...res.record, id: String(res.ucn), _synced: true, ownerId: user?.id });
           // If this came from a pending CRN request, back-fill the UCN there.
+          // AWAITED AND READ (D-031): it was `void`, so a refused write left
+          // the request Pending beside the call made from it — and the banner
+          // said "pending request cleared" either way.
+          let backfill = '';
           if (pendingRow != null && res.ucn) {
-            void setPendingUcn(pendingRow, String(res.ucn));
+            try {
+              const b = await setPendingUcn(pendingRow, String(res.ucn));
+              if (!b.ok) backfill = b.error || 'the request could not be updated';
+            } catch (e) { backfill = e instanceof Error ? e.message : String(e); }
             setPendingRow(null);
           }
-          setBanner({ tone: 'ok', text: `${config.singular} registered as ${res.ucn}${pendingRow != null ? ' — pending request cleared' : ''}.` });
+          setBanner(backfill
+            ? { tone: 'error', text: `${config.singular} registered as ${res.ucn}, but its call request could NOT be marked Registered (${backfill}). `
+                + `It still shows on Pending Registrations — map it to ${res.ucn} there so it is not registered a second time.` }
+            : { tone: 'ok', text: `${config.singular} registered as ${res.ucn}${pendingRow != null ? ' — pending request cleared' : ''}.` });
         } else {
           logAudit({ action: 'call.create', status: 'error', error: res.error, duration_ms: dur(), meta: { callType: config.callType } });
-          saveLocal(rec, `Write failed (${res.error}).`);
+          if (!res.offline) { refuseCreate(res.error ?? 'the database refused it.'); return; }
+          saveLocal(rec, `Could not reach the database (${res.error}).`);
         }
       } else {
         saveLocal(rec, 'No database connected.');
       }
       setDrawer(null);
     } catch (e) {
-      logAudit({ action: 'call.create', status: 'error', error: e instanceof Error ? e.message : String(e), duration_ms: dur() });
-      saveLocal(rec, `Write failed (${e instanceof Error ? e.message : String(e)}).`);
+      const m = e instanceof Error ? e.message : String(e);
+      logAudit({ action: 'call.create', status: 'error', error: m, duration_ms: dur() });
+      if (!isNetworkFailure(e)) { refuseCreate(m); return; }
+      saveLocal(rec, `Could not reach the database (${m}).`);
       setDrawer(null);
     } finally {
       setBusy(false);
@@ -1434,6 +1469,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       >
         {drawer && (
           <>
+            {/* A REFUSED REGISTRATION IS SAID HERE, where the person is
+                looking, and the form keeps what they typed (D-032). */}
+            {drawer.mode === 'create' && createErr && (
+              <div className="sheet-banner sheet-banner-error" role="alert"><span>{createErr}</span></div>
+            )}
             {drawer.row?._pending && (
               <div className="detail-hint" style={{ color: 'var(--warning, #b45309)' }}>
                 ⏳ Saved locally, not yet in the sheet. Use “Sync {pendingCount} pending” once a sheet is connected.

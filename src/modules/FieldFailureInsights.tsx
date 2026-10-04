@@ -264,7 +264,7 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
     const scope = DIMS.filter((d) => picked[d.key]).map((d) => `${d.label}: ${picked[d.key]}`)
       .join(' · ') || 'the whole register';
     const per = PERIODS.find((x) => x.key === period)!.label;
-    xlsxDownload(`ffr-trend-${period}-${when}.xlsx`, [
+    void xlsxDownload(`ffr-trend-${period}-${when}.xlsx`, [
       {
         name: 'Reports by period',
         columns: [per, 'Reports', 'Change on the one before', 'Share', 'Share worked out',
@@ -307,9 +307,12 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
           { Item: 'Downloaded', Value: new Date().toISOString() },
         ],
       },
-    ], partial(more));
-    logAudit({ action: 'ffr.trend.download', target: `${period} ${when}`,
-               meta: { rows: trendRows.length, total: trendTotal, scope } });
+    ], partial(more)).then((ok) => {
+      // Audited only once the file was WRITTEN (D-018).
+      if (!ok) return;
+      logAudit({ action: 'ffr.trend.download', target: `${period} ${when}`,
+                 meta: { rows: trendRows.length, total: trendTotal, scope } });
+    });
   };
 
   // WHAT IS STILL OPEN TO RANK: every level whose dimension has not been chosen.
@@ -374,7 +377,11 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
    */
   const rawSheet = (src: Row[], bucketKey: string, bucketLabel: string) => ({
     name: 'The reports behind it',
-    columns: [bucketLabel, 'FFR No', 'FFR date', 'UCN', 'Machine', 'Serial', 'Customer',
+    // EVERY KEY THE ROWS CARRY IS A COLUMN (D-018): the workbook writer reads
+    // a cell only through this list, so 'Machine the call named' — built below
+    // for exactly the reader comparing it with Machine — was left out of the
+    // file on every download.
+    columns: [bucketLabel, 'FFR No', 'FFR date', 'UCN', 'Machine', 'Machine the call named', 'Serial', 'Customer',
               'Cover', 'Complaint grouping', 'Root cause', 'Problem reported',
               'FFR status', 'Call status', 'CAPA status', 'Raised by', 'Origin'],
     rows: src.map((r) => ({
@@ -410,7 +417,7 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
     const when = todayLocal();
     const scope = PARETO_LEVELS.filter((l) => picked[l.key])
       .map((l) => `${l.label}: ${picked[l.key]}`).join(' · ') || 'the whole register';
-    xlsxDownload(`ffr-pareto-${paretoBy}-${when}.xlsx`, [
+    void xlsxDownload(`ffr-pareto-${paretoBy}-${when}.xlsx`, [
       {
         name: 'Pareto',
         columns: ['#', paretoAt.label, 'Reports', 'Share', 'Share worked out',
@@ -468,9 +475,12 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
           { Item: 'Downloaded', Value: new Date().toISOString() },
         ],
       },
-    ], partial(more));
-    logAudit({ action: 'ffr.pareto.download', target: `${paretoBy} ${when}`,
-               meta: { rows: paretoRows.length, total: paretoTotal, scope } });
+    ], partial(more)).then((ok) => {
+      // Audited only once the file was WRITTEN (D-018).
+      if (!ok) return;
+      logAudit({ action: 'ffr.pareto.download', target: `${paretoBy} ${when}`,
+                 meta: { rows: paretoRows.length, total: paretoTotal, scope } });
+    });
   };
   /** Drop ONE level's choice. Not "and everything under it": with the order
    *  free there is no "under" — dropping the grouping while keeping the machine

@@ -179,6 +179,8 @@ export interface AddResult {
   ucn?: string;
   record?: Record<string, unknown>;
   error?: string;
+  /** The request never reached the database (D-032) — see supabase.ts. */
+  offline?: boolean;
 }
 
 // Add a new call. `record` is keyed by app keys; UCN + reg date are assigned
@@ -327,10 +329,12 @@ export async function addCrnRequest(data: Record<string, unknown>): Promise<bool
   const r = await getJson({ action: 'crnrequest', data: JSON.stringify(data) });
   return !!r.ok;
 }
-export async function setPendingUcn(row: number, ucn: string, status: 'Registered' | 'Mapped' = 'Registered', by = ''): Promise<boolean> {
-  if (sb.supabaseConfigured()) return (await sb.setCallRequestUcn(row, ucn, status, by)).ok;
+// THE REASON TRAVELS WITH THE ANSWER (D-031): a bare boolean let both callers
+// say only "could not save", and one of them said nothing at all.
+export async function setPendingUcn(row: number, ucn: string, status: 'Registered' | 'Mapped' = 'Registered', by = ''): Promise<{ ok: boolean; error?: string }> {
+  if (sb.supabaseConfigured()) return sb.setCallRequestUcn(row, ucn, status, by);
   const r = await getJson({ action: 'setucn', uid: String(row), ucn });
-  return !!r.ok;
+  return r.ok ? { ok: true } : { ok: false, error: String(r.error ?? 'the sheet did not record it') };
 }
 
 // User Master directory (all users, regardless of Validity).

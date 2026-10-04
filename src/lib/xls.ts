@@ -1,5 +1,5 @@
 import { download } from './zip';
-import { mayExport, deliverExport, type ExportScope } from './exportscope';
+import { exportAllowed, deliverExport, type ExportScope } from './exportscope';
 import { gsheetFrom } from './xlsx';
 import { excelSerial, formatDayTime, hasClockTime } from './dates';
 
@@ -104,11 +104,12 @@ export function buildXls(sheets: XlsSheet[]): string {
     + '</Workbook>';
 }
 
-export function xlsDownload(filename: string, sheets: XlsSheet[], scope: ExportScope): void {
-  // Same rule as the other two writers: a file taken from a half-loaded table
-  // says nothing about what it is missing, so the caller is asked first.
-  if (!mayExport(scope, sheets[0]?.rows.length ?? 0)) return;
-  deliverExport({
+export function xlsDownload(filename: string, sheets: XlsSheet[], scope: ExportScope): Promise<boolean> {
+  // Same rule as the other two writers: refused without `export.data`
+  // (D-018), and a file taken from a half-loaded table says nothing about what
+  // it is missing, so the caller is asked first. Resolves to whether it wrote.
+  if (!exportAllowed(scope, sheets[0]?.rows.length ?? 0)) return Promise.resolve(false);
+  return deliverExport({
     filename, kind: 'Excel',
     sheets: () => sheets.map((s) => gsheetFrom(s.name, s.columns, s.rows)),
     saveFile: () => download(filename, new TextEncoder().encode(buildXls(sheets)), 'application/vnd.ms-excel'),

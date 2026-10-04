@@ -4,7 +4,7 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { addFieldCall, listPending, productBySerial, setPendingUcn, updateFieldCall, dataConfigured } from '../lib/sheets';
-import { cancelCallRequest, callByUcn, openCallsFor, callsForMachine, machineKey, supabaseConfigured, type OpenCall, type MachineCall } from '../lib/supabase';
+import { cancelCallRequest, callByUcn, callExists, openCallsFor, callsForMachine, machineKey, supabaseConfigured, type OpenCall, type MachineCall } from '../lib/supabase';
 import { FIELD_CALL_FIELDS, VIGILANCE_SECTION } from './FieldCalls';
 import { useCallFieldMasters } from './callFields';
 import { useTeamEngineers } from '../lib/access';
@@ -200,14 +200,23 @@ export function PendingRegistrations() {
   const mapToUcn = async (row: Row, ucn: string, checkExists = true) => {
     setBusy(true); setMsg({ tone: 'info', text: `Mapping to ${ucn}…` });
     try {
+      // A UCN NO CALL HAS IS REFUSED, NOT OFFERED (D-031). It asked "Map the
+      // request to it anyway?" and mapped on OK, so a typo closed the request
+      // against a call that does not exist and it left this list for good. A
+      // failed lookup is not "not found" either: it says so and maps nothing.
       if (checkExists && supabaseConfigured()) {
-        const found = await callByUcn(ucn).catch(() => null);
-        if (!found && !confirm(`No call found with UCN ${ucn}. Map the request to it anyway?`)) {
-          setBusy(false); setMsg(null); return;
+        let found: boolean;
+        try { found = await callExists(ucn); } catch (e) {
+          setMsg({ tone: 'error', text: `Not mapped — could not check UCN ${ucn}: ${e instanceof Error ? e.message : String(e)}` });
+          return;
+        }
+        if (!found) {
+          setMsg({ tone: 'error', text: `Not mapped — no call with UCN ${ucn} exists that you can see. Check the number; the request is still pending.` });
+          return;
         }
       }
-      const ok = await setPendingUcn(Number(row.id), ucn, 'Mapped', user?.fullName ?? '');
-      if (!ok) { setMsg({ tone: 'error', text: 'Could not save the mapped UCN.' }); return; }
+      const res = await setPendingUcn(Number(row.id), ucn, 'Mapped', user?.fullName ?? '');
+      if (!res.ok) { setMsg({ tone: 'error', text: `Not mapped — ${res.error ?? 'the mapped UCN could not be saved.'}` }); return; }
       setDetail(null);
       setMsg({ tone: 'ok', text: `${g(row, 'REQID') || 'Request'} mapped to ${ucn} — removed from pending.` });
       await load();
@@ -371,7 +380,17 @@ export function PendingRegistrations() {
           prefill={panel.prefill}
           config={panel.config}
           onClose={() => setPanel(null)}
-          onDone={(ucn) => { setPanel(null); setMsg({ tone: 'ok', text: `Registered as ${ucn} — UCN back-filled into the request.` }); void load(); }}
+          onDone={(ucn, backfillError) => {
+            setPanel(null);
+            // THE CALL EXISTS EITHER WAY; what is in doubt is the request
+            // (D-031). Said, with the UCN, so it is mapped rather than
+            // registered a second time.
+            setMsg(backfillError
+              ? { tone: 'error', text: `Registered as ${ucn}, but the request could NOT be marked Registered (${backfillError}). `
+                  + `It is still listed as pending — map it to ${ucn} so it is not registered twice.` }
+              : { tone: 'ok', text: `Registered as ${ucn} — UCN back-filled into the request.` });
+            void load();
+          }}
         />
       )}
     </div>
@@ -765,7 +784,7 @@ function RegisterPanel({
   prefill: FormValues;
   config: CallSheetConfig;
   onClose: () => void;
-  onDone: (ucn: string) => void;
+  onDone: (ucn: string, backfillError?: string) => void;
 }) {
   const [pf, setPf] = useState<FormValues>(prefill);
   const [pfKey, setPfKey] = useState(0);
@@ -791,8 +810,17 @@ function RegisterPanel({
       const res = await addFieldCall(rec, config.tab);
       if (!res.ok) { setErr(res.error ?? 'Registration failed.'); setBusy(false); return; }
       const rowNum = Number((row as { _row?: number })._row ?? row.id);
-      if (rowNum && res.ucn) { try { await setPendingUcn(rowNum, String(res.ucn)); } catch { /* UCN back-fill best-effort */ } }
-      onDone(String(res.ucn));
+      // NOT BEST-EFFORT ANY MORE (D-031): a swallowed failure left the request
+      // Pending beside the call made from it. The call is registered whatever
+      // happens here, so a failure is handed up to be said, not thrown.
+      let backfill = '';
+      if (rowNum && res.ucn) {
+        try {
+          const b = await setPendingUcn(rowNum, String(res.ucn));
+          if (!b.ok) backfill = b.error || 'the request could not be updated';
+        } catch (e) { backfill = e instanceof Error ? e.message : String(e); }
+      }
+      onDone(String(res.ucn), backfill || undefined);
     } catch (e) {
       setErr(`Registration failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setBusy(false); }

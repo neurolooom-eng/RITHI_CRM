@@ -117,13 +117,16 @@ export function FeedbackWithoutReport() {
     const name = `feedback-without-a-report-${stamp}`;
     const scope = [gap ? `finding: ${gap}` : '', q.trim() ? `search: ${q.trim()}` : '']
       .filter(Boolean).join(' · ') || 'every row';
+    // Audited only once the file was WRITTEN (D-018): refused, cancelled or
+    // closed with nothing taken is not a download.
+    let written: Promise<boolean>;
     if (kind === 'csv') {
       // A DOWNLOAD IS NOT THE WIRE: a CSV can only carry text, so the dates go
       // out as dd-MMM-yyyy HH:mm:ss rather than the ISO string the API sent.
-      csvExport(`${name}.csv`, EXPORT,
+      written = csvExport(`${name}.csv`, EXPORT,
         visible.map((r) => Object.fromEntries(EXPORT.map((c) => [c.key, xlsxText(r[c.key])]))), COMPLETE);
     } else {
-      xlsxDownload(`${name}.xlsx`, [
+      written = xlsxDownload(`${name}.xlsx`, [
         { name: 'Feedback Without a Report',
           columns: EXPORT.map((c) => c.header),
           rows: visible.map((r) => Object.fromEntries(EXPORT.map((c) => [c.header, xlsxCell(r[c.key])]))) },
@@ -148,7 +151,7 @@ export function FeedbackWithoutReport() {
           ] },
       ], COMPLETE);
     }
-    logAudit({ action: 'report.feedback_without_report', meta: { rows: visible.length, scope, kind } });
+    void written.then((ok) => { if (ok) logAudit({ action: 'report.feedback_without_report', meta: { rows: visible.length, scope, kind } }); });
   };
 
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);

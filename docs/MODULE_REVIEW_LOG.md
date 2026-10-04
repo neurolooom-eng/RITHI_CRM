@@ -161,6 +161,22 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-10-04 — Review batch 6: eleven defects fixed (v0.10.92, 0370–0373)
+- **Your ask:** *"D107, I don't have clarity. Park it. Move to the next batch"*. D-107 is recorded as parked. D-102 waits on your reading of `_d102_calls_mapped_by_call_number.sql`.
+- **Database:**
+  - **D-108, D-116 (0370):** `record_indoor_visit()` is revoked from signed-in users; the visit column comments are corrected.
+  - **D-086 (0371):** a list value is deleted only with the list's delete key or `masters.edit`. 0121's mirror is updated with it.
+  - **D-059 (0372):** a User Master entry with a profile or R&R history is not deleted.
+  - **D-050 (0373):** a transfer or return is not dated into a closed period or the future.
+- **Screens** (a helper agent did these; I reviewed them):
+  - **D-018, D-065:** one export permission for CSV, .xlsx and .xls; audits only when a file left; Data Export gated, ordered and honest about its cap.
+  - **D-031:** Pending Registrations' map and cancel are counted; mapping to no call is refused; the back-fill failure is shown.
+  - **D-032:** only a network failure saves a call locally.
+  - **D-040 (4):** the call history reads say when they failed.
+  - **D-105:** Renew and Convert are keyed by product + serial.
+  - **D-099 follow-up:** unsaved machine lines survive a re-read.
+- **Checked:** `review_batch_6_test` is clean with 0370–0373. On a database built without them, every section fails. `indoor_stages_test` and `indoor_delete_job_test` were updated for the revoke. `_status.sql` rows 308–311; OQ-253. Not run in a browser.
+
 ### 2026-10-04 — Review batch 5: ten defects fixed (v0.10.91, 0366–0368)
 - **Your ask:** *"Next batch"*. I took the open defects that need no decision.
 - **Database:**

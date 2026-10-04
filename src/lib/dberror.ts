@@ -110,6 +110,39 @@ export function isRefused(e: unknown): boolean {
   return /row-level security|permission denied|does not have permission|42501/i.test(m);
 }
 
+/** THE REQUEST NEVER REACHED THE DATABASE — no connection, the browser
+ *  offline, DNS, a refused socket (D-032). The ONE case where keeping a record
+ *  on this device to send later is right: nothing was decided about it.
+ *
+ *  Everything else is an ANSWER and must be shown as one. A row-level-security
+ *  refusal, a constraint, a trigger's "not allowed" — keeping that call on the
+ *  device and re-sending it later only repeats the refusal, under a placeholder
+ *  UCN that read as the call's number. So the test is narrow on purpose:
+ *    * anything carrying a Postgres / PostgREST `code` is the database
+ *      speaking — never offline;
+ *    * an HTTP status above 0 is a server that answered — never offline;
+ *    * postgrest-js reports a failed fetch as status 0, code '' and a message
+ *      `TypeError: Failed to fetch` (Chrome), `NetworkError when attempting to
+ *      fetch resource.` (Firefox) or `Load failed` (Safari); a thrown
+ *      TypeError is the same failure before the client wrapped it; and the
+ *      Apps Script bridge rejects with "(network or deployment access)".
+ *  An ABORT is deliberately NOT here: a request cut off by a timeout may have
+ *  been written before it was cut, and sending it again would register the
+ *  call twice. */
+export function isNetworkFailure(e: unknown, status?: number): boolean {
+  if (e == null) return false;
+  const code = typeof e === 'object' ? String((e as { code?: unknown }).code ?? '') : '';
+  if (code) return false;
+  if (typeof status === 'number' && status > 0) return false;
+  const m = errText(e);
+  if (/AbortError|aborted/i.test(m)) return false;
+  if (e instanceof TypeError) return true;
+  if (/Failed to fetch|NetworkError|Load failed|fetch failed|network|ERR_INTERNET_DISCONNECTED|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT/i.test(m)) return true;
+  // The browser says it is offline and nothing above says the server spoke.
+  try { if (typeof navigator !== 'undefined' && navigator.onLine === false) return true; } catch { /* no navigator */ }
+  return false;
+}
+
 /** The database GAVE UP on the statement. Not a missing anything and not a
  *  permission: the read was too big for the ceiling, which on Supabase is eight
  *  seconds for an `authenticated` statement.

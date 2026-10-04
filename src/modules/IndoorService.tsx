@@ -316,8 +316,9 @@ export function IndoorService() {
   ], [mayWork, dcStatus]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const downloadRegister = () => {
-    // REFUSED HERE AS csvExport REFUSES: xlsxDownload does not test the export
-    // permission itself (D-018), so the screen must.
+    // REFUSED HERE AS WELL AS IN THE WRITER: xlsxDownload asks `export.data`
+    // itself now (D-018), and this keeps the refusal on the page as a message
+    // rather than only an alert. The audit waits for the file to be written.
     if (!mayExport || !canExportData()) { setMsg('Exporting / downloading data is not permitted for your role.'); return; }
     const sheets = (['customer', 'demo'] as RegisterSheet[]).map((k) => ({
       name: REGISTER_SHEETS[k].xlsxName,
@@ -331,7 +332,7 @@ export function IndoorService() {
     }));
     const range = from || to ? `${from || '…'}_to_${to || '…'}` : 'all';
     // EXACT: listIndoorJobs reads every job, a page at a time (D-040).
-    xlsxDownload(`R-SER-07-indoor-register-${range}.xlsx`, [
+    void xlsxDownload(`R-SER-07-indoor-register-${range}.xlsx`, [
       ...sheets,
       { name: 'About', columns: ['Item', 'Value'], rows: [
         { Item: 'Record', Value: 'R/SER/07 INDOOR SERVICE EQUIPMENT FAILURE REGISTER' },
@@ -341,9 +342,10 @@ export function IndoorService() {
         { Item: 'Rows', Value: String(sheets.reduce((n, x) => n + x.rows.length, 0)) },
         { Item: 'Taken', Value: formatDayTime(new Date().toISOString()) },
       ] },
-    ], COMPLETE);
-    logAudit({ action: 'indoor.register_download', status: 'ok',
-      meta: { rows: sheets.map((x) => x.rows.length), from, to, format: 'xlsx' } });
+    ], COMPLETE).then((ok) => {
+      if (ok) logAudit({ action: 'indoor.register_download', status: 'ok',
+        meta: { rows: sheets.map((x) => x.rows.length), from, to, format: 'xlsx' } });
+    });
   };
   const printRegister = () => {
     if (!mayExport || !canExportData()) { setMsg('Exporting / downloading data is not permitted for your role.'); return; }

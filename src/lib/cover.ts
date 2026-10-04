@@ -610,6 +610,18 @@ export function withSavedMachine(cur: Row[], before: Row, saved: Row): Row[] {
   return i < 0 ? [...cur, saved] : cur.map((x, j) => (j === i ? saved : x));
 }
 
+/** The entry's machines after a RE-READ, keeping every line not yet saved
+ *  (D-099 follow-up). Save entry re-reads the machines because every one
+ *  that inherits from the header moved — but a line added with + Add machine
+ *  is not in the database until its own Save machine, so the re-read dropped
+ *  it, and with it whatever had been typed into its card, without a word.
+ *  The re-read rows, then each unsaved line still on screen, in its order and
+ *  as the SAME object, so its card keeps what was typed. */
+export function keepUnsavedMachines(fresh: Row[], cur: Row[]): Row[] {
+  const unsaved = cur.filter((r) => r.id == null || r.id === '');
+  return unsaved.length ? [...fresh, ...unsaved] : fresh;
+}
+
 export async function deleteItem(kind: CoverKind, id: number): Promise<void> {
   const { error } = await client().from(configFor(kind).itemTable).delete().eq('id', id);
   if (error) throw err(error);
@@ -755,6 +767,33 @@ const str = (v: unknown) => (v == null ? '' : String(v));
 
 export { dayAfter, addPeriod };
 
+// ---------------------------------------------------------------------------
+// A MACHINE ON AN ENTRY IS ITS PRODUCT AND ITS SERIAL (CW-001, D-105).
+//
+// Renew and Convert keyed their ticks, their rates and the transferred-machine
+// check by the SERIAL alone, so two machines of different products sharing a
+// number on one entry ticked together, priced together, and a transfer of one
+// hid both. This is the database's own key — `machine_key`, generated as
+// lower(btrim(product)) || '|' || lower(btrim(serial)) on the cover tables —
+// written once here so the picker and the write agree with it and each other.
+// (machine.ts's machineKey squashes punctuation too, which is right for
+// MATCHING a typed model and would be wrong here: it is not the key the
+// database stores, and two lines it merged would still write as two.)
+// ---------------------------------------------------------------------------
+export const coverMachineKey = (it: Row): string =>
+  `${str(it.product_name).trim().toLowerCase()}|${str(it.serial_number).trim().toLowerCase()}`;
+/** How a machine line is named in a message: its serial, then its product. */
+export const coverMachineLabel = (it: Row): string =>
+  [str(it.serial_number).trim(), str(it.product_name).trim()].filter(Boolean).join(' ');
+/** The key of every machine on an entry that has a serial, once each. */
+const machineKeysOf = (items: Row[]): string[] =>
+  [...new Set(items.filter((i) => str(i.serial_number).trim()).map(coverMachineKey))];
+/** The label for a key, from the entry's own lines (the key itself if none). */
+const labelFor = (items: Row[], key: string): string => {
+  const it = items.find((i) => coverMachineKey(i) === key);
+  return it ? coverMachineLabel(it) : key;
+};
+
 export interface RenewalDraft {
   mc_number: string;
   contract_type: string;
@@ -762,8 +801,8 @@ export interface RenewalDraft {
   contract_end: string;
   contract_years: number | null;
   contract_months: number | null;
-  serials: string[];          // which machines carry over
-  // THE NEW RATE PER MACHINE, keyed by serial. A missing or empty entry means
+  machines: string[];         // which machines carry over, by coverMachineKey (D-105)
+  // THE NEW RATE PER MACHINE, keyed by coverMachineKey — product AND serial. A missing or empty entry means
   // "leave it blank", which is what every machine starts as and what the whole
   // renewal used to do — filling these in is the revision, and it is optional.
   // Held as the TYPED STRING rather than a number so a half-typed "12" is not
@@ -792,7 +831,7 @@ export function proposeRenewal(header: Row, items: Row[]): RenewalDraft {
     contract_months: months,
     // Every machine on the old contract, and the caller unticks what is not
     // being renewed — dropping one is the common case, adding one is not.
-    serials: items.map((i) => str(i.serial_number)).filter(Boolean),
+    machines: machineKeysOf(items),
     // EMPTY, and that is the default the renewal has always had: no price is
     // proposed. The old rate is shown beside the box as context, because that
     // is what anybody pricing a renewal is working from — but it is not put IN
@@ -831,7 +870,7 @@ export async function renewContract(
   if (d.contract_months == null || !(d.contract_months > 0)) {
     throw new Error('Give the new contract its Period (Months) — the end date is worked out from it.');
   }
-  if (!d.serials.length) throw new Error('Tick at least one machine to carry over.');
+  if (!d.machines.length) throw new Error('Tick at least one machine to carry over.');
 
   // EVERY RATE IS CHECKED BEFORE ANYTHING IS WRITTEN. The header goes in first
   // (see the note above), so a rate that turns out to be unreadable halfway
@@ -839,15 +878,15 @@ export async function renewContract(
   // and not others — and a contract that exists is much harder to walk back
   // than one that was refused. A blank is fine and means "price it later"; a
   // value that is not a number is not.
-  const rateFor = (serial: string): number | null => {
-    const raw = (d.rates ?? {})[serial];
+  const rateFor = (key: string): number | null => {
+    const raw = (d.rates ?? {})[key];
     if (raw == null || String(raw).trim() === '') return null;
     const n = Number(String(raw).trim());
-    if (!Number.isFinite(n)) throw new Error(`Rate for ${serial} is not a number: "${raw}"`);
-    if (n < 0) throw new Error(`Rate for ${serial} cannot be negative.`);
+    if (!Number.isFinite(n)) throw new Error(`Rate for ${labelFor(items, key)} is not a number: "${raw}"`);
+    if (n < 0) throw new Error(`Rate for ${labelFor(items, key)} cannot be negative.`);
     return n;
   };
-  for (const sn of d.serials) rateFor(sn);
+  for (const k of d.machines) rateFor(k);
 
   await saveHeader('contract', {
     mc_number: mc,
@@ -866,8 +905,8 @@ export async function renewContract(
     bill_generate_at: from.bill_generate_at ?? null,
   });
 
-  const keep = new Set(d.serials);
-  const carried = items.filter((i) => keep.has(str(i.serial_number)));
+  const keep = new Set(d.machines);
+  const carried = items.filter((i) => str(i.serial_number).trim() && keep.has(coverMachineKey(i)));
   let machines = 0;
   for (const it of carried) {
     await saveItem('contract', mc, {
@@ -894,7 +933,7 @@ export async function renewContract(
       // form uses. Restating "18%" here would be a second copy of the pricing
       // rule, and the two would part company the first time the rate changed.
       ...(() => {
-        const rate = rateFor(str(it.serial_number));
+        const rate = rateFor(coverMachineKey(it));
         return rate === null
           ? { rate: null, item_tax_amount: null, total_after_tax: null }
           : { rate, item_tax_amount: itemTaxAmount(rate), total_after_tax: totalAfterTax(rate) };
@@ -937,7 +976,8 @@ export interface ConversionDraft {
   pm_visits_total: number | null;
   payment_schedule: string;
   bill_generate_at: string;
-  serials: string[];
+  /** Ticked machines and their rates, by coverMachineKey (D-105). */
+  machines: string[];
   rates: Record<string, string>;
 }
 
@@ -959,7 +999,7 @@ export function proposeConversion(sale: Row, items: Row[]): ConversionDraft {
     bill_generate_at: '',
     // Every machine with a serial, ticked to start with; one without a serial
     // is not a machine a contract can cover.
-    serials: items.map((i) => str(i.serial_number)).filter(Boolean),
+    machines: machineKeysOf(items),
     rates: {},
   };
 }
@@ -1011,7 +1051,9 @@ export async function contractsFromSale(sa: string): Promise<string[]> {
   return [...new Set((data ?? []).map((r) => str((r as Row).mc_number)).filter(Boolean))];
 }
 
-/** The machines of a sale that are now with a DIFFERENT customer, by serial,
+/** The machines of a sale that are now with a DIFFERENT customer, by
+ *  coverMachineKey — product AND serial (D-105): keyed by the serial alone, a
+ *  transfer of one machine hid every machine on the sale sharing its number —
  *  each with the customer who has it. Asked of machine_current_party() — the
  *  database's own rule (latest dated sale or transfer) — a few machines at a
  *  time. A failed read THROWS: a list that could not be checked must not be
@@ -1024,8 +1066,8 @@ export async function machinesWithAnotherCustomer(sale: Row, items: Row[]): Prom
       const { data, error } = await client().rpc('machine_current_party', {
         p_item_name: str(it.product_name), p_serial: str(it.serial_number),
       });
-      if (error) throw new Error(`Could not check who has ${str(it.serial_number)}: ${error.message}`);
-      if (withAnotherCustomer(sale.party_name, data)) away.set(str(it.serial_number), str(data).trim());
+      if (error) throw new Error(`Could not check who has ${coverMachineLabel(it)}: ${error.message}`);
+      if (withAnotherCustomer(sale.party_name, data)) away.set(coverMachineKey(it), str(data).trim());
     }));
   }
   return away;
@@ -1042,35 +1084,35 @@ export async function convertWarrantyToContract(
   const header = conversionHeader(sale, d);
   const missing = missingRequired(CONTRACT.headerFields, header);
   if (missing.length) throw new Error(`Fill in ${missing.join(', ')} — ${missing.length === 1 ? 'it is' : 'they are'} required on a contract.`);
-  if (!d.serials.length) throw new Error('Tick at least one machine to put on the contract.');
+  if (!d.machines.length) throw new Error('Tick at least one machine to put on the contract.');
   // ASKED AGAIN AT THE WRITE, not only when the panel opened: a transfer
   // recorded meanwhile, or a draft that never went through the panel, must not
   // put another customer's machine on this customer's contract.
-  const ticked = new Set(d.serials);
-  const away = await machinesWithAnotherCustomer(sale, items.filter((i) => ticked.has(str(i.serial_number))));
+  const ticked = new Set(d.machines);
+  const away = await machinesWithAnotherCustomer(sale, items.filter((i) => ticked.has(coverMachineKey(i))));
   if (away.size) {
-    throw new Error(`${[...away.keys()].join(', ')}: ${TRANSFERRED_AWAY} — untick ${away.size === 1 ? 'it' : 'them'}; `
+    throw new Error(`${[...away.keys()].map((k) => labelFor(items, k)).join(', ')}: ${TRANSFERRED_AWAY} — untick ${away.size === 1 ? 'it' : 'them'}; `
       + `${away.size === 1 ? 'it is' : 'they are'} not ${str(sale.party_name) || 'this customer'}'s to put on a contract.`);
   }
   if (await contractNumberExists(mc)) {
     throw new Error(`MC Number ${mc} already exists. Converting into it would merge two contracts.`);
   }
   // Every rate checked before anything is written, as on a renewal.
-  const rateFor = (serial: string): number | null => {
-    const raw = (d.rates ?? {})[serial];
+  const rateFor = (key: string): number | null => {
+    const raw = (d.rates ?? {})[key];
     if (raw == null || String(raw).trim() === '') return null;
     const n = Number(String(raw).trim());
-    if (!Number.isFinite(n)) throw new Error(`Rate for ${serial} is not a number: "${raw}"`);
-    if (n < 0) throw new Error(`Rate for ${serial} cannot be negative.`);
+    if (!Number.isFinite(n)) throw new Error(`Rate for ${labelFor(items, key)} is not a number: "${raw}"`);
+    if (n < 0) throw new Error(`Rate for ${labelFor(items, key)} cannot be negative.`);
     return n;
   };
-  for (const sn of d.serials) rateFor(sn);
+  for (const k of d.machines) rateFor(k);
 
   await saveHeader('contract', header);
-  const keep = new Set(d.serials);
+  const keep = new Set(d.machines);
   let machines = 0;
-  for (const it of items.filter((i) => keep.has(str(i.serial_number)))) {
-    const rate = rateFor(str(it.serial_number));
+  for (const it of items.filter((i) => str(i.serial_number).trim() && keep.has(coverMachineKey(i)))) {
+    const rate = rateFor(coverMachineKey(it));
     await saveItem('contract', mc, {
       ...conversionItem(sale, it),
       ...(rate === null

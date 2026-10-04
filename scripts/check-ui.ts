@@ -2777,7 +2777,8 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
                      { product_code: 'V1', product_name: 'VEGA', serial_number: '' }];
       const d = proposeConversion(sale, items);
       eq('a conversion starts the day after the warranty ends', d.contract_start, '2026-04-01');
-      eq('...ticks every machine with a serial', d.serials, ['S1']);
+      // By MACHINE — product and serial, the database's machine_key (D-105).
+      eq('...ticks every machine with a serial', d.machines, ['vega|s1']);
       eq('...and guesses no contract type', d.contract_type, '');
       const h = conversionHeader(sale, { ...d, contract_months: 12 });
       eq('the party is carried', h.party_name, 'APOLLO');
@@ -9054,14 +9055,16 @@ console.log('\n-- a download from a half-loaded table says so --');
   // needle is -1, and -1 is less than everything. The first version of this
   // line said exactly that, and deleting the guard from csvExport left it
   // green — caught by mutating it, which is the only way that shape ever is.
+  // The question is asked through `exportAllowed` now (D-018), which asks
+  // the permission first and then `mayExport`; the same test, one name over.
   eq('csvExport asks before it builds the file',
-    fmt.includes('mayExport(scope') && fmt.indexOf('mayExport(scope') < fmt.indexOf('new Blob('), true);
+    fmt.includes('exportAllowed(scope') && fmt.indexOf('exportAllowed(scope') < fmt.indexOf('new Blob('), true);
   const xl = readFileSync('src/lib/xlsx.ts', 'utf8');
   eq('xlsxDownload asks before it builds the workbook',
-    /if \(!mayExport\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return;/.test(xl), true);
+    /if \(!exportAllowed\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return Promise\.resolve\(false\);/.test(xl), true);
   const x3 = readFileSync('src/lib/xls.ts', 'utf8');
   eq('...and so does the .xls writer',
-    /if \(!mayExport\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return;/.test(x3), true);
+    /if \(!exportAllowed\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return Promise\.resolve\(false\);/.test(x3), true);
 }
 
 console.log('\n-- the DCCR mirror is the same register, not a second opinion --');
@@ -10262,6 +10265,167 @@ console.log('\n-- the cover pop-up and the additional entry (D-099, D-100, D-106
   const ot = code(readFileSync('src/modules/OwnershipTransfer.tsx', 'utf8'));
   eq('...and the form asks for the model, from the Product Database, before the serial',
     /label="Machine model \*"/.test(ot) && /sbListProductNames\(\)/.test(ot) && /sbListProductSerials\(entryModel\)/.test(ot), true);
+}
+
+console.log('\n-- six recorded defects: D-018/D-065, D-031, D-032, D-040, D-105, D-099 (2026-10-04) --');
+{
+  // ---- D-018 / D-065: ONE export gate, in every writer, and an honest answer
+  // AS BEHAVIOUR: the three writers are run with the permission off and on,
+  // and a stand-in chooser records what reached it.
+  const xs = await import('../src/lib/exportscope');
+  const { xlsxDownload: xlsxW } = await import('../src/lib/xlsx');
+  const { xlsDownload: xlsW } = await import('../src/lib/xls');
+  const fmtM = await import('../src/lib/format');
+  const sheet = [{ name: 'S', columns: ['A'], rows: [{ A: 1 }] }];
+  const reached: string[] = [];
+  xs.setExportChooser((job) => { reached.push(job.filename); job.settle?.(true); });
+  fmtM.setCanExport(false);   // set through format.tsx, as auth.tsx does
+  eq('D-018: one flag — format.tsx sets the one the writers read', xs.canExportData(), false);
+  eq('D-018: a role refused export.data is refused the .xlsx', await xlsxW('a.xlsx', sheet, COMPLETE), false);
+  eq('...and the .xls', await xlsW('a.xls', sheet, COMPLETE), false);
+  eq('...and the CSV, as before', await fmtM.csvExport('a.csv', [{ key: 'A', header: 'A' }], [{ A: 1 }], COMPLETE), false);
+  eq('...and nothing reached the chooser', reached, []);
+  eq('...refused BEFORE the partial-load question is put',
+    xs.exportAllowed(partial(true), 5, () => { throw new Error('asked'); }), false);
+  fmtM.setCanExport(true);
+  eq('a permitted export is handed over and reports it was written',
+    await xlsxW('b.xlsx', sheet, COMPLETE), true);
+  eq('...a Cancel on the partial-load question writes nothing', xs.exportAllowed(partial(true), 5, () => false), false);
+  xs.setExportChooser((job) => { job.settle?.(false); });
+  eq('...and a chooser closed with nothing taken reports false',
+    await fmtM.csvExport('c.csv', [{ key: 'A', header: 'A' }], [{ A: 1 }], COMPLETE), false);
+  xs.setExportChooser(null);
+  eq('...the chooser settles every job (download, close, replaced, unmounted)',
+    (() => { const c = code(readFileSync('src/components/ui/ExportChooser.tsx', 'utf8'));
+      return /const saveFile = \(\) => \{ job\.saveFile\(\); finish\(true\); \}/.test(c)
+        && /finish\(phase\.k === 'done'\)/.test(c) && /pending\.current\?\.settle\?\.\(false\)/.test(c); })(), true);
+  // THE AUDIT WAITS FOR THE FILE. For each screen that audits a download, the
+  // audit call must sit behind the writer's answer.
+  const gated: [string, string][] = [
+    ['ReportBuilder', 'action: `report.${spec.key}`'],
+    ['SolvedWithoutReport', "action: 'report.solved_without_report'"],
+    ['FeedbackWithoutReport', "action: 'report.feedback_without_report'"],
+    ['InstallCallsUnmapped', "action: 'report.install_calls_unmapped'"],
+    ['HandStockReport', "action: 'report.handstock'"],
+    ['KpiExport', "action: 'kpi.export'"],
+    ['UnusedSpareReport', "action: 'report.unused_spares'"],
+    ['Objective', "action: 'objective.evidence'"],
+    ['IndoorService', "action: 'indoor.register_download'"],
+    ['RolePermissions', "action: 'rbac.export'"],
+    ['ProductFailureAnalysis', "action: 'productfailure.download'"],
+    ['ProductFailureAnalysis', "action: 'productfailure.trend.download'"],
+    ['FieldFailureInsights', "action: 'ffr.trend.download'"],
+    ['FieldFailureInsights', "action: 'ffr.pareto.download'"],
+  ];
+  const ungated = gated.filter(([f, a]) => {
+    const src = code(readFileSync(`src/modules/${f}.tsx`, 'utf8'));
+    const at = src.indexOf(a);
+    // From the LAST writer call before the audit to the audit itself: the
+    // writer's answer must be tested in between.
+    const calls = [...src.slice(0, Math.max(0, at)).matchAll(/(csvExport|xlsxDownload|xlsDownload)\(/g)];
+    const from = calls.length ? calls[calls.length - 1].index! : -1;
+    return at < 0 || from < 0 || !/if \(!?ok\)|if \(!written\)/.test(src.slice(from, at));
+  }).map(([f, a]) => `${f}: ${a}`);
+  eq('D-018: every download audit waits for the file to be written', ungated, []);
+  // DATA EXPORT: the gate, the audit, the order and the cap.
+  const de = code(readFileSync('src/modules/DataExport.tsx', 'utf8'));
+  eq('D-065: Data Export asks export.data through the one flag, and audits what left',
+    /if \(!can\('export\.data'\) \|\| !canExportData\(\)\)/.test(de) && /logAudit\(\{ action: 'export\.tables'/.test(de)
+      && !/allRows</.test(de) && /readTableForExport</.test(de), true);
+  const te = await import('../src/lib/tableexport');
+  eq('D-065: a table is read by sys_id, the rest of its plain columns breaking ties',
+    te.exportOrderKeys({ name: 'x', id: 1, sys_id: 'u', data: { a: 1 }, 'Part (code|description)': 'p' }), ['sys_id', 'name', 'id']);
+  eq('...by id where there is no sys_id', te.exportOrderKeys({ name: 'x', id: 1 }), ['id', 'name']);
+  eq('...and by every orderable column where there is neither (the report views)',
+    te.exportOrderKeys({ 'Line ID': 1, 'UC Number': 'u', 'Part (code|description)': 'p' }), ['Line ID', 'UC Number']);
+  const table = Array.from({ length: 2500 }, (_, i) => ({ id: i, v: `r${i}` }));
+  const orders: string[][] = [];
+  const fake = (cap: number) => te.readTableForExport<Record<string, unknown>>(
+    () => Promise.resolve({ data: table.slice(0, 1), error: null }),
+    (order, a, b) => { orders.push(order); return Promise.resolve({ data: table.slice(a, b + 1), error: null }); }, cap);
+  const cut = await fake(2000);
+  eq('D-065: a table past the cap is SAID to be cut, holding exactly the cap',
+    [cut.capped, cut.rows.length], [true, 2000]);
+  const whole = await fake(2500);
+  eq('...a table of exactly the cap is not', [whole.capped, whole.rows.length], [false, 2500]);
+  eq('...and every page names its order', orders.every((o) => o[0] === 'id'), true);
+  eq('...and a failed page throws rather than handing back part of a table',
+    await te.readTableForExport(() => Promise.resolve({ data: [{ id: 1 }], error: null }),
+      () => Promise.resolve({ data: null, error: { message: 'refused' } })).then(() => 'returned', (e) => String(e.message)), 'refused');
+  // THE PARETO RAW SHEET: every key a row is built with is one of its columns.
+  const ffi = code(readFileSync('src/modules/FieldFailureInsights.tsx', 'utf8'));
+  const rs = ffi.slice(ffi.indexOf('const rawSheet = '), ffi.indexOf('const downloadPareto'));
+  const cols = [...(rs.match(/columns: \[([\s\S]*?)\]/)?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  const keys = [...rs.slice(rs.indexOf('rows: src.map')).matchAll(/^\s+(?:'([^']+)'|([A-Za-z]+)):/gm)].map((m) => m[1] ?? m[2]);
+  eq('D-018: the Pareto raw sheet lists every column its rows carry',
+    keys.length > 10 && keys.filter((k) => !cols.includes(k)), []);
+
+  // ---- D-031: a request is mapped only to a real call, and a refusal is said
+  const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+  const fn = (name: string) => { const i = sb.indexOf(`export async function ${name}(`); return sb.slice(i, sb.indexOf('\nexport ', i + 10)); };
+  eq('D-031: mapping and cancelling a request count the rows they changed',
+    ['setCallRequestUcn', 'cancelCallRequest'].map((n) => /\{ count: 'exact' \}/.test(fn(n)) && /count === 0 \? \{ ok: false/.test(fn(n))), [true, true]);
+  const pr = code(readFileSync('src/modules/PendingRegistrations.tsx', 'utf8'));
+  eq('...a UCN no call has is refused, not offered',
+    !/Map the request to it anyway/.test(pr) && /found = await callExists\(ucn\)/.test(pr) && /if \(!found\) \{/.test(pr), true);
+  eq('...and a failed back-fill is handed up and said, with the UCN',
+    !/best-effort/.test(pr) && /onDone\(String\(res\.ucn\), backfill \|\| undefined\)/.test(pr)
+      && /could NOT be marked Registered/.test(pr), true);
+  const fc = code(readFileSync('src/modules/FieldCalls.tsx', 'utf8'));
+  eq('...on the Field Call Register too', !/void setPendingUcn\(/.test(fc) && /await setPendingUcn\(pendingRow/.test(fc), true);
+
+  // ---- D-032: only an outage is kept on the device
+  const { isNetworkFailure } = await import('../src/lib/dberror');
+  eq('D-032: a fetch that never reached the server is an outage',
+    [isNetworkFailure({ message: 'TypeError: Failed to fetch', code: '' }, 0),
+     isNetworkFailure({ message: 'TypeError: NetworkError when attempting to fetch resource.', code: '' }, 0),
+     isNetworkFailure(new TypeError('Load failed')),
+     isNetworkFailure(new Error('Could not load from the sheet (network or deployment access).'))], [true, true, true, true]);
+  eq('...a refusal, a constraint, a trigger or an abort is not',
+    [isNetworkFailure({ message: 'new row violates row-level security policy for table "field_calls"', code: '42501' }, 403),
+     isNetworkFailure({ message: 'duplicate key value violates unique constraint', code: '23505' }, 409),
+     isNetworkFailure({ message: 'This customer is blocked', code: 'P0001' }, 400),
+     isNetworkFailure({ message: 'AbortError: signal is aborted without reason', code: '' }, 0),
+     isNetworkFailure(new Error('Your role does not have permission for this action.'))], [false, false, false, false, false]);
+  eq('...addCall says which it was, and the screen keeps only an outage',
+    /offline: isNetworkFailure\(error, status\)/.test(fn('addCall'))
+      && /if \(!res\.offline\) \{ refuseCreate\(/.test(fc) && /if \(!isNetworkFailure\(e\)\) \{ refuseCreate\(m\); return; \}/.test(fc), true);
+  eq('...and a call kept locally is said to be NOT registered, under a placeholder',
+    /NOT registered yet\. \$\{ucn\} is a temporary placeholder/.test(fc) && !/Saved locally as \$\{ucn\}/.test(fc), true);
+
+  // ---- D-040 (4): a failed read of a call's history throws, so the banner fires
+  eq('D-040: spares, consumption and feedback by call throw on a failed read',
+    ['spareRequestsByCall', 'spareConsumptionByCall', 'feedbackByCall', 'reportsByCall']
+      .map((n) => /if \(error\) throw new Error\(errMsg\(error\)\)/.test(fn(n)) && !/if \(error\) return \[\]/.test(fn(n))),
+    [true, true, true, true]);
+
+  // ---- D-105: a machine on a cover entry is its product AND its serial
+  const cv = await import('../src/lib/cover');
+  const two = [{ product_name: 'VEGA', serial_number: '219', rate: 100 },
+               { product_name: 'ORION-G', serial_number: '219', rate: 200 },
+               { product_name: 'VEGA', serial_number: '' }];
+  eq('D-105: two machines sharing a serial are two keys, the database\'s machine_key',
+    [cv.coverMachineKey(two[0]), cv.coverMachineKey({ product_name: ' Orion-G ', serial_number: ' 219 ' })], ['vega|219', 'orion-g|219']);
+  eq('...a renewal ticks them separately', cv.proposeRenewal({ contract_end: '2026-03-31', contract_months: 12 }, two).machines, ['vega|219', 'orion-g|219']);
+  eq('...and so does a conversion', cv.proposeConversion({ warranty_end: '2026-03-31' }, two).machines, ['vega|219', 'orion-g|219']);
+  const cvs = code(readFileSync('src/lib/cover.ts', 'utf8'));
+  const mwac = cvs.slice(cvs.indexOf('export async function machinesWithAnotherCustomer'), cvs.indexOf('export async function convertWarrantyToContract'));
+  eq('...the transferred-machine check keys by machine and asks with the product',
+    /away\.set\(coverMachineKey\(it\)/.test(mwac) && /p_item_name: str\(it\.product_name\)/.test(mwac), true);
+  const crx = code(readFileSync('src/modules/CoverRegister.tsx', 'utf8'));
+  eq('...and neither panel keys a tick, a rate or a transfer by the serial alone',
+    !/\.serials\b/.test(crx) && !/away\?\.has\(str\(i\.serial_number\)\)/.test(crx)
+      && !/rates\[sn\]/.test(crx) && /oldRate = new Map<string, unknown>\(\s*items\.map\(\(i\) => \[coverMachineKey\(i\), i\.rate\]\)/.test(crx), true);
+
+  // ---- D-099 follow-up: Save entry keeps a machine line not yet saved
+  const added = { sa_number: 'SA1' };
+  const kept2 = cv.keepUnsavedMachines([{ id: 1 }, { id: 2 }], [{ id: 1 }, added]);
+  eq('D-099: a re-read keeps an unsaved line, after the saved ones',
+    [kept2.length, kept2[2] === added], [3, true]);
+  eq('...and with none unsaved is the re-read itself', cv.keepUnsavedMachines([{ id: 1 }], [{ id: 1 }]), [{ id: 1 }]);
+  eq('...Save entry, Force update and Raise calls all keep them, and a card is keyed by its line',
+    (crx.match(/setItems\(\(cur\) => keepUnsavedMachines\(fresh, cur\)\)/g) ?? []).length === 3
+      && /<ItemCard key=\{lineKey\(it\)\}/.test(crx) && !/`new-\$\{i\}`/.test(crx), true);
 }
 
 console.log('\n-- every requirement carries a version and a date (Rev 3.2, 2026-10-03) --');

@@ -211,7 +211,7 @@ function ParetoBlock({
     const when = todayLocal();
     const scope = Object.entries(picked).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'the whole register';
     const name = title.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-    xlsxDownload(`product-failure-${name}-${when}.xlsx`, [
+    void xlsxDownload(`product-failure-${name}-${when}.xlsx`, [
       {
         name: 'Ranked',
         columns: rank
@@ -300,8 +300,11 @@ function ParetoBlock({
           { Item: 'Downloaded', Value: new Date().toISOString() },
         ],
       },
-    ], partial(more));
-    logAudit({ action: 'productfailure.download', target: title, meta: { rows: shown.length, total, scope } });
+    ], partial(more)).then((ok) => {
+      // Audited only once the file was WRITTEN (D-018).
+      if (!ok) return;
+      logAudit({ action: 'productfailure.download', target: title, meta: { rows: shown.length, total, scope } });
+    });
   };
 
   if (!rows.length) {
@@ -540,7 +543,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
     const when = todayLocal();
     const per = PERIODS.find((x) => x.key === period)!.label;
     let run = 0;
-    xlsxDownload(`product-failure-trend-${period}-${when}.xlsx`, [
+    void xlsxDownload(`product-failure-trend-${period}-${when}.xlsx`, [
       {
         name: 'Failures by period',
         columns: [per, 'Failures', 'Share', 'Running total'],
@@ -570,8 +573,11 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
           { Item: 'Downloaded', Value: new Date().toISOString() },
         ],
       },
-    ], partial(more));
-    logAudit({ action: 'productfailure.trend.download', target: period, meta: { total: trendTotal } });
+    ], partial(more)).then((ok) => {
+      // Audited only once the file was WRITTEN (D-018).
+      if (!ok) return;
+      logAudit({ action: 'productfailure.trend.download', target: period, meta: { total: trendTotal } });
+    });
   };
 
   const effects = countIf((r) => yes(s(r, 'any_potential_effect')));

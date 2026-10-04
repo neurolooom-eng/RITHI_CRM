@@ -22,11 +22,11 @@ import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from 
 import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
-  configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit, withSavedMachine,
+  configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit, withSavedMachine, keepUnsavedMachines,
   raiseInstallCalls, missingRequired, yearsHint, getHeader, countPendingSales,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   proposeConversion, conversionHeader, convertWarrantyToContract, contractsFromSale, suggestedContractPmVisits,
-  machinesWithAnotherCustomer, dealerParties, isDealerParty,
+  machinesWithAnotherCustomer, dealerParties, isDealerParty, coverMachineKey,
   CONTRACT, type ConversionDraft,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
@@ -390,22 +390,25 @@ function RenewPanel({ header, items, onDone, blocked }: {
       contract_end: addPeriod(startIso, 0, months ?? 0) || x.contract_end,
     }));
 
-  const toggle = (sn: string) => setD((x) => ({
+  // TICKED, PRICED AND LISTED BY MACHINE — product AND serial (D-105, CW-001):
+  // keyed by the serial alone, two machines sharing a number on one contract
+  // ticked and priced as one. `k` is coverMachineKey throughout this panel.
+  const toggle = (k: string) => setD((x) => ({
     ...x,
-    serials: x.serials.includes(sn) ? x.serials.filter((s) => s !== sn) : [...x.serials, sn],
+    machines: x.machines.includes(k) ? x.machines.filter((m) => m !== k) : [...x.machines, k],
   }));
 
   // ---- the price revision ------------------------------------------------
   const [pct, setPct] = useState('');
 
-  // What each machine was on last time, by serial. CONTEXT for whoever is
+  // What each machine was on last time, by machine. CONTEXT for whoever is
   // pricing — it is never written anywhere.
   const oldRate = new Map<string, unknown>(
-    items.map((i) => [str(i.serial_number), i.rate]),
+    items.map((i) => [coverMachineKey(i), i.rate]),
   );
 
-  const setRate = (sn: string, v: string) =>
-    setD((x) => ({ ...x, rates: { ...x.rates, [sn]: v } }));
+  const setRate = (k: string, v: string) =>
+    setD((x) => ({ ...x, rates: { ...x.rates, [k]: v } }));
 
   // FILL THE TICKED MACHINES FROM THEIR OWN OLD RATES. Only the ticked ones:
   // an unticked machine is not being renewed, and pricing it would be writing
@@ -415,11 +418,11 @@ function RenewPanel({ header, items, onDone, blocked }: {
     if (pct.trim() === '' || !Number.isFinite(p)) return;
     setD((x) => {
       const next = { ...x.rates };
-      for (const sn of x.serials) {
-        const up = upliftRate(oldRate.get(sn), p);
+      for (const k of x.machines) {
+        const up = upliftRate(oldRate.get(k), p);
         // A machine with no old rate is left alone rather than set to 0 — "we
         // do not know what this was on" is not "it was free".
-        if (up !== null) next[sn] = String(up);
+        if (up !== null) next[k] = String(up);
       }
       return { ...x, rates: next };
     });
@@ -429,17 +432,17 @@ function RenewPanel({ header, items, onDone, blocked }: {
 
   // What the panel is about to write, through the SAME functions that will
   // write it — so the preview cannot disagree with the saved row.
-  const priced = d.serials
-    .map((sn) => {
-      const raw = (d.rates[sn] ?? '').trim();
+  const priced = d.machines
+    .map((k) => {
+      const raw = (d.rates[k] ?? '').trim();
       if (raw === '') return null;
       const n = Number(raw);
       return Number.isFinite(n) && n >= 0 ? n : null;
     })
     .filter((n): n is number => n !== null);
   const newTotal = priced.reduce((t, r) => t + (totalAfterTax(r) ?? 0), 0);
-  const badRate = d.serials.some((sn) => {
-    const raw = (d.rates[sn] ?? '').trim();
+  const badRate = d.machines.some((k) => {
+    const raw = (d.rates[k] ?? '').trim();
     if (raw === '') return false;
     const n = Number(raw);
     return !Number.isFinite(n) || n < 0;
@@ -456,7 +459,9 @@ function RenewPanel({ header, items, onDone, blocked }: {
     } finally { setBusy(false); }
   };
 
-  const serials = items.map((i) => str(i.serial_number)).filter(Boolean);
+  // One row per MACHINE with a serial, in the contract's own order.
+  const lines = items.filter((i, n) => str(i.serial_number).trim()
+    && items.findIndex((j) => coverMachineKey(j) === coverMachineKey(i)) === n);
 
   return (
     <div className="rep-sec" style={{ marginTop: 14 }}>
@@ -506,7 +511,7 @@ function RenewPanel({ header, items, onDone, blocked }: {
       </div>
 
       <div className="field-label" style={{ marginTop: 10 }}>
-        Machines and rates ({d.serials.length} of {serials.length} carrying over)
+        Machines and rates ({d.machines.length} of {lines.length} carrying over)
       </div>
       <div className="muted" style={{ fontSize: 12.5 }}>
         Untick a machine that is not being renewed. <b>Was</b> is what it was charged on{' '}
@@ -532,19 +537,20 @@ function RenewPanel({ header, items, onDone, blocked }: {
       </div>
 
       <div style={{ maxHeight: 260, overflowY: 'auto', marginTop: 8 }}>
-        {serials.map((sn) => {
-          const it = items.find((x) => str(x.serial_number) === sn);
-          const on = d.serials.includes(sn);
-          const was = oldRate.get(sn);
+        {lines.map((it) => {
+          const k = coverMachineKey(it);
+          const sn = str(it.serial_number);
+          const on = d.machines.includes(k);
+          const was = oldRate.get(k);
           const wasN = was == null || was === '' ? null : Number(was);
-          const raw = (d.rates[sn] ?? '').trim();
+          const raw = (d.rates[k] ?? '').trim();
           const n = raw === '' ? null : Number(raw);
           const ok = n !== null && Number.isFinite(n) && n >= 0;
           return (
-            <div key={sn} className="renew-row" style={{ opacity: on ? 1 : 0.5 }}>
-              <input type="checkbox" checked={on} onChange={() => toggle(sn)} />
+            <div key={k} className="renew-row" style={{ opacity: on ? 1 : 0.5 }}>
+              <input type="checkbox" checked={on} onChange={() => toggle(k)} />
               <span className="renew-name">
-                <b>{sn}</b> <span className="muted">{str(it?.product_name)}</span>
+                <b>{sn}</b> <span className="muted">{str(it.product_name)}</span>
               </span>
               <span className="renew-money">
                 <span className="muted renew-was">
@@ -552,7 +558,7 @@ function RenewPanel({ header, items, onDone, blocked }: {
                 </span>
                 <input className="input renew-rate" type="number" min={0} step="0.01"
                        placeholder="new rate" disabled={!on}
-                       value={d.rates[sn] ?? ''} onChange={(e) => setRate(sn, e.target.value)} />
+                       value={d.rates[k] ?? ''} onChange={(e) => setRate(k, e.target.value)} />
                 {/* WHAT WILL ACTUALLY BE WRITTEN, next to the number being
                     typed: the rate goes in, but the contract bills the total. */}
                 <span className="muted renew-tot">
@@ -563,7 +569,7 @@ function RenewPanel({ header, items, onDone, blocked }: {
             </div>
           );
         })}
-        {!serials.length && <div className="muted" style={{ fontSize: 12.5 }}>This contract has no machines on it.</div>}
+        {!lines.length && <div className="muted" style={{ fontSize: 12.5 }}>This contract has no machines on it.</div>}
       </div>
 
       {/* The contract's own total, so a rate typed with a digit too many shows
@@ -571,7 +577,7 @@ function RenewPanel({ header, items, onDone, blocked }: {
       {priced.length > 0 && (
         <div className="row" style={{ gap: 8, marginTop: 8, fontSize: 13 }}>
           <span className="muted">
-            {priced.length} of {d.serials.length} priced · rate {money(priced.reduce((t, r) => t + r, 0))}
+            {priced.length} of {d.machines.length} priced · rate {money(priced.reduce((t, r) => t + r, 0))}
             {' '}· tax {money(priced.reduce((t, r) => t + (itemTaxAmount(r) ?? 0), 0))}
           </span>
           <span><b>Total after tax {money(newTotal)}</b></span>
@@ -634,7 +640,7 @@ function ConvertPanel({ sale, items, onDone, onCancel, blocked }: {
       .then((m) => {
         if (!live) return;
         setAway(m);
-        setD((x) => ({ ...x, serials: x.serials.filter((sn) => !m.has(sn)) }));
+        setD((x) => ({ ...x, machines: x.machines.filter((k) => !m.has(k)) }));
       })
       .catch((e) => { if (live) setAwayErr(e instanceof Error ? e.message : String(e)); });
     return () => { live = false; };
@@ -654,11 +660,13 @@ function ConvertPanel({ sale, items, onDone, onCancel, blocked }: {
   const header = conversionHeader(sale, d);
   const opt = (name: string) => CONTRACT.headerFields.find((f) => f.name === name)?.options?.filter(Boolean) ?? [];
   const withSerial = items.filter((i) => str(i.serial_number));
-  const machines = withSerial.filter((i) => !away?.has(str(i.serial_number)));
-  const transferred = withSerial.filter((i) => away?.has(str(i.serial_number)));
+  // BY MACHINE, product AND serial (D-105): a transfer of one machine no
+  // longer hides every machine on the sale that shares its number.
+  const machines = withSerial.filter((i) => !away?.has(coverMachineKey(i)));
+  const transferred = withSerial.filter((i) => away?.has(coverMachineKey(i)));
   const checking = away === null && !awayErr;
-  const toggle = (sn: string) => setD((x) => ({
-    ...x, serials: x.serials.includes(sn) ? x.serials.filter((s) => s !== sn) : [...x.serials, sn],
+  const toggle = (k: string) => setD((x) => ({
+    ...x, machines: x.machines.includes(k) ? x.machines.filter((m) => m !== k) : [...x.machines, k],
   }));
 
   const go = async () => {
@@ -732,27 +740,28 @@ function ConvertPanel({ sale, items, onDone, onCancel, blocked }: {
       </div>
 
       <div className="field-label" style={{ marginTop: 10 }}>
-        Products ({d.serials.length} of {machines.length} going onto the contract)
+        Products ({d.machines.length} of {machines.length} going onto the contract)
       </div>
       <div className="muted" style={{ fontSize: 12.5 }}>
         Untick a machine that is not being covered. A rate is optional — leave it blank to price the contract later.
       </div>
       <div style={{ maxHeight: 260, overflowY: 'auto', marginTop: 8 }}>
-        {machines.map((it) => {
+        {machines.map((it, n0) => {
+          const k = coverMachineKey(it);
           const sn = str(it.serial_number);
-          const on = d.serials.includes(sn);
-          const raw = (d.rates[sn] ?? '').trim();
+          const on = d.machines.includes(k);
+          const raw = (d.rates[k] ?? '').trim();
           const n = raw === '' ? null : Number(raw);
           return (
-            <div key={sn} className="renew-row" style={{ opacity: on ? 1 : 0.5 }}>
-              <input type="checkbox" checked={on} onChange={() => toggle(sn)} />
+            <div key={`${k}#${n0}`} className="renew-row" style={{ opacity: on ? 1 : 0.5 }}>
+              <input type="checkbox" checked={on} onChange={() => toggle(k)} />
               <span className="renew-name">
                 <b>{sn}</b> <span className="muted">{str(it.product_name)}{str(it.product_code) && ` · ${str(it.product_code)}`}</span>
               </span>
               <span className="renew-money">
                 <span className="muted renew-was">warranty to {fmtDate(it.warranty_end || sale.warranty_end) || '—'}</span>
                 <input className="input renew-rate" type="number" min={0} step="0.01" placeholder="rate" disabled={!on}
-                       value={d.rates[sn] ?? ''} onChange={(e) => setD((x) => ({ ...x, rates: { ...x.rates, [sn]: e.target.value } }))} />
+                       value={d.rates[k] ?? ''} onChange={(e) => setD((x) => ({ ...x, rates: { ...x.rates, [k]: e.target.value } }))} />
                 <span className="muted renew-tot">
                   {!on ? '' : n !== null && Number.isFinite(n) && n >= 0 ? `+GST = ${(totalAfterTax(n) ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
                     : raw === '' ? 'price later' : 'not a rate'}
@@ -773,12 +782,12 @@ function ConvertPanel({ sale, items, onDone, onCancel, blocked }: {
       {transferred.length > 0 && (
         <div className="sheet-banner sheet-banner-info" style={{ marginTop: 8, display: 'block' }}>
           <b>Not offered ({transferred.length}):</b>
-          {transferred.map((it) => {
-            const sn = str(it.serial_number);
+          {transferred.map((it, n0) => {
+            const k = coverMachineKey(it);
             return (
-              <div key={`away-${sn}`} style={{ fontSize: 12.5, marginTop: 4 }}>
-                <b>{sn}</b> <span className="muted">{str(it.product_name)}</span> — {TRANSFERRED_AWAY}
-                {away?.get(sn) ? <span className="muted"> (now with {away.get(sn)})</span> : null}.
+              <div key={`away-${k}#${n0}`} style={{ fontSize: 12.5, marginTop: 4 }}>
+                <b>{str(it.serial_number)}</b> <span className="muted">{str(it.product_name)}</span> — {TRANSFERRED_AWAY}
+                {away?.get(k) ? <span className="muted"> (now with {away.get(k)})</span> : null}.
               </div>
             );
           })}
@@ -1139,7 +1148,10 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       setOpen(saved); setDraft(saved);
       setFeed('entries', { rows: feeds.entries.rows.map((r) => (r.id === saved.id ? { ...r, ...saved } : r)) });
       // The header moved, so every machine that inherits from it moved too.
-      setItems(await listItems(kind, str(saved[cfg.key])));
+      // A machine added and not yet saved is KEPT (D-099): it is not in the
+      // database, so the re-read alone would drop it and what was typed into it.
+      const fresh = await listItems(kind, str(saved[cfg.key]));
+      setItems((cur) => keepUnsavedMachines(fresh, cur));
       setMsg({ tone: 'ok', text: `${cfg.keyLabel} ${str(saved[cfg.key])} saved — machines following it were updated.` });
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
     finally { setSaving(false); }
@@ -1168,7 +1180,8 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     setSaving(true);
     try {
       const n = await forceInherit(kind, str(draft[cfg.key]));
-      setItems(await listItems(kind, str(draft[cfg.key])));
+      const fresh = await listItems(kind, str(draft[cfg.key]));
+      setItems((cur) => keepUnsavedMachines(fresh, cur));
       setMsg({ tone: 'ok', text: `${n} machine(s) now follow ${str(draft[cfg.key])} — ${p.total} pinned value(s) cleared.` });
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
     finally { setSaving(false); }
@@ -1208,7 +1221,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     try {
       const r = await raiseInstallCalls(draft, items, (d, t) => setMsg({ tone: 'info', text: `Raising ${d} of ${t}…` }));
       const fresh = await listItems(kind, str(draft[cfg.key]));
-      setItems(fresh);
+      setItems((cur) => keepUnsavedMachines(fresh, cur));
       // The sale's count on the Entries list moves with it, rather than
       // reading the old number until the next sync.
       const left = machinesNeedingInstallCall(fresh as never).length;
@@ -1442,6 +1455,18 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // product list, so the list is scrolled to it -- otherwise the button
   // appears to do nothing on a contract with twenty machines.
   const productsRef = useRef<HTMLDivElement>(null);
+  // AN UNSAVED LINE'S CARD KEEPS ITS IDENTITY (D-099 follow-up). It was keyed
+  // by its POSITION (`new-<index>`), so a re-read that put one more or one
+  // fewer saved machine ahead of it handed its typed values to another card.
+  // Keyed by the line OBJECT instead, which keepUnsavedMachines preserves.
+  const newLineKeys = useRef(new WeakMap<Row, string>());
+  const newLineSeq = useRef(0);
+  const lineKey = (it: Row): string => {
+    if (str(it.id)) return str(it.id);
+    let k = newLineKeys.current.get(it);
+    if (!k) { k = `new-${++newLineSeq.current}`; newLineKeys.current.set(it, k); }
+    return k;
+  };
   const addMachine = () => {
     setItems((cur) => [...cur, { [cfg.key]: str(draft[cfg.key]) }]);
     window.requestAnimationFrame(() => {
@@ -1655,8 +1680,8 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       )}
       {!open.id && <div className="muted" style={{ marginBottom: 8 }}>Save the entry first, then add machines to it.</div>}
       {open.id && loadingItems && <div className="muted" style={{ marginBottom: 8 }}>Loading machines…</div>}
-      {items.map((it, i) => (
-        <ItemCard key={str(it.id) || `new-${i}`} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines}
+      {items.map((it) => (
+        <ItemCard key={lineKey(it)} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines}
           focus={focusId !== null && Number(it.id) === focusId}
           // A machine with no id is unsaved by definition and is counted
           // from `items`; only a SAVED machine's edit is tracked here.
