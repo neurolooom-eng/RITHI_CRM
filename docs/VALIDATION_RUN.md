@@ -4,18 +4,18 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-10-03T19:58:42.079Z
-- **Took** 152s
-- **Commit** `8b56816` on `ccr-ecf85810-d5krnu`
-- **Version** 0.10.67
+- **Run at** 2026-10-04T09:14:54.333Z
+- **Took** 18s
+- **Commit** `78617de2` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.10.68
 
 ## Result
 
 | | Passed | Total |
 | --- | --- | --- |
-| Database suites | 141 | 141 |
-| Automated checks | 22 | 22 |
-| Labelled `expect ERROR` outcomes matched | 332 | 332 |
+| Database suites | 0 | 0 |
+| Automated checks | 15 | 22 |
+| Labelled `expect ERROR` outcomes matched | 0 | 0 |
 
 **How a suite is judged.** Each suite runs on its OWN copy of a database
 built from every migration, because run against one shared database they
@@ -29,14 +29,16 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `348 migrations applied to a fresh database` | ✅ pass |  |
+| `building the template database` | ❌ **FAIL** | psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused
+	Is the server running locally and accepting connections on that socket?
+ |
 
 ## Automated checks
 
 | | Result | |
 | --- | --- | --- |
 | `check:bundles` | ✅ pass | no NEW object is split across modules (505 checked, 37 known and listed) |
-| `check:columns` | ✅ pass | every column of all 36 registers exists |
+| `check:columns` | ❌ **FAIL** | psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused · node:internal/errors:983 ·   const err = new Error(message); · Error: Command failed: bash -c psql -h /tmp/pg -p 55432 -U postgres -d val_checks -tA -c "select table_name \|\| '.' \|\| column_name from information_schema.columns where table_schema='public'" |
 | `check:cover-party` | ✅ pass | all passed |
 | `check:dberror` | ✅ pass | all passed |
 | `check:generated` | ✅ pass | every generated bundle matches its migrations (109 checked) |
@@ -44,23 +46,23 @@ stopped working produces a suite that runs clean.
 | `check:machine` | ✅ pass | all passed |
 | `check:mapping` | ✅ pass | all passed |
 | `check:nar003` | ✅ pass | all passed |
-| `check:orders` | ✅ pass |   ✓ 182 order columns across 64 relations |
+| `check:orders` | ❌ **FAIL** | psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused · node:internal/errors:983 ·   const err = new Error(message); · Error: Command failed: psql -h /tmp/pg -p 55432 -U postgres -d val_checks -Atc  |
 | `check:paging` | ✅ pass | all passed |
 | `check:picklist` | ✅ pass | all passed |
 | `check:picklist:open` | ✅ pass | all passed |
-| `check:replay` | ✅ pass | every bundle (30) replays with no change to the schema |
-| `check:reports` | ✅ pass | all passed |
+| `check:replay` | ❌ **FAIL** | node:internal/errors:983 ·   const err = new Error(message); · Error: Command failed: psql -h /tmp/pg -p 55432 -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c create database rithi_replay_ref · psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused |
+| `check:reports` | ❌ **FAIL** | psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused · node:internal/errors:983 ·   const err = new Error(message); · Error: Command failed: psql -h /tmp/pg -p 55432 -U postgres -d val_checks -Atc select string_agg(column_name, E'\n' order by ordinal_position) |
 | `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 285 functions |
 | `check:scheduled-export` | ✅ pass | all passed |
-| `check:status` | ✅ pass | every one of the 275 _status.sql rows reads yes on a fully-applied database (1 skipped) |
+| `check:status` | ❌ **FAIL** | psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused |
 | `check:ui` | ✅ pass | all passed |
 | `check:uploads` | ✅ pass | all passed |
-| `check:upserts` | ✅ pass | every upsert target is inferable, and its table accepts the update |
-| `check:views` | ✅ pass | every view over an RLS-protected table applies RLS to the reader |
+| `check:upserts` | ❌ **FAIL** | psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused · node:internal/errors:983 ·   const err = new Error(message); · Error: Command failed: psql -h /tmp/pg -p 55432 -U postgres -d val_checks -Atc select coalesce((select relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname='field_calls'), '?') |
+| `check:views` | ❌ **FAIL** | psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused · node:internal/errors:983 ·   const err = new Error(message); · Error: Command failed: psql -h /tmp/pg -p 55432 -U postgres -d val_checks -At -c  |
 
 ## Database suites
 
-### ✅ 141 suite(s) clean
+### ✅ 0 suite(s) clean
 
-`additional_entry_machine_key` · `admin_keys_grantable` · `admin_reset_password` · `analysis_roles` · `app_user_names` · `audit_mode` · `auto_review2` · `bulk_review2` · `call_allot_permission` · `call_cancel_batch` · `call_cancel` · `call_cancelled_state` · `call_creator` · `call_edit_sections` · `call_refresh_from_masters` · `call_registrant` · `call_reopen` · `call_request_edit` · `call_requests` · `calls_view_honest_update` · `clear_notifications` · `close_call` · `complaint_suggestions` · `complaint_text` · `consumption_needs_visit` · `consumption_report` · `consumption_visit_dates` · `convert_skips_transferred` · `cover_code` · `cover_expiry` · `daily_call_review` · `data_export` · `dccr_auto_review_switch` · `device_cache_status` · `directory_rename_carries_records` · `directory_rename_carries_team` · `dispatched_by_stamped` · `document_drive_details` · `documents` · `engineer_address` · `export_schedule` · `feedback_dates` · `feedback_key_repair` · `feedback_key` · `feedback_upsert_policy` · `feedback_without_report` · `ffr_call_context` · `ffr_import` · `ffr_multi_machine` · `ffr_reviewer_history` · `ffr_reviewer_nsm` · `ffr_view_right` · `frequent_failure_rule2` · `frequent_failure` · `handstock_adjustments` · `handstock_needs_nsm` · `handstock_opening` · `handstock` · `high_batch_1` · `how_rithi_functions_key` · `indoor_dc` · `indoor_dc_user_master` · `indoor_delete_job` · `indoor_register_pdt` · `indoor_service` · `indoor_stages` · `install_call_mapping_once` · `install_warranty_start` · `installation_warranty_starts` · `kpi_field_inst` · `link_install_call` · `lockdown` · `master_add_edit_delete` · `master_list_permissions` · `material_returns` · `objective_ffr_count` · `objective_periods` · `objective_recalc` · `ownership_transfer_same_party` · `part_hsn_code` · `party_kyc` · `party_service_engineer` · `people_training` · `permissions_by_screen` · `product_accessories` · `product_database_2_materialised` · `product_database_v2` · `product_serial_key` · `quality_objectives` · `reconciliation_needs_no_visit` · `registers_fill_product_database` · `reliability_wrr` · `rename_part` · `retention` · `review_actual_product` · `role_table_views` · `sales_contracts` · `saved_charts` · `service_note_upload_key` · `sold_through_dealer` · `solved_without_report` · `spare_approval_forms` · `spare_approval_whole_word` · `spare_bulk_approval` · `spare_bulk_decisions` · `spare_dispatch` · `spare_fixes_0311` · `spare_import_exemption` · `spare_insights_ist_window` · `spare_insights` · `spare_issue_history` · `spare_line_approvals` · `spare_line_stub_rls` · `spare_line_uid` · `spare_or_no_key` · `spare_or_number` · `spare_request_files_visit` · `spare_request_follows_call` · `spare_request_reassign` · `spare_rm_scope` · `spare_stock_scope` · `spare_workflow` · `stock_transfer` · `stores_spare_view_all` · `sys_columns` · `technical_support` · `tracker` · `transferred_machine_address` · `ucn_daily_reset` · `unresolved_login` · `unused_spare_report` · `user_directory_role` · `user_master_sync` · `user_signatures` · `view_all_except_three` · `visible_engineers_blank` · `visible_engineers` · `visit_date` · `warranty_party_refresh_once` · `zoho_migration_role` · `zoho_readonly`
+
 

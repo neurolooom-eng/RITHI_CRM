@@ -10084,6 +10084,19 @@ console.log('\n-- High batch 1: what a screen could not read, and what it leaves
     /startsWith\(PREFIX\)/.test(cache) && /startsWith\('rithi\.sync\.'\)/.test(cache), true);
 }
 
+console.log('\n-- a big register draws what can be seen (D-118, 2026-10-04) --');
+{
+  // 20,000 rows took 16 s to open and 11 s to sort while the table drew them
+  // all. The body draws a slice and grows as the scroll reaches its end; the
+  // counts and the sort still run on every row.
+  const dt = code(readFileSync('src/components/table/DataTable.tsx', 'utf8'));
+  eq('the flat body draws a slice, not every row', /sortedRows\.slice\(0, drawLimit\)/.test(dt) && !/: sortedRows\.map\(\(row\) => renderRow\(row\)\)/.test(dt), true);
+  eq('...the grouped body shares the same budget', /drawLimit - drawnRef\.current/.test(dt), true);
+  eq('...more is drawn as the end comes within reach', /new IntersectionObserver\(/.test(dt) && /setDrawLimit\(\(l\) => l \+ ROW_STEP\)/.test(dt), true);
+  eq('...the footer still counts every row', /\{sortedRows\.length\} row/.test(dt), true);
+  eq('...and the sort compares with one collator', /new Intl\.Collator\(/.test(dt) && !/localeCompare\(String\(bv\)/.test(dt), true);
+}
+
 console.log('\n-- every requirement carries a version and a date (Rev 3.2, 2026-10-03) --');
 {
   // The user: "Add a version no n date to every requirement." A requirement
