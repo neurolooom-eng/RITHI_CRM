@@ -58,7 +58,7 @@
 --   0302_review_dates_and_imports_have_keys.sql
 --   0285_auto_review_by_role.sql
 --   0342_review_needs_a_call_you_can_see.sql
---   0349_review_summary_carries_the_searched_columns.sql
+--   0353_review_summary_carries_the_searched_columns.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -5968,11 +5968,11 @@ create policy call_reviews_write on public.call_reviews
   );
 
 -- ------------------------------------------------------------------------
--- 0349_review_summary_carries_the_searched_columns.sql
+-- 0353_review_summary_carries_the_searched_columns.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0349 — THE REVIEW SUMMARY CARRIES THE COLUMNS THE REGISTER SEARCHES
+-- 0353 — THE REVIEW SUMMARY CARRIES THE COLUMNS THE REGISTER SEARCHES
 --        (second re-review, 2026-10-03: D-130)
 --
 -- The Daily Complaint Review Register's search (applyReviewFilter) ORs over

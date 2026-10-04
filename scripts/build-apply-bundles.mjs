@@ -500,9 +500,9 @@ const MODULES = {
             // can see (bulk.upload keeps loading history). Replaces 0044's policy.
             '0342_review_needs_a_call_you_can_see.sql',
             // D-130: the summary view carries the five columns the register's
-            // search names, so a search no longer zeroes the counts (0349).
+            // search names, so a search no longer zeroes the counts (0353).
             // Redefines 0111's view, appending only.
-            '0349_review_summary_carries_the_searched_columns.sql'],
+            '0353_review_summary_carries_the_searched_columns.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -555,7 +555,11 @@ const MODULES = {
             // and split keys; see 0286 for the parent rule.
             '0292_objective_manage_key.sql',
             // The objective cut-off lock is objective.lock. Redefines 0138/0139/0292 above.
-            '0303_objective_lock_key.sql'],
+            '0303_objective_lock_key.sql',
+            // A figure typed over a calculated month is a manual override;
+            // Re-Calculate keeps or discards them (the user, 2026-10-04).
+            // Redefines 0292's recalc_quality_objectives.
+            '0349_objective_manual_overrides.sql'],
   },
   validation: {
     title: 'Software Validation',

@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.80',
+    version: '0.10.81',
     date: '2026-10-04',
     title: 'Review fixes: review search counts, visits by UCN, party lookup, delete guard, dealer re-loads',
     changes: [
@@ -23,6 +23,16 @@ export const CHANGELOG: ChangeEntry[] = [
       'INSTALLATION CALLS upload: re-loading the register no longer stops on a call already raised on a dealer; a new installation call for a dealer is still refused. The Sold Through picker also offers dealers whose type has stray spaces.',
       'BULK REPORT MAPPING: a visit your role may not change is no longer counted as attached.',
       'FIELD FAILURE REGISTER: the count shows + when it reaches the 5,000 the register reads. INDOOR SERVICE: an uploaded report\'s number can no longer be blanked.',
+    ],
+  },
+  {
+    version: '0.10.80',
+    date: '2026-10-04',
+    title: 'Objective: type over a calculated figure and Re-calculate keeps it, or asks',
+    changes: [
+      'OBJECTIVE: you can type over a month of a calculated (ƒ) objective. It becomes a manual override, marked ✎ — hover it to see who typed it, when, and what the calculation had said.',
+      'Re-calculate no longer overwrites those months without asking. When there are manual overrides it lists them and asks: Keep them (the default — they stay exactly as typed, on every run) or Discard them (those months are recalculated and the ✎ goes).',
+      'DCCR: the change to Updated By / Updated Date (the registrant\'s email and the call date) is recorded in the validation package; the old register\'s own values are not being loaded, by decision.',
     ],
   },
   {

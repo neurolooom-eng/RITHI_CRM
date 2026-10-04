@@ -1,9 +1,9 @@
 -- ===========================================================================
--- REVIEW BATCH 4, PROVED ON A DATABASE (0349-0352).
+-- REVIEW BATCH 4, PROVED ON A DATABASE (0350-0353).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works.
 --
---   1. D-130  the review summary can be searched on every column the register names (0349)
+--   1. D-130  the review summary can be searched on every column the register names (0353)
 --   2. D-137  a party or part named anywhere is not deleted; one named nowhere is (0350)
 --   3. D-148  a re-load of an installation call on a dealer is not refused; a new one is (0351)
 --   4. D-115  an uploaded Indoor report keeps its number (0352)
