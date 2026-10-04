@@ -1422,6 +1422,25 @@ typed into a form that reads it.
   > check, a DEMO unit of an imported product without its Pre-Delivery Testing)
   > — the message says which. Units for two consignees cannot share a DC. A DC
   > is never deleted; **Indoor DCs** lists them all and prints any of them again.
+- **Spare Recycling** `/indoor/recycling` — a **separate track** for recycling
+  defective spares, with its own stock. Nothing here touches calls, Spare
+  Requests, Stock Out or the regular Hand Stock. **Hidden while Audit Mode is
+  on.**
+  - **Register** a defective spare (RCY/26/0001): the part, serial, quantity,
+    received on and from, and an optional call reference (text only).
+  - **Raise MRS** (RMRS/26/0001) for the spares you need — **no approval**.
+    Stores presses **Stock Out** on the line, enters the quantity and **unit
+    cost**, and it goes into **your recycling hand stock**.
+  - **Open** a request to record the **job done**, **consume** from your
+    recycling hand stock (never more than you hold) and add **other costs**
+    (labour, courier, vendor, other).
+  - **Close** it as **Returned to Service Store** — recorded as **R<PartNo>**;
+    the Part Master is not changed — or **Not recyclable** with a reason. The
+    job done must be filled first; a closed request cannot be changed.
+  - **Cost**: each request shows parts (at their stock-out cost) + other
+    costs; the Cost tab totals everything spent on recycling.
+  - Its keys are given to no role — grant them on **Roles & Permissions →
+    Indoor Service**.
 - **Solved Without a Report** `/missing-visit-reports` — **administrators
   only.** Every call that reads Solved while its visit record is incomplete —
   the list of what to re-upload.

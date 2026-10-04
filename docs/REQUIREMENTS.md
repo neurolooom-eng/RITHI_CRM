@@ -9305,20 +9305,36 @@ text alone.
 
 ## Screens no user requirement governs
 
-**0 of 66.** Each is written down with its reason in
+**1 of 67.** Each is written down with its reason in
 `src/lib/validation.ts` (`MODULES_WITHOUT_REQUIREMENT`), so it is a decision
 somebody made rather than a drift nobody saw — and `check:ui` fails when a
 screen joins this list without one. Neither is a defect on its own; both are
 questions for a person.
 
+| Screen | Why nothing is filed here |
+| --- | --- |
+| **Spare Recycling** `/indoor/recycling` | Spare Recycling is a non-auditable requirement by the system owner's decision (NAR-008); hidden in Audit Mode. |
+
 ---
 
-**178** user requirements · **252** system requirements · **31** call-request · **44** servicing · **256** tests · **7** recorded as non-auditable · **533** of 178 user requirements tied to a module.
+**178** user requirements · **252** system requirements · **31** call-request · **44** servicing · **256** tests · **8** recorded as non-auditable · **533** of 178 user requirements tied to a module.
 ---
 
 ## Non-auditable requirements
 
 Recorded here because a feature absent from the specification is the thing an assessor finds. Each is classified by PROVENANCE: it is not derived from a regulatory clause and is not offered as evidence against one. That is a statement about where the requirement came from, NOT a statement that its use goes unrecorded.
+
+### NAR-008 — Spare Recycling: a parallel track under Indoor Service, with its own stock, hidden in Audit Mode
+
+*Non-Auditable Requirement (user-originated; no regulatory clause claimed) — hidden with its screen while Audit Mode is on* · risk: **Low** · *v0.10.83 · 04-Oct-2026*
+
+NAR-008.1 The system shall register a defective spare for recycling with its part (from the Part Master), serial, quantity, received date, received from, remarks and an optional call reference held as text only, numbered RCY/YY/NNNN restarting each year. NAR-008.2 The system shall let a holder of recycle.request raise an MRS of one or more parts, optionally against an open recycling request, with no approval, numbered RMRS/YY/NNNN; its spares belong to the person who raised it. NAR-008.3 The system shall let a holder of recycle.issue book an MRS line out with a unit cost, in one or more bookings, never beyond the quantity asked for; the quantity shall go to the raiser's recycling hand stock. NAR-008.4 The recycling hand stock shall be issued less consumed, per person and part, kept apart from the regular hand stock; a part shall not be consumed beyond it. NAR-008.5 On an open request a holder of recycle.close shall record consumption from their own recycling hand stock and other costs (Labour, Courier, Vendor, Other), and may remove either while the request is open. NAR-008.6 A request shall close only with its job done recorded, as Returned (to the Service Store as R<PartNo>, recorded only, the Part Master and regular stock unchanged) or Not recyclable with a reason; a closed request shall not change. NAR-008.7 Each request shall show its parts cost (consumption valued at the holder's average stock-out cost for the part), other cost and total, and the cost of stock booked out on its MRSs. NAR-008.8 Nothing in the track shall read or write calls, spare requests, stock outs, spare consumption or the regular hand stock. NAR-008.9 While Audit Mode is on the menu, the screen, its guide entry and this requirement shall be hidden, and the database shall return none of its rows and refuse every write. NAR-008.10 Its five recycle.* keys shall be granted to no role (an administrator passes every check); the screen key is held by the administrator and Technical Support only, and opens an empty page without a recycle.* key; every other grant is made on Roles & Permissions.
+
+**Why it is classified this way.** Requested by the system owner on 2026-10-04: "Create a Complete Work Flow for Spare Recycling, Like Registration, spare request job done details, consumption, handstock -- This is a Parallel Track and should not collide with Regular Calls or Spare or Handstock. Even the Stock should be maintained Separately. This is Non Auditable Requirement and when i enable the Audit mode, it should not show. Keep all this under Indoor Service. In Spare Request, there is no need for approval. But during Stock out, Give a Provision to add Cost." The decisions on stock source (regular stores through an MRS into a separate user's hand stock), outcome (Returned as R<PartNo> or Not recyclable) and numbering were the owner's answers the same day. Proved by supabase/tests/spare_recycling_test.sql.
+
+**No test protocol names this requirement.** That is a gap, not a decision.
+
+**Where it lives:** supabase/migrations/0355_spare_recycling.sql · src/modules/SpareRecycling.tsx · supabase/tests/spare_recycling_test.sql
 
 ### NAR-007 — The cover registers open an entry in a pop-up, details beside products, buttons fixed at the top
 

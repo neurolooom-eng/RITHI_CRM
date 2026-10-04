@@ -75,6 +75,25 @@ up)_
 
 ---
 
+## 2026-10-04 — Spare Recycling: a parallel track under Indoor Service (0355, v0.10.83)
+
+- Asked: registration, MRS (no approval), stock out with cost, a separate
+  recycling hand stock, consumption, job done, other costs, close Returned as
+  R<PartNo> (recorded only) or Not recyclable; RCY/YY/NNNN and RMRS/YY/NNNN;
+  hidden in Audit Mode (non-auditable, NAR-008). Own tables
+  (`recycle_*`), nothing touching calls / spares / regular hand stock.
+- Audit Mode: the database refuses every read and write (`recycle_may_see()`
+  / `recycle_may()`); the menu, the screen, its guide entry, NAR-008 and its
+  Version History entry are hidden.
+- Keys `recycle.view/register/request/issue/close` granted to NO role; the
+  screen key to admin + technical_support only (row 114's rule). Suite
+  `spare_recycling_test`, `_status.sql` row 287.
+- **PENDING (user):** create the recycling user's login and grant it
+  `recycle.view/register/request/close` (and Stores `recycle.issue`) on
+  Roles & Permissions.
+- Not added to Data Flows on purpose: the flow diagrams are not hidden in
+  Audit Mode.
+
 ## 2026-10-04 — Objective: manual overrides kept or discarded on Re-calculate (0349, v0.10.80)
 
 - Typing over a computed month marks it in `quality_objectives.overrides`

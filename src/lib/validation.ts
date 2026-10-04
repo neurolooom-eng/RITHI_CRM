@@ -214,6 +214,10 @@ export const CHECKLIST: ChecklistSection[] = [
 // Neither entry is a defect on its own. Both are questions for a person, which
 // is the point of writing them where a person will read them.
 export const MODULES_WITHOUT_REQUIREMENT: Record<string, string> = {
+  // NON-AUDITABLE BY DECISION (the user, 2026-10-04). Governed by NAR-008, not
+  // by a URS: it is not offered as evidence against any clause, and it is
+  // hidden with its screen while Audit Mode is on.
+  '/indoor/recycling': 'Spare Recycling is a non-auditable requirement by the system owner\'s decision (NAR-008); hidden in Audit Mode.',
 };
 
 // ---- User Requirements -----------------------------------------------------
@@ -893,8 +897,37 @@ export const FRS: FReq[] = [
 // requirements traceable to a clause. The classification is about PROVENANCE.
 // It does not mean the requirement is untested, undocumented, or that its use
 // goes unrecorded.
-export interface NonAuditableReq extends Req { classification: string; rationale: string }
+export interface NonAuditableReq extends Req {
+  classification: string; rationale: string;
+  /** Left out of the package while Audit Mode is on, with the screen it governs
+   *  (the user, 2026-10-04, Spare Recycling: "when i enable the Audit mode, it
+   *  should not show"). */
+  auditHidden?: boolean;
+}
 export const NON_AUDITABLE: NonAuditableReq[] = [
+  {
+    id: 'NAR-008',
+    version: '0.10.83', date: '2026-10-04',
+    title: 'Spare Recycling: a parallel track under Indoor Service, with its own stock, hidden in Audit Mode',
+    classification: 'Non-Auditable Requirement (user-originated; no regulatory clause claimed) \u2014 hidden with its screen while Audit Mode is on',
+    auditHidden: true,
+    modules: ['/indoor/recycling'],
+    text: [
+      'NAR-008.1 The system shall register a defective spare for recycling with its part (from the Part Master), serial, quantity, received date, received from, remarks and an optional call reference held as text only, numbered RCY/YY/NNNN restarting each year.',
+      'NAR-008.2 The system shall let a holder of recycle.request raise an MRS of one or more parts, optionally against an open recycling request, with no approval, numbered RMRS/YY/NNNN; its spares belong to the person who raised it.',
+      'NAR-008.3 The system shall let a holder of recycle.issue book an MRS line out with a unit cost, in one or more bookings, never beyond the quantity asked for; the quantity shall go to the raiser\'s recycling hand stock.',
+      'NAR-008.4 The recycling hand stock shall be issued less consumed, per person and part, kept apart from the regular hand stock; a part shall not be consumed beyond it.',
+      'NAR-008.5 On an open request a holder of recycle.close shall record consumption from their own recycling hand stock and other costs (Labour, Courier, Vendor, Other), and may remove either while the request is open.',
+      'NAR-008.6 A request shall close only with its job done recorded, as Returned (to the Service Store as R<PartNo>, recorded only, the Part Master and regular stock unchanged) or Not recyclable with a reason; a closed request shall not change.',
+      'NAR-008.7 Each request shall show its parts cost (consumption valued at the holder\'s average stock-out cost for the part), other cost and total, and the cost of stock booked out on its MRSs.',
+      'NAR-008.8 Nothing in the track shall read or write calls, spare requests, stock outs, spare consumption or the regular hand stock.',
+      'NAR-008.9 While Audit Mode is on the menu, the screen, its guide entry and this requirement shall be hidden, and the database shall return none of its rows and refuse every write.',
+      'NAR-008.10 Its five recycle.* keys shall be granted to no role (an administrator passes every check); the screen key is held by the administrator and Technical Support only, and opens an empty page without a recycle.* key; every other grant is made on Roles & Permissions.',
+    ].join(' '),
+    rationale: 'Requested by the system owner on 2026-10-04: "Create a Complete Work Flow for Spare Recycling, Like Registration, spare request job done details, consumption, handstock -- This is a Parallel Track and should not collide with Regular Calls or Spare or Handstock. Even the Stock should be maintained Separately. This is Non Auditable Requirement and when i enable the Audit mode, it should not show. Keep all this under Indoor Service. In Spare Request, there is no need for approval. But during Stock out, Give a Provision to add Cost." The decisions on stock source (regular stores through an MRS into a separate user\'s hand stock), outcome (Returned as R<PartNo> or Not recyclable) and numbering were the owner\'s answers the same day. Proved by supabase/tests/spare_recycling_test.sql.',
+    risk: 'Low',
+    refs: ['supabase/migrations/0355_spare_recycling.sql', 'src/modules/SpareRecycling.tsx', 'supabase/tests/spare_recycling_test.sql'],
+  },
   {
     id: 'NAR-007',
     version: '0.10.66', date: '2026-10-03',
