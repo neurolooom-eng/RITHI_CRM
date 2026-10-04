@@ -86,8 +86,11 @@ up)_
   (C, U, V, AW, AY, AZ) with those columns' cells empty; `check:ui` pins every
   letter the formulas read and write. SL NO(T)'s formula is copied as given,
   `#REF!` and all — it evaluates to the serial padded to four digits.
-- **PENDING (user):** copy `apps-script/CallReg.gs` and redeploy the same
-  deployment; then run `dccrMirror` once.
+- **Redeployed and run by the user (16:45 IST):** status OK, 4,351 rows, 94 s,
+  signed in as the mirror login; row 2 reads Sl. NO 1, oldest call first, and
+  every formula column evaluated (CALL DETAILS, VISIT REMARKS, SL NO(T) 0036,
+  AY 1658, AZ "More than 4 yrs"). New `/exec` …`LyxS/exec` baked in
+  (`DEFAULT_URL_VERSION` 15).
 
 ## 2026-10-04 — Save any download as a Google Sheet (v0.10.70)
 
