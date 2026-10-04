@@ -17,6 +17,9 @@ export const CHANGELOG: ChangeEntry[] = [
     title: 'New CallReg address (Save as Google Sheet)',
     changes: [
       'The CallReg (Google Apps Script) address was updated to the deployment that carries Save as Google Sheet; every device switches to it automatically on the next load.',
+    ],
+  },
+  {
     version: '0.10.73',
     date: '2026-10-03',
     title: 'The Declaration names whoever booked the stock out',
