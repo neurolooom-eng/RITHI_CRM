@@ -732,7 +732,9 @@ const MODULES = {
             // Start Work and its SLA in working days (settings on the SLA
             // page), one request per spare, import from MRN (2026-10-04).
             // Redefines 0355's request guard and request list.
-            '0365_spare_recycling_start_sla_mrn.sql'],
+            '0365_spare_recycling_start_sla_mrn.sql',
+            // Delete a request (2026-10-04); re-states 0355's two guards.
+            '0376_spare_recycling_delete.sql'],
   },
   indoor: {
     title: 'Indoor Service (the workshop register, §4.5)',

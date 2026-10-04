@@ -78,6 +78,24 @@ up)_
 
 ---
 
+## 2026-10-04 — Spare Recycling: Delete, and Source instead of Received from / Serial (0376)
+
+- **Delete** ("Add Delete Option"): `delete_recycle_requests(ids)` asks the new
+  key `recycle.delete` (granted to no role; on the Indoor Service row of Roles
+  & Permissions) with Audit Mode off. It removes the requests, their
+  consumption and other costs (the consumption and other-cost guards step
+  aside only while it runs, on a transaction-local setting) and unlinks their
+  MRSs rather than deleting them — an MRS's issues are Stores' record. List:
+  tick and Delete; the request window: Delete this request. Audit-logged.
+- **Source** ("Rename it to Source -> DropDown - Service Return, Defective
+  Spare / Remove the Field - Serial"): the register form's "Received from" is a
+  required pick of the two, stored in `received_from`; the Serial field, the
+  per-request serial editor and the Serial column are gone (the column stays
+  in the table, so older serials are kept). **Open question:** an MRN import
+  still records `MRN <no> · <engineer>` as its source, not one of the two —
+  left as it was, not guessed.
+- NAR-008.1/.13/.16/.10, suite §14, `_status.sql` row 308.
+
 ## 2026-10-04 — Indoor intake: Field Return / Demo / New Device (0374, v0.10.95)
 
 - Intake split three ways (`INTAKE_MODES`), each fixing kind + activity: Field
