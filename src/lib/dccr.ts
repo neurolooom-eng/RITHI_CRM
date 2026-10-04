@@ -221,6 +221,10 @@ export interface ReviewRow extends Record<string, unknown> {
   open_state: string;
   last_status: string;
   last_visit_at: string | null;
+  // The imported register's values, else the call's registrant email and
+  // registration date (0344).
+  dccr_updated_by?: string | null;
+  dccr_updated_date?: string | null;
   // What the reviewer judges the call by — all of it from the report (0047)
   age_days: number | null;
   age_group: string;
@@ -347,6 +351,9 @@ export interface ExportColumn { key: string; header: string }
 // difference, and inserting them at their WRR positions makes an export drop
 // straight into that sheet as well as into the review workbook.
 //
+// `Updated By` and `Updated Date` are filled since 0344 -- the imported
+// register's values, else the call's registrant email and registration date (the user, 2026-10-04); the paragraph below is how it stood before.
+//
 // NINE OF THEM ARE DELIBERATELY BLANK (the user, 2026-09-08: "for now add those
 // columns and leave it blank"). Six -- CALL DETAILS, VISIT REMARKS, CHANGE
 // PRODUCT?, SEND EMAIL FOR DEFECTIVE SPARE, SL NO(T) and Complaint -- came from
@@ -441,10 +448,11 @@ export function exportDate(v: unknown, withTime = false): string {
 // One register row as the export carries it. `index` is the row's Sl. NO.
 export function toExportRow(r: ReviewRow, index: number): Record<string, unknown> {
   return {
+    // The import's values, else who registered the call and when (0344).
+    updated_by: r.dccr_updated_by ?? '',
+    updated_date: exportDate(r.dccr_updated_date ?? null),
     // Blank on purpose -- see the note on DCCR_EXPORT_COLUMNS. They hold the
     // WRR-2026 shape so an export pastes into it without shifting a column.
-    updated_by: '',
-    updated_date: '',
     call_details: '',
     visit_remarks: '',
     change_product: '',

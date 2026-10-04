@@ -1374,10 +1374,12 @@ var DCCR_HOURS = [22, 4, 10, 16];
 // FULL page says nothing about whether another exists -- so the loop below ends
 // on a SHORT one. Same rule as the app's own pager, for the same reason.
 var DCCR_PAGE = 1000;
-// The view the Daily Complaint Review Register itself reads, in the order that
-// screen reads it, so the sheet is the register and not a second opinion.
+// The view the Daily Complaint Review Register itself reads, so the sheet is
+// the register and not a second opinion -- but OLDEST FIRST, the way the old
+// DCCR tab grew downwards (the user, 2026-10-04), where the screen is newest
+// first. id breaks a tie so a page boundary cannot double or drop a row.
 var DCCR_VIEW  = 'field_call_review';
-var DCCR_ORDER = 'reg_date.desc.nullslast,id.desc';
+var DCCR_ORDER = 'reg_date.asc.nullslast,id.asc';  // OLDEST FIRST (the user, 2026-10-04)
 
 // THE COLUMNS, AND THEY ARE A COPY. `DCCR_EXPORT_COLUMNS` in src/lib/dccr.ts is
 // the original -- the WRR-2026 shape, so an export pastes into that workbook
@@ -1443,16 +1445,42 @@ var DCCR_COLUMNS = [
 // BLANK ON PURPOSE, not "not implemented": these hold the WRR-2026 shape so a
 // paste lands in the right columns. The app's own export leaves exactly these
 // empty, and the two must agree.
-var DCCR_BLANK = ['updated_by', 'updated_date', 'call_details', 'visit_remarks',
+var DCCR_BLANK = ['call_details', 'visit_remarks',
                   'change_product', 'send_email_defective_spare', 'sl_no_t',
                   'complaint', 'dummy_column'];
+
+// THE OLD REGISTER'S FORMULA COLUMNS, written AS FORMULAS (the user,
+// 2026-10-04, who supplied each one from the DCCR tab, verbatim). Each is an
+// ARRAYFORMULA put in ROW 2 that fills its column downwards, so the data cells
+// beneath it are written EMPTY -- a value there would stop it spreading
+// ("#REF! array result was not expanded"). The tab is cleared and rewritten on
+// every run, so a formula typed into it by hand would be gone by the next one:
+// this list is how they survive.
+//
+// THE LETTERS ARE THE MIRROR'S OWN LAYOUT (DCCR_COLUMNS above, A..BA, the same
+// order as the DCCR tab), and `check:ui` checks every letter a formula reads
+// and writes against that list, so a column moved there cannot silently point
+// a formula at the wrong data.
+//
+// SL NO(T) IS COPIED AS GIVEN, #REF! AND ALL. Its lookup parts were already
+// broken in the old sheet, and IFERROR there falls back to TEXT(K,"0000") --
+// the serial padded to four digits -- which is what it gives here too. The
+// lookup it once did is not guessed at.
+var DCCR_FORMULAS = {
+  sl_no:         '=ARRAYFORMULA(IF(LEN(F2:F)<1,"",ROW(F2:F)-1))',
+  call_details:  '=ARRAYFORMULA("CUST : "&H2:H&" , "&I2:I&CHAR(10)&"PRODUCT : "&J2:J&" ( "&K2:K&" ) "&CHAR(10)&"COMPLAINT : "&N2:N&CHAR(10)&"ENGINEER : "&P2:P)',
+  visit_remarks: '=ARRAYFORMULA("VISIT REMARKS : "&char(10)&AT2:AT&char(10)&char(10)&"SPARES CONSUMED : " &char(10)&AU2:AU)',
+  sl_no_t:       '=ARRAYFORMULA(if(J2:J="CPX CARE",Text(K2:K,"0000"),if(J2:J="AIR SUPPLY",Text(K2:K,"0000"),iferror((arrayformula(if(#REF!="NA",TEXT(K2:K,"0000"),iferror(TEXT((VLOOKUP((#REF!&"|CPX CARE"),#REF!,15,0)),"0000"),TEXT((VLOOKUP((#REF!&"|AIR SUPPLY"),#REF!,15,0)),"0000"))))),TEXT(K2:K,"0000")))))',
+  age_days:      '=ARRAYFORMULA(DAYS360(T2:T,D2:D))',
+  age_group:     '=ARRAYFORMULA(VLOOKUP(AY2:AY,BackWork!I:J,2,1))',
+};
 
 // A REAL DATE, NOT THE TEXT OF ONE. A string Excel and Sheets cannot sort,
 // filter by month or subtract is the fault this project has fixed twice in the
 // downloads; a mirror is read the same way. The value written is a Date and the
 // COLUMN carries the format, which is the standing rule -- dd-MMM-yyyy, month
 // NAMED so it cannot be read the other way round.
-var DCCR_DATE_COLS = ['reg_date', 'complaint_date', 'warranty_start',
+var DCCR_DATE_COLS = ['updated_date', 'reg_date', 'complaint_date', 'warranty_start',
                       'review1_at', 'review2_at', 'review3_at'];
 var DCCR_DATETIME_COLS = ['last_visit_at'];
 
@@ -1462,7 +1490,8 @@ function dccrMirror() {
   try {
     var rows = _dccrFetchAll();
     var written = _dccrWrite(rows);
-    _dccrStatus('OK', written, started, '');
+    _dccrStatus('OK', written, started,
+      _dccrFormulaFaults.length ? 'Formula not written -- ' + _dccrFormulaFaults.join(' ; ') : '');
     return { ok: true, rows: written };
   } catch (err) {
     // RECORDED, NOT SWALLOWED. A mirror that fails silently is worse than one
@@ -1592,6 +1621,10 @@ function _dccrText(v) { return v == null ? '' : v; }
 function _dccrRow(r, index) {
   var o = {};
   DCCR_BLANK.forEach(function (k) { o[k] = ''; });
+  // 0344: the imported register's values, else the email of whoever
+  // registered the call and the call's registration date.
+  o.updated_by = _dccrText(r.dccr_updated_by);
+  o.updated_date = _dccrDate(r.dccr_updated_date);
   o.sl_no = index + 1;
   o.reg_date = _dccrDate(r.reg_date);
   o.complaint_date = _dccrDate(r.complaint_date);
@@ -1657,7 +1690,8 @@ function _dccrWrite(rows) {
   for (var i = 0; i < rows.length; i++) {
     var o = _dccrRow(rows[i], i);
     var line = [];
-    for (var c = 0; c < keys.length; c++) line.push(o[keys[c]] === undefined ? '' : o[keys[c]]);
+    // A formula column's cells stay EMPTY: its row-2 ARRAYFORMULA fills them.
+    for (var c = 0; c < keys.length; c++) line.push(DCCR_FORMULAS[keys[c]] || o[keys[c]] === undefined ? '' : o[keys[c]]);
     grid.push(line);
   }
 
@@ -1688,9 +1722,21 @@ function _dccrWrite(rows) {
       if (fmt) sh.getRange(2, idx + 1, grid.length - 1, 1).setNumberFormat(fmt);
     });
   }
+  // THE FORMULAS LAST, after the values they read. One refused formula does
+  // not undo the mirror: it is named in the status tab and the rest stand.
+  _dccrFormulaFaults = [];
+  if (grid.length > 1) {
+    keys.forEach(function (k, idx) {
+      if (!DCCR_FORMULAS[k]) return;
+      try { sh.getRange(2, idx + 1).setFormula(DCCR_FORMULAS[k]); }
+      catch (e) { _dccrFormulaFaults.push(heads[idx] + ': ' + (e && e.message ? e.message : e)); }
+    });
+  }
   sh.setFrozenRows(1);
   return rows.length;
 }
+
+var _dccrFormulaFaults = [];
 
 function _dccrStatus(outcome, rows, started, err) {
   try {
