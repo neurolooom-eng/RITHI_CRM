@@ -91,8 +91,8 @@ up)_
 - **PENDING (user):** create the recycling user's login and grant it
   `recycle.view/register/request/close` (and Stores `recycle.issue`) on
   Roles & Permissions.
-- Data Flows: the  flow (v{nv}, the user's ask), marked
-   — FlowGallery leaves it out while Audit Mode is on; flows
+- Data Flows: the `recycling` flow (v0.10.85, the user's ask), marked
+  `auditHidden` — FlowGallery leaves it out while Audit Mode is on; flows
   may now cite a NAR id.
 
 ## 2026-10-04 — Objective: manual overrides kept or discarded on Re-calculate (0349, v0.10.80)
