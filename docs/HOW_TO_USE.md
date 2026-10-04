@@ -1301,8 +1301,12 @@ typed into a form that reads it.
   The work runs in four **stages**, one page each, shown as a stepper at the
   top of each job and as a chip on every row of the register — and a job opens
   only the stages it has reached (no DC page at intake, for example):
-  1. **Intake** — **Receive equipment** opens the intake form. For a
-     **Field Return** (a unit that came in on a call), either pick the
+  1. **Intake** — **Receive equipment** opens the intake form. A **Field
+     Return** (a unit that came in on a call) is always a **Troubleshooting**
+     job — it follows the Repair rule, so it cannot leave until its quality
+     check is recorded. The **Identification tag** is **Yes, Identified** or
+     **Not Identified**, for the unit and for each accessory; accessories are
+     listed as Item, Qty and Tag. For the call, either pick the
      **Product Name** and **Serial Number**, which lists that machine's **open
      calls** to choose from, or **type the UCN**. The job then fills itself from
      the call: UC No, customer and place, the engineer the call is allotted to

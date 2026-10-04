@@ -359,12 +359,12 @@
 .ind-rows { display: flex; flex-direction: column; }
 .ind-rows-head, .ind-rows-row {
   display: grid;
-  grid-template-columns: minmax(0, 2.2fr) 64px minmax(0, 1.2fr) minmax(0, 1fr) 28px;
+  grid-template-columns: minmax(0, 2.2fr) 64px minmax(0, 1.4fr) 28px;
   gap: 8px;
   align-items: center;
 }
 .ind-rows.has-returned .ind-rows-head, .ind-rows.has-returned .ind-rows-row {
-  grid-template-columns: minmax(0, 2.2fr) 64px minmax(0, 1.2fr) minmax(0, 1fr) 40px 28px;
+  grid-template-columns: minmax(0, 2.2fr) 64px minmax(0, 1.4fr) 40px 28px;
 }
 .ind-rows-head {
   padding: 0 0 6px;

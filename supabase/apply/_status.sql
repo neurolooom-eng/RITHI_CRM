@@ -2017,7 +2017,11 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regprocedure('public.recycle_sla_due(timestamptz)') is not null
      and to_regprocedure('public.register_recycle_requests(text,text,text,integer,date,text,text,text,text)') is not null
      and to_regprocedure('public.recycle_mrn_lines(text,integer)') is not null
-     and coalesce((select p.prosrc like '%recycle_start%' from pg_proc p where p.oid = to_regprocedure('public.recycle_requests_guard()')), false)))
+     and coalesce((select p.prosrc like '%recycle_start%' from pg_proc p where p.oid = to_regprocedure('public.recycle_requests_guard()')), false))),
+    (305, 'Indoor Service: a Field Return is a Troubleshooting job, held to the Repair rule', 'Asked for 2026-10-04. indoor_jobs_activity_check admits Troubleshooting, and indoor_jobs_guard() refuses to dispatch or close a Troubleshooting job before its quality check, as for Repair and Rework (0370). NO means the check or the guard has not been re-run. Restore: indoor.sql (0370)',
+        (coalesce((select pg_get_constraintdef(c.oid) like '%Troubleshooting%' from pg_constraint c
+                    where c.conrelid = to_regclass('public.indoor_jobs') and c.conname = 'indoor_jobs_activity_check'), false)
+     and coalesce((select p.prosrc like '%''Troubleshooting''%' from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

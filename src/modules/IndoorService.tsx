@@ -24,7 +24,7 @@ import {
 } from '../lib/indoorforms';
 import { useAuth } from '../lib/auth';
 import { IndoorDcForm, IndoorDcList } from './IndoorDcPanel';
-import { consigneeKey, jobConsignee, jobStage, INDOOR_STAGES, STAGES_DONE, indoorReportFileName, type StageState } from '../lib/indoorforms';
+import { consigneeKey, jobConsignee, jobStage, INDOOR_STAGES, STAGES_DONE, indoorReportFileName, tagOptions, type StageState } from '../lib/indoorforms';
 import { IndoorIntake } from './IndoorIntake';
 import { CallReportDrawer, type IndoorDraftMode, type VisitDraft } from './CallReporting';
 import { SpareRequestDrawer } from './SpareRequests';
@@ -84,6 +84,14 @@ const STATUS_TONE: Record<string, string> = {
   'Condemned': 'ind-condemned',
 };
 
+/** THE WORK INSTRUCTION'S REVISION IS A NUMBER, two digits, 01 when none is
+ *  given (the user, 2026-10-04). A value kept from before that is not a number
+ *  is reduced to its digits, and to 01 when it has none. */
+const wiRevision = (v: string | null | undefined): string => {
+  const d = String(v ?? '').replace(/[^0-9]/g, '');
+  return d ? d.padStart(2, '0') : '01';
+};
+
 /** Which extra field sets an activity owes. The register core is common to all
  *  six — this is only what each one adds. */
 const SHOWS = {
@@ -98,7 +106,7 @@ const SHOWS = {
   accessories: (a: string) => a !== 'Salvage',
   /** Expected-against-measured serves a PDI now and a repair's QC once Phase 3
    *  gives it per-product reference values. */
-  checks:  (a: string) => a === 'Pre-delivery inspection' || a === 'Repair' || a === 'Rework',
+  checks:  (a: string) => a === 'Pre-delivery inspection' || a === 'Repair' || a === 'Rework' || a === 'Troubleshooting',
 };
 
 /** A field: the label above, the control, and a hint only where it prevents a
@@ -903,7 +911,7 @@ function IndoorJobDrawer({
   };
 
   const markCleaned = async () => {
-    const r = await markIndoorCleaned(job.id, job.cleaning_wi || 'WI/SER/01', job.cleaning_wi_rev, uid);
+    const r = await markIndoorCleaned(job.id, job.cleaning_wi || 'WI/SER/01', wiRevision(job.cleaning_wi_rev), uid);
     if (!r.ok) setMsg(r.error ?? 'Could not record the cleaning');
     else { setMsg(''); void patch(job.id, { status: 'Cleaned' }); }
   };
@@ -994,8 +1002,8 @@ function IndoorJobDrawer({
                 onChange={(v) => set({ cover: v })} disabled={!mayWork} />
             </Field>
             <Field label="Identification tag (4.5.4)">
-              <input defaultValue={job.tag_no} disabled={!mayWork} className="mono"
-                onBlur={(e) => set({ tag_no: e.target.value })} />
+              <SelectPicker value={job.tag_no ?? ''} options={tagOptions(job.tag_no)} placeholder="Choose…"
+                onChange={(v) => set({ tag_no: v })} disabled={!mayWork} />
             </Field>
           </div>
         </Group>
@@ -1048,7 +1056,7 @@ function IndoorJobDrawer({
             <div className={`ind-rows${reported ? ' has-returned' : ''}`} role="table" aria-label="Accessories received">
               <div className="ind-rows-head" role="row">
                 <span role="columnheader">Item</span><span role="columnheader">Qty</span>
-                <span role="columnheader">Serial</span><span role="columnheader">Tag</span>
+                <span role="columnheader">Tag</span>
                 {reported ? <span role="columnheader">Back</span> : null}<span />
               </div>
               {accessories.map((x) => (
@@ -1057,10 +1065,8 @@ function IndoorJobDrawer({
                     onBlur={(e) => child(() => saveIndoorAccessory(x.id, { name: e.target.value }))} />
                   <input aria-label="Quantity" type="number" min={1} step="any" defaultValue={x.qty ?? 1} disabled={!mayWork}
                     onBlur={(e) => { const q = Number(e.target.value); if (q > 0 && q !== Number(x.qty)) void child(() => saveIndoorAccessory(x.id, { qty: q })); }} />
-                  <input aria-label="Serial" defaultValue={x.serial} className="mono" disabled={!mayWork}
-                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { serial: e.target.value }))} />
-                  <input aria-label="Tag" defaultValue={x.tag_no} className="mono" disabled={!mayWork}
-                    onBlur={(e) => child(() => saveIndoorAccessory(x.id, { tag_no: e.target.value }))} />
+                  <SelectPicker value={x.tag_no ?? ''} options={tagOptions(x.tag_no)} placeholder="Tag…" disabled={!mayWork}
+                    onChange={(v) => child(() => saveIndoorAccessory(x.id, { tag_no: v }))} />
                   {reported ? <input type="checkbox" aria-label="Returned" checked={x.returned} disabled={!mayWork}
                     onChange={(e) => child(() => saveIndoorAccessory(x.id, { returned: e.target.checked }))} /> : null}
                   {mayWork ? <button type="button" className="ind-x" aria-label={`Remove ${x.name || 'item'}`} title="Remove"
@@ -1082,8 +1088,12 @@ function IndoorJobDrawer({
             <Field label="Work instruction"><input defaultValue={job.cleaning_wi} disabled={!mayWork}
               onBlur={(e) => set({ cleaning_wi: e.target.value })} /></Field>
             <Field label="Revision" tip="Which revision it was cleaned against — the WI changes, the record should say which one applied.">
-              <input defaultValue={job.cleaning_wi_rev} disabled={!mayWork}
-                onBlur={(e) => set({ cleaning_wi_rev: e.target.value })} /></Field>
+              {/* NUMERIC, two digits, 01 to begin with (the user, 2026-10-04:
+                  "Make the revision numeric, For now - initial value can be 01"). */}
+              <input key={job.cleaning_wi_rev || '01'} defaultValue={job.cleaning_wi_rev || '01'} disabled={!mayWork}
+                inputMode="numeric" pattern="[0-9]*" maxLength={3} className="mono"
+                onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/[^0-9]/g, ''); }}
+                onBlur={(e) => { const v = wiRevision(e.target.value); e.target.value = v; if (v !== job.cleaning_wi_rev) set({ cleaning_wi_rev: v }); }} /></Field>
           </div>
           {job.cleaned_at
             ? <p className="ind-meta">Cleaned by <b>{job.cleaned_by_name || '—'}</b> · {formatDayTime(job.cleaned_at)}</p>

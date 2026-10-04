@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.91',
+    date: '2026-10-04',
+    title: 'Indoor intake: Field Return is Troubleshooting; tags are Yes / No; no accessory serial; numeric WI revision',
+    changes: [
+      'RECEIVE EQUIPMENT → Field Return: “What is being done to it?” is fixed to Troubleshooting. A Troubleshooting job follows the Repair rule — it cannot be dispatched or closed until its quality check is recorded.',
+      'IDENTIFICATION TAG: pick Yes, Identified or Not Identified — for the unit and for each accessory, on the intake and on the job. A tag typed on an older job stays as it was.',
+      'ACCESSORIES RECEIVED: the Serial column is removed; each line is Item, Qty and Tag.',
+      'CLEANING: the work instruction Revision is a number — two digits, 01 to begin with.',
+    ],
+  },
+  {
     version: '0.10.90',
     date: '2026-10-04',
     title: 'Indoor Service intake: “From a call” is now “Field Return”',
