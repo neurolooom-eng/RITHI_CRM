@@ -156,3 +156,99 @@ select 'regular tables untouched',
        (select count(*) from public.spare_consumption) = cons
    and (select count(*) from public.spare_requests) = reqs
    and (select count(*) from public.spare_dispatches) = disp as ok from before_counts;
+
+-- ===========================================================================
+-- 0365: START WORK + SLA, ONE REQUEST PER SPARE, IMPORT FROM MRN.
+-- ===========================================================================
+\echo '--- 10. A QUANTITY OF 3 IS THREE REQUESTS ---'
+call public.be('rcy_user@x.com');
+begin; set local role authenticated;
+  select 'three numbers returned' as t,
+         array_length(public.register_recycle_requests('VLV-3', 'Valve', '', 3, current_date, 'MRN 77', '', '', 'MRN-77'), 1) = 3 as ok;
+commit;
+select 'three open requests of one each, MRN ref kept',
+       count(*) = 3 and bool_and(qty = 1) and bool_and(mrn_ref = 'MRN-77') as ok
+  from public.recycle_requests where part_code = 'VLV-3';
+\echo 'expect ERROR: a serial belongs to one spare'
+begin; set local role authenticated;
+  select public.register_recycle_requests('VLV-3', 'Valve', 'SN-1', 2, current_date, '', '', '', '');
+commit;
+\echo 'expect ERROR: a request is one spare (direct insert of qty 2)'
+begin; set local role authenticated;
+  insert into public.recycle_requests (part_code, qty) values ('VLV-9', 2);
+commit;
+
+\echo '--- 11. START WORK, ONCE; SLA = 3 WORKING DAYS, WEEKENDS SKIPPED ---'
+-- The fixture is back-dated to before the Friday it is started on.
+alter table public.recycle_requests disable trigger recycle_requests_guard;
+update public.recycle_requests set created_at = timestamptz '2026-10-01 09:00+05:30' where part_code = 'VLV-3';
+alter table public.recycle_requests enable trigger recycle_requests_guard;
+select 'not started before Start Work', sla_status = 'Not started' and sla_due_at is null as ok
+  from public.recycle_request_list where part_code = 'VLV-3' order by id limit 1;
+begin; set local role authenticated;
+  -- Friday 02-Oct-2026 10:00 IST -> due Wednesday 07-Oct-2026 10:00 IST
+  select public.start_recycle_work((select min(id) from public.recycle_requests where part_code = 'VLV-3'),
+                                   timestamptz '2026-10-02 10:00+05:30');
+commit;
+select 'due three working days later, Sat/Sun skipped',
+       sla_due_at = timestamptz '2026-10-07 10:00+05:30' and work_started_by_name = 'RCY User' as ok
+  from public.recycle_request_list where id = (select min(id) from public.recycle_requests where part_code = 'VLV-3');
+\echo 'expect ERROR: work was already started'
+begin; set local role authenticated;
+  select public.start_recycle_work((select min(id) from public.recycle_requests where part_code = 'VLV-3'), now());
+commit;
+\echo 'expect ERROR: Start Work cannot be in the future'
+begin; set local role authenticated;
+  select public.start_recycle_work((select max(id) from public.recycle_requests where part_code = 'VLV-3'), now() + interval '2 days');
+commit;
+begin; set local role authenticated;
+  update public.recycle_requests set work_started_at = now() - interval '1 day', remarks = 'tamper'
+   where id = (select max(id) from public.recycle_requests where part_code = 'VLV-3');
+commit;
+select 'Start Work cannot be written by a plain update', work_started_at is null and remarks = 'tamper' as ok
+  from public.recycle_requests where id = (select max(id) from public.recycle_requests where part_code = 'VLV-3');
+
+\echo '--- 12. THE SLA SETTINGS: CONFIGURABLE, BY ADMIN CONFIG ONLY ---'
+\echo 'expect ERROR: changing the SLA needs Admin config'
+begin; set local role authenticated;
+  select public.set_recycle_sla(5, array[0]);
+commit;
+call public.be('rcy_store@x.com');
+update public.profiles set extra_permissions = extra_permissions || '["config.manage"]'::jsonb where email = 'rcy_user@x.com';
+call public.be('rcy_user@x.com');
+begin; set local role authenticated;
+  select public.set_recycle_sla(5, array[0]);
+commit;
+select 'Sunday only, 5 working days: Fri 10:00 -> Thu 10:00',
+       public.recycle_sla_due(timestamptz '2026-10-02 10:00+05:30') = timestamptz '2026-10-08 10:00+05:30' as ok;
+begin; set local role authenticated;
+  select public.set_recycle_sla(3, array[0, 6]);
+commit;
+\echo 'expect ERROR: at least one working day'
+begin; set local role authenticated;
+  select public.set_recycle_sla(3, array[0,1,2,3,4,5,6]);
+commit;
+
+\echo '--- 13. IMPORT FROM MRN: EVERY LINE WITH A QUANTITY, READ ONLY ---'
+-- The regular module's own stock rule does not concern this fixture.
+alter table public.material_returns disable trigger user;
+insert into public.material_returns (uid, row_no, mrn_no, mrn_date, engineer, part, item_code, item_name, good_qty, defective_qty, customer_name)
+values ('MRN-T1', 1, 'MRN-0099', current_date, 'SOMEONE ELSE', 'PCB-200|Board', 'PCB-200', 'Board', 1, 2, 'CUST X');
+alter table public.material_returns enable trigger user;
+begin; set local role authenticated;
+  select 'the recycling user sees another engineer''s MRN line' as t,
+         count(*) = 1 and sum(good_qty) = 1 and sum(defective_qty) = 2 as ok
+    from public.recycle_mrn_lines('MRN-0099');
+commit;
+call public.be('rcy_nobody@x.com');
+\echo 'expect ERROR: importing from MRN needs recycle.register'
+begin; set local role authenticated;
+  select count(*) from public.recycle_mrn_lines('');
+commit;
+update public.app_settings set value = 'on' where key = 'audit_mode';
+call public.be('rcy_user@x.com');
+\echo 'expect ERROR: not in Audit Mode'
+begin; set local role authenticated;
+  select count(*) from public.recycle_mrn_lines('');
+commit;
+update public.app_settings set value = 'off' where key = 'audit_mode';

@@ -6802,6 +6802,9 @@ export interface RecycleRequest {
   not_recyclable_reason: string; closed_at: string | null; closed_by_name: string;
   created_at: string; created_by_name: string;
   parts_cost: number; other_cost: number; total_cost: number; issued_cost: number;
+  // 0365: Start Work and its working-day SLA; the MRN it was imported from.
+  work_started_at: string | null; work_started_by_name: string; mrn_ref: string;
+  sla_due_at: string | null; sla_status: 'Not started' | 'On track' | 'Due today' | 'Breached' | 'Met';
 }
 export interface RecycleMrsLine {
   line_id: number; mrs_id: number; mrs_no: string; request_id: number | null; rcy_no: string | null;
@@ -6891,4 +6894,42 @@ export async function deleteRecycleCost(id: number): Promise<Res> {
   const { data, error } = await must().from('recycle_other_costs').delete().eq('id', id).select('id');
   if (error) return { ok: false, error: errMsg(error) };
   return (data ?? []).length ? { ok: true } : { ok: false, error: 'Not removed — you may not change this request.' };
+}
+
+// ---- 0365: one request per spare, Start Work + SLA, import from MRN --------
+/** Registers a quantity of N as N requests, in one transaction; the numbers back. */
+export async function registerRecycleRequests(input: {
+  part_code: string; part_description: string; serial: string; qty: number; received_on: string;
+  received_from: string; call_ref: string; remarks: string; mrn_ref?: string;
+}): Promise<Res<string[]>> {
+  const { data, error } = await must().rpc('register_recycle_requests', {
+    p_part_code: input.part_code, p_part_description: input.part_description, p_serial: input.serial,
+    p_qty: input.qty, p_received_on: input.received_on, p_received_from: input.received_from,
+    p_call_ref: input.call_ref, p_remarks: input.remarks, p_mrn_ref: input.mrn_ref ?? '',
+  });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, data: (data ?? []) as string[] };
+}
+export async function startRecycleWork(id: number, at: string): Promise<Res> {
+  const { error } = await must().rpc('start_recycle_work', { p_id: id, p_at: at });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+export interface RecycleMrnLine {
+  id: number; mrn_no: string; mrn_date: string | null; engineer: string; item_code: string; item_name: string;
+  part: string; good_qty: number; defective_qty: number; customer_name: string; report_no: string;
+  removed_from_equipment: string; remarks: string;
+}
+export async function listRecycleMrnLines(search: string): Promise<RecycleMrnLine[]> {
+  const { data, error } = await must().rpc('recycle_mrn_lines', { p_search: search, p_limit: 300 });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as RecycleMrnLine[];
+}
+export async function getRecycleSla(): Promise<{ working_days: number; weekend_days: number[] }> {
+  const { data, error } = await must().rpc('recycle_sla_settings');
+  if (error) throw new Error(errMsg(error));
+  const r = ((data ?? []) as { working_days: number; weekend_days: number[] }[])[0];
+  return { working_days: Number(r?.working_days ?? 3), weekend_days: (r?.weekend_days ?? [0, 6]).map(Number) };
+}
+export async function setRecycleSla(workingDays: number, weekendDays: number[]): Promise<Res> {
+  const { error } = await must().rpc('set_recycle_sla', { p_working_days: workingDays, p_weekend_days: weekendDays });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }

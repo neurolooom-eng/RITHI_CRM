@@ -1,7 +1,8 @@
 import { isMissingTable } from '../lib/dberror';
 import { useEffect, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
-import { listSlaRules, saveSlaRule, supabaseConfigured, type SlaRuleRow } from '../lib/supabase';
+import { listSlaRules, saveSlaRule, supabaseConfigured, getRecycleSla, setRecycleSla, type SlaRuleRow } from '../lib/supabase';
+import { useAuditMode } from '../lib/auditMode';
 import { DEFAULT_SLA_RULES } from '../lib/sla';
 import { useAuth } from '../lib/auth';
 
@@ -92,6 +93,65 @@ export function SlaRulesCard() {
         </button>
         <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>↻ Refresh</button>
       </div>
+      <RecycleSlaSection mayEdit={mayEdit} />
     </SectionCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SPARE RECYCLING SLA (0365, the user, 2026-10-04: "SLA is 3 Working Days.
+// Saturday, Sunday Holiday, But make it configurable through SLA Page"). The
+// recycling track's own setting, kept apart from the call rules above so it
+// can never change how a call is judged; counted from Start Work. Hidden --
+// and refused by the database -- while Audit Mode is on, like the track.
+// ---------------------------------------------------------------------------
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function RecycleSlaSection({ mayEdit }: { mayEdit: boolean }) {
+  const audit = useAuditMode();
+  const [days, setDays] = useState(3);
+  const [weekend, setWeekend] = useState<number[]>([0, 6]);
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    if (!supabaseConfigured() || audit.on || !audit.known) return;
+    getRecycleSla()
+      .then((r) => { setDays(r.working_days); setWeekend(r.weekend_days); setLoaded(true); })
+      .catch((e) => setNote({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` }));
+  }, [audit.on, audit.known]);
+  if (!supabaseConfigured() || audit.on || !audit.known) return null;
+
+  const toggle = (d: number) => { setWeekend((w) => (w.includes(d) ? w.filter((x) => x !== d) : [...w, d].sort())); setDirty(true); };
+  const save = async () => {
+    setBusy(true);
+    const res = await setRecycleSla(Math.round(days), weekend);
+    setBusy(false);
+    if (!res.ok) { setNote({ tone: 'error', text: res.error ?? 'Not saved.' }); return; }
+    setDirty(false); setNote({ tone: 'ok', text: 'Spare Recycling SLA saved.' });
+  };
+  return (
+    <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+      <h4 style={{ margin: '0 0 4px' }}>Spare Recycling SLA</h4>
+      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+        Counted in <b>working days</b> from <b>Start Work</b> on a recycling request. The days ticked below are holidays and are skipped.
+      </p>
+      {note && <div className={`sheet-banner sheet-banner-${note.tone}`} style={{ marginBottom: 8 }}><span>{note.text}</span></div>}
+      <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label className="field-label" style={{ margin: 0 }}>Working days</label>
+        <input className="input" type="number" min={1} max={60} value={days} disabled={!mayEdit || !loaded}
+          onChange={(e) => { setDays(Number(e.target.value)); setDirty(true); }} style={{ width: 80 }} />
+        <span className="field-label" style={{ margin: 0 }}>Holidays</span>
+        {WEEKDAYS.map((w, i) => (
+          <label key={w} style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: 13 }}>
+            <input type="checkbox" checked={weekend.includes(i)} disabled={!mayEdit || !loaded} onChange={() => toggle(i)} />{w.slice(0, 3)}
+          </label>
+        ))}
+        <button className="btn btn-primary btn-sm" disabled={!mayEdit || !dirty || busy} onClick={() => void save()}>
+          {busy ? 'Saving…' : dirty ? 'Save' : 'Saved'}
+        </button>
+      </div>
+    </div>
   );
 }
