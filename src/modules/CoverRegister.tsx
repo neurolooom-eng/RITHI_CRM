@@ -13,7 +13,7 @@ import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
 import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
-import { coverStatus, deriveHeader, deriveItem, TRANSFERRED_AWAY, isDealerType, DEALER_NO_INSTALL } from '../lib/coverspec';
+import { coverStatus, deriveHeader, deriveItem, TRANSFERRED_AWAY, DEALER_NO_INSTALL } from '../lib/coverspec';
 import { listProductLines, sellableNames, sellableCodes, retiredNames, type ProductLine } from '../lib/productLines';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtDate, statusBadge, timeAgo } from '../lib/format';
@@ -26,7 +26,7 @@ import {
   raiseInstallCalls, missingRequired, yearsHint, getHeader, countPendingSales,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   proposeConversion, conversionHeader, convertWarrantyToContract, contractsFromSale, suggestedContractPmVisits,
-  machinesWithAnotherCustomer,
+  machinesWithAnotherCustomer, dealerParties, isDealerParty,
   CONTRACT, type ConversionDraft,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
@@ -794,6 +794,16 @@ function ConvertPanel({ sale, items, onDone, onCancel }: {
 export function CoverRegister({ kind }: { kind: CoverKind }) {
   const cfg = configFor(kind);
   const { can } = useAuth();
+  // WHO IS A DEALER: the Party Master's answer (D-151, the user's decision of
+  // 2026-10-04), the one the database's party_is_dealer() gives -- never the
+  // sale's own Type, copied when it was entered and never updated.
+  const [dealers, setDealers] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (kind !== 'sale' || !supabaseConfigured()) return;
+    let live = true;
+    void dealerParties().then((d) => { if (live) setDealers(d); }).catch(() => { /* none known: nothing is treated as a dealer */ });
+    return () => { live = false; };
+  }, [kind]);
   const navigate = useNavigate();
   // EACH REGISTER ITS OWN KEYS (findings 63, 67; 0291): the Warranty Register
   // answers to cover.edit, the Contract Register to contract.edit, and each
@@ -1332,7 +1342,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     } },
     // THE IDENTIFIER: one word a reader can scan down and the export can carry.
     ...(kind === 'sale' ? [{ key: 'install_pending', header: 'Installation call', width: 130, sortable: false, wrap: false,
-      render: (r: Row) => (installPending(r)
+      render: (r: Row) => (installPending(r, dealers)
         ? <span className="badge badge-warning" title="No installation call is mapped to this machine yet">Pending</span>
         : isCallNumber(r.inst_call)
           ? <span className="badge badge-success" title="Installation call mapped">{str(r.inst_call)}</span>
@@ -1344,10 +1354,10 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
             a contract already installed, so the button is not offered there --
             an action that makes no sense for the record in front of you is
             worse than a missing one, because somebody presses it to find out. */}
-        {kind === 'sale' && isDealerType(r.party_type) && !isCallNumber(r.inst_call) && (
+        {kind === 'sale' && isDealerParty(r.party_name, dealers) && !isCallNumber(r.inst_call) && (
           <span className="muted" style={{ fontSize: 12 }} title={DEALER_NO_INSTALL}>Dealer — raised from the transfer</span>
         )}
-        {kind === 'sale' && !(isDealerType(r.party_type) && !isCallNumber(r.inst_call)) && (
+        {kind === 'sale' && !(isDealerParty(r.party_name, dealers) && !isCallNumber(r.inst_call)) && (
           isCallNumber(r.inst_call)
             // ALREADY DONE, AND IT SAYS WHICH. The UCN is the evidence the
             // button disables itself by, so showing it is showing the reason.
@@ -1499,10 +1509,10 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       {/* A DEALER GETS NO INSTALLATION CALL (the user, 2026-10-03; 0328):
           the call is raised from the Ownership Transfer when the dealer sells
           the machine. Said in place of the button, so nobody hunts for it. */}
-      {kind === 'sale' && isDealerType(draft.party_type) && (
+      {kind === 'sale' && isDealerParty(draft.party_name, dealers) && (
         <span className="muted" style={{ fontSize: 12 }}>{DEALER_NO_INSTALL}</span>
       )}
-      {kind === 'sale' && !isDealerType(draft.party_type) && (
+      {kind === 'sale' && !isDealerParty(draft.party_name, dealers) && (
         needCalls.length > 0
           ? canRaiseInstall && <button className="btn btn-sm" disabled={saving} onClick={() => void raiseCalls()}
               title="Raise an installation call for each machine that has not got one">
@@ -1691,7 +1701,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const exportValue = (r: Row, key: string): unknown => {
     if (key === 'status_now') return stateOf(str(r[cfg.endColumn]));
     if (key === 'overridden') return Array.isArray(r.overridden) ? r.overridden.join(', ') : '';
-    if (key === 'install_pending') return installPending(r) ? 'Pending' : isCallNumber(r.inst_call) ? str(r.inst_call) : '';
+    if (key === 'install_pending') return installPending(r, dealers) ? 'Pending' : isCallNumber(r.inst_call) ? str(r.inst_call) : '';
     return r[key];
   };
   const exportCols = (cols: Column<Row>[]) =>
@@ -1858,11 +1868,11 @@ const stateOf = (end: string): string => coverStatus(end);
 
 // PENDING = machinesNeedingInstallCall's rule for one line: a product and a
 // serial, and no call number in INST Call. The server filter is the same rule.
-const installPending = (r: Row): boolean =>
+const installPending = (r: Row, dealers: Set<string>): boolean =>
   isPinnedValue(r.product_name) && isPinnedValue(r.serial_number) && !isCallNumber(r.inst_call)
   // A DEALER'S MACHINE waits for no call of its own (0328): the transfer
   // raises the customer's.
-  && !isDealerType(r.party_type);
+  && !isDealerParty(r.party_name, dealers);
 
 // A machine row, in the shape the call form's prefill reads.
 function prefillFrom(r: Row, kind: CoverKind): Record<string, unknown> {

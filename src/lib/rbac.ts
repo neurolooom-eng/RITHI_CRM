@@ -250,6 +250,8 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // key each, children of all three registers' report keys (perm_parents, 0286).
   { group: 'Calls', key: 'calls.report.visit', label: ' File a visit on a Field call' },
   { group: 'Calls', key: 'visit.spares', label: ' Book spares used on a visit (any register)' },
+  // D-125 (0354, the user, 2026-10-04): given per person in Extra Access, to nobody by role.
+  { group: 'Calls', key: 'visit.others', label: 'Report a visit and its spares in another engineer\u2019s name (not only your team)' },
   { group: 'Calls', key: 'visit.feedback', label: ' Record customer feedback on a visit (any register)' },
   { group: 'Calls', key: 'calls.cancel', label: 'Cancel a Field call (and restore it)' },
   // RE-OPENING is its own tick (finding 63): it was "calls.create or
@@ -318,6 +320,8 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'spare.drop', label: 'Drop a spare (any stage)' },
   { group: 'Spares', key: 'spare.receive', label: 'Acknowledge spare receipt' },
   { group: 'Spares', key: 'spare.reassign', label: 'Change the engineer on a spare request (before dispatch)' },
+  // D-125 (0354): RM / RGM / NSM raise for their team without it; Admins and Technical Support hold it.
+  { group: 'Spares', key: 'spare.request.others', label: 'Raise a spare request in any engineer\u2019s name (not only your team)' },
   { group: 'Spares', key: 'stock.return', label: 'Return spares to Stores (MRN)' },
   // Returning stock IN ANOTHER ENGINEER'S NAME (finding 64): the screen asked
   // users.manage / dispatch / RM approval, the database any approval stage or
@@ -341,6 +345,8 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // register row. Its own key, asked by the database and stamped from the
   // session; granted to NOBODY by the migration -- an administrator ticks it.
   { group: 'Indoor Service', key: 'indoor.verify', label: 'Verify an Indoor Service register entry' },
+  // D-111 (0358, the user, 2026-10-04): a signed PDT is locked; given per person, to nobody by role.
+  { group: 'Indoor Service', key: 'indoor.pdt_unsign', label: 'Un-sign a Pre-Delivery Testing record (with a reason)' },
   // DELETING A JOB PERMANENTLY (0324, the user, 2026-10-03: "Allow Admin by
   // default, rest I will update from Roles & Permissions"). Asked by
   // delete_indoor_job(), which refuses a job any DC or filed visit names;
@@ -494,6 +500,10 @@ FUNCTIONAL_DEFAULTS.zoho_migration = [...FUNCTIONAL_DEFAULTS.technical_support];
 // that role does not inherit it: for Technical Support it is the ONE write the
 // role holds, given knowingly ("Yes, include it"), not a widening to copy.
 FUNCTIONAL_DEFAULTS.technical_support.push('review.auto');
+// Spare requests in ANY engineer's name (D-125, the user, 2026-10-04: "Admins +
+// Technical Support"); 0354 gives it once in app_roles. After the Zoho clone,
+// which must not inherit it.
+FUNCTIONAL_DEFAULTS.technical_support.push('spare.request.others');
 FUNCTIONAL_DEFAULTS.nsm.push('review.auto');
 
 // Everyone but a plain engineer can export / download data by default.
@@ -710,16 +720,16 @@ export const PERM_TREE: PermHeader[] = [
   { title: 'Service Calls', pages: [
     { path: '/request-registration', label: 'Request Registration', actions: ['request.create', 'calls.create', 'pending.register'] },
     { path: '/pending-registrations', label: 'Pending Registrations', actions: ['pending.register', 'calls.create', 'install.create', 'calls.edit', 'install.edit'] },
-    { path: '/field-calls', label: 'Field Call Register', actions: ['calls.view', 'calls.create', 'calls.edit', 'calls.edit.complaint', 'calls.edit.customer', 'calls.edit.vigilance', 'calls.edit.contact', 'calls.allot', 'calls.report', 'calls.report.visit', 'visit.spares', 'visit.feedback', 'calls.cancel', 'calls.reopen', 'spare.request', 'consumption.reconcile'] },
-    { path: '/installations', label: 'Installation Calls', actions: ['calls.view', 'install.create', 'install.edit', 'install.edit.complaint', 'install.edit.customer', 'install.edit.vigilance', 'install.edit.contact', 'install.allot', 'install.report', 'install.report.visit', 'visit.spares', 'visit.feedback', 'install.cancel', 'install.reopen', 'spare.request', 'consumption.reconcile'] },
-    { path: '/pm-calls', label: 'Preventive (PM)', actions: ['calls.view', 'pm.create', 'pm.edit', 'pm.edit.complaint', 'pm.edit.customer', 'pm.edit.vigilance', 'pm.edit.contact', 'pm.allot', 'pm.report', 'pm.report.visit', 'visit.spares', 'visit.feedback', 'pm.cancel', 'pm.reopen', 'spare.request', 'consumption.reconcile'] },
+    { path: '/field-calls', label: 'Field Call Register', actions: ['calls.view', 'calls.create', 'calls.edit', 'calls.edit.complaint', 'calls.edit.customer', 'calls.edit.vigilance', 'calls.edit.contact', 'calls.allot', 'calls.report', 'calls.report.visit', 'visit.spares', 'visit.others', 'visit.feedback', 'calls.cancel', 'calls.reopen', 'spare.request', 'consumption.reconcile'] },
+    { path: '/installations', label: 'Installation Calls', actions: ['calls.view', 'install.create', 'install.edit', 'install.edit.complaint', 'install.edit.customer', 'install.edit.vigilance', 'install.edit.contact', 'install.allot', 'install.report', 'install.report.visit', 'visit.spares', 'visit.others', 'visit.feedback', 'install.cancel', 'install.reopen', 'spare.request', 'consumption.reconcile'] },
+    { path: '/pm-calls', label: 'Preventive (PM)', actions: ['calls.view', 'pm.create', 'pm.edit', 'pm.edit.complaint', 'pm.edit.customer', 'pm.edit.vigilance', 'pm.edit.contact', 'pm.allot', 'pm.report', 'pm.report.visit', 'visit.spares', 'visit.others', 'visit.feedback', 'pm.cancel', 'pm.reopen', 'spare.request', 'consumption.reconcile'] },
     { path: '/pending-calls', label: 'Pending Calls', actions: ['calls.allot', 'install.allot', 'pm.allot'] },
     { path: '/reports', label: 'Visit Reports / Service Reports', actions: ['calls.view'] },
     { path: '/call-review', label: 'Call Review', actions: ['callreview.mark', 'consumption.reconcile', 'calls.reopen', 'install.reopen', 'pm.reopen'] },
     { path: '/feedback', label: 'Customer Feedback', actions: ['feedback.view'] },
   ] },
   { title: 'Spares', pages: [
-    { path: '/spare-requests', label: 'Spare Requests', actions: ['spare.request', 'spare.approve_rm', 'spare.approve_commercial', 'spare.approve_nsm', 'spare.dispatch', 'spare.drop', 'spare.receive', 'spare.reassign'] },
+    { path: '/spare-requests', label: 'Spare Requests', actions: ['spare.request', 'spare.approve_rm', 'spare.approve_commercial', 'spare.approve_nsm', 'spare.dispatch', 'spare.drop', 'spare.receive', 'spare.reassign', 'spare.request.others'] },
     { path: '/spare-rm-approval', label: 'RM Approval', actions: ['spare.approve_rm'] },
     { path: '/spare-dispatch', label: 'Pending Dispatch', actions: ['spare.dispatch', 'spare.drop'] },
     { path: '/stock-out', label: 'Stock Out', actions: [] },
@@ -734,7 +744,7 @@ export const PERM_TREE: PermHeader[] = [
   // page harder to trust than to use.
   { title: 'Indoor Service', pages: [
     { path: '/indoor', label: 'Indoor Service Register',
-      actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn', 'indoor.verify', 'indoor.delete'] },
+      actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn', 'indoor.verify', 'indoor.delete', 'indoor.pdt_unsign'] },
   ] },
   { title: 'Reports', pages: [
     // The parent GRANTS ALL THREE below it, so a role that only needs one is

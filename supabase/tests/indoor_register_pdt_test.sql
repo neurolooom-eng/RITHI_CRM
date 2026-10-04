@@ -43,9 +43,10 @@ on conflict (role) do update set permissions =
 -- The supervisor: the same plus indoor.verify (granted HERE, by the fixture --
 -- 0320 grants it to nobody).
 insert into public.app_roles (role, permissions) values
- ('nsm', '["mod:/indoor","indoor.receive","indoor.work","indoor.qc","indoor.dispatch","indoor.verify"]'::jsonb)
+ ('nsm', '["mod:/indoor","indoor.receive","indoor.work","indoor.qc","indoor.dispatch","indoor.verify","indoor.pdt_unsign"]'::jsonb)
 on conflict (role) do update set permissions =
-  '["mod:/indoor","indoor.receive","indoor.work","indoor.qc","indoor.dispatch","indoor.verify"]'::jsonb;
+  '["mod:/indoor","indoor.receive","indoor.work","indoor.qc","indoor.dispatch","indoor.verify","indoor.pdt_unsign"]'::jsonb;
+-- ...and indoor.pdt_unsign (0358, D-111), also granted HERE: nobody holds it by migration.
 
 create or replace procedure public.be(p text) language plpgsql as $$
 begin update public.harness set uid = (select id from auth.users where email = p), email = p; end $$;
@@ -167,9 +168,37 @@ begin;
 commit;
 
 \echo '--- 7. ...AND WITH A COMPLETE, ALL-OK, SIGNED PDT IT LEAVES ---'
+-- 0358 (D-111, the user's decision "Lock once signed"): the signed PDT is not
+-- corrected in place. It is un-signed with a reason by a holder of
+-- indoor.pdt_unsign, corrected, and signed again.
+\echo 'expect ERROR: This Pre-Delivery Testing record is signed by Pdt Worker and locked'
 begin;
   set local role authenticated;
   update public.indoor_pdt p set check3 = 'OK'
+    from public.indoor_jobs j where j.id = p.job_id and j.serial = 'PDT-TEST-IMP';
+commit;
+\echo 'expect ERROR: A signed Pre-Delivery Testing record is un-signed with "Un-sign" -- not by blanking the signature'
+begin;
+  set local role authenticated;
+  update public.indoor_pdt p set inspected_by = null
+    from public.indoor_jobs j where j.id = p.job_id and j.serial = 'PDT-TEST-IMP';
+commit;
+\echo 'expect ERROR: indoor.pdt_unsign is required -- the worker does not hold it'
+begin;
+  set local role authenticated;
+  select public.unsign_indoor_pdt(j.id, 'retest') from public.indoor_jobs j where j.serial = 'PDT-TEST-IMP';
+commit;
+call public.be('pdt_sup@x.com');
+begin;
+  set local role authenticated;
+  select public.unsign_indoor_pdt(j.id, 'check 3 re-tested and passed') from public.indoor_jobs j where j.serial = 'PDT-TEST-IMP';
+commit;
+\echo 'expect: indoor.pdt_unsign | check 3 re-tested and passed -- the reason is on the audit log'
+select action, meta->>'reason' from public.audit_log where action = 'indoor.pdt_unsign' order by id desc limit 1;
+call public.be('pdt_work@x.com');
+begin;
+  set local role authenticated;
+  update public.indoor_pdt p set check3 = 'OK', inspected_by = '7e000000-0000-0000-0000-000000000001'
     from public.indoor_jobs j where j.id = p.job_id and j.serial = 'PDT-TEST-IMP';
   update public.indoor_jobs set status = 'Dispatched', dispatch_ref = 'DC/PDT/1', dc_date = current_date
    where serial = 'PDT-TEST-IMP';

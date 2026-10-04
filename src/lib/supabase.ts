@@ -5985,10 +5985,15 @@ export async function saveIndoorJob(
  *  only stamps a time once somebody is named — the WI and its revision are what
  *  make the record mean anything. */
 export async function markIndoorCleaned(
-  id: number, wi: string, rev: string, uid: string,
+  id: number, wi: string, rev: string, uid: string, when?: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // `when` is an EARLIER time for a cleaning recorded after it was done (D-114,
+  // the user's decision); the database refuses a future one and writes WHO
+  // from the session whatever `cleaned_by` says (0358).
+  const at = when ? new Date(when) : new Date();
+  if (Number.isNaN(at.getTime())) return { ok: false, error: 'That cleaning time is not a date and time.' };
   const { error } = await must().from('indoor_jobs')
-    .update({ cleaned_by: uid, cleaned_at: new Date().toISOString(),
+    .update({ cleaned_by: uid, cleaned_at: at.toISOString(),
               cleaning_wi: wi, cleaning_wi_rev: rev, status: 'Cleaned' })
     .eq('id', id);
   if (error) return { ok: false, error: errMsg(error) };
@@ -6100,9 +6105,14 @@ export async function listIndoorDcAuthorisers(): Promise<{ name: string; basis: 
 /** APPROVE an Indoor DC (0323). Only its AUTHORISED BY or an administrator;
  *  the database refuses it until every job with a UCN has its visit filed.
  *  `checkOnly` asks who and state only, before any visit is filed. */
-export async function approveIndoorDc(dcNo: string, checkOnly = false): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().rpc('approve_indoor_dc', { p_dc_no: dcNo, p_check_only: checkOnly });
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+export async function approveIndoorDc(dcNo: string, checkOnly = false): Promise<{ ok: boolean; error?: string; skipped?: string }> {
+  const { data, error } = await must().rpc('approve_indoor_dc', { p_dc_no: dcNo, p_check_only: checkOnly });
+  if (error) return { ok: false, error: errMsg(error) };
+  // D-145 (0355): a unit whose call was SOLVED since its visit was drafted is
+  // not filed; the function names those calls after a " | ".
+  const out = String(data ?? '');
+  const i = out.indexOf(' | ');
+  return { ok: true, skipped: i >= 0 ? out.slice(i + 3) : undefined };
 }
 
 /** REJECT an Indoor DC with a reason (0323): the DC is kept and its units released. */
@@ -6210,6 +6220,14 @@ export async function signIndoorPdt(
   if (error) return { ok: false, error: errMsg(error) };
   if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not sign this test.' };
   return { ok: true };
+}
+
+/** UN-SIGN a signed PDT (0358, D-111): a signed record is locked, and this is
+ *  the only way to withdraw the signature -- it needs indoor.pdt_unsign and a
+ *  reason, which the database writes to the audit log with who and when. */
+export async function unsignIndoorPdt(jobId: number, reason: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('unsign_indoor_pdt', { p_job_id: jobId, p_reason: reason });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 export async function listIndoorAccessories(jobId: number): Promise<IndoorAccessory[]> {

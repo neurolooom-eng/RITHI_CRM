@@ -256,7 +256,7 @@ export function IndoorDcForm({ jobs, onClose, onIssued, inPane }: {
  *  transaction, as the approver -- so a refusal anywhere leaves the DC pending
  *  with nothing filed, and the approver's ROLE needs no call-report key: the
  *  User Master naming them is what lets them approve. */
-async function approveDc(dc: IndoorDc, onStep: (s: string) => void): Promise<{ ok: boolean; error?: string }> {
+async function approveDc(dc: IndoorDc, onStep: (s: string) => void): Promise<{ ok: boolean; error?: string; skipped?: string }> {
   onStep(`Approving ${dc.dc_no} and filing its visits…`);
   return approveIndoorDc(dc.dc_no);
 }
@@ -293,7 +293,9 @@ export function IndoorDcList({ onChanged, namingMe = false }: { onChanged?: () =
     const r = await approveDc(d, (s) => setMsg(s)).catch((e) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
     setBusy('');
     logAudit({ action: 'indoor.dc_approve', target: d.dc_no, status: r.ok ? 'ok' : 'error', error: r.ok ? undefined : r.error });
-    setMsg(r.ok ? `Indoor DC ${d.dc_no} approved — the visits are filed against the calls.` : `Not approved: ${r.error}`);
+    setMsg(r.ok
+      ? `Indoor DC ${d.dc_no} approved — the visits are filed against the calls.${'skipped' in r && r.skipped ? ` Not filed: ${r.skipped} (each call was already Solved, so it was not put back to Unsolved).` : ''}`
+      : `Not approved: ${r.error}`);
     refresh();
   };
   const reject = async (dcNo: string) => {

@@ -85,6 +85,10 @@ different totals. An empty register usually means access, not emptiness.
 - **Request Registration** `/request-registration` — **the machine names the
   customer**: search the serial first and the customer follows. An installation is
   the exception, since the machine may not exist yet.
+  > **No installation request for a dealer.** A party that is a DEALER on the
+  > Party Master gets no installation call; the request is refused when it is
+  > raised. When the dealer sells the machine, the installation call is raised
+  > from the Ownership Transfer.
   > Product, serial and the customer's details all come from the copies kept on
   > your device first, and from the server only for something the device does
   > not have yet — so the form works on a weak signal.
@@ -145,6 +149,10 @@ on Roles & Permissions does not reach another team's calls.
   heading row even under a letterhead, reads tab-separated files, and lists what
   it kept and what it held back. Unrecognised columns are **kept on the row**
   where the register allows it.
+  > **Product Database: a Sold Through that is not a dealer is flagged.** Before
+  > you confirm and after it is written, the upload names any Sold Through that
+  > is not a DEALER on the Party Master. It is still loaded — this is being
+  > observed before deciding whether to refuse it.
   > **Installation Warranty Start (old installation calls)** loads past
   > installations — back to 2018 — one row per installation call, matched on the
   > UCN. Each row's *Warranty Start Date?* (Installation Call Solved Date or
@@ -286,6 +294,13 @@ against the call it was fitted to.
 
 1. **Spare Requests** `/spare-requests` — the engineer asks for a part against a
    call.
+   > **Whose name a request goes under.** Your own, or an engineer in your team
+   > (the User Master: the people whose Reporting or Regional Manager is you, and
+   > theirs below them). Anybody else's needs *Raise a spare request in any
+   > engineer's name* — Technical Support has it; an administrator ticks it for
+   > anybody else, per person in **User Master → Extra Access** or per role. The
+   > Engineer list offers only the names you may use, and the system refuses any
+   > other however the request is made.
    > **Complaint and Item Status follow the call.** Change either on the call and
    > every spare request on it changes too, at any stage. To bring an older
    > request in line, open it and press **↻ Update from call**, or tick several
@@ -323,6 +338,13 @@ against the call it was fitted to.
 5. The engineer **acknowledges receipt**.
 6. **Spare Consumption** `/spare-consumption` — the part is booked against the
    call.
+   > **A visit and its spares go under your own name or your team's.** Reporting
+   > a visit, or booking its spares, in another engineer's name needs *Report a
+   > visit and its spares in another engineer's name* — nobody has it until it is
+   > ticked for that person in **User Master → Extra Access**. A reconciliation,
+   > the bulk uploads and an Indoor DC approval are not affected: they already
+   > need their own rights. The system records who booked a line from your
+   > sign-in, whatever is sent.
    > **A spare needs a visit report on its call — except a reconciliation.**
    > Spares booked from Call Reporting or the bulk upload are refused on a call
    > with no visit report. **Add consumption (reconciliation)** is for a part
@@ -504,8 +526,8 @@ against the call it was fitted to.
   >
   > ### Raising the installation calls
   >
-  > **A sale to a dealer gets no installation call.** If the sale's Type is
-  > **DEALER**, the button is not offered (on the entry or on its Register line)
+  > **A sale to a dealer gets no installation call.** If the party is a
+  > **DEALER on the Party Master** (not the Type typed on the sale), the button is not offered (on the entry or on its Register line)
   > and the machines are not counted as *pending*; the system refuses such a call
   > however it is raised. When the dealer sells the machine, record an
   > **Ownership Transfer** and raise the call from there (see below).
@@ -721,6 +743,15 @@ set to zero.
     the **transfer date**, and it carries the customer's city, state and
     engineer from the Party Master and the machine's cover from the Product
     Database. A machine that already has its OT- call is not given a second.
+    The button is shown **only on a transfer with a Sold Through** — a dealer
+    selling the machine on; between two customers the machine already had its
+    installation call. A machine has **one** installation call: a second with
+    the same call number, or for the same product and serial, is refused
+    however it is raised, unless the first was cancelled.
+  - **Correcting a transfer** (its From party, or its machine) re-reads the
+    machine: a Sold Through the transfer had set is cleared when no dealer
+    transfer is left, and one that came from the Product Database upload is
+    kept. Moving a transfer to another serial also re-reads the one it left.
 
 ## Masters & documents
 
@@ -1291,7 +1322,9 @@ typed into a form that reads it.
      List the **accessories received**: each item with its **quantity**
      (and serial / tag where it has one), **+ Add item** for more.
   2. **Cleaning** — **Mark cleaning done** against the work instruction
-     (WI/SER/01) and its revision.
+     (WI/SER/01) and its revision. Leave *Cleaned at* blank for now, or give
+     the time it was actually done if you are recording it later — never a
+     time in the future. The system records you as who marked it.
   3. **Repair — the service report** — once the unit is cleaned (never
      before). This page **is** the Indoor Service Report: enter the **report
      number**, pick the file (saved in Drive as **“<report no>_<file name>”** so
@@ -1314,7 +1347,9 @@ typed into a form that reads it.
      one). **⭱ Upload** in the register's *Indoor Service Report No* cell opens
      this page directly.
   4. **DC** — once the report is uploaded (see *Indoor DC* below), then
-     **Dispatched** once the DC is approved.
+     **Dispatched** once the DC is approved. The **Dispatch Date** is the day
+     the unit is marked Dispatched (and who did it), not the day its DC was
+     issued; a unit not yet Dispatched shows none.
 
   A job opens as a **window** in the middle of the screen (× or **Esc** closes
   it) on the stage it is at; the stepper at the top moves between the stages
@@ -1364,6 +1399,11 @@ typed into a form that reads it.
   **cannot be Dispatched or Closed** until every field is filled, it is signed,
   and every check reads OK. **Print R/SER/QC/007** prints the form; a test that
   is not finished still prints, with a band saying so.
+  > **Once signed it is locked.** Nothing on it can be changed, and nobody can
+  > sign over it. To correct it, somebody given *Un-sign a Pre-Delivery Testing
+  > record* (ticked per person, in Extra Access or on a role) presses
+  > **Un-sign** with a reason — the reason, who had signed and when are kept in
+  > the audit log — and it is signed again after the correction.
   > If the job says it is **not known** whether the product is imported, the
   > test is not demanded — set Imported on the Product Master for that line and
   > the job will ask for it.
@@ -1398,6 +1438,10 @@ typed into a form that reads it.
   filed against the call — Unsolved, pending Return to Field, with the work
   details and the uploaded report — exactly as if it had been entered on the
   call; then the DC is approved and its print shows the approver's name.
+  > **A call already Solved is left alone.** If a unit's call has been Solved
+  > since its visit was drafted (closed in the field, say), approving does not
+  > file that visit — it would put the call back to Unsolved. The DC is still
+  > approved; the message names the calls skipped, and the audit log records it.
   > Approving files every unit's visit and its spares **in one step**: if one is
   > refused (for example a spare the engineer does not hold), nothing is filed,
   > the DC stays pending and the message says why. Only approving the DC marks a

@@ -2902,10 +2902,11 @@ console.log('\n-- Zoho Migration is a clone, and stays one --');
   // app-side fallback; this compares the two lists it builds.
   // ...but for the Auto Review switch, which the user gave Technical Support
   // and not this role (0285): a clone that inherited a WRITE would stop being
-  // read-only without anybody deciding it.
-  const a = [...(DEFAULT_PERMS.technical_support ?? [])].filter((k) => k !== 'review.auto').sort();
+  // read-only without anybody deciding it. The same holds for
+  // spare.request.others (0354, D-125: "Admins + Technical Support").
+  const a = [...(DEFAULT_PERMS.technical_support ?? [])].filter((k) => k !== 'review.auto' && k !== 'spare.request.others').sort();
   const b = [...(DEFAULT_PERMS.zoho_migration ?? [])].sort();
-  eq('the two roles default to the same rights, but for the Auto Review switch', b, a);
+  eq('the two roles default to the same rights, but for the Auto Review switch and spare requests for anyone', b, a);
 
   // READ ONLY, by what it does not hold. Nothing here is hidden from it; the
   // refusal on a write is Postgres's.
@@ -5779,7 +5780,7 @@ console.log('\n-- the cover registers open an entry in a pop-up --');
   // PENDING INSTALLATION CALL is filtered ON THE SERVER, with the same rule.
   {
     const cov = readFileSync('src/lib/cover.ts', 'utf8');
-    eq('the pending-install filter runs on the server', /pendingInstall && cfg\.kind === 'sale' \? PENDING_INSTALL/.test(cov), true);
+    eq('the pending-install filter runs on the server', /pendingInstall && cfg\.kind === 'sale' \? pendingInstall\(dealers\)/.test(cov), true);
     eq('...and is offered as a tile on the Warranty Register', /INSTALL CALL PENDING/.test(reg2), true);
     // ...AND PER SALE ON THE ENTRIES TAB (the user, 2026-10-02), counted by
     // the database as a filtered embed, and filterable the same way.
@@ -8712,15 +8713,19 @@ console.log('\n-- an installation call is raised the same way from either place 
   // sense for the record in front of somebody is worse than a missing one,
   // because they press it to find out what it does.
   eq('it is offered on the sale register only',
-    /kind === 'sale' && !\(isDealerType\(r\.party_type\) && !isCallNumber\(r\.inst_call\)\) && \(\s*isCallNumber\(r\.inst_call\)/.test(cr), true);
+    /kind === 'sale' && !\(isDealerParty\(r\.party_name, dealers\) && !isCallNumber\(r\.inst_call\)\) && \(\s*isCallNumber\(r\.inst_call\)/.test(cr), true);
   // A DEALER GETS NO INSTALLATION CALL (the user, 2026-10-03; 0328): not on
   // the entry, not on a Register line, not counted as pending, and the shared
   // raiser refuses it before the database has to.
+  // D-151 (the user's decision, 2026-10-04): "dealer" is the PARTY MASTER's
+  // answer (dealerParties / isDealerParty), never the sale's own Type.
   eq('...and never for a dealer: the entry, the line, the pending rule and the raiser',
-    /isDealerType\(draft\.party_type\) && \(\s*<span className="muted" style=\{\{ fontSize: 12 \}\}>\{DEALER_NO_INSTALL\}/.test(cr)
-    && /kind === 'sale' && isDealerType\(r\.party_type\) && !isCallNumber\(r\.inst_call\)/.test(cr)
-    && /&& !isDealerType\(r\.party_type\);/.test(cr)
-    && /if \(isDealerType\(header\.party_type\)\) return \{ created: \[\], error: DEALER_NO_INSTALL \};/.test(code(readFileSync('src/lib/cover.ts', 'utf8'))), true);
+    /isDealerParty\(draft\.party_name, dealers\) && \(\s*<span className="muted" style=\{\{ fontSize: 12 \}\}>\{DEALER_NO_INSTALL\}/.test(cr)
+    && /kind === 'sale' && isDealerParty\(r\.party_name, dealers\) && !isCallNumber\(r\.inst_call\)/.test(cr)
+    && /&& !isDealerParty\(r\.party_name, dealers\);/.test(cr)
+    && /if \(isDealerParty\(header\.party_name, await dealerParties\(\)\)\) return \{ created: \[\], error: DEALER_NO_INSTALL \};/.test(code(readFileSync('src/lib/cover.ts', 'utf8'))), true);
+  eq('D-151: no dealer test reads the sale\'s own Type any more',
+    /isDealerType\(/.test(cr + code(readFileSync('src/lib/cover.ts', 'utf8'))), false);
   {
     const ot = code(readFileSync('src/modules/OwnershipTransfer.tsx', 'utf8'));
     eq('the transfer raises the customer\'s OT- call through the one builder, once per machine',

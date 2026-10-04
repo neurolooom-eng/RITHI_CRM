@@ -12,7 +12,7 @@ import { useSpareParts } from '../lib/useSpareParts';
 import { logAudit } from '../lib/audit';
 import { consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
-import { useAccessScope, useActivePeople, useTeamEngineers } from '../lib/access';
+import { useAccessScope, useActivePeople, useFilingNames } from '../lib/access';
 import { todayISO, fmtLongDateTime, fmtLongDate } from '../lib/format';
 import { visitDateProblem } from '../lib/visitdate';
 import { manualReportLink } from '../lib/reports';
@@ -271,7 +271,7 @@ export function CallReportDrawer({
   /** Present = the Indoor Service Report stage: a draft, not a visit. */
   indoor?: IndoorDraftMode;
 }) {
-  const { user, isAdmin, can } = useAuth();
+  const { user, can } = useAuth();
   const scope = useAccessScope();
   const ucn = String(call?.ucn ?? '');
   const callNumber = String(call?.callNumber ?? call?.['call_number'] ?? '');
@@ -334,7 +334,9 @@ export function CallReportDrawer({
   // may repoint it (they report on behalf of their engineers) — the same list
   // the spare request and the call request offer, from `useTeamEngineers`.
   const selfName = user?.fullName ?? '';
-  const engineerOptions = useTeamEngineers(engineer).names;
+  // Exactly the names the database accepts (0354, D-125): yourself and your
+  // team, or anybody with visit.others (given per person in Extra Access).
+  const engineerOptions = useFilingNames('visit.others', engineer).names;
   const activePeople = useActivePeople(indoor && engineer.trim() ? { name: engineer, email: indoorEmail } : undefined).people;
   const pickIndoorEngineer = (name: string) => {
     setEngineer(name);
@@ -878,7 +880,9 @@ export function CallReportDrawer({
                 <SelectPicker value={engineer} onChange={setEngineer} options={engineerOptions}
                               emptyHint="Only engineers on your team are listed." />
                 <span className="muted rep-hint">
-                  {isAdmin || scope.isManager ? 'Defaults to you; you can report for an engineer.' : 'You — the user filing this report.'}
+                  {can('visit.others') ? 'Defaults to you; you can report for any engineer.'
+                    : scope.isManager ? 'Defaults to you; you can report for an engineer in your team.'
+                    : 'You — the user filing this report.'}
                 </span>
               </label>}
             </div>

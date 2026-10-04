@@ -1600,3 +1600,21 @@ export const uploadGroups = (defs: UploadDef[]): { title: string; items: UploadD
   defs.forEach((d) => { by.set(d.group, [...(by.get(d.group) ?? []), d]); });
   return order.filter((g) => by.has(g)).map((title) => ({ title, items: by.get(title)! }));
 };
+
+// ---------------------------------------------------------------------------
+// D-152 (the user's decision, 2026-10-04: "Just flag it for now, Lets Observe
+// and then decide"): a Sold Through that is not a DEALER on the Party Master
+// is FLAGGED on upload and written all the same. The distinct values, as the
+// file spells them, whose name is not among `dealers` (lower-cased, trimmed --
+// the Party Master's dealers as party_is_dealer() reads them).
+// ---------------------------------------------------------------------------
+export function soldThroughNotDealers(rows: Record<string, unknown>[], dealers: Set<string>): string[] {
+  const out = new Map<string, string>();
+  rows.forEach((r) => {
+    const v = String(r.sold_through ?? '').trim();
+    if (!v) return;
+    const k = v.toLowerCase();
+    if (!dealers.has(k) && !out.has(k)) out.set(k, v);
+  });
+  return [...out.values()].sort((a, b) => a.localeCompare(b));
+}

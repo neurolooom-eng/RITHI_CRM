@@ -3,7 +3,8 @@ import { PageHeader, SectionCard } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
 import { parseCSV } from '../lib/dataImport';
 import { uploadRows, prepareUpload, countTable, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
-import { UPLOADS, masterUpload, shapeUpload, uploadGroups, type UploadDef, type ShapeResult } from '../lib/uploads';
+import { UPLOADS, masterUpload, shapeUpload, uploadGroups, soldThroughNotDealers, type UploadDef, type ShapeResult } from '../lib/uploads';
+import { dealerParties } from '../lib/cover';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -76,15 +77,26 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
       }
     }
     const n = pending.shaped.rows.length;
+    // D-152: a Sold Through that is not a dealer on the Party Master is FLAGGED,
+    // not refused (the user: "Just flag it for now, Lets Observe and then decide").
+    let flag = '';
+    if (pending.shaped.rows.some((r) => String(r.sold_through ?? '').trim())) {
+      try {
+        const odd = soldThroughNotDealers(pending.shaped.rows, await dealerParties());
+        if (odd.length) {
+          flag = `⚑ ${odd.length} Sold Through value${odd.length === 1 ? ' is' : 's are'} not a DEALER on the Party Master and will be loaded as they are: ${odd.slice(0, 20).join(', ')}${odd.length > 20 ? ` and ${odd.length - 20} more` : ''}.`;
+        }
+      } catch { flag = '⚑ Could not read the Party Master\'s dealers, so Sold Through was not checked.'; }
+    }
     const warn = def.conflict
       ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
       : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
-    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${note ? `${note}\n\n` : ''}${warn}`)) return;
+    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${note ? `${note}\n\n` : ''}${flag ? `${flag}\n\n` : ''}${warn}`)) return;
     setBusy(`Writing 0 / ${n}…`);
     const res = await uploadRows(def.table, pending.shaped.rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
     setBusy('');
     if (!res.ok) { setMsg({ tone: 'error', text: `${res.error} (${res.written} written before it stopped.)` }); onDone(); return; }
-    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${note ? ` ${note}` : ''}` });
+    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${note ? ` ${note}` : ''}${flag ? ` ${flag}` : ''}` });
     setPending(null);
     onDone();
   };

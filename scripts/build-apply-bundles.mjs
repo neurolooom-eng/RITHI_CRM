@@ -761,7 +761,16 @@ const MODULES = {
             '0336_indoor_job_worked_on_is_kept.sql',
             // D-115: a job with an uploaded report keeps its report number --
             // a trigger of its own beside the stage guard (0352).
-            '0352_indoor_report_keeps_its_number.sql'],
+            '0352_indoor_report_keeps_its_number.sql',
+            // D-145 (the user's decision): approving a DC skips filing the visit
+            // of a unit whose call is already Solved, and says so (0355).
+            // Redefines 0327's approve_indoor_dc(), so after it.
+            '0355_indoor_approval_skips_a_solved_call.sql',
+            // D-111 / D-112 / D-114 (the user's decisions): a signed PDT is locked
+            // and un-signed only with indoor.pdt_unsign and a reason; the dispatch
+            // date is when the unit is marked Dispatched; a cleaning time may be
+            // earlier, never later, and names who (0358).
+            '0358_indoor_pdt_lock_dispatch_and_cleaning.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -966,7 +975,12 @@ const MODULES = {
             '0340_spare_request_fixed_once_decided.sql',
             // D-136: a master key changes only through a rename. Reads
             // part_rename_ticket (0196) and stock_import_allowed() (0339).
-            '0335_master_key_changes_only_by_rename.sql'],
+            '0335_master_key_changes_only_by_rename.sql',
+            // D-125 (the user's decision, 2026-10-04): a visit, its spares and a
+            // spare request are filed under your own name, your team's, or
+            // anybody's with visit.others / spare.request.others; created_by
+            // stamped from the session (0354).
+            '0354_filed_under_own_name_unless_granted.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -1070,7 +1084,15 @@ const MODULES = {
             '0332_installation_warranty_starts.sql',
             // D-148: the dealer guard stands aside for a re-load of a call that
             // is already there, party unchanged (0351). Redefines 0328's.
-            '0351_dealer_guard_stands_aside_on_reload.sql'],
+            '0351_dealer_guard_stands_aside_on_reload.sql',
+            // D-149 (the user's decision): Sold Through is cleared only where a
+            // transfer set it; a corrected transfer's old machine is re-read (0356).
+            // Redefines transfer_to_product() (0329), so after it.
+            '0356_sold_through_cleared_only_if_a_transfer_set_it.sql',
+            // D-150 / D-154 (the user's decisions): one installation call per
+            // machine and per call number; no installation call request for a
+            // dealer (0357).
+            '0357_installation_once_and_no_dealer_request.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

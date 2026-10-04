@@ -17,7 +17,7 @@ import { dayAfter, addPeriod, todayLocal } from './dates';
 import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears,
          inheritAllPatch, isPinnedValue, installCallFromSale, machinesNeedingInstallCall,
          coverStatus, contractPmVisits, periodEnd, withAnotherCustomer, TRANSFERRED_AWAY,
-         isDealerType, DEALER_NO_INSTALL,
+         DEALER_NO_INSTALL,
          type SaleForCall, type SaleItemForCall } from './coverspec';
 
 export type CoverKind = 'sale' | 'contract';
@@ -319,7 +319,7 @@ export interface HeaderFilter { q?: string; party?: string; number?: string; sta
 
 // PENDING INSTALLATION CALLS PER SALE (the user, 2026-10-02: "Add the pending
 // count to the Entries tab as well"). The Register tab's rule
-// (PENDING_INSTALL) applied to a sale's own lines, as a FILTERED EMBEDDED
+// (pendingInstall) applied to a sale's own lines, as a FILTERED EMBEDDED
 // COUNT -- PostgREST counts only the lines the filters on that alias pass --
 // and, for the filter, an inner-joined embed of the same lines limited to one,
 // which drops a sale with none. Both shapes were run against PostgREST 12
@@ -338,6 +338,7 @@ function pendingLines<T>(q: T, alias: string): T {
 export async function listHeaders(kind: CoverKind, f: HeaderFilter, offset = 0, limit = 200): Promise<Row[]> {
   const cfg = configFor(kind);
   const sale = kind === 'sale';
+  const dealers = sale ? await dealerParties() : new Set<string>();
   const embeds = [`items:${cfg.itemTable}(count)`,
     ...(sale ? [`pending:${cfg.itemTable}(count)`] : []),
     ...(sale && f.pendingInstall ? [`has_pending:${cfg.itemTable}!inner(id)`] : [])];
@@ -353,7 +354,7 @@ export async function listHeaders(kind: CoverKind, f: HeaderFilter, offset = 0, 
   // (0328) as one logic tree -- two separate `or`s are not a combination
   // PostgREST documents.
   const ors = [f.q ? `or(${cfg.key}.ilike.${like(f.q)},party_name.ilike.${like(f.q)})` : '',
-               sale && f.pendingInstall ? NOT_DEALER : ''].filter(Boolean);
+               sale && f.pendingInstall ? notDealer(dealers) : ''].filter(Boolean);
   if (ors.length) q = q.or(`and(${ors.join(',')})`);
   const { data, error } = await q;
   if (error) throw err(error);
@@ -361,7 +362,7 @@ export async function listHeaders(kind: CoverKind, f: HeaderFilter, offset = 0, 
     const { items, pending, has_pending: _hp, ...rest } = r as unknown as Row & { items?: { count: number }[]; pending?: { count: number }[]; has_pending?: unknown };
     return { ...rest, item_count: items?.[0]?.count ?? 0,
              // A dealer's sale waits for no call of its own (0328).
-             ...(sale ? { pending_install: isDealerType(rest.party_type) ? 0 : pending?.[0]?.count ?? 0 } : {}) };
+             ...(sale ? { pending_install: isDealerParty(rest.party_name, dealers) ? 0 : pending?.[0]?.count ?? 0 } : {}) };
   });
 }
 
@@ -372,7 +373,8 @@ export async function countPendingSales(f: { q?: string }): Promise<number> {
     .select(`id, has_pending:${cfg.itemTable}!inner(id)`, { count: 'exact', head: true });
   q = pendingLines(q, 'has_pending');
   // One `or`: the search and "not a dealer" (0328), as listHeaders does.
-  const ors = [f.q ? `or(${cfg.key}.ilike.${like(f.q)},party_name.ilike.${like(f.q)})` : '', NOT_DEALER].filter(Boolean);
+  const dealers = await dealerParties();
+  const ors = [f.q ? `or(${cfg.key}.ilike.${like(f.q)},party_name.ilike.${like(f.q)})` : '', notDealer(dealers)].filter(Boolean);
   q = q.or(`and(${ors.join(',')})`);
   const { count, error } = await q;
   if (error) throw err(error);
@@ -436,8 +438,38 @@ export async function listItems(kind: CoverKind, key: string): Promise<Row[]> {
 const UCN_PATTERN = '^[0-9]{2}[A-La-l][0-9]{2}[A-Za-z][0-9]{4}$';
 // A DEALER'S MACHINE IS NEVER "PENDING" (0328): it gets no installation call
 // of its own -- the transfer raises the customer's.
-const NOT_DEALER = 'or(party_type.is.null,party_type.not.ilike.dealer)';
-const PENDING_INSTALL = `and(product_name.neq.,serial_number.neq.,or(inst_call.is.null,inst_call.not.imatch."${UCN_PATTERN}"),${NOT_DEALER})`;
+//
+// WHO IS A DEALER IS THE PARTY MASTER'S ANSWER (D-151, the user's decision of
+// 2026-10-04: "Party Master decides"), the one party_is_dealer() gives the
+// database -- NOT the sale's own Type, which is copied when the sale is entered
+// and never updated. The dealers are read once per page load (a few names)
+// and the pending filters exclude them by party name, ignoring case.
+let dealerCache: Promise<Set<string>> | null = null;
+export function dealerParties(): Promise<Set<string>> {
+  if (!dealerCache) {
+    dealerCache = (async () => {
+      const { data, error } = await client().from('parties').select('party_name, party_type')
+        .ilike('party_type', '%dealer%').order('party_name').limit(1000);
+      if (error) { dealerCache = null; throw err(error); }
+      return new Set((data ?? [])
+        .filter((r) => String((r as Row).party_type ?? '').trim().toUpperCase() === 'DEALER')
+        .map((r) => String((r as Row).party_name ?? '').trim().toLowerCase()).filter(Boolean));
+    })();
+  }
+  return dealerCache;
+}
+export const isDealerParty = (name: unknown, dealers: Set<string>): boolean =>
+  dealers.has(String(name ?? '').trim().toLowerCase());
+// "Not a dealer" for a PostgREST filter: no party, or none of the dealers'
+// names (ilike with no wildcard is an equality that ignores case; %, _ and \
+// in a name are escaped, and the value quoted).
+const notDealer = (dealers: Set<string>): string => {
+  if (!dealers.size) return '';
+  const q = (n: string) => `"${n.replace(/[\\%_]/g, (m) => `\\${m}`).replace(/["\\]/g, (m) => `\\${m}`)}"`;
+  return `or(party_name.is.null,and(${[...dealers].map((n) => `party_name.not.ilike.${q(n)}`).join(',')}))`;
+};
+const pendingInstall = (dealers: Set<string>): string =>
+  `and(product_name.neq.,serial_number.neq.,or(inst_call.is.null,inst_call.not.imatch."${UCN_PATTERN}")${notDealer(dealers) ? `,${notDealer(dealers)}` : ''})`;
 const searchExpr = (cfg: CoverConfig, text: string) => {
   const t = like(text);
   return `serial_number.ilike.${t},product_name.ilike.${t},party_name.ilike.${t},${cfg.key}.ilike.${t}`;
@@ -445,8 +477,8 @@ const searchExpr = (cfg: CoverConfig, text: string) => {
 /** The search box and the pending filter as ONE logic tree: two separate
  *  `or` parameters are not a combination PostgREST documents, a nested
  *  and(or(...), ...) is. */
-const machineFilter = (cfg: CoverConfig, f: { q?: string; pendingInstall?: boolean }): string | null => {
-  const parts = [f.q ? `or(${searchExpr(cfg, f.q)})` : '', f.pendingInstall && cfg.kind === 'sale' ? PENDING_INSTALL : '']
+const machineFilter = (cfg: CoverConfig, f: { q?: string; pendingInstall?: boolean }, dealers: Set<string>): string | null => {
+  const parts = [f.q ? `or(${searchExpr(cfg, f.q)})` : '', f.pendingInstall && cfg.kind === 'sale' ? pendingInstall(dealers) : '']
     .filter(Boolean);
   return parts.length ? `and(${parts.join(',')})` : null;
 };
@@ -462,7 +494,7 @@ export async function listMachines(
     // and another on none while the count looks complete.
     .order('id', { ascending: false })
     .range(offset, offset + limit - 1);
-  const tree = machineFilter(cfg, f);
+  const tree = machineFilter(cfg, f, f.pendingInstall && cfg.kind === 'sale' ? await dealerParties() : new Set<string>());
   if (tree) q = q.or(tree);
   if (f.state) q = q.eq(cfg.stateColumn, f.state);
   const { data, error } = await q;
@@ -476,7 +508,7 @@ export async function countMachines(
   const cfg = configFor(kind);
   let q = client().from(cfg.detailsView).select('id', { count: 'exact', head: true });
   if (state) q = q.eq(cfg.stateColumn, state);
-  const tree = machineFilter(cfg, f);
+  const tree = machineFilter(cfg, f, f.pendingInstall && cfg.kind === 'sale' ? await dealerParties() : new Set<string>());
   if (tree) q = q.or(tree);
   const { count, error } = await q;
   if (error) throw err(error);
@@ -601,7 +633,7 @@ export async function raiseInstallCalls(
   // A DEALER GETS NO INSTALLATION CALL (the user, 2026-10-03; 0328 refuses it
   // in the database too): the call is raised from the Ownership Transfer when
   // the dealer sells the machine.
-  if (isDealerType(header.party_type)) return { created: [], error: DEALER_NO_INSTALL };
+  if (isDealerParty(header.party_name, await dealerParties())) return { created: [], error: DEALER_NO_INSTALL };
   const todo = machinesNeedingInstallCall(items as SaleItemForCall[]) as Row[];
   const created: { serial: string; ucn: string }[] = [];
   for (const it of todo) {

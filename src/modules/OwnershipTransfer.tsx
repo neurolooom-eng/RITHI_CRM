@@ -144,8 +144,13 @@ export function OwnershipTransfer() {
     { key: 'document_url', header: 'Document', width: 110, render: (r) => (r.document_url ? <a href={r.document_url} target="_blank" rel="noreferrer">open</a> : <span className="muted">—</span>) },
     { key: 'recorded_by_name', header: 'Recorded By', width: 150 },
     ...(mayInstall ? [{ key: '_inst', header: 'Installation call', width: 170, sortable: false, wrap: false,
-      render: (r: OT & Record<string, unknown>) => (
-        <button className="btn btn-sm" disabled={raising !== null} onClick={(e) => { e.stopPropagation(); void raiseInstall(r); }}
+      // ONLY ON A TRANSFER FROM A DEALER (D-150, the user's decision of
+      // 2026-10-04): that is the sale the button exists for. A customer-to-
+      // customer transfer moves a machine that is already installed, and the
+      // database refuses a second installation call for it anyway (0357).
+      render: (r: OT & Record<string, unknown>) => (!String(r.sold_through ?? '').trim()
+        ? <span className="muted" title="Not a transfer from a dealer, so the machine is already installed">—</span>
+        : <button className="btn btn-sm" disabled={raising !== null} onClick={(e) => { e.stopPropagation(); void raiseInstall(r); }}
           title={`Raise ${transferCallNumber(r.item_name, r.serial_number) || 'the installation call'} for ${r.to_party}, dated the transfer date`}>
           {raising === r.id ? 'Raising…' : '+ Installation call'}
         </button>) } as Column<OT & Record<string, unknown>>] : []),

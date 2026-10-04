@@ -150,6 +150,14 @@ export function todayLocal(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** NOW on this device's clock, as a `datetime-local` input's value
+ *  (yyyy-MM-ddTHH:mm) -- for the `max` of a time that may be earlier but not
+ *  later, such as an Indoor cleaning recorded after it was done (D-114). */
+export function nowLocalDateTimeInput(): string {
+  const d = new Date();
+  return `${todayLocal()}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function localIsoDate(v: unknown): string | null {
   const s = String(v ?? '').trim();
   if (/[T ]\d{1,2}:\d{2}/.test(s) && /(Z|[+-]\d{2}:?\d{2})$/.test(s)) {

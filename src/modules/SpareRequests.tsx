@@ -29,7 +29,7 @@ import {
   type CommercialAnswer, type NsmAnswer,
 } from '../lib/spareapproval';
 import { useAuth } from '../lib/auth';
-import { useAccessScope, allowsAllottee, useTeamEngineers, useRegionByEngineer } from '../lib/access';
+import { useAccessScope, allowsAllottee, useFilingNames, useTeamEngineers, useRegionByEngineer } from '../lib/access';
 import { useSpareParts } from '../lib/useSpareParts';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
@@ -132,12 +132,13 @@ export function SpareRequestDrawer({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  // Engineers raise requests for themselves; a manager points one at any of the
-  // engineers reporting to them, and an office desk at anyone. `canPick` is the
-  // list having more than one name in it, so the rule lives in ONE place —
-  // asking the role again here is how a manager ended up being offered all
-  // 2,000 names in the directory.
-  const team = useTeamEngineers(engineer);
+  // Engineers raise requests for themselves; an RM / RGM / NSM for the
+  // engineers below them in the User Master; anybody only with
+  // spare.request.others (Admins, Technical Support, or per person) -- the
+  // user's rule of 2026-10-04, which the database enforces (0354, D-125).
+  // `canPick` is the list having more than one name in it, so the rule lives
+  // in ONE place.
+  const team = useFilingNames('spare.request.others', engineer);
   const canPickEngineer = team.canPick;
   // A call passed in from the call view fixes the call fields; opened from the
   // register, the user picks the UCN.

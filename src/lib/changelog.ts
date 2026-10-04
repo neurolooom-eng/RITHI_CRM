@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.82',
+    date: '2026-10-04',
+    title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
+    changes: [
+      'CALL REPORTING and SPARE REQUESTS: a visit, its spares and a spare request go under your own name or an engineer in your team (the User Master, by Reporting or Regional Manager). Anybody else needs a key: "Report a visit and its spares in another engineer\'s name" (visit.others), ticked per person in User Master → Extra Access; "Raise a spare request in any engineer\'s name" (spare.request.others), given to Technical Support. The engineer list offers only the names you may use.',
+      'INDOOR DC approval: a unit whose call has been Solved since the visit was drafted is approved without filing that visit, so the call is not put back to Unsolved; the message names the calls skipped.',
+      'INDOOR SERVICE: a signed Pre-Delivery Testing record is locked. To correct it, somebody given the new key "Un-sign a Pre-Delivery Testing record" (indoor.pdt_unsign) un-signs it with a reason, which is logged. The Dispatch Date is now the day the unit is marked Dispatched, not the day its DC was issued. Cleaning can be recorded with an earlier time (never a future one), and it records who marked it.',
+      'WARRANTY REGISTER: whether a party is a dealer is read from the Party Master, not from the Type on the sale.',
+      'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
+      'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
+      'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
     version: '0.10.81',
     date: '2026-10-04',
     title: 'Review fixes: review search counts, visits by UCN, party lookup, delete guard, dealer re-loads',

@@ -9,7 +9,7 @@ import {
   listIndoorAccessories, addIndoorAccessory, saveIndoorAccessory, deleteIndoorAccessory,
   listIndoorParts, addIndoorPart, deleteIndoorPart,
   listIndoorChecks, addIndoorCheck, saveIndoorCheck, deleteIndoorCheck,
-  getIndoorPdt, saveIndoorPdt, signIndoorPdt, verifyIndoorJob, sbProductBySerial, callByUcn,
+  getIndoorPdt, saveIndoorPdt, signIndoorPdt, unsignIndoorPdt, verifyIndoorJob, sbProductBySerial, callByUcn,
   listIndoorDcs, saveIndoorReport, deleteIndoorJob,
   INDOOR_KINDS, INDOOR_ACTIVITIES, INDOOR_STATUSES,
   type IndoorJob, type IndoorAccessory, type IndoorPart, type IndoorCheck, type IndoorPdt,
@@ -31,7 +31,7 @@ import { SpareRequestDrawer } from './SpareRequests';
 import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { logAudit } from '../lib/audit';
 import './indoor.css';
-import { formatDay, formatDayTime } from '../lib/dates';
+import { formatDay, formatDayTime, nowLocalDateTimeInput } from '../lib/dates';
 
 /** R/SER/07's "Status" is the machine's COVER, in the one vocabulary (0208). */
 const COVERS = ['WGP', 'OGP', 'CMC', 'AMC'];
@@ -124,6 +124,8 @@ export function IndoorService() {
   const mayDispatch = can('indoor.dispatch');
   const mayCondemn  = can('indoor.condemn');
   const mayVerify   = can('indoor.verify');
+  // D-111 (0358): withdrawing a PDT signature is its own key.
+  const mayUnsign   = can('indoor.pdt_unsign');
   // DELETING A JOB (0324): its own key, granted to no role by migration; the
   // database asks it again and refuses a job a DC or a filed visit names.
   const mayDelete   = can('indoor.delete');
@@ -524,7 +526,7 @@ export function IndoorService() {
             reload={load}
             patch={patch}
             uid={user?.id ?? ''}
-            rights={{ mayReceive, mayWork, mayQc, mayDispatch, mayCondemn, mayVerify }}
+            rights={{ mayReceive, mayWork, mayQc, mayDispatch, mayCondemn, mayVerify, mayUnsign }}
             setMsg={setMsg}
             stage={stageOf(job)}
             dcStatus={dcStatus[(job.dispatch_ref ?? '').trim()]}
@@ -809,7 +811,7 @@ function IndoorJobDrawer({
   patch: (id: number, p: Partial<IndoorJob>) => Promise<void>;
   uid: string;
   rights: { mayReceive: boolean; mayWork: boolean; mayQc: boolean;
-            mayDispatch: boolean; mayCondemn: boolean; mayVerify: boolean };
+            mayDispatch: boolean; mayCondemn: boolean; mayVerify: boolean; mayUnsign: boolean };
   msg: string;
   setMsg: (s: string) => void;
   stage: StageState;
@@ -821,8 +823,16 @@ function IndoorJobDrawer({
   /** The DC form is open beside the job. */
   dcOpen?: boolean;
 }) {
-  const { mayWork, mayQc, mayDispatch, mayCondemn, mayVerify } = rights;
+  const { mayWork, mayQc, mayDispatch, mayCondemn, mayVerify, mayUnsign } = rights;
   const navigate = useNavigate();
+  // A SIGNED PDT IS LOCKED (D-111, the user's decision, 2026-10-04): nothing on
+  // it changes until somebody holding indoor.pdt_unsign un-signs it with a reason.
+  const pdtSigned = !!pdt?.inspected_by;
+  const pdtEditable = mayWork && !pdtSigned;
+  const [unsignWhy, setUnsignWhy] = useState('');
+  // An EARLIER cleaning time, when it is recorded after it was done (D-114);
+  // blank means now. The database refuses a future one and records who.
+  const [cleanedWhen, setCleanedWhen] = useState('');
   const cleaned = !!job.cleaned_at;
   const reported = !!(job.report_file_url ?? '').trim();
   const verifiable = ['Dispatched', 'Closed', 'Condemned'].includes(job.status);
@@ -903,7 +913,7 @@ function IndoorJobDrawer({
   };
 
   const markCleaned = async () => {
-    const r = await markIndoorCleaned(job.id, job.cleaning_wi || 'WI/SER/01', job.cleaning_wi_rev, uid);
+    const r = await markIndoorCleaned(job.id, job.cleaning_wi || 'WI/SER/01', job.cleaning_wi_rev, uid, cleanedWhen || undefined);
     if (!r.ok) setMsg(r.error ?? 'Could not record the cleaning');
     else { setMsg(''); void patch(job.id, { status: 'Cleaned' }); }
   };
@@ -1087,7 +1097,16 @@ function IndoorJobDrawer({
           </div>
           {job.cleaned_at
             ? <p className="ind-meta">Cleaned by <b>{job.cleaned_by_name || '—'}</b> · {formatDayTime(job.cleaned_at)}</p>
-            : <p className="ind-meta">Not yet cleaned.</p>}
+            : <>
+                <p className="ind-meta">Not yet cleaned.</p>
+                {mayWork ? (
+                  <Field label="Cleaned at (leave blank for now)"
+                    tip="Only when the cleaning is recorded after it was done. It cannot be later than now; whoever marks it is recorded as who cleaned it.">
+                    <input type="datetime-local" value={cleanedWhen} max={nowLocalDateTimeInput()}
+                      onChange={(e) => setCleanedWhen(e.target.value)} />
+                  </Field>
+                ) : null}
+              </>}
           {SHOWS.salvage(a) ? (
             <label className="ind-check">
               <input type="checkbox" checked={job.decontaminated} disabled={!mayWork}
@@ -1380,15 +1399,15 @@ function IndoorJobDrawer({
             <div className="ind-grid">
               <Value label="Product Name">{job.product_name || '—'}</Value>
               <Value label="SL. No"><span className="mono">{job.serial || '—'}</span></Value>
-              <Field label="Date"><input type="date" key={`d-${pdt?.test_date}`} defaultValue={pdt?.test_date ?? ''} disabled={!mayWork}
+              <Field label="Date"><input type="date" key={`d-${pdt?.test_date}`} defaultValue={pdt?.test_date ?? ''} disabled={!pdtEditable}
                 onBlur={(e) => void pdtSet({ test_date: e.target.value || null })} /></Field>
-              <Field label="Measuring Equipment ID No"><input key={`m-${pdt?.measuring_equipment_id}`} defaultValue={pdt?.measuring_equipment_id ?? ''} disabled={!mayWork}
+              <Field label="Measuring Equipment ID No"><input key={`m-${pdt?.measuring_equipment_id}`} defaultValue={pdt?.measuring_equipment_id ?? ''} disabled={!pdtEditable}
                 onBlur={(e) => void pdtSet({ measuring_equipment_id: e.target.value })} /></Field>
-              <Field label="Software Version"><input key={`s-${pdt?.software_version}`} defaultValue={pdt?.software_version ?? ''} disabled={!mayWork}
+              <Field label="Software Version"><input key={`s-${pdt?.software_version}`} defaultValue={pdt?.software_version ?? ''} disabled={!pdtEditable}
                 onBlur={(e) => void pdtSet({ software_version: e.target.value })} /></Field>
-              <Field label="HV"><input key={`hv-${pdt?.hv}`} defaultValue={pdt?.hv ?? ''} disabled={!mayWork}
+              <Field label="HV"><input key={`hv-${pdt?.hv}`} defaultValue={pdt?.hv ?? ''} disabled={!pdtEditable}
                 onBlur={(e) => void pdtSet({ hv: e.target.value })} /></Field>
-              <Field label="HT"><input key={`ht-${pdt?.ht}`} defaultValue={pdt?.ht ?? ''} disabled={!mayWork}
+              <Field label="HT"><input key={`ht-${pdt?.ht}`} defaultValue={pdt?.ht ?? ''} disabled={!pdtEditable}
                 onBlur={(e) => void pdtSet({ ht: e.target.value })} /></Field>
             </div>
             <div className="ind-lines-wrap">
@@ -1400,7 +1419,7 @@ function IndoorJobDrawer({
                       <td>{c.no}.</td>
                       <td>{c.text}</td>
                       <td className="ind-lines-pick">{c.key
-                        ? <SelectPicker value={pdt?.[c.key] ?? ''} options={['OK', 'NOT OK']} disabled={!mayWork}
+                        ? <SelectPicker value={pdt?.[c.key] ?? ''} options={['OK', 'NOT OK']} disabled={!pdtEditable}
                             onChange={(v) => void pdtSet({ [c.key!]: v || null } as Partial<IndoorPdt>)} />
                         : <span className="ind-hint">instruction — not judged</span>}</td>
                     </tr>
@@ -1420,7 +1439,7 @@ function IndoorJobDrawer({
                       <tr key={r.label}>
                         <td><b>{r.label}</b></td>
                         {r.keys.map((k) => (
-                          <td key={k}><input aria-label={`${r.label} ${k}`} type="number" step="any" key={`${k}-${pdt?.[k]}`} defaultValue={pdt?.[k] ?? ''} disabled={!mayWork}
+                          <td key={k}><input aria-label={`${r.label} ${k}`} type="number" step="any" key={`${k}-${pdt?.[k]}`} defaultValue={pdt?.[k] ?? ''} disabled={!pdtEditable}
                             onBlur={(e) => void pdtSet({ [k]: numOrNull(e.target.value) } as Partial<IndoorPdt>)} /></td>
                         ))}
                       </tr>
@@ -1434,11 +1453,24 @@ function IndoorJobDrawer({
                 {pdt?.inspected_by
                   ? <>{pdt.inspector_name || '—'}{pdt.inspector_designation ? `, ${pdt.inspector_designation}` : ''} · {formatDayTime(pdt.inspected_at)}</>
                   : 'not signed yet'}</span>
-              {mayWork ? (
+              {mayWork && !pdtSigned ? (
                 <button type="button" className="btn btn-sm" onClick={async () => {
-                  const r = await signIndoorPdt(job.id, uid, !pdt?.inspected_by);
+                  const r = await signIndoorPdt(job.id, uid, true);
                   if (!r.ok) setMsg(r.error ?? 'Could not sign'); else { setMsg(''); reloadChildren(); }
-                }}>{pdt?.inspected_by ? 'Withdraw the signature' : 'Sign as the inspector'}</button>
+                }}>Sign as the inspector</button>
+              ) : null}
+              {pdtSigned && mayUnsign ? (
+                <span className="row" style={{ gap: 6 }}>
+                  <input value={unsignWhy} onChange={(e) => setUnsignWhy(e.target.value)}
+                    placeholder="Why it is un-signed" aria-label="Why the PDT is un-signed" />
+                  <button type="button" className="btn btn-sm" disabled={!unsignWhy.trim()} onClick={async () => {
+                    const r = await unsignIndoorPdt(job.id, unsignWhy.trim());
+                    if (!r.ok) setMsg(r.error ?? 'Could not un-sign'); else { setMsg(''); setUnsignWhy(''); reloadChildren(); }
+                  }}>Un-sign</button>
+                </span>
+              ) : null}
+              {pdtSigned && !mayUnsign ? (
+                <span className="ind-hint">Signed — locked. Un-signing it needs “Indoor: un-sign a Pre-Delivery Testing record”.</span>
               ) : null}
             </div>
             {gaps.notOk.length ? (
