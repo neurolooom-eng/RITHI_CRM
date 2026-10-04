@@ -5031,6 +5031,8 @@ begin
     v_prod   := o.calc_params->>'product';
     v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
 
+    -- (The outer alias is `c`, as on every call branch, so _status.sql row
+    -- 193's tiebreak check -- `reg_date desc, c.ucn` -- reads it.)
     -- SHEET 1: ONE ROW PER FAILED MACHINE -- its FIRST field call inside the
     -- window -- so the sheet counts to the numerator. `details` says when the
     -- machine was installed, how many days later it failed, and how many calls
@@ -5060,24 +5062,24 @@ begin
                  + make_interval(months => public.objective_setting('failure_window_months', 3)))::date
            and c.reg_date <= p.period_end
       )
-      select 'failure'::text, h.ucn, h.call_number, h.reg_date, h.product_name,
-             h.serial, h.party_name, h.call_type,
-             coalesce(h.open_state, ''), coalesce(h.allocated_to, ''),
-             h.warranty_number, h.warranty_start, h.warranty_end,
-             h.contract_number, h.contract_start, h.contract_end, h.contract_type,
+      select 'failure'::text, c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             coalesce(c.open_state, ''), coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
              cl.closed_on, cl.recorded_on, ''::text,
              jsonb_build_object(
-               'Installed (warranty start)', h.installed_on,
-               'Days after installation', (h.reg_date - h.installed_on),
-               'Field calls in the window', h.calls_in_window)
-        from hits h
+               'Installed (warranty start)', c.installed_on,
+               'Days after installation', (c.reg_date - c.installed_on),
+               'Field calls in the window', c.calls_in_window)
+        from hits c
         left join lateral (
               select r.visit_at::date as closed_on, r.updated_at::date as recorded_on
                 from public.reports r
-               where r.ucn = h.ucn and r.call_status ilike 'solved%'
+               where r.ucn = c.ucn and r.call_status ilike 'solved%'
                order by coalesce(r.visit_at::date, r.updated_at::date), r.id limit 1) cl on true
-       where h.rn = 1
-       order by h.reg_date desc, h.ucn;
+       where c.rn = 1
+       order by c.reg_date desc, c.ucn;
 
     return query
       select 'filter'::text, ''::text, ''::text, p.period_end,

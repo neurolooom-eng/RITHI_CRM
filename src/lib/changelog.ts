@@ -14,6 +14,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.84',
+    date: '2026-10-04',
+    title: 'SLA / Objective Configuration — Product Failure is a failure within 3 months, over a rolling 12 months',
+    changes: [
+      'NEW PAGE under Administration: SLA / OBJECTIVE CONFIGURATION. The SLA Targets moved here from Admin Config, beside the new Product Failure Rate setting.',
+      'PRODUCT FAILURE RATE: a machine counts as failed when a field call on it is registered within 3 months of its installation (warranty start). The rate is over the machines of that product installed in the last 12 months (rolling, up to each month\u2019s cut-off). A machine with several calls in its window counts once.',
+      'Both numbers (3 and 12) can be changed on the page. A change applies from the next Re-Calculate on the Objective page; figures already written stay as they are until then.',
+      'The evidence file now lists one row per failed machine, with its installation date, how many days later it failed and how many calls fell in the window, and Sheet 2 lists only the machines installed in the rolling period.',
+      'Only the Admin role has the page to begin with. Grant it to other roles on Roles & Permissions → Administration → SLA / Objective Configuration.',
+    ],
+  },
+  {
     version: '0.10.83',
     date: '2026-10-04',
     title: 'Spare Recycling — a separate track under Indoor Service',

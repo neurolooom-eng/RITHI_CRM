@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**108 tables · 41 views · 3042 columns · 221 policies · 68 foreign keys.**
+**109 tables · 41 views · 3054 columns · 223 policies · 68 foreign keys.**
 
 ## How to read this
 
@@ -81,6 +81,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [material_returns](#material-returns)
 - [notifications](#notifications)
 - [objective_cutoffs](#objective-cutoffs)
+- [objective_settings](#objective-settings)
 - [one_time_fixes_done](#one-time-fixes-done)
 - [ownership_transfers](#ownership-transfers)
 - [part_rename_ticket](#part-rename-ticket)
@@ -1183,8 +1184,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `handstock_adjustments_qty_nonzero` — `CHECK ((qty <> (0)::numeric))`
 - `handstock_adjustments_reason` — `CHECK ((btrim(reason) <> ''::text))`
+- `handstock_adjustments_qty_nonzero` — `CHECK ((qty <> (0)::numeric))`
 
 **Triggers:** `handstock_adjustments_bi` → `handstock_adjustments_bi()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -1708,8 +1709,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
 - `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
+- `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
 
 **Triggers:** `indoor_job_visit_by_approval` → `indoor_job_visit_by_approval()` · `indoor_report_keeps_its_number` → `indoor_report_keeps_its_number()` · `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -2212,6 +2213,42 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | SELECT | `oc_read` | `(has_perm('calls.view'::text) OR has_perm('reports.view'::text))` | — |
+
+---
+
+## objective_settings
+
+**Primary key:** `key` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `key` | text | **no** |  |  |
+| 2 | `label` | text | **no** |  |  |
+| 3 | `value` | integer | **no** |  |  |
+| 4 | `unit` | text | **no** | `'months'::text` |  |
+| 5 | `sort_order` | integer | **no** | `0` |  |
+| 6 | `updated_by` | uuid | yes |  |  |
+| 7 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 8 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 9 | `sys_created_by` | uuid | yes |  |  |
+| 10 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 11 | `sys_updated_by` | uuid | yes |  |  |
+| 12 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(objective_settings_sys_id_key)_
+
+**Constraints:**
+
+- `objective_settings_value_check` — `CHECK (((value >= 1) AND (value <= 120)))`
+
+**Triggers:** `record_audit_u` → `record_audit_fn()` · `zz_objective_settings_stamp` → `objective_settings_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| SELECT | `os_read` | `true` | — |
+| UPDATE | `os_update` | `( SELECT has_perm('objective.manage'::text) AS has_perm)` | `( SELECT has_perm('objective.manage'::text) AS has_perm)` |
 
 ---
 
@@ -3165,8 +3202,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_issues_unit_cost_check` — `CHECK ((unit_cost >= (0)::numeric))`
 - `recycle_issues_qty_check` — `CHECK ((qty > (0)::numeric))`
+- `recycle_issues_unit_cost_check` — `CHECK ((unit_cost >= (0)::numeric))`
 
 **Triggers:** `recycle_issues_guard` → `recycle_issues_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3342,8 +3379,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
 - `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
+- `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
 
 **Triggers:** `recycle_requests_guard` → `recycle_requests_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 

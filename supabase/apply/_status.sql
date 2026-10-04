@@ -604,6 +604,11 @@ with checks(sort_order, bundle, provides, present) as (
      and not exists (
            select 1 from public.app_roles a, lateral jsonb_array_elements_text(a.permissions) m(v)
             where a.role = 'admin' and m.v like 'mod:%'
+              -- THE ONE NAMED EXCEPTION (0356, the user, 2026-10-04): SLA /
+              -- Objective Configuration goes to Admin alone by default -- "Rest
+              -- let the Admin Decide through the App" -- so Technical Support
+              -- holds it only if somebody ticks it.
+              and m.v <> 'mod:/sla-objective-config'
               and not exists (select 1 from public.app_roles ts
                                where ts.role = 'technical_support' and ts.permissions ? m.v))))),
     (115, 'Part category: free text, so a bulk upload cannot be refused over it', 'A CHECK on parts.category can ABORT AN IMPORT PART-WRITTEN -- it did, on the Item Master: 173 rows written, then "violates check constraint parts_category_check" and a half-updated table. 0148 named the right four words but put them in the wrong place. 0152 drops the constraint and replaces it with nothing: a word the vocabulary does not know now lands in the data and shows in Spare Insights as its own bar, which is how somebody notices it, rather than the row never arriving. Blank still means "nobody has said" and still reads as Unclassified. NO means the constraint is still there and a non-standard category will stop the next Part Master upload. Restore: performance.sql',
