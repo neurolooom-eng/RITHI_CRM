@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.75',
+    date: '2026-10-04',
+    title: 'DCCR mirror login made a super admin',
+    changes: [
+      'dccr_mirror@gmail.com is now a super admin, set in the app and in the database like service.almsind@gmail.com. It is the login the DCCR Google Sheet mirror signs in with, so it can read every call on the Daily Call Review.',
+    ],
+  },
+  {
     version: '0.10.74',
     date: '2026-10-04',
     title: 'New CallReg address (Save as Google Sheet)',

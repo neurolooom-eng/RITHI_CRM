@@ -3107,6 +3107,13 @@ console.log('\n-- super admins: the two lists agree --');
       .split('\n').map((l) => /'([^']+)'/.exec(l)?.[1] ?? '').filter(Boolean).map((e) => e.toLowerCase()),
   );
 
+  // Anything a later migration adds.
+  for (const f of readdirSync('supabase/migrations').filter((n) => /add_super_admin/.test(n))) {
+    const sql = readFileSync(`supabase/migrations/${f}`, 'utf8');
+    const m = /v_email\s+text\s*:=\s*'([^']+)'/.exec(sql);
+    if (m) seeded.add(m[1].toLowerCase());
+  }
+
   // Anything a later migration revokes.
   const revoked = new Set<string>();
   for (const f of readdirSync('supabase/migrations').filter((n) => /remove_super_admin/.test(n))) {
