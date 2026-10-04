@@ -781,7 +781,10 @@ const MODULES = {
             '0272_service_note_upload_key.sql',
             // A note's Drive details -- Created, Last Modified, Last Modified By
             // -- kept beside RITHI's own created_at / updated_at (0299).
-            '0299_document_drive_details.sql'],
+            '0299_document_drive_details.sql',
+            // Technical / Service Notes: Dated, and the latest note per
+            // product marked (stored, recalculated, and by a button).
+            '0354_service_note_dated_latest.sql'],
   },
   training: {
     title: 'People: profile, Roles & Responsibilities, Training',

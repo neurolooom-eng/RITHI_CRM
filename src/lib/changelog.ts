@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.82',
+    date: '2026-10-04',
+    title: 'Technical / Service Notes: grouped per product, Dated, and the Latest tag',
+    changes: [
+      'TECHNICAL / SERVICE NOTES: grouped per product — a note for several products shows under each one; a note for none is under Every product.',
+      'New DATED field on the note (type it on the form, or a Dated column in the bulk upload). Notes run newest Dated first.',
+      'LATEST is tagged by itself on the newest dated, live note of each product, and moves when a newer note is added, a Dated changes or a note is retired. ↻ Refresh Latest tags re-does them all on demand.',
+    ],
+  },
+  {
     version: '0.10.81',
     date: '2026-10-04',
     title: 'Review fixes: review search counts, visits by UCN, party lookup, delete guard, dealer re-loads',
