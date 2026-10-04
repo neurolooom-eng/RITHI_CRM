@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.72',
+    version: '0.10.73',
     date: '2026-10-03',
     title: 'The Declaration names whoever booked the stock out',
     changes: [
@@ -20,7 +20,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.71',
+    version: '0.10.72',
     date: '2026-10-03',
     title: 'Twelve High-rated defects fixed: hand stock, spare approvals, calls, reviews, masters, Indoor',
     changes: [
@@ -33,13 +33,23 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.70',
+    version: '0.10.71',
     date: '2026-10-03',
     title: 'Second re-review of every module',
     changes: [
       'SOFTWARE VALIDATION: every open defect re-checked against the current release and every module read again from scratch. 36 new defects are in the register (D-119 to D-154), five are now partly fixed, and fourteen entries were corrected or widened.',
       'The most serious: hand stock can be pushed below zero, or created, by six routes; a spare\'s part, quantity and cover can be changed after it is approved; calls can be re-opened or closed, and reviews written, by people who cannot see them; the master delete guard can be got round by renaming first; and four faults in the new dealer workflow.',
       'A new read-only check, _review_findings_on_live_data.sql, says whether any of these has already left a mark on the live data. Nothing in how the application works was changed.',
+    ],
+  },
+  {
+    version: '0.10.70',
+    date: '2026-10-04',
+    title: 'Save any download as a Google Sheet',
+    changes: [
+      'Every Export / Download button now asks where the export goes: Download the CSV or Excel file, as before, or Save as Google Sheet.',
+      'A Google Sheet is saved in your own folder inside the RITHI export folder on Google Drive. The folder is made on your first export and reused every time after that — never a second one. You get a link to open the sheet.',
+      'Numbers and dates arrive as numbers and dates (dd-mmm-yyyy), and codes beginning with 0 keep their 0. Each save is recorded in the Audit Log.',
     ],
   },
   {

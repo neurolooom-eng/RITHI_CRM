@@ -44,6 +44,17 @@ too. It only ever shows records you could already open on that screen.
 quantity goes to zero, the row stays with its original quantity, reason and
 author, and the stock returns. A failure report is cancelled or withdrawn.
 
+**Every download can go to a Google Sheet.** Press any Export / Download button
+and you are asked where it goes: **⭳ Download** saves the CSV or Excel file to
+this device, as before; **Save as Google Sheet** writes the same rows into a
+Google Sheet in **your own folder** inside the RITHI export folder on Google
+Drive. Your folder is made on your first export (named with your name and email)
+and every later export goes into that same folder. The sheet is named after the
+export with the date and time, numbers and dates stay numbers and dates, and a
+code beginning with 0 keeps its 0. When it is saved you get a link to open it; if
+it cannot be saved you are told why and can download the file instead. Each save
+is recorded in the Audit Log.
+
 **You see what your role allows.** Two people can open the same screen and see
 different totals. An empty register usually means access, not emptiness.
 

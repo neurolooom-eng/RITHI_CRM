@@ -161,11 +161,11 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-10-03 — The Declaration named one fixed person; the whole Product Database crashed the browser (v0.10.72, D-155, on the branch, not merged)
+### 2026-10-03 — The Declaration named one fixed person; the whole Product Database crashed the browser (v0.10.73, D-155, on the branch, not merged)
 - **Your reports:**
   - *"In Declaration as part of Stock holds Jagadeesh name, I think it's hard coded -- it has to be updated to the person doing the stock out."*
   - *"When I load the complete product database the browser is crashing."*
-- **D-155 (v0.10.72):** the Declaration printed `JAGADEESAN C`, written into `src/lib/declaration.ts`, on every sheet.
+- **D-155 (v0.10.73):** the Declaration printed `JAGADEESAN C`, written into `src/lib/declaration.ts`, on every sheet.
   - It now prints the stock out's `dispatched_by`, the same field the Delivery Challan uses, stamped from the session (0211).
   - An old stock out that recorded nobody leaves the line blank and says so.
   - Related and still open: D-126 (`dispatched_by` can be rewritten after issue).
@@ -174,7 +174,7 @@ checked.
   - **I fixed it here by drawing 2,000 rows a page,** but another session fixed the same fault first, and it is on `main` as **D-118 (#523)**: the table draws what can be seen and adds rows as you scroll, and sorting is faster.
   - **Two mechanisms in one table would fight,** so `main`'s is kept and mine was withdrawn before this merged: its check, its handbook paragraph, its FRS-182 clause and its changelog entry went with it. Nothing of it is on `main`.
 
-### 2026-10-03 — High-rated batch 2: twelve defects from the second re-review fixed (v0.10.71, 0335–0342, on the branch, not merged)
+### 2026-10-03 — High-rated batch 2: twelve defects from the second re-review fixed (v0.10.72, 0335–0342, on the branch, not merged)
 - **Your ask:** *"Start fixing the High defects. Ensure it doesn't insert any breaking changes. Update the documents / how rithi works / how to RITHI appropriately"*.
 - **How "no breaking change" was made true, not assumed:**
   - Every fix began by reading the rule's LIVE definition and every app and database path that writes those columns.
@@ -211,12 +211,12 @@ checked.
   - How RITHI Functions: hand stock, spares, calls, masters and quality, plus the Spare module schema.
   - A stale line corrected: the Change engineer "Why" was described as optional; it has been required since 0313.
   - Eleven requirement texts amended.
-  - OQ-241 added.
+  - OQ-242 added.
   - `_status.sql` rows 267–274.
   - DATABASE_SCHEMA.md regenerated.
-- **Merged `main` twice on the way:** #520 took 0331 and v0.10.65, so the stock migration is 0339 and the re-review v0.10.66; then #521 took 0332 and v0.10.66 too, so the spare migration is 0340; then #522 took 0333, OQ-239, row 265 and v0.10.67, so the call migration is 0341; then #523/#524 took D-118, OQ-240, row 266, 0334 and v0.10.69, so the review migration is 0342, every new defect moved up one (D-119 – D-155), the re-review is v0.10.70, this batch v0.10.71, the status rows 267–274 and the test OQ-241.
+- **Merged `main` twice on the way:** #520 took 0331 and v0.10.65, so the stock migration is 0339 and the re-review v0.10.66; then #521 took 0332 and v0.10.66 too, so the spare migration is 0340; then #522 took 0333, OQ-239, row 265 and v0.10.67, so the call migration is 0341; then #523/#524 took D-118, OQ-240, row 266, 0334 and v0.10.69, so the review migration is 0342, every new defect moved up one (D-119 – D-155), the re-review is v0.10.70, this batch v0.10.71, the status rows 267–274 and the test OQ-241; then #525 took v0.10.70 and OQ-241, so the re-review is v0.10.71, this batch v0.10.72, the Declaration v0.10.73 and the test OQ-242.
 
-### 2026-10-03 — Second re-review: every open defect re-checked at `1cdceb0`, and a fresh pass over every module (v0.10.70, on the branch, not merged)
+### 2026-10-03 — Second re-review: every open defect re-checked at `1cdceb0`, and a fresh pass over every module (v0.10.71, on the branch, not merged)
 - **Your ask:** *"Re-review all the modules"*.
 - **Method:** seven readers in parallel, each on its own copy of a database built from all 344 migrations, every write tried as a signed-in user. Two re-checked the 59 open or partly fixed defects; five read every module fresh — Masters, Indoor Service, Cover and sales (including the dealer workflow, #515, and the transferred-machine address, #516), Service Calls with Quality and Overview, and Spares with Reports and Administration.
 - **Every High finding below was reproduced again before it was recorded,** from the readers' own scripts or tests written for the purpose. One claim did not reproduce at first and did on a second look: the dealer re-load refusal fires only for a signed-in user, which is how an upload runs.

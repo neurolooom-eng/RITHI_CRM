@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './lib/auth';
 import { ThemeProvider } from './theme/ThemeProvider';
 import { clearDemoData } from './lib/seed';
 import { Layout } from './components/layout/Layout';
+import { ExportChooser } from './components/ui/ExportChooser';
 import { Login } from './modules/Login';
 import { UnresolvedLogin } from './modules/UnresolvedLogin';
 import { ResetPassword } from './modules/ResetPassword';
@@ -289,6 +290,7 @@ export default function App() {
         <HashRouter>
           <ErrorBoundary>
             <Shell />
+            <ExportChooser />
           </ErrorBoundary>
         </HashRouter>
       </AuthProvider>

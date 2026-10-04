@@ -162,6 +162,7 @@ function doPost(e) {
     if (action === 'tabappend') return _json(_tabAppend(body.tab, body.data || {}, body.book));
     if (action === 'upload') return _json(_uploadReport(body));
     if (action === 'driveupload') return _json(_driveUpload(body));
+    if (action === 'sheetexport') return _json(_sheetExport(body));
     if (action === 'master') return _json(_master(body.name, Number(body.limit) || 0));
     if (action === 'masters') return _json({ ok: true, registry: _masters() });
     if (action === 'setmasters') return _json(_setMasters(body.data || {}));
@@ -749,6 +750,101 @@ function _driveFind(namesRaw, folderId) {
 
 // ref -> url hand-off. Cached for 15 min; the property copy is the fallback and
 // is deleted once the client has read it, so nothing accumulates.
+// ---------------------------------------------------------------------------
+// SAVE AN EXPORT AS A GOOGLE SHEET (the user, 2026-10-04): "In all downloads -
+// Add a provision for the user to save it as a google sheet" ... "In this
+// folder, Create a folder for the user and save the export there" ... "When
+// the same user is exporting for the 2nd time ... dont create again, instead
+// save it in the existing folder".
+//
+// ONE FOLDER PER PERSON, FOUND BEFORE IT IS MADE. The folder's id is
+// remembered under the person's email (script property `exportfolder_<email>`)
+// so a renamed folder is still theirs; if the id is gone, a folder already
+// carrying their name is adopted; only then is one created — under a lock, so
+// two exports started together cannot make two folders.
+//
+// CELLS ARRIVE TYPED: a number, { d: serial, t: 1|0 } for a date (with or
+// without time — Sheets counts serials from the same day as Excel), or text.
+// Text is written under the plain-text format '@', so a Serial No made of
+// digits keeps its leading zeros; dates carry dd-mmm-yyyy [hh:mm:ss].
+//
+// The answer goes back through the ref store `driveref` reads, as the link or
+// as 'ERROR: <reason>', because the browser cannot read this POST's reply.
+// ---------------------------------------------------------------------------
+var EXPORT_FOLDER_ID = '1qZ0ri-iP2hovCsLEko6TeuOYwYHloFy5';
+
+function _exportUserFolder(user) {
+  var email = String((user && user.email) || '').trim().toLowerCase();
+  if (!email) throw new Error('no email for the exporting user');
+  var name = String((user && user.name) || '').trim();
+  var folderName = (name && name.toLowerCase() !== email ? name + ' (' + email + ')' : email)
+    .replace(/[\\/:*?"<>|]/g, '-').slice(0, 120);
+  var props = PropertiesService.getScriptProperties();
+  var key = 'exportfolder_' + email;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var id = props.getProperty(key);
+    if (id) {
+      try { var f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) { /* gone: look again */ }
+    }
+    var root = DriveApp.getFolderById(EXPORT_FOLDER_ID);
+    var it = root.getFoldersByName(folderName);
+    var folder = it.hasNext() ? it.next() : root.createFolder(folderName);
+    props.setProperty(key, folder.getId());
+    return folder;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function _sheetExport(body) {
+  var ref = String(body.ref || '');
+  try {
+    var sheets = body.sheets || [];
+    if (!sheets.length) throw new Error('nothing to export');
+    var folder = _exportUserFolder(body.user);
+    var stamp = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'dd-MMM-yyyy HH:mm:ss');
+    var title = String(body.title || 'RITHI export').replace(/\.(csv|xlsx|xls)$/i, '') + ' ' + stamp;
+    var ss = SpreadsheetApp.create(title);
+    sheets.forEach(function (s, i) {
+      var sh = i === 0 ? ss.getSheets()[0] : ss.insertSheet();
+      var tabName = String(s.name || ('Sheet' + (i + 1))).replace(/[\[\]*?:\\/]/g, ' ').slice(0, 99) || ('Sheet' + (i + 1));
+      try { sh.setName(tabName); } catch (e) { sh.setName(tabName + ' ' + (i + 1)); }
+      var cols = (s.columns || []).map(String);
+      var width = Math.max(1, cols.length);
+      var values = [cols.length ? cols : ['']];
+      var formats = [values[0].map(function () { return '@'; })];
+      (s.rows || []).forEach(function (r) {
+        var vr = [], fr = [];
+        for (var c = 0; c < width; c++) {
+          var v = r[c];
+          if (typeof v === 'number') { vr.push(v); fr.push('General'); }
+          else if (v && typeof v === 'object' && typeof v.d === 'number') { vr.push(v.d); fr.push(v.t ? 'dd-mmm-yyyy hh:mm:ss' : 'dd-mmm-yyyy'); }
+          else { vr.push(v == null ? '' : String(v)); fr.push('@'); }
+        }
+        values.push(vr); formats.push(fr);
+      });
+      if (sh.getMaxColumns() < width) sh.insertColumnsAfter(sh.getMaxColumns(), width - sh.getMaxColumns());
+      if (sh.getMaxRows() < values.length) sh.insertRowsAfter(sh.getMaxRows(), values.length - sh.getMaxRows());
+      var range = sh.getRange(1, 1, values.length, width);
+      range.setNumberFormats(formats);
+      range.setValues(values);
+      sh.getRange(1, 1, 1, width).setFontWeight('bold');
+      sh.setFrozenRows(1);
+    });
+    var file = DriveApp.getFileById(ss.getId());
+    file.moveTo(folder);
+    var url = ss.getUrl();
+    if (ref) _putRef(ref, url);
+    return { ok: true, url: url };
+  } catch (e) {
+    var msg = 'ERROR: ' + (e && e.message ? e.message : String(e));
+    if (ref) _putRef(ref, msg);
+    return { ok: false, error: msg };
+  }
+}
+
 function _putRef(ref, url) {
   try { CacheService.getScriptCache().put('ref_' + ref, url, 900); } catch (e) { /* cache optional */ }
   try { PropertiesService.getScriptProperties().setProperty('ref_' + ref, url); } catch (e) { /* props optional */ }
