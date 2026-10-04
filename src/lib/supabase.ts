@@ -5830,6 +5830,10 @@ export interface IndoorJob {
   dispatched_at: string | null;
   dispatch_ref: string;
   damage_note: string;
+  /** 0372: the job's Call Status / Call Pending Reason — the visit files with
+   *  them, and the job's status is derived from them (a job with a call). */
+  call_status?: string;
+  call_pending_reason?: string;
   reported_to_customer_at: string | null;
   // Rework (§8.3.4)
   nc_reference: string;

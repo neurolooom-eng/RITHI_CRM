@@ -78,6 +78,21 @@ up)_
 
 ---
 
+## 2026-10-04 — Indoor job: Call Status / Pending Reason replace the job Status; MIRN off the DC form (0372, v0.10.93)
+
+- User's answers: one value (the job's choice IS the visit's), the job status
+  derived from it, Demo keeps Status. 0372: `call_status` /
+  `call_pending_reason` on indoor_jobs; `zy_indoor_jobs_call_status` derives
+  the status (after cleaning; never past Dispatched/Closed/Condemned) and keeps
+  `visit_draft` in step; guard + `approve_indoor_dc()` (both re-stated from the
+  database) read `indoor_visit_status()` — a job from before 0372 with none
+  chosen files Unsolved / Return to Field as before. Suite
+  `indoor_call_status_test`; `_status.sql` row 306; FRS-232.11/.12.
+- MIRN No. / Customer Ref No., its date and Mode of despatch removed from
+  Create Indoor DC (sent empty; the printed DC keeps its blank lines).
+- Printed Indoor DC: no SERVICE CENTER line; ISSUED BY (was "(Stores)");
+  PACKED & DESPATCH BY box removed (three signature boxes).
+
 ## 2026-10-04 — Indoor job: Checks table removed, QC kept (v0.10.92)
 
 - The user first asked to remove both the Checks table and the Quality Check

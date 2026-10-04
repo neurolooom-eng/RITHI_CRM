@@ -91,7 +91,7 @@ export function IndoorDcPrint() {
               <td className="ip-logo"><img src={COMPANY_LOGO} alt="Air Liquide Medical Systems" /></td>
               <td className="ip-org" colSpan={2}>
                 <div className="ip-org-name">{F.org}</div>
-                <div className="ip-org-dept">{F.dept}</div>
+                {F.dept ? <div className="ip-org-dept">{F.dept}</div> : null}
                 {F.address.map((l) => <div key={l}>{l}</div>)}
                 <div>{F.tel}</div>
                 <div>{F.email}</div>
@@ -156,7 +156,7 @@ export function IndoorDcPrint() {
         </table>
 
         <table className="ip-grid ip-sign">
-          <colgroup>{F.signBoxes.map((b) => <col key={b} style={{ width: '25%' }} />)}</colgroup>
+          <colgroup>{F.signBoxes.map((b) => <col key={b} style={{ width: `${100 / F.signBoxes.length}%` }} />)}</colgroup>
           <thead><tr>{F.signBoxes.map((b) => <th key={b}>{b}</th>)}</tr></thead>
           <tbody>
             <tr>
@@ -168,7 +168,7 @@ export function IndoorDcPrint() {
                 {approverSignature ? <img className="ip-sign-ink" style={{ margin: '0 auto' }} src={approverSignature} alt="" /> : null}
                 {approved ? <div className="ip-sign-name">{dc.approved_by_name}</div> : null}
               </td>
-              <td /><td />
+              <td />
             </tr>
           </tbody>
         </table>

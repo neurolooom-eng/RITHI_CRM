@@ -35,7 +35,7 @@ import './fieldcalls.css';
 //     mandatory there.
 // ===========================================================================
 
-const STATUS_OPTIONS = ['Solved - Report Completed', 'Unsolved', 'Solved - Report Pending'];
+export const STATUS_OPTIONS = ['Solved - Report Completed', 'Unsolved', 'Solved - Report Pending'];
 
 // THE VISIT AN INDOOR DC FILES (0323, the user, 2026-10-02): "ALWAYS set the
 // call to Unsolved, pending reason = Return to Field, Update visit work
@@ -259,6 +259,11 @@ export interface IndoorDraftMode {
    *  (e.g. Job Done <- the job's Work done). Shown read-only with where they
    *  come from; their value goes into the draft on save. */
   linked?: Record<string, { value: string; from: string; edit?: () => void }>;
+  /** THE JOB'S CHOICE (0372, the user, 2026-10-04): the Call Status and Call
+   *  Pending Reason chosen on the Indoor job's Workshop record, which the
+   *  draft carries instead of the old fixed Unsolved / Return to Field. Empty
+   *  status = not chosen yet, and the draft cannot be saved until it is. */
+  callStatus?: { status: string; pendingReason: string };
 }
 
 export function CallReportDrawer({
@@ -390,7 +395,11 @@ export function CallReportDrawer({
       // THE INDOOR DRAFT: the fixed three, the signed-in engineer, and what
       // was drafted before (a re-opened draft starts where it was left).
       const d = indoor.initial;
-      setStatus(INDOOR_VISIT_FIXED.status); setPendingReason(INDOOR_VISIT_FIXED.pendingReason);
+      if (indoor.callStatus) {
+        setStatus(indoor.callStatus.status); setPendingReason(indoor.callStatus.pendingReason);
+      } else {
+        setStatus(INDOOR_VISIT_FIXED.status); setPendingReason(INDOOR_VISIT_FIXED.pendingReason);
+      }
       setUpdateWork(INDOOR_VISIT_FIXED.updateWork);
       // A re-opened draft keeps the engineer it was saved with; a new one
       // starts on the signed-in Indoor engineer.
@@ -411,6 +420,14 @@ export function CallReportDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ucn]);
 
+  // The Indoor job's Call Status / Pending Reason change on the Workshop record
+  // while this form is open: follow them (they are one value, 0372).
+  const indoorStatus = indoor?.callStatus?.status;
+  const indoorReason = indoor?.callStatus?.pendingReason;
+  useEffect(() => {
+    if (indoorStatus === undefined) return;
+    setStatus(indoorStatus); setPendingReason(indoorReason ?? '');
+  }, [indoorStatus, indoorReason]);
   // Report Pending → the pending reason is the status itself, and locked.
   useEffect(() => { if (reportPending) setPendingReason('Report Pending'); }, [reportPending]);
   const fixedIndoor = !!indoor;
@@ -887,9 +904,21 @@ export function CallReportDrawer({
           {/* Status — with the work-details switch it drives, side by side.
               Inline (Indoor) it is fixed, so it is one line, not three boxes. */}
           {inline ? (
-            <div className="rep-inline-fixed">
-              Call status <b>{INDOOR_VISIT_FIXED.status}</b> · pending <b>{INDOOR_VISIT_FIXED.pendingReason}</b> · work details updated — fixed for a unit going back to the field.
-            </div>
+            indoor?.callStatus ? (
+              indoor.callStatus.status ? (
+                <div className="rep-inline-fixed">
+                  Call status <b>{indoor.callStatus.status}</b>
+                  {indoor.callStatus.pendingReason ? <> · pending <b>{indoor.callStatus.pendingReason}</b></> : null}
+                  {' '}· work details updated — set in the Workshop record at the top of this page.
+                </div>
+              ) : (
+                <div className="rep-inline-fixed">Choose the <b>Call Status</b> in the Workshop record at the top of this page first.</div>
+              )
+            ) : (
+              <div className="rep-inline-fixed">
+                Call status <b>{INDOOR_VISIT_FIXED.status}</b> · pending <b>{INDOOR_VISIT_FIXED.pendingReason}</b> · work details updated — fixed for a unit going back to the field.
+              </div>
+            )
           ) : <section className="rep-sec">
             <div className="rep-sec-title">Call Status</div>
             <div className="rep-grid">
