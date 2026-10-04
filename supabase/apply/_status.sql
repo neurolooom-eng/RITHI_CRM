@@ -2011,7 +2011,13 @@ with checks(sort_order, bundle, provides, present) as (
     (291, 'SLA / Objective Configuration: Technical Support has the page', 'mod:/sla-objective-config is in the technical_support role (0358, the user, 2026-10-04: "Grant the page to Technical Support as well") -- the page alone, its cards read-only until Admin config or the objective permission is ticked. Row 114 holds the general rule that Technical Support carries every page the Admin does; this row names the one this change granted. Restore: objective.sql',
         (to_regclass('public.app_roles') is null
          or exists (select 1 from public.app_roles where role = 'technical_support'
-                     and permissions ? 'mod:/sla-objective-config')))
+                     and permissions ? 'mod:/sla-objective-config'))),
+    (299, 'Spare Recycling: Start Work, its working-day SLA, one request per spare, import from MRN', 'Asked for 2026-10-04. start_recycle_work() is the only writer of work_started_at; recycle_sla_due() adds the recycling SLA''s working days (app_settings recycle_sla_working_days / recycle_sla_weekend_days, set only by set_recycle_sla() from the SLA page); register_recycle_requests() makes N requests of one spare each and the guard refuses a request of more than one; recycle_mrn_lines() reads material_returns read-only. NO means one of the four functions is missing. Restore: recycling.sql (0365)',
+        (to_regprocedure('public.start_recycle_work(bigint,timestamptz)') is not null
+     and to_regprocedure('public.recycle_sla_due(timestamptz)') is not null
+     and to_regprocedure('public.register_recycle_requests(text,text,text,integer,date,text,text,text,text)') is not null
+     and to_regprocedure('public.recycle_mrn_lines(text,integer)') is not null
+     and coalesce((select p.prosrc like '%recycle_start%' from pg_proc p where p.oid = to_regprocedure('public.recycle_requests_guard()')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
