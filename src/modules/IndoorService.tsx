@@ -1488,7 +1488,35 @@ function IndoorJobDrawer({
       </>) : null}
 
       {/* ================= 4. DC & DISPATCH (4.5.7) ================= */}
-      {view === LAST_PAGE ? (<>
+      {/* WHILE THE DC FORM IS OPEN ON THE RIGHT, a read-only summary of the
+          unit (the user, 2026-10-04: "This page is confusing -- Left side data
+          seems irrelevant"): what goes on the DC, nothing to fill in. */}
+      {view === LAST_PAGE && dcOpen ? (
+        <Group title="This unit">
+          <div className="ind-grid">
+            <Value label="Customer">{job.party_name || job.demo_for_party || <span className="ind-muted">—</span>}</Value>
+            <Value label="Product / Sl. No"><>{job.product_name || '—'}{job.serial ? <> · <span className="mono">{job.serial}</span></> : null}</></Value>
+            {(job.ucn ?? '').trim() ? <Value label="Call (UCN)"><span className="mono">{job.ucn}</span></Value> : null}
+            {(job.ucn ?? '').trim() ? (
+              <Value label="Call Status">
+                {job.call_status
+                  ? <>{job.call_status}{job.call_pending_reason ? <> · {job.call_pending_reason}</> : null}</>
+                  : <span className="ind-muted">Not chosen (files Unsolved / Return to Field)</span>}
+              </Value>
+            ) : null}
+            <Value label="Job status">{job.status}</Value>
+            <Value label="Indoor Service Report No">{job.indoor_report_no ? <span className="mono">{job.indoor_report_no}</span> : <span className="ind-muted">—</span>}</Value>
+          </div>
+          {job.accessories_outstanding > 0 ? (
+            <p className="ind-warn">
+              {job.accessories_outstanding} accessor{job.accessories_outstanding === 1 ? 'y is' : 'ies are'} not
+              marked returned yet (Intake page).
+            </p>
+          ) : null}
+        </Group>
+      ) : null}
+
+      {view === LAST_PAGE && !dcOpen ? (<>
         {reported ? (
           <Group title="Indoor DC">
             {onCreateDc ? (
