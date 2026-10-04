@@ -2035,7 +2035,13 @@ with checks(sort_order, bundle, provides, present) as (
                   and tgname = 'indoor_pdt_locked_once_signed')
          and to_regprocedure('public.unsign_indoor_pdt(bigint,text)') is not null
          and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.indoor_jobs')
-                      and tgname = 'zzy_indoor_dispatch_and_cleaning')))
+                      and tgname = 'zzy_indoor_dispatch_and_cleaning'))),
+    (299, 'Spare Recycling: Start Work, its working-day SLA, one request per spare, import from MRN', 'Asked for 2026-10-04. start_recycle_work() is the only writer of work_started_at; recycle_sla_due() adds the recycling SLA''s working days (app_settings recycle_sla_working_days / recycle_sla_weekend_days, set only by set_recycle_sla() from the SLA page); register_recycle_requests() makes N requests of one spare each and the guard refuses a request of more than one; recycle_mrn_lines() reads material_returns read-only. NO means one of the four functions is missing. Restore: recycling.sql (0365)',
+        (to_regprocedure('public.start_recycle_work(bigint,timestamptz)') is not null
+     and to_regprocedure('public.recycle_sla_due(timestamptz)') is not null
+     and to_regprocedure('public.register_recycle_requests(text,text,text,integer,date,text,text,text,text)') is not null
+     and to_regprocedure('public.recycle_mrn_lines(text,integer)') is not null
+     and coalesce((select p.prosrc like '%recycle_start%' from pg_proc p where p.oid = to_regprocedure('public.recycle_requests_guard()')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

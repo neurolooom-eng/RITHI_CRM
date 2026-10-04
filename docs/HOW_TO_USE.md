@@ -1478,10 +1478,21 @@ typed into a form that reads it.
   > is never deleted; **Indoor DCs** lists them all and prints any of them again.
 - **Spare Recycling** `/indoor/recycling` — a **separate track** for recycling
   defective spares, with its own stock. Nothing here touches calls, Spare
-  Requests, Stock Out or the regular Hand Stock. **Hidden while Audit Mode is
-  on.**
+  Requests, Stock Out or the regular Hand Stock. **While Audit Mode is on the
+  whole page disappears** (an open page goes back to the home screen), along
+  with its menu entry, guide entry, data flow and SLA section.
   - **Register** a defective spare (RCY/26/0001): the part, serial, quantity,
-    received on and from, and an optional call reference (text only).
+    received on and from, and an optional call reference (text only). **A
+    quantity of 3 becomes 3 requests**, one per spare; give each its serial on
+    its own request.
+  - **Import from MRN**: search any MRN, **Pick** a line and import its good
+    and defective quantity — each spare becomes its own request, carrying the
+    MRN No. The MRN itself is not changed, and a line can be imported again.
+  - **Start Work** on a request with the date and time. **The SLA starts only
+    then**: due **3 working days** later, Saturday and Sunday skipped — both
+    set on **Admin Config → SLA Targets → Spare Recycling SLA**. The list
+    shows Work Started, SLA Due and **On track / Due today / Breached**
+    (**Met** once closed in time).
   - **Raise MRS** (RMRS/26/0001) for the spares you need — **no approval**.
     Stores presses **Stock Out** on the line, enters the quantity and **unit
     cost**, and it goes into **your recycling hand stock**.

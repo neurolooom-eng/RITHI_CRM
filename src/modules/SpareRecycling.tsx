@@ -18,6 +18,7 @@
 // the page hiding is a courtesy, the database is the rule.
 // ===========================================================================
 import { useEffect, useMemo, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { PageHeader, Modal, Toolbar, SectionCard } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SelectPicker } from '../components/ui/SelectPicker';
@@ -30,11 +31,12 @@ import { csvExport } from '../lib/format';
 import { COMPLETE } from '../lib/exportscope';
 import {
   supabaseConfigured,
-  listRecycleRequests, addRecycleRequest, updateRecycleRequest,
+  listRecycleRequests, updateRecycleRequest,
   listRecycleMrs, raiseRecycleMrs, issueRecycleLine, listRecycleHandStock,
   listRecycleConsumption, addRecycleConsumption, deleteRecycleConsumption,
   listRecycleCosts, addRecycleCost, deleteRecycleCost,
-  type RecycleRequest, type RecycleMrsLine, type RecycleHandStock, type RecycleConsumption, type RecycleCost,
+  registerRecycleRequests, startRecycleWork, listRecycleMrnLines,
+  type RecycleRequest, type RecycleMrnLine, type RecycleMrsLine, type RecycleHandStock, type RecycleConsumption, type RecycleCost,
 } from '../lib/supabase';
 import './fieldcalls.css';
 import './dccr.css';
@@ -50,6 +52,15 @@ const splitPart = (v: string): { code: string; description: string } => {
 const money = (n: number | null | undefined) =>
   n == null ? '' : `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const qtyText = (n: number | null | undefined) => (n == null ? '' : String(Number(n)));
+const registeredText = (nos: string[]) => (nos.length <= 1
+  ? `Registered ${nos[0] ?? ''}.`
+  : `Registered ${nos.length} requests, one per spare: ${nos[0]} to ${nos[nos.length - 1]}.`);
+const slaTone = (s: string) => (s === 'Breached' ? 'danger' : s === 'Due today' ? 'warning' : s === 'On track' || s === 'Met' ? 'success' : 'neutral');
+// The browser's own date and clock time, as the moment it names.
+const nowParts = () => {
+  const d = new Date(); const p = (n: number) => String(n).padStart(2, '0');
+  return { date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, time: `${p(d.getHours())}:${p(d.getMinutes())}` };
+};
 
 export function SpareRecycling() {
   const live = supabaseConfigured();
@@ -90,13 +101,16 @@ export function SpareRecycling() {
     const qty = Number(reg.qty);
     if (!p.code) { setErr('Pick the defective part.'); return; }
     if (!(qty > 0)) { setErr('Quantity must be more than 0.'); return; }
-    const res = await addRecycleRequest({
-      part_code: p.code, part_description: p.description, serial: reg.serial.trim(), qty,
+    if (!Number.isInteger(qty)) { setErr('Quantity must be a whole number.'); return; }
+    // ONE REQUEST PER SPARE (the user, 2026-10-04): a quantity of 3 is three
+    // requests, numbered together in one go by the database.
+    const res = await registerRecycleRequests({
+      part_code: p.code, part_description: p.description, serial: qty > 1 ? '' : reg.serial.trim(), qty,
       received_on: reg.received_on, received_from: reg.received_from.trim(), call_ref: reg.call_ref.trim(), remarks: reg.remarks.trim(),
     });
     if (!res.ok) { setErr(res.error ?? 'Not saved.'); return; }
     setRegOpen(false); setReg(blank); setErr('');
-    setMsg(`Registered ${res.data?.rcy_no ?? ''}.`);
+    setMsg(registeredText(res.data ?? []));
     void load();
   };
 
@@ -121,6 +135,7 @@ export function SpareRecycling() {
   };
   const openRequest = (r: RecycleRequest) => {
     setOpen(r); setJobDone(r.job_done); setCloseAs(''); setReason(''); setRetQty(qtyText(r.qty));
+    const np = nowParts(); setStartDate(np.date); setStartTime(np.time); setSerialEdit(r.serial);
     setConsPart(''); setConsQty('1'); setCostDesc(''); setCostAmt(''); setErr('');
     void loadOpen(r);
   };
@@ -131,6 +146,27 @@ export function SpareRecycling() {
     setOpen(r);
     if (r) void loadOpen(r);
   };
+  // ---- Start Work (the SLA's clock starts here, never before) ----
+  const [startDate, setStartDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const doStart = async () => {
+    if (!open) return;
+    if (!startDate || !startTime) { setErr('Give the date and time work started.'); return; }
+    const at = new Date(`${startDate}T${startTime}:00`);
+    if (Number.isNaN(at.getTime())) { setErr('That date and time cannot be read.'); return; }
+    const res = await startRecycleWork(open.id, at.toISOString());
+    if (!res.ok) { setErr(res.error ?? 'Not saved.'); return; }
+    setErr(''); setMsg(`Work started on ${open.rcy_no}.`); void refreshOpen(open.id);
+  };
+  // ---- a request's own serial, set after a multi-spare registration ----
+  const [serialEdit, setSerialEdit] = useState('');
+  const saveSerial = async () => {
+    if (!open) return;
+    const res = await updateRecycleRequest(open.id, { serial: serialEdit.trim() });
+    if (!res.ok) { setErr(res.error ?? 'Not saved.'); return; }
+    setMsg('Serial saved.'); void refreshOpen(open.id);
+  };
+
   // The consumer's own recycling hand stock, part by part — what can be consumed.
   const myStock = useMemo(() => stock.filter((s) => Number(s.balance) > 0), [stock]);
   const isOpen = open?.status === 'Open';
@@ -168,6 +204,41 @@ export function SpareRecycling() {
       ? `${open.rcy_no} closed — returned to the Service Store as R${open.part_code}.`
       : `${open.rcy_no} closed — not recyclable.`);
     void refreshOpen(open.id);
+  };
+
+  // ---- IMPORT FROM MRN (the user, 2026-10-04): the good and defective
+  // quantities of any MRN line, any number of times; the MRN No is kept as a
+  // reference on each request it makes. Read-only on the MRN itself.
+  const [mrnOpen, setMrnOpen] = useState(false);
+  const [mrnQ, setMrnQ] = useState('');
+  const [mrnRows, setMrnRows] = useState<RecycleMrnLine[]>([]);
+  const [mrnBusy, setMrnBusy] = useState(false);
+  const [mrnPick, setMrnPick] = useState<RecycleMrnLine | null>(null);
+  const [mrnQty, setMrnQty] = useState('1');
+  const searchMrn = async () => {
+    setMrnBusy(true);
+    try { setMrnRows(await listRecycleMrnLines(mrnQ.trim())); setErr(''); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    setMrnBusy(false);
+  };
+  const importMrn = async () => {
+    if (!mrnPick) return;
+    const qty = Number(mrnQty);
+    if (!Number.isInteger(qty) || qty < 1) { setErr('Quantity must be a whole number of at least 1.'); return; }
+    const code = (mrnPick.item_code || splitPart(mrnPick.part).code).trim();
+    if (!code) { setErr('This MRN line carries no part code.'); return; }
+    const res = await registerRecycleRequests({
+      part_code: code, part_description: mrnPick.item_name || splitPart(mrnPick.part).description,
+      serial: '', qty, received_on: todayLocal(),
+      received_from: [`MRN ${mrnPick.mrn_no}`, mrnPick.engineer].filter(Boolean).join(' · '),
+      call_ref: mrnPick.report_no || '',
+      remarks: [mrnPick.mrn_date ? `MRN dated ${formatDay(mrnPick.mrn_date)}` : '', mrnPick.customer_name ? `Customer ${mrnPick.customer_name}` : '',
+        `good ${qtyText(mrnPick.good_qty)} / defective ${qtyText(mrnPick.defective_qty)}`].filter(Boolean).join(' · '),
+      mrn_ref: mrnPick.mrn_no,
+    });
+    if (!res.ok) { setErr(res.error ?? 'Not saved.'); return; }
+    setMrnPick(null); setErr(''); setMsg(registeredText(res.data ?? []) + ` From MRN ${mrnPick.mrn_no}.`);
+    void load();
   };
 
   // ---- MRS: raise (no approval) and stock out with cost ---------------------
@@ -215,6 +286,10 @@ export function SpareRecycling() {
     { key: 'status', header: 'Status', width: 120,
       render: (r) => <span className={`badge badge-${r.status === 'Open' ? 'warning' : r.status === 'Returned' ? 'success' : 'neutral'}`}>{r.status}</span> },
     { key: 'returned_part_code', header: 'Returned As', width: 120 },
+    { key: 'work_started_at', header: 'Work Started', width: 150, render: (r) => (r.work_started_at ? formatDayTime(r.work_started_at) : ''), accessor: (r) => r.work_started_at ?? '' },
+    { key: 'sla_due_at', header: 'SLA Due', width: 150, render: (r) => (r.sla_due_at ? formatDayTime(r.sla_due_at) : ''), accessor: (r) => r.sla_due_at ?? '' },
+    { key: 'sla_status', header: 'SLA', width: 110, render: (r) => <span className={`badge badge-${slaTone(r.sla_status)}`}>{r.sla_status}</span> },
+    { key: 'mrn_ref', header: 'MRN', width: 100 },
     { key: 'parts_cost', header: 'Parts Cost', width: 110, align: 'right', render: (r) => money(r.parts_cost), accessor: (r) => Number(r.parts_cost) },
     { key: 'other_cost', header: 'Other Cost', width: 110, align: 'right', render: (r) => money(r.other_cost), accessor: (r) => Number(r.other_cost) },
     { key: 'total_cost', header: 'Total Cost', width: 110, align: 'right', render: (r) => <b>{money(r.total_cost)}</b>, accessor: (r) => Number(r.total_cost) },
@@ -252,14 +327,11 @@ export function SpareRecycling() {
   }), { parts: 0, other: 0, issued: 0 }), [requests]);
 
   // ---- the page -------------------------------------------------------------
-  if (!audit.known) return <div style={{ padding: 32 }} className="muted">Loading…</div>;
-  if (audit.on) {
-    return (
-      <div style={{ padding: 32 }} className="muted">
-        Spare Recycling is not available while Audit Mode is on.
-      </div>
-    );
-  }
+  // THE WHOLE PAGE GOES (the user, 2026-10-04): while Audit Mode is on, or
+  // until it is known to be off, nothing of it is drawn -- an open page goes
+  // straight back to the home screen the moment the switch is thrown.
+  if (audit.on && audit.known) return <Navigate to="/" replace />;
+  if (!audit.known) return null;
   if (!live) return <div style={{ padding: 32 }} className="muted">Spare Recycling needs the database connection.</div>;
 
   const partOptions = parts.all;
@@ -275,6 +347,7 @@ export function SpareRecycling() {
         actions={
           <div className="row" style={{ gap: 8 }}>
             {mayRegister && <button className="btn btn-primary" onClick={() => { setReg(blank); setRegOpen(true); }}>+ Register defective spare</button>}
+            {mayRegister && <button className="btn" onClick={() => { setMrnOpen(true); setMrnPick(null); void searchMrn(); }}>⤵ Import from MRN</button>}
             {mayRequest && <button className="btn" onClick={() => setMrsOpen(true)}>+ Raise MRS</button>}
           </div>
         }
@@ -333,13 +406,50 @@ export function SpareRecycling() {
         </SectionCard>
       )}
 
+      {/* ---- import from MRN ---- */}
+      <Modal open={mrnOpen} onClose={() => setMrnOpen(false)} title="Import spares from MRN" width={860}>
+        <div className="row" style={{ gap: 8 }}>
+          <input className="input" style={{ flex: 1 }} placeholder="Search MRN No, engineer, part or customer…" value={mrnQ}
+            onChange={(e) => setMrnQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void searchMrn(); }} />
+          <button className="btn btn-sm" onClick={() => void searchMrn()} disabled={mrnBusy}>{mrnBusy ? 'Searching…' : 'Search'}</button>
+        </div>
+        <p className="muted" style={{ fontSize: 12 }}>
+          Good and defective quantities from any MRN. A line can be imported more than once; each spare becomes its own request, carrying the MRN No.
+          The MRN itself is not changed. Showing the latest {mrnRows.length >= 300 ? '300 (narrow the search for more)' : mrnRows.length}.
+        </p>
+        <div style={{ maxHeight: 340, overflow: 'auto' }}>
+          <table className="obj-table" style={{ width: '100%' }}>
+            <thead><tr><th>MRN No</th><th>Date</th><th>Engineer</th><th>Part</th><th className="obj-num">Good</th><th className="obj-num">Defective</th><th>Customer</th><th /></tr></thead>
+            <tbody>
+              {mrnRows.map((m) => (
+                <tr key={m.id} style={mrnPick?.id === m.id ? { outline: '2px solid var(--text)' } : undefined}>
+                  <td>{m.mrn_no}</td><td>{formatDay(m.mrn_date)}</td><td>{m.engineer}</td>
+                  <td>{m.item_code || splitPart(m.part).code} {m.item_name || splitPart(m.part).description}</td>
+                  <td className="obj-num">{qtyText(m.good_qty)}</td><td className="obj-num">{qtyText(m.defective_qty)}</td><td>{m.customer_name}</td>
+                  <td><button className="btn btn-sm" onClick={() => { setMrnPick(m); setMrnQty(String(Math.max(1, Number(m.good_qty || 0) + Number(m.defective_qty || 0)))); }}>Pick</button></td>
+                </tr>))}
+              {!mrnRows.length && <tr><td colSpan={8} className="muted">{mrnBusy ? 'Searching…' : 'No MRN line matches.'}</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {mrnPick && (
+          <div className="row" style={{ gap: 8, alignItems: 'flex-end', marginTop: 10 }}>
+            <div style={{ flex: 1 }}><b>{mrnPick.mrn_no}</b> · {mrnPick.item_code || splitPart(mrnPick.part).code} · good {qtyText(mrnPick.good_qty)}, defective {qtyText(mrnPick.defective_qty)}</div>
+            <div className="field" style={{ width: 110 }}><label className="field-label">Qty to import</label>
+              <input className="input" type="number" min="1" value={mrnQty} onChange={(e) => setMrnQty(e.target.value)} /></div>
+            <button className="btn btn-primary" onClick={() => void importMrn()}>Import {Number(mrnQty) > 1 ? `${mrnQty} requests` : '1 request'}</button>
+          </div>)}
+      </Modal>
+
       {/* ---- register ---- */}
       <Modal open={regOpen} onClose={() => setRegOpen(false)} title="Register a defective spare for recycling" width={560}>
         <div className="field"><label className="field-label">Defective part *</label>
           <SelectPicker value={reg.part} onChange={(v) => setReg((d) => ({ ...d, part: v }))} options={partOptions} placeholder="Pick from Part Master" /></div>
         <div className="row" style={{ gap: 10 }}>
           <div className="field" style={{ flex: 1 }}><label className="field-label">Serial</label>
-            <input className="input" value={reg.serial} onChange={(e) => setReg((d) => ({ ...d, serial: e.target.value }))} /></div>
+            <input className="input" value={Number(reg.qty) > 1 ? '' : reg.serial} disabled={Number(reg.qty) > 1}
+              placeholder={Number(reg.qty) > 1 ? 'Each request gets its own' : ''}
+              onChange={(e) => setReg((d) => ({ ...d, serial: e.target.value }))} /></div>
           <div className="field" style={{ width: 90 }}><label className="field-label">Qty *</label>
             <input className="input" type="number" min="1" value={reg.qty} onChange={(e) => setReg((d) => ({ ...d, qty: e.target.value }))} /></div>
           <div className="field" style={{ width: 170 }}><label className="field-label">Received on *</label>
@@ -353,7 +463,10 @@ export function SpareRecycling() {
         </div>
         <div className="field"><label className="field-label">Remarks</label>
           <textarea className="input" rows={2} value={reg.remarks} onChange={(e) => setReg((d) => ({ ...d, remarks: e.target.value }))} /></div>
-        <p className="muted" style={{ fontSize: 12 }}>The call reference is kept as text only — nothing on the call changes.</p>
+        <p className="muted" style={{ fontSize: 12 }}>
+          The call reference is kept as text only — nothing on the call changes.
+          {Number(reg.qty) > 1 && <> A quantity of <b>{reg.qty}</b> is registered as <b>{reg.qty} separate requests</b>, one per spare — set each serial on its own request.</>}
+        </p>
         <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
           <button className="btn" onClick={() => setRegOpen(false)}>Cancel</button>
           <button className="btn btn-primary" onClick={() => void saveReg()}>Register</button>
@@ -418,6 +531,33 @@ export function SpareRecycling() {
             {open.status === 'Not recyclable' && <> {open.not_recyclable_reason}</>}
             {open.closed_at && <span className="muted"> · closed {formatDayTime(open.closed_at)} by {open.closed_by_name}</span>}
           </p>
+
+          {isOpen && mayRegister && (
+            <div className="row" style={{ gap: 8, alignItems: 'flex-end' }}>
+              <div className="field" style={{ width: 220 }}><label className="field-label">Serial</label>
+                <input className="input" value={serialEdit} onChange={(e) => setSerialEdit(e.target.value)} /></div>
+              {serialEdit !== open.serial && <button className="btn btn-sm" onClick={() => void saveSerial()}>Save serial</button>}
+            </div>)}
+
+          <div className="obj-ovr-box" style={{ marginTop: 6, marginBottom: 10 }}>
+            <div className="field-label">Work &amp; SLA</div>
+            {open.work_started_at ? (
+              <p style={{ margin: '4px 0' }}>
+                Work started <b>{formatDayTime(open.work_started_at)}</b> by {open.work_started_by_name}
+                {' · '}SLA due <b>{formatDayTime(open.sla_due_at)}</b>{' '}
+                <span className={`badge badge-${slaTone(open.sla_status)}`}>{open.sla_status}</span>
+              </p>
+            ) : isOpen && (mayClose || mayRegister) ? (
+              <div className="row" style={{ gap: 8, alignItems: 'flex-end' }}>
+                <div className="field" style={{ width: 170 }}><label className="field-label">Date</label>
+                  <LongDateInput value={startDate} onChange={setStartDate} /></div>
+                <div className="field" style={{ width: 120 }}><label className="field-label">Time</label>
+                  <input className="input" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} /></div>
+                <button className="btn btn-primary btn-sm" onClick={() => void doStart()}>▶ Start Work</button>
+              </div>
+            ) : <p className="muted" style={{ margin: '4px 0' }}>Work not started — the SLA has not begun.</p>}
+            {!open.work_started_at && <div className="field-help">The SLA clock starts only when work is started.</div>}
+          </div>
 
           <div className="field"><label className="field-label">Job done</label>
             <textarea className="input" rows={3} value={jobDone} disabled={!isOpen || !(mayRegister || mayClose)} onChange={(e) => setJobDone(e.target.value)} /></div>

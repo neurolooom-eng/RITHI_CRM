@@ -161,7 +161,7 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-10-04 — Your decisions built: ten defects (v0.10.88, 0359–0363)
+### 2026-10-04 — Your decisions built: ten defects (v0.10.89, 0359–0363)
 - **Your answers**, one question at a time: D-125 (own name, team for RM/RGM, anybody else by a key ticked per person; spare requests also Technical Support), D-145 (approve, skip that visit), D-149 (blank only if a transfer set it), D-150 (button only on dealer transfers; the database refuses a duplicate call number and a second installation call), D-151 (Party Master decides), D-152 (just flag it for now), D-154 (at the Call Request), D-111 (lock once signed; a new key to un-sign), D-112 (the date it is marked Dispatched), D-114 (allow an earlier time).
 - **Database:**
   - **D-125 (0359):** `filed_under_own_name` on visits, consumption and spare requests; `created_by` stamped from the session. Before writing it I read every path that files in somebody else's name: imports, Reconciliation and the functions that do it by design are exempt.

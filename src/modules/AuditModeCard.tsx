@@ -1,5 +1,6 @@
 import { isMissingTable } from '../lib/dberror';
 import { useEffect, useState } from 'react';
+import { publishAuditMode } from '../lib/auditMode';
 import { SectionCard } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
 import { useUserNames, nameForUserId } from '../lib/userNames';
@@ -66,6 +67,8 @@ export function AuditModeCard() {
     setBusy(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Failed.' }); return; }
     setReason('');
+    // Every open screen follows at once -- the menu, Spare Recycling, the rest.
+    publishAuditMode(next);
     setMsg({ tone: 'ok', text: next ? 'Audit Mode is ON.' : 'Audit Mode is OFF.' });
     void load();
   };
