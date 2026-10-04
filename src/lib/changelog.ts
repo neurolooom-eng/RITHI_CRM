@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.94',
+    date: '2026-10-04',
+    title: 'Indoor job: a plain summary beside the Create Indoor DC form',
+    changes: [
+      'DC / DISPATCHED page: while the Create Indoor DC form is open on the right, the left side shows only a read-only summary of the unit — customer, product and serial, the call and its Call Status, job status, report number, and any accessories still to go back. The DC number, DC date and Remarks boxes no longer sit beside the form.',
+    ],
+  },
+  {
     version: '0.10.93',
     date: '2026-10-04',
     title: 'Indoor job: Call Status and Call Pending Reason at the top of the Repair page; MIRN removed from the DC',
