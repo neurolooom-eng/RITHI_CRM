@@ -1906,7 +1906,11 @@ with checks(sort_order, bundle, provides, present) as (
     (276, 'DCCR Updated By / Updated Date: the import''s, else the call''s registrant and registration date', 'Asked for 2026-10-04 (the DCCR Google Sheet mirror). call_reviews keeps the imported register''s Updated By / Updated Date (imported_updated_by, imported_updated_date) and field_call_review reads dccr_updated_by / dccr_updated_date: the file''s values where it had them, else the email of the login that registered the call (call_registrant_email(), which answers only for somebody who registered a call) and the call''s reg_date. NO means a column, the function or the view''s two columns are missing. Restore: daily_review.sql (0344)',
         (to_regprocedure('public.call_registrant_email(uuid)') is not null
      and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'call_reviews' and column_name = 'imported_updated_by')
-     and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'field_call_review' and column_name = 'dccr_updated_date')))
+     and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'field_call_review' and column_name = 'dccr_updated_date'))),
+    (277, 'Who booked a stock out stays on it once it is issued', 'The spare_dispatches_stamp_actor trigger fires on UPDATE as well as INSERT: a signed-in update keeps the name the stock out was booked under, so the Delivery Challan and the Declaration cannot be re-signed afterwards, and a re-load of the Stock Out Register no longer writes the uploader''s name over it (0345, D-126). NO means Spare_1.sql has not been re-run since. Restore: Spare_1.sql (0345)',
+        exists (select 1 from pg_trigger
+                 where tgrelid = to_regclass('public.spare_dispatches') and tgname = 'spare_dispatches_stamp_actor'
+                   and (tgtype & 16) <> 0))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

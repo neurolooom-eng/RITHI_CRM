@@ -1116,6 +1116,9 @@ const MODULES = {
       // WHO DISPATCHED IS STAMPED, NOT SENT. A trigger on spare_dispatches, so
       // the (much-revised) dispatch function is not touched at all.
       '0211_dispatched_by_is_stamped.sql',
+      // D-126: once issued, the stock out keeps the name it was booked under --
+      // the same trigger made INSERT OR UPDATE (0345). Redefines 0211's function.
+      '0345_dispatched_by_kept_after_issue.sql',
       '0084_spare_request_import.sql',
       '0085_spare_request_or_no_key.sql',
       '0116_spare_bulk_approval.sql',
