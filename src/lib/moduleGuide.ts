@@ -1164,33 +1164,34 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
   // (`audit.mode`, `import.panel`); the handbook was corrected to match (2026-10-02).
   {
     route: '/admin-config',
-    purpose: 'The settings the rules read: the Call Registration desk, the frequent-failure rule, and Audit Mode. The SLA targets are on SLA / Objective Configuration.',
+    purpose: 'The settings the rules read: the Call Registration desk and Audit Mode. The SLA targets and the frequent-failure rule are on SLA / Objective Configuration.',
     does: [
       'Choose which Hotline desk new calls are filed to',
-      'Tune frequent-failure Rule 1 (same machine) and Rule 2 (different serials, same complaint)',
       'Switch Audit Mode on or off with a reason',
     ],
-    records: ['app_settings', 'rpc:frequent_failure_rule', 'rpc:registrant_desks', 'rpc:audit_mode', 'rpc:set_audit_mode', 'audit_mode_changes'],
+    records: ['app_settings', 'rpc:registrant_desks', 'rpc:audit_mode', 'rpc:set_audit_mode', 'audit_mode_changes'],
     rules: [
-      'A rule change applies from now on; recorded answers are unchanged',
+      'A desk change applies from now on; calls already filed are unchanged',
       'While Audit Mode is ON, Update Party / Product Details on a call are hidden and refused',
     ],
   },
   // SLA / OBJECTIVE CONFIGURATION (0357, the user, 2026-10-04).
   {
     route: '/sla-objective-config',
-    purpose: 'The targets the service is measured against: the SLA hours for open calls, and the Product Failure rule the Objective page works its failure rates out by.',
+    purpose: 'The targets the service is measured against: the SLA hours for open calls, the Product Failure rule the Objective page works its failure rates out by, and the frequent-failure rule Review 2 applies.',
     does: [
       'Set each SLA target in hours and turn it on or off',
       'Set how many months after installation a field call counts as a product failure (3 by default)',
       'Set the rolling period the failure rate is measured over (12 months by default)',
+      'Tune frequent-failure Rule 1 (same machine) and Rule 2 (different serials, same complaint)',
     ],
-    records: ['sla_rules', 'objective_settings'],
+    records: ['sla_rules', 'objective_settings', 'app_settings', 'rpc:frequent_failure_rule'],
     rules: [
       'Installation is the machine’s warranty start; a machine with no warranty start is in neither number',
       'A machine with several calls inside its window is one failure',
       'A change applies from the next Re-Calculate on the Objective page; figures already written are not rewritten',
-      'Only the Admin role is given this page by default; other roles are granted on Roles & Permissions',
+      'A frequent-failure rule change applies from now on; Review 2 answers already recorded are unchanged',
+      'Admin has this page with every action; Technical Support has the page read-only until its actions are ticked; other roles are granted on Roles & Permissions',
     ],
   },
   {

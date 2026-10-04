@@ -1,7 +1,6 @@
 import { PageHeader } from '../components/ui/ui';
 import { CallRegistrationCard } from './CallRegistrationCard';
 import { AuditModeCard } from './AuditModeCard';
-import { FrequentFailureCard } from './FrequentFailureCard';
 import { DataImport } from './DataImport';
 
 // ===========================================================================
@@ -19,7 +18,8 @@ import { DataImport } from './DataImport';
 //
 // THE SLA TARGETS MOVED to Admin -> SLA / Objective Configuration (the user,
 // 2026-10-04), beside the Product Failure rule, the other target the service
-// is measured against.
+// is measured against. THE FREQUENT-FAILURE RULE followed them there the same
+// day ("Move Frequent Failure -- the rule Review 2 applies also to this Page").
 // ===========================================================================
 
 export function AdminConfig() {
@@ -27,15 +27,13 @@ export function AdminConfig() {
     <div>
       <PageHeader
         title="Admin Config"
-        subtitle="Bulk data loads, the Call Registration desk, the frequent-failure rule, and the two switches with their own permissions (Audit Mode, the Data Import panel). The SLA targets are on SLA / Objective Configuration."
+        subtitle="Bulk data loads, the Call Registration desk, and the two switches with their own permissions (Audit Mode, the Data Import panel). The SLA targets and the frequent-failure rule are on SLA / Objective Configuration."
         icon="🛠️"
       />
 
       <DataImport />
       <div style={{ height: 16 }} />
       <CallRegistrationCard />
-      <div style={{ height: 16 }} />
-      <FrequentFailureCard />
       <div style={{ height: 16 }} />
       <AuditModeCard />
     </div>

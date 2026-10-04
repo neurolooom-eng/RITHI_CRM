@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.88',
+    date: '2026-10-04',
+    title: 'Objective Re-Calculate no longer times out; Frequent Failure and Technical Support on SLA / Objective Configuration',
+    changes: [
+      'OBJECTIVE: Re-calculate stopped with "canceling statement due to statement timeout" after the new Product Failure rule. The failure rate is now worked out in one pass and Re-calculate finishes well inside the limit — same rule, same figures.',
+      'SLA / OBJECTIVE CONFIGURATION now also holds the FREQUENT FAILURE rule Review 2 applies (moved from Admin Config). Nothing about the rule itself changed.',
+      'TECHNICAL SUPPORT can open SLA / Objective Configuration. It reads the page only, until an administrator ticks Admin config or the objective permission for the role on Roles & Permissions.',
+    ],
+  },
+  {
     version: '0.10.87',
     date: '2026-10-04',
     title: 'SLA / Objective Configuration — Product Failure is a failure within 3 months, over a rolling 12 months',

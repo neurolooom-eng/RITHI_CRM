@@ -203,7 +203,8 @@ export const MODULES: ModuleDef[] = [
   // with every action on it (the user, 2026-10-04: "By Default Grant Permission
   // to Admin - All Actions, Rest let the Admin Decide through the App").
   // `admin: true` keeps the key out of NON_ADMIN_MODULES; 0357 merges it into
-  // the admin row of `app_roles`, because a code default reaches nobody.
+  // the admin row of `app_roles`, because a code default reaches nobody, and
+  // 0358 gives Technical Support the page alone (the user, same day).
   { path: '/sla-objective-config', label: 'SLA / Objective Configuration', admin: true },
   { path: '/software-validation', label: 'Software Validation', admin: true },
   { path: '/settings', label: 'Settings' },

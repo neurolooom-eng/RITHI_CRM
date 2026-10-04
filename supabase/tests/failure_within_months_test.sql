@@ -168,12 +168,15 @@ begin;
   select count(*) from public.objective_settings;
 commit;
 
-\echo '--- 11. BY DEFAULT ONLY THE ADMIN ROLE IS GIVEN THE PAGE ---'
-\echo 'expect: admin, and nothing else -- the rest is decided on Roles & Permissions'
+\echo '--- 11. THE ADMIN ROLE AND TECHNICAL SUPPORT ARE GIVEN THE PAGE (0357, 0358) ---'
+\echo 'expect: admin and technical_support, nothing else -- the rest is decided on Roles & Permissions'
 select role from public.app_roles where permissions ? 'mod:/sla-objective-config' order by role;
-\echo 'expect: t -- with all its actions'
+\echo 'expect: t -- the admin with all its actions'
 select permissions @> '["config.manage","objective.manage"]'::jsonb as admin_has_every_action
   from public.app_roles where role = 'admin';
+\echo 'expect: f -- Technical Support has the PAGE alone; its actions are ticked by an administrator'
+select permissions @> '["objective.manage"]'::jsonb as ts_may_change_the_rule
+  from public.app_roles where role = 'technical_support';
 
 delete from public.field_calls where ucn like 'FW-%';
 delete from public.products    where party_name = 'FW FLEET';

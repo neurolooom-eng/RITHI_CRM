@@ -385,8 +385,8 @@ against the call it was fitted to.
   > on **different serial numbers** of one product within 30 days, which is a
   > batch or component problem rather than one unit. It counts serials, not
   > calls, so several visits to one machine stay rule 1's finding. Either rule
-  > makes it a frequent failure, and the screen says which. Both are tuned in
-  > Admin Config.
+  > makes it a frequent failure, and the screen says which. Both are tuned on
+  > SLA / Objective Configuration.
   > **Change product?** (Review 2). Where what actually failed is an **accessory**
   > logged against the machine it is fitted to — a CPX CARE failure raised on an
   > EXTEND-XT — name the real product here. The failure is then counted against
@@ -1532,10 +1532,10 @@ typed into a form that reads it.
   history of Audit Mode being turned on and off, each with its reason, is on
   Admin Config.
 - **Admin Config** `/admin-config` — the settings the rules read: the Call
-  Registration desk, the frequent-failure window and threshold, and audit mode.
-  (The SLA targets are on SLA / Objective Configuration; the objective cut-offs
-  and their lock are on the Objective screen.) The desk
-  and the frequent-failure rule are open to anybody given *Admin config*;
+  Registration desk and audit mode. (The SLA targets and the frequent-failure
+  rule are on SLA / Objective Configuration; the objective cut-offs and their
+  lock are on the Objective screen.) The desk is open to anybody given
+  *Admin config*;
   switching Audit Mode and the Data Import panel each have their own tick on
   Roles & Permissions (*audit.mode*, *import.panel*). **While Audit Mode is
   ON** a call's Update Party Details and Update Product Details are hidden (and
@@ -1549,8 +1549,14 @@ typed into a form that reads it.
   machine with several calls in its window counts once; one with no warranty
   start is in neither number. Both numbers can be changed here — the change
   applies from the next **Re-Calculate** on the Objective screen, and figures
-  already written stay until then.
-  > Only the **Admin** role has this page to begin with. Give it to another
+  already written stay until then. **Frequent Failure**: the window and
+  threshold Review 2 uses — rule 1 (the same machine) and rule 2 (different
+  serials, same complaint). A change applies from now on; answers already
+  recorded stay as they were.
+  > **Admin** has this page with every action. **Technical Support** has the
+  > page but reads it only, until *Admin config* (SLA targets, Frequent
+  > Failure) or *Edit, recalculate and cut off the quality objectives* (the
+  > Product Failure rule) is ticked for the role. Give the page to any other
   > role on Roles & Permissions → Administration → SLA / Objective
   > Configuration.
 - **Software Validation** `/software-validation` — the ISO 13485 §4.1.6 package:
