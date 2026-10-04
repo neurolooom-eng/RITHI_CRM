@@ -1113,11 +1113,15 @@ export interface PartyPatch {
  *  stamps them when the status becomes Verified, and a caller that could set
  *  them could sign somebody else's name to a verification. */
 export async function updateParty(id: number, patch: PartyPatch): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('parties').update(patch).eq('id', id);
+  // Rows COUNTED (D-141): row-level security refuses an update by matching
+  // nothing, and no error is not "saved" (finding 48).
+  const { data, error } = await must().from('parties').update(patch).eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not edit this party, or it is no longer on the Party Master.' };
   // An edit here re-downloads this device's Party Master, so the next Call
   // Request fills what was just saved rather than a copy up to six hours old.
-  if (!error) void refreshPartyRegister({ force: true });
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  void refreshPartyRegister({ force: true });
+  return { ok: true };
 }
 
 /** A NEW party, from Party Master's Add entry form.
@@ -2603,7 +2607,8 @@ export async function globalSearchKind(kind: HitKind, raw: string): Promise<Sear
   const t = searchTerm(raw);
   if (t.length < MIN_CHARS) return [];
   const like = (cols: string[]) => cols.map((k) => `${k}.ilike.%${t}%`).join(',');
-  const n = PER_KIND;
+  // One more than is shown, so the panel can tell five from five-and-more (D-117).
+  const n = PER_KIND + 1;
   const rows = async (q: PromiseLike<{ data: unknown; error: { message: string } | null }>) => {
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error as never));
@@ -3545,8 +3550,11 @@ export async function addPart(
 export async function updatePart(
   id: number, patch: { category?: string; product?: string; purchase_cost?: number | null; hsn_code?: string },
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('parts').update(patch).eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // Rows COUNTED (D-141), as updateMasterItem does.
+  const { data, error } = await must().from('parts').update(patch).eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not edit this part, or it is no longer on the Part Master.' };
+  return { ok: true };
 }
 
 export interface PartRenameImpact { relation: string; rows: number }
@@ -3577,8 +3585,11 @@ export async function renamePart(
 }
 
 export async function setPartActive(id: number, active: boolean): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('parts').update({ active }).eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // Rows COUNTED (D-141), as updateMasterItem does.
+  const { data, error } = await must().from('parts').update({ active }).eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was changed — your role may not edit this part, or it is no longer on the Part Master.' };
+  return { ok: true };
 }
 
 export interface PartFilter { q?: string; code?: string; description?: string; active?: string; product?: string }
@@ -3757,11 +3768,14 @@ export async function addStockTransfer(
     .select('uid').single();
   if (error) return { ok: false, error: errMsg(error) };
   const uid = String(data.uid);
+  // The per-line reason is OPTIONAL (0322). It is sent on EVERY line once ANY
+  // line has one (D-113): a bulk insert lists the union of the rows' keys, so a
+  // line without the key was written NULL into a NOT NULL column and the whole
+  // transfer was refused. A transfer with no reasons at all still sends none.
+  const anyReason = lines.some((l) => !!l.reason?.trim());
   const { error: le } = await c.from('stock_transfer_lines')
-    // The per-line reason is OPTIONAL (0322) and sent only when given, so a
-    // project that has not run 0322 still records a transfer with none.
     .insert(lines.map((l, i) => ({ transfer_uid: uid, row_no: i + 1, part: l.part, qty: l.qty,
-                                   ...(l.reason?.trim() ? { reason: l.reason.trim() } : {}) })));
+                                   ...(anyReason ? { reason: (l.reason ?? '').trim() } : {}) })));
   if (le) {
     // The lines are the transfer; a header alone is not a usable record. The
     // stock check rejects the whole insert, so nothing moved.

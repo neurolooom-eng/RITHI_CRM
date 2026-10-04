@@ -457,6 +457,10 @@ export async function listMachines(
   const cfg = configFor(kind);
   let q = client().from(cfg.detailsView).select('*')
     .order(cfg.endColumn, { ascending: false, nullsFirst: false })
+    // A TIEBREAKER (D-103): an import gives many machines one end date, and
+    // without a unique last key a page boundary can put a machine on two pages
+    // and another on none while the count looks complete.
+    .order('id', { ascending: false })
     .range(offset, offset + limit - 1);
   const tree = machineFilter(cfg, f);
   if (tree) q = q.or(tree);

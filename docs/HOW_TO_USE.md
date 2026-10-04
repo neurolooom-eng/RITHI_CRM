@@ -36,7 +36,8 @@ first; then, from three characters, calls (UCN, call number, party, serial,
 product), pending call requests (REQID), spare requests (UID, OR number, UCN,
 part), spares consumed, parties, machines, parts, documents (manuals, technical
 notes, QMS), Field Solutions articles and Field Failure Reports — up to five of
-each. **Click one and that record opens** on its own screen: a call opens in its
+each. Where there are more than five, the group says so: type more of the name
+or number, or open that register to see them all. **Click one and that record opens** on its own screen: a call opens in its
 view, a machine in Machine History, a document in Drive. ↑ ↓ and Enter work
 too. It only ever shows records you could already open on that screen.
 
@@ -1382,7 +1383,8 @@ typed into a form that reads it.
   person named (or an administrator) sees it **first in Indoor DCs**, and on
   **My Workload** under *Indoor DCs — Awaiting my approval* — **whatever their
   role**: someone whose role cannot open Indoor Service is taken to a page
-  listing just the DCs that name them — and presses
+  listing just the DCs that name them (it says *No Indoor DC names you as
+  Authorised By* when there are none) — and presses
   **Approve** or **Reject…** (with a reason). **Approving files the visit**: for
   every unit with a call, the visit drafted with its Indoor Service Report is
   filed against the call — Unsolved, pending Return to Field, with the work
@@ -1393,6 +1395,10 @@ typed into a form that reads it.
   > the DC stays pending and the message says why. Only approving the DC marks a
   > visit as filed — it cannot be set by editing the unit. **Rejecting** keeps the DC with its reason and
   > frees its units for a new DC.
+  > If the person's name is **corrected in the User Master** while a DC is
+  > still waiting for them, the DC follows the new name so they can still
+  > approve it. A DC already approved or rejected keeps the name it was printed
+  > with.
   > A unit is refused if it is not Ready, has no uploaded report, is already on a
   > DC, or would not be allowed to leave (no quality check on a repair, a failed
   > check, a DEMO unit of an imported product without its Pre-Delivery Testing)

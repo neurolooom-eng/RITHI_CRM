@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.79',
+    date: '2026-10-04',
+    title: 'Review fixes: search, transfers, masters, Indoor DCs and feedback speed',
+    changes: [
+      'SEARCH (top of the screen): a group that has more than the five shown now says so, instead of looking complete.',
+      'STOCK TRANSFER: a transfer with a reason on some lines only is now saved; before, it was refused.',
+      'WARRANTY / CONTRACT REGISTERS: paging no longer shows a machine twice or skips one when many share an end date.',
+      'PARTY MASTER and PART MASTER: an edit your role is not allowed to save now says Nothing was saved, instead of Saved.',
+      'PRODUCT DATABASE: a machine can no longer be deleted by anyone signed in; adding and editing are unchanged.',
+      'CUSTOMER FEEDBACK: opens much faster for engineers (measured 12 seconds down to under a hundredth of a second on 30,000 rows); who sees what is unchanged.',
+      'INDOOR DCs: correcting an approver\'s name in the User Master carries the DCs still waiting for them to the new name; the approvals page says when no DC names you; a deleted Indoor job is recorded once in the audit log, not twice.',
+    ],
+  },
+  {
     version: '0.10.78',
     date: '2026-10-04',
     title: 'The name on an issued stock out cannot be changed',

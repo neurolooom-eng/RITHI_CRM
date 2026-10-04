@@ -21,6 +21,7 @@
 --   0257_directory_rename_carries_the_team.sql
 --   0259_directory_rename_carries_the_records.sql
 --   0267_rename_carries_adjustments.sql
+--   0346_rename_carries_pending_indoor_dc.sql
 --   0122_user_directory_replay_tail.sql
 --   0005_rbac.sql
 --   0007_user_access.sql
@@ -65,6 +66,7 @@
 --   0305_reset_password_key.sql
 --   0308_part_search_key.sql
 --   0325_party_part_add_edit_delete.sql
+--   0347_feedback_read_once_and_no_machine_delete.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
@@ -332,6 +334,7 @@
 --   0190_feedback_dates_and_origin.sql
 --   0208_cover_code_normalised.sql
 --   0288_feedback_update_visit_key.sql
+--   0348_feedback_update_once_per_query.sql
 --   0052_search_indexes.sql
 --   0098_product_register_names.sql
 --   0099_no_jit.sql
@@ -1556,6 +1559,88 @@ begin
         using new_nm, old_key;
     end if;
   end loop;
+
+  delete from public.engineer_rename_ticket where txid = txid_current();
+  return null;
+end $$;
+revoke execute on function public.user_directory_carry_rename_records() from public, anon, authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0346_rename_carries_pending_indoor_dc.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0346 — A USER MASTER RENAME CARRIES THE INDOOR DCs WAITING FOR THAT PERSON
+--        (second re-review, 2026-10-03: D-144)
+--
+-- user_directory_carry_rename_records() (0259, 0267) moves every record filed
+-- under a person's old name to the new one. indoor_dcs.authorised_by_name was
+-- not on its list, and it is how an Indoor DC finds its approver (0327:
+-- indoor_dc_may_approve, the read policy and approve_indoor_dc all match it).
+-- Measured: after the authoriser was renamed they saw 0 DCs and could not reach
+-- the one naming them, which stayed Pending approval with its units held.
+--
+-- ONLY A PENDING DC MOVES. On an approved, rejected or "issued before
+-- approval" DC the name is what the printed document says authorised it, and
+-- re-printing it must say the same thing.
+--
+-- The function below is 0267's VERBATIM with that one statement added, read
+-- from a database built from every migration. Same module (user_directory),
+-- after 0267, so a replay of user_directory.sql ends on this definition.
+-- ===========================================================================
+
+create or replace function public.user_directory_carry_rename_records()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  old_key text := lower(btrim(coalesce(old.name, '')));
+  new_nm  text := btrim(coalesce(new.name, ''));
+  target  record;
+begin
+  if old_key = '' or new_nm = '' or old_key = lower(new_nm) then
+    return null;
+  end if;
+  if exists (select 1 from public.user_directory d
+              where d.id <> new.id and lower(btrim(d.name)) = old_key) then
+    return null;
+  end if;
+
+  insert into public.engineer_rename_ticket (txid, old_key, new_name)
+  values (txid_current(), old_key, new_nm)
+  on conflict (txid) do update set old_key = excluded.old_key,
+                                   new_name = excluded.new_name, at = now();
+
+  for target in
+    select * from (values
+      ('field_calls', 'allocated_to'), ('installation_calls', 'allocated_to'), ('pm_calls', 'allocated_to'),
+      ('call_requests', 'engineer'), ('pending_registrations', 'engineer'),
+      ('spare_requests', 'engineer'), ('spare_dispatches', 'engineer'),
+      ('spare_consumption', 'engineer'), ('spare_consumption_history', 'engineer'),
+      ('handstock_opening', 'engineer'), ('spare_issue_history', 'engineer'),
+      ('material_returns', 'engineer'), ('handstock_adjustments', 'engineer'),
+      ('stock_transfers', 'from_engineer'), ('stock_transfers', 'to_engineer'),
+      ('parties', 'service_engineer'), ('products', 'service_engineer')
+    ) v(tbl, col)
+  loop
+    if to_regclass('public.' || target.tbl) is not null
+       and exists (select 1 from information_schema.columns c
+                    where c.table_schema = 'public' and c.table_name = target.tbl
+                      and c.column_name = target.col) then
+      execute format('update public.%I set %I = $1 where lower(btrim(%I)) = $2',
+                     target.tbl, target.col, target.col)
+        using new_nm, old_key;
+    end if;
+  end loop;
+
+  -- An Indoor DC still WAITING for its authoriser follows the rename (D-144):
+  -- the approver finds the DC by this name, so without it the DC stays Pending
+  -- approval with its units held and nobody able to reach it. A DC already
+  -- approved, rejected or issued before approval keeps the name it was printed
+  -- with -- who authorised a document is history, as dispatched_by is (0259).
+  if to_regclass('public.indoor_dcs') is not null then
+    update public.indoor_dcs set authorised_by_name = new_nm
+     where lower(btrim(authorised_by_name)) = old_key
+       and approval_status = 'Pending approval';
+  end if;
 
   delete from public.engineer_rename_ticket where txid = txid_current();
   return null;
@@ -5475,6 +5560,57 @@ begin
     execute format('create trigger master_delete_guard before delete on public.%I '
                    'for each row execute function public.master_delete_guard()', t);
   end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0347_feedback_read_once_and_no_machine_delete.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0347 — CUSTOMER FEEDBACK ASKS THE PERMISSION ONCE PER QUERY (D-132), AND NO
+--        SIGNED-IN USER DELETES A MACHINE THROUGH THE API (D-139)
+--        (second re-review, 2026-10-03)
+--
+-- D-132. fb_read and fb_write (0286) call has_perm() bare, so Postgres asks it
+-- once per ROW -- the 0250 fault. Measured over 30,000 feedback rows as an
+-- engineer: 12,356 ms; with the checks wrapped, 4.9 ms. Wrapped here in a
+-- sub-select, which is asked once per query. WHO may read and write is
+-- unchanged, word for word. fb_update is owned by data_integrity (0288) and is
+-- wrapped there by 0348, so a replay of either bundle keeps its own.
+--
+-- D-139. products_write (0286) is FOR ALL under masters.edit.records, so the
+-- records key could DELETE machines -- measured: DELETE 1 -- although 0325
+-- took the API delete away from that key on parties and parts. Split here
+-- into INSERT and UPDATE on the same key, with NO delete policy: no screen
+-- deletes a machine (deleteMasterRecord covers parties, parts and product
+-- lines only), and the Product Database clean-ups that do
+-- (_rebuild_product_database.sql, _dedupe_part_product_keys.sql) run in the
+-- SQL editor, where row-level security does not apply. The uploads upsert,
+-- which is an INSERT and an UPDATE, and keep working.
+--
+-- 0250 alters products_write only where it exists, so a replay of this bundle
+-- re-creates it at 0286 and this file then splits it again.
+-- In the rbac module, after 0325 and before the policy tail.
+-- ===========================================================================
+
+drop policy if exists fb_read  on public.feedback;
+drop policy if exists fb_write on public.feedback;
+create policy fb_read on public.feedback for select
+  using ((select public.has_perm('feedback.view')) or (select public.has_perm('visit.feedback')));
+create policy fb_write on public.feedback for insert
+  with check ((select public.has_perm('visit.feedback')) or (select public.has_perm('feedback.view')));
+
+do $$
+begin
+  if to_regclass('public.products') is null then return; end if;
+  drop policy if exists products_write  on public.products;
+  drop policy if exists products_insert on public.products;
+  drop policy if exists products_update on public.products;
+  create policy products_insert on public.products for insert
+    with check ((select public.has_perm('masters.edit.records')));
+  create policy products_update on public.products for update
+    using ((select public.has_perm('masters.edit.records')))
+    with check ((select public.has_perm('masters.edit.records')));
 end $$;
 
 -- ------------------------------------------------------------------------
@@ -44066,6 +44202,25 @@ drop policy if exists fb_update on public.feedback;
 create policy fb_update on public.feedback for update
   using (public.has_perm('visit.feedback') or public.has_perm('feedback.view'))
   with check (public.has_perm('visit.feedback') or public.has_perm('feedback.view'));
+
+-- ------------------------------------------------------------------------
+-- 0348_feedback_update_once_per_query.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0348 — fb_update ASKS THE PERMISSION ONCE PER QUERY  (D-132)
+--
+-- fb_update (0288) is has_perm('visit.feedback') OR has_perm('feedback.view')
+-- unwrapped, so an UPDATE is checked once per row, and a FOR UPDATE policy is
+-- also consulted when the rows to update are read -- the 0250 fault 0347 fixes
+-- on fb_read and fb_write. Same audience, word for word; only wrapped.
+-- Owned by data_integrity (0288), so it is here, after 0288.
+-- ===========================================================================
+
+drop policy if exists fb_update on public.feedback;
+create policy fb_update on public.feedback for update
+  using ((select public.has_perm('visit.feedback')) or (select public.has_perm('feedback.view')))
+  with check ((select public.has_perm('visit.feedback')) or (select public.has_perm('feedback.view')));
 
 -- ------------------------------------------------------------------------
 -- 0052_search_indexes.sql

@@ -9741,7 +9741,7 @@ console.log('-- the machine register is searched on the device --');
     const body = new RegExp(`export async function ${fn}\\([\\s\\S]*?\\n\\}`).exec(sbx)?.[0] ?? '';
     eq(`${fn} asks the device's Party Master first`, /await localParties\(\)/.test(body), true);
   }
-  eq('a Party Master edit re-downloads the copy', /update\(patch\)\.eq\('id', id\);\s*[\s\S]{0,200}refreshPartyRegister\(\{ force: true \}\)/.test(sbx), true);
+  eq('a Party Master edit re-downloads the copy', /update\(patch\)\.eq\('id', id\)(?:\.select\('id'\))?;\s*[\s\S]{0,500}refreshPartyRegister\(\{ force: true \}\)/.test(sbx), true);
   eq('EVERY COLUMN is downloaded', /select\('\*'\)\.gt\('id', afterId\)/.test(rd('src/lib/machinestore.ts')), true);
   eq('a Product Database or Party Master upload re-downloads the copy',
     /written && \(table === 'products' \|\| table === 'parties'\)\) void refreshMachineRegister\(\{ force: true \}\)/.test(sbx), true);
@@ -10115,6 +10115,41 @@ console.log('\n-- High batch 1: what a screen could not read, and what it leaves
     const form = code(readFileSync('src/lib/declaration.ts', 'utf8'));
     eq('the Declaration names whoever booked the stock out', /\{doc\.dispatchedBy\}/.test(decl), true);
     eq('...and the form carries no fixed sender name', /senderName/.test(form + decl), false);
+  }
+
+  // REVIEW BATCH 3 (2026-10-04), the screen halves.
+  {
+    const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+    const cover = code(readFileSync('src/lib/cover.ts', 'utf8'));
+    const gs = code(readFileSync('src/lib/globalSearch.ts', 'utf8'));
+    const layout = code(readFileSync('src/components/layout/Layout.tsx', 'utf8'));
+    const indoor = code(readFileSync('src/modules/IndoorService.tsx', 'utf8'));
+    const dcp = code(readFileSync('src/modules/IndoorDcPanel.tsx', 'utf8'));
+    const fnBody = (src: string, name: string) => {
+      const i = src.indexOf(`export async function ${name}(`);
+      if (i < 0) return '';
+      const j = src.indexOf('\nexport ', i + 1);
+      return src.slice(i, j < 0 ? undefined : j);
+    };
+    // D-103: the cover register pages with a unique last key.
+    eq('D-103: the cover Register tab pages by end date THEN id',
+      /\.order\(cfg\.endColumn[^)]*\)\s*(?:\/\/[^\n]*\n\s*)*\.order\('id'/.test(fnBody(cover, 'listMachines')), true);
+    // D-113: a transfer sends the reason on every line once any line has one.
+    eq('D-113: a stock transfer sends the reason on every line or none',
+      /anyReason \? \{ reason:/.test(fnBody(sb, 'addStockTransfer')), true);
+    // D-117: one hit more than is shown is fetched, and the panel says so.
+    eq('D-117: global search fetches one more than it shows', /const n = PER_KIND \+ 1;/.test(sb), true);
+    eq('...and the panel shows only PER_KIND and says there are more',
+      /shownHits\(/.test(layout) && /more &&/.test(layout) && /export function shownHits/.test(gs), true);
+    // D-141: an edit RLS matched to nothing is not reported as saved.
+    for (const f of ['updateParty', 'updatePart', 'setPartActive'])
+      eq(`D-141: ${f} counts the rows it changed`, /\.select\('id'\)/.test(fnBody(sb, f)) && /data\.length === 0/.test(fnBody(sb, f)), true);
+    // D-146: the approvals page does not call "none naming you" "none issued".
+    eq('D-146: the Indoor DC approvals page says when no DC names the reader',
+      /namingMe=\{!can\('mod:\/indoor'\)\}/.test(dcp) && /No Indoor DC names you/.test(dcp), true);
+    // D-147: a deletion is audited once, by the database.
+    eq("D-147: the screen writes no second 'indoor.job_delete' row",
+      /action: 'indoor\.job_delete'/.test(indoor), false);
   }
 
   // D-070: ONE PERSON'S DATA DOES NOT OUTLIVE THEIR SESSION. The cached

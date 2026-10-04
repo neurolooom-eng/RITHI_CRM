@@ -145,6 +145,9 @@ const MODULES = {
             // 0259's function again, with the hand stock adjustments (0266)
             // on its list of tables filed by engineer name.
             '0267_rename_carries_adjustments.sql',
+            // D-144: an Indoor DC still waiting for its authoriser follows a
+            // rename (0346). Redefines 0267's function, so it follows it.
+            '0346_rename_carries_pending_indoor_dc.sql',
       // LAST: 0004 above creates `ud_admin_write` and 0008 (rbac) drops it. A
       // replay of this bundle alone put it back, and policies are OR'd.
       '0122_user_directory_replay_tail.sql'],
@@ -278,6 +281,11 @@ const MODULES = {
             // (2026-10-03). Redefines 0286's parties/parts policies, so after it;
             // before the tail, which does not touch them.
             '0325_party_part_add_edit_delete.sql',
+            // D-132 / D-139: fb_read and fb_write asked once per query, and the
+            // machine write policy split with no API delete (0347). Redefines
+            // 0286's policies, so after it; before the tail, which does not
+            // touch them.
+            '0347_feedback_read_once_and_no_machine_delete.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -606,7 +614,9 @@ const MODULES = {
             '0208_cover_code_normalised.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
             // and split keys; see 0286 for the parent rule.
-            '0288_feedback_update_visit_key.sql'],
+            '0288_feedback_update_visit_key.sql',
+            // D-132: fb_update asked once per query (0348). Redefines 0288's.
+            '0348_feedback_update_once_per_query.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',

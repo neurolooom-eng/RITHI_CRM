@@ -41,6 +41,7 @@ import { todayISO } from '../lib/format';
 import { logAudit } from '../lib/audit';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader } from '../components/ui/ui';
+import { useAuth } from '../lib/auth';
 
 interface PreviewLine {
   key: string; jobId: number; accessoryId: number | null; jobNo: string;
@@ -260,7 +261,10 @@ async function approveDc(dc: IndoorDc, onStep: (s: string) => void): Promise<{ o
   return approveIndoorDc(dc.dc_no);
 }
 
-export function IndoorDcList({ onChanged }: { onChanged?: () => void } = {}) {
+// `namingMe`: the approvals page, where row-level security shows only the DCs
+// naming the reader -- so an empty list there means none names THEM, not that
+// none was issued, and the count is theirs, not the company's (D-146).
+export function IndoorDcList({ onChanged, namingMe = false }: { onChanged?: () => void; namingMe?: boolean } = {}) {
   const navigate = useNavigate();
   const [dcs, setDcs] = useState<IndoorDc[] | null>(null);
   const [err, setErr] = useState('');
@@ -308,7 +312,7 @@ export function IndoorDcList({ onChanged }: { onChanged?: () => void } = {}) {
     <div className="ind-form ind-dclist">
       {msg ? <div className="ind-warn" role="status">{msg}</div> : null}
       <p className="ind-meta ind-dclist-count">
-        {dcs.length} Indoor DC{dcs.length === 1 ? '' : 's'}
+        {dcs.length} Indoor DC{dcs.length === 1 ? '' : 's'}{namingMe ? ' naming you' : ''}
         {awaiting ? <> · <b>{awaiting} waiting for your approval</b>, listed first</> : null}
       </p>
       {ordered.map((d) => (
@@ -347,7 +351,9 @@ export function IndoorDcList({ onChanged }: { onChanged?: () => void } = {}) {
           ) : null}
         </div>
       ))}
-      {dcs.length === 0 ? <p className="ind-rows-empty">No Indoor DC has been issued yet.</p> : null}
+      {dcs.length === 0
+        ? <p className="ind-rows-empty">{namingMe ? 'No Indoor DC names you as Authorised By.' : 'No Indoor DC has been issued yet.'}</p>
+        : null}
     </div>
   );
 }
@@ -358,11 +364,14 @@ export function IndoorDcList({ onChanged }: { onChanged?: () => void } = {}) {
  *  the DCs naming them and nothing else, and approving is approve_indoor_dc's
  *  own test. */
 export function IndoorDcApprovals() {
+  // indoor_dcs_read shows a holder of mod:/indoor EVERY DC; anybody else only
+  // the ones naming them -- and only then is "naming you" true (D-146).
+  const { can } = useAuth();
   return (
     <div>
       <PageHeader title="Indoor DCs to approve" icon="🏭"
         subtitle="The Indoor DCs that name you as AUTHORISED BY. Approving files each unit's visit against its call." />
-      <IndoorDcList />
+      <IndoorDcList namingMe={!can('mod:/indoor')} />
     </div>
   );
 }

@@ -161,6 +161,26 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-10-04 — Review batch 3: ten defects fixed, one sent to you for a decision (v0.10.79, 0346–0348)
+- **Your ask:** *"take up the next batch of work"*. I took the open defects with a written suggested fix and no decision needed. Before changing anything I read every path that writes each record, so nothing honest breaks.
+- **Screen fixes** (each held by `check:ui`):
+  - **D-103:** the cover registers page by end date, then id.
+  - **D-113:** a stock transfer sends the reason on every line once any line has one.
+  - **D-117:** global search fetches six hits per group and shows five, saying when there are more.
+  - **D-141:** party and part edits count the rows they changed.
+  - **D-146:** the approvals page says no Indoor DC names you, for a reader who cannot open Indoor Service.
+  - **D-147:** a deleted Indoor job is audited once, by the database.
+- **Database fixes:**
+  - **D-132 (0347, 0348):** the feedback policies ask the permission once per query. Measured: 12,109 ms → 7.9 ms over 30,000 rows.
+  - **D-139 (0347):** no signed-in user deletes a machine through the API. Add, edit and the upload's upsert still work.
+  - **D-144 (0346):** a User Master rename carries a pending Indoor DC's Authorised By. A decided DC keeps its printed name.
+  - **D-153:** `_status.sql` reads `one_time_fixes_done` through `query_to_xml`. The old file failed on a project without the table, and the new one runs.
+- **Sent to you, not built — D-125:** the suggested rule would also refuse booking spares on another engineer's visit, and an office role reporting for anybody. Both are paths in use today.
+- **Checked:**
+  - `review_batch_3_test` raises on four checks without the migrations and none with them;
+  - `_status.sql` rows 278–280 read NO without them and yes with them;
+  - FRS-141/176/182/218/229/235/238 amended, OQ-244 added.
+
 ### 2026-10-04 — D-126: the name on an issued stock out can no longer be changed (v0.10.78, 0345)
 - **Your ask:** *"Fix D-126"*.
 - **Reproduced first** on a database built from every migration. A Stores Incharge set `dispatched_by` to "Somebody Else" on an issued stock out. The result was `UPDATE 1`, and that name is what the Delivery Challan and the Declaration print.

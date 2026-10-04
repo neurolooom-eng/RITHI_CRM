@@ -13,7 +13,7 @@ import { RITHI_LOGO } from '../../lib/brand';
 import { watchMachineRegister } from '../../lib/machinestore';
 import { clearMasterCache } from '../../lib/masters';
 import { supabaseConfigured, globalSearchKind } from '../../lib/supabase';
-import { HIT_GROUPS, MIN_CHARS, searchTerm, type HitKind, type SearchHit } from '../../lib/globalSearch';
+import { HIT_GROUPS, MIN_CHARS, PER_KIND, searchTerm, shownHits, type HitKind, type SearchHit } from '../../lib/globalSearch';
 
 interface NavItem {
   to: string;
@@ -368,7 +368,7 @@ function ModuleSearch() {
   // One flat list for the keyboard: modules, then each group's hits in order.
   const flat: ({ t: 'mod'; to: string } | { t: 'hit'; hit: SearchHit })[] = [
     ...modules.map((m) => ({ t: 'mod' as const, to: m.to })),
-    ...kinds.flatMap((g) => (hits[g.kind] ?? []).map((hit) => ({ t: 'hit' as const, hit }))),
+    ...kinds.flatMap((g) => shownHits(hits[g.kind] ?? []).shown.map((hit) => ({ t: 'hit' as const, hit }))),
   ];
   useEffect(() => { setHi(0); }, [q]);
 
@@ -423,7 +423,7 @@ function ModuleSearch() {
               </div>
             )}
             {searching && kinds.map((g) => {
-              const list = hits[g.kind] ?? [];
+              const { shown: list, more } = shownHits(hits[g.kind] ?? []);
               if (!list.length && !failed.has(g.kind)) return null;
               return (
                 <div key={g.kind}>
@@ -439,6 +439,7 @@ function ModuleSearch() {
                       </button>
                     );
                   })}
+                  {more && <div className="muted mod-search-empty">The first {PER_KIND} of more — type more of the name or number, or open {g.label} to see them all.</div>}
                 </div>
               );
             })}
