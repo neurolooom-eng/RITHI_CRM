@@ -995,12 +995,19 @@ export async function sbSearchParties(query: string, limit = 50): Promise<string
  *  DEALER, searched on the server. */
 export async function sbSearchDealers(query: string, limit = 50): Promise<string[]> {
   const c = getSupabase(); if (!c) return [];
-  let q = c.from('parties').select('party_name').ilike('party_type', 'dealer').order('party_name').limit(limit);
+  // DEALER the way party_is_dealer() reads it -- upper(btrim(party_type)) --
+  // so a type typed " dealer " is offered here too (D-152). PostgREST cannot
+  // trim, so the read is a contains match and the exact test is made here; a
+  // page of 1,000 is far more than the dealers there are.
+  let q = c.from('parties').select('party_name, party_type').ilike('party_type', '%dealer%').order('party_name').limit(1000);
   const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
   if (term) q = q.ilike('party_name', `%${term}%`);
   const { data, error } = await q;
   if (error) throw new Error(errMsg(error));
-  return (data ?? []).map((r) => String(r.party_name ?? '')).filter(Boolean);
+  return (data ?? [])
+    .filter((r) => String(r.party_type ?? '').trim().toUpperCase() === 'DEALER')
+    .map((r) => String(r.party_name ?? '')).filter(Boolean)
+    .slice(0, limit);
 }
 
 /** The installation call already carrying this call number, if any -- so a
@@ -1120,11 +1127,15 @@ export interface PartyPatch {
  *  stamps them when the status becomes Verified, and a caller that could set
  *  them could sign somebody else's name to a verification. */
 export async function updateParty(id: number, patch: PartyPatch): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('parties').update(patch).eq('id', id);
+  // Rows COUNTED (D-141): row-level security refuses an update by matching
+  // nothing, and no error is not "saved" (finding 48).
+  const { data, error } = await must().from('parties').update(patch).eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not edit this party, or it is no longer on the Party Master.' };
   // An edit here re-downloads this device's Party Master, so the next Call
   // Request fills what was just saved rather than a copy up to six hours old.
-  if (!error) void refreshPartyRegister({ force: true });
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  void refreshPartyRegister({ force: true });
+  return { ok: true };
 }
 
 /** A NEW party, from Party Master's Add entry form.
@@ -1261,6 +1272,19 @@ export async function deleteSavedChart(id: number): Promise<{ ok: boolean; error
   const m = errMsg(error);
   return { ok: false, error: /row-level security|0 rows/i.test(m)
     ? 'That chart was shared by somebody else — removing it needs the “Manage configuration” permission.' : m };
+}
+
+/** ONE party, by its exact name -- the register's natural key (`name_key`,
+ *  lower(btrim(party_name)), 0076), so case and outer spaces are ignored and
+ *  nothing else is. Not a contains search: picking from the first few contains
+ *  matches showed ANOTHER party's details when five other names sorted first
+ *  (D-133). Null when no party has that name. */
+export async function partyByExactName(name: string): Promise<Record<string, unknown> | null> {
+  const key = String(name ?? '').trim().toLowerCase();
+  if (!key) return null;
+  const { data, error } = await must().from('parties').select('*').eq('name_key', key).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return (data as Record<string, unknown> | null) ?? null;
 }
 
 export async function queryParties(filter: PartyFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
@@ -2610,7 +2634,8 @@ export async function globalSearchKind(kind: HitKind, raw: string): Promise<Sear
   const t = searchTerm(raw);
   if (t.length < MIN_CHARS) return [];
   const like = (cols: string[]) => cols.map((k) => `${k}.ilike.%${t}%`).join(',');
-  const n = PER_KIND;
+  // One more than is shown, so the panel can tell five from five-and-more (D-117).
+  const n = PER_KIND + 1;
   const rows = async (q: PromiseLike<{ data: unknown; error: { message: string } | null }>) => {
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error as never));
@@ -3552,8 +3577,11 @@ export async function addPart(
 export async function updatePart(
   id: number, patch: { category?: string; product?: string; purchase_cost?: number | null; hsn_code?: string },
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('parts').update(patch).eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // Rows COUNTED (D-141), as updateMasterItem does.
+  const { data, error } = await must().from('parts').update(patch).eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not edit this part, or it is no longer on the Part Master.' };
+  return { ok: true };
 }
 
 export interface PartRenameImpact { relation: string; rows: number }
@@ -3584,8 +3612,11 @@ export async function renamePart(
 }
 
 export async function setPartActive(id: number, active: boolean): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('parts').update({ active }).eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // Rows COUNTED (D-141), as updateMasterItem does.
+  const { data, error } = await must().from('parts').update({ active }).eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was changed — your role may not edit this part, or it is no longer on the Part Master.' };
+  return { ok: true };
 }
 
 export interface PartFilter { q?: string; code?: string; description?: string; active?: string; product?: string }
@@ -3764,11 +3795,14 @@ export async function addStockTransfer(
     .select('uid').single();
   if (error) return { ok: false, error: errMsg(error) };
   const uid = String(data.uid);
+  // The per-line reason is OPTIONAL (0322). It is sent on EVERY line once ANY
+  // line has one (D-113): a bulk insert lists the union of the rows' keys, so a
+  // line without the key was written NULL into a NOT NULL column and the whole
+  // transfer was refused. A transfer with no reasons at all still sends none.
+  const anyReason = lines.some((l) => !!l.reason?.trim());
   const { error: le } = await c.from('stock_transfer_lines')
-    // The per-line reason is OPTIONAL (0322) and sent only when given, so a
-    // project that has not run 0322 still records a transfer with none.
     .insert(lines.map((l, i) => ({ transfer_uid: uid, row_no: i + 1, part: l.part, qty: l.qty,
-                                   ...(l.reason?.trim() ? { reason: l.reason.trim() } : {}) })));
+                                   ...(anyReason ? { reason: (l.reason ?? '').trim() } : {}) })));
   if (le) {
     // The lines are the transfer; a header alone is not a usable record. The
     // stock check rejects the whole insert, so nothing moved.
@@ -4113,9 +4147,21 @@ export async function listStockTransfers(limit = 100000): Promise<Record<string,
 }
 
 // Everything associated with one call — keyed by CALL NUMBER (server-side).
-export async function reportsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('reports').select('*').eq('call_number', callNumber).order('updated_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
-  if (error) return [];
+/** A call's visits, matched on the UCN OR the call number (D-131): 0048 lets a
+ *  visit carry only one of the two, and the visit upload makes the call number
+ *  optional, so asking by call number alone missed visits filed under the UCN.
+ *  Each key given is tried against BOTH columns, as consumptionForCall does.
+ *  A failed read THROWS: an empty list here is read as "no visit on record",
+ *  which on a solved call is itself a finding, so it must never stand in for a
+ *  read that did not happen. */
+export async function reportsByCall(callNumber: string, ucn = ''): Promise<Record<string, unknown>[]> {
+  const keys = [...new Set([callNumber, ucn].map((v) => String(v ?? '').trim()).filter(Boolean))];
+  if (!keys.length) return [];
+  const q = (k: string) => `"${k.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  const or = keys.map((k) => `ucn.eq.${q(k)},call_number.eq.${q(k)}`).join(',');
+  const { data, error } = await must().from('reports').select('*').or(or)
+    .order('updated_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 // ---------------------------------------------------------------------------
@@ -5189,11 +5235,15 @@ export async function attachReportsToVisits(
   const c = getSupabase(); if (!c) return { ok: false, written: 0, error: 'Database not connected.' };
   let written = 0;
   for (const r of rows) {
-    const { error } = await c.from('reports')
+    // Rows COUNTED (D-091): row-level security refuses an update by matching
+    // nothing, and no error is not "attached" (finding 48).
+    const { data, error } = await c.from('reports')
       .update({ manual_report: r.manual_report, source_ref: r.source_ref, call_status: status,
                 mapped_at: new Date().toISOString() })
-      .eq('uid', r.uid);
+      .eq('uid', r.uid).select('uid');
     if (error) return { ok: false, written, error: errMsg(error) };
+    if (!data || data.length === 0)
+      return { ok: false, written, error: `Visit ${r.uid} was not changed — your role may not edit it, or it is no longer in the register` };
     written += 1;
     onProgress?.(written, rows.length);
   }
@@ -6281,7 +6331,9 @@ export async function listCallReportReviews(): Promise<Record<string, { status: 
       // Ordered by ucn, the table's key (finding 8): paging without an order can
       // still drop the row at position 1001.
       .select('ucn,status,remarks,reviewed_by_name,reviewed_at').order('ucn', { ascending: true }).range(from, from + PAGE - 1);
-    if (error) break;
+    // A refused or failed read THROWS (D-135): stopping quietly made every
+    // solved call read "Awaiting review", a claim nobody had checked.
+    if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
     rows.forEach((r) => {
       out[String(r.ucn)] = {
@@ -6689,7 +6741,7 @@ export async function sbWarrantyPreview(product: string, serial: string, solvedO
 
 
 // ===========================================================================
-// SPARE RECYCLING (0350) — a parallel track under Indoor Service, with its own
+// SPARE RECYCLING (0354) — a parallel track under Indoor Service, with its own
 // tables and its own hand stock. Nothing here reads or writes the call, spare
 // or regular hand-stock tables. While Audit Mode is on every read comes back
 // empty and every write is refused, by the database.

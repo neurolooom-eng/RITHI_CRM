@@ -36,7 +36,8 @@ first; then, from three characters, calls (UCN, call number, party, serial,
 product), pending call requests (REQID), spare requests (UID, OR number, UCN,
 part), spares consumed, parties, machines, parts, documents (manuals, technical
 notes, QMS), Field Solutions articles and Field Failure Reports — up to five of
-each. **Click one and that record opens** on its own screen: a call opens in its
+each. Where there are more than five, the group says so: type more of the name
+or number, or open that register to see them all. **Click one and that record opens** on its own screen: a call opens in its
 view, a machine in Machine History, a document in Drive. ↑ ↓ and Enter work
 too. It only ever shows records you could already open on that screen.
 
@@ -834,7 +835,8 @@ typed into a form that reads it.
   that use it but is not offered in pickers.
   > **✎ Edit**, **⊘ Deactivate** and **🗑 Delete** are on every row, each with
   > its own Part Master permission. Delete is refused while any spare request,
-  > stock or consumption record names the part — deactivate it instead.
+  > stock, consumption record or Indoor Service job names the part — deactivate
+  > it instead.
   > A part's **code and description change only with Rename part**, which moves
   > every record that names it; they cannot be changed any other way.
   > **HSN Code** has its own column: set it on *＋ Add part* or the edit drawer
@@ -898,7 +900,9 @@ typed into a form that reads it.
   > editable: every machine, call and contract names the customer by it.
   > **✎ Edit** and **🗑 Delete** are on every row (each needs its own Party
   > Master permission). A party any machine, call, sale or contract still names
-  > cannot be deleted — the message says how many records name it.
+  > cannot be deleted — nor one named as a machine's **Sold Through**, an Indoor
+  > DC's consignee, or the customer on a Field Failure Report or a material
+  > return. The message says how many records name it.
   > **City, State and Country** are on one row; Country is optional and is
   > filled from a *Country* column in the upload.
   > **＋ Add entry** adds a new customer: **Party Name, City and State** are
@@ -1387,7 +1391,8 @@ typed into a form that reads it.
   person named (or an administrator) sees it **first in Indoor DCs**, and on
   **My Workload** under *Indoor DCs — Awaiting my approval* — **whatever their
   role**: someone whose role cannot open Indoor Service is taken to a page
-  listing just the DCs that name them — and presses
+  listing just the DCs that name them (it says *No Indoor DC names you as
+  Authorised By* when there are none) — and presses
   **Approve** or **Reject…** (with a reason). **Approving files the visit**: for
   every unit with a call, the visit drafted with its Indoor Service Report is
   filed against the call — Unsolved, pending Return to Field, with the work
@@ -1398,11 +1403,34 @@ typed into a form that reads it.
   > the DC stays pending and the message says why. Only approving the DC marks a
   > visit as filed — it cannot be set by editing the unit. **Rejecting** keeps the DC with its reason and
   > frees its units for a new DC.
+  > If the person's name is **corrected in the User Master** while a DC is
+  > still waiting for them, the DC follows the new name so they can still
+  > approve it. A DC already approved or rejected keeps the name it was printed
+  > with.
   > A unit is refused if it is not Ready, has no uploaded report, is already on a
   > DC, or would not be allowed to leave (no quality check on a repair, a failed
   > check, a DEMO unit of an imported product without its Pre-Delivery Testing)
   > — the message says which. Units for two consignees cannot share a DC. A DC
   > is never deleted; **Indoor DCs** lists them all and prints any of them again.
+- **Spare Recycling** `/indoor/recycling` — a **separate track** for recycling
+  defective spares, with its own stock. Nothing here touches calls, Spare
+  Requests, Stock Out or the regular Hand Stock. **Hidden while Audit Mode is
+  on.**
+  - **Register** a defective spare (RCY/26/0001): the part, serial, quantity,
+    received on and from, and an optional call reference (text only).
+  - **Raise MRS** (RMRS/26/0001) for the spares you need — **no approval**.
+    Stores presses **Stock Out** on the line, enters the quantity and **unit
+    cost**, and it goes into **your recycling hand stock**.
+  - **Open** a request to record the **job done**, **consume** from your
+    recycling hand stock (never more than you hold) and add **other costs**
+    (labour, courier, vendor, other).
+  - **Close** it as **Returned to Service Store** — recorded as **R<PartNo>**;
+    the Part Master is not changed — or **Not recyclable** with a reason. The
+    job done must be filled first; a closed request cannot be changed.
+  - **Cost**: each request shows parts (at their stock-out cost) + other
+    costs; the Cost tab totals everything spent on recycling.
+  - Its keys are given to no role — grant them on **Roles & Permissions →
+    Indoor Service**.
 - **Solved Without a Report** `/missing-visit-reports` — **administrators
   only.** Every call that reads Solved while its visit record is incomplete —
   the list of what to re-upload.

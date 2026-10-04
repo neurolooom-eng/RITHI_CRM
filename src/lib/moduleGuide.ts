@@ -695,7 +695,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'A part cannot be consumed beyond your recycling hand stock; an MRS line cannot be booked out beyond what it asked for',
       'A request closes only once its job done is recorded; Not recyclable needs a reason; a closed request cannot be changed',
       'The returned spare is recorded as R<PartNo>; the Part Master and the regular stock are not changed',
-      'Its five keys are granted to nobody but the administrator; give them on Roles & Permissions → Indoor Service',
+      'Its five keys are granted to no role (the administrator passes anyway); give them on Roles & Permissions → Indoor Service',
     ],
   },
 

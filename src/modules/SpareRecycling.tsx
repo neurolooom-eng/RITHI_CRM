@@ -1,5 +1,5 @@
 // ===========================================================================
-// SPARE RECYCLING — a parallel track under Indoor Service (0350).
+// SPARE RECYCLING — a parallel track under Indoor Service (0354).
 //
 // The user, 2026-10-04: registration, spare request, job done details,
 // consumption and hand stock for recycling a defective spare — "a Parallel
@@ -37,6 +37,7 @@ import {
   type RecycleRequest, type RecycleMrsLine, type RecycleHandStock, type RecycleConsumption, type RecycleCost,
 } from '../lib/supabase';
 import './fieldcalls.css';
+import './dccr.css';
 
 type Tab = 'requests' | 'mrs' | 'stock' | 'cost';
 const COST_TYPES = ['Labour', 'Courier', 'Vendor', 'Other'];

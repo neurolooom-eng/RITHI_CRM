@@ -1388,11 +1388,20 @@ with checks(sort_order, bundle, provides, present) as (
          or (select bool_and(p.prosrc ~ 'cover\.edit') from pg_proc p
               where p.oid in (to_regprocedure('public.refresh_product_cover()'),
                               to_regprocedure('public.cover_unpin_inherited()'))))),
-    (191, 'The machine register downloads in seconds, not never', 'products_write, parties_write and parts_write ask has_perm(''masters.edit'') ONCE PER QUERY (0250). Those are FOR ALL policies, so they also apply to every READ, and written bare they asked the question once per ROW, each time reading app_roles. Measured on the live project 2026-09-29: the first 1,000 machines took 24,687 ms for a signed-in user against 322 ms in the SQL editor, over the 20-second API limit, so a device''s offline download was cancelled every time and read "0 so far" for good. On a database loaded to the same size the change took that read from ~920 ms to 11-17 ms. Nobody gains or loses a row or a write: same function, same argument. NO means every read of the machine register and the Party Master pays that cost again. Restore: rbac.sql',
-        (select coalesce(bool_and(p.qual ilike '%select has_perm%' and p.with_check ilike '%select has_perm%'), false)
-           from pg_policies p
-          where p.schemaname = 'public'
-            and p.policyname in ('products_write', 'parties_write', 'parts_write'))),
+    (191, 'The machine register downloads in seconds, not never', 'The write policies on products, parties and parts ask has_perm() ONCE PER QUERY (0250; split since by 0325 and 0347, so the row tests whatever they are called now). Those are FOR ALL policies, so they also apply to every READ, and written bare they asked the question once per ROW, each time reading app_roles. Measured on the live project 2026-09-29: the first 1,000 machines took 24,687 ms for a signed-in user against 322 ms in the SQL editor, over the 20-second API limit, so a device''s offline download was cancelled every time and read "0 so far" for good. On a database loaded to the same size the change took that read from ~920 ms to 11-17 ms. Nobody gains or loses a row or a write: same function, same argument. NO means every read of the machine register and the Party Master pays that cost again. Restore: rbac.sql',
+        -- The WRITE policies on the three tables, whatever they are called now:
+        -- 0325 split parties_write / parts_write and 0347 split products_write
+        -- (D-139), so naming the old policies tested nothing. Every has_perm()
+        -- in them must sit in a sub-select, and there must be some to test.
+        (select coalesce(bool_and(
+                  (length(x.e) - length(replace(x.e, 'has_perm(', ''))) / length('has_perm(')
+                  = (length(x.e) - length(replace(x.e, 'select has_perm(', ''))) / length('select has_perm(')), false)
+                and count(*) >= 3
+           from (select lower(coalesce(p.qual, '') || ' ' || coalesce(p.with_check, '')) as e
+                   from pg_policies p
+                  where p.schemaname = 'public'
+                    and p.tablename in ('products', 'parties', 'parts')
+                    and p.cmd <> 'SELECT') x)),
     (192, 'Devices report what they hold offline', 'device_cache_status and device_cache_report() are in place (0249): every phone and laptop reports how many machines and customers it holds offline and when each was downloaded, and Administration -> Device Cache Status reads them all, including anybody who has never reported. The row checks the parts that make the report TRUE rather than merely present: row-level security is on, the person is stamped from the session by a trigger (so a device cannot report for somebody else), the (user_id, device_id) unique index the upsert needs exists, and the not-signed-in role cannot run the report. NO means the screen reads "not on this project yet" and devices report into nothing -- nothing else is affected. Restore: device_cache.sql',
         (to_regclass('public.device_cache_status') is not null
          and (select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.device_cache_status'))
@@ -1651,10 +1660,16 @@ with checks(sort_order, bundle, provides, present) as (
         coalesce((select p.prosrc like '%new.original_qty := old.qty%' and p.prosrc like '%new.adjusted_at := now()%' from pg_proc p where p.oid = to_regprocedure('public.consumption_adjust_guard()')), false)),
     (245, 'Every warranty sale was re-read from the Party Master once, and its machines put back on it', 'The one-time update of 2026-10-02 (0318) ran: one_time_fixes_done holds 0318_warranty_party_refresh, whose detail says how many sales and machine lines it changed; the values it replaced are in sale_party_refresh_backup and sale_items_inherit_backup. It never runs twice -- re-running the bundle leaves everything alone. NO means it has not run on this project. Restore: sales_contracts.sql (0318)',
         (to_regclass('public.one_time_fixes_done') is not null
-         and exists (select 1 from public.one_time_fixes_done where name = '0318_warranty_party_refresh'))),
+         and (case when to_regclass('public.one_time_fixes_done') is null then false
+                    else coalesce((xpath('/row/c/text()', query_to_xml(
+                      'select count(*) as c from public.one_time_fixes_done where name = ''0318_warranty_party_refresh''',
+                      false, true, '')))[1]::text::int > 0, false) end))),
     (246, 'Warranty machines mapped to their installation calls once; the rest listed for administrators', 'The one-time mapping of 2026-10-02 (0319) ran -- one_time_fixes_done holds 0319_install_call_mapping, whose detail gives the counts by rule; every change is in inst_call_repair_log -- and install_calls_unmapped() exists, asks for mod:/install-calls-unmapped, and cannot be called by the public key. NO means it has not run on this project. Restore: sales_contracts.sql (0319)',
         (to_regclass('public.one_time_fixes_done') is not null
-         and exists (select 1 from public.one_time_fixes_done where name = '0319_install_call_mapping')
+         and (case when to_regclass('public.one_time_fixes_done') is null then false
+                    else coalesce((xpath('/row/c/text()', query_to_xml(
+                      'select count(*) as c from public.one_time_fixes_done where name = ''0319_install_call_mapping''',
+                      false, true, '')))[1]::text::int > 0, false) end)
          and coalesce((select p.prosrc like '%mod:/install-calls-unmapped%' from pg_proc p where p.oid = to_regprocedure('public.install_calls_unmapped()')), false)
          and not has_function_privilege('anon', to_regprocedure('public.install_calls_unmapped()'), 'EXECUTE'))),
     (247, 'The Product Master says whether a line is imported', 'product_master.imported (0319), boolean, blank until somebody fills it on the Product Master screen or by Bulk Uploads. It decides whether a DEMO unit in the workshop owes Pre-Delivery Testing R/SER/QC/007; blank reads as unknown and does not require it. NO means masters.sql has not been re-run since. Restore: masters.sql (0319)',
@@ -1787,8 +1802,14 @@ with checks(sort_order, bundle, provides, present) as (
          and coalesce((select p.prosrc like '%machine_sold_through%'
                          from pg_proc p where p.oid = to_regprocedure('public.transfer_to_product()')), false)
          and (to_regclass('public.one_time_fixes_done') is null
-              or exists (select 1 from public.one_time_fixes_done where name = '0328_sold_through_restored')
-              or not exists (select 1 from public.one_time_fixes_done where name = '0318_warranty_party_refresh')))),
+              or (case when to_regclass('public.one_time_fixes_done') is null then false
+                    else coalesce((xpath('/row/c/text()', query_to_xml(
+                      'select count(*) as c from public.one_time_fixes_done where name = ''0328_sold_through_restored''',
+                      false, true, '')))[1]::text::int > 0, false) end)
+              or not (case when to_regclass('public.one_time_fixes_done') is null then false
+                    else coalesce((xpath('/row/c/text()', query_to_xml(
+                      'select count(*) as c from public.one_time_fixes_done where name = ''0318_warranty_party_refresh''',
+                      false, true, '')))[1]::text::int > 0, false) end)))),
     (261, 'A transferred machine carries its new owner''s address', 'upsert_product_from_sale() and transfer_to_product() take the address, city, state and Service Engineer of a machine now with somebody other than its buyer from that owner''s Party Master entry, a blank there keeping the machine''s own value; the one-time repair has run, its old values in products_new_owner_address_backup, which the API cannot read (0329, D-098). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0329)',
         (coalesce((select p.prosrc like '%v_moved%' and p.prosrc like '%o_address%'
                      from pg_proc p where p.oid = to_regprocedure('public.upsert_product_from_sale(bigint)')), false)
@@ -1797,7 +1818,10 @@ with checks(sort_order, bundle, provides, present) as (
          and to_regclass('public.products_new_owner_address_backup') is not null
          and not has_table_privilege('anon', to_regclass('public.products_new_owner_address_backup'), 'SELECT')
          and not has_table_privilege('authenticated', to_regclass('public.products_new_owner_address_backup'), 'SELECT')
-         and exists (select 1 from public.one_time_fixes_done where name = '0329_new_owner_address'))),
+         and (case when to_regclass('public.one_time_fixes_done') is null then false
+                    else coalesce((xpath('/row/c/text()', query_to_xml(
+                      'select count(*) as c from public.one_time_fixes_done where name = ''0329_new_owner_address''',
+                      false, true, '')))[1]::text::int > 0, false) end))),
     (262, 'The sale, the contract and the transfer fill the Product Database by product + serial', 'sync_product_machine(product, serial) carries the latest sale (Warranty No., dates, PM visits, Invoice No./Date, Warranty Years/Months, Accessories Included), the latest contract (No., dates, type, status, PM visits overwriting the sale''s), and the latest transfer (Ref, Date) onto that ONE machine, inserting one a contract names that is not held; every register path calls it; a transfer moves that machine only (D-060); the one-time re-sync has run, its old values in products_resync_backup (0330). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0330)',
         (to_regprocedure('public.sync_product_machine(text,text)') is not null
          and not has_function_privilege('anon', to_regprocedure('public.sync_product_machine(text,text)'), 'EXECUTE')
@@ -1815,7 +1839,10 @@ with checks(sort_order, bundle, provides, present) as (
                         where p.oid = to_regprocedure('public.ownership_transfer_move()')), false)
          and to_regclass('public.products_resync_backup') is not null
          and not has_table_privilege('authenticated', to_regclass('public.products_resync_backup'), 'SELECT')
-         and exists (select 1 from public.one_time_fixes_done where name = '0330_product_database_resync'))),
+         and (case when to_regclass('public.one_time_fixes_done') is null then false
+                    else coalesce((xpath('/row/c/text()', query_to_xml(
+                      'select count(*) as c from public.one_time_fixes_done where name = ''0330_product_database_resync''',
+                      false, true, '')))[1]::text::int > 0, false) end))),
     (263, 'The installing engineer''s Warranty Start Date? answer decides the Product Database warranty', 'machine_install_warranty_start() reads the latest installation call''s feedback; "Installation Call Solved Date" on a Solved call makes sync_product_machine() start that product + serial''s warranty on the solved day (IST) and end it a warranty period later; zz_install_start_to_product on feedback and installation_calls re-syncs it; the one-time apply has run, its old values in products_install_start_backup (0331). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0331)',
         (to_regprocedure('public.machine_install_warranty_start(text,text)') is not null
          and not has_function_privilege('anon', to_regprocedure('public.machine_install_warranty_start(text,text)'), 'EXECUTE')
@@ -1827,7 +1854,10 @@ with checks(sort_order, bundle, provides, present) as (
                       and tgrelid = to_regclass('public.installation_calls') and not tgisinternal)
          and to_regclass('public.products_install_start_backup') is not null
          and not has_table_privilege('authenticated', to_regclass('public.products_install_start_backup'), 'SELECT')
-         and exists (select 1 from public.one_time_fixes_done where name = '0331_install_warranty_start'))),
+         and (case when to_regclass('public.one_time_fixes_done') is null then false
+                    else coalesce((xpath('/row/c/text()', query_to_xml(
+                      'select count(*) as c from public.one_time_fixes_done where name = ''0331_install_warranty_start''',
+                      false, true, '')))[1]::text::int > 0, false) end))),
     (264, 'The installation''s warranty decision has a table of its own, and the Product Database reads it', 'installation_warranty_starts: one row per installation call (UCN key), the choice, solved date, the system-written result and the engineer; machine_install_warranty_start() reads it; a saved row re-syncs its product + serial; a RITHI installation fills its row; loading needs Bulk Uploads (bulk.upload); machine_warranty_preview() for the Visit Entry; filled once from the feedback on file (0332). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0332)',
         (to_regclass('public.installation_warranty_starts') is not null
          and exists (select 1 from pg_indexes where schemaname = 'public' and tablename = 'installation_warranty_starts'
@@ -1842,7 +1872,10 @@ with checks(sort_order, bundle, provides, present) as (
                         and tablename = 'installation_warranty_starts' and policyname = 'iws_insert'), false)
          and to_regprocedure('public.machine_warranty_preview(text,text,date)') is not null
          and not has_function_privilege('anon', to_regprocedure('public.machine_warranty_preview(text,text,date)'), 'EXECUTE')
-         and exists (select 1 from public.one_time_fixes_done where name = '0332_installation_warranty_filled'))),
+         and (case when to_regclass('public.one_time_fixes_done') is null then false
+                    else coalesce((xpath('/row/c/text()', query_to_xml(
+                      'select count(*) as c from public.one_time_fixes_done where name = ''0332_installation_warranty_filled''',
+                      false, true, '')))[1]::text::int > 0, false) end))),
     (265, 'A spare request on a call with no visit files the visit it implies', 'file_visit_for_spare_request(uid) files one visit -- Unsolved, the requesting engineer, the request date, pending reason "spare not available" from the master, Update Visit Work Details? = No -- only where the call has no visit; callable by a signed-in user (it checks spare.request and the raiser itself), never by the public key (0333). Restore: Spare_1.sql (0333)',
         (to_regprocedure('public.file_visit_for_spare_request(text)') is not null
          and coalesce((select p.prosecdef from pg_proc p
@@ -1851,7 +1884,10 @@ with checks(sort_order, bundle, provides, present) as (
          and has_function_privilege('authenticated', to_regprocedure('public.file_visit_for_spare_request(text)'), 'EXECUTE'))),
     (266, 'The Indoor Service test data was emptied', 'Once (0334, the user, 2026-10-04: "Empty all data in Indoor"): every Indoor job, accessory, part, check, pre-delivery test, DC, DC line and release ticket, the visits and spare lines Indoor DC approvals filed, and the job and IDC counters; no_hard_delete back on reports, spare_consumption, indoor_dcs and indoor_dc_lines. NO means indoor.sql has not been re-run since. Restore: indoor.sql (0334)',
         (to_regclass('public.one_time_fixes_done') is not null
-         and exists (select 1 from public.one_time_fixes_done where name = '0334_indoor_emptied')
+         and (case when to_regclass('public.one_time_fixes_done') is null then false
+                    else coalesce((xpath('/row/c/text()', query_to_xml(
+                      'select count(*) as c from public.one_time_fixes_done where name = ''0334_indoor_emptied''',
+                      false, true, '')))[1]::text::int > 0, false) end)
          and (select count(*) from pg_trigger where tgname = 'no_hard_delete' and tgenabled <> 'D'
                 and tgrelid in (to_regclass('public.reports'), to_regclass('public.spare_consumption'),
                                 to_regclass('public.indoor_dcs'), to_regclass('public.indoor_dc_lines'))) = 4)),
@@ -1911,11 +1947,37 @@ with checks(sort_order, bundle, provides, present) as (
         exists (select 1 from pg_trigger
                  where tgrelid = to_regclass('public.spare_dispatches') and tgname = 'spare_dispatches_stamp_actor'
                    and (tgtype & 16) <> 0)),
+    (278, 'A User Master rename carries the Indoor DCs waiting for that person', 'user_directory_carry_rename_records() also moves indoor_dcs.authorised_by_name on a DC still Pending approval, so the renamed authoriser can still reach and approve it; an approved, rejected or issued-before-approval DC keeps the name it was printed with (0346, D-144). NO means user_directory.sql has not been re-run since. Restore: user_directory.sql (0346)',
+        coalesce((select p.prosrc like '%indoor_dcs%' from pg_proc p
+                   where p.oid = to_regprocedure('public.user_directory_carry_rename_records()')), false)),
+    (279, 'Feedback is read with the permission asked once, and no signed-in user deletes a machine', 'fb_read and fb_write ask has_perm() inside a sub-select, once per query rather than once per row (measured 12,109 ms -> 7.9 ms over 30,000 rows); products_write is split into products_insert and products_update on masters.edit.records with NO delete policy, so the API cannot delete a machine (0347, D-132, D-139). NO means rbac.sql has not been re-run since. Restore: rbac.sql (0347)',
+        (exists (select 1 from pg_policy where polrelid = to_regclass('public.feedback') and polname = 'fb_read'
+                  and pg_get_expr(polqual, polrelid) like '%SELECT has_perm%')
+         and exists (select 1 from pg_policy where polrelid = to_regclass('public.products') and polname = 'products_update')
+         and not exists (select 1 from pg_policy where polrelid = to_regclass('public.products')
+                          and polcmd in ('d', '*')))),
+    (280, 'Updating feedback asks the permission once per query', 'fb_update asks has_perm() inside a sub-select, as 0347 does for fb_read and fb_write; same audience (0348, D-132). NO means data_integrity.sql has not been re-run since. Restore: data_integrity.sql (0348)',
+        exists (select 1 from pg_policy where polrelid = to_regclass('public.feedback') and polname = 'fb_update'
+                 and pg_get_expr(polqual, polrelid) like '%SELECT has_perm%')),
     (281, 'Objective: a figure typed over a calculated month is a manual override', 'Asked for 2026-10-04. quality_objectives.overrides marks a month of a computed objective typed over by hand -- who, when, the calculated figure -- written only by the trigger zy_quality_objectives_mark_override; recalc_quality_objectives(year, keep_overrides) keeps or discards them, and the one-argument call keeps them. NO means the column, the trigger or the two-argument function is missing. Restore: objective.sql (0349)',
         (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'quality_objectives' and column_name = 'overrides')
      and to_regprocedure('public.recalc_quality_objectives(integer,boolean)') is not null
      and exists (select 1 from pg_trigger where tgname = 'zy_quality_objectives_mark_override' and not tgisinternal))),
-    (282, 'Spare Recycling: its own track, hidden in Audit Mode', 'Asked for 2026-10-04: a parallel track under Indoor Service -- recycle_requests (RCY/YY/NNNN), recycle_mrs + lines (RMRS/YY/NNNN, no approval), recycle_issues (Stores stock out WITH unit cost), recycle_consumption (capped at the RECYCLING hand stock), recycle_other_costs -- none of it touching the regular spare or hand-stock tables, and every policy refusing while Audit Mode is on. NO means a table, the guard on requests or the audit-mode rule is missing. Restore: recycling.sql (0350)',
+    (282, 'Searching the Daily Complaint Review Register keeps its counts', 'field_call_review_summary carries call_number, standard_complaint, complaint_reported, complaint_grouping and root_cause_keyword -- the columns the register searches -- so a search no longer fails the count and zeroes the title, the tabs and the Export; still security_invoker (0353, D-130). NO means daily_review.sql has not been re-run since. Restore: daily_review.sql (0353)',
+        (exists (select 1 from information_schema.columns where table_schema = 'public'
+                  and table_name = 'field_call_review_summary' and column_name = 'root_cause_keyword')
+         and coalesce((select c.reloptions::text like '%security_invoker=on%' from pg_class c
+                        where c.oid = to_regclass('public.field_call_review_summary')), false))),
+    (283, 'A party named as Sold Through, a consignee or a customer is not deleted', 'master_delete_guard() also counts Sold Through (machines, sales, sale lines, transfers), an Indoor DC consignee, an indoor job''s demo party, a Field Failure Report''s and a material return''s customer, and a part on an indoor job (0350, D-137). NO means rbac.sql has not been re-run since. Restore: rbac.sql (0350)',
+        coalesce((select p.prosrc like '%indoor_dcs.consignee%' and p.prosrc like '%indoor_job_parts.part_code%'
+                    from pg_proc p where p.oid = to_regprocedure('public.master_delete_guard()')), false)),
+    (284, 'Re-loading the Installation Calls register is not refused for a call already on a dealer', 'installation_call_not_for_dealer() stands aside on INSERT when a call with that UCN already exists under the same party -- the row an upsert turns into an update that leaves the party alone; a new call, or a re-load that moves a call onto a dealer, is still refused (0351, D-148). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0351)',
+        coalesce((select p.prosrc like '%tg_op = ''INSERT''%' from pg_proc p
+                   where p.oid = to_regprocedure('public.installation_call_not_for_dealer()')), false)),
+    (285, 'An uploaded Indoor Service Report keeps its number', 'The trigger indoor_report_keeps_its_number refuses a blank Indoor Service Report No on a job that carries a report file; a correction to another number, and a job with no report, are not stopped (0352, D-115). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0352)',
+        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.indoor_jobs')
+                 and tgname = 'indoor_report_keeps_its_number')),
+    (286, 'Spare Recycling: its own track, hidden in Audit Mode', 'Asked for 2026-10-04: a parallel track under Indoor Service -- recycle_requests (RCY/YY/NNNN), recycle_mrs + lines (RMRS/YY/NNNN, no approval), recycle_issues (Stores stock out WITH unit cost), recycle_consumption (capped at the RECYCLING hand stock), recycle_other_costs -- none of it touching the regular spare or hand-stock tables, and every policy refusing while Audit Mode is on. NO means a table, the guard on requests or the audit-mode rule is missing. Restore: recycling.sql (0354)',
         (to_regclass('public.recycle_requests') is not null
      and to_regclass('public.recycle_consumption') is not null
      and to_regclass('public.recycle_request_list') is not null

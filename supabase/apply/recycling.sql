@@ -13,7 +13,7 @@
 -- Edit the migrations below and re-run the generator.
 --
 -- Carries, in order:
---   0350_spare_recycling.sql
+--   0354_spare_recycling.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -41,11 +41,11 @@ end $$;
 begin;
 
 -- ------------------------------------------------------------------------
--- 0350_spare_recycling.sql
+-- 0354_spare_recycling.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0350 — SPARE RECYCLING: A PARALLEL TRACK UNDER INDOOR SERVICE.
+-- 0354 — SPARE RECYCLING: A PARALLEL TRACK UNDER INDOOR SERVICE.
 --
 -- The user, 2026-10-04: "Create a Complete Work Flow for Spare Recycling,
 -- Like Registration, spare request, job done details, consumption, handstock
@@ -582,10 +582,12 @@ alter view public.recycle_request_list set (security_invoker = on);
 grant select on public.recycle_request_list to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 7. THE SCREEN'S KEY, IN THE ADMIN ROLE ONLY. An administrator passes every
---    check anyway, so this changes nobody's access; it is here so the key is
---    held somewhere a stored role set is read (the 0241 pattern). Every other
---    role is given it -- or not -- on Roles & Permissions (the user's rule).
+-- 7. THE SCREEN'S KEY, IN THE ADMIN AND TECHNICAL SUPPORT ROLES ONLY (the
+--    0241 pattern). An administrator passes every check anyway; Technical
+--    Support holds every screen key the admin does (0145, _status.sql row
+--    114) -- and the key only OPENS the page: every row needs a recycle.* key,
+--    which no role is given, so it sees an empty page. Every other role is
+--    given access -- or not -- on Roles & Permissions (the user's rule).
 -- ---------------------------------------------------------------------------
 do $$
 declare n integer;
@@ -598,10 +600,10 @@ begin
                    union select unnest(array['mod:/indoor/recycling']) as v) u),
          updated_at = now()
    where jsonb_array_length(ar.permissions) > 0
-     and ar.role = 'admin'
+     and ar.role in ('admin', 'technical_support')
      and not (ar.permissions ? 'mod:/indoor/recycling');
   get diagnostics n = row_count;
-  raise notice '0350: Spare Recycling key given to the admin role (% row) -- grant the rest on Roles & Permissions', n;
+  raise notice '0354: Spare Recycling screen key given to admin + technical_support (% of 2 rows) -- grant the rest on Roles & Permissions', n;
 end $$;
 
 commit;

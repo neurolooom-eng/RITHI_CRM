@@ -1,6 +1,7 @@
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { fmtDate, fmtDateTime } from '../lib/format';
 import { CHANGELOG } from '../lib/changelog';
+import { useAuditMode } from '../lib/auditMode';
 import './versionhistory.css';
 
 // ===========================================================================
@@ -9,6 +10,9 @@ import './versionhistory.css';
 // ===========================================================================
 
 export function VersionHistory() {
+  // An entry about a non-auditable track (auditHidden) is left out while Audit
+  // Mode is on, with the screen it describes.
+  const auditOn = useAuditMode().on;
   return (
     <div>
       <PageHeader title="Version History" subtitle="Build info and the log of changes to this app." icon="🗂️" />
@@ -36,7 +40,7 @@ export function VersionHistory() {
               </tr>
             </thead>
             <tbody>
-              {CHANGELOG.map((e) => (
+              {CHANGELOG.filter((e) => !(e.auditHidden && auditOn)).map((e) => (
                 <tr key={e.version}>
                   <td><span className="badge badge-primary">v{e.version}</span></td>
                   <td className="vh-nowrap">{fmtDate(e.date)}</td>

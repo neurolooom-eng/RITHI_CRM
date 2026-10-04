@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**102 tables · 37 views · 2884 columns · 205 policies · 63 foreign keys.**
+**108 tables · 41 views · 3040 columns · 221 policies · 68 foreign keys.**
 
 ## How to read this
 
@@ -103,6 +103,12 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [profiles](#profiles)
 - [quality_objectives](#quality-objectives)
 - [record_audit](#record-audit)
+- [recycle_consumption](#recycle-consumption)
+- [recycle_issues](#recycle-issues)
+- [recycle_mrs](#recycle-mrs)
+- [recycle_mrs_lines](#recycle-mrs-lines)
+- [recycle_other_costs](#recycle-other-costs)
+- [recycle_requests](#recycle-requests)
 - [reports](#reports)
 - [role_table_views](#role-table-views)
 - [sale_entries](#sale-entries)
@@ -936,9 +942,9 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| INSERT | `fb_write` | — | `(has_perm('visit.feedback'::text) OR has_perm('feedback.view'::text))` |
-| SELECT | `fb_read` | `(has_perm('feedback.view'::text) OR has_perm('visit.feedback'::text))` | — |
-| UPDATE | `fb_update` | `(has_perm('visit.feedback'::text) OR has_perm('feedback.view'::text))` | `(has_perm('visit.feedback'::text) OR has_perm('feedback.view'::text))` |
+| INSERT | `fb_write` | — | `(( SELECT has_perm('visit.feedback'::text) AS has_perm) OR ( SELECT has_perm('feedback.view'::text) AS has_perm))` |
+| SELECT | `fb_read` | `(( SELECT has_perm('feedback.view'::text) AS has_perm) OR ( SELECT has_perm('visit.feedback'::text) AS has_perm))` | — |
+| UPDATE | `fb_update` | `(( SELECT has_perm('visit.feedback'::text) AS has_perm) OR ( SELECT has_perm('feedback.view'::text) AS has_perm))` | `(( SELECT has_perm('visit.feedback'::text) AS has_perm) OR ( SELECT has_perm('feedback.view'::text) AS has_perm))` |
 
 ---
 
@@ -1175,8 +1181,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `handstock_adjustments_reason` — `CHECK ((btrim(reason) <> ''::text))`
 - `handstock_adjustments_qty_nonzero` — `CHECK ((qty <> (0)::numeric))`
+- `handstock_adjustments_reason` — `CHECK ((btrim(reason) <> ''::text))`
 
 **Triggers:** `handstock_adjustments_bi` → `handstock_adjustments_bi()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -1703,7 +1709,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 - `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
 - `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 
-**Triggers:** `indoor_job_visit_by_approval` → `indoor_job_visit_by_approval()` · `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `indoor_job_visit_by_approval` → `indoor_job_visit_by_approval()` · `indoor_report_keeps_its_number` → `indoor_report_keeps_its_number()` · `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2873,8 +2879,9 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
-| ALL | `products_write` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
+| INSERT | `products_insert` | — | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 | SELECT | `products_read` | `(auth.role() = 'authenticated'::text)` | — |
+| UPDATE | `products_update` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 
 ---
 
@@ -3038,7 +3045,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 31 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 32 | `sys_updated_by` | uuid | yes |  |  |
 | 33 | `sys_updated_on` | timestamp with time zone | yes |  |  |
-| 34 | `overrides` | jsonb | **no** | `'{}'::jsonb` | Months of a computed objective typed over by hand: {"m03": {"by": email, "at": timestamp, "calculated": the figure it replaced}}. Written only by quality_objectives_mark_override(); Re-Calculate keeps these months unless told to discard them (0346). |
+| 34 | `overrides` | jsonb | **no** | `'{}'::jsonb` | Months of a computed objective typed over by hand: {"m03": {"by": email, "at": timestamp, "calculated": the figure it replaced}}. Written only by quality_objectives_mark_override(); Re-Calculate keeps these months unless told to discard them (0349). |
 
 **Unique:** `sys_id` _(quality_objectives_sys_id_key)_ · `year, lower(btrim(parameter))` _(quality_objectives_year_param_uniq)_
 
@@ -3085,6 +3092,266 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | SELECT | `record_audit_read` | `(is_admin() OR has_perm('audit.view'::text))` | — |
+
+---
+
+## recycle_consumption
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `request_id` | bigint | **no** |  | → recycle_requests(id) |
+| 3 | `holder` | uuid | yes |  |  |
+| 4 | `holder_name` | text | **no** | `''::text` |  |
+| 5 | `part_code` | text | **no** |  |  |
+| 6 | `qty` | numeric | **no** |  |  |
+| 7 | `consumed_at` | timestamp with time zone | **no** | `now()` |  |
+| 8 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 9 | `sys_created_by` | uuid | yes |  |  |
+| 10 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 11 | `sys_updated_by` | uuid | yes |  |  |
+| 12 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(recycle_consumption_sys_id_key)_
+
+**References:**
+
+- `request_id` → **recycle_requests**(`id`) · on delete no action _(recycle_consumption_request_id_fkey)_
+
+**Constraints:**
+
+- `recycle_consumption_qty_check` — `CHECK ((qty > (0)::numeric))`
+
+**Triggers:** `recycle_consumption_guard` → `recycle_consumption_guard()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| DELETE | `rc_delete` | `( SELECT recycle_may('recycle.close'::text) AS recycle_may)` | — |
+| INSERT | `rc_insert` | — | `( SELECT recycle_may('recycle.close'::text) AS recycle_may)` |
+| SELECT | `rc_read` | `( SELECT recycle_may_see() AS recycle_may_see)` | — |
+
+---
+
+## recycle_issues
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `mrs_line_id` | bigint | **no** |  | → recycle_mrs_lines(id) |
+| 3 | `qty` | numeric | **no** |  |  |
+| 4 | `unit_cost` | numeric | **no** |  |  |
+| 5 | `issued_at` | timestamp with time zone | **no** | `now()` |  |
+| 6 | `issued_by` | uuid | yes |  |  |
+| 7 | `issued_by_name` | text | **no** | `''::text` |  |
+| 8 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 9 | `sys_created_by` | uuid | yes |  |  |
+| 10 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 11 | `sys_updated_by` | uuid | yes |  |  |
+| 12 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(recycle_issues_sys_id_key)_
+
+**References:**
+
+- `mrs_line_id` → **recycle_mrs_lines**(`id`) · on delete no action _(recycle_issues_mrs_line_id_fkey)_
+
+**Constraints:**
+
+- `recycle_issues_unit_cost_check` — `CHECK ((unit_cost >= (0)::numeric))`
+- `recycle_issues_qty_check` — `CHECK ((qty > (0)::numeric))`
+
+**Triggers:** `recycle_issues_guard` → `recycle_issues_guard()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `ri_insert` | — | `( SELECT recycle_may('recycle.issue'::text) AS recycle_may)` |
+| SELECT | `ri_read` | `( SELECT recycle_may_see() AS recycle_may_see)` | — |
+
+---
+
+## recycle_mrs
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `mrs_no` | text | yes |  |  |
+| 3 | `request_id` | bigint | yes |  | → recycle_requests(id) |
+| 4 | `requested_for` | uuid | yes |  |  |
+| 5 | `requested_for_name` | text | **no** | `''::text` |  |
+| 6 | `remarks` | text | **no** | `''::text` |  |
+| 7 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 8 | `created_by` | uuid | yes |  |  |
+| 9 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 10 | `sys_created_by` | uuid | yes |  |  |
+| 11 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 12 | `sys_updated_by` | uuid | yes |  |  |
+| 13 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `mrs_no` _(recycle_mrs_mrs_no_key)_ · `mrs_no` _(recycle_mrs_mrs_no_key)_ · `sys_id` _(recycle_mrs_sys_id_key)_
+
+**References:**
+
+- `request_id` → **recycle_requests**(`id`) · on delete no action _(recycle_mrs_request_id_fkey)_
+
+**Referenced by:** `recycle_mrs_lines.mrs_id`
+
+**Triggers:** `recycle_mrs_guard` → `recycle_mrs_guard()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `rm_insert` | — | `( SELECT recycle_may('recycle.request'::text) AS recycle_may)` |
+| SELECT | `rm_read` | `( SELECT recycle_may_see() AS recycle_may_see)` | — |
+
+---
+
+## recycle_mrs_lines
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `mrs_id` | bigint | **no** |  | → recycle_mrs(id) |
+| 3 | `part_code` | text | **no** |  |  |
+| 4 | `part_description` | text | **no** | `''::text` |  |
+| 5 | `qty` | numeric | **no** |  |  |
+| 6 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 7 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 8 | `sys_created_by` | uuid | yes |  |  |
+| 9 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 10 | `sys_updated_by` | uuid | yes |  |  |
+| 11 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(recycle_mrs_lines_sys_id_key)_
+
+**References:**
+
+- `mrs_id` → **recycle_mrs**(`id`) · on delete cascade _(recycle_mrs_lines_mrs_id_fkey)_
+
+**Referenced by:** `recycle_issues.mrs_line_id`
+
+**Constraints:**
+
+- `recycle_mrs_lines_qty_check` — `CHECK ((qty > (0)::numeric))`
+
+**Triggers:** `recycle_mrs_lines_guard` → `recycle_mrs_lines_guard()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `rml_insert` | — | `( SELECT recycle_may('recycle.request'::text) AS recycle_may)` |
+| SELECT | `rml_read` | `( SELECT recycle_may_see() AS recycle_may_see)` | — |
+
+---
+
+## recycle_other_costs
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `request_id` | bigint | **no** |  | → recycle_requests(id) |
+| 3 | `cost_type` | text | **no** | `'Other'::text` | Labour · Courier · Vendor · Other |
+| 4 | `description` | text | **no** | `''::text` |  |
+| 5 | `amount` | numeric | **no** |  |  |
+| 6 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 7 | `created_by` | uuid | yes |  |  |
+| 8 | `created_by_name` | text | **no** | `''::text` |  |
+| 9 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 10 | `sys_created_by` | uuid | yes |  |  |
+| 11 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 12 | `sys_updated_by` | uuid | yes |  |  |
+| 13 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(recycle_other_costs_sys_id_key)_
+
+**References:**
+
+- `request_id` → **recycle_requests**(`id`) · on delete no action _(recycle_other_costs_request_id_fkey)_
+
+**Constraints:**
+
+- `recycle_other_costs_amount_check` — `CHECK ((amount >= (0)::numeric))`
+
+**Triggers:** `recycle_other_costs_guard` → `recycle_other_costs_guard()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| DELETE | `roc_delete` | `( SELECT recycle_may('recycle.close'::text) AS recycle_may)` | — |
+| INSERT | `roc_insert` | — | `( SELECT recycle_may('recycle.close'::text) AS recycle_may)` |
+| SELECT | `roc_read` | `( SELECT recycle_may_see() AS recycle_may_see)` | — |
+
+---
+
+## recycle_requests
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `rcy_no` | text | yes |  |  |
+| 3 | `received_on` | date | **no** | `((now() AT TIME ZONE 'Asia/Kolkata'::text))::date` |  |
+| 4 | `part_code` | text | **no** |  |  |
+| 5 | `part_description` | text | **no** | `''::text` |  |
+| 6 | `serial` | text | **no** | `''::text` |  |
+| 7 | `qty` | numeric | **no** | `1` |  |
+| 8 | `received_from` | text | **no** | `''::text` |  |
+| 9 | `call_ref` | text | **no** | `''::text` |  |
+| 10 | `remarks` | text | **no** | `''::text` |  |
+| 11 | `job_done` | text | **no** | `''::text` |  |
+| 12 | `status` | text | **no** | `'Open'::text` | Open · Returned · Not recyclable |
+| 13 | `returned_part_code` | text | **no** | `''::text` |  |
+| 14 | `returned_qty` | numeric | yes |  |  |
+| 15 | `returned_on` | date | yes |  |  |
+| 16 | `not_recyclable_reason` | text | **no** | `''::text` |  |
+| 17 | `closed_at` | timestamp with time zone | yes |  |  |
+| 18 | `closed_by` | uuid | yes |  |  |
+| 19 | `closed_by_name` | text | **no** | `''::text` |  |
+| 20 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 21 | `created_by` | uuid | yes |  |  |
+| 22 | `created_by_name` | text | **no** | `''::text` |  |
+| 23 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 24 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 25 | `sys_created_by` | uuid | yes |  |  |
+| 26 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 27 | `sys_updated_by` | uuid | yes |  |  |
+| 28 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `rcy_no` _(recycle_requests_rcy_no_key)_ · `rcy_no` _(recycle_requests_rcy_no_key)_ · `sys_id` _(recycle_requests_sys_id_key)_
+
+**Referenced by:** `recycle_consumption.request_id` · `recycle_mrs.request_id` · `recycle_other_costs.request_id`
+
+**Constraints:**
+
+- `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
+- `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
+
+**Triggers:** `recycle_requests_guard` → `recycle_requests_guard()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `rr_insert` | — | `( SELECT recycle_may('recycle.register'::text) AS recycle_may)` |
+| SELECT | `rr_read` | `( SELECT recycle_may_see() AS recycle_may_see)` | — |
+| UPDATE | `rr_update` | `(( SELECT recycle_may('recycle.register'::text) AS recycle_may) OR ( SELECT recycle_may('recycle.close'::text) AS recycle_may))` | `(( SELECT recycle_may('recycle.register'::text) AS recycle_may) OR ( SELECT recycle_may('recycle.close'::text) AS recycle_may))` |
 
 ---
 
@@ -4389,7 +4656,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `feedback_report` | **on** | 28 |
 | `feedback_without_report` | **on** | 21 |
 | `field_call_review` | **on** | 59 |
-| `field_call_review_summary` | **on** | 11 |
+| `field_call_review_summary` | **on** | 16 |
 | `field_failure_register` | **on** | 62 |
 | `handstock_balance` | **on** | 20 |
 | `handstock_movements` | **on** | 16 |
@@ -4402,6 +4669,10 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `product_database_v2` | **on** | 35 |
 | `product_party_names` | **on** | 2 |
 | `product_register_names` | **on** | 2 |
+| `recycle_consumption_list` | **on** | 10 |
+| `recycle_hand_stock` | **on** | 8 |
+| `recycle_mrs_list` | **on** | 17 |
+| `recycle_request_list` | **on** | 27 |
 | `solved_without_report` | **on** | 16 |
 | `spare_pending_dispatch` | **on** | 31 |
 | `spare_pending_rm` | **on** | 24 |
