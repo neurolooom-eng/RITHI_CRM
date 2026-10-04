@@ -86,3 +86,75 @@ select 'after an unrelated update' as check, dispatched_by as should_be_the_supp
   from public.spare_dispatches where courier = 'test-courier';
 
 delete from public.spare_dispatches where courier = 'test-courier';
+
+-- ===========================================================================
+-- D-126 (0343): ONCE ISSUED, THE NAME STAYS.
+-- Each check below raises an unlabelled error when it is wrong, so a failure
+-- here is counted by the harness, not just printed.
+-- ===========================================================================
+insert into auth.users (id, email) values
+ ('ee000000-0000-0000-0000-000000000126','uploader126@x.com')
+on conflict do nothing;
+insert into public.profiles (id, email, full_name, role) values
+ ('ee000000-0000-0000-0000-000000000126','uploader126@x.com','UPLOADER ONE','admin')
+on conflict (id) do update set full_name = excluded.full_name, role = excluded.role;
+
+\echo ''
+\echo '--- 6. a Stores holder cannot rewrite who booked an issued stock out ---'
+call public.be('kasthuri@x.com');
+set role authenticated;
+insert into public.spare_dispatches (uid, dc_date, engineer, courier, line_count, total_qty, dispatched_by)
+ values ('SOX-126', current_date, 'ENG', 'test-courier', 1, 1, '');
+update public.spare_dispatches set dispatched_by = 'Somebody Else', remarks = 'edited' where uid = 'SOX-126';
+reset role;
+do $$ begin
+  if (select dispatched_by from public.spare_dispatches where uid = 'SOX-126') is distinct from 'KASTHURI' then
+    raise exception 'D-126 FAILED: an issued stock out was renamed to %',
+      (select dispatched_by from public.spare_dispatches where uid = 'SOX-126');
+  end if;
+  -- discarded, not refused: the rest of the same update was saved
+  if (select remarks from public.spare_dispatches where uid = 'SOX-126') is distinct from 'edited' then
+    raise exception 'D-126 FAILED: the rest of the update was lost';
+  end if;
+end $$;
+
+\echo ''
+\echo '--- 7. a re-load of the Stock Out Register keeps the issued name ---'
+-- The upload upserts on uid. Its insert half is stamped with the UPLOADER
+-- before the conflict is found, so before 0343 a re-load rewrote the name.
+call public.be('uploader126@x.com');
+set role authenticated;
+insert into public.spare_dispatches (uid, dc_date, engineer, courier, line_count, total_qty, dispatched_by)
+ values ('SOX-126', current_date, 'ENG', 'test-courier', 1, 1, 'FROM THE FILE')
+ on conflict (uid) do update set dispatched_by = excluded.dispatched_by, courier = excluded.courier;
+reset role;
+do $$ begin
+  if (select dispatched_by from public.spare_dispatches where uid = 'SOX-126') is distinct from 'KASTHURI' then
+    raise exception 'D-126 FAILED: a re-load renamed an issued stock out to %',
+      (select dispatched_by from public.spare_dispatches where uid = 'SOX-126');
+  end if;
+end $$;
+
+\echo ''
+\echo '--- 8. the recount (line_count / total_qty) still saves ---'
+call public.be('kasthuri@x.com');
+set role authenticated;
+update public.spare_dispatches set line_count = 2, total_qty = 3 where uid = 'SOX-126';
+reset role;
+do $$ begin
+  if (select (line_count, total_qty) from public.spare_dispatches where uid = 'SOX-126') is distinct from (2, 3::numeric) then
+    raise exception 'D-126 FAILED: an ordinary update of the stock out was lost';
+  end if;
+end $$;
+
+\echo ''
+\echo '--- 9. NO SESSION can still correct a wrong name (the SQL editor) ---'
+update public.harness set uid = null, email = null;
+update public.spare_dispatches set dispatched_by = 'CORRECTED' where uid = 'SOX-126';
+do $$ begin
+  if (select dispatched_by from public.spare_dispatches where uid = 'SOX-126') is distinct from 'CORRECTED' then
+    raise exception 'D-126 FAILED: an administrative correction was discarded';
+  end if;
+end $$;
+
+delete from public.spare_dispatches where courier = 'test-courier';

@@ -161,6 +161,21 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-10-04 — D-126: the name on an issued stock out can no longer be changed (v0.10.75, 0343)
+- **Your ask:** *"Fix D-126"*.
+- **Reproduced first** on a database built from every migration. A Stores Incharge set `dispatched_by` to "Somebody Else" on an issued stock out. The result was `UPDATE 1`, and that name is what the Delivery Challan and the Declaration print.
+- **Also found while reproducing it:** a re-load of the Stock Out Register (an upsert on `uid`) wrote the uploader's name over every matching stock out. Measured result: `UPLOADER ONE`. 0211's insert stamp fires before the conflict is found.
+- **The fix (0343, `Spare_1.sql`):** 0211's trigger now fires on UPDATE as well. With a signed-in session it keeps the name the stock out was booked under. A new value is discarded, not refused, so the rest of the same update still saves. A connection with no session (the SQL editor) can still correct a wrong name.
+- **Nothing honest breaks.** These paths were read first:
+  - the app never updates a stock out directly;
+  - the recount functions touch only `line_count` and `total_qty`;
+  - a User Master rename deliberately never moves `dispatched_by`.
+- **Not covered:** the copy of the name on each spare line (`spare_request_lines.dispatched_by`). A later partial dispatch rewrites it legitimately, and the line guard has been rebuilt from old revisions twice. The challan and the Declaration read the stock out itself.
+- **Checked:**
+  - `dispatched_by_stamped_test` sections 6–9 fail on two checks without 0343 and pass with it;
+  - `_status.sql` row 275 reads NO without it and yes with it;
+  - FRS-151.8, OQ-243.
+
 ### 2026-10-03 — The Declaration named one fixed person; the whole Product Database crashed the browser (v0.10.73, D-155, on the branch, not merged)
 - **Your reports:**
   - *"In Declaration as part of Stock holds Jagadeesh name, I think it's hard coded -- it has to be updated to the person doing the stock out."*
@@ -168,7 +183,7 @@ checked.
 - **D-155 (v0.10.73):** the Declaration printed `JAGADEESAN C`, written into `src/lib/declaration.ts`, on every sheet.
   - It now prints the stock out's `dispatched_by`, the same field the Delivery Challan uses, stamped from the session (0211).
   - An old stock out that recorded nobody leaves the line blank and says so.
-  - Related and still open: D-126 (`dispatched_by` can be rewritten after issue).
+  - Related: D-126 (`dispatched_by` could be rewritten after issue) — fixed 2026-10-04, v0.10.75, 0343.
 - **The crash:** the shared table drew every loaded row.
   - **Measured** in Chromium on a production build: 20,000 rows put 320,000 elements on the page, froze it ~19 s and used ~170 MB of script heap.
   - **I fixed it here by drawing 2,000 rows a page,** but another session fixed the same fault first, and it is on `main` as **D-118 (#523)**: the table draws what can be seen and adds rows as you scroll, and sorting is faster.
@@ -240,7 +255,7 @@ checked.
   - **Spare approvals can be walked around:**
     - **D-121:** the requester can change the part and quantity after every approval (measured: approved for 1 × GP-1, booked out 40 × another part).
     - **D-122:** a plain update moves the engineer and changes the cover, so Commercial is skipped.
-    - **D-126:** the challan's "dispatched by" can be rewritten after issue.
+    - **D-126:** the challan's "dispatched by" can be rewritten after issue. *(Fixed 2026-10-04, v0.10.75, 0343.)*
   - **Calls and quality:**
     - **D-127:** Product Database 2.0's stored copy is readable with the public web key, without signing in.
     - **D-128:** an RM can re-open or close calls they cannot see (measured: an Unattended call of another team closed as Solved).

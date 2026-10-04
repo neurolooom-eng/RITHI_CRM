@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.75',
+    date: '2026-10-04',
+    title: 'The name on an issued stock out cannot be changed',
+    changes: [
+      'STOCK OUT: once a stock out is booked, the person it names in Booked by stays on it. Before, somebody holding the dispatch right could change it afterwards, and the Delivery Challan and the Declaration then printed the new name.',
+      'STOCK OUT REGISTER upload: re-loading the register no longer writes the uploader\'s name over the stock outs already in it.',
+    ],
+  },
+  {
     version: '0.10.74',
     date: '2026-10-04',
     title: 'New CallReg address (Save as Google Sheet)',

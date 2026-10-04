@@ -316,7 +316,9 @@ against the call it was fitted to.
    Delivery Challan.
    > The **📜 Declaration** that travels with the parcel is signed off in the name
    > of **whoever booked the stock out** — the same person the challan names. It
-   > used to print one fixed name on every declaration.
+   > used to print one fixed name on every declaration. Once the stock out is
+   > booked that name **cannot be changed** — not by editing it, and not by
+   > re-loading the Stock Out Register.
 5. The engineer **acknowledges receipt**.
 6. **Spare Consumption** `/spare-consumption` — the part is booked against the
    call.
