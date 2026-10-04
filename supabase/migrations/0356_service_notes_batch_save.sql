@@ -75,4 +75,4 @@ revoke execute on function public.save_service_notes(jsonb) from public, anon;
 grant execute on function public.save_service_notes(jsonb) to authenticated;
 
 comment on function public.save_service_notes(jsonb) is
-  'Technical / Service Notes Beta Edit: writes every edited note in one transaction under the caller''s own rights (documents_update), all or nothing (0355).';
+  'Technical / Service Notes Beta Edit: writes every edited note in one transaction under the caller''s own rights (documents_update), all or nothing (0356).';

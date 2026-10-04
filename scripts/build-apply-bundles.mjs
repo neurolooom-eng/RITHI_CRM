@@ -33,6 +33,7 @@ const NEEDS = {
   visibleEngineers: [`to_regprocedure('public.visible_engineer_names()')`, 'visible_engineer_names()', '0004_user_directory.sql (apply bundle: user_directory)'],
   spareTables: [`to_regclass('public.spare_requests')`, 'the spare_requests table', '0001_init.sql (apply bundle: base)'],
   callRequestTable: [`to_regclass('public.call_requests')`, 'the call_requests table', '0003_call_requests.sql (apply bundle: base)'],
+  auditMode: [`to_regprocedure('public.audit_mode()')`, 'audit_mode()', '0114_audit_mode.sql (apply bundle: audit)'],
   rbac: [`to_regprocedure('public.has_perm(text)')`, 'has_perm()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
   isAdmin: [`to_regprocedure('public.is_admin()')`, 'is_admin()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
   approvers: [`to_regprocedure('public.can_approve_spares()')`, 'can_approve_spares()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
@@ -705,6 +706,18 @@ const MODULES = {
             '0296_tracker_delete_key.sql',
             '0162_tracker_nl_team.sql'],
   },
+  recycling: {
+    title: 'Spare Recycling (a parallel track under Indoor Service)',
+    blurb: ['A defective spare registered for recycling (RCY/YY/NNNN), the spares used',
+            'raised on an MRS without approval (RMRS/YY/NNNN), booked out by Stores',
+            'with a unit cost into the requester\'s RECYCLING hand stock, consumed on',
+            'closing, and closed Returned (as R<PartNo>, recorded only) or Not',
+            'recyclable. Its own tables and ledger: nothing in it touches calls, the',
+            'spare module or the regular hand stock. Every read and write is refused',
+            'while Audit Mode is on (a non-auditable requirement).'],
+    needs: ['profiles', 'rbac', 'auditMode'],
+    files: ['0355_spare_recycling.sql'],
+  },
   indoor: {
     title: 'Indoor Service (the workshop register, §4.5)',
     blurb: ['indoor_jobs --- the Indoor Service Register: one row per piece of equipment',
@@ -785,8 +798,8 @@ const MODULES = {
             // Technical / Service Notes: Dated, and the latest note per
             // product marked (stored, recalculated, and by a button).
             '0354_service_note_dated_latest.sql',
-            // Beta Edit: many notes edited, one save, all or nothing (0355).
-            '0355_service_notes_batch_save.sql'],
+            // Beta Edit: many notes edited, one save, all or nothing (0356).
+            '0356_service_notes_batch_save.sql'],
   },
   training: {
     title: 'People: profile, Roles & Responsibilities, Training',
@@ -1479,7 +1492,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'training', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'device_cache', 'permissions', 'sys_columns', 'lockdown'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'recycling', 'masters', 'documents', 'training', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'device_cache', 'permissions', 'sys_columns', 'lockdown'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

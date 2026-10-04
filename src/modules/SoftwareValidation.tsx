@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
+import { useAuditMode } from '../lib/auditMode';
 import { listValidationResults, saveValidationResult, supabaseConfigured, type ValidationResult } from '../lib/supabase';
 import {
   VAL_META, APPROVALS, APPROACH, CHECKLIST, URS, FRS, NON_AUDITABLE, DEFECTS, ARCHITECTURE, DETAILED, RISKS, TESTS,
@@ -84,6 +85,8 @@ const verTag = (r: { version?: string; date?: string }) => (r.version
   : null);
 
 export function SoftwareValidation() {
+  // A requirement hidden with its screen in Audit Mode (NAR-008) is left out here too.
+  const auditOn = useAuditMode().on;
   const { can } = useAuth();
   // The key the database asks (0293) -- it refused users.manage, which this
   // screen used to accept (finding 64).
@@ -470,7 +473,7 @@ export function SoftwareValidation() {
           </p>
           <table className="sv-table">
             <thead><tr><th style={{ width: 84 }}>ID</th><th>Requirement</th><th style={{ width: 80 }}>Risk</th></tr></thead>
-            <tbody>{NON_AUDITABLE.map((n) => (
+            <tbody>{NON_AUDITABLE.filter((n) => !(n.auditHidden && auditOn)).map((n) => (
               <tr key={n.id}>
                 <td className="sv-id">{n.id}</td>
                 <td>

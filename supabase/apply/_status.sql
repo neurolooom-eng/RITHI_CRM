@@ -1989,7 +1989,13 @@ with checks(sort_order, bundle, provides, present) as (
                       and tgrelid = to_regclass('public.documents') and not tgisinternal)
          and exists (select 1 from pg_trigger where tgname = 'zz_service_note_latest_upd'
                       and tgrelid = to_regclass('public.documents') and not tgisinternal))),
-    (287, 'Technical / Service Notes: Beta Edit saves many notes at once', 'save_service_notes(jsonb) writes every edited note in one transaction, all or nothing, as SECURITY INVOKER so documents_update decides; callable by a signed-in user, never the public key (0355). Restore: documents.sql (0355)',
+    (287, 'Spare Recycling: its own track, hidden in Audit Mode', 'Asked for 2026-10-04: a parallel track under Indoor Service -- recycle_requests (RCY/YY/NNNN), recycle_mrs + lines (RMRS/YY/NNNN, no approval), recycle_issues (Stores stock out WITH unit cost), recycle_consumption (capped at the RECYCLING hand stock), recycle_other_costs -- none of it touching the regular spare or hand-stock tables, and every policy refusing while Audit Mode is on. NO means a table, the guard on requests or the audit-mode rule is missing. Restore: recycling.sql (0355)',
+        (to_regclass('public.recycle_requests') is not null
+     and to_regclass('public.recycle_consumption') is not null
+     and to_regclass('public.recycle_request_list') is not null
+     and exists (select 1 from pg_trigger where tgname = 'recycle_consumption_guard' and not tgisinternal)
+     and coalesce((select p.prosrc like '%audit_mode%' from pg_proc p where p.oid = to_regprocedure('public.recycle_may_see()')), false))),
+    (288, 'Technical / Service Notes: Beta Edit saves many notes at once', 'save_service_notes(jsonb) writes every edited note in one transaction, all or nothing, as SECURITY INVOKER so documents_update decides; callable by a signed-in user, never the public key (0356). Restore: documents.sql (0356)',
         (to_regprocedure('public.save_service_notes(jsonb)') is not null
          and not coalesce((select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.save_service_notes(jsonb)')), true)
          and not has_function_privilege('anon', to_regprocedure('public.save_service_notes(jsonb)'), 'EXECUTE')

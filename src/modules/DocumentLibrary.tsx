@@ -55,7 +55,7 @@ interface Cfg {
   latestByProduct?: boolean;
   // TECHNICAL / SERVICE NOTES ONLY (the user, 2026-10-04: "Edit is not showing
   // all the fields ... Give me a Beta Edit"): the form shows every field a note
-  // carries, and Beta Edit edits many notes in a grid saved by one click (0355).
+  // carries, and Beta Edit edits many notes in a grid saved by one click (0356).
   allFields?: boolean;
 }
 
@@ -157,7 +157,7 @@ function Library({ cfg }: { cfg: Cfg }) {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   // BETA EDIT: the notes as an editable grid; nothing is written until Save,
-  // and Save writes every changed note in one transaction (0355).
+  // and Save writes every changed note in one transaction (0356).
   const [beta, setBeta] = useState(false);
   const [edits, setEdits] = useState<Record<number, Partial<NotePatch>>>({});
 

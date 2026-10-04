@@ -18,7 +18,7 @@
 --   0272_service_note_upload_key.sql
 --   0299_document_drive_details.sql
 --   0354_service_note_dated_latest.sql
---   0355_service_notes_batch_save.sql
+--   0356_service_notes_batch_save.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -438,7 +438,7 @@ create trigger zz_service_note_latest_upd after update of kind, product, dated, 
 select public.refresh_service_note_latest_all();
 
 -- ------------------------------------------------------------------------
--- 0355_service_notes_batch_save.sql
+-- 0356_service_notes_batch_save.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -518,6 +518,6 @@ revoke execute on function public.save_service_notes(jsonb) from public, anon;
 grant execute on function public.save_service_notes(jsonb) to authenticated;
 
 comment on function public.save_service_notes(jsonb) is
-  'Technical / Service Notes Beta Edit: writes every edited note in one transaction under the caller''s own rights (documents_update), all or nothing (0355).';
+  'Technical / Service Notes Beta Edit: writes every edited note in one transaction under the caller''s own rights (documents_update), all or nothing (0356).';
 
 commit;

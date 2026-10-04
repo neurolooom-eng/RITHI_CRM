@@ -1,5 +1,5 @@
 -- ===========================================================================
--- TECHNICAL / SERVICE NOTES BETA EDIT: MANY EDITS, ONE SAVE (0355).
+-- TECHNICAL / SERVICE NOTES BETA EDIT: MANY EDITS, ONE SAVE (0356).
 --
 -- WHAT THIS PROVES:
 --   1. a docs.manage holder saves several notes in one call, every field the
@@ -19,12 +19,12 @@
 \pset pager off
 
 insert into auth.users (id, email) values
-  ('03550000-0000-0000-0000-000000000001', 'bs-admin@x.com'),
-  ('03550000-0000-0000-0000-000000000002', 'bs-eng@x.com')
+  ('03560000-0000-0000-0000-000000000001', 'bs-admin@x.com'),
+  ('03560000-0000-0000-0000-000000000002', 'bs-eng@x.com')
 on conflict do nothing;
 insert into public.profiles (id, email, full_name, role) values
-  ('03550000-0000-0000-0000-000000000001', 'bs-admin@x.com', 'BS ADMIN', 'admin'),
-  ('03550000-0000-0000-0000-000000000002', 'bs-eng@x.com',   'BS ENG',   'engineer')
+  ('03560000-0000-0000-0000-000000000001', 'bs-admin@x.com', 'BS ADMIN', 'admin'),
+  ('03560000-0000-0000-0000-000000000002', 'bs-eng@x.com',   'BS ENG',   'engineer')
 on conflict do nothing;
 
 create or replace procedure public.be(p_email text) language plpgsql as $$
