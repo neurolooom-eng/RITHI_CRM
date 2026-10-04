@@ -10421,6 +10421,29 @@ select r.id, r.rcy_no, r.received_on, r.part_code, r.part_description, r.serial,
 alter view public.recycle_request_list set (security_invoker = on);
 grant select on public.recycle_request_list to authenticated;
 
+-- ---------------------------------------------------------------------------
+-- 7. THE SCREEN'S KEY, IN THE ADMIN ROLE ONLY. An administrator passes every
+--    check anyway, so this changes nobody's access; it is here so the key is
+--    held somewhere a stored role set is read (the 0241 pattern). Every other
+--    role is given it -- or not -- on Roles & Permissions (the user's rule).
+-- ---------------------------------------------------------------------------
+do $$
+declare n integer;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (select jsonb_array_elements_text(ar.permissions) as v
+                   union select unnest(array['mod:/indoor/recycling']) as v) u),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and ar.role = 'admin'
+     and not (ar.permissions ? 'mod:/indoor/recycling');
+  get diagnostics n = row_count;
+  raise notice '0350: Spare Recycling key given to the admin role (% row) -- grant the rest on Roles & Permissions', n;
+end $$;
+
 -- ------------------------------------------------------------------------
 -- 0021_master_lists.sql
 -- ------------------------------------------------------------------------

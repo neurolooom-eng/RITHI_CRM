@@ -5,6 +5,7 @@ import { MODULE_GUIDE } from '../../lib/moduleGuide';
 import { FLOWS } from '../../lib/flows';
 import { actionForPath } from '../../lib/rbac';
 import { useAuth } from '../../lib/auth';
+import { useAuditMode } from '../../lib/auditMode';
 import './moduleguide.css';
 
 // ===========================================================================
@@ -23,6 +24,9 @@ import './moduleguide.css';
 
 export function ModuleGuide({ onOpenFlow }: { onOpenFlow: (flowId: string) => void }) {
   const { can } = useAuth();
+  // A non-auditable screen (hideInAudit) is left out while Audit Mode is on,
+  // here as in the menu.
+  const auditOn = useAuditMode().on;
   const [q, setQ] = useState('');
   const byRoute = useMemo(() => new Map(MODULE_GUIDE.map((e) => [e.route, e])), []);
   const flowsByRoute = useMemo(() => {
@@ -40,6 +44,7 @@ export function ModuleGuide({ onOpenFlow }: { onOpenFlow: (flowId: string) => vo
   const groups = NAV.map((g) => ({
     title: g.title,
     items: g.items.filter((it) => {
+      if (it.hideInAudit && auditOn) return false;
       if (!words.length) return true;
       const e = byRoute.get(it.to);
       const hay = [g.title, it.label, e?.purpose, ...(e?.does ?? []), ...(e?.rules ?? []), ...(e?.records ?? [])].join(' ').toLowerCase();

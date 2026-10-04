@@ -188,6 +188,8 @@ export const MODULES: ModuleDef[] = [
   // nobody.
   { path: '/part-search', label: 'Part Search' },
   { path: '/indoor', label: 'Indoor Service Register' },
+  // SPARE RECYCLING (0350): a non-auditable parallel track, hidden in Audit Mode.
+  { path: '/indoor/recycling', label: 'Spare Recycling' },
   // SOLVED WITHOUT A REPORT — administrators only (the user, 2026-09-20:
   // "View only for Admins and Super Admins"). `admin: true` keeps the key out
   // of NON_ADMIN_MODULES, leaving SEES_EVERY_MODULE's three; 0224 is the other
@@ -346,6 +348,14 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // delete_indoor_job(), which refuses a job any DC or filed visit names;
   // granted to NO role by the migration -- an administrator passes anyway.
   { group: 'Indoor Service', key: 'indoor.delete', label: 'Delete an Indoor Service job' },
+  // SPARE RECYCLING (0350, the user, 2026-10-04): a parallel track with its own
+  // stock. Granted to NOBODY by the migration (an administrator passes anyway);
+  // every one is refused by the database while Audit Mode is on.
+  { group: 'Indoor Service', key: 'recycle.view', label: 'See Spare Recycling' },
+  { group: 'Indoor Service', key: 'recycle.register', label: 'Register a defective spare for recycling, record job done' },
+  { group: 'Indoor Service', key: 'recycle.request', label: 'Raise a recycling MRS (no approval)' },
+  { group: 'Indoor Service', key: 'recycle.issue', label: 'Book out a recycling MRS with cost (Stores)' },
+  { group: 'Indoor Service', key: 'recycle.close', label: 'Consume, add costs and close a recycling request' },
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
   { group: 'Spares', key: 'consumption.reconcile', label: 'Add consumption against a call (reconciliation)' },
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
@@ -735,6 +745,8 @@ export const PERM_TREE: PermHeader[] = [
   { title: 'Indoor Service', pages: [
     { path: '/indoor', label: 'Indoor Service Register',
       actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn', 'indoor.verify', 'indoor.delete'] },
+    { path: '/indoor/recycling', label: 'Spare Recycling',
+      actions: ['recycle.view', 'recycle.register', 'recycle.request', 'recycle.issue', 'recycle.close'] },
   ] },
   { title: 'Reports', pages: [
     // The parent GRANTS ALL THREE below it, so a role that only needs one is
