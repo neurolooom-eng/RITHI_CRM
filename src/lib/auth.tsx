@@ -53,10 +53,12 @@ function profileToUser(p: Profile): User {
 // screen that lies about it — so both change together, always (0156).
 //
 // mmdev74@gmail.com removed 2026-09-09 at the user's instruction.
+// dccr_mirror@gmail.com added 2026-10-04 (0343): the DCCR mirror's own login.
 const SUPER_ADMINS = new Set([
   'service.almsind@gmail.com',
   'devika.m@airliquide.com',
   'devikamunusamy@gmail.com',
+  'dccr_mirror@gmail.com',
 ]);
 const isSuper = (...ids: (string | undefined)[]) =>
   ids.some((id) => id && SUPER_ADMINS.has(String(id).trim().toLowerCase()));

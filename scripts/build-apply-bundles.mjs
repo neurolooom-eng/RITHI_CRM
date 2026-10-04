@@ -242,6 +242,8 @@ const MODULES = {
             // runs that insert and then this delete, so the revocation holds.
             // The other order would restore a super admin on every replay.
             '0156_remove_super_admin_mmdev74.sql',
+            // AFTER 0008 too, like any later change to the super-admin list.
+            '0343_add_super_admin_dccr_mirror.sql',
             // A grant into app_roles and nothing else, so it is safe anywhere
             // after 0008 seeds the matrix — but AFTER 0151, which is what puts
             // the mod: keys into the roles this reads.

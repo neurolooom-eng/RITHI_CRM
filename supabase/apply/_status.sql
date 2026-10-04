@@ -1899,7 +1899,10 @@ with checks(sort_order, bundle, provides, present) as (
          and (to_regprocedure('public.engineer_stock_available(text,text)') is null
           or not has_function_privilege('anon', to_regprocedure('public.engineer_stock_available(text,text)'), 'EXECUTE'))
          and (to_regprocedure('public.due_export_schedules()') is null
-          or not has_function_privilege('anon', to_regprocedure('public.due_export_schedules()'), 'EXECUTE'))))
+          or not has_function_privilege('anon', to_regprocedure('public.due_export_schedules()'), 'EXECUTE')))),
+    (275, 'Super admin: dccr_mirror@gmail.com, the DCCR mirror''s login', 'Asked for 2026-10-04 ("Add it to Admin - Hardcode it like service.almsind@gmail.com"). The address is in app_super_admins (0343), so whoever signs in with it holds every right; SUPER_ADMINS in src/lib/auth.tsx carries it too and check:ui compares the two lists. The LOGIN is not made by any bundle -- create it in Supabase, Authentication -> Add user. NO means the row is missing. Restore: rbac.sql (0343)',
+        (to_regclass('public.app_super_admins') is not null
+     and exists (select 1 from public.app_super_admins where lower(email) = 'dccr_mirror@gmail.com')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

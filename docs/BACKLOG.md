@@ -91,6 +91,11 @@ up)_
   set` and the `DCCR_Mirror` tab is empty — it has never written a row. PENDING
   (user): set SUPABASE_URL, SUPABASE_ANON_KEY and DCCR_EMAIL / DCCR_PASSWORD in
   the script's Project Settings → Script Properties, then run `dccrMirror` once.
+- **`dccr_mirror@gmail.com` is a super admin** (0343 + `SUPER_ADMINS`, the
+  user's ask, `_status.sql` row 275). PENDING (user): create the login itself in
+  Supabase → Authentication → Add user (auto-confirm), password of the user's
+  choosing — deliberately not put in a migration, where it would stay in git
+  history.
 
 ## 2026-10-03 — Indoor Service: the job as a window, the DC beside it, the visit engineer picked, a job deleted (0324)
 
