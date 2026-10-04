@@ -8,11 +8,11 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
 import { fmtLongDate } from '../lib/format';
-import { formatDayTime } from '../lib/dates';
+import { formatDay, formatDayTime } from '../lib/dates';
 import { MultiPick } from '../components/ui/MultiPick';
 import { MAX_UPLOAD_BYTES, uploadToDrive, sheetsConfigured } from '../lib/sheets';
 import {
-  listDocuments, addDocument, updateDocument, setDocumentActive,
+  listDocuments, addDocument, updateDocument, setDocumentActive, refreshServiceNoteLatest,
   supabaseConfigured, type DocRow, type DocKind,
   listDirectory, type DirectoryRow,
 } from '../lib/supabase';
@@ -48,6 +48,11 @@ interface Cfg {
   //    with RITHI's own record of the entry kept in the record details.
   multiProduct?: boolean;
   driveDetails?: boolean;
+  // TECHNICAL / SERVICE NOTES ONLY (the user, 2026-10-04): grouped per
+  // product, a hand-entered Dated, newest first, and the latest note of each
+  // product tagged Latest -- stored by the database (0350), recalculated on
+  // every save and by the Refresh Latest tags button.
+  latestByProduct?: boolean;
 }
 
 // The products on a note, however the cell separated them.
@@ -70,7 +75,7 @@ const NOTES: Cfg = {
   kind: 'service_note', title: 'Technical / Service Notes', icon: '📝',
   subtitle: 'Technical bulletins and service notes, by product — the field fixes and advisories that are not in the manual.',
   perm: 'docs.manage', drivePrefix: 'Service Note', controlled: false,
-  multiProduct: true, driveDetails: true,
+  multiProduct: true, driveDetails: true, latestByProduct: true,
 };
 const QMS: Cfg = {
   kind: 'qms', title: 'QMS Documents', icon: '📗',
@@ -81,7 +86,7 @@ const QMS: Cfg = {
 type Draft = {
   title: string; product: string; doc_no: string; revision: string;
   effective_date: string; tags: string; notes: string;
-  url: string; file_name: string;
+  url: string; file_name: string; dated: string;
 };
 // Where a link points, for the File column. A Drive URL carries no filename —
 // `/file/d/<id>/view` — so the host is the most it can honestly be labelled.
@@ -89,7 +94,24 @@ const hostOf = (url: string) => {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'link'; }
 };
 
-const EMPTY: Draft = { title: '', product: '', doc_no: '', revision: '', effective_date: '', tags: '', notes: '', url: '', file_name: '' };
+const EMPTY: Draft = { title: '', product: '', doc_no: '', revision: '', effective_date: '', tags: '', notes: '', url: '', file_name: '', dated: '' };
+
+// ONE ROW PER NOTE PER PRODUCT, for the grouped notes shelf: a note covering
+// two products is listed under both, and is Latest for whichever of them the
+// database marked (latest_for, 0350). A note naming no product is the
+// "Every product" group, which the database spells ''.
+const EVERY_PRODUCT = 'Every product';
+type ShelfRow = DocRow & { _key: string; _product: string; _latest: boolean };
+const perProduct = (r: DocRow): ShelfRow[] => {
+  const marks = new Set((r.latest_for ?? []).map((p) => p.trim().toLowerCase()));
+  const prods = splitProducts(r.product);
+  return (prods.length ? prods : ['']).map((p) => ({
+    ...r, _key: `${r.id}|${p.toLowerCase()}`, _product: p || EVERY_PRODUCT, _latest: marks.has(p.toLowerCase()),
+  }));
+};
+// Newest Dated first; an undated note after every dated one, then by title.
+const byDatedDesc = (a: DocRow, b: DocRow) =>
+  (b.dated ?? '').localeCompare(a.dated ?? '') || a.title.localeCompare(b.title);
 
 function Library({ cfg }: { cfg: Cfg }) {
   const { user, can } = useAuth();
@@ -189,6 +211,7 @@ function Library({ cfg }: { cfg: Cfg }) {
       file_name: draft.file_name,
       notes: draft.notes.trim(),
       uploaded_by_name: user?.fullName || user?.email || '',
+      ...(cfg.latestByProduct ? { dated: draft.dated || null } : {}),
     };
     const res = editing ? await updateDocument(editing.id, payload) : await addDocument(payload);
     if (!res.ok) { setBusy(false); setMsg({ tone: 'error', text: res.error ?? 'Could not save the document.' }); return; }
@@ -222,19 +245,38 @@ function Library({ cfg }: { cfg: Cfg }) {
     setDraft({
       title: r.title, product: r.product, doc_no: r.doc_no, revision: r.revision,
       effective_date: r.effective_date ?? '', tags: r.tags, notes: r.notes,
-      url: r.url, file_name: r.file_name,
+      url: r.url, file_name: r.file_name, dated: r.dated ?? '',
     });
+  };
+
+  // THE BUTTON: re-mark the latest note of every product. Saving a note already
+  // does this in the database; this is for when the marks are in doubt.
+  const refreshLatest = async () => {
+    setBusy(true);
+    const res = await refreshServiceNoteLatest();
+    setBusy(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: `Could not refresh the Latest tags: ${res.error}` }); return; }
+    setMsg({ tone: 'ok', text: res.changed
+      ? `Latest tags refreshed — ${res.changed} ${res.changed === 1 ? 'note' : 'notes'} changed.`
+      : 'Latest tags checked — they were already right.' });
+    await load();
   };
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows
       .filter((r) => showInactive || r.active)
-      .filter((r) => !q || [r.title, r.product, r.doc_no, r.revision, r.tags, r.notes].some((v) => String(v ?? '').toLowerCase().includes(q)));
+      .filter((r) => !q || [r.title, r.product, r.doc_no, r.revision, r.tags, r.notes,
+        (r.latest_for ?? []).length ? 'latest' : ''].some((v) => String(v ?? '').toLowerCase().includes(q)));
   }, [rows, search, showInactive]);
+  // What the table lists: the notes shelf one row per note per product, newest
+  // Dated first; every other shelf as it is.
+  const shelf = useMemo(() => (cfg.latestByProduct
+    ? [...visible].sort(byDatedDesc).flatMap(perProduct)
+    : visible.map((r) => ({ ...r, _key: String(r.id), _product: '', _latest: false }))), [visible, cfg.latestByProduct]);
 
-  const columns: Column<DocRow & Record<string, unknown>>[] = useMemo(() => {
-    const cols: Column<DocRow & Record<string, unknown>>[] = [
+  const columns: Column<ShelfRow & Record<string, unknown>>[] = useMemo(() => {
+    const cols: Column<ShelfRow & Record<string, unknown>>[] = [
       {
         key: 'title', header: 'Title', width: 260,
         render: (r) => (
@@ -242,6 +284,14 @@ function Library({ cfg }: { cfg: Cfg }) {
         ),
       },
     ];
+    if (cfg.latestByProduct) {
+      cols.push(
+        { key: 'dated', header: 'Dated', width: 120, wrap: false,
+          accessor: (r) => r.dated ?? '',
+          render: (r) => (r.dated ? formatDay(r.dated) : <span className="muted">—</span>) },
+        { key: '_product', header: 'Product', width: 170 },
+      );
+    }
     if (cfg.controlled) {
       cols.push(
         { key: 'doc_no', header: 'Doc No', width: 130, wrap: false },
@@ -255,7 +305,18 @@ function Library({ cfg }: { cfg: Cfg }) {
       });
     }
     cols.push(
-      { key: 'tags', header: 'Tags', width: 180 },
+      cfg.latestByProduct
+        // LATEST is the database's mark for THIS product (0350), shown before
+        // the tags somebody typed and never written into them.
+        ? { key: 'tags', header: 'Tags', width: 200,
+            accessor: (r) => [r._latest ? 'Latest' : '', r.tags].filter(Boolean).join(', '),
+            render: (r) => (
+              <>
+                {r._latest && <span className="badge badge-success" title={`The newest dated live note for ${r._product}`} style={{ marginRight: 6 }}>Latest</span>}
+                {r.tags}
+              </>
+            ) }
+        : { key: 'tags', header: 'Tags', width: 180 },
       // A STORED COPY AND A LINK ARE NOT THE SAME THING, and this is the column
       // where the difference shows. `file_name` is only ever set by the upload
       // path, so a document added by pasting a link left this cell EMPTY —
@@ -290,13 +351,13 @@ function Library({ cfg }: { cfg: Cfg }) {
             { key: '_updated', header: 'Updated', width: 160, wrap: false,
               accessor: (r: DocRow) => (fromDrive(r) ? r.source_modified_at ?? '' : r.updated_at),
               render: (r: DocRow) => formatDayTime(fromDrive(r) ? r.source_modified_at ?? '' : r.updated_at) },
-          ] as Column<DocRow & Record<string, unknown>>[]
+          ] as Column<ShelfRow & Record<string, unknown>>[]
         : [
             { key: 'uploaded_by_name', header: 'Added By', width: 150 },
             // dd-MMM-yyyy HH:mm:ss, never the stored UTC string (D-064).
             { key: 'updated_at', header: 'Updated', width: 160, wrap: false,
               render: (r: DocRow) => formatDayTime(r.updated_at) },
-          ] as Column<DocRow & Record<string, unknown>>[]),
+          ] as Column<ShelfRow & Record<string, unknown>>[]),
       {
         key: 'active', header: 'Live', width: 70, wrap: false,
         render: (r) => (r.active ? <span className="badge badge-success">Yes</span> : <span className="badge badge-neutral">No</span>),
@@ -316,7 +377,7 @@ function Library({ cfg }: { cfg: Cfg }) {
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg.controlled, cfg.driveDetails, cfg.multiProduct, mayEdit]);
+  }, [cfg.controlled, cfg.driveDetails, cfg.multiProduct, cfg.latestByProduct, mayEdit]);
 
   return (
     <div>
@@ -324,7 +385,15 @@ function Library({ cfg }: { cfg: Cfg }) {
         onRefresh={() => void load()}
         refreshing={busy}
         title={cfg.title} subtitle={cfg.subtitle} icon={cfg.icon} count={visible.length}
-        actions={mayEdit && <button className="btn btn-primary" onClick={() => { setEditing(null); setDraft({ ...EMPTY }); }}>＋ Add document</button>}
+        actions={mayEdit && (
+          <>
+            {cfg.latestByProduct && (
+              <button className="btn" disabled={busy} onClick={() => void refreshLatest()}
+                title="Re-mark the newest dated live note of every product as Latest">↻ Refresh Latest tags</button>
+            )}
+            <button className="btn btn-primary" onClick={() => { setEditing(null); setDraft({ ...EMPTY }); }}>＋ Add document</button>
+          </>
+        )}
       />
 
       {msg && (
@@ -334,10 +403,12 @@ function Library({ cfg }: { cfg: Cfg }) {
         </div>
       )}
 
-      <DataTable<DocRow & Record<string, unknown>>
+      <DataTable<ShelfRow & Record<string, unknown>>
         columns={columns}
-        rows={visible as (DocRow & Record<string, unknown>)[]}
-        getRowId={(r) => String(r.id)}
+        rows={shelf as (ShelfRow & Record<string, unknown>)[]}
+        getRowId={(r) => r._key}
+        groupable={cfg.latestByProduct ? [{ key: '_product', label: 'Product' }] : undefined}
+        defaultGroup={cfg.latestByProduct ? ['_product'] : undefined}
         storageKey={`documents-${cfg.kind}`}
         rowsBeforeScroll={14}
         dense
@@ -362,6 +433,16 @@ function Library({ cfg }: { cfg: Cfg }) {
               <span className="field-label">Title *</span>
               <input className="input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder={cfg.controlled ? 'e.g. Calibration of oxygen sensors' : 'e.g. VEGA service manual'} />
             </label>
+
+            {cfg.latestByProduct && (
+              <label className="field">
+                <span className="field-label">Dated</span>
+                <input className="input" type="date" value={draft.dated} onChange={(e) => setDraft({ ...draft, dated: e.target.value })} />
+                <span className="muted" style={{ fontSize: 12 }}>
+                  The note's own date. The newest dated note of each product is tagged Latest; a note with no date is never Latest.
+                </span>
+              </label>
+            )}
 
             {cfg.controlled ? (
               <>

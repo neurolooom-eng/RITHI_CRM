@@ -1914,7 +1914,19 @@ with checks(sort_order, bundle, provides, present) as (
     (281, 'Objective: a figure typed over a calculated month is a manual override', 'Asked for 2026-10-04. quality_objectives.overrides marks a month of a computed objective typed over by hand -- who, when, the calculated figure -- written only by the trigger zy_quality_objectives_mark_override; recalc_quality_objectives(year, keep_overrides) keeps or discards them, and the one-argument call keeps them. NO means the column, the trigger or the two-argument function is missing. Restore: objective.sql (0349)',
         (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'quality_objectives' and column_name = 'overrides')
      and to_regprocedure('public.recalc_quality_objectives(integer,boolean)') is not null
-     and exists (select 1 from pg_trigger where tgname = 'zy_quality_objectives_mark_override' and not tgisinternal)))
+     and exists (select 1 from pg_trigger where tgname = 'zy_quality_objectives_mark_override' and not tgisinternal))),
+    (282, 'Technical / Service Notes: Dated, and the latest note per product tagged', 'documents.dated and documents.latest_for; refresh_service_note_latest_all() marks the newest dated live note of each product, run by the zz_service_note_latest_ins / _upd statement triggers and by the Refresh Latest tags button through refresh_service_note_latest() (docs.manage; not the public key) (0350). Restore: documents.sql (0350)',
+        ((select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'documents'
+            and column_name in ('dated', 'latest_for')) = 2
+         and to_regprocedure('public.refresh_service_note_latest_all()') is not null
+         and not has_function_privilege('authenticated', to_regprocedure('public.refresh_service_note_latest_all()'), 'EXECUTE')
+         and to_regprocedure('public.refresh_service_note_latest()') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.refresh_service_note_latest()'), 'EXECUTE')
+         and has_function_privilege('authenticated', to_regprocedure('public.refresh_service_note_latest()'), 'EXECUTE')
+         and exists (select 1 from pg_trigger where tgname = 'zz_service_note_latest_ins'
+                      and tgrelid = to_regclass('public.documents') and not tgisinternal)
+         and exists (select 1 from pg_trigger where tgname = 'zz_service_note_latest_upd'
+                      and tgrelid = to_regclass('public.documents') and not tgisinternal)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

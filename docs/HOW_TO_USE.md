@@ -1018,6 +1018,16 @@ typed into a form that reads it.
 - **Technical / Service Notes** `/service-manuals/notes` — technical bulletins and
   service notes, by product, kept the same way as the manuals. Whoever can open
   Service Manuals can open these; adding them needs the same permission.
+  > **Grouped per product, newest first.** A note covering several products is
+  > listed under each of them; a note with none is under **Every product**.
+  > Inside a group the notes run by **Dated** — the note's own date, which you
+  > type in on the form (or the **Dated** column of the upload) — newest first.
+  > **Latest** is added by itself to the newest *dated*, *live* note of each
+  > product. Add a newer note, change a Dated or retire a note and the tags move
+  > on their own; **↻ Refresh Latest tags** re-does them for every product if
+  > they ever look wrong. A note with no Dated, or a retired one, is never Latest;
+  > two notes on the same newest date are both Latest. A note for two products
+  > can be Latest under one and not the other.
   > **A note can cover several products** — tick them all. None ticked means it
   > applies to every product. **A call's 📄 Supporting documents lists every
   > active note for its product** beside the manuals; a retired note is not offered.
@@ -1026,7 +1036,7 @@ typed into a form that reads it.
   > it was entered in RITHI is under **Record details** when you edit it.
   > **Many at once:** Bulk Uploads → **Technical / Service Notes** — Title,
   > Product (spelled as the Product Database spells it; several products
-  > comma-separated), the Drive Link, and optionally Document No, Tags, Notes,
+  > comma-separated), the Drive Link, and optionally Dated, Document No, Tags, Notes,
   > and the listing's Created, Last Modified and Last Modified By. Matched on the
   > Drive link, so loading the list again corrects those notes rather than
   > adding them twice.
