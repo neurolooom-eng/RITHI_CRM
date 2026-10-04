@@ -363,6 +363,8 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Indoor Service', key: 'recycle.request', label: 'Raise a recycling MRS (no approval)' },
   { group: 'Indoor Service', key: 'recycle.issue', label: 'Book out a recycling MRS with cost (Stores)' },
   { group: 'Indoor Service', key: 'recycle.close', label: 'Consume, add costs and close a recycling request' },
+  // 0376: deleting a request -- granted to NO role (an administrator passes).
+  { group: 'Indoor Service', key: 'recycle.delete', label: 'Delete a recycling request' },
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
   { group: 'Spares', key: 'consumption.reconcile', label: 'Add consumption against a call (reconciliation)' },
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
@@ -753,7 +755,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/indoor', label: 'Indoor Service Register',
       actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn', 'indoor.verify', 'indoor.delete'] },
     { path: '/indoor/recycling', label: 'Spare Recycling',
-      actions: ['recycle.view', 'recycle.register', 'recycle.request', 'recycle.issue', 'recycle.close'] },
+      actions: ['recycle.view', 'recycle.register', 'recycle.request', 'recycle.issue', 'recycle.close', 'recycle.delete'] },
   ] },
   { title: 'Reports', pages: [
     // The parent GRANTS ALL THREE below it, so a role that only needs one is

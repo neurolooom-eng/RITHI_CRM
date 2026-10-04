@@ -24,6 +24,7 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput } from '../components/ui/LongDate';
 import { useAuth } from '../lib/auth';
+import { logAudit } from '../lib/audit';
 import { useAuditMode } from '../lib/auditMode';
 import { useSpareParts } from '../lib/useSpareParts';
 import { formatDay, formatDayTime, todayLocal } from '../lib/dates';
@@ -35,7 +36,7 @@ import {
   listRecycleMrs, raiseRecycleMrs, issueRecycleLine, listRecycleHandStock,
   listRecycleConsumption, addRecycleConsumption, deleteRecycleConsumption,
   listRecycleCosts, addRecycleCost, deleteRecycleCost,
-  registerRecycleRequests, startRecycleWork, listRecycleMrnLines,
+  registerRecycleRequests, startRecycleWork, listRecycleMrnLines, deleteRecycleRequests,
   type RecycleRequest, type RecycleMrnLine, type RecycleMrsLine, type RecycleHandStock, type RecycleConsumption, type RecycleCost,
 } from '../lib/supabase';
 import './fieldcalls.css';
@@ -51,6 +52,8 @@ const splitPart = (v: string): { code: string; description: string } => {
 };
 const money = (n: number | null | undefined) =>
   n == null ? '' : `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// THE SOURCE of a request (the user, 2026-10-04), held in received_from.
+const RECYCLE_SOURCES = ['Service Return', 'Defective Spare'] as const;
 const qtyText = (n: number | null | undefined) => (n == null ? '' : String(Number(n)));
 const registeredText = (nos: string[]) => (nos.length <= 1
   ? `Registered ${nos[0] ?? ''}.`
@@ -70,6 +73,7 @@ export function SpareRecycling() {
   const mayRequest = can('recycle.request');
   const mayIssue = can('recycle.issue');
   const mayClose = can('recycle.close');
+  const mayDelete = can('recycle.delete');
   const parts = useSpareParts(live && !audit.on);
 
   const [tab, setTab] = useState<Tab>('requests');
@@ -101,11 +105,12 @@ export function SpareRecycling() {
     const qty = Number(reg.qty);
     if (!p.code) { setErr('Pick the defective part.'); return; }
     if (!(qty > 0)) { setErr('Quantity must be more than 0.'); return; }
+    if (!reg.received_from) { setErr('Choose the Source.'); return; }
     if (!Number.isInteger(qty)) { setErr('Quantity must be a whole number.'); return; }
     // ONE REQUEST PER SPARE (the user, 2026-10-04): a quantity of 3 is three
     // requests, numbered together in one go by the database.
     const res = await registerRecycleRequests({
-      part_code: p.code, part_description: p.description, serial: qty > 1 ? '' : reg.serial.trim(), qty,
+      part_code: p.code, part_description: p.description, serial: '', qty,
       received_on: reg.received_on, received_from: reg.received_from.trim(), call_ref: reg.call_ref.trim(), remarks: reg.remarks.trim(),
     });
     if (!res.ok) { setErr(res.error ?? 'Not saved.'); return; }
@@ -135,7 +140,7 @@ export function SpareRecycling() {
   };
   const openRequest = (r: RecycleRequest) => {
     setOpen(r); setJobDone(r.job_done); setCloseAs(''); setReason(''); setRetQty(qtyText(r.qty));
-    const np = nowParts(); setStartDate(np.date); setStartTime(np.time); setSerialEdit(r.serial);
+    const np = nowParts(); setStartDate(np.date); setStartTime(np.time);
     setConsPart(''); setConsQty('1'); setCostDesc(''); setCostAmt(''); setErr('');
     void loadOpen(r);
   };
@@ -157,14 +162,6 @@ export function SpareRecycling() {
     const res = await startRecycleWork(open.id, at.toISOString());
     if (!res.ok) { setErr(res.error ?? 'Not saved.'); return; }
     setErr(''); setMsg(`Work started on ${open.rcy_no}.`); void refreshOpen(open.id);
-  };
-  // ---- a request's own serial, set after a multi-spare registration ----
-  const [serialEdit, setSerialEdit] = useState('');
-  const saveSerial = async () => {
-    if (!open) return;
-    const res = await updateRecycleRequest(open.id, { serial: serialEdit.trim() });
-    if (!res.ok) { setErr(res.error ?? 'Not saved.'); return; }
-    setMsg('Serial saved.'); void refreshOpen(open.id);
   };
 
   // The consumer's own recycling hand stock, part by part — what can be consumed.
@@ -241,6 +238,21 @@ export function SpareRecycling() {
     void load();
   };
 
+  // ---- DELETE (0376, the user, 2026-10-04: "Add Delete Option") -------------
+  // One or many, open or closed: the consumption on them returns to the
+  // recycling hand stock, their other costs go, an MRS for one stays unlinked.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const doDelete = async (ids: number[]) => {
+    if (!ids.length) return;
+    const nos = requests.filter((r) => ids.includes(r.id)).map((r) => r.rcy_no);
+    if (!window.confirm(`Delete ${ids.length === 1 ? nos[0] : `${ids.length} recycling requests`}?\n\nAny spares consumed on ${ids.length === 1 ? 'it' : 'them'} go back to the recycling hand stock, and ${ids.length === 1 ? 'its' : 'their'} other costs are removed. An MRS raised for ${ids.length === 1 ? 'it' : 'them'} stays. This cannot be undone.`)) return;
+    const res = await deleteRecycleRequests(ids);
+    if (!res.ok) { setErr(res.error ?? 'Not deleted.'); return; }
+    logAudit({ action: 'recycle.delete', target: nos.join(', '), meta: { count: res.data } });
+    setPicked(new Set()); setOpen(null); setErr(''); setMsg(`Deleted ${res.data} recycling request${res.data === 1 ? '' : 's'}.`);
+    void load();
+  };
+
   // ---- MRS: raise (no approval) and stock out with cost ---------------------
   const [mrsOpen, setMrsOpen] = useState(false);
   const [mrsFor, setMrsFor] = useState('');
@@ -279,10 +291,9 @@ export function SpareRecycling() {
     { key: 'received_on', header: 'Received', width: 110, render: (r) => formatDay(r.received_on), accessor: (r) => r.received_on },
     { key: 'part_code', header: 'Part Code', width: 120 },
     { key: 'part_description', header: 'Description', width: 200 },
-    { key: 'serial', header: 'Serial', width: 100 },
     { key: 'qty', header: 'Qty', width: 60, align: 'right' },
     { key: 'call_ref', header: 'Call Ref', width: 110 },
-    { key: 'received_from', header: 'Received From', width: 130 },
+    { key: 'received_from', header: 'Source', width: 130 },
     { key: 'status', header: 'Status', width: 120,
       render: (r) => <span className={`badge badge-${r.status === 'Open' ? 'warning' : r.status === 'Returned' ? 'success' : 'neutral'}`}>{r.status}</span> },
     { key: 'returned_part_code', header: 'Returned As', width: 120 },
@@ -364,6 +375,14 @@ export function SpareRecycling() {
       {tab === 'requests' && (
         <DataTable<RecycleRequest>
           columns={reqCols} rows={requests} getRowId={(r) => String(r.id)} storageKey="recycle-requests" dense
+          selectable={mayDelete} selected={picked} onSelectedChange={setPicked}
+          bulkBar={(ids, clear) => (
+            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <span>{ids.length} selected</span>
+              <button className="btn btn-sm btn-danger" onClick={() => void doDelete(ids.map(Number))}>🗑 Delete</button>
+              <button className="btn btn-sm" onClick={clear}>Clear</button>
+            </div>
+          )}
           emptyText={busy ? 'Loading…' : 'No recycling requests yet.'}
           toolbar={<Toolbar>
             <button className="btn btn-sm" onClick={() => csvExport('recycling-requests.csv',
@@ -446,18 +465,17 @@ export function SpareRecycling() {
         <div className="field"><label className="field-label">Defective part *</label>
           <SelectPicker value={reg.part} onChange={(v) => setReg((d) => ({ ...d, part: v }))} options={partOptions} placeholder="Pick from Part Master" /></div>
         <div className="row" style={{ gap: 10 }}>
-          <div className="field" style={{ flex: 1 }}><label className="field-label">Serial</label>
-            <input className="input" value={Number(reg.qty) > 1 ? '' : reg.serial} disabled={Number(reg.qty) > 1}
-              placeholder={Number(reg.qty) > 1 ? 'Each request gets its own' : ''}
-              onChange={(e) => setReg((d) => ({ ...d, serial: e.target.value }))} /></div>
+          {/* SOURCE, a pick of two (the user, 2026-10-04: "Rename it to Source ->
+              DropDown - Service Return, Defective Spare"); no Serial field. */}
+          <div className="field" style={{ flex: 1 }}><label className="field-label">Source *</label>
+            <SelectPicker value={reg.received_from} onChange={(v) => setReg((d) => ({ ...d, received_from: v }))}
+              options={[...RECYCLE_SOURCES]} placeholder="Choose…" /></div>
           <div className="field" style={{ width: 90 }}><label className="field-label">Qty *</label>
             <input className="input" type="number" min="1" value={reg.qty} onChange={(e) => setReg((d) => ({ ...d, qty: e.target.value }))} /></div>
           <div className="field" style={{ width: 170 }}><label className="field-label">Received on *</label>
             <LongDateInput value={reg.received_on} onChange={(v) => setReg((d) => ({ ...d, received_on: v }))} /></div>
         </div>
         <div className="row" style={{ gap: 10 }}>
-          <div className="field" style={{ flex: 1 }}><label className="field-label">Received from</label>
-            <input className="input" value={reg.received_from} onChange={(e) => setReg((d) => ({ ...d, received_from: e.target.value }))} /></div>
           <div className="field" style={{ flex: 1 }}><label className="field-label">Call reference (optional)</label>
             <input className="input" placeholder="UCN or call number" value={reg.call_ref} onChange={(e) => setReg((d) => ({ ...d, call_ref: e.target.value }))} /></div>
         </div>
@@ -465,7 +483,7 @@ export function SpareRecycling() {
           <textarea className="input" rows={2} value={reg.remarks} onChange={(e) => setReg((d) => ({ ...d, remarks: e.target.value }))} /></div>
         <p className="muted" style={{ fontSize: 12 }}>
           The call reference is kept as text only — nothing on the call changes.
-          {Number(reg.qty) > 1 && <> A quantity of <b>{reg.qty}</b> is registered as <b>{reg.qty} separate requests</b>, one per spare — set each serial on its own request.</>}
+          {Number(reg.qty) > 1 && <> A quantity of <b>{reg.qty}</b> is registered as <b>{reg.qty} separate requests</b>, one per spare.</>}
         </p>
         <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
           <button className="btn" onClick={() => setRegOpen(false)}>Cancel</button>
@@ -522,22 +540,20 @@ export function SpareRecycling() {
         {open && (<>
           <p style={{ marginTop: 0 }}>
             <b>{open.part_code}</b> {open.part_description}{open.serial && <> · Serial {open.serial}</>} · Qty {qtyText(open.qty)}
-            <br /><span className="muted">Received {formatDay(open.received_on)}{open.received_from && <> from {open.received_from}</>}
+            <br /><span className="muted">Received {formatDay(open.received_on)}{open.received_from && <> · Source {open.received_from}</>}
               {open.call_ref && <> · Call ref {open.call_ref}</>} · Registered by {open.created_by_name}</span>
             {open.remarks && <><br /><span className="muted">{open.remarks}</span></>}
           </p>
+          {mayDelete && (
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn btn-sm btn-danger" onClick={() => void doDelete([open.id])}>🗑 Delete this request</button>
+            </div>)}
           <p><span className={`badge badge-${open.status === 'Open' ? 'warning' : open.status === 'Returned' ? 'success' : 'neutral'}`}>{open.status}</span>
             {open.status === 'Returned' && <> Returned to the Service Store as <b>{open.returned_part_code}</b> × {qtyText(open.returned_qty)} on {formatDay(open.returned_on)}</>}
             {open.status === 'Not recyclable' && <> {open.not_recyclable_reason}</>}
             {open.closed_at && <span className="muted"> · closed {formatDayTime(open.closed_at)} by {open.closed_by_name}</span>}
           </p>
 
-          {isOpen && mayRegister && (
-            <div className="row" style={{ gap: 8, alignItems: 'flex-end' }}>
-              <div className="field" style={{ width: 220 }}><label className="field-label">Serial</label>
-                <input className="input" value={serialEdit} onChange={(e) => setSerialEdit(e.target.value)} /></div>
-              {serialEdit !== open.serial && <button className="btn btn-sm" onClick={() => void saveSerial()}>Save serial</button>}
-            </div>)}
 
           <div className="obj-ovr-box" style={{ marginTop: 6, marginBottom: 10 }}>
             <div className="field-label">Work &amp; SLA</div>

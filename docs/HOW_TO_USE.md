@@ -1452,10 +1452,10 @@ typed into a form that reads it.
   Requests, Stock Out or the regular Hand Stock. **While Audit Mode is on the
   whole page disappears** (an open page goes back to the home screen), along
   with its menu entry, guide entry, data flow and SLA section.
-  - **Register** a defective spare (RCY/26/0001): the part, serial, quantity,
-    received on and from, and an optional call reference (text only). **A
-    quantity of 3 becomes 3 requests**, one per spare; give each its serial on
-    its own request.
+  - **Register** a defective spare (RCY/26/0001): the part, quantity,
+    received on, its **Source** — **Service Return** or **Defective Spare** —
+    and an optional call reference (text only). There is no serial. **A
+    quantity of 3 becomes 3 requests**, one per spare.
   - **Import from MRN**: search any MRN, **Pick** a line and import its good
     and defective quantity — each spare becomes its own request, carrying the
     MRN No. The MRN itself is not changed, and a line can be imported again.
@@ -1475,6 +1475,10 @@ typed into a form that reads it.
     job done must be filled first; a closed request cannot be changed.
   - **Cost**: each request shows parts (at their stock-out cost) + other
     costs; the Cost tab totals everything spent on recycling.
+  - **Delete**: tick one or more requests in the list (or open one) and press
+    **Delete** — open or closed. Its consumption and other costs go with it
+    (the parts return to your recycling hand stock); an MRS raised against it
+    is kept. Needs **Delete a recycling request**.
   - Its keys are given to no role — grant them on **Roles & Permissions →
     Indoor Service**.
 - **Solved Without a Report** `/missing-visit-reports` — **administrators

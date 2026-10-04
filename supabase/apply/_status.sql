@@ -2031,7 +2031,11 @@ with checks(sort_order, bundle, provides, present) as (
         (coalesce((select pg_get_constraintdef(c.oid) like '%New device%' from pg_constraint c
                     where c.conrelid = to_regclass('public.indoor_jobs') and c.conname = 'indoor_jobs_kind_check'), false)
      and coalesce((select p.prosrc like '%''New device''%' from pg_proc p
-                    where p.oid = to_regprocedure('public.create_indoor_dc(bigint[],text,text,date,text,text,jsonb,text)')), false)))
+                    where p.oid = to_regprocedure('public.create_indoor_dc(bigint[],text,text,date,text,text,jsonb,text)')), false))),
+    (308, 'Spare Recycling: a request can be deleted, with its consumption and costs', 'Asked for 2026-10-04. delete_recycle_requests() asks recycle.delete (and Audit Mode off), removes the requests with their consumption and other costs and unlinks their MRSs; the consumption and other-cost guards step aside only for it (0376). NO means recycling.sql has not been re-run since. Restore: recycling.sql (0376)',
+        (to_regprocedure('public.delete_recycle_requests(bigint[])') is not null
+     and coalesce((select p.prosrc like '%rithi.recycle_delete%' from pg_proc p where p.oid = to_regprocedure('public.recycle_consumption_guard()')), false)
+     and coalesce((select p.prosrc like '%rithi.recycle_delete%' from pg_proc p where p.oid = to_regprocedure('public.recycle_other_costs_guard()')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

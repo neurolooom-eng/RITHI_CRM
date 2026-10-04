@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.96',
+    date: '2026-10-04',
+    title: 'Spare Recycling: Delete, and Source on the register form',
+    auditHidden: true,
+    changes: [
+      'Delete one or more recycling requests — tick them in the list and press Delete, or open one and press Delete this request. Its consumption and other costs go with it; an MRS raised against it is kept. Needs the new permission “Delete a recycling request”, given to no role.',
+      '“Received from” is now Source — pick Service Return or Defective Spare.',
+      'The Serial field is removed from the register form, the request window and the list.',
+    ],
+  },
+  {
     version: '0.10.95',
     date: '2026-10-04',
     title: 'Indoor intake: Field Return, Demo and New Device as three separate options',

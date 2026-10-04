@@ -6939,3 +6939,8 @@ export async function setRecycleSla(workingDays: number, weekendDays: number[]):
   const { error } = await must().rpc('set_recycle_sla', { p_working_days: workingDays, p_weekend_days: weekendDays });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
+/** Deletes recycling requests with their consumption and other costs (0376). */
+export async function deleteRecycleRequests(ids: number[]): Promise<Res<number>> {
+  const { data, error } = await must().rpc('delete_recycle_requests', { p_ids: ids });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, data: Number(data ?? 0) };
+}
