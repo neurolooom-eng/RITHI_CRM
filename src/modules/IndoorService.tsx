@@ -1331,42 +1331,9 @@ function IndoorJobDrawer({
           </Group>
         ) : null}
 
-        {/* ---- the checks (SR-003 / SR-006 / SR-020) ---------------------- */}
-        {SHOWS.checks(a) ? (
-          <Group title="Checks · expected against measured">
-            <p className="ind-hint" title="SR-006 asks for the expected value beside each reading, and SR-020 for the instrument that took it, with its calibration date. Phase 3 fills the expected column from per-product reference values.">
-              Each reading beside its expected value and the instrument that took it.</p>
-            <div className="ind-lines-wrap">
-              <table className="ind-lines is-edit">
-                <thead><tr><th>Parameter</th><th>Expected</th><th>Measured</th><th>Verdict</th>
-                  <th>Instrument</th><th>Cal. due</th><th /></tr></thead>
-                <tbody>
-                  {checks.map((c) => (
-                    <tr key={c.id}>
-                      <td><input aria-label="Parameter" defaultValue={c.parameter} disabled={!mayWork}
-                        onBlur={(e) => child(() => saveIndoorCheck(c.id, { parameter: e.target.value }))} /></td>
-                      <td><input aria-label="Expected" defaultValue={c.expected} disabled={!mayWork}
-                        onBlur={(e) => child(() => saveIndoorCheck(c.id, { expected: e.target.value }))} /></td>
-                      <td><input aria-label="Measured" defaultValue={c.measured} disabled={!mayWork}
-                        onBlur={(e) => child(() => saveIndoorCheck(c.id, { measured: e.target.value }))} /></td>
-                      <td><SelectPicker value={c.verdict} options={['Pass', 'Fail', 'N/A']} disabled={!mayWork}
-                        onChange={(v) => child(() => saveIndoorCheck(c.id, { verdict: v }))} /></td>
-                      <td><input aria-label="Instrument" defaultValue={c.instrument} disabled={!mayWork}
-                        onBlur={(e) => child(() => saveIndoorCheck(c.id, { instrument: e.target.value }))} /></td>
-                      <td><input aria-label="Calibration due" type="date" defaultValue={c.calibration_due ?? ''} disabled={!mayWork}
-                        onBlur={(e) => child(() => saveIndoorCheck(c.id, { calibration_due: e.target.value }))} /></td>
-                      <td>{mayWork ? <button type="button" className="ind-x" aria-label="Remove check" title="Remove"
-                        onClick={() => child(() => deleteIndoorCheck(c.id))}>×</button> : null}</td>
-                    </tr>
-                  ))}
-                  {checks.length === 0 ? <tr><td colSpan={7} className="ind-rows-empty">No checks recorded.</td></tr> : null}
-                </tbody>
-              </table>
-            </div>
-            {mayWork ? <button type="button" className="ind-add"
-              onClick={() => child(() => addIndoorCheck(job.id, { seq: checks.length + 1 }))}>+ Add a check</button> : null}
-          </Group>
-        ) : null}
+        {/* THE CHECKS TABLE (expected against measured) was removed from the job
+            page (the user, 2026-10-04: "Remove only the Checks table, keep QC").
+            Rows already recorded stay in indoor_job_checks. */}
 
         {/* ---- R/SER/QC/007 (0320): owed by a DEMO unit of an IMPORTED
             product, and only by one. Unknown is said out loud. */}
