@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**109 tables · 41 views · 3054 columns · 223 policies · 68 foreign keys.**
+**109 tables · 41 views · 3063 columns · 223 policies · 68 foreign keys.**
 
 ## How to read this
 
@@ -3372,6 +3372,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 26 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 27 | `sys_updated_by` | uuid | yes |  |  |
 | 28 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 29 | `work_started_at` | timestamp with time zone | yes |  |  |
+| 30 | `work_started_by` | uuid | yes |  |  |
+| 31 | `work_started_by_name` | text | **no** | `''::text` |  |
+| 32 | `mrn_ref` | text | **no** | `''::text` |  |
 
 **Unique:** `rcy_no` _(recycle_requests_rcy_no_key)_ · `rcy_no` _(recycle_requests_rcy_no_key)_ · `sys_id` _(recycle_requests_sys_id_key)_
 
@@ -4711,7 +4715,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `recycle_consumption_list` | **on** | 10 |
 | `recycle_hand_stock` | **on** | 8 |
 | `recycle_mrs_list` | **on** | 17 |
-| `recycle_request_list` | **on** | 27 |
+| `recycle_request_list` | **on** | 32 |
 | `solved_without_report` | **on** | 16 |
 | `spare_pending_dispatch` | **on** | 31 |
 | `spare_pending_rm` | **on** | 24 |

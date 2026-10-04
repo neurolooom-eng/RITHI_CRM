@@ -722,7 +722,11 @@ const MODULES = {
             'spare module or the regular hand stock. Every read and write is refused',
             'while Audit Mode is on (a non-auditable requirement).'],
     needs: ['profiles', 'rbac', 'auditMode'],
-    files: ['0355_spare_recycling.sql'],
+    files: ['0355_spare_recycling.sql',
+            // Start Work and its SLA in working days (settings on the SLA
+            // page), one request per spare, import from MRN (2026-10-04).
+            // Redefines 0355's request guard and request list.
+            '0365_spare_recycling_start_sla_mrn.sql'],
   },
   indoor: {
     title: 'Indoor Service (the workshop register, §4.5)',

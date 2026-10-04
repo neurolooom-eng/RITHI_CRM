@@ -77,6 +77,28 @@ up)_
 
 ---
 
+## 2026-10-04 — Spare Recycling: Start Work + SLA, one request per spare, import from MRN, the page gone in Audit Mode (0365)
+
+- **Audit Mode leak fixed** (reported: "I tried to turn on the Audit Mode,
+  Still i am able to see the Spare Recycling Page"): `useAuditMode` read the
+  switch once per screen and cached it, so the menu never heard it change.
+  It is now ONE shared state, published by the switch the moment it saves,
+  re-read every minute and on tab focus; the page returns to home while on.
+- **Start Work** (`start_recycle_work()`, once, not future, not before
+  registration) starts the SLA: `recycle_sla_due()` = start + N working days
+  skipping the holiday weekdays, IST. Settings `recycle_sla_working_days` (3)
+  and `recycle_sla_weekend_days` ('0,6') in app_settings, set only through
+  `set_recycle_sla()` (Admin config) from the SLA page's own section — kept
+  apart from the call SLA rules. List: Work Started, SLA Due, SLA status.
+- **One request per spare**: `register_recycle_requests()` makes N requests;
+  the guard refuses qty > 1; a serial goes on its own request.
+- **Import from MRN**: `recycle_mrn_lines()` reads material_returns read-only
+  (good + defective, any number of times, MRN No kept as `mrn_ref`). It lets a
+  recycle.register holder see every MRN line, which material_returns' own
+  policy would narrow — that is what importing from all of them needs.
+- NAR-008.11-.15, suite extended (17 assertions, 17 expected errors),
+  `_status.sql` row 299, flow gains Import from MRN and Start Work.
+
 ## 2026-10-04 — Spare Recycling: a parallel track under Indoor Service (0355, v0.10.83)
 
 - Asked: registration, MRS (no approval), stock out with cost, a separate

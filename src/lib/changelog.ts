@@ -14,6 +14,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.88',
+    date: '2026-10-04',
+    title: 'Spare Recycling: Start Work and SLA, one request per spare, import from MRN',
+    auditHidden: true,
+    changes: [
+      'FIXED: switching Audit Mode on now takes Spare Recycling away at once — the menu entry goes, and an open page returns to the home screen. Other devices follow within a minute (or when the tab is next opened).',
+      'START WORK: open a request and press Start Work with the date and time. The SLA starts only then — due 3 working days later, Saturday and Sunday skipped. The list shows Work Started, SLA Due and On track / Due today / Breached (Met once closed in time).',
+      'Set the working days and which weekdays are holidays on Admin Config → SLA Targets → Spare Recycling SLA.',
+      'A quantity of more than one is registered as that many requests, one per spare; give each its serial on its own request.',
+      'IMPORT FROM MRN: search any MRN, pick a line and import its good and defective quantity as requests — the MRN No is kept on each. A line can be imported again; the MRN is not changed.',
+    ],
+  },
+  {
     version: '0.10.87',
     date: '2026-10-04',
     title: 'SLA / Objective Configuration — Product Failure is a failure within 3 months, over a rolling 12 months',
