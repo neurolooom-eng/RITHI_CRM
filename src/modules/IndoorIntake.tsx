@@ -124,7 +124,7 @@ export function IndoorIntake({ onFiled, onCancel }: {
 
       <div className="ind-seg" role="radiogroup" aria-label="How the unit came in">
         <button type="button" role="radio" aria-checked={mode === 'call'} className={mode === 'call' ? 'is-on' : ''}
-          onClick={() => { setMode('call'); setF(EMPTY); }}>From a call</button>
+          onClick={() => { setMode('call'); setF(EMPTY); }}>Field Return</button>
         <button type="button" role="radio" aria-checked={mode === 'demo'} className={mode === 'demo' ? 'is-on' : ''}
           onClick={() => { setMode('demo'); setF(EMPTY); setActivity('Demo'); }}>Demo / new device</button>
       </div>
