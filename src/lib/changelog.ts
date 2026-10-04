@@ -12,13 +12,27 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.81',
+    version: '0.10.82',
     date: '2026-10-04',
     title: 'Technical / Service Notes: grouped per product, Dated, and the Latest tag',
     changes: [
       'TECHNICAL / SERVICE NOTES: grouped per product — a note for several products shows under each one; a note for none is under Every product.',
       'New DATED field on the note (type it on the form, or a Dated column in the bulk upload). Notes run newest Dated first.',
       'LATEST is tagged by itself on the newest dated, live note of each product, and moves when a newer note is added, a Dated changes or a note is retired. ↻ Refresh Latest tags re-does them all on demand.',
+    ],
+  },
+  {
+    version: '0.10.81',
+    date: '2026-10-04',
+    title: 'Review fixes: review search counts, visits by UCN, party lookup, delete guard, dealer re-loads',
+    changes: [
+      'DAILY COMPLAINT REVIEW: searching no longer turns every count to 0 and disables Export; the Export button counts the calls the file will carry when a Review Status is chosen.',
+      'CALL REVIEW and the review drawer: a visit filed under the UCN alone now shows on its call; if the visits cannot be read, the screen says so instead of "No visit on record".',
+      'PRODUCT & PARTY SEARCH: opening a party always shows that party\'s own details, never another one whose name sorts first; the party list says when it shows only the first 50.',
+      'PARTY and PART MASTER: a party named as a machine\'s Sold Through, an Indoor DC consignee, or a Field Failure Report or return customer, and a part used on an Indoor job, can no longer be deleted.',
+      'INSTALLATION CALLS upload: re-loading the register no longer stops on a call already raised on a dealer; a new installation call for a dealer is still refused. The Sold Through picker also offers dealers whose type has stray spaces.',
+      'BULK REPORT MAPPING: a visit your role may not change is no longer counted as attached.',
+      'FIELD FAILURE REGISTER: the count shows + when it reaches the 5,000 the register reads. INDOOR SERVICE: an uploaded report\'s number can no longer be blanked.',
     ],
   },
   {
@@ -29,6 +43,20 @@ export const CHANGELOG: ChangeEntry[] = [
       'OBJECTIVE: you can type over a month of a calculated (ƒ) objective. It becomes a manual override, marked ✎ — hover it to see who typed it, when, and what the calculation had said.',
       'Re-calculate no longer overwrites those months without asking. When there are manual overrides it lists them and asks: Keep them (the default — they stay exactly as typed, on every run) or Discard them (those months are recalculated and the ✎ goes).',
       'DCCR: the change to Updated By / Updated Date (the registrant\'s email and the call date) is recorded in the validation package; the old register\'s own values are not being loaded, by decision.',
+    ],
+  },
+  {
+    version: '0.10.79',
+    date: '2026-10-04',
+    title: 'Review fixes: search, transfers, masters, Indoor DCs and feedback speed',
+    changes: [
+      'SEARCH (top of the screen): a group that has more than the five shown now says so, instead of looking complete.',
+      'STOCK TRANSFER: a transfer with a reason on some lines only is now saved; before, it was refused.',
+      'WARRANTY / CONTRACT REGISTERS: paging no longer shows a machine twice or skips one when many share an end date.',
+      'PARTY MASTER and PART MASTER: an edit your role is not allowed to save now says Nothing was saved, instead of Saved.',
+      'PRODUCT DATABASE: a machine can no longer be deleted by anyone signed in; adding and editing are unchanged.',
+      'CUSTOMER FEEDBACK: opens much faster for engineers (measured 12 seconds down to under a hundredth of a second on 30,000 rows); who sees what is unchanged.',
+      'INDOOR DCs: correcting an approver\'s name in the User Master carries the DCs still waiting for them to the new name; the approvals page says when no DC names you; a deleted Indoor job is recorded once in the audit log, not twice.',
     ],
   },
   {

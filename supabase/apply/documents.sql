@@ -17,7 +17,7 @@
 --   0265_qms_document_key.sql
 --   0272_service_note_upload_key.sql
 --   0299_document_drive_details.sql
---   0350_service_note_dated_latest.sql
+--   0354_service_note_dated_latest.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -314,7 +314,7 @@ comment on column public.documents.source_modified_at is 'Drive''s Last Modified
 comment on column public.documents.source_modified_by is 'Drive''s Last Modified By, as the listing wrote it (0299). Not who entered it here -- that is uploaded_by.';
 
 -- ------------------------------------------------------------------------
--- 0350_service_note_dated_latest.sql
+-- 0354_service_note_dated_latest.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -354,9 +354,9 @@ alter table public.documents add column if not exists dated date;
 alter table public.documents add column if not exists latest_for text[] not null default '{}';
 
 comment on column public.documents.dated is
-  'Technical / Service Notes: the note''s own date, entered by hand. Orders the shelf (newest first) and decides which note is the latest per product (0350).';
+  'Technical / Service Notes: the note''s own date, entered by hand. Orders the shelf (newest first) and decides which note is the latest per product (0354).';
 comment on column public.documents.latest_for is
-  'Technical / Service Notes: the products this note is the latest for ('''' = every product). Written only by refresh_service_note_latest_all() (0350).';
+  'Technical / Service Notes: the products this note is the latest for ('''' = every product). Written only by refresh_service_note_latest_all() (0354).';
 
 create index if not exists documents_dated_idx on public.documents (kind, dated desc);
 

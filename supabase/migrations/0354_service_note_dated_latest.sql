@@ -35,9 +35,9 @@ alter table public.documents add column if not exists dated date;
 alter table public.documents add column if not exists latest_for text[] not null default '{}';
 
 comment on column public.documents.dated is
-  'Technical / Service Notes: the note''s own date, entered by hand. Orders the shelf (newest first) and decides which note is the latest per product (0350).';
+  'Technical / Service Notes: the note''s own date, entered by hand. Orders the shelf (newest first) and decides which note is the latest per product (0354).';
 comment on column public.documents.latest_for is
-  'Technical / Service Notes: the products this note is the latest for ('''' = every product). Written only by refresh_service_note_latest_all() (0350).';
+  'Technical / Service Notes: the products this note is the latest for ('''' = every product). Written only by refresh_service_note_latest_all() (0354).';
 
 create index if not exists documents_dated_idx on public.documents (kind, dated desc);
 

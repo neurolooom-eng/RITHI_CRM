@@ -1053,7 +1053,7 @@ export const UPLOADS: UploadDef[] = [
       TEXT('doc_no', 'document no', 'doc no', 'note no', 'tn no'),
       TEXT('revision', 'rev', 'rev no', 'revision no', 'version'),
       DATE('effective_date', 'effective date', 'issue date'),
-      // The note's own date (0350): orders the shelf and decides Latest.
+      // The note's own date (0354): orders the shelf and decides Latest.
       DATE('dated', 'dated', 'note date'),
       TEXT('file_name', 'file name', 'filename'),
       TEXT('tags', 'tags', 'tag'),

@@ -50,7 +50,7 @@ interface Cfg {
   driveDetails?: boolean;
   // TECHNICAL / SERVICE NOTES ONLY (the user, 2026-10-04): grouped per
   // product, a hand-entered Dated, newest first, and the latest note of each
-  // product tagged Latest -- stored by the database (0350), recalculated on
+  // product tagged Latest -- stored by the database (0354), recalculated on
   // every save and by the Refresh Latest tags button.
   latestByProduct?: boolean;
 }
@@ -98,7 +98,7 @@ const EMPTY: Draft = { title: '', product: '', doc_no: '', revision: '', effecti
 
 // ONE ROW PER NOTE PER PRODUCT, for the grouped notes shelf: a note covering
 // two products is listed under both, and is Latest for whichever of them the
-// database marked (latest_for, 0350). A note naming no product is the
+// database marked (latest_for, 0354). A note naming no product is the
 // "Every product" group, which the database spells ''.
 const EVERY_PRODUCT = 'Every product';
 type ShelfRow = DocRow & { _key: string; _product: string; _latest: boolean };
@@ -306,7 +306,7 @@ function Library({ cfg }: { cfg: Cfg }) {
     }
     cols.push(
       cfg.latestByProduct
-        // LATEST is the database's mark for THIS product (0350), shown before
+        // LATEST is the database's mark for THIS product (0354), shown before
         // the tags somebody typed and never written into them.
         ? { key: 'tags', header: 'Tags', width: 200,
             accessor: (r) => [r._latest ? 'Latest' : '', r.tags].filter(Boolean).join(', '),

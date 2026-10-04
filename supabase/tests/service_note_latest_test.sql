@@ -1,5 +1,5 @@
 -- ===========================================================================
--- TECHNICAL / SERVICE NOTES: THE LATEST NOTE PER PRODUCT (0350).
+-- TECHNICAL / SERVICE NOTES: THE LATEST NOTE PER PRODUCT (0354).
 --
 -- WHAT THIS PROVES:
 --   1. the newest DATED live note of each product is marked, PER PRODUCT: a
@@ -22,12 +22,12 @@
 \pset pager off
 
 insert into auth.users (id, email) values
-  ('03500000-0000-0000-0000-000000000001', 'sn-admin@x.com'),
-  ('03500000-0000-0000-0000-000000000002', 'sn-eng@x.com')
+  ('03540000-0000-0000-0000-000000000001', 'sn-admin@x.com'),
+  ('03540000-0000-0000-0000-000000000002', 'sn-eng@x.com')
 on conflict do nothing;
 insert into public.profiles (id, email, full_name, role) values
-  ('03500000-0000-0000-0000-000000000001', 'sn-admin@x.com', 'SN ADMIN', 'admin'),
-  ('03500000-0000-0000-0000-000000000002', 'sn-eng@x.com',   'SN ENG',   'engineer')
+  ('03540000-0000-0000-0000-000000000001', 'sn-admin@x.com', 'SN ADMIN', 'admin'),
+  ('03540000-0000-0000-0000-000000000002', 'sn-eng@x.com',   'SN ENG',   'engineer')
 on conflict do nothing;
 
 create or replace procedure public.be(p_email text) language plpgsql as $$

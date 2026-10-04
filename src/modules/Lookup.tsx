@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader } from '../components/ui/ui';
 import { searchProducts, dataConfigured } from '../lib/sheets';
-import { queryParties, sbListPartyItems, sbListProductNames, sbListProductSerials, sbSearchProductParties, supabaseConfigured, type ProductName } from '../lib/supabase';
+import { partyByExactName, queryParties, sbListPartyItems, sbListProductNames, sbListProductSerials, sbSearchProductParties, supabaseConfigured, type ProductName } from '../lib/supabase';
 import { productToCallPrefill } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
@@ -57,8 +57,10 @@ export function Lookup() {
   // so a result that DID stop at the cap can say so; it used to show 200 and
   // present them as everything that matched (finding 5).
   const FOUND_CAP = 200;
+  const PARTY_CAP = 50;
   const [foundTruncated, setFoundTruncated] = useState(false);
   const [partyHits, setPartyHits] = useState<Party[] | null>(null);
+  const [partyHitsMore, setPartyHitsMore] = useState(false);
   const [party, setParty] = useState<Party | null>(null);
   const [items, setItems] = useState<Row[]>([]);
   const [serialOpts, setSerialOpts] = useState<string[]>([]);
@@ -129,14 +131,14 @@ export function Lookup() {
     if (!name) return;
     setBusy('Loading the party…'); setMsg('');
     try {
-      const [rows, machines] = await Promise.all([
-        onDb ? queryParties({ name }, 0, 5) : Promise.resolve([] as Party[]),
+      const [exact, machines] = await Promise.all([
+        // BY EXACT NAME (D-133): a contains match ordered by name could put five
+        // other parties first, and the card then showed one of THEIR addresses
+        // above this party's machines. No match shows the name alone.
+        onDb ? partyByExactName(name) : Promise.resolve(null),
         onDb ? sbListPartyItems(name) : searchProducts({ party: name }, 500),
       ]);
-      // ilike is a CONTAINS match, so prefer the row whose name is exactly the
-      // one asked for — "APOLLO" must not open "APOLLO SPECIALITY".
-      const exact = rows.find((r) => g(r, 'party_name').toLowerCase() === name.toLowerCase());
-      setParty(exact ?? rows[0] ?? { party_name: name });
+      setParty(exact ?? { party_name: name });
       setItems((machines as Record<string, unknown>[]).map((m, i) => ({ ...m, id: String(i) })) as Row[]);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
@@ -166,8 +168,10 @@ export function Lookup() {
     if (!partyQ.trim()) { setMsg('Give a party name to search for.'); return; }
     setBusy('Searching…'); setMsg(''); setParty(null); setFound(null);
     try {
-      const rows = onDb ? await queryParties({ name: partyQ.trim() }, 0, 50) : [];
-      setPartyHits(rows);
+      // One more than is shown, so a list cut at 50 says so (D-133).
+      const rows = onDb ? await queryParties({ name: partyQ.trim() }, 0, PARTY_CAP + 1) : [];
+      setPartyHitsMore(rows.length > PARTY_CAP);
+      setPartyHits(rows.slice(0, PARTY_CAP));
       if (rows.length === 1) await openParty(g(rows[0], 'party_name'));
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
@@ -274,6 +278,7 @@ export function Lookup() {
                 <span className="muted">{[g(p, 'city'), g(p, 'state')].filter(Boolean).join(' · ')}</span>
               </button>
             ))}
+            {partyHitsMore && <div className="muted">The first {PARTY_CAP} of more — type more of the name to narrow it.</div>}
           </div>
         ) : <div className="sheet-banner sheet-banner-info">No party matched that name.</div>
       )}

@@ -161,6 +161,48 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-10-04 — Review batch 4: eight defects fixed, one half-fixed (v0.10.81, 0350–0353)
+- **Your ask:** *"take up the next batch of work"*, again.
+- **Screen fixes** (each held by `check:ui`):
+  - **D-091:** Bulk Report Mapping counts the visits it changed.
+  - **D-131:** a call's visits are found by UCN or call number, and a failed read says so.
+  - **D-133:** a party is opened by its exact name, and the party list says when it is cut at 50.
+  - **D-135:** the FFR count takes a `+` at the cap, and a refused read of the review marks is reported.
+  - **D-152, half:** the dealer picker reads DEALER as the database does.
+- **Database fixes:**
+  - **D-130 (0353):** the summary view carries the five searched columns, and the Export button counts what it writes.
+  - **D-137 (0350):** the delete guard counts Sold Through, consignee, demo party, FFR and return customers, and indoor job parts.
+  - **D-148 (0351):** the dealer guard stands aside on a re-load, party unchanged.
+  - **D-115 (0352):** an uploaded Indoor report keeps its number. This is a trigger of its own, so the stage guard is not rebuilt again.
+- **Left for your decision:**
+  - D-152's other half: should the database refuse a non-dealer Sold Through?
+  - D-145, D-149, D-150, D-151, D-154 and D-111, D-112, D-114 each change a behaviour.
+- **Checked:**
+  - `review_batch_4_test` is clean with the migrations. Without them it fails on each of D-130, D-137, D-148 and D-115. Writing it caught two fixture faults in my own first draft, both now fixed.
+  - `_status.sql` rows 282–285;
+  - FRS-077/107/111/118/120/233/242/243 amended, OQ-247 added.
+- **Renumbered after merging `main`:** another session took 0349, row 281, OQ-245/246 and v0.10.80 meanwhile.
+
+### 2026-10-04 — Review batch 3: ten defects fixed, one sent to you for a decision (v0.10.79, 0346–0348)
+- **Your ask:** *"take up the next batch of work"*. I took the open defects with a written suggested fix and no decision needed. Before changing anything I read every path that writes each record, so nothing honest breaks.
+- **Screen fixes** (each held by `check:ui`):
+  - **D-103:** the cover registers page by end date, then id.
+  - **D-113:** a stock transfer sends the reason on every line once any line has one.
+  - **D-117:** global search fetches six hits per group and shows five, saying when there are more.
+  - **D-141:** party and part edits count the rows they changed.
+  - **D-146:** the approvals page says no Indoor DC names you, for a reader who cannot open Indoor Service.
+  - **D-147:** a deleted Indoor job is audited once, by the database.
+- **Database fixes:**
+  - **D-132 (0347, 0348):** the feedback policies ask the permission once per query. Measured: 12,109 ms → 7.9 ms over 30,000 rows.
+  - **D-139 (0347):** no signed-in user deletes a machine through the API. Add, edit and the upload's upsert still work.
+  - **D-144 (0346):** a User Master rename carries a pending Indoor DC's Authorised By. A decided DC keeps its printed name.
+  - **D-153:** `_status.sql` reads `one_time_fixes_done` through `query_to_xml`. The old file failed on a project without the table, and the new one runs.
+- **Sent to you, not built — D-125:** the suggested rule would also refuse booking spares on another engineer's visit, and an office role reporting for anybody. Both are paths in use today.
+- **Checked:**
+  - `review_batch_3_test` raises on four checks without the migrations and none with them;
+  - `_status.sql` rows 278–280 read NO without them and yes with them;
+  - FRS-141/176/182/218/229/235/238 amended, OQ-244 added.
+
 ### 2026-10-04 — D-126: the name on an issued stock out can no longer be changed (v0.10.78, 0345)
 - **Your ask:** *"Fix D-126"*.
 - **Reproduced first** on a database built from every migration. A Stores Incharge set `dispatched_by` to "Somebody Else" on an issued stock out. The result was `UPDATE 1`, and that name is what the Delivery Challan and the Declaration print.
