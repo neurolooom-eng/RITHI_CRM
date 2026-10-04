@@ -1301,6 +1301,13 @@ typed into a form that reads it.
   The work runs in four **stages**, one page each, shown as a stepper at the
   top of each job and as a chip on every row of the register — and a job opens
   only the stages it has reached (no DC page at intake, for example):
+  - **The Repair page opens with the Workshop record.** For a job with a call
+    it asks **Call Status** and **Call Pending Reason**, with exactly the Visit
+    Entry's choices and rules — and they are the visit's own values, filed with
+    it when the Indoor DC is approved. The job's status follows: Solved →
+    **Ready** (after the QC Pass for a Repair, Rework or Troubleshooting);
+    Unsolved with spares not available → **Awaiting spares**; other Unsolved →
+    **Under repair**. A Demo / new device keeps its Status box.
   1. **Intake** — **Receive equipment** opens the intake form. A **Field
      Return** (a unit that came in on a call) is always a **Troubleshooting**
      job — it follows the Repair rule, so it cannot leave until its quality

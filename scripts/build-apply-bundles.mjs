@@ -794,7 +794,11 @@ const MODULES = {
             // A Field Return is a Troubleshooting job, held to the Repair rule
             // (2026-10-04). Re-states indoor_jobs_guard() from the database's
             // current definition (0352's), so AFTER it.
-            '0370_indoor_troubleshooting.sql'],
+            '0370_indoor_troubleshooting.sql',
+            // The job's Call Status / Call Pending Reason (2026-10-04): the
+            // visit files with them and the job's status is derived from them.
+            // Re-states 0370's guard and 0327's approve_indoor_dc, so AFTER both.
+            '0372_indoor_call_status.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',

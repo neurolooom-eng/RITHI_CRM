@@ -2021,7 +2021,12 @@ with checks(sort_order, bundle, provides, present) as (
     (305, 'Indoor Service: a Field Return is a Troubleshooting job, held to the Repair rule', 'Asked for 2026-10-04. indoor_jobs_activity_check admits Troubleshooting, and indoor_jobs_guard() refuses to dispatch or close a Troubleshooting job before its quality check, as for Repair and Rework (0370). NO means the check or the guard has not been re-run. Restore: indoor.sql (0370)',
         (coalesce((select pg_get_constraintdef(c.oid) like '%Troubleshooting%' from pg_constraint c
                     where c.conrelid = to_regclass('public.indoor_jobs') and c.conname = 'indoor_jobs_activity_check'), false)
-     and coalesce((select p.prosrc like '%''Troubleshooting''%' from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false)))
+     and coalesce((select p.prosrc like '%''Troubleshooting''%' from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false))),
+    (306, 'Indoor Service: the job''s Call Status / Call Pending Reason file its visit and set its status', 'Asked for 2026-10-04. indoor_jobs.call_status (the visit form''s three statuses) and call_pending_reason; zy_indoor_jobs_call_status derives the job''s status from them and keeps the visit draft in step; indoor_jobs_guard() and approve_indoor_dc() read them through indoor_visit_status() instead of the fixed Unsolved / Return to Field (0372). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0372)',
+        (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'indoor_jobs' and column_name = 'call_pending_reason')
+     and exists (select 1 from pg_trigger where tgname = 'zy_indoor_jobs_call_status' and not tgisinternal)
+     and coalesce((select p.prosrc like '%indoor_visit_status%' from pg_proc p where p.oid = to_regprocedure('public.approve_indoor_dc(text,boolean)')), false)
+     and coalesce((select p.prosrc like '%indoor_visit_status%' from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

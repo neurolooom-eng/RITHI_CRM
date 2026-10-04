@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.93',
+    date: '2026-10-04',
+    title: 'Indoor job: Call Status and Call Pending Reason at the top of the Repair page; MIRN removed from the DC',
+    changes: [
+      'REPAIR PAGE: the Workshop record is now at the top. For a job with a call, the Status box is replaced by Call Status and Call Pending Reason, with the same choices and rules as the Visit Entry — the reason is required while Unsolved, reads Report Pending for a pending report, and a completed report has none.',
+      'They are the visit’s values: the visit filed when the Indoor DC is approved carries what you chose (no longer always Unsolved / Return to Field). An Unsolved job with no reason cannot have its DC approved.',
+      'The job status now follows the Call Status: Solved → Ready (a Repair, Rework or Troubleshooting needs its QC Pass first); Unsolved with spares not available → Awaiting spares; any other Unsolved → Under repair. A Demo / new device keeps its Status box.',
+      'CREATE INDOOR DC: the MIRN No. / Customer Ref No., its date and the Mode of despatch are removed from the form.',
+    ],
+  },
+  {
     version: '0.10.92',
     date: '2026-10-04',
     title: 'Indoor job: the Checks table is removed',

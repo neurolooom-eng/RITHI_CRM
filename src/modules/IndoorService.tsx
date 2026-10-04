@@ -26,7 +26,8 @@ import { useAuth } from '../lib/auth';
 import { IndoorDcForm, IndoorDcList } from './IndoorDcPanel';
 import { consigneeKey, jobConsignee, jobStage, INDOOR_STAGES, STAGES_DONE, indoorReportFileName, tagOptions, type StageState } from '../lib/indoorforms';
 import { IndoorIntake } from './IndoorIntake';
-import { CallReportDrawer, type IndoorDraftMode, type VisitDraft } from './CallReporting';
+import { CallReportDrawer, STATUS_OPTIONS, type IndoorDraftMode, type VisitDraft } from './CallReporting';
+import { useMaster } from '../lib/masters';
 import { SpareRequestDrawer } from './SpareRequests';
 import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { logAudit } from '../lib/audit';
@@ -856,6 +857,8 @@ function IndoorJobDrawer({
   // this job's call passed in; the requester is the signed-in engineer (the
   // drawer's own default). The call's status is NOT touched.
   const [spareCall, setSpareCall] = useState<Record<string, unknown> | null>(null);
+  // The visit form's own Call Pending Reason master, for the Workshop record (0372).
+  const pendingReasons = useMaster('pendingreason');
   const requestSpare = async () => {
     const u = (job.ucn ?? '').trim();
     if (!u) return;
@@ -1110,6 +1113,57 @@ function IndoorJobDrawer({
 
       {/* ================= 3. REPAIR (4.5.6) ================= */}
       {view === 2 ? (<>
+        {/* THE WORKSHOP RECORD, AT THE TOP (the user, 2026-10-04: "Move this to
+            Top of this Page, Remove Status and Add - Call Status, Call Pending
+            Reason. Follow the Exact same rule as to Visit Work Details").
+            A job with a call: its Call Status / Pending Reason ARE the visit's
+            (0372), by the visit form's own rules, and the job's status is
+            derived from them by the database. A DEMO / new device (no call)
+            keeps its Status chosen by hand. */}
+        <Group title="Workshop record">
+          <div className="ind-grid">
+            {(job.ucn ?? '').trim() ? (<>
+              <Field label="Call Status *" tip="The visit filed for this unit carries it. Solved → Ready (a Repair / Rework / Troubleshooting after its QC Pass); Unsolved → Under repair, or Awaiting spares when the reason is spares not available.">
+                <SelectPicker value={job.call_status ?? ''} placeholder="— Select status —" disabled={!mayWork}
+                  options={job.call_status && !STATUS_OPTIONS.includes(job.call_status) ? [job.call_status, ...STATUS_OPTIONS] : [...STATUS_OPTIONS]}
+                  onChange={(v) => set(v === 'Unsolved'
+                    ? { call_status: v, call_pending_reason: job.call_status === 'Unsolved' ? job.call_pending_reason : '' }
+                    : { call_status: v })} />
+              </Field>
+              {job.call_status === 'Unsolved' || job.call_status === 'Solved - Report Pending' ? (
+                <Field label={`Call Pending Reason${job.call_status === 'Unsolved' ? ' *' : ''}`}
+                  hint={job.call_status === 'Solved - Report Pending' ? 'Set automatically for a pending report.' : undefined}>
+                  {job.call_status === 'Solved - Report Pending'
+                    ? <input value="Report Pending" readOnly />
+                    : <SelectPicker value={job.call_pending_reason ?? ''} placeholder="— select a reason —" disabled={!mayWork}
+                        emptyHint="If it is not here, add it under Masters."
+                        options={job.call_pending_reason && !pendingReasons.values.includes(job.call_pending_reason)
+                          ? [job.call_pending_reason, ...pendingReasons.values.slice(0, 1000)] : pendingReasons.values.slice(0, 1000)}
+                        onChange={(v) => set({ call_pending_reason: v })} />}
+                </Field>
+              ) : <span />}
+              <p className="ind-meta is-wide">
+                Job status <b>{job.status}</b>
+                {job.call_status ? ' — from the Call Status.' : ' — choose the Call Status; the job status follows it.'}
+                {job.call_status === 'Unsolved' && !(job.call_pending_reason ?? '').trim()
+                  ? <span className="ind-warn"> A Call Pending Reason is required before the Indoor DC can be approved.</span> : null}
+              </p>
+            </>) : (<>
+              <Field label="Status" tip="A unit goes on an Indoor DC once it is Ready.">
+                {/* DISPATCHED AND CLOSED ARE THE DISPATCH RIGHT'S (finding 59, 0297). */}
+                <SelectPicker value={job.status}
+                  options={INDOOR_STATUSES.filter((st) => mayDispatch || !['Dispatched', 'Closed'].includes(st) || st === job.status)}
+                  onChange={(v) => set({ status: v })} disabled={!mayWork} />
+              </Field>
+              <span />
+            </>)}
+            <Field label="Damage to the customer's property" wide
+              tip="§7.5.10 — damage to somebody's machine is theirs to be told about, and this is where that is recorded.">
+              <textarea defaultValue={job.damage_note} disabled={!mayWork} rows={2}
+                onBlur={(e) => set({ damage_note: e.target.value })} /></Field>
+          </div>
+        </Group>
+
         {reported || (job.ucn ?? '').trim() ? (
           <p className="ind-meta ind-reportstate">
             {reported
@@ -1158,23 +1212,6 @@ function IndoorJobDrawer({
             </div>
           )}
         </section>
-
-        {/* What the visit does not carry and the job still records. */}
-        <Group title="Workshop record">
-          <div className="ind-grid">
-            <Field label="Status" tip="A unit goes on an Indoor DC once it is Ready.">
-              {/* DISPATCHED AND CLOSED ARE THE DISPATCH RIGHT'S (finding 59, 0297). */}
-              <SelectPicker value={job.status}
-                options={INDOOR_STATUSES.filter((st) => mayDispatch || !['Dispatched', 'Closed'].includes(st) || st === job.status)}
-                onChange={(v) => set({ status: v })} disabled={!mayWork} />
-            </Field>
-            <span />
-            <Field label="Damage to the customer's property" wide
-              tip="§7.5.10 — damage to somebody's machine is theirs to be told about, and this is where that is recorded.">
-              <textarea defaultValue={job.damage_note} disabled={!mayWork} rows={2}
-                onBlur={(e) => set({ damage_note: e.target.value })} /></Field>
-          </div>
-        </Group>
 
         {SHOWS.rework(a) ? (
           <Group title="Rework · §8.3.4">
@@ -1611,6 +1648,8 @@ function IndoorReportForm({ job, patch, onDone }: {
         indoor={{
           inline: true,
           linked: linkedVisitFields(job),
+          // 0372: the job's own Call Status / Pending Reason (Workshop record).
+          callStatus: { status: job.call_status ?? '', pendingReason: job.call_pending_reason ?? '' },
           initial: seededDraft(job),
           reportNo: job.indoor_report_no ?? '',
           reportLink: job.report_file_url ?? '',
