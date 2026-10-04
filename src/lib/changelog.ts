@@ -12,13 +12,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.78',
+    version: '0.10.79',
     date: '2026-10-04',
     title: 'Objective: type over a calculated figure and Re-calculate keeps it, or asks',
     changes: [
       'OBJECTIVE: you can type over a month of a calculated (ƒ) objective. It becomes a manual override, marked ✎ — hover it to see who typed it, when, and what the calculation had said.',
       'Re-calculate no longer overwrites those months without asking. When there are manual overrides it lists them and asks: Keep them (the default — they stay exactly as typed, on every run) or Discard them (those months are recalculated and the ✎ goes).',
       'DCCR: the change to Updated By / Updated Date (the registrant\'s email and the call date) is recorded in the validation package; the old register\'s own values are not being loaded, by decision.',
+    ],
+  },
+  {
+    version: '0.10.78',
+    date: '2026-10-04',
+    title: 'The name on an issued stock out cannot be changed',
+    changes: [
+      'STOCK OUT: once a stock out is booked, the person it names in Booked by stays on it. Before, somebody holding the dispatch right could change it afterwards, and the Delivery Challan and the Declaration then printed the new name.',
+      'STOCK OUT REGISTER upload: re-loading the register no longer writes the uploader\'s name over the stock outs already in it.',
     ],
   },
   {

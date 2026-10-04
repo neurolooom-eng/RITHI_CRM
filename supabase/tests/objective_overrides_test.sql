@@ -1,5 +1,5 @@
 -- ===========================================================================
--- A FIGURE TYPED OVER A CALCULATED MONTH IS A MANUAL OVERRIDE (0345).
+-- A FIGURE TYPED OVER A CALCULATED MONTH IS A MANUAL OVERRIDE (0346).
 --
 --   The user, 2026-10-04: "And i Override it manually, then it should never
 --   change.. Or prompt the user if Manually Overrides should be considered or

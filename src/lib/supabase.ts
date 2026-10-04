@@ -431,7 +431,7 @@ export interface QualityObjective {
   m09: number | null; m10: number | null; m11: number | null; m12: number | null;
   total: number | null; source: string; notes: string; updated_at: string;
   calc_key: string; calc_params: Record<string, unknown>;
-  /** Months of a computed objective typed over by hand (0345), written by the
+  /** Months of a computed objective typed over by hand (0346), written by the
    *  database: who, when, and the calculated figure it replaced. */
   overrides?: Record<string, { by?: string; at?: string; calculated?: number | null }>;
 }
@@ -453,7 +453,7 @@ export async function recalcObjectives(
   // set the same thing is how a figure ends up disagreeing with the setting
   // that supposedly produced it.
   //
-  // THE OVERRIDES ARE THE CALLER'S CHOICE, asked on every run (0345): keep the
+  // THE OVERRIDES ARE THE CALLER'S CHOICE, asked on every run (0346): keep the
   // months typed over a calculated figure, or discard them and recalculate.
   const { data, error } = await must().rpc('recalc_quality_objectives', { p_year: year, p_keep_overrides: keepOverrides });
   if (error) return { ok: false, error: errMsg(error) };
