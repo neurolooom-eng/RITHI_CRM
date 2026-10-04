@@ -1848,7 +1848,13 @@ with checks(sort_order, bundle, provides, present) as (
          and coalesce((select p.prosecdef from pg_proc p
                         where p.oid = to_regprocedure('public.file_visit_for_spare_request(text)')), false)
          and not has_function_privilege('anon', to_regprocedure('public.file_visit_for_spare_request(text)'), 'EXECUTE')
-         and has_function_privilege('authenticated', to_regprocedure('public.file_visit_for_spare_request(text)'), 'EXECUTE')))
+         and has_function_privilege('authenticated', to_regprocedure('public.file_visit_for_spare_request(text)'), 'EXECUTE'))),
+    (266, 'The Indoor Service test data was emptied', 'Once (0334, the user, 2026-10-04: "Empty all data in Indoor"): every Indoor job, accessory, part, check, pre-delivery test, DC, DC line and release ticket, the visits and spare lines Indoor DC approvals filed, and the job and IDC counters; no_hard_delete back on reports, spare_consumption, indoor_dcs and indoor_dc_lines. NO means indoor.sql has not been re-run since. Restore: indoor.sql (0334)',
+        (to_regclass('public.one_time_fixes_done') is not null
+         and exists (select 1 from public.one_time_fixes_done where name = '0334_indoor_emptied')
+         and (select count(*) from pg_trigger where tgname = 'no_hard_delete' and tgenabled <> 'D'
+                and tgrelid in (to_regclass('public.reports'), to_regclass('public.spare_consumption'),
+                                to_regclass('public.indoor_dcs'), to_regclass('public.indoor_dc_lines'))) = 4))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

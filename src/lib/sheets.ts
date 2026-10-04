@@ -20,8 +20,8 @@ const TAB_KEY = 'rithi.sheets.tab';
 // out-of-the-box. Bump DEFAULT_URL_VERSION whenever the URL changes — clients
 // on an older version adopt the new default automatically (their stale saved
 // URL is superseded until they explicitly Save a new one in Settings).
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwyOKdEG6L4v0jtpBMlx_qcwanm1dqYTPdn-cUKdq13wbJ3uDQ-sxkuq0ddgL4EiEp3/exec';
-const DEFAULT_URL_VERSION = 12;  // v12: the redeploy carrying the DCCR mirror (26-Sep)
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwIg08nUoStTUh_ZTdo0jAAj4QeyQApgvULEGz-udlOoA3_DM7yZ9BQDQL4C5CWrbY/exec';
+const DEFAULT_URL_VERSION = 13;  // v13: the Web App redeployed on 04-Oct; v12 carried the DCCR mirror (26-Sep)
                                  //      to the "Reports" shared drive (0.9.326)
 // THE BUMP IS THE WHOLE POINT, not bookkeeping. A device that has ever saved a
 // URL in Settings keeps using it, and an engineer's phone holding the OLD /exec
