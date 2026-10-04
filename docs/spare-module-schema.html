@@ -374,7 +374,8 @@ h1{
         <code>HandStock</code>. Matched by squashing every non-letter and lowercasing, so
         <code>Hand Stock</code>, <code>hand-stock</code> and <code>HANDSTOCK</code> all count;
         anything else is treated as Call Based. <b>HandStock now requires NSM approval</b>
-        whatever the cover.</div>
+        whatever the cover. <em>Kept as raised</em> (0340) &mdash; a later change is ignored, since
+        it would change which approvals the request needs.</div>
     </div>
     <div class="f">
       <div class="f-n"><code>item_status</code><span class="ty">text</span><span class="b b-opt">optional</span></div>
@@ -382,14 +383,18 @@ h1{
         <code>WGP</code> · <code>OGP</code> · <code>CMC</code> · <code>AMC</code> by a trigger on
         insert and on any update of this column &mdash; &ldquo;WARRANTY&rdquo; is written as WGP.
         An unrecognised value is left <em>unchanged</em> rather than guessed at. Empty on a
-        HandStock request, which has no machine behind it.</div>
+        HandStock request, which has no machine behind it. <b>It is the call's</b> (0340): taken
+        from the call when the request is saved, and afterwards changed only to the call's own value
+        (the call itself, or &ldquo;Update from call&rdquo;); any other value is kept as it was.</div>
     </div>
     <div class="f">
       <div class="f-n"><code>engineer</code> <code>engineer_email</code><span class="ty">text</span><span class="b b-req">you supply</span></div>
       <div class="f-r">Who the parts are for. The email is what row-level security matches on,
         so a blank one costs the engineer sight of their own request.
         <em>Cannot be changed once the parts have gone out</em> &mdash; &ldquo;OR &hellip; has
-        already been dispatched.&rdquo; Every permitted change is written to the log below.</div>
+        already been dispatched.&rdquo; <em>Before that, only through Change engineer</em> (0340)
+        &mdash; a plain update is refused: &ldquo;The engineer on &hellip; is changed with
+        &lsquo;Change engineer&rsquo;&rdquo;. Every permitted change is written to the log below.</div>
     </div>
     <div class="f">
       <div class="f-n"><code>ucn</code> <code>call_number</code><span class="ty">text</span><span class="b b-opt">optional</span></div>
@@ -487,7 +492,9 @@ h1{
     <div class="f">
       <div class="f-n"><code>qty</code><span class="ty">numeric</span><span class="b b-req">you supply</span></div>
       <div class="f-r">Defaults to 1. <em>Must be at least 1</em>, and a request may carry
-        <em>at most 20 parts</em> &mdash; the twenty-first line is refused, not truncated.</div>
+        <em>at most 20 parts</em> &mdash; the twenty-first line is refused, not truncated.
+        <em>Part and quantity are fixed once the RM has decided the line</em> (0340), whoever asks,
+        the engineer who raised it included &mdash; only a part rename carries the part.</div>
     </div>
     <div class="f">
       <div class="f-n"><code>row_no</code> <code>line_uid</code><span class="ty">int / text</span><span class="b b-set">set for you</span></div>
@@ -720,7 +727,9 @@ h1{
     <div class="f">
       <div class="f-n"><code>qty</code><span class="ty">numeric</span><span class="b b-req">you supply</span></div>
       <div class="f-r">How many actually went in this batch, which may be fewer than were asked
-        for. <b>This is the quantity the balance counts</b>, not the requested one.</div>
+        for. <b>This is the quantity the balance counts</b>, not the requested one. <em>Lowering it,
+        or deleting the line, is refused when it would leave the engineer below zero</em> (0339),
+        and every change is in the record_audit trail.</div>
     </div>
     <div class="f">
       <div class="f-n"><code>refurbished</code><span class="ty">boolean</span><span class="b b-opt">optional</span></div>
@@ -817,7 +826,9 @@ h1{
       <div class="f-n"><code>source_ref</code> <code>source_ref_key</code><span class="ty">text / text</span><span class="b b-opt">optional</span></div>
       <div class="f-r"><code>source_ref_key</code> is <b>generated</b> from
         <code>source_ref</code> and carries a unique index, so re-importing the same file cannot
-        double-book a part. Blank is exempt &mdash; the key is null and null does not collide.</div>
+        double-book a part. Blank is exempt &mdash; the key is null and null does not collide.
+        <b>A non-blank reference exempts the line from the hand-stock cap only when an importer wrote
+        it</b> (Bulk Uploads / Data Import, 0339); from anybody else it is dropped and the cap applies.</div>
     </div>
     <div class="f">
       <div class="f-n"><code>recorded_by</code> <code>created_by</code> <code>created_at</code><span class="ty">text / uuid / timestamptz</span><span class="b b-set">set for you</span></div>
