@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.86',
+    date: '2026-10-04',
+    title: 'Technical / Service Notes: always grouped by product',
+    changes: [
+      'TECHNICAL / SERVICE NOTES always open grouped by product, for everybody — the grouping can no longer be switched off or changed, even by someone who had turned it off before.',
+    ],
+  },
+  {
     version: '0.10.85',
     date: '2026-10-04',
     title: 'Spare Recycling in Data Flows',
