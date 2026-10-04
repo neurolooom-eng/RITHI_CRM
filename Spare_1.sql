@@ -33,7 +33,7 @@
 --   0256_spare_approval_whole_word.sql
 --   0270_cleared_for_stores_is_approved.sql
 --   0211_dispatched_by_is_stamped.sql
---   0343_dispatched_by_kept_after_issue.sql
+--   0345_dispatched_by_kept_after_issue.sql
 --   0084_spare_request_import.sql
 --   0085_spare_request_or_no_key.sql
 --   0116_spare_bulk_approval.sql
@@ -2758,11 +2758,11 @@ create trigger spare_dispatches_stamp_actor
   for each row execute function public.spare_dispatches_stamp_actor();
 
 -- ------------------------------------------------------------------------
--- 0343_dispatched_by_kept_after_issue.sql
+-- 0345_dispatched_by_kept_after_issue.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0343 — WHO DISPATCHED A STOCK OUT IS KEPT ONCE THE CHALLAN IS ISSUED
+-- 0345 — WHO DISPATCHED A STOCK OUT IS KEPT ONCE THE CHALLAN IS ISSUED
 --        (second re-review, 2026-10-03: D-126)
 --
 -- 0211 stamps spare_dispatches.dispatched_by from the session -- on INSERT

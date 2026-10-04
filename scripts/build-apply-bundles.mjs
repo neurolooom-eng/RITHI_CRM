@@ -242,6 +242,8 @@ const MODULES = {
             // runs that insert and then this delete, so the revocation holds.
             // The other order would restore a super admin on every replay.
             '0156_remove_super_admin_mmdev74.sql',
+            // AFTER 0008 too, like any later change to the super-admin list.
+            '0343_add_super_admin_dccr_mirror.sql',
             // A grant into app_roles and nothing else, so it is safe anywhere
             // after 0008 seeds the matrix — but AFTER 0151, which is what puts
             // the mod: keys into the roles this reads.
@@ -466,6 +468,9 @@ const MODULES = {
       // Insights page counts under it. Must run AFTER 0048, which defines the
       // view, and after 0197, which creates the column.
       '0203_review_view_actual_product.sql',
+            // The imported register's Updated By / Updated Date (the user,
+            // 2026-10-04). AFTER 0203: it appends two columns to that view.
+            '0344_dccr_updated_from_import.sql',
             // After 0179: it re-keys the same table, and the import needs the
             // pair as its conflict target.
             '0181_ffr_one_row_per_machine.sql',
@@ -1112,8 +1117,8 @@ const MODULES = {
       // the (much-revised) dispatch function is not touched at all.
       '0211_dispatched_by_is_stamped.sql',
       // D-126: once issued, the stock out keeps the name it was booked under --
-      // the same trigger made INSERT OR UPDATE (0343). Redefines 0211's function.
-      '0343_dispatched_by_kept_after_issue.sql',
+      // the same trigger made INSERT OR UPDATE (0345). Redefines 0211's function.
+      '0345_dispatched_by_kept_after_issue.sql',
       '0084_spare_request_import.sql',
       '0085_spare_request_or_no_key.sql',
       '0116_spare_bulk_approval.sql',

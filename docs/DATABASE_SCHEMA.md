@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**102 tables · 37 views · 2879 columns · 205 policies · 63 foreign keys.**
+**102 tables · 37 views · 2883 columns · 205 policies · 63 foreign keys.**
 
 ## How to read this
 
@@ -473,6 +473,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 28 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 | 29 | `review2_auto` | boolean | **no** | `false` | Review 2 was answered by the auto review, in the name of the person who switched it on (0269). Set only by the database. |
 | 30 | `imported` | boolean | **no** | `false` | Loaded from an old register by an administrator (0269): keeps its own reviewers and dates and raises no FFR. |
+| 31 | `imported_updated_by` | text | yes |  |  |
+| 32 | `imported_updated_date` | date | yes |  |  |
 
 **Unique:** `sys_id` _(call_reviews_sys_id_key)_
 
@@ -4385,7 +4387,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `failure_rate_by_product` | **on** | 6 |
 | `feedback_report` | **on** | 28 |
 | `feedback_without_report` | **on** | 21 |
-| `field_call_review` | **on** | 57 |
+| `field_call_review` | **on** | 59 |
 | `field_call_review_summary` | **on** | 11 |
 | `field_failure_register` | **on** | 62 |
 | `handstock_balance` | **on** | 20 |

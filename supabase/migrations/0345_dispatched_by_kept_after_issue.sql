@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0343 — WHO DISPATCHED A STOCK OUT IS KEPT ONCE THE CHALLAN IS ISSUED
+-- 0345 — WHO DISPATCHED A STOCK OUT IS KEPT ONCE THE CHALLAN IS ISSUED
 --        (second re-review, 2026-10-03: D-126)
 --
 -- 0211 stamps spare_dispatches.dispatched_by from the session -- on INSERT

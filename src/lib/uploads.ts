@@ -1223,7 +1223,7 @@ export const UPLOADS: UploadDef[] = [
     ] },
   { key: 'call_reviews', label: 'DCCR Register', group: 'Quality', table: 'call_reviews',
     conflict: 'ucn', requires: 'Field Calls',
-    note: 'Review Status, Any Potential Effect, Action Taken and the “Review N Completed” flags are DERIVED — the register computes them from the answers below, so the file\u2019s own copies are ignored rather than loaded. Everything else the file carries (call details, visit remarks, spares consumed, the failure-age columns) belongs to the call and its visits, not to the review, and is ignored here too. OLD REVIEWS LOAD AS THEY WERE: every row is marked imported, so it keeps the file\u2019s reviewer names and dates (a date the file does not carry stays blank rather than becoming today), you are not recorded as the reviewer, and loading it raises NO Field Failure Report — load old FFRs through the Field Failure Register upload. Re-loading a corrected file updates the same calls.',
+    note: 'Review Status, Any Potential Effect, Action Taken and the “Review N Completed” flags are DERIVED — the register computes them from the answers below, so the file\u2019s own copies are ignored rather than loaded. Everything else the file carries (call details, visit remarks, spares consumed, the failure-age columns) belongs to the call and its visits, not to the review, and is ignored here too. OLD REVIEWS LOAD AS THEY WERE: every row is marked imported, so it keeps the file\u2019s reviewer names and dates (a date the file does not carry stays blank rather than becoming today), you are not recorded as the reviewer, and loading it raises NO Field Failure Report — load old FFRs through the Field Failure Register upload. Updated By and Updated Date are kept as the file has them. Re-loading a corrected file updates the same calls.',
     cols: [
       { to: 'ucn', from: ['uc number', 'ucn', 'uc no'], required: true },
       // IMPORTED, ALWAYS (0269, the user: old reviews load "no new FFRs"). Not
@@ -1232,6 +1232,10 @@ export const UPLOADS: UploadDef[] = [
       // can set it.
       { to: 'imported', from: [], derive: () => true, always: true },
       TEXT('call_number', 'call number'),
+      // WHO LAST UPDATED THE ROW IN THE OLD SHEET, AND WHEN, as the file says
+      // (0344, the user: "Updated By and Updated Date has to come from the
+      // Import"). Not the login doing the load -- that is updated_by/updated_at.
+      TEXT('imported_updated_by', 'updated by'), DATE('imported_updated_date', 'updated date'),
       TEXT('risk_to_patient', 'risk to patient any clinical impact', 'risk to patient'),
       TEXT('warranty_failure', 'warranty failure'),
       TEXT('frequent_failure', 'frequent failure'),

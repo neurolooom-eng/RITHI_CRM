@@ -12,12 +12,37 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.75',
+    version: '0.10.78',
     date: '2026-10-04',
     title: 'The name on an issued stock out cannot be changed',
     changes: [
       'STOCK OUT: once a stock out is booked, the person it names in Booked by stays on it. Before, somebody holding the dispatch right could change it afterwards, and the Delivery Challan and the Declaration then printed the new name.',
       'STOCK OUT REGISTER upload: re-loading the register no longer writes the uploader\'s name over the stock outs already in it.',
+    ],
+  },
+  {
+    version: '0.10.77',
+    date: '2026-10-04',
+    title: 'New CallReg address (DCCR mirror redeploy)',
+    changes: [
+      'The CallReg (Google Apps Script) address was updated to the deployment that carries the DCCR mirror\'s formulas and oldest-first order; every device switches to it automatically on the next load.',
+    ],
+  },
+  {
+    version: '0.10.76',
+    date: '2026-10-04',
+    title: 'DCCR: Updated By / Updated Date filled; the Google Sheet mirror oldest first, with the old formulas',
+    changes: [
+      'DCCR EXPORT AND MIRROR: Updated By is now the email of the person who registered the call, and Updated Date the call\'s registration date (dd-MMM-yyyy). For reviews loaded from the old register, the file\'s own Updated By and Updated Date are kept — the DCCR Register upload now reads those two columns (re-load the file to fill them for old calls).',
+      'DCCR GOOGLE SHEET MIRROR: rows are written oldest call first. Sl. NO, CALL DETAILS, VISIT REMARKS, SL NO(T), Failure within how many days/yrs and Failure Within Grouping are written as the same formulas the old DCCR tab used. Needs the CallReg script redeployed.',
+    ],
+  },
+  {
+    version: '0.10.75',
+    date: '2026-10-04',
+    title: 'DCCR mirror login made a super admin',
+    changes: [
+      'dccr_mirror@gmail.com is now a super admin, set in the app and in the database like service.almsind@gmail.com. It is the login the DCCR Google Sheet mirror signs in with, so it can read every call on the Daily Call Review.',
     ],
   },
   {

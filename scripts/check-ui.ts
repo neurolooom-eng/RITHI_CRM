@@ -3107,6 +3107,13 @@ console.log('\n-- super admins: the two lists agree --');
       .split('\n').map((l) => /'([^']+)'/.exec(l)?.[1] ?? '').filter(Boolean).map((e) => e.toLowerCase()),
   );
 
+  // Anything a later migration adds.
+  for (const f of readdirSync('supabase/migrations').filter((n) => /add_super_admin/.test(n))) {
+    const sql = readFileSync(`supabase/migrations/${f}`, 'utf8');
+    const m = /v_email\s+text\s*:=\s*'([^']+)'/.exec(sql);
+    if (m) seeded.add(m[1].toLowerCase());
+  }
+
   // Anything a later migration revokes.
   const revoked = new Set<string>();
   for (const f of readdirSync('supabase/migrations').filter((n) => /remove_super_admin/.test(n))) {
@@ -9086,10 +9093,39 @@ console.log('\n-- the DCCR mirror is the same register, not a second opinion --'
   DCCR_EXPORT_COLUMNS.forEach((c) => { full[c.key] = 'X'; });
   ['last_status', 'status', 'open_state', 'review1_done', 'review2_done', 'review3_done']
     .forEach((k) => { full[k] = k.endsWith('_done') ? true : 'X'; });
+  // Updated By / Updated Date come from the view (0344), under these names.
+  full.dccr_updated_by = 'X';
+  full.dccr_updated_date = '2026-01-08';
   const appBlank = Object.entries(toExportRow(full as never, 0))
     .filter(([, v]) => v === '').map(([k]) => k).sort();
   eq('the mirror blanks exactly the columns the app blanks, no more and no fewer',
     gsBlank, appBlank);
+
+  // THE FORMULA COLUMNS (the user, 2026-10-04: the old DCCR tab's formulas,
+  // supplied verbatim). Each formula is written by LETTER into the mirror's
+  // own layout, so every letter it writes to and reads from must still be the
+  // column it was written for -- a column inserted in DCCR_COLUMNS would
+  // otherwise point six formulas at the wrong data with no error anywhere.
+  {
+    const letter = (i: number) => (i < 26 ? '' : String.fromCharCode(64 + Math.floor(i / 26)))
+      + String.fromCharCode(65 + (i % 26));
+    const at: Record<string, string> = {};
+    pairs.forEach((c, i) => { at[letter(i)] = c.key; });
+    const fblock = /var DCCR_FORMULAS = \{([\s\S]*?)\n\};/.exec(gs)?.[1] ?? '';
+    const formulas = Object.fromEntries([...fblock.matchAll(/^\s+([a-z0-9_]+):\s+'(.*)',?$/gm)].map((m) => [m[1], m[2]]));
+    const written: Record<string, string> = { sl_no: 'C', call_details: 'U', visit_remarks: 'V', sl_no_t: 'AW', age_days: 'AY', age_group: 'AZ' };
+    eq('the six formula columns are the ones the old sheet had', Object.keys(formulas).sort(), Object.keys(written).sort());
+    for (const [k, l] of Object.entries(written)) eq(`${k} sits in column ${l}`, at[l], k);
+    const reads: Record<string, string> = { D: 'reg_date', F: 'call_number', H: 'party_name', I: 'city', J: 'product_name',
+      K: 'serial', N: 'complaint_reported', P: 'allocated_to', T: 'warranty_start', AT: 'visit_details', AU: 'spares_consumed', AY: 'age_days' };
+    for (const [l, k] of Object.entries(reads)) eq(`a formula reading column ${l} reads ${k}`, at[l], k);
+    // Every column letter any formula names (outside another tab) is one of those.
+    const named = new Set<string>();
+    Object.values(formulas).forEach((f) => {
+      for (const m of f.replace(/[A-Za-z]+![A-Z]+:[A-Z]+/g, '').replace(/"[^"]*"/g, '').matchAll(/\b([A-Z]{1,2})2:\1\b/g)) named.add(m[1]);
+    });
+    eq('no formula reads a column this check does not pin', [...named].filter((l) => !(l in reads)).sort(), []);
+  }
 
   // The three derived values, which are the only places the shaping is not a
   // pass-through -- and therefore the only places a hand-written copy can be
@@ -9106,8 +9142,10 @@ console.log('\n-- the DCCR mirror is the same register, not a second opinion --'
   // ---- how it reads ------------------------------------------------------
   eq('it reads the view the review screen reads',
     /var DCCR_VIEW\s*=\s*'field_call_review';/.test(gs), true);
-  eq('...in the same order that screen reads it',
-    /var DCCR_ORDER\s*=\s*'reg_date\.desc\.nullslast,id\.desc';/.test(gs), true);
+  // OLDEST FIRST, unlike the screen (the user, 2026-10-04: "its storing in
+  // Newest to Oldest, it has to be oldest to Newest"), with id as the tiebreak.
+  eq('...oldest call first, the way the old DCCR tab grew',
+    /var DCCR_ORDER\s*=\s*'reg_date\.asc\.nullslast,id\.asc';/.test(gs), true);
   // A FULL PAGE IS NOT AN ANSWER. PostgREST caps a response at 1,000 rows
   // however large the Range asks for, so the loop can only end on a short one.
   eq('it pages, and stops on a SHORT page',

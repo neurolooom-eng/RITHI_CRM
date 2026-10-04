@@ -88,7 +88,7 @@ select 'after an unrelated update' as check, dispatched_by as should_be_the_supp
 delete from public.spare_dispatches where courier = 'test-courier';
 
 -- ===========================================================================
--- D-126 (0343): ONCE ISSUED, THE NAME STAYS.
+-- D-126 (0345): ONCE ISSUED, THE NAME STAYS.
 -- Each check below raises an unlabelled error when it is wrong, so a failure
 -- here is counted by the harness, not just printed.
 -- ===========================================================================
@@ -121,7 +121,7 @@ end $$;
 \echo ''
 \echo '--- 7. a re-load of the Stock Out Register keeps the issued name ---'
 -- The upload upserts on uid. Its insert half is stamped with the UPLOADER
--- before the conflict is found, so before 0343 a re-load rewrote the name.
+-- before the conflict is found, so before 0345 a re-load rewrote the name.
 call public.be('uploader126@x.com');
 set role authenticated;
 insert into public.spare_dispatches (uid, dc_date, engineer, courier, line_count, total_qty, dispatched_by)
