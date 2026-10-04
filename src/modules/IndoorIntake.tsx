@@ -27,7 +27,7 @@ import {
 import { coverCode } from '../lib/fieldcall';
 import { formatDay } from '../lib/dates';
 import { logAudit } from '../lib/audit';
-import { INDOOR_TAG_OPTIONS, FIELD_RETURN_ACTIVITY } from '../lib/indoorforms';
+import { INDOOR_TAG_OPTIONS, INTAKE_MODES, FIELD_RETURN_ACTIVITY, type IntakeMode } from '../lib/indoorforms';
 
 // No serial (the user, 2026-10-04: "Remove Serial from Accessory Received");
 // the tag is the Yes / No pick.
@@ -47,7 +47,9 @@ export function IndoorIntake({ onFiled, onCancel }: {
   onFiled: (id: number, jobNo: string) => void;
   onCancel: () => void;
 }) {
-  const [mode, setMode] = useState<'call' | 'demo'>('call');
+  const [mode, setMode] = useState<IntakeMode>('call');
+  // The two ways in with no call share the device form (0374).
+  const noCall = mode !== 'call';
   const [products, setProducts] = useState<string[]>([]);
   const [product, setProduct] = useState('');
   const [serial, setSerial] = useState('');
@@ -97,15 +99,15 @@ export function IndoorIntake({ onFiled, onCancel }: {
   };
 
   const file = async () => {
-    if (mode === 'call' && !f.ucn.trim()) { setErr('Choose the call (UCN) the unit came in on — or receive it as a DEMO / new device.'); return; }
-    if (!f.product_name.trim() && !(mode === 'demo' && product.trim())) { setErr('Name the product.'); return; }
+    if (mode === 'call' && !f.ucn.trim()) { setErr('Choose the call (UCN) the unit came in on — or receive it as a Demo or a New Device.'); return; }
+    if (!f.product_name.trim() && !(noCall && product.trim())) { setErr('Name the product.'); return; }
     const lines = acc.filter((a) => a.name.trim());
     const bad = lines.find((a) => !(Number(a.qty) > 0));
     if (bad) { setErr(`Quantity must be more than 0 (${bad.name}).`); return; }
     setBusy(true); setErr('');
     const job = mode === 'call'
       ? { kind: 'Customer property', activity: FIELD_RETURN_ACTIVITY, status: 'Received', ...f, ucn: f.ucn.trim(), tag_no: tag, condition_on_arrival: condition }
-      : { kind: 'DEMO unit', activity, status: 'Received', ucn: null, product_name: product.trim() || f.product_name,
+      : { kind: INTAKE_MODES[mode].kind, activity: INTAKE_MODES[mode].activity, status: 'Received', ucn: null, product_name: product.trim() || f.product_name,
           serial: serial.trim() || f.serial, party_name: null, engineer_name: 'Indoor Service',
           problem_reported: f.problem_reported, tag_no: tag, condition_on_arrival: condition };
     const r = await addIndoorJob(job as never);
@@ -126,10 +128,10 @@ export function IndoorIntake({ onFiled, onCancel }: {
       {err ? <div className="ind-warn" role="alert">{err}</div> : null}
 
       <div className="ind-seg" role="radiogroup" aria-label="How the unit came in">
-        <button type="button" role="radio" aria-checked={mode === 'call'} className={mode === 'call' ? 'is-on' : ''}
-          onClick={() => { setMode('call'); setF(EMPTY); setActivity(FIELD_RETURN_ACTIVITY); }}>Field Return</button>
-        <button type="button" role="radio" aria-checked={mode === 'demo'} className={mode === 'demo' ? 'is-on' : ''}
-          onClick={() => { setMode('demo'); setF(EMPTY); setActivity('Demo'); }}>Demo / new device</button>
+        {(Object.keys(INTAKE_MODES) as IntakeMode[]).map((m) => (
+          <button key={m} type="button" role="radio" aria-checked={mode === m} className={mode === m ? 'is-on' : ''}
+            onClick={() => { setMode(m); setF(EMPTY); setActivity(INTAKE_MODES[m].activity); }}>{INTAKE_MODES[m].label}</button>
+        ))}
       </div>
 
       <section className="ind-group">
@@ -137,7 +139,7 @@ export function IndoorIntake({ onFiled, onCancel }: {
         <div className="ind-grid">
           <label className="ind-field"><span className="ind-label">Product Name</span>
             <SelectPicker value={product} onChange={(v) => { setProduct(v); setSerial(''); }} options={products}
-              allowFreeText={mode === 'demo'} placeholder="Pick the product" /></label>
+              allowFreeText={noCall} placeholder="Pick the product" /></label>
           <label className="ind-field"><span className="ind-label">Serial Number</span>
             {mode === 'call' ? (
               <SelectPicker value={serial} onChange={setSerial} options={serial ? [serial] : []} disabled={!product}
@@ -200,12 +202,12 @@ export function IndoorIntake({ onFiled, onCancel }: {
         <div className="ind-group-head"><h4 className="ind-eyebrow">The job</h4></div>
         <div className="ind-grid">
           <label className="ind-field"><span className="ind-label">What is being done to it?</span>
-            {mode === 'call'
-              ? <SelectPicker value={FIELD_RETURN_ACTIVITY} onChange={() => { /* fixed for a Field Return */ }} options={[FIELD_RETURN_ACTIVITY]} disabled />
-              : <SelectPicker value={activity} onChange={setActivity} options={INDOOR_ACTIVITIES.filter((x) => x !== FIELD_RETURN_ACTIVITY)} />}</label>
+            {/* FIXED BY THE WAY IN (the user, 2026-10-04): Field Return and New
+                Device are Troubleshooting, Demo is Demo. */}
+            <SelectPicker value={INTAKE_MODES[mode].activity} onChange={() => { /* fixed */ }} options={[INTAKE_MODES[mode].activity]} disabled /></label>
           <label className="ind-field"><span className="ind-label">Identification tag (4.5.4)</span>
             <SelectPicker value={tag} onChange={setTag} options={[...INDOOR_TAG_OPTIONS]} placeholder="Choose…" /></label>
-          {mode === 'demo' || f.ucn ? (
+          {noCall || f.ucn ? (
             <label className="ind-field is-wide"><span className="ind-label">Problem Reported</span>
               <textarea rows={2} value={f.problem_reported} onChange={(e) => set({ problem_reported: e.target.value })} /></label>
           ) : null}

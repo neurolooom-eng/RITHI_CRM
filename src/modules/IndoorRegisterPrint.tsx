@@ -34,7 +34,7 @@ export function IndoorRegisterPrint() {
   const [params] = useSearchParams();
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';
-  const sheet: RegisterSheet = sheetParam === 'demo' ? 'demo' : 'customer';
+  const sheet: RegisterSheet = sheetParam === 'demo' ? 'demo' : sheetParam === 'newdevice' ? 'newdevice' : 'customer';
   const navigate = useNavigate();
   const { user, can } = useAuth();
   const mySig = useMySignature();

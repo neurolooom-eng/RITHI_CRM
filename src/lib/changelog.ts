@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.95',
+    date: '2026-10-04',
+    title: 'Indoor intake: Field Return, Demo and New Device as three separate options',
+    changes: [
+      'RECEIVE EQUIPMENT now has three options: Field Return, Demo and New Device (Demo / new device is split in two).',
+      'Each fixes what is being done: Field Return → Troubleshooting, Demo → Demo, New Device → Troubleshooting.',
+      'A New Device is recorded as its own kind — NEW DEVICE on the register, its own “New Devices” sheet on R/SER/07 and in the Excel download — and goes on the DC to the party it is going to, like a Demo.',
+    ],
+  },
+  {
     version: '0.10.94',
     date: '2026-10-04',
     title: 'Indoor job: a plain summary beside the Create Indoor DC form',

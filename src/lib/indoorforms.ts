@@ -36,7 +36,7 @@ export const REGISTER_HEADER = {
   tmpl: 'TMPL No: R/SER/07 Rev: AUG 2025',
 } as const;
 
-export type RegisterSheet = 'customer' | 'demo';
+export type RegisterSheet = 'customer' | 'demo' | 'newdevice';
 
 /** Which jobs a sheet holds, by `kind`, and what each is called where. The
  *  workbook's sheet names are the user's ("Customer – Devices", "Demo"); the
@@ -44,6 +44,8 @@ export type RegisterSheet = 'customer' | 'demo';
 export const REGISTER_SHEETS: Record<RegisterSheet, { kind: string; xlsxName: string; printTitle: string }> = {
   customer: { kind: 'Customer property', xlsxName: 'Customer – Devices', printTitle: 'CUSTOMER – DEVICE’s' },
   demo:     { kind: 'DEMO unit',         xlsxName: 'Demo',               printTitle: 'DEMO' },
+  // 0374: a New device has its own sheet, apart from the demos.
+  newdevice: { kind: 'New device',       xlsxName: 'New Devices',        printTitle: 'NEW DEVICE' },
 };
 
 /** The eighteen columns, in the paper's order and in its words. */
@@ -202,7 +204,8 @@ export const INDOOR_DC_FORM = {
  *  going to (a DEMO unit). The DATABASE asks the same (create_indoor_dc), and
  *  refuses jobs whose consignees differ. */
 export function jobConsignee(j: Pick<IndoorJob, 'kind' | 'party_name' | 'demo_for_party'>): string {
-  return String((j.kind === 'DEMO unit' ? j.demo_for_party : j.party_name) ?? '').trim();
+  // A New device (0374) has no customer either: it goes where it is going.
+  return String((j.kind === 'DEMO unit' || j.kind === 'New device' ? j.demo_for_party : j.party_name) ?? '').trim();
 }
 export const consigneeKey = (s: string) => s.trim().toUpperCase();
 
@@ -242,6 +245,16 @@ export const INDOOR_TAG_OPTIONS = ['Yes, Identified', 'Not Identified'] as const
 export const tagOptions = (current: string | null | undefined): string[] =>
   current && !(INDOOR_TAG_OPTIONS as readonly string[]).includes(current)
     ? [...INDOOR_TAG_OPTIONS, current] : [...INDOOR_TAG_OPTIONS];
+
+/** THE INTAKE'S THREE WAYS IN (the user, 2026-10-04: "Split Demo / New
+ *  Device -> Demo, New Device as Separate Options"): each fixes the job's kind
+ *  and its activity. */
+export const INTAKE_MODES = {
+  call:      { label: 'Field Return', kind: 'Customer property', activity: 'Troubleshooting' },
+  demo:      { label: 'Demo',         kind: 'DEMO unit',         activity: 'Demo' },
+  newdevice: { label: 'New Device',   kind: 'New device',        activity: 'Troubleshooting' },
+} as const;
+export type IntakeMode = keyof typeof INTAKE_MODES;
 
 /** A FIELD RETURN IS A TROUBLESHOOTING JOB (the user, 2026-10-04: "Fix it to
  *  Troubleshooting - when it is Field Return"). */
