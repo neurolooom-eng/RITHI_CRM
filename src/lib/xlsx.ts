@@ -21,7 +21,7 @@ import { excelSerial, formatDayTime, hasClockTime } from './dates';
 // ===========================================================================
 
 import { enc, xmlText, zipStore, download } from './zip';
-import { mayExport, type ExportScope } from './exportscope';
+import { mayExport, deliverExport, type ExportScope, type GCell, type GSheet } from './exportscope';
 
 export interface Sheet {
   name: string;
@@ -220,6 +220,28 @@ export function buildXlsx(sheets: Sheet[]): Uint8Array {
 // it, and an About sheet beside it does not change the answer.
 export function xlsxDownload(filename: string, sheets: Sheet[], scope: ExportScope): void {
   if (!mayExport(scope, sheets[0]?.rows.length ?? 0)) return;
-  download(filename, buildXlsx(sheets),
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  deliverExport({
+    filename, kind: 'Excel',
+    sheets: () => sheets.map((s) => gsheetFrom(s.name, s.columns, s.rows)),
+    saveFile: () => download(filename, buildXlsx(sheets),
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// THE SAME CELL RULE FOR A GOOGLE SHEET. A Sheets date serial counts from the
+// same 30-Dec-1899 as Excel's, so the serial travels as it is and the bridge
+// puts the dd-mmm-yyyy [hh:mm:ss] format on it; text travels as text and is
+// written under the plain-text format, so a Serial No of digits keeps its
+// leading zeros there too.
+// ---------------------------------------------------------------------------
+export function gsheetCell(v: unknown): GCell {
+  const c = isXlsxDate(v) ? v : xlsxCell(v);
+  if (typeof c === 'number') return c;
+  if (isXlsxDate(c)) return { d: c.__xlsxDate, t: c.withTime ? 1 : 0 };
+  return String(c ?? '');
+}
+
+export function gsheetFrom(name: string, columns: string[], rows: Record<string, unknown>[]): GSheet {
+  return { name, columns, rows: rows.map((r) => columns.map((h) => gsheetCell(r[h]))) };
 }

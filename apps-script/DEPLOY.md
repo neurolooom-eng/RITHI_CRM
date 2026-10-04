@@ -83,6 +83,25 @@ written.** Every report uploaded before the re-route lives in it, and it stays
 in `_isAppDocument()`'s list for exactly that reason — drop it and all of them
 stop opening in the app.
 
+## Exports saved as Google Sheets (`sheetexport`, 2026-10-04)
+
+Every download in the app offers **Save as Google Sheet**. The sheet goes into
+the export folder (`EXPORT_FOLDER_ID` in `CallReg.gs`,
+<https://drive.google.com/drive/folders/1qZ0ri-iP2hovCsLEko6TeuOYwYHloFy5>),
+inside **one folder per user**, named `<Full Name> (<email>)`.
+
+- **The first export makes the folder; every later one reuses it.** Its id is
+  remembered in the script property `exportfolder_<email>`, so renaming the
+  folder in Drive does not make a second one. If that folder is deleted, a folder
+  already carrying the user's name is adopted before a new one is made. Creation
+  runs under a script lock, so two exports started together cannot make two.
+- **The account this is deployed as needs edit access to the export folder** —
+  the sheet is created in its My Drive and then moved there.
+- **Redeploy after updating `CallReg.gs`** (same deployment, *New version*, as
+  above, so the URL does not change). Google may ask you to authorise again.
+- The answer comes back through the same `driveref` store the uploads use: the
+  sheet's link, or `ERROR: <reason>`, which the app shows.
+
 ## Showing reports inside the app (`drivefile`)
 
 The app renders a service report in a viewer rather than sending you to Drive.

@@ -122,3 +122,43 @@ function defaultAsk(message: string): boolean {
     return true;
   }
 }
+
+// ===========================================================================
+// WHERE THE FILE GOES: THIS DEVICE, OR A GOOGLE SHEET (the user, 2026-10-04:
+// "In all downloads - Add a provision for the user to save it as a google
+// sheet along with existing csv / excel" ... "In this folder, Create a folder
+// for the user and save the export there").
+//
+// ONE PLACE AGAIN, for the reason above: the three writers (csvExport,
+// xlsxDownload, xlsDownload) hand every finished export to `deliverExport`,
+// so all forty-odd download buttons offer the Google Sheet without one of
+// them being touched — and a new screen gets it by using the writers.
+//
+// THE CHOOSER IS INJECTED, NOT IMPORTED. Saving to a sheet goes through the
+// Apps Script bridge, which reaches `supabase.ts` and its `import.meta.env`;
+// importing it here would make every writer untestable from node. With no
+// chooser registered (a node script, a test) the file simply downloads, which
+// is what happened before.
+// ===========================================================================
+
+/** One cell of a Google Sheet export: a number, a date serial (`t` 1 = with
+ *  time), or text. The same three kinds the .xlsx writer distinguishes. */
+export type GCell = string | number | { d: number; t: 0 | 1 };
+export interface GSheet { name: string; columns: string[]; rows: GCell[][] }
+
+export interface ExportJob {
+  filename: string;
+  /** What the device download is, for the button: CSV or Excel. */
+  kind: 'CSV' | 'Excel';
+  /** The sheets, shaped only if the person picks Google Sheet. */
+  sheets: () => GSheet[];
+  /** The download that used to happen straight away. */
+  saveFile: () => void;
+}
+
+let chooser: ((job: ExportJob) => void) | null = null;
+export function setExportChooser(fn: ((job: ExportJob) => void) | null): void { chooser = fn; }
+export function deliverExport(job: ExportJob): void {
+  if (chooser) chooser(job);
+  else job.saveFile();
+}

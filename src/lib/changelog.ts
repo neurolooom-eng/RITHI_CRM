@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.70',
+    date: '2026-10-04',
+    title: 'Save any download as a Google Sheet',
+    changes: [
+      'Every Export / Download button now asks where the export goes: Download the CSV or Excel file, as before, or Save as Google Sheet.',
+      'A Google Sheet is saved in your own folder inside the RITHI export folder on Google Drive. The folder is made on your first export and reused every time after that — never a second one. You get a link to open the sheet.',
+      'Numbers and dates arrive as numbers and dates (dd-mmm-yyyy), and codes beginning with 0 keep their 0. Each save is recorded in the Audit Log.',
+    ],
+  },
+  {
     version: '0.10.69',
     date: '2026-10-04',
     title: 'Indoor Service emptied for a fresh start; new CallReg address',
