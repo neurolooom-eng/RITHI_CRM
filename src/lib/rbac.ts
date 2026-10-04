@@ -199,10 +199,10 @@ export const MODULES: ModuleDef[] = [
   { path: '/roles', label: 'Roles & Permissions', admin: true },
   { path: '/audit', label: 'Audit Log', admin: true },
   { path: '/admin-config', label: 'Admin Config', admin: true },
-  // SLA / OBJECTIVE CONFIGURATION (0356) -- the Admin role only by default,
+  // SLA / OBJECTIVE CONFIGURATION (0357) -- the Admin role only by default,
   // with every action on it (the user, 2026-10-04: "By Default Grant Permission
   // to Admin - All Actions, Rest let the Admin Decide through the App").
-  // `admin: true` keeps the key out of NON_ADMIN_MODULES; 0356 merges it into
+  // `admin: true` keeps the key out of NON_ADMIN_MODULES; 0357 merges it into
   // the admin row of `app_roles`, because a code default reaches nobody.
   { path: '/sla-objective-config', label: 'SLA / Objective Configuration', admin: true },
   { path: '/software-validation', label: 'Software Validation', admin: true },

@@ -209,7 +209,7 @@ export function Objective() {
     ['Contract no.', 'contract_number'], ['Contract from', 'contract_start'],
     ['Contract to', 'contract_end'], ['Contract type', 'contract_type'],
   ];
-  // What 0356 says about each failed machine, carried in `details`.
+  // What 0357 says about each failed machine, carried in `details`.
   const RATE_DETAILS = ['Installed (warranty start)', 'Days after installation', 'Field calls in the window'];
   const baseRow = (r: Record<string, unknown>) =>
     Object.fromEntries(BASE_COLUMNS.map(([head, key]) => [head, r[key]]));
@@ -295,7 +295,7 @@ export function Objective() {
         : fam === 'pm' ? 'List of PM Calls'
         : fam.startsWith('install') ? 'List of Installation Calls'
         : 'List of Field Calls';
-      // SINCE 0356 a failure is a MACHINE that had a field call within the
+      // SINCE 0357 a failure is a MACHINE that had a field call within the
       // window of its installation, over the machines installed in the rolling
       // period -- Sheet 1 is one row per failed machine (its first call).
       const numeratorLabel = isRate ? 'Machines that failed within the window after installation (Sheet 1)'

@@ -566,7 +566,7 @@ const MODULES = {
             // set on Admin -> SLA / Objective Configuration (the user,
             // 2026-10-04). Redefines 0142's objective_value / objective_notes
             // and 0251's objective_evidence, so it stays after both.
-            '0356_failure_within_months_of_install.sql'],
+            '0357_failure_within_months_of_install.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -803,7 +803,9 @@ const MODULES = {
             '0299_document_drive_details.sql',
             // Technical / Service Notes: Dated, and the latest note per
             // product marked (stored, recalculated, and by a button).
-            '0354_service_note_dated_latest.sql'],
+            '0354_service_note_dated_latest.sql',
+            // Beta Edit: many notes edited, one save, all or nothing (0356).
+            '0356_service_notes_batch_save.sql'],
   },
   training: {
     title: 'People: profile, Roles & Responsibilities, Training',

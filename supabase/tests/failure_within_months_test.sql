@@ -1,6 +1,6 @@
 -- ===========================================================================
 -- PRODUCT FAILURE = A FIELD CALL WITHIN 3 MONTHS OF INSTALLATION, OVER THE
--- MACHINES INSTALLED IN A ROLLING 12 MONTHS (0356).
+-- MACHINES INSTALLED IN A ROLLING 12 MONTHS (0357).
 --
 -- The user, 2026-10-04: "For Product Failures, The Concept is - Failure Within
 -- 3 Months, But a Rolling Average for 12 Months". Installation = WARRANTY

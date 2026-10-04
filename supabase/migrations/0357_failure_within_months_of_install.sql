@@ -92,7 +92,7 @@ create trigger zz_objective_settings_stamp before insert or update on public.obj
 do $on$
 begin
   if to_regproc('public.record_audit_fn') is null then
-    raise notice '0356: record_audit_fn() is missing -- objective_settings is not audited.';
+    raise notice '0357: record_audit_fn() is missing -- objective_settings is not audited.';
     return;
   end if;
   drop trigger if exists record_audit_u on public.objective_settings;
@@ -130,7 +130,7 @@ do $$
 declare n int;
 begin
   if to_regclass('public.app_roles') is null then
-    raise notice '0356: app_roles is missing -- run rbac.sql first. The key is not granted.';
+    raise notice '0357: app_roles is missing -- run rbac.sql first. The key is not granted.';
     return;
   end if;
   update public.app_roles ar
@@ -147,7 +147,7 @@ begin
      and jsonb_array_length(ar.permissions) > 0
      and not (ar.permissions @> '["mod:/sla-objective-config","config.manage","objective.manage"]'::jsonb);
   get diagnostics n = row_count;
-  raise notice '0356: % of 1 role (admin) given mod:/sla-objective-config and its actions', n;
+  raise notice '0357: % of 1 role (admin) given mod:/sla-objective-config and its actions', n;
 end $$;
 
 -- ---------------------------------------------------------------------------
@@ -180,7 +180,7 @@ begin
   if not found or not p.applies then return null; end if;
 
   -- FAILURE WITHIN <window> MONTHS OF INSTALLATION, over the machines installed
-  -- in the rolling <rolling> months to the cut-off (0356). Installation is the
+  -- in the rolling <rolling> months to the cut-off (0357). Installation is the
   -- WARRANTY START. Counted in MACHINES, so a machine called out three times
   -- inside its window is one failure.
   if o.calc_key = 'failure_rate_12m' then
@@ -703,7 +703,7 @@ begin
           'denominator.';
   return next;
   -- A failure rate is not windowed by REGISTRATION in the period; it says its
-  -- own window above, and this line would contradict it (0356).
+  -- own window above, and this line would contradict it (0357).
   if o.calc_key <> 'failure_rate_12m' then
     note := 'Calls are those REGISTERED between '
             || coalesce(p.period_start::text, '(period not reached)') || ' and '

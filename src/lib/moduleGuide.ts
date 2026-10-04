@@ -1176,7 +1176,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'While Audit Mode is ON, Update Party / Product Details on a call are hidden and refused',
     ],
   },
-  // SLA / OBJECTIVE CONFIGURATION (0356, the user, 2026-10-04).
+  // SLA / OBJECTIVE CONFIGURATION (0357, the user, 2026-10-04).
   {
     route: '/sla-objective-config',
     purpose: 'The targets the service is measured against: the SLA hours for open calls, and the Product Failure rule the Objective page works its failure rates out by.',

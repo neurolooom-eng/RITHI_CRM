@@ -604,7 +604,7 @@ with checks(sort_order, bundle, provides, present) as (
      and not exists (
            select 1 from public.app_roles a, lateral jsonb_array_elements_text(a.permissions) m(v)
             where a.role = 'admin' and m.v like 'mod:%'
-              -- THE ONE NAMED EXCEPTION (0356, the user, 2026-10-04): SLA /
+              -- THE ONE NAMED EXCEPTION (0357, the user, 2026-10-04): SLA /
               -- Objective Configuration goes to Admin alone by default -- "Rest
               -- let the Admin Decide through the App" -- so Technical Support
               -- holds it only if somebody ticks it.
@@ -2000,7 +2000,12 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regclass('public.recycle_request_list') is not null
      and exists (select 1 from pg_trigger where tgname = 'recycle_consumption_guard' and not tgisinternal)
      and coalesce((select p.prosrc like '%audit_mode%' from pg_proc p where p.oid = to_regprocedure('public.recycle_may_see()')), false))),
-    (288, 'Objective: product failure is a call within 3 months of installation, over a rolling 12 months', 'objective_settings holds the two numbers (failure_window_months, failure_rolling_months), edited on Admin -> SLA / Objective Configuration by a holder of objective.manage, and objective_value() reads them (0356): a machine of the product whose WARRANTY START is in the rolling window is in the denominator, and it has failed when a field call on its serial falls within the window months of that date. Checked on the function body naming the setting, not on the table alone -- a table beside the old calculation would answer yes and compute the old figure. NO means the Recent Failure Rate objectives still count every field call over the whole fleet. Restore: objective.sql',
+    (288, 'Technical / Service Notes: Beta Edit saves many notes at once', 'save_service_notes(jsonb) writes every edited note in one transaction, all or nothing, as SECURITY INVOKER so documents_update decides; callable by a signed-in user, never the public key (0356). Restore: documents.sql (0356)',
+        (to_regprocedure('public.save_service_notes(jsonb)') is not null
+         and not coalesce((select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.save_service_notes(jsonb)')), true)
+         and not has_function_privilege('anon', to_regprocedure('public.save_service_notes(jsonb)'), 'EXECUTE')
+         and has_function_privilege('authenticated', to_regprocedure('public.save_service_notes(jsonb)'), 'EXECUTE'))),
+    (289, 'Objective: product failure is a call within 3 months of installation, over a rolling 12 months', 'objective_settings holds the two numbers (failure_window_months, failure_rolling_months), edited on Admin -> SLA / Objective Configuration by a holder of objective.manage, and objective_value() reads them (0357): a machine of the product whose WARRANTY START is in the rolling window is in the denominator, and it has failed when a field call on its serial falls within the window months of that date. Checked on the function body naming the setting, not on the table alone -- a table beside the old calculation would answer yes and compute the old figure. NO means the Recent Failure Rate objectives still count every field call over the whole fleet. Restore: objective.sql',
         (to_regclass('public.objective_settings') is not null
          and to_regprocedure('public.objective_setting(text,integer)') is not null
          and coalesce((select p.prosrc like '%failure_window_months%'

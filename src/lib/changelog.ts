@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.84',
+    version: '0.10.85',
     date: '2026-10-04',
     title: 'SLA / Objective Configuration — Product Failure is a failure within 3 months, over a rolling 12 months',
     changes: [
@@ -23,6 +23,15 @@ export const CHANGELOG: ChangeEntry[] = [
       'Both numbers (3 and 12) can be changed on the page. A change applies from the next Re-Calculate on the Objective page; figures already written stay as they are until then.',
       'The evidence file now lists one row per failed machine, with its installation date, how many days later it failed and how many calls fell in the window, and Sheet 2 lists only the machines installed in the rolling period.',
       'Only the Admin role has the page to begin with. Grant it to other roles on Roles & Permissions → Administration → SLA / Objective Configuration.',
+    ],
+  },
+  {
+    version: '0.10.84',
+    date: '2026-10-04',
+    title: 'Technical / Service Notes: every field on Edit, and Beta Edit',
+    changes: [
+      'EDIT now shows every field of a note — Document No, Revision, Issue / Effective date and File name as well — and each column the bulk upload kept with the note, under its own heading.',
+      'BETA EDIT: one click at the top turns the notes into a grid. Change as many notes as you like — changed cells are marked — and one Save all saves every change together. If any change cannot be saved, none is, and the screen says which note stopped it.',
     ],
   },
   {

@@ -1032,6 +1032,12 @@ typed into a form that reads it.
   > they ever look wrong. A note with no Dated, or a retired one, is never Latest;
   > two notes on the same newest date are both Latest. A note for two products
   > can be Latest under one and not the other.
+  > **Edit shows every field** — Document No, Revision, Issue / Effective date,
+  > File name, and each column the upload kept with the note (under **More
+  > fields**). **✏️ Beta Edit** turns the list into a grid: change any cells on
+  > any notes (changed ones are marked), then **💾 Save all** saves them all at
+  > once. If one cannot be saved, none are, and the message names the note.
+  > **Cancel** asks before throwing changes away.
   > **A note can cover several products** — tick them all. None ticked means it
   > applies to every product. **A call's 📄 Supporting documents lists every
   > active note for its product** beside the manuals; a retired note is not offered.
