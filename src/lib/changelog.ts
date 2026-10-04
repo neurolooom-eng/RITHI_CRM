@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.80',
+    date: '2026-10-04',
+    title: 'Objective: type over a calculated figure and Re-calculate keeps it, or asks',
+    changes: [
+      'OBJECTIVE: you can type over a month of a calculated (ƒ) objective. It becomes a manual override, marked ✎ — hover it to see who typed it, when, and what the calculation had said.',
+      'Re-calculate no longer overwrites those months without asking. When there are manual overrides it lists them and asks: Keep them (the default — they stay exactly as typed, on every run) or Discard them (those months are recalculated and the ✎ goes).',
+      'DCCR: the change to Updated By / Updated Date (the registrant\'s email and the call date) is recorded in the validation package; the old register\'s own values are not being loaded, by decision.',
+    ],
+  },
+  {
     version: '0.10.78',
     date: '2026-10-04',
     title: 'The name on an issued stock out cannot be changed',
