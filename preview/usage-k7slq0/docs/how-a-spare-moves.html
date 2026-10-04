@@ -692,7 +692,7 @@ footer code{font-size:12.5px}
         <li class="mandate"><span class="tag">Function</span><b>One engineer per stock out:</b> <i>"A stock out goes to one engineer — select spares for a single engineer"</i>. The screen says so before the database has to.</li>
         <li><span class="tag">Function</span>Only lines still waiting: <i>"Only … of the … selected spares are still waiting at Stores — refresh and try again"</i>; and never more than is owed: <i>"Only … left to send on that spare (you asked for …) — refresh and try again"</i>.</li>
         <li><span class="tag">Function</span>A refurbished issue needs its part on the Part Master and active: <i>"Refurbished part … is not in Part Master, or is not active — add it before issuing it"</i>.</li>
-        <li><span class="tag db">Trigger</span><b>Booked by</b> on the stock out is stamped from the signed-in session; whatever the screen sends is replaced.</li>
+        <li><span class="tag db">Trigger</span><b>Booked by</b> on the stock out is stamped from the signed-in session; whatever the screen sends is replaced, and once the stock out is issued nobody signed in can change it.</li>
         <li><span class="tag">Function</span>Without the right: <i>"RBAC: dispatch requires the spare.dispatch permission"</i>; the button is disabled too.</li>
       </ul>
     </div>

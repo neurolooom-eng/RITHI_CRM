@@ -671,7 +671,9 @@ h1{
         This name is printed on a document that leaves the building with the company's mark on
         it, so it is not the client's to assert. Where there is no session at all &mdash; an
         administrative connection &mdash; a supplied value is kept, since blanking it would lose
-        the only record of who booked the stock out.</div>
+        the only record of who booked the stock out. <b>Once issued it does not change</b>: a
+        signed-in update, including a re-load of the Stock Out Register, keeps the name the stock
+        out was booked under and discards the new one (0343).</div>
     </div>
     <div class="f">
       <div class="f-n"><code>dc_date</code> <code>dispatched_at</code><span class="ty">date / timestamptz</span><span class="b b-set">set for you</span></div>
