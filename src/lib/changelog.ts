@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.69',
+    date: '2026-10-04',
+    title: 'Indoor Service emptied for a fresh start; new CallReg address',
+    changes: [
+      'INDOOR SERVICE: all the test data was removed — every job, accessory, harvested part, check, pre-delivery test and Indoor DC — together with the visits and spares that Indoor DC approvals had filed on calls (each call goes back to its previous visit). The next job and the next Indoor DC start from number 1 again. Report files already in Drive are left there.',
+      'The CallReg (Google Apps Script) address was updated to the new deployment; every device switches to it automatically on the next load.',
+    ],
+  },
+  {
     version: '0.10.68',
     date: '2026-10-04',
     title: 'Big registers no longer freeze the screen',
