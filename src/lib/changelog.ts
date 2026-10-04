@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.76',
+    date: '2026-10-04',
+    title: 'DCCR: Updated By / Updated Date filled; the Google Sheet mirror oldest first, with the old formulas',
+    changes: [
+      'DCCR EXPORT AND MIRROR: Updated By is now the email of the person who registered the call, and Updated Date the call\'s registration date (dd-MMM-yyyy). For reviews loaded from the old register, the file\'s own Updated By and Updated Date are kept — the DCCR Register upload now reads those two columns (re-load the file to fill them for old calls).',
+      'DCCR GOOGLE SHEET MIRROR: rows are written oldest call first. Sl. NO, CALL DETAILS, VISIT REMARKS, SL NO(T), Failure within how many days/yrs and Failure Within Grouping are written as the same formulas the old DCCR tab used. Needs the CallReg script redeployed.',
+    ],
+  },
+  {
     version: '0.10.75',
     date: '2026-10-04',
     title: 'DCCR mirror login made a super admin',

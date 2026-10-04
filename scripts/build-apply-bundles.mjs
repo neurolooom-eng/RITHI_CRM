@@ -468,6 +468,9 @@ const MODULES = {
       // Insights page counts under it. Must run AFTER 0048, which defines the
       // view, and after 0197, which creates the column.
       '0203_review_view_actual_product.sql',
+            // The imported register's Updated By / Updated Date (the user,
+            // 2026-10-04). AFTER 0203: it appends two columns to that view.
+            '0344_dccr_updated_from_import.sql',
             // After 0179: it re-keys the same table, and the import needs the
             // pair as its conflict target.
             '0181_ffr_one_row_per_machine.sql',

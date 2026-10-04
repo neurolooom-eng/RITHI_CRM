@@ -75,6 +75,20 @@ up)_
 
 ---
 
+## 2026-10-04 — DCCR mirror: oldest first, the old formulas, Updated By / Date (0344, v0.10.76)
+
+- **Updated By / Updated Date** (the user): the imported register's values,
+  else the email of the call's registrant (`actual_created_by`, through
+  `call_registrant_email()`, which answers only for registrants) and the
+  call's `reg_date`. Upload maps the two headings; old reviews fill on a
+  re-load of the DCCR file. Same in the app's DCCR export.
+- **Mirror** writes oldest first and puts the six old ARRAYFORMULAs in row 2
+  (C, U, V, AW, AY, AZ) with those columns' cells empty; `check:ui` pins every
+  letter the formulas read and write. SL NO(T)'s formula is copied as given,
+  `#REF!` and all — it evaluates to the serial padded to four digits.
+- **PENDING (user):** copy `apps-script/CallReg.gs` and redeploy the same
+  deployment; then run `dccrMirror` once.
+
 ## 2026-10-04 — Save any download as a Google Sheet (v0.10.70)
 
 - **Shipped:** every CSV / Excel download asks *Download* or *Save as Google
