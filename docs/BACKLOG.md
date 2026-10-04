@@ -78,6 +78,15 @@ up)_
 
 ---
 
+## 2026-10-04 — Indoor job: Checks table removed, QC kept (v0.10.92)
+
+- The user first asked to remove both the Checks table and the Quality Check
+  box, then: "Remove only the Checks table, keep QC". The "Checks · expected
+  against measured" group is gone from the job page (all activities); the
+  rows already in `indoor_job_checks` stay, unshown. The QC box and the
+  QC-before-dispatch rule (Repair / Rework / Troubleshooting) are unchanged.
+  FRS-144.8 marked WITHDRAWN.
+
 ## 2026-10-04 — Indoor intake: Field Return = Troubleshooting, Yes/No tags, no accessory serial, numeric WI revision (0370, v0.10.91)
 
 - "From a call" renamed **Field Return** (v0.10.90); a Field Return is now a

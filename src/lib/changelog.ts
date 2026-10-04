@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.92',
+    date: '2026-10-04',
+    title: 'Indoor job: the Checks table is removed',
+    changes: [
+      'INDOOR SERVICE job: the “Checks · expected against measured” table is removed. The Quality Check (4.5.6) stays, and a Repair, Rework or Troubleshooting job still cannot leave until its quality check is recorded.',
+    ],
+  },
+  {
     version: '0.10.91',
     date: '2026-10-04',
     title: 'Indoor intake: Field Return is Troubleshooting; tags are Yes / No; no accessory serial; numeric WI revision',
