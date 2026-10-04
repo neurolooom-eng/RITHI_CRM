@@ -352,6 +352,9 @@ const MODULES = {
       // D-036: cancel_call() refuses a call that is no longer open -- the
       // rule of the Cancel button, in the function 0108 defines and 0242 loops.
       '0311_cancel_needs_an_open_call.sql',
+      // Re-open, close, close-again, cancel and restore ask whether the caller
+      // can SEE the call (D-128). Redefines 0287's and 0311's functions, so after both.
+      '0341_call_actions_need_sight_of_the_call.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -475,7 +478,10 @@ const MODULES = {
             '0302_review_dates_and_imports_have_keys.sql',
             // Who may switch it is a ROLE (admin, nsm, technical_support),
             // not two names; after 0269, whose by-name grant it takes back.
-            '0285_auto_review_by_role.sql'],
+            '0285_auto_review_by_role.sql',
+            // D-129: a review is written only on a call that exists and the writer
+            // can see (bulk.upload keeps loading history). Replaces 0044's policy.
+            '0342_review_needs_a_call_you_can_see.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -722,7 +728,10 @@ const MODULES = {
             '0327_indoor_dc_approver_from_user_master.sql',
             // The Indoor test data emptied once, with the visits and spares its
             // DC approvals filed (the user, 2026-10-04).
-            '0334_indoor_testing_data_emptied.sql'],
+            '0334_indoor_testing_data_emptied.sql',
+            // D-142: a job that has been worked on is a quality record and is not
+            // deleted. Redefines 0324's delete_indoor_job().
+            '0336_indoor_job_worked_on_is_kept.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -916,7 +925,18 @@ const MODULES = {
             '0316_adjust_guard_reads_the_balance.sql',
             // An amended or voided consumption line keeps its original quantity
             // and adjustment time again (0317, D-082). Redefines 0316's guard.
-            '0317_void_keeps_original_qty.sql'],
+            '0317_void_keeps_original_qty.sql',
+            // Second re-review (D-119, D-120, D-123, D-124): an import marker is the
+            // importer's alone, a transfer header is not re-pointed, a return is one's
+            // own stock, a cut never goes below zero. Redefines 0317's adjust guard.
+            '0339_stock_moves_only_within_what_is_held.sql',
+            // D-121, D-122: part and quantity fixed once the RM decides; the engineer
+            // moves only by Change engineer; the cover follows the call. Reads
+            // stock_import_allowed() from 0339.
+            '0340_spare_request_fixed_once_decided.sql',
+            // D-136: a master key changes only through a rename. Reads
+            // part_rename_ticket (0196) and stock_import_allowed() (0339).
+            '0335_master_key_changes_only_by_rename.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -1170,7 +1190,10 @@ const MODULES = {
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
             // and split keys; see 0286 for the parent rule. AFTER 0271, whose gate it widens
             // to every register.
-            '0294_product_database_2_rebuild_key.sql'],
+            '0294_product_database_2_rebuild_key.sql',
+            // D-127: the stored copy is not readable without signing in. LAST, so a
+            // re-run of this bundle (which re-creates the view) closes it again.
+            '0337_product_database_2_store_not_public.sql'],
   },
   feedback_checks: {
     title: 'Feedback Without a Report',
@@ -1280,7 +1303,9 @@ const MODULES = {
             'is guarded, so it is harmless on a project behind on other modules.',
             '_status.sql rows 188 and 189 say whether it holds.'],
     needs: [],
-    files: ['0248_lock_down_internal_functions.sql'],
+    files: ['0248_lock_down_internal_functions.sql',
+            // D-134: three more helpers the public key could run.
+            '0338_helpers_not_public.sql'],
   },
 };
 

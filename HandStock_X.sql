@@ -61,6 +61,9 @@
 --   0313_a_reason_is_required.sql
 --   0316_adjust_guard_reads_the_balance.sql
 --   0317_void_keeps_original_qty.sql
+--   0339_stock_moves_only_within_what_is_held.sql
+--   0340_spare_request_fixed_once_decided.sql
+--   0335_master_key_changes_only_by_rename.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -5508,6 +5511,489 @@ begin
   new.adjusted_at := now();
   return new;
 end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0339_stock_moves_only_within_what_is_held.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0339 — HAND STOCK MOVES ONLY WITHIN WHAT IS HELD, ON EVERY ROUTE
+--        (second re-review, 2026-10-03: D-119, D-120, D-123, D-124)
+--
+-- Hand stock is derived, never stored, and the consumption cap is the control
+-- point (CLAUDE.md). The re-review measured four routes round it, each with a
+-- signed-in user and no special key:
+--
+--   D-119  An "imported" marker skips every stock limit -- spare_consumption.
+--          source_ref, stock_transfers.source = 'import', material_returns.
+--          source = 'import' -- and nothing asked who set it. A consumption of
+--          999 with a made-up source_ref was accepted; a transfer marked import
+--          moved 50 from an engineer holding nothing.
+--   D-120  A transfer's HEADER could be re-pointed after the fact (st_update is
+--          the permission alone and the stock check lives on the lines), which
+--          took a third engineer from 1 to -9.
+--   D-123  A return took ANOTHER engineer's stock: mr_insert compares the email,
+--          while stock is counted by the NAME.
+--   D-124  Stores could cut a stock-out line's quantity, or delete an opening
+--          balance, with no check and no record (-25 and -12, nothing audited).
+--
+-- WHAT EACH FIX KEEPS WORKING -- read from the code, not assumed:
+--   * The importers. Bulk Uploads (`bulk.upload`) writes source_ref on
+--     consumption and source = 'import' on transfers and returns; the Data
+--     Import panel (`import.panel`) writes source = 'import' on returns. A
+--     holder of either key, or a write with no signed-in user (a migration, the
+--     service role), is still trusted with history -- stock_import_allowed().
+--   * The screens. No screen sets source_ref on a consumption line or 'import'
+--     on a transfer or return (grep of src/: only uploads.ts and dataImport.ts),
+--     no screen ever updates a transfer header (supabase.ts inserts it, and
+--     deletes it again only when its lines are refused), Material Returns sends
+--     the signed-in person's own profile name unless they hold
+--     stock.return.others, and nothing on any screen updates or deletes a
+--     stock-out line or an opening balance.
+--   * The database's own writers. Receiving a shipment (0056) touches stock-out
+--     lines without changing their quantity; renaming a part (rename_part) or a
+--     person (0259/0267) changes the part or the engineer with the quantity
+--     untouched. The D-124 guard reacts ONLY to a lower quantity or a delete,
+--     so none of them is affected.
+--
+-- HOW: a marker sent by somebody who may not load history is DISCARDED, not
+-- refused (the 0113/0114 rule): an honest client never sends one, and a
+-- discarded marker simply leaves the row under the ordinary stock limit. A
+-- re-pointed header, another engineer's return and a cut below zero are
+-- REFUSED, with the reason, because there the caller asked for the thing itself.
+-- ===========================================================================
+
+-- ---- who may write history ---------------------------------------------------
+create or replace function public.stock_import_allowed()
+returns boolean language sql stable security definer set search_path = public as $$
+  select auth.uid() is null
+      or public.has_perm('bulk.upload')
+      or public.has_perm('import.panel');
+$$;
+revoke execute on function public.stock_import_allowed() from public, anon, authenticated;
+
+-- ---- D-119: the marker is the importer's alone --------------------------------
+-- Named a_… so it fires BEFORE consumption_reconcile_guard and
+-- consumption_adjust_guard, which read the marker it settles.
+create or replace function public.import_marker_needs_importer()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.stock_import_allowed() then return new; end if;
+  if tg_table_name = 'spare_consumption' then
+    if tg_op = 'INSERT' then
+      new.source_ref := '';
+    elsif new.source_ref is distinct from old.source_ref then
+      new.source_ref := old.source_ref;
+    end if;
+  else  -- stock_transfers, material_returns: source = 'import'
+    if tg_op = 'INSERT' then
+      if coalesce(new.source, '') = 'import' then
+        new.source := case when tg_table_name = 'material_returns' then 'app' else '' end;
+      end if;
+    elsif new.source is distinct from old.source then
+      new.source := old.source;
+    end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.import_marker_needs_importer() from public, anon, authenticated;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['spare_consumption', 'stock_transfers', 'material_returns'] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('drop trigger if exists a_import_marker_needs_importer on public.%I', t);
+      execute format('create trigger a_import_marker_needs_importer before insert or update on public.%I '
+                     'for each row execute function public.import_marker_needs_importer()', t);
+    end if;
+  end loop;
+end $$;
+
+-- consumption_adjust_guard (0317, read from the database before replacing):
+-- its one exemption -- "the same imported line, re-loaded from its source" --
+-- now also asks that the caller may load history. Every other line is 0317's.
+create or replace function public.consumption_adjust_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare avail numeric; delta numeric;
+begin
+  if coalesce(new.ucn, '')      is distinct from coalesce(old.ucn, '')
+  or (coalesce(new.engineer, '') is distinct from coalesce(old.engineer, '')
+      -- A USER MASTER RENAME (0259): the same person, spelled correctly. It
+      -- changes no quantity, so nothing below has anything to check.
+      and not public.engineer_rename_in_progress(old.engineer, new.engineer))
+  or coalesce(new.source, '')   is distinct from coalesce(old.source, '') then
+    raise exception 'A reconciliation can only change the quantity — not the call, part, engineer or source';
+  end if;
+
+  if coalesce(new.part, '') is distinct from coalesce(old.part, '') then
+    -- ONLY the substitution rename_part() filed a ticket for, in THIS
+    -- transaction, for this exact row's current value. Anything else is a line
+    -- being re-pointed, which is what this guard is for.
+    if not exists (
+      select 1 from public.part_rename_ticket t
+       where t.txid = txid_current()
+         and t.old_key = lower(btrim(coalesce(old.part, '')))
+         and t.new_detail = coalesce(new.part, '')
+    ) then
+      raise exception 'A reconciliation can only change the quantity — not the call, part, engineer or source';
+    end if;
+    -- A rename changes no quantity, so the stock arithmetic below has nothing
+    -- to check and the cap cannot be affected.
+    if new.qty is not distinct from old.qty then return new; end if;
+  end if;
+
+  if new.qty is not distinct from old.qty then
+    return new;                        -- nothing quantitative changed
+  end if;
+  if coalesce(new.qty, 0) < 0 then
+    raise exception 'Quantity cannot be negative';
+  end if;
+
+  -- The one exemption: the same imported line, re-loaded from its source --
+  -- by somebody who may load history (0339, D-119).
+  if coalesce(btrim(new.source_ref), '') <> ''
+     and btrim(new.source_ref) is not distinct from btrim(old.source_ref)
+     and public.stock_import_allowed() then
+    return new;
+  end if;
+
+  if coalesce(new.qty, 0) <= 0 and coalesce(btrim(new.adjustment_reason), '') = '' then
+    raise exception 'Say why the line is being voided — the reason is kept with it';
+  end if;
+  if coalesce(btrim(new.adjustment_reason), '') = '' then
+    raise exception 'Say why the quantity is being adjusted — the reason is kept with the line';
+  end if;
+
+  delta := coalesce(new.qty, 0) - coalesce(old.qty, 0);
+  if delta > 0 then
+    -- THE BALANCE THE INSERT CAP READS (consumption_reconcile_guard), and the
+    -- same skip for a line naming no engineer or no part. 0196 called a
+    -- helper here that no migration defines (see the header).
+    -- A nested test, not an early return: what follows this block stamps
+    -- original_qty and adjusted_at, and must run for every adjustment.
+    if coalesce(btrim(new.engineer), '') <> '' and coalesce(btrim(new.part), '') <> '' then
+      select coalesce(b.on_hand, 0) into avail
+        from public.handstock_balance b
+       where b.engineer_key = public.handstock_key(new.engineer)
+         and b.part_code    = public.part_code(new.part);
+      if delta > coalesce(avail, 0) then
+        raise exception 'Only % left in %''s hand stock for %', coalesce(avail, 0), new.engineer, new.part;
+      end if;
+    end if;
+  end if;
+
+  -- RESTORED (0317, D-082): the quantity before the FIRST change, and when the
+  -- line was last adjusted. 0081 had both; 0196 rewrote this function from an
+  -- older body and dropped them, 0261 and 0316 kept the omission.
+  if old.original_qty is null then new.original_qty := old.qty; end if;
+  new.adjusted_at := now();
+  return new;
+end $$;
+
+-- ---- D-120: a recorded transfer is not re-pointed ----------------------------
+create or replace function public.stock_transfer_header_fixed()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.stock_import_allowed() then return new; end if;
+  if lower(btrim(coalesce(new.from_engineer, ''))) is distinct from lower(btrim(coalesce(old.from_engineer, '')))
+     and not public.engineer_rename_in_progress(old.from_engineer, new.from_engineer)
+  or lower(btrim(coalesce(new.to_engineer, ''))) is distinct from lower(btrim(coalesce(old.to_engineer, '')))
+     and not public.engineer_rename_in_progress(old.to_engineer, new.to_engineer)
+  or new.transfer_date is distinct from old.transfer_date then
+    raise exception 'Transfer % is recorded: its engineers and date are not changed afterwards -- record a new transfer back instead',
+      coalesce(nullif(new.uid, ''), old.uid)
+      using errcode = '42501';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.stock_transfer_header_fixed() from public, anon, authenticated;
+drop trigger if exists stock_transfer_header_fixed on public.stock_transfers;
+create trigger stock_transfer_header_fixed before update on public.stock_transfers
+  for each row execute function public.stock_transfer_header_fixed();
+
+-- ---- D-123: a return is the returner's own stock --------------------------------
+-- The policy's email test stays; this adds the test on what the stock is
+-- counted by. The name sent by Material Returns is the profile's full name; the
+-- User Master's name is accepted too, since hand stock may be keyed by either.
+create or replace function public.material_return_is_own_stock()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_me text; v_dir text;
+begin
+  if public.stock_import_allowed()
+     or public.is_admin()
+     or public.has_perm('stock.return.others') then
+    return new;
+  end if;
+  select full_name into v_me from public.profiles where id = auth.uid();
+  v_dir := public.my_dir_name();
+  if public.handstock_key(new.engineer) is distinct from public.handstock_key(coalesce(v_me, ''))
+     and public.handstock_key(new.engineer) is distinct from public.handstock_key(coalesce(v_dir, '')) then
+    raise exception 'A return is your own stock: % is not you. Returning for somebody else needs "Return stock for another engineer"',
+      btrim(new.engineer)
+      using errcode = '42501';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.material_return_is_own_stock() from public, anon, authenticated;
+drop trigger if exists material_return_is_own_stock on public.material_returns;
+create trigger material_return_is_own_stock before insert on public.material_returns
+  for each row execute function public.material_return_is_own_stock();
+
+-- ---- D-124: a cut or a delete never takes stock below zero, and is recorded ----
+create or replace function public.stock_cut_keeps_balance()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_eng text; v_part text; v_bal numeric;
+begin
+  if public.stock_import_allowed() then return null; end if;
+  -- A rename moves the row to another name with its quantity; receiving a
+  -- shipment changes no quantity. Only a LOWER quantity or a DELETE is a cut.
+  if tg_op = 'UPDATE' and coalesce(new.qty, 0) >= coalesce(old.qty, 0) then return null; end if;
+  if tg_table_name = 'spare_dispatch_lines' then
+    select r.engineer into v_eng
+      from public.spare_request_lines l join public.spare_requests r on r.uid = l.request_uid
+     where l.id = old.line_id;
+  else
+    v_eng := old.engineer;
+  end if;
+  v_part := old.part;
+  if coalesce(btrim(v_eng), '') = '' or coalesce(btrim(v_part), '') = '' then return null; end if;
+  v_bal := public.engineer_stock_available(v_eng, v_part);
+  if v_bal < 0 then
+    raise exception '% would be left with % of % -- correct hand stock through a Hand Stock adjustment, which is checked and kept',
+      btrim(v_eng), v_bal, public.part_code(v_part)
+      using errcode = '23514';
+  end if;
+  return null;
+end $$;
+revoke execute on function public.stock_cut_keeps_balance() from public, anon, authenticated;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['spare_dispatch_lines', 'handstock_opening'] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('drop trigger if exists stock_cut_keeps_balance on public.%I', t);
+      execute format('create trigger stock_cut_keeps_balance after update or delete on public.%I '
+                     'for each row execute function public.stock_cut_keeps_balance()', t);
+      -- …and the change is imaged, the way 0314 arms the other movement tables.
+      if to_regproc('public.record_audit_fn') is not null then
+        execute format('drop trigger if exists record_audit_i on public.%I', t);
+        execute format('drop trigger if exists record_audit_u on public.%I', t);
+        execute format('drop trigger if exists record_audit_d on public.%I', t);
+        execute format('create trigger record_audit_i after insert on public.%I '
+                       'referencing new table as new_rows for each statement '
+                       'execute function public.record_audit_fn()', t);
+        execute format('create trigger record_audit_u after update on public.%I '
+                       'referencing old table as old_rows new table as new_rows for each statement '
+                       'execute function public.record_audit_fn()', t);
+        execute format('create trigger record_audit_d after delete on public.%I '
+                       'referencing old table as old_rows for each statement '
+                       'execute function public.record_audit_fn()', t);
+      end if;
+    end if;
+  end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0340_spare_request_fixed_once_decided.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0340 — A SPARE REQUEST IS WHAT WAS APPROVED  (second re-review, 2026-10-03:
+--        D-121, D-122)
+--
+-- D-121  The parts rule in spare_request_lines_guard() exempts the requester
+--        at EVERY stage, though 0016 says "the part and quantity are the
+--        request; they are fixed once submitted". Measured: a line at Stores
+--        (approved for 1 x GP-1) was changed by its requester to 40 of another
+--        part, and Stores booked out 40.
+-- D-122  spare_request_engineer_guard() refused a change of engineer only AFTER
+--        dispatch, so before it a plain UPDATE moved the request to anybody,
+--        with no key, no reason and nothing in the engineer log -- the path
+--        reassign_spare_request() exists to be. And item_status / req_type,
+--        which decide whether Commercial and NSM must approve, could be changed
+--        at will: an RM turned an AMC request into WGP and it went to Stores
+--        with Commercial auto-approved.
+--
+-- WHAT KEEPS WORKING -- read from the code, not assumed:
+--   * The screens never change a line's part or quantity: every line write is an
+--     approval, a rejection, a drop or a receipt (SpareRequests.tsx), and no
+--     database function changes qty (partial dispatch uses dispatched_qty). The
+--     requester may still change part and quantity while the RM has not decided.
+--   * A part RENAME (rename_part, its ticket) still carries every line, as the
+--     big guard already allows; that test is repeated here word for word.
+--   * A change of engineer still goes through reassign_spare_request() (its
+--     rithi.reassigning ticket) and a User Master rename (0259) still carries the
+--     name. No screen updates a request's engineer any other way
+--     (updateSpareRequest has no caller).
+--   * Item Status FOLLOWS THE CALL (0268, the user's ask): automatically when
+--     the call changes, and from the Refresh button. Both write the CALL'S value,
+--     so a change to the call's value is accepted; any other value is DISCARDED
+--     (the old one kept), never refused, so nothing honest fails. On a new
+--     request the call's value is taken -- the form copies it anyway.
+--   * The importers (bulk.upload / import.panel) and writes with no signed-in
+--     user are trusted with history, as in 0339.
+--
+-- A SEPARATE TRIGGER, NOT A REWRITE: spare_request_lines_guard() has been
+-- rewritten from an old body before and lost three rules (0210 -> 0217), so it
+-- is left exactly as it is; these rules sit beside it.
+-- ===========================================================================
+
+-- ---- D-121: part and quantity are fixed once the RM has decided --------------
+create or replace function public.spare_line_fixed_once_decided()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.part is not distinct from old.part and new.qty is not distinct from old.qty then
+    return new;
+  end if;
+  if public.stock_import_allowed() then return new; end if;
+  if coalesce(btrim(old.rm_approval), 'Pending') in ('', 'Pending') then
+    return new;                                   -- not decided yet: the requester's rule (the big guard) applies
+  end if;
+  -- A PART RENAME carrying the record (0310's test, verbatim).
+  if new.qty is not distinct from old.qty
+     and exists (select 1 from public.part_rename_ticket t
+                  where t.txid = txid_current()
+                    and t.old_key = lower(btrim(old.part))
+                    and t.new_detail = new.part) then
+    return new;
+  end if;
+  raise exception 'Spare % has been % by the RM: its part and quantity are what was approved and are not changed afterwards -- raise a new request instead',
+    coalesce(nullif(old.line_uid, ''), old.id::text), lower(btrim(old.rm_approval))
+    using errcode = '42501';
+end $$;
+revoke execute on function public.spare_line_fixed_once_decided() from public, anon, authenticated;
+drop trigger if exists spare_line_fixed_once_decided on public.spare_request_lines;
+create trigger spare_line_fixed_once_decided before update on public.spare_request_lines
+  for each row execute function public.spare_line_fixed_once_decided();
+
+-- ---- D-122: the engineer moves only by Change engineer; the cover follows the call
+-- Named spare_requests_z… so it runs after spare_requests_cover_code has spelled
+-- the value, and after spare_request_engineer_guard (which still says the clearer
+-- thing once the parts have gone out).
+create or replace function public.spare_requests_zz_header_rules()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_call_status text; v_has_call boolean := false;
+begin
+  if public.stock_import_allowed() then return new; end if;
+
+  if btrim(coalesce(new.ucn, '')) <> '' then
+    select true, coalesce(c.item_status, '') into v_has_call, v_call_status
+      from public.calls c where c.ucn = btrim(new.ucn) limit 1;
+  end if;
+
+  if tg_op = 'INSERT' then
+    -- FRS-146.5: copied from the call, not chosen. The form sends the call's own
+    -- value, so for an honest client this changes nothing.
+    if coalesce(v_has_call, false) then new.item_status := v_call_status; end if;
+    return new;
+  end if;
+
+  -- The engineer: only through reassign_spare_request() or a User Master rename.
+  if (lower(btrim(coalesce(new.engineer, ''))) is distinct from lower(btrim(coalesce(old.engineer, '')))
+      or lower(btrim(coalesce(new.engineer_email, ''))) is distinct from lower(btrim(coalesce(old.engineer_email, ''))))
+     and coalesce(current_setting('rithi.reassigning', true), '') is distinct from new.uid
+     and not (lower(btrim(coalesce(new.engineer_email, ''))) is not distinct from lower(btrim(coalesce(old.engineer_email, '')))
+              and public.engineer_rename_in_progress(old.engineer, new.engineer)) then
+    raise exception 'The engineer on % is changed with "Change engineer", which needs its key and a reason and keeps the change on record',
+      coalesce(nullif(new.or_no, ''), new.uid)
+      using errcode = '42501';
+  end if;
+
+  -- The cover follows the call (0268); anything else is kept as it was.
+  if public.cover_code(coalesce(new.item_status, '')) is distinct from public.cover_code(coalesce(old.item_status, ''))
+     and not (coalesce(v_has_call, false)
+              and public.cover_code(coalesce(new.item_status, '')) is not distinct from public.cover_code(v_call_status)) then
+    new.item_status := old.item_status;
+  end if;
+  -- The request type is what was raised.
+  if new.req_type is distinct from old.req_type then
+    new.req_type := old.req_type;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.spare_requests_zz_header_rules() from public, anon, authenticated;
+drop trigger if exists spare_requests_zz_header_rules on public.spare_requests;
+create trigger spare_requests_zz_header_rules before insert or update on public.spare_requests
+  for each row execute function public.spare_requests_zz_header_rules();
+
+-- ------------------------------------------------------------------------
+-- 0335_master_key_changes_only_by_rename.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0335 — A PARTY'S NAME, A PART'S CODE AND A PRODUCT LINE'S CODE CHANGE ONLY
+--        THROUGH A RENAME  (second re-review, 2026-10-03: D-136)
+--
+-- master_delete_guard (0325) refuses deleting a party, part or product line that
+-- records still name -- by the OLD key. parties_update, parts_update and
+-- pm_update let the key itself be changed, with no trigger refusing it, so a
+-- row could be renamed first and then deleted, and every record naming it was
+-- left pointing at nothing. Measured: a party named on a machine was refused a
+-- delete, then renamed (UPDATE 1) and deleted (DELETE 1). Renaming a part that
+-- way also skips rename_part(), which carries the part's history through ten
+-- tables.
+--
+-- WHAT KEEPS WORKING -- read from the code, not assumed:
+--   * The screens never change these keys. updateParty() deliberately leaves
+--     party_name out; updatePart() sends category, product, cost and HSN only;
+--     the Product Master's Edit sends every field but the code (FRS-242.5).
+--   * Renaming a part goes through rename_part(), which files its ticket in
+--     part_rename_ticket BEFORE it updates the part (0310): that ticket is
+--     accepted here, exactly as the spare and consumption guards accept it.
+--   * The uploads re-load on the KEY (parties on name_key, parts on
+--     item_detail_key, product lines on product_code), so a re-load never
+--     changes it. A change of case or of outer spaces is not a change of key and
+--     is allowed. The importers and writes with no signed-in user are trusted, as
+--     in 0339.
+--
+-- Filed in the handstock bundle, after rename_part's last definition (0310),
+-- because it reads part_rename_ticket, which that bundle creates.
+-- ===========================================================================
+
+create or replace function public.master_key_changes_only_by_rename()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.stock_import_allowed() then return new; end if;
+
+  if tg_table_name = 'parties' then
+    if lower(btrim(coalesce(new.party_name, ''))) is distinct from lower(btrim(coalesce(old.party_name, ''))) then
+      raise exception 'A party''s name is the key every machine, call and contract names it by, so it is not changed here (it would leave them naming a party that is gone)'
+        using errcode = '42501';
+    end if;
+
+  elsif tg_table_name = 'parts' then
+    if (lower(btrim(coalesce(new.item_detail, ''))) is distinct from lower(btrim(coalesce(old.item_detail, '')))
+        or lower(btrim(coalesce(new.code, ''))) is distinct from lower(btrim(coalesce(old.code, ''))))
+       and not exists (select 1 from public.part_rename_ticket t
+                        where t.txid = txid_current()
+                          and t.old_key = lower(btrim(coalesce(old.item_detail, '')))) then
+      raise exception 'A part''s code and description are renamed with "Rename part", which carries every record that names it'
+        using errcode = '42501';
+    end if;
+
+  elsif tg_table_name = 'product_master' then
+    if lower(btrim(coalesce(new.product_code, ''))) is distinct from lower(btrim(coalesce(old.product_code, ''))) then
+      raise exception 'A product line''s code is the key machines name it by, so it is not changed (FRS-242.5)'
+        using errcode = '42501';
+    end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.master_key_changes_only_by_rename() from public, anon, authenticated;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['parties', 'parts', 'product_master'] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('drop trigger if exists master_key_changes_only_by_rename on public.%I', t);
+      execute format('create trigger master_key_changes_only_by_rename before update on public.%I '
+                     'for each row execute function public.master_key_changes_only_by_rename()', t);
+    end if;
+  end loop;
+end $$;
 
 commit;
 

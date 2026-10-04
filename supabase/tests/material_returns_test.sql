@@ -74,6 +74,10 @@ insert into public.material_returns (mrn_no, mrn_date, engineer, engineer_email,
 select part_code, stock_out, returned, on_hand from public.handstock_balance where part_code='MR-100';
 
 \echo '--- 8. imported history is exempt — it predates the ledger it would be checked against ---'
+-- A LOAD, so nobody is signed in: since 0331 (D-119) the import marker is honoured
+-- only for an importer (bulk.upload / import.panel) or a write with no session --
+-- an engineer who sends it gets an ordinary, checked return instead.
+update public.harness set uid = null, email = null;
 insert into public.material_returns (uid, row_no, mrn_no, mrn_date, engineer, part, good_qty, source)
   values ('SI4703', 1, '105', date '2022-07-12', 'Shankar', 'MR-200|Historic board', 1, 'import');
 select m.uid, m.source, b.engineer, b.part_code, b.returned, b.on_hand
@@ -81,6 +85,7 @@ select m.uid, m.source, b.engineer, b.part_code, b.returned, b.on_hand
   join public.handstock_balance b on b.part_code = public.part_code(m.part)
  where m.uid = 'SI4703';
 
+call public.be('eng@x.com');
 \echo '--- 9. the engineer name is matched the same way as every other movement ---'
 insert into public.material_returns (mrn_no, mrn_date, engineer, engineer_email, part, good_qty)
   values ('107', current_date, '  ENG ELAN ', 'eng@x.com', 'mr-100|Return test board (reworded)', 1);

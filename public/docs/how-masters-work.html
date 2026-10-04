@@ -385,6 +385,7 @@ footer code{font-size:12.5px}
       <ul>
         <li><span class="tag db">Policy</span>Changing a party needs <b>Add / edit master records</b> (or its parent, <b>Edit masters</b>).</li>
         <li><span class="tag db">Trigger</span>The <b>Key</b> cannot be changed once given; the party name is trimmed of spaces at either end on every save.</li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>The party name cannot be changed through the data interface either</b> (0335): <i>"A party's name is the key every machine, call and contract names it by, so it is not changed here"</i>. A change of capital letters or outer spaces is allowed; a re-load by Bulk Uploads matches on the name and does not change it. This is also what keeps the delete guard honest — a party cannot be renamed first and then deleted.</li>
       </ul>
     </div>
   </section>
@@ -687,8 +688,9 @@ footer code{font-size:12.5px}
         <b>Active</b> and <b>Inactive</b> carry exact counts. <b>⭳ Export CSV</b>.
       </p>
       <p>
-        The screen is read-only. Lines are loaded and corrected by the upload, matched on the Product Code; a line the
-        file does not clearly mark Inactive comes in Active.
+        Lines are loaded and corrected by the upload, matched on the Product Code; a line the file does not clearly
+        mark Inactive comes in Active. <b>＋ Add entry</b>, <b>✎ Edit</b> and <b>🗑 Delete</b> are on the screen, each
+        with its own permission; Edit changes everything but the Product Code.
       </p>
       <p>
         <b>Inactive</b> stops the line being offered for a <b>new sale</b> on the Warranty Register — the Product Code
@@ -700,7 +702,8 @@ footer code{font-size:12.5px}
       <h3>Restrictions &amp; mandates</h3>
       <ul>
         <li class="mandate"><span class="tag">Mandate</span>The upload needs <b>Product Code</b> and <b>Product Name</b> on every row.</li>
-        <li><span class="tag db">Policy</span>Writing lines needs <b>Add / edit master records</b>; reading is open to every signed-in user.</li>
+        <li><span class="tag db">Policy</span>Writing lines needs the Product Master's add, edit or delete permission (or <b>Add / edit master records</b>); reading is open to every signed-in user.</li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>The Product Code is never changed</b> (0335): <i>"A product line's code is the key machines name it by, so it is not changed"</i> — not by the screen and not through the data interface.</li>
       </ul>
     </div>
   </section>
@@ -841,6 +844,7 @@ footer code{font-size:12.5px}
       <ul>
         <li>Without the rename right the screen refuses first: <i>"Changing the code or description renames the part everywhere, which needs the “Rename a part” permission."</i></li>
         <li><span class="tag db">Function</span><i>"RBAC: only a role that maintains the masters may rename a part"</i></li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>Rename is the only way</b> (0335): a code or description changed any other way is refused — <i>"A part's code and description are renamed with "Rename part", which carries every record that names it"</i>.</li>
         <li><span class="tag db">Function</span><i>"Another part is already called "…" — a rename cannot merge two parts"</i></li>
         <li><span class="tag db">Function</span><i>"A part needs both a code and a description"</i> · <i>"Neither the code nor the description may contain "|""</i></li>
         <li><i>"A description cannot contain "|" either."</i></li>
