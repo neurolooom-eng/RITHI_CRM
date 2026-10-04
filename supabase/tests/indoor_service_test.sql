@@ -249,3 +249,19 @@ begin;
   delete from public.indoor_jobs where serial = 'IND-TEST-OTHER';
 commit;
 select count(*) as still_there from public.indoor_jobs where serial = 'IND-TEST-OTHER';
+
+\echo '--- 15. A FIELD RETURN IS TROUBLESHOOTING, HELD TO THE REPAIR RULE (0370) ---'
+call public.be('ind_full@x.com');
+\echo 'expect ERROR: a troubleshooting cannot be dispatched before its quality check is recorded (4.5.6)'
+begin;
+  set local role authenticated;
+  insert into public.indoor_jobs (activity, product_name, serial, status)
+       values ('Troubleshooting', 'Extend XT', 'IND-TEST-TS-NOQC', 'Dispatched');
+commit;
+begin;
+  set local role authenticated;
+  insert into public.indoor_jobs (activity, product_name, serial, tag_no)
+       values ('Troubleshooting', 'Extend XT', 'IND-TEST-TS', 'Yes, Identified');
+commit;
+select 'a Troubleshooting job is accepted' as t,
+       exists (select 1 from public.indoor_jobs where serial = 'IND-TEST-TS' and activity = 'Troubleshooting') as ok;

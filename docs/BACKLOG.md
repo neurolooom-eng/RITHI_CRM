@@ -78,6 +78,21 @@ up)_
 
 ---
 
+## 2026-10-04 — Indoor intake: Field Return = Troubleshooting, Yes/No tags, no accessory serial, numeric WI revision (0370, v0.10.91)
+
+- "From a call" renamed **Field Return** (v0.10.90); a Field Return is now a
+  **Troubleshooting** job, fixed on the intake. 0370 adds it to
+  `indoor_jobs_activity_check` and to the Repair/Rework QC-before-dispatch
+  line of `indoor_jobs_guard()` (re-stated from the database's definition).
+- Identification tag (unit + accessories): Yes, Identified / Not Identified
+  pick (`INDOOR_TAG_OPTIONS`); an older typed value is kept and offered.
+- Accessory Serial removed from both screens (the column stays in the table
+  for rows that carry one).
+- Cleaning WI revision: digits only, two places, 01 by default (screen-side;
+  the column is still text, so an older non-numeric value is not refused —
+  it is reduced to its digits when next saved).
+- FRS-232.9/.10; `_status.sql` row 305; `indoor_service_test` §15.
+
 ## 2026-10-04 — Spare Recycling: Start Work + SLA, one request per spare, import from MRN, the page gone in Audit Mode (0365)
 
 - **Audit Mode leak fixed** (reported: "I tried to turn on the Audit Mode,

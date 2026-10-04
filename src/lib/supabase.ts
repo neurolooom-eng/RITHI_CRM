@@ -5795,7 +5795,8 @@ export async function saveValidationResult(testId: string, patch: { result?: str
 // ===========================================================================
 export const INDOOR_KINDS = ['Customer property', 'DEMO unit'] as const;
 export const INDOOR_ACTIVITIES = [
-  'Repair', 'Rework', 'Salvage', 'Pre-delivery inspection', 'Demo', 'Other',
+  // Troubleshooting (0370): what a Field Return is, held to the Repair rule.
+  'Repair', 'Rework', 'Troubleshooting', 'Salvage', 'Pre-delivery inspection', 'Demo', 'Other',
 ] as const;
 export const INDOOR_STATUSES = [
   'Received', 'Cleaned', 'Under repair', 'Awaiting spares', 'QC',

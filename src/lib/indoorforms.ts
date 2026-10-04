@@ -230,6 +230,19 @@ export const equipmentDescription = (name: string, serial: string) =>
 // database's to refuse -- this is only where the job stands.
 // ---------------------------------------------------------------------------
 export const INDOOR_STAGES = ['Intake', 'Cleaning', 'Repair', 'DC'] as const;
+
+/** THE IDENTIFICATION TAG (4.5.4) IS A YES / NO, not a typed number (the user,
+ *  2026-10-04: "Identification Tag - Yes, Identified ; Not Identified"), for
+ *  the unit and for each accessory. A value typed before this stays on its job
+ *  and is offered beside the two, so nothing already recorded is lost. */
+export const INDOOR_TAG_OPTIONS = ['Yes, Identified', 'Not Identified'] as const;
+export const tagOptions = (current: string | null | undefined): string[] =>
+  current && !(INDOOR_TAG_OPTIONS as readonly string[]).includes(current)
+    ? [...INDOOR_TAG_OPTIONS, current] : [...INDOOR_TAG_OPTIONS];
+
+/** A FIELD RETURN IS A TROUBLESHOOTING JOB (the user, 2026-10-04: "Fix it to
+ *  Troubleshooting - when it is Field Return"). */
+export const FIELD_RETURN_ACTIVITY = 'Troubleshooting';
 export type IndoorStage = typeof INDOOR_STAGES[number];
 
 export interface StageState {

@@ -790,7 +790,11 @@ const MODULES = {
             '0336_indoor_job_worked_on_is_kept.sql',
             // D-115: a job with an uploaded report keeps its report number --
             // a trigger of its own beside the stage guard (0352).
-            '0352_indoor_report_keeps_its_number.sql'],
+            '0352_indoor_report_keeps_its_number.sql',
+            // A Field Return is a Troubleshooting job, held to the Repair rule
+            // (2026-10-04). Re-states indoor_jobs_guard() from the database's
+            // current definition (0352's), so AFTER it.
+            '0370_indoor_troubleshooting.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
