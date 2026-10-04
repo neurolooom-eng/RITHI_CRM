@@ -604,11 +604,6 @@ with checks(sort_order, bundle, provides, present) as (
      and not exists (
            select 1 from public.app_roles a, lateral jsonb_array_elements_text(a.permissions) m(v)
             where a.role = 'admin' and m.v like 'mod:%'
-              -- THE ONE NAMED EXCEPTION (0357, the user, 2026-10-04): SLA /
-              -- Objective Configuration goes to Admin alone by default -- "Rest
-              -- let the Admin Decide through the App" -- so Technical Support
-              -- holds it only if somebody ticks it.
-              and m.v <> 'mod:/sla-objective-config'
               and not exists (select 1 from public.app_roles ts
                                where ts.role = 'technical_support' and ts.permissions ? m.v))))),
     (115, 'Part category: free text, so a bulk upload cannot be refused over it', 'A CHECK on parts.category can ABORT AN IMPORT PART-WRITTEN -- it did, on the Item Master: 173 rows written, then "violates check constraint parts_category_check" and a half-updated table. 0148 named the right four words but put them in the wrong place. 0152 drops the constraint and replaces it with nothing: a word the vocabulary does not know now lands in the data and shows in Spare Insights as its own bar, which is how somebody notices it, rather than the row never arriving. Blank still means "nobody has said" and still reads as Unclassified. NO means the constraint is still there and a non-standard category will stop the next Part Master upload. Restore: performance.sql',
@@ -2010,6 +2005,13 @@ with checks(sort_order, bundle, provides, present) as (
          and to_regprocedure('public.objective_setting(text,integer)') is not null
          and coalesce((select p.prosrc like '%failure_window_months%'
                          from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false))),
+    (290, 'Objective: the failure rate re-calculates inside the time limit', 'objective_value() works the failure rate out as ONE hashed join of the window''s machines to the window''s calls, with the two settings read once and the query EXECUTEd so it is never generic-planned (0359). 0357''s version searched the calls once per machine and was generic-planned after its fifth run: Re-Calculate ran past the statement timeout ("Could not re-calculate: canceling statement due to statement timeout", 2026-10-04). Same rule, same figures. NO means Re-Calculate can still time out on a large register. Restore: objective.sql',
+        coalesce((select p.prosrc like '%into n_den, n_num using v_prod, v_serial, v_from, v_upto, v_win%'
+                    from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)),
+    (291, 'SLA / Objective Configuration: Technical Support has the page', 'mod:/sla-objective-config is in the technical_support role (0358, the user, 2026-10-04: "Grant the page to Technical Support as well") -- the page alone, its cards read-only until Admin config or the objective permission is ticked. Row 114 holds the general rule that Technical Support carries every page the Admin does; this row names the one this change granted. Restore: objective.sql',
+        (to_regclass('public.app_roles') is null
+         or exists (select 1 from public.app_roles where role = 'technical_support'
+                     and permissions ? 'mod:/sla-objective-config'))),
     (299, 'Spare Recycling: Start Work, its working-day SLA, one request per spare, import from MRN', 'Asked for 2026-10-04. start_recycle_work() is the only writer of work_started_at; recycle_sla_due() adds the recycling SLA''s working days (app_settings recycle_sla_working_days / recycle_sla_weekend_days, set only by set_recycle_sla() from the SLA page); register_recycle_requests() makes N requests of one spare each and the guard refuses a request of more than one; recycle_mrn_lines() reads material_returns read-only. NO means one of the four functions is missing. Restore: recycling.sql (0365)',
         (to_regprocedure('public.start_recycle_work(bigint,timestamptz)') is not null
      and to_regprocedure('public.recycle_sla_due(timestamptz)') is not null

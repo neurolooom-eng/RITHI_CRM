@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { SlaRulesCard } from './SlaRulesCard';
+import { FrequentFailureCard } from './FrequentFailureCard';
 import {
   listObjectiveSettings, saveObjectiveSetting, supabaseConfigured, type ObjectiveSettingRow,
 } from '../lib/supabase';
@@ -14,10 +15,12 @@ import { formatDayTime } from '../lib/dates';
 // 3 Months, But a Rolling Average for 12 Months - Add this to a Page under
 // Admin, Call the page - SLA / Objective Configuration").
 //
-// Two cards: the SLA Targets (moved here from Admin Config) and the Product
+// Three cards: the SLA Targets (moved here from Admin Config), the Product
 // Failure rule the Objective page's "Recent Failure Rate" figures are worked
-// out by (0357). Opened by mod:/sla-objective-config, which only the Admin role
-// is given by default; every other role is ticked on Roles & Permissions.
+// out by (0357), and the Frequent Failure rule Review 2 applies (moved from
+// Admin Config the same day). Opened by mod:/sla-objective-config: the Admin
+// role with every action (0357), Technical Support the page alone (0358);
+// every other role is ticked on Roles & Permissions.
 // ===========================================================================
 
 const DEFAULTS: ObjectiveSettingRow[] = [
@@ -136,12 +139,14 @@ export function SlaObjectiveConfig() {
     <div>
       <PageHeader
         title="SLA / Objective Configuration"
-        subtitle="The service-level targets open calls are measured against, and the rule the Product Failure Rate objectives are worked out by."
+        subtitle="The service-level targets open calls are measured against, the rule the Product Failure Rate objectives are worked out by, and the frequent-failure rule Review 2 applies."
         icon="🎯"
       />
       <SlaRulesCard />
       <div style={{ height: 16 }} />
       <ProductFailureRuleCard />
+      <div style={{ height: 16 }} />
+      <FrequentFailureCard />
     </div>
   );
 }

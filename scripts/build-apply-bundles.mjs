@@ -566,7 +566,13 @@ const MODULES = {
             // set on Admin -> SLA / Objective Configuration (the user,
             // 2026-10-04). Redefines 0142's objective_value / objective_notes
             // and 0251's objective_evidence, so it stays after both.
-            '0357_failure_within_months_of_install.sql'],
+            '0357_failure_within_months_of_install.sql',
+            // The page to Technical Support as well (the user, 2026-10-04).
+            '0358_sla_objective_config_to_technical_support.sql',
+            // Re-Calculate timed out on 0357's failure rate (the user, same
+            // day): one hashed join, EXECUTEd so it is never generic-planned.
+            // Redefines 0357's objective_value / objective_evidence.
+            '0359_failure_rate_one_join.sql'],
   },
   validation: {
     title: 'Software Validation',

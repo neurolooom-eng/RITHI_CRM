@@ -4,7 +4,8 @@ import { useAuth } from '../lib/auth';
 import { supabaseConfigured, getFrequentFailureRule, setFrequentFailureRule } from '../lib/supabase';
 
 // ===========================================================================
-// ADMIN CONFIG → THE FREQUENT-FAILURE RULE.
+// SLA / OBJECTIVE CONFIGURATION → THE FREQUENT-FAILURE RULE (on Admin Config
+// until 2026-10-04).
 //
 // The user, 2026-09-06, in the same breath as the rule itself: "2 or More
 // including the call in question -- Maybe make it editable in Admin Pannel."

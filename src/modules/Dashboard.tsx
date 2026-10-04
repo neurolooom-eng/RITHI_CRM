@@ -164,7 +164,7 @@ export function Dashboard() {
                 {slaSource === 'unreadable'
                   ? 'The configured SLA targets could not be read, so these are judged against the built-in default targets.'
                   : 'No SLA targets are configured yet, so these are judged against the built-in default targets.'}
-                {' '}Set them under Admin Config → SLA Targets.
+                {' '}Set them under SLA / Objective Configuration → SLA Targets.
               </span>
             </div>
           )}
