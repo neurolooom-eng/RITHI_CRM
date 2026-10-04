@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.85',
+    version: '0.10.86',
     date: '2026-10-04',
     title: 'SLA / Objective Configuration — Product Failure is a failure within 3 months, over a rolling 12 months',
     changes: [
@@ -23,6 +23,15 @@ export const CHANGELOG: ChangeEntry[] = [
       'Both numbers (3 and 12) can be changed on the page. A change applies from the next Re-Calculate on the Objective page; figures already written stay as they are until then.',
       'The evidence file now lists one row per failed machine, with its installation date, how many days later it failed and how many calls fell in the window, and Sheet 2 lists only the machines installed in the rolling period.',
       'Only the Admin role has the page to begin with. Grant it to other roles on Roles & Permissions → Administration → SLA / Objective Configuration.',
+    ],
+  },
+  {
+    version: '0.10.85',
+    date: '2026-10-04',
+    title: 'Spare Recycling in Data Flows',
+    auditHidden: true,
+    changes: [
+      'DATA FLOWS: Spare Recycling has its own flow — registered → MRS (no approval) → Stores stock out with cost → recycling hand stock → job done, consumption and other costs → Returned as R<PartNo> or Not recyclable. Like the screen, it is hidden while Audit Mode is on.',
     ],
   },
   {
