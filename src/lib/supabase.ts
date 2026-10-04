@@ -5466,9 +5466,13 @@ export interface DocRow {
   // What the Drive listing said about the FILE (0299) -- only a note loaded
   // from one has them. Not the same facts as created_at / updated_at above.
   source_created_at?: string | null; source_modified_at?: string | null; source_modified_by?: string;
+  // TECHNICAL / SERVICE NOTES (0354): the note's own date, entered by hand, and
+  // the products it is currently the latest for ('' = every product) -- the
+  // second written only by the database.
+  dated?: string | null; latest_for?: string[];
 }
 export type DocInput = Pick<DocRow, 'kind' | 'title' | 'product' | 'doc_no' | 'revision' | 'tags' | 'url' | 'file_name' | 'notes'>
-  & { effective_date?: string | null; uploaded_by_name?: string };
+  & { effective_date?: string | null; uploaded_by_name?: string; dated?: string | null };
 
 export async function listDocuments(kind?: DocKind, includeInactive = true): Promise<DocRow[]> {
   const c = getSupabase(); if (!c) return [];
@@ -5512,6 +5516,14 @@ export async function updateDocument(id: number, patch: Partial<DocInput>): Prom
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
   const { error } = await c.from('documents').update(patch).eq('id', id);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+// THE "REFRESH LATEST TAGS" BUTTON (0354): re-marks the latest Technical Note
+// of every product. The database also does this on every save; the button is
+// for whenever the marks are in doubt. Returns how many notes changed.
+export async function refreshServiceNoteLatest(): Promise<{ ok: boolean; changed?: number; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  const { data, error } = await c.rpc('refresh_service_note_latest');
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, changed: Number(data ?? 0) };
 }
 // A superseded manual is DEACTIVATED, never deleted: calls already worked from
 // it, and the shelf is a record of what the field was told.
@@ -6741,7 +6753,7 @@ export async function sbWarrantyPreview(product: string, serial: string, solvedO
 
 
 // ===========================================================================
-// SPARE RECYCLING (0354) — a parallel track under Indoor Service, with its own
+// SPARE RECYCLING (0355) — a parallel track under Indoor Service, with its own
 // tables and its own hand stock. Nothing here reads or writes the call, spare
 // or regular hand-stock tables. While Audit Mode is on every read comes back
 // empty and every write is refused, by the database.

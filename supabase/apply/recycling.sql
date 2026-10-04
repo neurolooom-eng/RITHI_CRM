@@ -13,7 +13,7 @@
 -- Edit the migrations below and re-run the generator.
 --
 -- Carries, in order:
---   0354_spare_recycling.sql
+--   0355_spare_recycling.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -41,11 +41,11 @@ end $$;
 begin;
 
 -- ------------------------------------------------------------------------
--- 0354_spare_recycling.sql
+-- 0355_spare_recycling.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0354 — SPARE RECYCLING: A PARALLEL TRACK UNDER INDOOR SERVICE.
+-- 0355 — SPARE RECYCLING: A PARALLEL TRACK UNDER INDOOR SERVICE.
 --
 -- The user, 2026-10-04: "Create a Complete Work Flow for Spare Recycling,
 -- Like Registration, spare request, job done details, consumption, handstock
@@ -603,7 +603,7 @@ begin
      and ar.role in ('admin', 'technical_support')
      and not (ar.permissions ? 'mod:/indoor/recycling');
   get diagnostics n = row_count;
-  raise notice '0354: Spare Recycling screen key given to admin + technical_support (% of 2 rows) -- grant the rest on Roles & Permissions', n;
+  raise notice '0355: Spare Recycling screen key given to admin + technical_support (% of 2 rows) -- grant the rest on Roles & Permissions', n;
 end $$;
 
 commit;

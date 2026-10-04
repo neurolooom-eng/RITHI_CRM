@@ -188,7 +188,7 @@ export const MODULES: ModuleDef[] = [
   // nobody.
   { path: '/part-search', label: 'Part Search' },
   { path: '/indoor', label: 'Indoor Service Register' },
-  // SPARE RECYCLING (0354): a non-auditable parallel track, hidden in Audit Mode.
+  // SPARE RECYCLING (0355): a non-auditable parallel track, hidden in Audit Mode.
   { path: '/indoor/recycling', label: 'Spare Recycling' },
   // SOLVED WITHOUT A REPORT — administrators only (the user, 2026-09-20:
   // "View only for Admins and Super Admins"). `admin: true` keeps the key out
@@ -348,7 +348,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // delete_indoor_job(), which refuses a job any DC or filed visit names;
   // granted to NO role by the migration -- an administrator passes anyway.
   { group: 'Indoor Service', key: 'indoor.delete', label: 'Delete an Indoor Service job' },
-  // SPARE RECYCLING (0354, the user, 2026-10-04): a parallel track with its own
+  // SPARE RECYCLING (0355, the user, 2026-10-04): a parallel track with its own
   // stock. Granted to NOBODY by the migration (an administrator passes anyway);
   // every one is refused by the database while Audit Mode is on.
   { group: 'Indoor Service', key: 'recycle.view', label: 'See Spare Recycling' },

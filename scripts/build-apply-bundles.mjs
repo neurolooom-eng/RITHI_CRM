@@ -716,7 +716,7 @@ const MODULES = {
             'spare module or the regular hand stock. Every read and write is refused',
             'while Audit Mode is on (a non-auditable requirement).'],
     needs: ['profiles', 'rbac', 'auditMode'],
-    files: ['0354_spare_recycling.sql'],
+    files: ['0355_spare_recycling.sql'],
   },
   indoor: {
     title: 'Indoor Service (the workshop register, §4.5)',
@@ -794,7 +794,10 @@ const MODULES = {
             '0272_service_note_upload_key.sql',
             // A note's Drive details -- Created, Last Modified, Last Modified By
             // -- kept beside RITHI's own created_at / updated_at (0299).
-            '0299_document_drive_details.sql'],
+            '0299_document_drive_details.sql',
+            // Technical / Service Notes: Dated, and the latest note per
+            // product marked (stored, recalculated, and by a button).
+            '0354_service_note_dated_latest.sql'],
   },
   training: {
     title: 'People: profile, Roles & Responsibilities, Training',

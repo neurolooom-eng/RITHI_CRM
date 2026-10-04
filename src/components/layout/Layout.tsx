@@ -21,7 +21,7 @@ interface NavItem {
   label: string;
   icon: string;
   adminOnly?: boolean;
-  // A NON-AUDITABLE screen (Spare Recycling, 0354): left out of the menu while
+  // A NON-AUDITABLE screen (Spare Recycling, 0355): left out of the menu while
   // Audit Mode is on. The database refuses its rows then too; this is the
   // courtesy, that is the rule.
   hideInAudit?: boolean;

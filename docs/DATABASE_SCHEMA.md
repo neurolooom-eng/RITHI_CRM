@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**108 tables · 41 views · 3040 columns · 221 policies · 68 foreign keys.**
+**108 tables · 41 views · 3042 columns · 221 policies · 68 foreign keys.**
 
 ## How to read this
 
@@ -759,6 +759,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 25 | `source_created_at` | timestamp with time zone | yes |  | Drive's Created date-time of the file, from the listing it was loaded from (0299). Not when it was entered here -- that is created_at. |
 | 26 | `source_modified_at` | timestamp with time zone | yes |  | Drive's Last Modified date-time of the file (0299). Not when the row was last changed here -- that is updated_at. |
 | 27 | `source_modified_by` | text | **no** | `''::text` | Drive's Last Modified By, as the listing wrote it (0299). Not who entered it here -- that is uploaded_by. |
+| 28 | `dated` | date | yes |  | Technical / Service Notes: the note's own date, entered by hand. Orders the shelf (newest first) and decides which note is the latest per product (0354). |
+| 29 | `latest_for` | ARRAY | **no** | `'{}'::text[]` | Technical / Service Notes: the products this note is the latest for ('' = every product). Written only by refresh_service_note_latest_all() (0354). |
 
 **Unique:** `doc_key` _(documents_doc_key_uniq)_ · `sys_id` _(documents_sys_id_key)_ · `url_key` _(documents_url_key_uniq)_
 
@@ -768,7 +770,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Referenced by:** `training_assignments.document_id` · `training_sessions.document_id`
 
-**Triggers:** `documents_biu` → `documents_before_write()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `documents_biu` → `documents_before_write()` · `zz_service_note_latest_ins` → `documents_refresh_latest()` · `zz_service_note_latest_upd` → `documents_refresh_latest()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 

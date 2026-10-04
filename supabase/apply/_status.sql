@@ -1977,7 +1977,19 @@ with checks(sort_order, bundle, provides, present) as (
     (285, 'An uploaded Indoor Service Report keeps its number', 'The trigger indoor_report_keeps_its_number refuses a blank Indoor Service Report No on a job that carries a report file; a correction to another number, and a job with no report, are not stopped (0352, D-115). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0352)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.indoor_jobs')
                  and tgname = 'indoor_report_keeps_its_number')),
-    (286, 'Spare Recycling: its own track, hidden in Audit Mode', 'Asked for 2026-10-04: a parallel track under Indoor Service -- recycle_requests (RCY/YY/NNNN), recycle_mrs + lines (RMRS/YY/NNNN, no approval), recycle_issues (Stores stock out WITH unit cost), recycle_consumption (capped at the RECYCLING hand stock), recycle_other_costs -- none of it touching the regular spare or hand-stock tables, and every policy refusing while Audit Mode is on. NO means a table, the guard on requests or the audit-mode rule is missing. Restore: recycling.sql (0354)',
+    (286, 'Technical / Service Notes: Dated, and the latest note per product tagged', 'documents.dated and documents.latest_for; refresh_service_note_latest_all() marks the newest dated live note of each product, run by the zz_service_note_latest_ins / _upd statement triggers and by the Refresh Latest tags button through refresh_service_note_latest() (docs.manage; not the public key) (0354). Restore: documents.sql (0354)',
+        ((select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'documents'
+            and column_name in ('dated', 'latest_for')) = 2
+         and to_regprocedure('public.refresh_service_note_latest_all()') is not null
+         and not has_function_privilege('authenticated', to_regprocedure('public.refresh_service_note_latest_all()'), 'EXECUTE')
+         and to_regprocedure('public.refresh_service_note_latest()') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.refresh_service_note_latest()'), 'EXECUTE')
+         and has_function_privilege('authenticated', to_regprocedure('public.refresh_service_note_latest()'), 'EXECUTE')
+         and exists (select 1 from pg_trigger where tgname = 'zz_service_note_latest_ins'
+                      and tgrelid = to_regclass('public.documents') and not tgisinternal)
+         and exists (select 1 from pg_trigger where tgname = 'zz_service_note_latest_upd'
+                      and tgrelid = to_regclass('public.documents') and not tgisinternal))),
+    (287, 'Spare Recycling: its own track, hidden in Audit Mode', 'Asked for 2026-10-04: a parallel track under Indoor Service -- recycle_requests (RCY/YY/NNNN), recycle_mrs + lines (RMRS/YY/NNNN, no approval), recycle_issues (Stores stock out WITH unit cost), recycle_consumption (capped at the RECYCLING hand stock), recycle_other_costs -- none of it touching the regular spare or hand-stock tables, and every policy refusing while Audit Mode is on. NO means a table, the guard on requests or the audit-mode rule is missing. Restore: recycling.sql (0355)',
         (to_regclass('public.recycle_requests') is not null
      and to_regclass('public.recycle_consumption') is not null
      and to_regclass('public.recycle_request_list') is not null

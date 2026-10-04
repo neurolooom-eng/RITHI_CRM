@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.82',
+    version: '0.10.83',
     date: '2026-10-04',
     title: 'Spare Recycling — a separate track under Indoor Service',
     auditHidden: true,
@@ -24,6 +24,16 @@ export const CHANGELOG: ChangeEntry[] = [
       'Open a request to record the job done, consume spares from your recycling hand stock and add other costs (labour, courier, vendor, other). Close it as Returned to the Service Store (as R<PartNo>) or Not recyclable.',
       'Every request shows what it cost — parts at their stock-out cost plus other costs — and the Cost tab totals everything spent on recycling.',
       'Hidden while Audit Mode is on. Its keys are given to no role: grant them on Roles & Permissions → Indoor Service.',
+    ],
+  },
+  {
+    version: '0.10.82',
+    date: '2026-10-04',
+    title: 'Technical / Service Notes: grouped per product, Dated, and the Latest tag',
+    changes: [
+      'TECHNICAL / SERVICE NOTES: grouped per product — a note for several products shows under each one; a note for none is under Every product.',
+      'New DATED field on the note (type it on the form, or a Dated column in the bulk upload). Notes run newest Dated first.',
+      'LATEST is tagged by itself on the newest dated, live note of each product, and moves when a newer note is added, a Dated changes or a note is retired. ↻ Refresh Latest tags re-does them all on demand.',
     ],
   },
   {
