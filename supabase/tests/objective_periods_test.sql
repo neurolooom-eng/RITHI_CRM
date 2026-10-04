@@ -227,7 +227,7 @@ select ucn, reg_date, role from public.objective_evidence(
 call public.be('op_admin@x.com');
 -- STALE figures, as an earlier MONTHLY Re-Calc would have left them -- so
 -- written the way Re-Calc writes, not typed. A figure a PERSON types over a
--- computed month is a manual override and is KEPT (0346,
+-- computed month is a manual override and is KEPT (0349,
 -- objective_overrides_test); that is a different case from this one.
 select set_config('rithi.objective_recalc', 'on', false);
 update public.quality_objectives set m01 = 0.99, m02 = 0.98

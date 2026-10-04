@@ -1911,7 +1911,7 @@ with checks(sort_order, bundle, provides, present) as (
         exists (select 1 from pg_trigger
                  where tgrelid = to_regclass('public.spare_dispatches') and tgname = 'spare_dispatches_stamp_actor'
                    and (tgtype & 16) <> 0)),
-    (278, 'Objective: a figure typed over a calculated month is a manual override', 'Asked for 2026-10-04. quality_objectives.overrides marks a month of a computed objective typed over by hand -- who, when, the calculated figure -- written only by the trigger zy_quality_objectives_mark_override; recalc_quality_objectives(year, keep_overrides) keeps or discards them, and the one-argument call keeps them. NO means the column, the trigger or the two-argument function is missing. Restore: objective.sql (0346)',
+    (281, 'Objective: a figure typed over a calculated month is a manual override', 'Asked for 2026-10-04. quality_objectives.overrides marks a month of a computed objective typed over by hand -- who, when, the calculated figure -- written only by the trigger zy_quality_objectives_mark_override; recalc_quality_objectives(year, keep_overrides) keeps or discards them, and the one-argument call keeps them. NO means the column, the trigger or the two-argument function is missing. Restore: objective.sql (0349)',
         (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'quality_objectives' and column_name = 'overrides')
      and to_regprocedure('public.recalc_quality_objectives(integer,boolean)') is not null
      and exists (select 1 from pg_trigger where tgname = 'zy_quality_objectives_mark_override' and not tgisinternal)))

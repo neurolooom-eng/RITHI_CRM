@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.79',
+    version: '0.10.80',
     date: '2026-10-04',
     title: 'Objective: type over a calculated figure and Re-calculate keeps it, or asks',
     changes: [

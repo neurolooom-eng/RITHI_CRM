@@ -1542,7 +1542,7 @@ console.log('\n-- Re-Calc, evidence, and nothing hardcoded --');
   // EXPLICIT. A figure that moves because somebody opened a screen is not one
   // anybody can stand behind at an audit, so Re-Calc must never be in an effect.
   eq('Re-Calc is a button, never a page load',
-    // (the button also resets the manual-override choice to Keep, 0346)
+    // (the button also resets the manual-override choice to Keep, 0349)
     /onClick=\{\(\) => \{ setKeepOverrides\(true\); setConfirmRecalc\(true\); \}\}/.test(obj)
     && /useEffect\([^)]*recalcObjectives/.test(obj) === false, true);
   // The dialog's promises moved with the rules: closure is now the VISIT date,
@@ -1854,10 +1854,10 @@ console.log('\n-- the evidence workbook --');
   // Re-Calculate READS them; setting is its own act. Two ways to set one thing
   // is how a figure ends up disagreeing with the setting behind it.
   eq('Re-calculate reads the cut-offs and does not set one',
-    // Its only other argument is the manual-override choice (0346) -- never a date.
+    // Its only other argument is the manual-override choice (0349) -- never a date.
     /recalcObjectives\(YEAR, keepOverrides\)/.test(obj)
     && !/recalcObjectives\(YEAR, (?!keepOverrides\))/.test(obj), true);
-  // MANUAL OVERRIDES ARE ASKED ABOUT (0346, the user: "prompt the user if
+  // MANUAL OVERRIDES ARE ASKED ABOUT (0349, the user: "prompt the user if
   // Manually Overrides should be considered or discarded during every re-run").
   eq('Re-calculate lists the manual overrides and asks Keep or Discard, Keep by default',
     /Keep the manual overrides/.test(obj) && /Discard them/.test(obj)

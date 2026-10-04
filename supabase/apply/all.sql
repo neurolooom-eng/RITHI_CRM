@@ -316,7 +316,7 @@
 --   0251_objective_evidence_tiebreak.sql
 --   0292_objective_manage_key.sql
 --   0303_objective_lock_key.sql
---   0346_objective_manual_overrides.sql
+--   0349_objective_manual_overrides.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0103_record_audit_not_bulk.sql
@@ -42844,11 +42844,11 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
--- 0346_objective_manual_overrides.sql
+-- 0349_objective_manual_overrides.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0346 — A FIGURE TYPED OVER A CALCULATED ONE IS A MANUAL OVERRIDE, AND
+-- 0349 — A FIGURE TYPED OVER A CALCULATED ONE IS A MANUAL OVERRIDE, AND
 --        RE-CALCULATE ASKS BEFORE IT TOUCHES IT.
 --
 -- The user, 2026-10-04: "I still want to Edit Objectives even though they are
@@ -42882,7 +42882,7 @@ alter table public.quality_objectives
   add column if not exists overrides jsonb not null default '{}'::jsonb;
 
 comment on column public.quality_objectives.overrides is
-  'Months of a computed objective typed over by hand: {"m03": {"by": email, "at": timestamp, "calculated": the figure it replaced}}. Written only by quality_objectives_mark_override(); Re-Calculate keeps these months unless told to discard them (0346).';
+  'Months of a computed objective typed over by hand: {"m03": {"by": email, "at": timestamp, "calculated": the figure it replaced}}. Written only by quality_objectives_mark_override(); Re-Calculate keeps these months unless told to discard them (0349).';
 
 create or replace function public.quality_objectives_mark_override()
 returns trigger language plpgsql security definer set search_path = public as $$

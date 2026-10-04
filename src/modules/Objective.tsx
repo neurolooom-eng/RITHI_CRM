@@ -145,7 +145,7 @@ export function Objective() {
       loadCutoffs();
     });
   };
-  // MANUAL OVERRIDES (0346): months of a computed objective somebody typed
+  // MANUAL OVERRIDES (0349): months of a computed objective somebody typed
   // over. Re-Calculate asks, on every run that finds one, whether to keep them
   // or discard them -- KEEP is the default, so a run nobody thought about
   // changes nothing anybody typed.

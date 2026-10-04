@@ -339,7 +339,7 @@
 .dccr-admin-date { display: inline-flex; align-items: center; gap: 5px; margin-left: 6px; }
 .dccr-admin-date span { font-size: 11px; color: var(--text-muted); }
 .dccr-admin-date .input { padding: 1px 4px; font-size: 11.5px; width: 128px; }
-/* A month typed over its calculated figure (0346): marked, and the reason is
+/* A month typed over its calculated figure (0349): marked, and the reason is
    on hover. A solid marker, not a tint — "highlight means contrast". */
 .obj-overridden { box-shadow: inset 0 0 0 2px var(--text); }
 .obj-ovr-mark { margin-left: 3px; font-size: 11px; font-weight: 700; }

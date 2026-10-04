@@ -75,14 +75,14 @@ up)_
 
 ---
 
-## 2026-10-04 — Objective: manual overrides kept or discarded on Re-calculate (0346, v0.10.79)
+## 2026-10-04 — Objective: manual overrides kept or discarded on Re-calculate (0349, v0.10.80)
 
 - Typing over a computed month marks it in `quality_objectives.overrides`
   (who, when, the calculated figure), written only by the trigger; the API
   cannot set or clear it. `recalc_quality_objectives(year, keep)` keeps or
   discards; the one-argument call keeps. The dialog lists the overrides and
-  asks, Keep by default. FRS-251, OQ-245, `objective_overrides_test`,
-  `_status.sql` row 278. `objective_periods_test` §7 now writes its stale
+  asks, Keep by default. FRS-251, OQ-246, `objective_overrides_test`,
+  `_status.sql` row 281. `objective_periods_test` §7 now writes its stale
   figures the way Re-Calc does (a typed one is an override and is kept).
 - **DCCR Updated By / Updated Date — recorded as a change** (FRS-250): the
   user decided the old register's own values (used to monitor) are not needed

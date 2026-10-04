@@ -543,7 +543,7 @@ const MODULES = {
             // A figure typed over a calculated month is a manual override;
             // Re-Calculate keeps or discards them (the user, 2026-10-04).
             // Redefines 0292's recalc_quality_objectives.
-            '0346_objective_manual_overrides.sql'],
+            '0349_objective_manual_overrides.sql'],
   },
   validation: {
     title: 'Software Validation',
