@@ -13,7 +13,7 @@ import {
   addCall, sbPartyInfo, installCallByNumber, machineCover,
   sbSearchMachines, sbProductBySerial, sbSearchParties, type MachineHit, type PartyInfo,
 } from '../lib/supabase';
-import { installCallFromTransfer, transferCallNumber, transferDetailsFromMachine, transferExtra, type TransferDetails } from '../lib/coverspec';
+import { installCallFromTransfer, transferCallNumber, transferDetailsFromMachine, transferExtra, freshWarranty, type TransferDetails } from '../lib/coverspec';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
 
@@ -79,10 +79,13 @@ export function OwnershipTransfer() {
   const [machineRow, setMachineRow] = useState<TransferDetails | null>(null);
   const [machineErr, setMachineErr] = useState('');
   const [toInfo, setToInfo] = useState<PartyInfo | null>(null);
+  // A FRESH WARRANTY FOR THE NEW OWNER (0383, the user, 2026-10-05): optional,
+  // ticked per transfer; the start and months typed, the rest worked out.
+  const [fresh, setFresh] = useState(false);
   const hits = useRef(new Map<string, MachineHit>());
   const machineLabel = (h: MachineHit) => `${h.serial} · ${h.product}${h.party ? ` · ${h.party}` : ''}`;
   const openMove = () => {
-    setMachine(null); setMachineRow(null); setMachineErr(''); setToInfo(null);
+    setMachine(null); setMachineRow(null); setMachineErr(''); setToInfo(null); setFresh(false);
     setMoveForm({ transfer_date: todayISO() });
   };
   const pickMachine = (label: string) => chooseMachine(hits.current.get(label) ?? null);
@@ -128,6 +131,12 @@ export function OwnershipTransfer() {
     if (moveForm.to_party.trim().toLowerCase() === machine.party.trim().toLowerCase()) {
       setMsg({ tone: 'error', text: `${machine.serial} is already with ${machine.party}.` }); return;
     }
+    const fw = fresh ? freshWarranty(moveForm.warranty_start ?? '', moveForm.warranty_months) : null;
+    if (fresh) {
+      if (!moveForm.warranty_start) { setMsg({ tone: 'error', text: 'Give the fresh warranty its Warranty Start Date.' }); return; }
+      if (!fw?.end) { setMsg({ tone: 'error', text: 'Give the fresh warranty its Warranty Period (Months), more than 0.' }); return; }
+      if (!moveForm.reference_no?.trim()) { setMsg({ tone: 'error', text: 'A fresh warranty needs the Reference no. (the OT number) — it becomes the machine\'s Warranty Number.' }); return; }
+    }
     setBusy(true);
     // FROM is the machine's current holder as the Product Database shows it,
     // and the model goes with the serial, so the database does not have to
@@ -135,13 +144,19 @@ export function OwnershipTransfer() {
     // machine at this moment is kept in `extra`.
     const res = await addOwnershipTransfer({
       ...moveForm, item_name: machine.product, serial_number: machine.serial, from_party: machine.party,
+      // Sent only when ticked; the database works out the years and the end again.
+      ...(fresh && fw
+        ? { warranty_start: moveForm.warranty_start, warranty_months: Math.round(Number(moveForm.warranty_months)),
+            warranty_years: Number(fw.years), warranty_end: fw.end }
+        : { warranty_start: null, warranty_months: null, warranty_years: null, warranty_end: null }),
       ...(machineRow ? { extra: transferExtra(machineRow) } : {}),
       recorded_by_name: user?.fullName || user?.email || '',
     } as Partial<OT>);
     setBusy(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not record the transfer.' }); return; }
     setMoveForm(null);
-    setMsg({ tone: 'ok', text: `${moveForm.serial_number} moved to ${moveForm.to_party}. Product Database now shows the new owner.` });
+    setMsg({ tone: 'ok', text: `${moveForm.serial_number} moved to ${moveForm.to_party}. Product Database now shows the new owner`
+      + (fresh && fw ? `, with a fresh warranty ${fmtLongDate(moveForm.warranty_start ?? '')} to ${fmtLongDate(fw.end)} (${moveForm.reference_no?.trim()}).` : '.') });
     await load();
   };
 
@@ -192,6 +207,10 @@ export function OwnershipTransfer() {
     // types it DEALER, stamped by the database.
     { key: 'sold_through', header: 'Sold Through', width: 170, render: (r) => (r.sold_through ? String(r.sold_through) : <span className="muted">—</span>) },
     { key: 'reference_no', header: 'Reference', width: 130 },
+    { key: 'warranty_start', header: 'Fresh warranty', width: 210, wrap: false,
+      render: (r) => (r.warranty_start
+        ? `${fmtLongDate(r.warranty_start)} → ${fmtLongDate(r.warranty_end ?? '')}`
+        : <span className="muted">—</span>) },
     { key: 'reason', header: 'Reason', width: 160 },
     { key: 'document_url', header: 'Document', width: 110, render: (r) => (r.document_url ? <a href={r.document_url} target="_blank" rel="noreferrer">open</a> : <span className="muted">—</span>) },
     { key: 'recorded_by_name', header: 'Recorded By', width: 150 },
@@ -314,9 +333,43 @@ export function OwnershipTransfer() {
               ['Type', toInfo.party_type], ['Service Engineer', toInfo.service_engineer],
             ]} />}
             <F label="Transfer date"><LongDateInput value={moveForm.transfer_date ?? ''} onChange={(v) => setMoveForm({ ...moveForm, transfer_date: v })} /></F>
-            <F label="Reference no" hint="The customer's own paperwork for the hand-over.">
+            <F label={fresh ? 'Reference no (OT number) *' : 'Reference no'}
+               hint={fresh ? 'Becomes the machine\'s Warranty Number on the Product Database.' : "The customer's own paperwork for the hand-over."}>
               <input className="input" value={moveForm.reference_no ?? ''} onChange={(e) => setMoveForm({ ...moveForm, reference_no: e.target.value })} />
             </F>
+            {/* A FRESH WARRANTY FOR THE NEW OWNER (0383): optional, and worked out
+                as Warranty Entry does -- start and months typed, years and end
+                following. The machine wears it; the original sale is untouched. */}
+            <label className="row" style={{ gap: 6, alignItems: 'center', margin: '8px 0 4px' }}>
+              <input type="checkbox" checked={fresh}
+                onChange={(e) => {
+                  setFresh(e.target.checked);
+                  if (e.target.checked && !moveForm.warranty_start)
+                    setMoveForm({ ...moveForm, warranty_start: moveForm.transfer_date ?? todayISO() });
+                }} />
+              <span>Give the new owner a fresh warranty</span>
+            </label>
+            {fresh && (() => {
+              const fw = freshWarranty(moveForm.warranty_start ?? '', moveForm.warranty_months);
+              return (
+                <div className="req-act-sec" style={{ margin: '0 0 8px' }}>
+                  <div className="field-label">Fresh warranty</div>
+                  <F label="Warranty Start Date *">
+                    <LongDateInput value={moveForm.warranty_start ?? ''} onChange={(v) => setMoveForm({ ...moveForm, warranty_start: v })} />
+                  </F>
+                  <F label="Warranty Period (in Months) *">
+                    <input className="input" type="number" min={1} step={1} value={moveForm.warranty_months ?? ''}
+                      onChange={(e) => setMoveForm({ ...moveForm, warranty_months: e.target.value === '' ? null : Number(e.target.value) })} />
+                  </F>
+                  <F label="Warranty Period (in Years) · the months above">
+                    <input className="input" value={fw.years} readOnly disabled />
+                  </F>
+                  <F label="Warranty End Date · Warranty Start + Period (months)">
+                    <input className="input" value={fw.end ? fmtLongDate(fw.end) : ''} readOnly disabled />
+                  </F>
+                </div>
+              );
+            })()}
             <F label="Reason"><input className="input" value={moveForm.reason ?? ''} onChange={(e) => setMoveForm({ ...moveForm, reason: e.target.value })} /></F>
             <F label="Document link"><input className="input" value={moveForm.document_url ?? ''} onChange={(e) => setMoveForm({ ...moveForm, document_url: e.target.value })} /></F>
             <F label="Remarks"><textarea className="input" rows={2} value={moveForm.remarks ?? ''} onChange={(e) => setMoveForm({ ...moveForm, remarks: e.target.value })} /></F>

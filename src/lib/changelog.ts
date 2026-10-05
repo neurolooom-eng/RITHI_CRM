@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.115',
+    date: '2026-10-05',
+    title: 'Ownership Transfer: invoice shown, and a fresh warranty for the new owner',
+    changes: [
+      'RECORD A TRANSFER now shows the machine\'s INVOICE NO. and INVOICE DATE in its Sale Entry details.',
+      'A FRESH WARRANTY FOR THE NEW OWNER: tick "Give the new owner a fresh warranty", enter the Warranty Start Date (it starts at the transfer date) and the Period in months; the years and the End Date are worked out as on Warranty Entry. The Reference no. is then required.',
+      'The Product Database then shows that warranty for the machine: the Reference no. as its Warranty Number, the fresh start and end, and Item Status WGP while it runs. The original sale entry is not changed. A later sale of the machine takes the warranty back; saving the old sale again does not.',
+      'The transfers list has a Fresh warranty column showing each one\'s start and end.',
+    ],
+  },
+  {
     version: '0.10.114',
     date: '2026-10-05',
     title: 'Indexing: eight indexes that cost every write and served nothing are gone; a probe for the rest',
