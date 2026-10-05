@@ -1621,6 +1621,7 @@ Purpose: Sale Entries (warranty) and Contract Entries with the machines under ea
 | 39 | Warranty Register tab: Installation call column (Pending / UCN / —) and INSTALL CALL PENDING tile with count, filtered on the server | cover.ts PENDING_INSTALL / machineFilter; CoverRegister.tsx | read policy | FRS-231, OQ-225 | |
 | 40 | Warranty Entries tab: Install calls pending per sale (filtered embedded count) and SALES WITH INSTALL CALLS PENDING tile with count, filtered on the server | cover.ts listHeaders / countPendingSales; CoverRegister.tsx | read policy | FRS-231.3 | |
 | 41 | A sale naming a party the Party Master lacks: notice, City and State required (shared PARTY_REQUIRED), and Save entry adds the party from the sale's fields (masters.parties.add) before saving; without the right it saves and says so | CoverRegister.tsx saveEntry / partyNotice; partyRules.ts; supabase.ts addParty | masters.parties.add; DB 0325 | FRS-256, OQ-253 | |
+| 42 | Sale and machine Service Engineer picked from the User Master's active people (validity), no free text; a name not on the list is shown and flagged | cover.ts optionsFrom 'active-user'; supabase.ts sbActiveUserNames; CoverRegister.tsx | — | FRS-257 | |
 
 ### Ownership Transfer (`/ownership-transfer`) — `src/modules/OwnershipTransfer.tsx`
 Purpose: Records a machine changing hands, and warranty/contract details recovered for machines whose sale paperwork was lost.

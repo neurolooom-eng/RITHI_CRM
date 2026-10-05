@@ -39,7 +39,10 @@ export interface CoverField {
    *  machine on record (the user, 2026-10-02, for the Contract Register: a
    *  contract covers machines already installed, so its party is one that
    *  owns them). Picked from the list, never typed. */
-  optionsFrom?: 'sellable-name' | 'sellable-code' | 'party' | 'product-party' | 'dealer';
+  optionsFrom?: 'sellable-name' | 'sellable-code' | 'party' | 'product-party' | 'dealer'
+    /** `active-user` is the USER MASTER's active people (validity true), the
+     *  only names a Service Engineer may be (the user, 2026-10-05). */
+    | 'active-user';
   section: string;
   /** THE FORM DOES NOT ASK FOR THIS ONE — it is worked out, or it is stamped.
    *  Shown, and not typeable: a box somebody can type into is a box whose value
@@ -166,7 +169,7 @@ export const SALE: CoverConfig = {
     { name: 'country', label: 'Country', section: 'Installation' },
     { name: 'state', label: 'State', section: 'Installation' },
     { name: 'city', label: 'City', section: 'Installation' },
-    { name: 'engineer', label: 'Service Engineer - Initial', section: 'Installation' },
+    { name: 'engineer', label: 'Service Engineer - Initial', section: 'Installation', optionsFrom: 'active-user' },
     { name: 'address', label: 'Address', type: 'textarea', section: 'Installation' },
     { name: 'pincode', label: 'Inst. Pincode', section: 'Installation' },
     { name: 'tel1', label: 'Tel 1', section: 'Installation' },
@@ -195,7 +198,7 @@ export const SALE: CoverConfig = {
     { name: 'other_details', label: 'Other Details', type: 'textarea', section: 'Sale', inherits: true },
     { name: 'state', label: 'State', section: 'Installation', inherits: true },
     { name: 'city', label: 'City', section: 'Installation', inherits: true },
-    { name: 'engineer', label: 'Engineer', section: 'Installation', inherits: true },
+    { name: 'engineer', label: 'Engineer', section: 'Installation', inherits: true, optionsFrom: 'active-user' },
     { name: 'accessories_included', label: 'Accessories Included?', type: 'bool', section: 'Supplied' },
     { name: 'consumable_included', label: 'Consumable Included?', type: 'bool', section: 'Supplied' },
     { name: 'contract_price_fixed', label: 'Contract Price Fixed?', type: 'bool', section: 'Supplied' },

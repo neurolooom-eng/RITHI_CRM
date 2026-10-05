@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput, LongDateText } from '../components/ui/LongDate';
-import { sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers, addParty, type PartyPatch } from '../lib/supabase';
+import { sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers, addParty, sbActiveUserNames, type PartyPatch } from '../lib/supabase';
 import { partyMissing, partyFromSale } from '../lib/partyRules';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT,
@@ -166,6 +166,18 @@ function FieldInput({
   // machines already on record, so a name the Product Database has never
   // heard of is not a customer this contract can cover -- it is a typo, or a
   // machine that has to be added there first.
+  // THE SERVICE ENGINEER IS SOMEBODY ON THE USER MASTER WHO IS ACTIVE (the
+  // user, 2026-10-05: "Service Engineer has to be a DropDown from User Master
+  // [Active Users]"). Picked, never typed: a name the User Master has not got
+  // is an engineer nobody can notify. A value already on the record that is not
+  // on the list is still SHOWN (the picker keeps the current value), and the
+  // form says so beside it, rather than the box going blank.
+  if (field.optionsFrom === 'active-user') {
+    return <SelectPicker value={value} onChange={onChange} disabled={disabled}
+                         placeholder="— choose the engineer —"
+                         options={[...new Set([...(runtimeOptions ?? []), ...(value ? [value] : [])])]}
+                         emptyHint="Engineers come from the User Master — active users only. If the list is empty, the User Master could not be read." />;
+  }
   if (field.optionsFrom === 'product-party') {
     return <SelectPicker value={value} onChange={onChange} disabled={disabled}
                          placeholder="— find the customer —"
@@ -219,12 +231,14 @@ function FieldInput({
 
 // One machine under a header, all its fields, with inheritance made visible.
 function ItemCard({
-  cfg, kind, item, header, canEdit, onSaved, onDeleted, lines, onDirtyChange, focus,
+  cfg, kind, item, header, canEdit, onSaved, onDeleted, lines, onDirtyChange, focus, activeUsers,
 }: {
   cfg: ReturnType<typeof configFor>; kind: CoverKind; item: Row; header: Row; canEdit: boolean;
   onSaved: (r: Row) => void; onDeleted: (id: number) => void;
   /** The Product Master's lines, loaded once by the screen. */
   lines: ProductLine[];
+  /** The User Master's active names, loaded once by the screen. */
+  activeUsers?: string[];
   /** Told whenever this card starts or stops holding an unsaved edit, so the
    *  window can warn before it is closed over one. */
   onDirtyChange?: (dirty: boolean) => void;
@@ -321,7 +335,8 @@ function ItemCard({
                     placeholder={headerText || undefined}
                     disabled={!canEdit}
                     runtimeOptions={f.optionsFrom === 'sellable-name' ? sellableNames(lines)
-                      : f.optionsFrom === 'sellable-code' ? sellableCodes(lines) : undefined}
+                      : f.optionsFrom === 'sellable-code' ? sellableCodes(lines)
+                      : f.optionsFrom === 'active-user' ? activeUsers : undefined}
                     onChange={(v) => set(f, v)}
                   />
                 </label>
@@ -919,6 +934,13 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // leaves an empty list with free text still open rather than a stuck form.
   const [lines, setLines] = useState<ProductLine[]>([]);
   useEffect(() => { if (live) void listProductLines().then(setLines).catch(() => setLines([])); }, [live]);
+  // THE USER MASTER'S ACTIVE PEOPLE, for the Service Engineer picker -- loaded
+  // once, Warranty only (the contract form has no engineer field).
+  const [activeUsers, setActiveUsers] = useState<string[]>([]);
+  useEffect(() => {
+    if (live && kind === 'sale') void sbActiveUserNames().then(setActiveUsers).catch(() => setActiveUsers([]));
+  }, [live, kind]);
+  const activeSet = useMemo(() => new Set(activeUsers.map((n) => n.toLowerCase())), [activeUsers]);
 
   // One page of a tab, from the server.
   const fetchPage = (t: Tab, offset: number): Promise<Row[]> =>
@@ -1508,6 +1530,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 && <span className="muted"> · from the party</span>}
             </span>
             <FieldInput field={f} value={f.compute ? f.compute(draft) : fromDb(f, draft[f.name])} disabled={!canEdit}
+              runtimeOptions={f.optionsFrom === 'active-user' ? activeUsers : undefined}
               onChange={(v) => {
                 setDraft((d) => {
                   // The register's own arithmetic, from the AppSheet
@@ -1526,6 +1549,15 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 if (kind === 'sale' && f.name === 'party_name') void fillFromParty(v);
               }} />
             {f.hint && f.hint(draft) && <span className="muted rep-hint">{f.hint(draft)}</span>}
+            {/* A NAME ON THE RECORD THAT IS NOT AN ACTIVE USER -- often the
+                Party Master's Serviceman, filled in with the customer. Said,
+                not silently kept or cleared: choose an active engineer. */}
+            {f.optionsFrom === 'active-user' && activeUsers.length > 0 && str(draft[f.name]).trim()
+              && !activeSet.has(str(draft[f.name]).trim().toLowerCase()) && (
+              <span className="rep-hint" style={{ color: 'var(--danger, #b91c1c)' }}>
+                Not an active user on the User Master — choose an engineer from the list.
+              </span>
+            )}
           </label>
         ))}
       </div>
@@ -1668,7 +1700,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       {!open.id && <div className="muted" style={{ marginBottom: 8 }}>Save the entry first, then add machines to it.</div>}
       {open.id && loadingItems && <div className="muted" style={{ marginBottom: 8 }}>Loading machines…</div>}
       {items.map((it, i) => (
-        <ItemCard key={str(it.id) || `new-${i}`} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines}
+        <ItemCard key={str(it.id) || `new-${i}`} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines} activeUsers={activeUsers}
           focus={focusId !== null && Number(it.id) === focusId}
           // A machine with no id is unsaved by definition and is counted
           // from `items`; only a SAVED machine's edit is tracked here.

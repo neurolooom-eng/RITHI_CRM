@@ -249,6 +249,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Save the entry before raising installation calls; a line needs both a Product and a Serial to get one',
       'A sale to a DEALER gets no installation call — it is raised from the Ownership Transfer when the dealer sells the machine; Sold Through lists dealers only',
       'Changing the customer replaces all the filled-in details, blanks included',
+      'Service Engineer is picked from the User Master\'s active people; a name that is not one is flagged in red',
       'A customer not on the Party Master is added to it when the sale is saved (City and State required); a role that may not add parties saves the sale without adding it',
       'A retired product line takes no new sale',
     ],
