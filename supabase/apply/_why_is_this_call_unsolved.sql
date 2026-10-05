@@ -24,7 +24,12 @@
 --   5+    any status column the upload kept from the file (calls.extra);
 --   101+  every visit, IN THE ORDER THE SYSTEM RANKS THEM (entry time, newest
 --         first) -- the first is the one the call follows;
---   201+  spare requests on the call, with when each was saved.
+--   201+  spare requests on the call, with when each was saved;
+--   301+  a visit filed under ANOTHER UCN that looks like this call's (same
+--         UCN with stray spaces / case, or the same call number) -- invisible
+--         to the call, so it cannot close it.
+-- Rows 5+ also show the visit columns the call register kept: PM Reports
+-- REQUIRES Visit Date & Time, and a row without one is held back on upload.
 -- It writes nothing. Change the UCN on the `target` line to look at another call.
 -- ===========================================================================
 
@@ -43,6 +48,23 @@ extra_status as (
   select e.key, e.value
     from call, jsonb_each_text(call.extra) e
    where e.key ilike '%status%' or e.value ilike '%solved%' or e.key ilike '%state%'
+      -- and what a VISIT REPORT needs: PM Reports refuses a row with no
+      -- Visit Date & Time (it is required), so its presence here says whether
+      -- the PM register's row could ever have become a visit.
+      or e.key ilike '%visit%' or e.key ilike '%entry%' or e.key ilike '%engineer%'
+),
+-- A VISIT THAT EXISTS BUT IS NOT FOUND BY THE UCN: the same UCN with stray
+-- spaces or a different case, or the call's number (old 25PM... or new
+-- 26PM...) on a visit filed under another UCN. Either way the call cannot see it.
+near_visits as (
+  select r.id, coalesce(r.uid, '') as uid, r.ucn, coalesce(r.call_number, '') as call_number,
+         coalesce(r.call_status, '') as call_status, r.visit_at, r.updated_at
+    from public.reports r cross join target t
+    left join public.pm_calls p on p.ucn = t.ucn
+   where r.ucn <> t.ucn
+     and (upper(btrim(r.ucn)) = upper(t.ucn)
+          or (coalesce(r.call_number, '') <> '' and coalesce(p.call_number, '') <> ''
+              and substr(r.call_number, 3) = substr(p.call_number, 3)))
 ),
 visits as (
   select row_number() over (order by r.updated_at desc nulls last, r.id desc) as rank,
@@ -67,6 +89,9 @@ verdict(text) as (
       'The call is CANCELLED (cancelled_at is set) -- that overrides any visit.'
     when exists (select 1 from call where reopened_at is not null) then
       'The call was RE-OPENED after it was solved (reopened_at is set) -- it stays open until a new visit is entered.'
+    when not exists (select 1 from visits) and exists (select 1 from near_visits) then
+      'The visit EXISTS but is filed under a DIFFERENT UCN (rows 301+), so this call cannot see it. Correct the UCN on that visit (or in the file) to '
+      || (select ucn from target) || ' and load it again.'
     when not exists (select 1 from visits) then
       'There is NO VISIT REPORT on this call in RITHI, so it can never read Solved -- RITHI closes a call only from a visit that says Solved. '
       || 'The state shown (' || coalesce((select open_state from call), '?') || ') comes from the call row itself: last_status "'
@@ -94,7 +119,7 @@ rows(n, what, value) as (
     (select coalesce(to_char(reopened_at, 'DD-Mon-YYYY HH24:MI'), '—') || ' / ' || coalesce(to_char(cancelled_at, 'DD-Mon-YYYY HH24:MI'), '—') from call)
   union all select 4, 'VERDICT', (select text from verdict)
   union all
-  select 4 + row_number() over (order by key), 'Status in the uploaded file: ' || key, value from extra_status
+  select 4 + row_number() over (order by key), 'In the PM register''s row: ' || key, value from extra_status
   union all
   select 100 + rank,
          case when rank = 1 then 'VISIT #1 (THE CALL FOLLOWS THIS ONE)' else 'Visit #' || rank end,
@@ -109,5 +134,11 @@ rows(n, what, value) as (
          coalesce(nullif(s.or_no, ''), s.uid) || ' · saved ' || to_char(s.created_at at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI')
            || ' · ' || coalesce(s.engineer, '')
     from public.spare_requests s join target t on s.ucn = t.ucn
+  union all
+  select 300 + row_number() over (order by visit_at),
+         'VISIT FILED UNDER ANOTHER UCN (the call cannot see it)',
+         uid || ' · UCN "' || ucn || '" · call no ' || call_number || ' · ' || call_status
+           || ' · visit ' || coalesce(to_char(visit_at at time zone 'Asia/Kolkata', 'DD-Mon-YYYY'), '—')
+    from near_visits
 )
 select n as "#", what as "What", value as "Value" from rows order by n;
