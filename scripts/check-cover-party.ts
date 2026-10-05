@@ -31,6 +31,7 @@ const FULL = {
   pincode: '686008', phone: '0481-2597000', phone_2: '9447000000',
   pan: 'AAACT1234D', gstin: '32AAACT1234D1ZQ',
   party_type: 'customer', profile: 'Government', service_engineer: 'MEGHANATH',
+  country: ' India ',
 };
 
 console.log('\n-- the party fills the sale --');
@@ -46,6 +47,7 @@ console.log('\n-- the party fills the sale --');
   eq('gstin becomes gst', f.gst, '32AAACT1234D1ZQ');
   eq('service_engineer becomes engineer', f.engineer, 'MEGHANATH');
   eq('pan keeps its name', f.pan, 'AAACT1234D');
+  eq('the country arrives too, trimmed', f.country, 'India');
   // The two pick-lists have a fixed vocabulary and the master is free-typed.
   eq('party_type is upper-cased to match the list', f.party_type, 'CUSTOMER');
   eq('profile likewise', f.profile, 'GOVERNMENT');
@@ -80,7 +82,7 @@ console.log('\n-- nothing in, nothing claimed --');
   eq('a party the master has not got fills every field blank',
     Object.values(f).every((v) => v === ''), true);
   eq('...and still names every field it owns', Object.keys(f).length, SALE_PARTY_FIELDS.length);
-  eq('eleven fields follow the party', SALE_PARTY_FIELDS.length, 11);
+  eq('twelve fields follow the party (Country since 2026-10-05)', SALE_PARTY_FIELDS.length, 12);
 }
 
 console.log('\n-- the product code and the name are one choice --');

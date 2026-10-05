@@ -5796,7 +5796,7 @@ console.log('\n-- a warranty sale adds a party the master has not got --');
   // the Party Master's own required fields required here too.
   const pr = await import('../src/lib/partyRules');
   const { partyFillForSale } = await import('../src/lib/coverspec');
-  const sale = { party_name: 'X HOSP', city: 'Trichy', state: 'TN', address: 'A', pincode: '1', tel1: '2', tel2: '3',
+  const sale = { party_name: 'X HOSP', country: 'India', city: 'Trichy', state: 'TN', address: 'A', pincode: '1', tel1: '2', tel2: '3',
                  pan: 'P', gst: 'G', party_type: 'CUSTOMER', profile: 'PRIVATE', engineer: 'E' };
   eq('the Party Master and the sale require the same three fields',
     pr.PARTY_REQUIRED.map(([k]) => k), ['party_name', 'city', 'state']);
@@ -5812,6 +5812,33 @@ console.log('\n-- a warranty sale adds a party the master has not got --');
   eq('a sale adds the party on Save, only with masters.parties.add',
     /if \(can\('masters\.parties\.add'\)\) \{\s*const res = await addParty\(newParty/.test(reg), true);
   eq('...and asks the master at save time, not the last lookup', /let info = null;\s*try \{ info = await sbPartyInfo\(partyName\);/.test(reg), true);
+
+  // A NEW PARTY FROM THIS PAGE NEEDS NINE FIELDS (the user, 2026-10-05).
+  eq('a new party from a sale needs the nine fields the user named',
+    pr.SALE_NEW_PARTY_REQUIRED.map(([k]) => k), ['party_type', 'profile', 'country', 'state', 'city', 'address', 'pincode', 'gst', 'engineer']);
+  eq('...each one named when blank', pr.saleNewPartyMissing({ ...sale, gst: '', engineer: ' ' }), ['GST', 'Service Engineer - Initial']);
+  eq('...and the save refuses on them', /saleNewPartyMissing\(draft\)/.test(reg), true);
+  // WRITE-BACK: only what was CHANGED in this edit AND differs from the master.
+  const master = partyFillForSale({ city: 'Trichy', state: 'TN', address: 'Old Rd', phone: '2', service_engineer: 'A' }) as Record<string, unknown>;
+  const before = { ...master, party_name: 'X HOSP' };
+  eq('a changed field goes back under its PARTY column name',
+    pr.partyEdits(before, { ...before, tel1: '99', engineer: 'B' }, master), { phone: '99', service_engineer: 'B' });
+  eq('...a field cleared on the sale clears the master', pr.partyEdits(before, { ...before, address: '' }, master), { address: '' });
+  eq('...an UNCHANGED stale value never reverts the master',
+    pr.partyEdits({ ...before, city: 'OLD' }, { ...before, city: 'OLD' }, master), {});
+  eq('...a change that already matches the master writes nothing',
+    pr.partyEdits({ ...before, city: 'OLD' }, { ...before, city: 'Trichy' }, master), {});
+  eq('...and the name is never written', pr.partyEdits(before, { ...before, party_name: 'Y' }, master), {});
+  eq('the write-back needs masters.parties.edit and runs after the sale is saved',
+    /const saved = await saveHeader[\s\S]*if \(!can\('masters\.parties\.edit'\)\)[\s\S]*await updateParty\(id, edits/.test(reg), true);
+  eq('Party Name is locked once the sale is saved',
+    /const partyLocked = \(name: string\) => kind === 'sale' && name === 'party_name' && !!draft\.id;/.test(reg)
+    && /disabled=\{!canEdit \|\| partyLocked\(f\.name\)\}/.test(reg), true);
+  const sh = (await import('../src/lib/cover')).SALE.headerFields;
+  eq('the six required Warranty Entry fields',
+    sh.filter((f) => f.required).map((f) => f.name), ['party_name', 'invoice_no', 'invoice_date', 'warranty_start', 'warranty_months', 'pm_visits']);
+  eq('every field the party fills sits in the Party section',
+    (await import('../src/lib/coverspec')).SALE_PARTY_FIELDS.filter((k) => sh.find((f) => f.name === k)?.section !== 'Party'), []);
 }
 
 console.log('\n-- KYC: the status and its evidence, both on the row --');
@@ -8798,7 +8825,7 @@ console.log('\n-- an installation call is raised the same way from either place 
   const cvcfg = readFileSync('src/lib/cover.ts', 'utf8');
   const saleCfg = cvcfg.slice(cvcfg.indexOf('export const SALE'), cvcfg.indexOf('export const CONTRACT'));
   eq('the sale entry names an engineer',
-    /\{ name: 'engineer', label: '[^']*', section: 'Installation'(, optionsFrom: 'active-user')? \}/.test(saleCfg), true);
+    /\{ name: 'engineer', label: '[^']*', section: 'Party'(, optionsFrom: 'active-user')? \}/.test(saleCfg), true);
   eq('...and its machines inherit it',
     /\{ name: 'engineer', label: '[^']*', section: 'Installation', inherits: true(, optionsFrom: 'active-user')? \}/.test(saleCfg), true);
   // ...PICKED FROM THE USER MASTER'S ACTIVE PEOPLE, on the sale and on each

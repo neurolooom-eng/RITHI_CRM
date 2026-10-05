@@ -14,11 +14,24 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.103',
+    version: '0.10.104',
     date: '2026-10-05',
     title: 'The search box at the top finds warranties and contracts',
     changes: [
       'GLOBAL SEARCH now searches the Warranty Register (SA number, party, invoice number) and the Contract Register (MC number, party) — and finds an entry by the serial number or model of any machine on it. Click one and its register opens on that entry.',
+    ],
+  },
+  {
+    version: '0.10.103',
+    date: '2026-10-05',
+    title: 'Warranty Entry: required fields, and party details saved to the Party Master',
+    changes: [
+      'REQUIRED ON EVERY SALE: Party Name, Invoice No, Invoice Date, Warranty Start Date, Warranty Period (Months) and PM Visits. Save entry names every one left blank. Period in years and the End Date are worked out from the start and the months.',
+      'NEW ORDER: the sale first, then the warranty, then the party. The Party section (Type, Profile, Country, State, City, Address, Pincode, Tel 1, Tel 2, PAN, GST, Service Engineer) fills from the Party Master when you pick the Party Name. Country now fills too.',
+      'PARTY NAME IS LOCKED once the sale is saved.',
+      'PARTY DETAILS GO BACK TO THE PARTY MASTER: change any of them on the sale and Save entry updates the party as well; the message lists what was written. Only what you changed in that edit is written, so re-saving an old sale does not undo a correction made on the Party Master. This needs the right to edit parties — without it the sale still saves and the message says the Party Master was not updated.',
+      'A NEW CUSTOMER from the sale now needs Party Type, Profile, Country, State, City, Address, Pincode, GST and Service Engineer before it saves. These are the existing party fields — no new boxes.',
+      'Old imported sales missing an invoice number or date, or PM visits, must have them filled in before they can be saved again.',
     ],
   },
   {

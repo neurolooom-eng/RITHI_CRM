@@ -480,10 +480,22 @@ against the call it was fitted to.
   under each.
   > ### Keying a new sale
   >
+  > **Six fields are required on every sale**: Party Name, Invoice No, Invoice
+  > Date, Warranty Start Date, Warranty Period (Months) and PM Visits. The entry
+  > reads top to bottom as Sale, Warranty, then Party.
+  >
   > **Party Name is a search box over the Party Master** — start typing and pick
-  > the customer. Choosing one **fills in the address, city, state, pincode,
-  > both telephone numbers, PAN, GST, the type, the profile and the initial
-  > service engineer** from that customer's record.
+  > the customer. Choosing one **fills in the Party section**: party type,
+  > profile, country, state, city, address, pincode, both telephone numbers,
+  > PAN, GST and the initial service engineer, from that customer's record.
+  >
+  > **Party Name is locked once the sale is saved.** The party's details are
+  > not: change any of them on the sale and **Save entry writes the change back
+  > to the Party Master** as well, and the message lists what was updated. Only
+  > what you changed in that edit goes back — re-saving an old sale does not put
+  > its old values over a party corrected since. Writing to the Party Master
+  > needs the right to edit parties; without it the sale still saves and the
+  > message says the Party Master was not updated.
   >
   > **Changing the customer replaces all of those, blanks included.** That is
   > deliberate: keeping the previous customer's address where the new one has
@@ -492,7 +504,10 @@ against the call it was fitted to.
   > address often differs from the registered one.
   >
   > A customer the Party Master has not got can still be typed. Nothing is
-  > filled in for them, because there is nothing to fill it from.
+  > filled in for them, because there is nothing to fill it from — and **Party
+  > Type, Profile, Country, State, City, Address, Pincode, GST and Service
+  > Engineer become required**. Save entry adds the customer to the Party
+  > Master from those details (if your role may add parties).
   >
   > **Sale Entry Date is stamped** when you create the entry. It is not typed.
   >

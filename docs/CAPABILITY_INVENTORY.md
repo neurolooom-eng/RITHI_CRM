@@ -1622,6 +1622,10 @@ Purpose: Sale Entries (warranty) and Contract Entries with the machines under ea
 | 40 | Warranty Entries tab: Install calls pending per sale (filtered embedded count) and SALES WITH INSTALL CALLS PENDING tile with count, filtered on the server | cover.ts listHeaders / countPendingSales; CoverRegister.tsx | read policy | FRS-231.3 | |
 | 41 | A sale naming a party the Party Master lacks: notice, City and State required (shared PARTY_REQUIRED), and Save entry adds the party from the sale's fields (masters.parties.add) before saving; without the right it saves and says so | CoverRegister.tsx saveEntry / partyNotice; partyRules.ts; supabase.ts addParty | masters.parties.add; DB 0325 | FRS-256, OQ-253 | |
 | 42 | Sale and machine Service Engineer picked from the User Master's active people (validity), no free text; a name not on the list is shown and flagged | cover.ts optionsFrom 'active-user'; supabase.ts sbActiveUserNames; CoverRegister.tsx | — | FRS-257 | |
+| 43 | Warranty Entry: six required fields (Party Name, Invoice No, Invoice Date, Warranty Start, Period months, PM Visits), ordered Sale / Warranty / Party | cover.ts SALE.headerFields; missingRequired | — | FRS-258 | |
+| 44 | Party Name locked once the sale is saved | CoverRegister.tsx partyLocked | — | FRS-258 | |
+| 45 | Party details changed on the sale (incl. Country, Service Engineer) written back to the Party Master on Save entry; needs masters.parties.edit, else saved and said | CoverRegister.tsx saveEntry; partyRules.partyEdits; supabase.ts sbPartyIdByName, updateParty | masters.parties.edit; DB parties update policy (0325) | FRS-258 | |
+| 46 | A new party from a sale requires Party Type, Profile, Country, State, City, Address, Pincode, GST, Service Engineer | partyRules.SALE_NEW_PARTY_REQUIRED; CoverRegister.tsx saveEntry | — | FRS-258 | |
 
 ### Ownership Transfer (`/ownership-transfer`) — `src/modules/OwnershipTransfer.tsx`
 Purpose: Records a machine changing hands, and warranty/contract details recovered for machines whose sale paperwork was lost.
