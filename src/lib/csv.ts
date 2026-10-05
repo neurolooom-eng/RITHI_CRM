@@ -4,19 +4,34 @@ import { pickHeaderRow } from './headers';
 // copy — every importer reads a file through this, so a quoting edge case is
 // fixed once.
 
-/** Tab or comma, decided by the file rather than by its extension.
+/** Tab, semicolon or comma, decided by the file rather than by its extension.
  *
  *  A tab-separated export is still called ".csv" as often as not, and a sheet
  *  saved as TSV read through a comma parser is not an error — it is ONE column
  *  per row, which reads on screen as "no columns matched" and sends somebody
- *  looking at their headings. Only the first few lines are weighed, and a tab
- *  has to actually beat the commas, so a comma file carrying a stray tab in a
- *  cell is unaffected. */
+ *  looking at their headings. Only the first few lines are weighed, and a
+ *  separator has to actually beat the commas, so a comma file carrying a stray
+ *  tab or semicolon in a cell is unaffected.
+ *
+ *  SEMICOLON is Excel's "CSV" on a machine whose regional settings use a comma
+ *  as the decimal mark. Reported 2026-10-05: a PM Reports file saved that way
+ *  read as one column and came back "Nothing loadable — every row is missing
+ *  uid / ucn / visit date & time", which is the wrong-register message for a
+ *  file that was the right one. Counted OUTSIDE QUOTES, because the same files
+ *  quote text and a remark full of commas must not out-vote the real
+ *  separator; an unquoted decimal comma (`12,5`) still counts, so semicolons
+ *  must beat it, which a header row of N columns' N-1 semicolons does. */
 export function pickDelimiter(text: string): string {
   const head = text.slice(0, 20000).split('\n').slice(0, 5).join('\n');
-  const tabs = (head.match(/\t/g) || []).length;
-  const commas = (head.match(/,/g) || []).length;
-  return tabs > commas ? '\t' : ',';
+  const n = { '\t': 0, ';': 0, ',': 0 } as Record<string, number>;
+  let q = false;
+  for (const c of head) {
+    if (c === '"') q = !q;
+    else if (!q && c in n) n[c] += 1;
+  }
+  if (n['\t'] > n[','] && n['\t'] >= n[';']) return '\t';
+  if (n[';'] > n[',']) return ';';
+  return ',';
 }
 
 /** The file as rows of cells, nothing interpreted. */

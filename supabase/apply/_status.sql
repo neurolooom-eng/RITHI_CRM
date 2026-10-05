@@ -2018,21 +2018,21 @@ with checks(sort_order, bundle, provides, present) as (
                and tgrelid in (to_regclass('public.reports'), to_regclass('public.spare_consumption'), to_regclass('public.spare_requests'))) = 3
          and exists (select 1 from pg_trigger where tgname = 'a_created_by_is_the_session'
                       and tgrelid = to_regclass('public.spare_consumption')))),
-    (304, 'Approving an Indoor DC does not file a visit on a call already Solved', 'approve_indoor_dc() skips the drafted visit of a unit whose call''s last status is Solved, writes indoor.visit_skipped to the audit log and says which calls in its answer; every other unit files its visit as before (0382, D-145). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0382)',
+    (304, 'Approving an Indoor DC does not file a visit on a call already Solved', 'approve_indoor_dc() skips the drafted visit of a unit whose call''s last status is Solved, writes indoor.visit_skipped to the audit log and says which calls in its answer; every other unit files its visit as before (0391, D-145). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0391)',
         coalesce((select p.prosrc like '%indoor.visit_skipped%' from pg_proc p
                    where p.oid = to_regprocedure('public.approve_indoor_dc(text,boolean)')), false)),
-    (315, 'A corrected transfer blanks Sold Through only where a transfer set it, and re-reads the machine it left', 'products.sold_through_from_transfer records that the transfer path wrote the Sold Through; transfer_resync_machine() blanks it, with no dealer transfer left, only then, and transfer_to_product re-reads OLD''s machine when a transfer moves (0361, D-149). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0361)',
+    (325, 'A corrected transfer blanks Sold Through only where a transfer set it, and re-reads the machine it left', 'products.sold_through_from_transfer records that the transfer path wrote the Sold Through; transfer_resync_machine() blanks it, with no dealer transfer left, only then, and transfer_to_product re-reads OLD''s machine when a transfer moves (0361, D-149). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0361)',
         (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'products'
                   and column_name = 'sold_through_from_transfer')
          and to_regprocedure('public.transfer_resync_machine(text,text)') is not null
          and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.products')
                       and tgname = 'products_sold_through_source'))),
-    (316, 'One installation call per call number and per machine; no installation request for a dealer', 'installation_call_once refuses a second live installation call with the same call number or the same product and serial (a cancelled call does not count, a re-load of the same UCN is not stopped); call_request_not_installation_for_dealer refuses an installation request whose party the Party Master types DEALER (0362, D-150, D-154). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0362)',
+    (326, 'One installation call per call number and per machine; no installation request for a dealer', 'installation_call_once refuses a second live installation call with the same call number or the same product and serial (a cancelled call does not count, a re-load of the same UCN is not stopped); call_request_not_installation_for_dealer refuses an installation request whose party the Party Master types DEALER (0362, D-150, D-154). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0362)',
         (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.installation_calls')
                   and tgname = 'installation_call_once')
          and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.call_requests')
                       and tgname = 'call_request_not_installation_for_dealer'))),
-    (317, 'A signed PDT is locked; the dispatch date is when the unit is marked Dispatched; a cleaning time is never in the future', 'indoor_pdt_locked_once_signed refuses a change to a signed Pre-Delivery Testing record, which is un-signed with unsign_indoor_pdt() by a holder of indoor.pdt_unsign, with a reason; zzy_indoor_dispatch_and_cleaning stamps dispatched_at / dispatched_by when the unit is marked Dispatched and records who marked it cleaned, refusing a future cleaning time (0363, D-111, D-112, D-114). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0363)',
+    (327, 'A signed PDT is locked; the dispatch date is when the unit is marked Dispatched; a cleaning time is never in the future', 'indoor_pdt_locked_once_signed refuses a change to a signed Pre-Delivery Testing record, which is un-signed with unsign_indoor_pdt() by a holder of indoor.pdt_unsign, with a reason; zzy_indoor_dispatch_and_cleaning stamps dispatched_at / dispatched_by when the unit is marked Dispatched and records who marked it cleaned, refusing a future cleaning time (0363, D-111, D-112, D-114). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0363)',
         (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.indoor_pdt')
                   and tgname = 'indoor_pdt_locked_once_signed')
          and to_regprocedure('public.unsign_indoor_pdt(bigint,text)') is not null
@@ -2068,6 +2068,57 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.pdqc_records') and tgname = 'zz_pdqc_stamp')
      and coalesce((select a.attnotnull from pg_attribute a where a.attrelid = to_regclass('public.pdqc_records') and a.attname = 'pcmv_o2_100'), false)
      and not coalesce((select has_table_privilege('authenticated', 'public.pdqc_records', 'DELETE') where to_regclass('public.pdqc_records') is not null), false))),
+    (310, 'Pre-Delivery Quality Check: every check numbered PDQC/YY/NNNN', 'Asked for 2026-10-05. pdqc_records.pdqc_no (0378), NOT NULL and unique, given by zy_pdqc_number on insert and kept on every update. NO means indoor.sql has not been re-run since. Restore: indoor.sql (0378)',
+        (coalesce((select a.attnotnull from pg_attribute a where a.attrelid = to_regclass('public.pdqc_records') and a.attname = 'pdqc_no'), false)
+     and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.pdqc_records') and tgname = 'zy_pdqc_number')
+     and to_regclass('public.pdqc_records_pdqc_no') is not null)),
+    (311, 'Devices report their Part Master too', 'device_cache_status.parts / parts_at, and device_cache_report() returning them (0380). Since v0.10.105 every device keeps the Part Master the spare pickers read for six hours and says how many parts it holds and when they were stored. NO means device_cache.sql has not been re-run since. Restore: device_cache.sql (0380)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'device_cache_status' and column_name = 'parts_at')
+         and exists (select 1 from pg_proc p
+                      where p.oid = to_regprocedure('public.device_cache_report()')
+                        and pg_get_function_result(p.oid) like '%parts_at%'))),
+    (312, 'Master reads asked once per query', 'parties_read, products_read, parts_read and masters_read wrap auth.role() in a sub-select, so it is asked once per statement instead of once per row (0381). Who may read is unchanged. NO means rbac.sql has not been re-run since. Restore: rbac.sql (0381)',
+        (select count(*) = 4 from pg_policies
+          where schemaname = 'public' and policyname in ('parties_read', 'products_read', 'parts_read', 'masters_read')
+            and qual ilike '%SELECT auth.role()%')),
+    (313, 'Feedback found by call number, serial and date without reading the whole table', 'feedback_call_number_created_idx, feedback_serial_idx and feedback_created_id_idx (0381). NO means data_integrity.sql has not been re-run since. Restore: data_integrity.sql (0381)',
+        (to_regclass('public.feedback_call_number_created_idx') is not null
+     and to_regclass('public.feedback_serial_idx') is not null
+     and to_regclass('public.feedback_created_id_idx') is not null)),
+    (314, 'Search is index-backed: the trigram indexes behind every substring search', 'pg_trgm GIN indexes on products (serial_number, item_name, party_name), parties (party_name) and the three call tables (ucn, call_number, party_name, serial, product_name) -- 0052, which creates them only where pg_trgm is installed. Without them every type-to-search is a scan of the whole table and the big ones time out. NO means pg_trgm is not enabled (Dashboard -> Database -> Extensions) or performance.sql has not been run since it was. Restore: performance.sql (0052)',
+        (to_regclass('public.products_serial_number_trgm') is not null
+     and to_regclass('public.products_item_name_trgm') is not null
+     and to_regclass('public.products_party_name_trgm') is not null
+     and to_regclass('public.parties_party_name_trgm') is not null
+     and to_regclass('public.field_calls_ucn_trgm') is not null
+     and to_regclass('public.installation_calls_serial_trgm') is not null
+     and to_regclass('public.pm_calls_party_name_trgm') is not null)),
+    (315, 'No index duplicates a wider one', 'The eight prefix-redundant btrees (masters_name_idx, reports_ucn_idx, reports_call_number_idx, material_returns_uid_idx, documents_kind_idx, handstock_opening_eng_idx, products_machine_idx, parts_item_detail_key_idx) are gone and their wider twins remain (0382). Each cost every write to its table and served no lookup the wider index does not. NO means performance.sql has not been re-run since, OR an older bundle re-created one -- check which name is back. Restore: performance.sql (0382)',
+        (to_regclass('public.masters_name_idx') is null and to_regclass('public.reports_ucn_idx') is null
+     and to_regclass('public.reports_call_number_idx') is null and to_regclass('public.material_returns_uid_idx') is null
+     and to_regclass('public.documents_kind_idx') is null and to_regclass('public.handstock_opening_eng_idx') is null
+     and to_regclass('public.products_machine_idx') is null and to_regclass('public.parts_item_detail_key_idx') is null
+     and to_regclass('public.masters_active_idx') is not null and to_regclass('public.reports_ucn_entry_idx') is not null
+     and to_regclass('public.products_machine_key_uniq') is not null and to_regclass('public.parts_item_detail_key_uniq') is not null)),
+    (316, 'A transfer can give the new owner a fresh warranty, which the machine wears', 'ownership_transfers carries warranty_start / warranty_months / warranty_years / warranty_end; ownership_transfer_warranty works out the years and the end and needs the period and the Reference no.; sync_product_machine() gives the machine that warranty, numbered with the transfer''s Reference no., when it starts on or after the sale''s (0383). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0383)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'ownership_transfers' and column_name = 'warranty_end')
+     and exists (select 1 from pg_trigger where tgname = 'ownership_transfer_warranty' and not tgisinternal)
+     and coalesce((select p.prosrc like '%use_ft%' from pg_proc p
+                    where p.oid = to_regprocedure('public.sync_product_machine(text,text)')), false))),
+    (317, 'Hand Stock: the whole balance in one request', 'handstock_balance_all() (0384) returns the balance as one jsonb array, SECURITY INVOKER (the reader''s own row-level security bounds it, as the view) with work_mem raised for the call, and the public key cannot run it. The Hand Stock and Hand Stock Report screens read it once per load instead of once per page and once per search keystroke. NO means HandStock_X.sql has not been re-run since, or the function was re-created as definer. Restore: HandStock_X.sql (0384)',
+        (to_regprocedure('public.handstock_balance_all()') is not null
+     and not coalesce((select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.handstock_balance_all()')), true)
+     and coalesce((select 'work_mem=64MB' = any(p.proconfig) from pg_proc p where p.oid = to_regprocedure('public.handstock_balance_all()')), false)
+     and not coalesce(has_function_privilege('anon', 'public.handstock_balance_all()', 'EXECUTE'), true)
+     and coalesce(has_function_privilege('authenticated', 'public.handstock_balance_all()', 'EXECUTE'), false))),
+    (318, 'Stores Dispatch Report and the part''s IND/IMP', 'parts.ind_imp; the view stores_dispatch_report (security_invoker, granted to authenticated) in the AppSheet Stores format, with exact days from the final approval and "No approval date" where none; mod:/exports/stores-dispatch merged into admin, technical_support, stores_incharge and spare_coordinator (0385). Restore: HandStock_X.sql (0385)',
+        (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'parts' and column_name = 'ind_imp')
+         and to_regclass('public.stores_dispatch_report') is not null
+         and coalesce((select array_to_string(c.reloptions, ',') like '%security_invoker=on%' from pg_class c where c.oid = to_regclass('public.stores_dispatch_report')), false)
+         and has_table_privilege('authenticated', to_regclass('public.stores_dispatch_report'), 'SELECT')
+         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stores_dispatch_report' and column_name = 'Dispatched in (Days - Group)'))),
     (300, 'The masters keep their own rules: required fields, one spelling of a code, the KYC verifier, a product line indoor jobs name', 'master_required_fields on parties, parts and product_master refuses a new party with no name, city or state, a part with no code or description, a product line with no code or name, blanking any of them, and a code that differs from an existing one only in case or spaces; parties_kyc_stamp_kept keeps the KYC verifier when the status is unchanged; product_line_delete_by_name_guard refuses deleting a line indoor jobs name by product name. Imports are not stopped (0366, D-140, D-058, D-138). NO means masters.sql has not been re-run since. Restore: masters.sql (0366)',
         ((select count(*) from pg_trigger where tgname = 'master_required_fields' and not tgisinternal
            and tgrelid in (to_regclass('public.parties'), to_regclass('public.parts'), to_regclass('public.product_master'))) = 3
@@ -2078,22 +2129,22 @@ with checks(sort_order, bundle, provides, present) as (
         coalesce((select p.prosrc like '%d.gmail%' from pg_proc p where p.oid = to_regprocedure('public.indoor_dc_may_approve(text)')), false)),
     (302, 'A QMS document''s revision is a new entry, and a QMS document is retired, never deleted', 'qms_document_controlled on documents: a new QMS document needs its number, revision and effective date; once recorded, number, revision, effective date and file are fixed; a QMS document is not deleted or moved off the QMS shelf. Service manuals and notes, and imports, are untouched (0368, D-061). NO means documents.sql has not been re-run since. Restore: documents.sql (0368)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.documents') and tgname = 'qms_document_controlled')),
-    (318, 'record_indoor_visit() is not a signed-in user''s, and the indoor visit columns say the visit is filed at approval', 'No screen calls record_indoor_visit(); it is kept for a repair in the SQL editor and the DC approval files the visit itself. The comments on indoor_jobs.visit_draft / visit_uid / visit_filed_at say the visit is filed when the DC is approved (0378, D-108, D-116). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0378)',
+    (328, 'record_indoor_visit() is not a signed-in user''s, and the indoor visit columns say the visit is filed at approval', 'No screen calls record_indoor_visit(); it is kept for a repair in the SQL editor and the DC approval files the visit itself. The comments on indoor_jobs.visit_draft / visit_uid / visit_filed_at say the visit is filed when the DC is approved (0387, D-108, D-116). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0387)',
         (to_regprocedure('public.record_indoor_visit(bigint,text,boolean)') is null
          or not has_function_privilege('authenticated', to_regprocedure('public.record_indoor_visit(bigint,text,boolean)'), 'EXECUTE'))),
-    (319, 'Deleting a master list value needs that list''s delete key', 'masters_delete asks master.<list>.delete or masters.edit -- not "Add / edit master records" (masters.edit.records), which edits and adds but never deleted on any screen (0371, D-086). NO means masters.sql has not been re-run since. Restore: masters.sql (0371)',
+    (329, 'Deleting a master list value needs that list''s delete key', 'masters_delete asks master.<list>.delete or masters.edit -- not "Add / edit master records" (masters.edit.records), which edits and adds but never deleted on any screen (0371, D-086). NO means masters.sql has not been re-run since. Restore: masters.sql (0371)',
         exists (select 1 from pg_policy where polrelid = to_regclass('public.masters') and polname = 'masters_delete'
                  and pg_get_expr(polqual, polrelid) not like '%masters.edit.records%')),
-    (310, 'A User Master entry with a profile or R&R history is not deleted', 'user_directory_keeps_history refuses a signed-in delete of an entry that has a profile or a Roles & Responsibilities period -- set Active to No instead; an entry with neither can still be deleted (0379, D-059). NO means training.sql has not been re-run since. Restore: training.sql (0379)',
+    (320, 'A User Master entry with a profile or R&R history is not deleted', 'user_directory_keeps_history refuses a signed-in delete of an entry that has a profile or a Roles & Responsibilities period -- set Active to No instead; an entry with neither can still be deleted (0388, D-059). NO means training.sql has not been re-run since. Restore: training.sql (0388)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.user_directory') and tgname = 'user_directory_keeps_history')),
-    (311, 'A stock transfer or return is not dated into a closed hand-stock period or the future', 'stock_movement_date_open on stock_transfers and material_returns refuses, for a signed-in non-importer, a date on or before the last closed day or after today (0373, D-050). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0373)',
+    (321, 'A stock transfer or return is not dated into a closed hand-stock period or the future', 'stock_movement_date_open on stock_transfers and material_returns refuses, for a signed-in non-importer, a date on or before the last closed day or after today (0373, D-050). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0373)',
         (select count(*) from pg_trigger where tgname = 'stock_movement_date_open' and not tgisinternal
           and tgrelid in (to_regclass('public.stock_transfers'), to_regclass('public.material_returns'))) = 2),
-    (312, 'A field call is registered with its three vigilance questions answered', 'field_call_vigilance_answered refuses a signed-in registration of a field call whose Public Health Threat?, Death? or Serious Incident? is not YES or NO; imports, installation and PM calls are not stopped (0380, D-033). NO means call_requests.sql has not been re-run since. Restore: call_requests.sql (0380)',
+    (322, 'A field call is registered with its three vigilance questions answered', 'field_call_vigilance_answered refuses a signed-in registration of a field call whose Public Health Threat?, Death? or Serious Incident? is not YES or NO; imports, installation and PM calls are not stopped (0389, D-033). NO means call_requests.sql has not been re-run since. Restore: call_requests.sql (0389)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.field_calls') and tgname = 'field_call_vigilance_answered')),
-    (313, 'Stock is transferred from your own or your team''s hand stock, to a person on the User Master', 'stock_transfer_own_or_team refuses a signed-in transfer from an engineer who is not you or in your team (unless stock.transfer.others) or to a name the User Master does not carry; imports are not stopped (0375, D-049). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0375)',
+    (323, 'Stock is transferred from your own or your team''s hand stock, to a person on the User Master', 'stock_transfer_own_or_team refuses a signed-in transfer from an engineer who is not you or in your team (unless stock.transfer.others) or to a name the User Master does not carry; imports are not stopped (0375, D-049). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0375)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.stock_transfers') and tgname = 'stock_transfer_own_or_team')),
-    (314, 'Daily Complaint Review answers are read by holders of review.view', 'call_reviews_read asks has_perm(''review.view''); review.edit grants it (perm_parents), and the roles holding review.edit were given it once (0381, D-129). NO means daily_review.sql has not been re-run since. Restore: daily_review.sql (0381)',
+    (324, 'Daily Complaint Review answers are read by holders of review.view', 'call_reviews_read asks has_perm(''review.view''); review.edit grants it (perm_parents), and the roles holding review.edit were given it once (0390, D-129). NO means daily_review.sql has not been re-run since. Restore: daily_review.sql (0390)',
         (exists (select 1 from pg_policy where polrelid = to_regclass('public.call_reviews') and polname = 'call_reviews_read'
                   and pg_get_expr(polqual, polrelid) like '%review.view%')
          -- perm_parents READ THROUGH query_to_xml: named directly, a project

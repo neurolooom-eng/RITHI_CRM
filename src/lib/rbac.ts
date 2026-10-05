@@ -156,6 +156,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/exports/unused', label: 'Reports — Not Consumed Against this Call' },
   { path: '/exports/calls', label: 'Reports — Call Report' },
   { path: '/exports/feedback', label: 'Reports — Customer Feedback Report' },
+  { path: '/exports/stores-dispatch', label: 'Reports — Stores Dispatch Report' },
   // IN THE REPORTS GROUP, BUT NOT UNDER `/exports` — and that is the whole
   // reason for the path. Every `mod:/exports/...` key INHERITS from
   // `mod:/exports` (parentAction), so filing it there would hand it to every
@@ -271,7 +272,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
   // D-129 (the user, 2026-10-05: "visible only to a selected few as set through
   // roles & permissions"): reading the review answers is its own key, given once
-  // to the roles that held review.edit (0381); review.edit grants it, since an
+  // to the roles that held review.edit (0390); review.edit grants it, since an
   // editor reads what they edit.
   { group: 'Calls', key: 'review.view', label: 'Read Daily Complaint Review answers' },
   // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269, 0285). Its answers carry the
@@ -724,9 +725,14 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/training', label: 'Training', actions: ['training.manage'] },
   ] },
   { title: 'Contracts & Warranty', pages: [
-    { path: '/warranties', label: 'Warranty Register', actions: ['masters.view', 'cover.edit', 'cover.edit.entries', 'cover.edit.delete', 'calls.create', 'install.create'] },
+    // masters.parties.add: a sale naming a party the master lacks adds it on
+    // Save (2026-10-05) -- the same key the Party Master's Add uses, shown
+    // here too so whoever grants this page sees what it can create.
+    { path: '/warranties', label: 'Warranty Register', actions: ['masters.view', 'cover.edit', 'cover.edit.entries', 'cover.edit.delete', 'calls.create', 'install.create', 'masters.parties.add', 'masters.parties.edit'] },
     { path: '/contracts', label: 'Contract Register', actions: ['masters.view', 'contract.edit', 'contract.edit.entries', 'contract.edit.delete', 'calls.create'] },
     { path: '/ownership-transfer', label: 'Ownership Transfer', actions: ['ownership.transfer', 'cover.edit.entries', 'install.create'] },
+    // Moved from Master with the menu entry (2026-10-05); same key, so no grant changes.
+    { path: '/product-database', label: 'Product Database', actions: ['calls.create', 'install.create', 'ownership.transfer'] },
   ] },
   // KNOWLEDGE BASE, WHICH THE MATRIX DID NOT HAVE AT ALL until 2026-09-14.
   // Service Manuals sat under Documents here while the MENU put it under
@@ -789,6 +795,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/exports/unused', label: '↳ Not Consumed Against this Call', actions: ['reports.view'] },
     { path: '/exports/calls', label: '↳ Call Report', actions: ['reports.view'] },
     { path: '/exports/feedback', label: '↳ Customer Feedback Report', actions: ['feedback.view', 'visit.feedback'] },
+    { path: '/exports/stores-dispatch', label: '↳ Stores Dispatch Report', actions: ['spare.dispatch', 'reports.view'] },
     // NOT a child of /exports: it does not inherit, and it is administrators
     // only. Its position here matches the menu's, which is the half of this
     // that is easy to get wrong — a page filed under the wrong neighbour is
@@ -802,7 +809,6 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.edit', 'masters.edit.records', 'masters.parties.add', 'masters.parties.edit', 'masters.parties.delete', 'masters.edit.kyc', 'masters.edit.swap_serviceman'] },
-    { path: '/product-database', label: 'Product Database', actions: ['calls.create', 'install.create'] },
     { path: '/product-database-2', label: 'Product Database 2.0', actions: ['masters.view', 'pd2.rebuild'] },
     { path: '/product-master', label: 'Product Master (product lines)', actions: ['masters.edit', 'masters.edit.records', 'masters.product_master.add', 'masters.product_master.edit', 'masters.product_master.delete'] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage', 'users.manage.details', 'users.manage.create', 'users.manage.disable', 'users.manage.access', 'users.reset_password'] },

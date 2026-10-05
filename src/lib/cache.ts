@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------------
 
 export const SYNC_TTL_MS = 30 * 60 * 1000; // 30 minutes
-const MAX_CACHED_ROWS = 1500;              // keep localStorage well under quota
+export const MAX_CACHED_ROWS = 1500;              // keep localStorage well under quota
 const PREFIX = 'rithi.cache.';
 
 export interface CacheEntry<T = Record<string, unknown>> { at: string; rows: T[] }

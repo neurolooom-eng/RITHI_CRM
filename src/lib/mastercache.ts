@@ -29,6 +29,7 @@
 // ===========================================================================
 
 export const HOUR = 60 * 60 * 1000;
+export const DAY = 24 * HOUR;
 
 /** Lists that are served from the device while their stored copy is younger
  *  than this. A list not named here is re-read on every load, as before. */
@@ -38,7 +39,16 @@ export const REFRESH_EVERY: Record<string, number> = {
   // every call form filter by (the user, 2026-09-29: "Since this is also
   // related to Call Request, make this offline"). Edited rarely, and an edit on
   // the Standard Complaint screen clears this device's copy at once.
-  complaintProducts: 6 * HOUR,
+  // ONCE IN TEN DAYS (the user, 2026-10-05: "Standard Complaint, Party Master
+  // dont change Frequently, It can be downloaded Once in 10 Days. Only Product
+  // Database and Part Master Can have frequent changes").
+  complaintProducts: 10 * DAY,
+  // THE PART MASTER the spare pickers read, with each part's products, and the
+  // accessories of each product (the user, 2026-10-05: "Cache Part Master
+  // along with Other Cached Registers"). The Part Master screen clears this
+  // device's copy whenever it reloads, so an edit there reaches the pickers.
+  spareProducts: 6 * HOUR,
+  productAccessories: 6 * HOUR,
 };
 
 /** True when the stored copy is young enough to use without asking the server. */

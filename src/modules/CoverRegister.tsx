@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput, LongDateText } from '../components/ui/LongDate';
-import { sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers } from '../lib/supabase';
+import { sbListPartyItems, sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers, addParty, sbActiveUserNames, sbPartyIdByName, updateParty, type PartyPatch } from '../lib/supabase';
+import { partyMissing, partyFromSale, partyEdits, saleNewPartyMissing, SALE_NEW_PARTY_REQUIRED, SALE_TO_PARTY } from '../lib/partyRules';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT,
          // THE VALUE TEST, not the row test. `isPinned` from ./cover takes
@@ -34,7 +35,7 @@ import {
 // contract form's own rules; the renewal panel shows what it is about to write
 // and must not compute it a second way, or the preview and the saved row can
 // disagree about money.
-import { itemTaxAmount, totalAfterTax, upliftRate } from '../lib/coverspec';
+import { itemTaxAmount, totalAfterTax, upliftRate, pickableMachine, contractItemFromMachine, contractLineKey } from '../lib/coverspec';
 import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
 import { xlsxDownload, xlsxCell } from '../lib/xlsx';
@@ -165,6 +166,18 @@ function FieldInput({
   // machines already on record, so a name the Product Database has never
   // heard of is not a customer this contract can cover -- it is a typo, or a
   // machine that has to be added there first.
+  // THE SERVICE ENGINEER IS SOMEBODY ON THE USER MASTER WHO IS ACTIVE (the
+  // user, 2026-10-05: "Service Engineer has to be a DropDown from User Master
+  // [Active Users]"). Picked, never typed: a name the User Master has not got
+  // is an engineer nobody can notify. A value already on the record that is not
+  // on the list is still SHOWN (the picker keeps the current value), and the
+  // form says so beside it, rather than the box going blank.
+  if (field.optionsFrom === 'active-user') {
+    return <SelectPicker value={value} onChange={onChange} disabled={disabled}
+                         placeholder="— choose the engineer —"
+                         options={[...new Set([...(runtimeOptions ?? []), ...(value ? [value] : [])])]}
+                         emptyHint="Engineers come from the User Master — active users only. If the list is empty, the User Master could not be read." />;
+  }
   if (field.optionsFrom === 'product-party') {
     return <SelectPicker value={value} onChange={onChange} disabled={disabled}
                          placeholder="— find the customer —"
@@ -218,12 +231,14 @@ function FieldInput({
 
 // One machine under a header, all its fields, with inheritance made visible.
 function ItemCard({
-  cfg, kind, item, header, canEdit, onSaved, onDeleted, lines, onDirtyChange, focus,
+  cfg, kind, item, header, canEdit, onSaved, onDeleted, lines, onDirtyChange, focus, activeUsers,
 }: {
   cfg: ReturnType<typeof configFor>; kind: CoverKind; item: Row; header: Row; canEdit: boolean;
   onSaved: (r: Row) => void; onDeleted: (id: number) => void;
   /** The Product Master's lines, loaded once by the screen. */
   lines: ProductLine[];
+  /** The User Master's active names, loaded once by the screen. */
+  activeUsers?: string[];
   /** Told whenever this card starts or stops holding an unsaved edit, so the
    *  window can warn before it is closed over one. */
   onDirtyChange?: (dirty: boolean) => void;
@@ -310,6 +325,7 @@ function ItemCard({
                 <label key={f.name} className="rep-field">
                   <span className="field-label">
                     {f.label}
+                    {f.derived && <span className="muted"> · {f.derived}</span>}
                     {inherits && (pinnedHere
                       ? <> · <button className="linklike" onClick={() => unpin(f)} disabled={!canEdit} title="Follow the entry again">↺ inherit</button></>
                       : <span className="muted"> · from entry</span>)}
@@ -318,9 +334,12 @@ function ItemCard({
                     field={f}
                     value={fromDb(f, draft[f.name])}
                     placeholder={headerText || undefined}
-                    disabled={!canEdit}
+                    // WORKED OUT, NOT TYPED: Total After Tax is the rate plus
+                    // the tax (deriveItem), so the box only shows it.
+                    disabled={!canEdit || !!f.derived}
                     runtimeOptions={f.optionsFrom === 'sellable-name' ? sellableNames(lines)
-                      : f.optionsFrom === 'sellable-code' ? sellableCodes(lines) : undefined}
+                      : f.optionsFrom === 'sellable-code' ? sellableCodes(lines)
+                      : f.optionsFrom === 'active-user' ? activeUsers : undefined}
                     onChange={(v) => set(f, v)}
                   />
                 </label>
@@ -329,6 +348,153 @@ function ItemCard({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ===========================================================================
+// ADD MACHINE ON A CONTRACT: PICK FROM THE CUSTOMER'S MACHINES (the user,
+// 2026-10-05: "In Add Machine in Contract - It should list all the Products
+// with Serial number with that Customer ... I should be able to select the
+// Products, Update the Rate, Tax and Save it").
+//
+// THE LIST IS THE PRODUCT DATABASE'S, for the contract's Party Name -- read
+// from this device's copy first and the server otherwise (sbListPartyItems),
+// so it is the same answer the Product Database screen gives. A machine
+// already on THIS contract is shown and cannot be ticked twice. Tax is offered
+// from the rate (GST, coverspec.itemTaxAmount) and stays editable; the total is
+// the rate plus the tax and is not typed. Each ticked machine is saved as its
+// own line (saveItem), so one refused line does not lose the others, and the
+// message says which.
+// ===========================================================================
+function ContractMachinePicker({ header, items, onAdded, onManual, onCancel }: {
+  header: Row; items: Row[]; onAdded: (rows: Row[], all: boolean) => void; onManual: () => void; onCancel: () => void;
+}) {
+  const party = str(header.party_name).trim();
+  const [rows, setRows] = useState<Record<string, unknown>[] | null>(null);
+  const [loadErr, setLoadErr] = useState('');
+  const [picked, setPicked] = useState<Record<string, { rate: string; tax: string }>>({});
+  const [filter, setFilter] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => {
+    let live = true;
+    setRows(null); setLoadErr('');
+    if (!party) { setRows([]); return; }
+    sbListPartyItems(party)
+      .then((r) => { if (live) setRows(r); })
+      .catch((e) => { if (live) { setRows([]); setLoadErr(e instanceof Error ? e.message : String(e)); } });
+    return () => { live = false; };
+  }, [party]);
+
+  const onContract = useMemo(() => new Set(items.map(contractLineKey)), [items]);
+  const machines = useMemo(() => {
+    const seen = new Set<string>();
+    return (rows ?? []).map((r) => ({ row: r, m: pickableMachine(r) }))
+      .filter(({ m }) => m.name && m.serial && !seen.has(m.key) && (seen.add(m.key), true))
+      .sort((a, b) => a.m.name.localeCompare(b.m.name) || a.m.serial.localeCompare(b.m.serial, undefined, { numeric: true }));
+  }, [rows]);
+  const q = filter.trim().toLowerCase();
+  const shown = q ? machines.filter(({ m }) => `${m.code} ${m.name} ${m.serial} ${m.sa} ${m.mc}`.toLowerCase().includes(q)) : machines;
+
+  const toggle = (key: string) => setPicked((p) => {
+    const n = { ...p };
+    if (n[key]) delete n[key]; else n[key] = { rate: '', tax: '' };
+    return n;
+  });
+  // The rate offers its tax, as the machine card does; the tax stays editable.
+  const setRate = (key: string, v: string) => setPicked((p) => {
+    const t = itemTaxAmount(v);
+    return { ...p, [key]: { rate: v, tax: v.trim() === '' || t === null ? '' : String(Math.round(t * 100) / 100) } };
+  });
+  const setTax = (key: string, v: string) => setPicked((p) => ({ ...p, [key]: { ...p[key], tax: v } }));
+  const keys = Object.keys(picked);
+  const bad = keys.some((k) => ['rate', 'tax'].some((f) => {
+    const v = picked[k][f as 'rate' | 'tax'].trim();
+    return v !== '' && !(Number.isFinite(Number(v)) && Number(v) >= 0);
+  }));
+
+  const save = async () => {
+    setBusy(true); setMsg('');
+    const added: Row[] = [];
+    const failed: string[] = [];
+    const failedKeys = new Set<string>();
+    for (const { row, m } of machines.filter(({ m }) => picked[m.key])) {
+      const p = picked[m.key];
+      try {
+        added.push(await saveItem('contract', str(header.mc_number), contractItemFromMachine(row, p.rate, p.tax)));
+      } catch (e) {
+        failedKeys.add(m.key);
+        failed.push(`${m.name} ${m.serial}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    setBusy(false);
+    // What failed stays ticked, with its prices, to be tried again.
+    setPicked((p) => Object.fromEntries(Object.entries(p).filter(([k]) => failedKeys.has(k))));
+    if (added.length) onAdded(added, failed.length === 0);
+    if (failed.length) setMsg(`${added.length} added. Not added: ${failed.join(' · ')}`);
+  };
+
+  return (
+    <div>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <b>Add machines — {party || 'no Party Name'}</b>
+        <button className="btn btn-sm" onClick={onCancel}>✕</button>
+      </div>
+      <div className="muted" style={{ fontSize: 12.5, margin: '4px 0 8px' }}>
+        Every machine the Product Database shows with this customer. Tick the ones this contract covers,
+        give each a rate and tax, and press Add. SA Number and MC Number are the Product Database&apos;s and
+        are kept on the line as its history.
+      </div>
+      {!party && <div className="sheet-banner sheet-banner-error"><span>Give the entry a Party Name and save it first.</span></div>}
+      {party && rows === null && <div className="muted">Reading this customer&apos;s machines…</div>}
+      {loadErr && <div className="sheet-banner sheet-banner-error"><span>The machines could not be read — {loadErr}</span></div>}
+      {party && rows !== null && !loadErr && machines.length === 0 && (
+        <div className="muted">The Product Database shows no machine with {party}.</div>
+      )}
+      {machines.length > 8 && (
+        <input className="input" placeholder="Filter by product, serial, SA or MC" value={filter}
+               onChange={(e) => setFilter(e.target.value)} style={{ marginBottom: 6, width: '100%' }} />
+      )}
+      <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+        {shown.map(({ m }) => {
+          const already = onContract.has(m.key);
+          const p = picked[m.key];
+          const rate = p ? Number(p.rate) : NaN;
+          const total = p && p.rate.trim() !== '' && Number.isFinite(rate) ? totalAfterTax(rate, p.tax.trim() === '' ? 0 : p.tax) : null;
+          return (
+            <div key={m.key} className="renew-row" style={{ opacity: already ? 0.55 : 1 }}>
+              <input type="checkbox" checked={!!p} disabled={already} onChange={() => toggle(m.key)} />
+              <span className="renew-name">
+                <b>{m.name}</b> · {m.serial}{m.code && <span className="muted"> · {m.code}</span>}
+                <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                  SA {m.sa || '—'} · MC {m.mc || '—'}{m.status && ` · ${m.status}`}
+                  {already && <b> · already on this contract</b>}
+                </span>
+              </span>
+              {p && (
+                <span className="renew-money">
+                  <input className="input renew-rate" type="number" min={0} step="0.01" placeholder="Rate"
+                         value={p.rate} onChange={(e) => setRate(m.key, e.target.value)} />
+                  <input className="input renew-rate" type="number" min={0} step="0.01" placeholder="Tax"
+                         value={p.tax} onChange={(e) => setTax(m.key, e.target.value)} />
+                  <span className="muted renew-tot">{total === null ? 'price later' : `= ${total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}</span>
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {msg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{msg}</span></div>}
+      <div className="row" style={{ gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="btn btn-primary" disabled={busy || !keys.length || bad} onClick={() => void save()}>
+          {busy ? 'Adding…' : `Add ${keys.length || ''} machine${keys.length === 1 ? '' : 's'}`}
+        </button>
+        {bad && <span className="muted" style={{ fontSize: 12.5 }}>A rate or tax is not a number.</span>}
+        <button className="linklike" onClick={onManual} title="A machine the Product Database does not show with this customer">
+          Add a machine that is not listed
+        </button>
+      </div>
     </div>
   );
 }
@@ -943,14 +1109,16 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
    *  not being able to suggest one is no reason to refuse the entry. */
   const newEntry = async () => {
     setOpen({}); setItems([]);
-    filledFor.current = '';
+    filledFor.current = ''; setPartyKnown(null);
     // WARRANTY START DEFAULTS TO TODAY and is then typed over where the machine
     // was installed on another day (the user, 2026-09-22). The ENTRY date is
     // not set here at all: the database stamps it (0230), which is what
     // "automatic" has to mean if it is to be trusted.
     // CONTRACT START DEFAULTS TO TODAY as well (the user, 2026-10-02), typed
     // over for a contract that starts on another day.
-    setDraft(kind === 'sale' ? { warranty_start: todayLocal() } : { contract_start: todayLocal() });
+    // THE CONTRACT ENTRY DATE SHOWS TODAY from the start, locked (the user,
+    // 2026-10-05); the save below stamps the moment itself.
+    setDraft(kind === 'sale' ? { warranty_start: todayLocal() } : { contract_start: todayLocal(), entry_at: todayLocal() });
     try {
       const n = await nextCoverNumber(kind);
       setDraft((d) => (str(d[cfg.key]) ? d : { ...d, [cfg.key]: n }));
@@ -976,6 +1144,8 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const [renewing, setRenewing] = useState(false);
   // The warranty-to-contract panel, closed the same way a renewal is.
   const [converting, setConverting] = useState(false);
+  // THE CONTRACT'S ADD MACHINE PICKER, in the third column (ContractMachinePicker).
+  const [picking, setPicking] = useState(false);
   const [items, setItems] = useState<Row[]>([]);
   // TRUE WHILE AN ENTRY'S MACHINES ARE BEING READ. The Renew panel seeds its
   // draft ONCE, from `items`, when it opens -- so pressed before the read
@@ -989,6 +1159,13 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // leaves an empty list with free text still open rather than a stuck form.
   const [lines, setLines] = useState<ProductLine[]>([]);
   useEffect(() => { if (live) void listProductLines().then(setLines).catch(() => setLines([])); }, [live]);
+  // THE USER MASTER'S ACTIVE PEOPLE, for the Service Engineer picker -- loaded
+  // once, Warranty only (the contract form has no engineer field).
+  const [activeUsers, setActiveUsers] = useState<string[]>([]);
+  useEffect(() => {
+    if (live && kind === 'sale') void sbActiveUserNames().then(setActiveUsers).catch(() => setActiveUsers([]));
+  }, [live, kind]);
+  const activeSet = useMemo(() => new Set(activeUsers.map((n) => n.toLowerCase())), [activeUsers]);
 
   // One page of a tab, from the server.
   const fetchPage = (t: Tab, offset: number): Promise<Row[]> =>
@@ -1112,6 +1289,13 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     setFocusId(focus);
     setRenewing(false); setConverting(false);
     setOpen(h); setDraft(h); setItems([]);
+    // An existing sale's party is looked up once, so a name the master lacks
+    // is flagged before anybody presses Save.
+    filledFor.current = str(h.party_name).trim(); setPartyKnown(null);
+    if (kind === 'sale' && str(h.party_name).trim()) {
+      void sbPartyInfo(str(h.party_name).trim())
+        .then((i) => { if (seq === openSeq.current) setPartyKnown(!!i); }).catch(() => {});
+    }
     setLoadingItems(true);
     try {
       const got = await listItems(kind, str(h[cfg.key]));
@@ -1147,12 +1331,18 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // helpful and is the worst outcome available — a sale carrying a DIFFERENT
   // customer's address, with nothing on screen saying so.
   const filledFor = useRef('');
+  // IS THE SALE'S PARTY ON THE PARTY MASTER? null = not asked yet. False turns
+  // the master's required fields on here, and says the party will be added.
+  const [partyKnown, setPartyKnown] = useState<boolean | null>(null);
   const fillFromParty = async (name: string) => {
     const want = name.trim();
-    if (!want || want.toLowerCase() === filledFor.current.toLowerCase()) return;
+    if (!want) { setPartyKnown(null); return; }
+    if (want.toLowerCase() === filledFor.current.toLowerCase()) return;
     filledFor.current = want;
     let info = null;
-    try { info = await sbPartyInfo(want); } catch { /* the name still stands */ }
+    let looked = false;
+    try { info = await sbPartyInfo(want); looked = true; } catch { /* the name still stands */ }
+    if (want.toLowerCase() === filledFor.current.toLowerCase()) setPartyKnown(looked ? !!info : null);
     // A name the master has not got fills nothing rather than clearing what is
     // there: it has nothing to fill it FROM, and blanking on a typo would lose
     // work somebody had already done.
@@ -1173,13 +1363,60 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       return;
     }
     setSaving(true);
+    let partyNote = '';
+    // The party as the master holds it NOW, in the sale's field names -- what
+    // the write-back below compares against. Null for a party just added or
+    // not found: there is nothing on the master to update.
+    let masterFill: Record<string, unknown> | null = null;
     try {
+      // A NEW PARTY IS ADDED TO THE PARTY MASTER IN THE SAME STEP (the user,
+      // 2026-10-05: "allow the user to create a new party and use it in
+      // warranty sale at the same time", choosing "on Save, in one step").
+      // ASKED OF THE MASTER NOW, not read off the screen's last lookup, so a
+      // party somebody added meanwhile is not added twice. A name the master
+      // has not got must carry the master's own required fields (partyRules)
+      // -- for everybody, so the sale itself is complete. With
+      // masters.parties.add the party is created first, from what was typed
+      // on the sale; without it the sale saves as it always has (the user's
+      // choice), and says so.
+      const partyName = str(draft.party_name).trim();
+      if (kind === 'sale' && partyName) {
+        let info = null;
+        try { info = await sbPartyInfo(partyName); } catch { info = undefined; }
+        if (info === null) {
+          const newParty = partyFromSale(draft);
+          // The Party Master's own required fields AND the nine this page
+          // asks of a party it creates (partyRules.SALE_NEW_PARTY_REQUIRED).
+          const lacking = [...new Set([...partyMissing(newParty), ...saleNewPartyMissing(draft)])];
+          if (lacking.length) {
+            setPartyKnown(false);
+            setMsg({ tone: 'error', text: `${partyName} is not on the Party Master, so a new party's required fields apply: fill in ${lacking.join(', ')}.` });
+            return;
+          }
+          if (can('masters.parties.add')) {
+            const res = await addParty(newParty as unknown as PartyPatch & { party_name: string });
+            if (!res.ok && !/already on the Party Master/.test(res.error)) {
+              setMsg({ tone: 'error', text: `The party could not be added to the Party Master, so the sale was not saved — ${res.error}` });
+              return;
+            }
+            filledFor.current = partyName;
+            setPartyKnown(true);
+            partyNote = res.ok ? ` ${partyName} was added to the Party Master${res.partyKey ? ` as ${res.partyKey}` : ''}.` : '';
+          } else {
+            partyNote = ` ${partyName} is not on the Party Master and your role may not add it — ask somebody who may add parties.`;
+          }
+        } else if (info) {
+          masterFill = partyFillForSale(info);
+        }
+      }
       // THE ENTRY DATE IS STAMPED ON CREATION, never typed (the user,
       // 2026-09-22). Sent from here as well as defaulted in the database
       // (0230) so the form works on a project that has not run that file yet;
       // on an UPDATE it is left exactly as it was, because re-stamping it would
       // silently re-date a sale every time somebody fixed a typo.
-      const toSave = (!draft.id && kind === 'sale' && !draft.entry_at)
+      // A NEW CONTRACT is stamped likewise, over the "today" the form showed
+      // (the user, 2026-10-05: "Default it to Today [Locked]").
+      const toSave = (!draft.id && ((kind === 'sale' && !draft.entry_at) || kind === 'contract'))
         ? { ...draft, entry_at: new Date().toISOString() }
         : draft;
       // AGAINST THE ENTRY AS IT WAS READ (D-106): only what changed here is
@@ -1192,7 +1429,41 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       // database, so the re-read alone would drop it and what was typed into it.
       const fresh = await listItems(kind, str(saved[cfg.key]));
       setItems((cur) => keepUnsavedMachines(fresh, cur));
-      setMsg({ tone: 'ok', text: `${cfg.keyLabel} ${str(saved[cfg.key])} saved — machines following it were updated.` });
+      // THE PARTY DETAILS CHANGED HERE GO BACK TO THE PARTY MASTER (the user,
+      // 2026-10-05: "All Party Related Fields, if Updated - Should be Saved to
+      // Party Master once the Entry is Saved", choosing "Save updates Party
+      // Master"). AFTER the sale, so a refused party edit never loses the sale.
+      // Only what was changed in THIS edit and differs from the master
+      // (partyRules.partyEdits) -- re-saving an old sale must not put back a
+      // value since corrected on the master. Needs masters.parties.edit, which
+      // the database's own update policy also asks (0325).
+      if (masterFill) {
+        const edits = partyEdits(open ?? {}, draft, masterFill);
+        const cols = Object.keys(edits);
+        if (cols.length) {
+          const labelOf = (col: string) => {
+            const field = SALE_TO_PARTY.find(([c]) => c === col)?.[1] ?? col;
+            return cfg.headerFields.find((h) => h.name === field)?.label ?? col;
+          };
+          const names = cols.map(labelOf).join(', ');
+          if (!can('masters.parties.edit')) {
+            partyNote += ` The Party Master was NOT updated (${names}) — your role may not edit parties.`;
+          } else {
+            try {
+              const id = await sbPartyIdByName(partyName);
+              const res = id == null
+                ? { ok: false, error: 'the party is no longer on the Party Master' }
+                : await updateParty(id, edits as PartyPatch);
+              partyNote += res.ok
+                ? ` Party Master updated for ${partyName}: ${names}.`
+                : ` The Party Master was NOT updated (${names}) — ${res.error}`;
+            } catch (e) {
+              partyNote += ` The Party Master was NOT updated (${names}) — ${e instanceof Error ? e.message : String(e)}`;
+            }
+          }
+        }
+      }
+      setMsg({ tone: partyNote.includes('NOT updated') ? 'info' : 'ok', text: `${cfg.keyLabel} ${str(saved[cfg.key])} saved — machines following it were updated.${partyNote}` });
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
     finally { setSaving(false); }
   };
@@ -1482,7 +1753,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     const what = [entryDirty ? 'the entry' : '', cards ? `${cards} machine(s)` : ''].filter(Boolean).join(' and ');
     if (what && !window.confirm(`Unsaved changes to ${what} will be lost. Close anyway?`)) return false;
     dirtyCards.current.clear();
-    setRenewing(false); setConverting(false); setFocusId(null);
+    setRenewing(false); setConverting(false); setPicking(false); setFocusId(null);
     setOpen(null);
     return true;
   };
@@ -1528,6 +1799,28 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     </div>
   );
 
+  // A NEW PARTY'S REQUIRED FIELDS, required here while the sale names a party
+  // the master has not got (partyRules.SALE_NEW_PARTY_REQUIRED -- the user,
+  // 2026-10-05: Party Type, Profile, Country, State, City, Address, Pincode,
+  // GST and Service Engineer).
+  const newPartyFields = new Set(kind === 'sale' && partyKnown === false ? SALE_NEW_PARTY_REQUIRED.map(([k]) => k) : []);
+  const partyNotice = kind === 'sale' && partyKnown === false && str(draft.party_name).trim() ? (
+    <div className={`sheet-banner sheet-banner-${can('masters.parties.add') ? 'info' : 'error'}`} style={{ margin: '0 0 10px' }}>
+      <span>
+        <b>{str(draft.party_name).trim()}</b> is not on the Party Master.{' '}
+        {can('masters.parties.add')
+          ? <>It will be <b>added to the Party Master</b> when you press Save entry, with the details typed here. A new party needs {SALE_NEW_PARTY_REQUIRED.map(([, l]) => l).join(', ')}.</>
+          : <>Your role may not add parties, so the sale will be saved without adding it. {SALE_NEW_PARTY_REQUIRED.map(([, l]) => l).join(', ')} are still required.</>}
+      </span>
+    </div>
+  ) : null;
+
+  // PARTY NAME IS NOT EDITABLE ONCE THE SALE IS SAVED (the user, 2026-10-05:
+  // "Party Name is Non Editable", choosing "Locked once the sale is saved").
+  // A new sale still has to pick its customer; after that the party's details
+  // are edited here and the name is the key they are written back under.
+  const partyLocked = (name: string) => kind === 'sale' && name === 'party_name' && !!draft.id;
+
   const entryFields = sections.map((sec) => (
     <div key={sec} style={{ marginBottom: 10 }}>
       <div className="field-label" style={{ opacity: 0.75 }}>{sec}</div>
@@ -1535,12 +1828,14 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         {shownHeader.filter((f) => f.section === sec).map((f) => (
           <label key={f.name} className="rep-field">
             <span className="field-label">
-              {f.label}{f.required && <span title="Required"> *</span>}
+              {f.label}{(f.required || (newPartyFields.has(f.name))) && <span title="Required"> *</span>}
               {f.derived && <span className="muted"> · from {f.derived}</span>}
               {kind === 'sale' && SALE_PARTY_FIELDS.includes(f.name)
                 && <span className="muted"> · from the party</span>}
             </span>
-            <FieldInput field={f} value={f.compute ? f.compute(draft) : fromDb(f, draft[f.name])} disabled={!canEdit}
+            <FieldInput field={f} value={f.compute ? f.compute(draft) : fromDb(f, draft[f.name])}
+              disabled={!canEdit || partyLocked(f.name)}
+              runtimeOptions={f.optionsFrom === 'active-user' ? activeUsers : undefined}
               onChange={(v) => {
                 setDraft((d) => {
                   // The register's own arithmetic, from the AppSheet
@@ -1559,6 +1854,16 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 if (kind === 'sale' && f.name === 'party_name') void fillFromParty(v);
               }} />
             {f.hint && f.hint(draft) && <span className="muted rep-hint">{f.hint(draft)}</span>}
+            {partyLocked(f.name) && <span className="muted rep-hint">Locked once the sale is saved.</span>}
+            {/* A NAME ON THE RECORD THAT IS NOT AN ACTIVE USER -- often the
+                Party Master's Serviceman, filled in with the customer. Said,
+                not silently kept or cleared: choose an active engineer. */}
+            {f.optionsFrom === 'active-user' && activeUsers.length > 0 && str(draft[f.name]).trim()
+              && !activeSet.has(str(draft[f.name]).trim().toLowerCase()) && (
+              <span className="rep-hint" style={{ color: 'var(--danger, #b91c1c)' }}>
+                Not an active user on the User Master — choose an engineer from the list.
+              </span>
+            )}
           </label>
         ))}
       </div>
@@ -1590,7 +1895,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // The buttons that act on the machines under the entry.
   const machineButtons = canEdit && open && !!open.id ? (
     <>
-      <button className="btn btn-sm" onClick={addMachine}>+ Add machine</button>
+      <button className="btn btn-sm"
+        onClick={kind === 'contract' ? () => { setRenewing(false); setPicking(true); } : addMachine}
+        title={kind === 'contract' ? 'Pick from the machines the Product Database shows with this customer' : undefined}>
+        + Add machine
+      </button>
       {/* DISABLED ONCE EVERY MACHINE HAS ITS CALL, by the mapping
           itself rather than by a flag somebody has to maintain. A line
           with no product or no serial is not a machine yet and gets no
@@ -1656,7 +1965,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       ? <button className="btn" onClick={() => setRenewing(false)}
           title="Close the renewal without creating anything">✕ Cancel renewal</button>
       : <button className="btn" disabled={loadingItems || !!unsavedEntry}
-          onClick={() => setRenewing(true)}
+          onClick={() => { setPicking(false); setRenewing(true); }}
           title={loadingItems ? 'Waiting for this contract’s machines to load' : unsavedEntry || undefined}>
           {loadingItems ? 'Loading machines…' : '↻ Renew this contract'}
         </button>
@@ -1721,7 +2030,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       {!open.id && <div className="muted" style={{ marginBottom: 8 }}>Save the entry first, then add machines to it.</div>}
       {open.id && loadingItems && <div className="muted" style={{ marginBottom: 8 }}>Loading machines…</div>}
       {items.map((it) => (
-        <ItemCard key={lineKey(it)} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines}
+        <ItemCard key={lineKey(it)} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines} activeUsers={activeUsers}
           focus={focusId !== null && Number(it.id) === focusId}
           // A machine with no id is unsaved by definition and is counted
           // from `items`; only a SAVED machine's edit is tracked here.
@@ -1748,7 +2057,17 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // Contract -- Open this in the Third Column"). The entry and its products
   // stay in view beside it, so the machines being carried over can be read
   // against the panel ticking them.
-  const sidePanel = renewPanel ?? convertPanel;
+  const pickPanel = kind === 'contract' && picking && open?.id ? (
+    <ContractMachinePicker header={draft} items={items}
+      onCancel={() => setPicking(false)}
+      onManual={() => { setPicking(false); addMachine(); }}
+      onAdded={(rows, all) => {
+        setItems((cur) => [...cur, ...rows]);
+        if (all) setPicking(false);
+        setMsg({ tone: 'ok', text: `${rows.length} machine(s) added to ${str(draft.mc_number)}.` });
+      }} />
+  ) : null;
+  const sidePanel = renewPanel ?? convertPanel ?? pickPanel;
   const entryPopup = open ? (
     <div className="cover-pop-overlay" role="dialog" aria-modal="true">
       <div className={`cover-pop${sidePanel ? ' cover-pop-wide' : ''}`}>
@@ -1778,6 +2097,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 six hours; this line says how old that copy is. */}
             <MachineRegisterNote />
             {entryNote}
+            {partyNotice}
             {entryFields}
           </div>
           <div className="cover-pop-col" ref={productsRef}>

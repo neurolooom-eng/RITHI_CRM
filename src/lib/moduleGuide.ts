@@ -249,6 +249,11 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Save the entry before raising installation calls; a line needs both a Product and a Serial to get one',
       'A sale to a DEALER gets no installation call — it is raised from the Ownership Transfer when the dealer sells the machine; Sold Through lists dealers only',
       'Changing the customer replaces all the filled-in details, blanks included',
+      'Service Engineer is picked from the User Master\'s active people; a name that is not one is flagged in red',
+      'Required on every sale: Party Name, Invoice No, Invoice Date, Warranty Start Date, Warranty Period (Months) and PM Visits',
+      'Party Name cannot be changed once the sale is saved',
+      'Party details changed on the sale (Type, Profile, Country, State, City, Address, Pincode, phones, PAN, GST, Service Engineer) are written back to the Party Master on Save entry; this needs the right to edit parties, and without it the sale saves and says the master was not updated',
+      'A customer not on the Party Master is added to it when the sale is saved; Party Type, Profile, Country, State, City, Address, Pincode, GST and Service Engineer are then required. A role that may not add parties saves the sale without adding it',
       'A retired product line takes no new sale',
     ],
   },
@@ -269,7 +274,8 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'About to expire means the last 30 days; a machine with no end date shows Not covered, which is not Inactive',
       'Rates never carry over on renewal — you set them, with last time’s rate shown beside each',
       'Period (Months), PM Visits (Total), Payment Schedule and Bill Generate At must be filled before the entry saves',
-      'The Party must be a customer who owns a machine on the Product Database; a name cannot be typed in',
+      'The Party Name is picked from the Party Master (this device\'s copy first); a name cannot be typed in',
+      '+ Add machine lists every machine the Product Database shows with the customer: tick them, give each a Rate and Tax, and Add. Total After Tax is Rate + Tax; a machine already on the contract cannot be added twice; one not listed is added by hand',
       'The End Date and the Period (Years) are worked out and cannot be typed, on the form and on renewal',
       'The offered number is not reserved: two people starting at once get the same one and the second is refused',
     ],
@@ -278,14 +284,15 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     route: '/ownership-transfer',
     purpose: 'One row per machine changing hands, plus warranty and contract details recovered for machines whose sale paperwork was lost.',
     does: [
-      'Record a transfer: serial, To party, date, reference, reason, document',
+      'Record a transfer: pick the machine from the Product Database (serial, model, current party), see its current details, sale and warranty; pick the To party from the Party Master; date, reference, reason, document',
       'Raise the installation call for the customer a dealer sold the machine to: + Installation call on the transfer (OT-PRODUCT-SERIAL, dated the transfer date)',
       'Add entry details for a machine with no sale record',
       'Search either tab',
     ],
     records: ['ownership_transfers', 'product_additional_entries', 'products'],
     rules: [
-      'Leave From Party blank and it fills from whoever holds the machine now',
+      'On the screen, From is the machine\'s current party on the Product Database; on a file load, a blank From fills from whoever holds the machine now',
+      'To party must be on the Party Master',
       'The machine follows the latest transfer; a back-dated one does not undo a later one',
       'There is no edit or delete of a transfer on this screen',
       'Sold Through is the From party when the Party Master types it DEALER — filled in by the system, and shown in the Product Database',
@@ -590,7 +597,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Open a line for its movement trail, or read the Movements ledger',
       '± Adjust stock with a reason and reference (reconciliation permission)',
     ],
-    records: ['handstock_balance', 'handstock_movements', 'handstock_adjustments'],
+    records: ['handstock_balance', 'rpc:handstock_balance_all', 'handstock_movements', 'handstock_adjustments'],
     rules: [
       'A negative (Short) level is a finding: more was consumed than this system knows was issued',
       'If the balance is wrong the Spare Coordinator corrects the stock; the engineer does not book around it',
@@ -680,7 +687,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'Recycle defective spares on a track of their own — registration, an MRS with no approval, stock out with cost into a separate recycling hand stock, consumption, job done and the cost of each recycling. Hidden while Audit Mode is on.',
     does: [
       'Register a defective spare for recycling (RCY/YY/NNNN): the part from the Part Master, quantity, received on, its Source (Service Return or Defective Spare) and an optional call reference kept as text — a quantity of 3 becomes 3 requests, one per spare; requests can be ticked and deleted with Delete a recycling request',
-      'Import spares from MRN: search any MRN, pick a line, and import its good and defective quantity as requests (the MRN No kept on each); a line can be imported again',
+      'Import spares from MRN: search any MRN, pick a line, and import its good and defective quantity as requests with the Source Defective Spare (the MRN No kept on each); a line can be imported again',
       'Start Work on a request with the date and time — the SLA (working days, set on the SLA page) runs from then, and the list shows the due time and On track / Due today / Breached / Met',
       'Raise an MRS (RMRS/YY/NNNN) for the spares needed — no approval — optionally against an open recycling request',
       'Stores books an MRS line out with its unit cost, in one go or in parts; the quantity goes to the raiser\'s recycling hand stock',
@@ -707,7 +714,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     route: '/indoor/pdqc',
     purpose: 'Record the Pre-Delivery Quality Check (R/SER/QC/007) of an imported machine in the godown before billing — a register of its own, for any product.',
     does: [
-      'Record a new check: the product (from the Product Master), SL. No, date, measuring equipment ID, software version, HV and HT, checks 1–5 as OK / NOT OK, and the CMV/ACMV and PCMV readings at FiO2 21, 60 and 100%',
+      'Record a new check, numbered PDQC/YY/NNNN when saved: the product (from the Product Master), SL. No, date, measuring equipment ID, software version, HV and HT, checks 1–5 as OK / NOT OK, and the CMV/ACMV and PCMV readings at FiO2 21, 60 and 100%',
       'Open a check to see it or, with the right, correct it',
       'Print a check on the R/SER/QC/007 sheet',
       'Download the checks',
@@ -789,6 +796,21 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     ],
   },
   {
+    route: '/exports/stores-dispatch',
+    purpose: 'Every spare Stores dispatched, with the days it took after the request\u2019s final approval -- the AppSheet Stores format.',
+    does: [
+      'Filter by dispatch date, engineer, part, Spare Request NO, days band, IND/IMP or Item Status',
+      'Tick the extra columns you want',
+      'Download Excel or CSV',
+    ],
+    records: ['stores_dispatch_report', 'audit_log'],
+    rules: [
+      'Days are exact elapsed time from the final approval (latest of RM, Commercial, NSM) to the dispatch, one decimal',
+      'A line with no approval time recorded has a blank date and the band "No approval date", never ">5 yrs"',
+      'IND/IMP comes from the Part Master',
+    ],
+  },
+  {
     route: '/feedback-without-report',
     purpose: 'Calls where the customer gave feedback but the visit was never written up.',
     does: [
@@ -822,7 +844,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Let it load every line, then download CSV, .xlsx or .xls',
       'Search before downloading to take only those rows',
     ],
-    records: ['handstock_balance', 'audit_log'],
+    records: ['handstock_balance', 'rpc:handstock_balance_all', 'audit_log'],
     rules: [
       'Downloads stay greyed out until every line has loaded — a short stock file is a wrong one',
       'An office role gets every engineer; anyone else gets their own stock and their team’s, and the file says which',

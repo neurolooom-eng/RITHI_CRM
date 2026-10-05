@@ -39,7 +39,10 @@ export interface CoverField {
    *  machine on record (the user, 2026-10-02, for the Contract Register: a
    *  contract covers machines already installed, so its party is one that
    *  owns them). Picked from the list, never typed. */
-  optionsFrom?: 'sellable-name' | 'sellable-code' | 'party' | 'product-party' | 'dealer';
+  optionsFrom?: 'sellable-name' | 'sellable-code' | 'party' | 'product-party' | 'dealer'
+    /** `active-user` is the USER MASTER's active people (validity true), the
+     *  only names a Service Engineer may be (the user, 2026-10-05). */
+    | 'active-user';
   section: string;
   /** THE FORM DOES NOT ASK FOR THIS ONE — it is worked out, or it is stamped.
    *  Shown, and not typeable: a box somebody can type into is a box whose value
@@ -170,40 +173,52 @@ export const SALE: CoverConfig = {
     // The user, 2026-09-22: "Warranty Entry date - Automatic - Timestamp".
     { name: 'entry_at', label: 'Sale Entry Date', type: 'date', section: 'Sale',
       derived: 'stamped when the entry is created' },
-    { name: 'party_name', label: 'Party Name', section: 'Sale', optionsFrom: 'party' },
+    // SIX REQUIRED, IN A SENSIBLE ORDER (the user, 2026-10-05: "Mandatory
+    // Fields in Warranty Entry: Party Name, Invoice No, Invoice Date, Warranty
+    // Start Date, Warranty Period (Months), PM Visits ... Arrange this in a
+    // Sensible Order"). The sale first, then its warranty, then the party.
+    // Party Name is LOCKED once the sale is saved (CoverRegister.tsx).
+    { name: 'party_name', label: 'Party Name', section: 'Sale', optionsFrom: 'party', required: true },
+    { name: 'invoice_no', label: 'Invoice No', section: 'Sale', required: true },
+    { name: 'invoice_date', label: 'Invoice Date', type: 'date', section: 'Sale', required: true },
     // THE DEALER (the user, 2026-10-03): only Party Master entries typed DEALER.
     { name: 'sold_through', label: 'Sold Through', section: 'Sale', optionsFrom: 'dealer' },
-    { name: 'invoice_no', label: 'Invoice No', section: 'Sale' },
-    { name: 'invoice_date', label: 'Invoice Date', type: 'date', section: 'Sale' },
-    { name: 'party_type', label: 'Type', type: 'select', options: ['', 'CUSTOMER', 'DEALER'], section: 'Sale' },
-    { name: 'profile', label: 'Profile', type: 'select', options: ['', 'PRIVATE', 'GOVERNMENT', 'DEALER', 'GENERAL'], section: 'Sale' },
-    { name: 'warranty_start', label: 'Warranty Start Date', type: 'date', section: 'Warranty' },
+    { name: 'warranty_start', label: 'Warranty Start Date', type: 'date', section: 'Warranty', required: true },
     // THE PERIOD IS ENTERED IN MONTHS AND THE REST FOLLOWS (the user,
     // 2026-09-22). `deriveHeader` has computed all three from the start date
     // and the months since it was written; what changes here is that the form
     // stops inviting somebody to type over the answer.
-    { name: 'warranty_end', label: 'Warranty End Date', type: 'date', section: 'Warranty',
-      derived: 'Warranty Start + Period (months)' },
-    { name: 'warranty_months', label: 'Warranty Period (in Months)', type: 'number', section: 'Warranty' },
+    { name: 'warranty_months', label: 'Warranty Period (in Months)', type: 'number', section: 'Warranty', required: true },
     { name: 'warranty_years', label: 'Warranty Period (in Years)', type: 'number', section: 'Warranty',
       derived: 'the months above' },
+    { name: 'warranty_end', label: 'Warranty End Date', type: 'date', section: 'Warranty',
+      derived: 'Warranty Start + Period (months)' },
     // TYPED, AND SUGGESTED FROM THE PERIOD (the user, 2026-09-22: "PM visit
     // should editable by the user. It varies based on PO"). It follows the
     // period until somebody changes it, and is theirs from then on -- what was
     // actually sold is on the purchase order, not in the standard offer.
-    { name: 'pm_visits', label: 'PM Visits', type: 'number', section: 'Warranty' },
+    { name: 'pm_visits', label: 'PM Visits', type: 'number', section: 'Warranty', required: true },
     { name: 'warranty_status', label: 'Warranty Status (as keyed)', section: 'Warranty' },
     { name: 'other_details', label: 'Other Details', type: 'textarea', section: 'Warranty' },
-    { name: 'country', label: 'Country', section: 'Installation' },
-    { name: 'state', label: 'State', section: 'Installation' },
-    { name: 'city', label: 'City', section: 'Installation' },
-    { name: 'engineer', label: 'Service Engineer - Initial', section: 'Installation' },
-    { name: 'address', label: 'Address', type: 'textarea', section: 'Installation' },
-    { name: 'pincode', label: 'Inst. Pincode', section: 'Installation' },
-    { name: 'tel1', label: 'Tel 1', section: 'Installation' },
-    { name: 'tel2', label: 'Tel 2', section: 'Installation' },
-    { name: 'pan', label: 'PAN', section: 'Tax' },
-    { name: 'gst', label: 'GST', section: 'Tax' },
+    // FROM THE PARTY MASTER, AND BACK TO IT (the user, 2026-10-05: "To be
+    // Loaded from Party Master Based on Party Name ... All Party Details can be
+    // Updated through the Warranty Entry Page itself" and "All Party Related
+    // Fields, if Updated - Should be Saved to Party Master once the Entry is
+    // Saved"). Filled by partyFillForSale, written back by partyEdits.
+    { name: 'party_type', label: 'Party Type', type: 'select', options: ['', 'CUSTOMER', 'DEALER'], section: 'Party' },
+    { name: 'profile', label: 'Party Profile', type: 'select', options: ['', 'PRIVATE', 'GOVERNMENT', 'DEALER', 'GENERAL'], section: 'Party' },
+    { name: 'country', label: 'Country', section: 'Party' },
+    { name: 'state', label: 'State', section: 'Party' },
+    { name: 'city', label: 'City', section: 'Party' },
+    { name: 'address', label: 'Address', type: 'textarea', section: 'Party' },
+    { name: 'pincode', label: 'Inst. Pincode', section: 'Party' },
+    { name: 'tel1', label: 'Tel 1', section: 'Party' },
+    { name: 'tel2', label: 'Tel 2', section: 'Party' },
+    { name: 'pan', label: 'PAN', section: 'Party' },
+    { name: 'gst', label: 'GST', section: 'Party' },
+    // "Also the Service Engineer Name has to come from Party Master" (the
+    // user, 2026-10-05) -- its Serviceman, picked from active users.
+    { name: 'engineer', label: 'Service Engineer - Initial', section: 'Party', optionsFrom: 'active-user' },
     { name: 'tax', label: 'TAX', section: 'Tax' },
   ],
   itemFields: [
@@ -226,7 +241,7 @@ export const SALE: CoverConfig = {
     { name: 'other_details', label: 'Other Details', type: 'textarea', section: 'Sale', inherits: true },
     { name: 'state', label: 'State', section: 'Installation', inherits: true },
     { name: 'city', label: 'City', section: 'Installation', inherits: true },
-    { name: 'engineer', label: 'Engineer', section: 'Installation', inherits: true },
+    { name: 'engineer', label: 'Engineer', section: 'Installation', inherits: true, optionsFrom: 'active-user' },
     { name: 'accessories_included', label: 'Accessories Included?', type: 'bool', section: 'Supplied' },
     { name: 'consumable_included', label: 'Consumable Included?', type: 'bool', section: 'Supplied' },
     { name: 'contract_price_fixed', label: 'Contract Price Fixed?', type: 'bool', section: 'Supplied' },
@@ -253,11 +268,17 @@ export const CONTRACT: CoverConfig = {
   endColumn: 'contract_end',
   headerFields: [
     { name: 'mc_number', label: 'MC Number', section: 'Contract' },
-    { name: 'entry_at', label: 'Contract Entry Date', type: 'date', section: 'Contract' },
-    // FROM THE PRODUCT DATABASE, TYPE TO SEARCH (the user, 2026-10-02). A
-    // contract covers machines already installed, so its customer is one who
-    // owns them.
-    { name: 'party_name', label: 'Party Name', section: 'Contract', optionsFrom: 'product-party' },
+    // TODAY, AND LOCKED (the user, 2026-10-05: "Contract Entry Date - Default
+    // it to Today [Locked]"). Shown as today on a new entry and stamped with
+    // the moment of saving, as the Sale Entry Date is; never re-dated on edit.
+    { name: 'entry_at', label: 'Contract Entry Date', type: 'date', section: 'Contract',
+      derived: 'today, stamped when the entry is created' },
+    // FROM THE PARTY MASTER ON THIS DEVICE, TYPE TO SEARCH (the user,
+    // 2026-10-05: "Party Cache has to be used in Contract Entry"). It replaces
+    // 2026-10-02's search over the Product Database's owners, which needs the
+    // machine copy -- the one that is not downloading. The machines are then
+    // picked from the Product Database under Add machine.
+    { name: 'party_name', label: 'Party Name', section: 'Contract', optionsFrom: 'party' },
     { name: 'contract_type', label: 'Contract Type', type: 'select', options: ['', 'CMC', 'AMC'], section: 'Contract' },
     // HIDDEN, AND FILLED BY RENEW (renewContract sets it to the contract being
     // renewed). Still read by Machine History ("renewed from …") and still
@@ -298,26 +319,33 @@ export const CONTRACT: CoverConfig = {
       options: ['', 'Beginning Of Period', 'End Of Period'], section: 'Billing', required: true },
   ],
   itemFields: [
-    { name: 'product_code', label: 'Product Code', section: 'Machine' },
-    { name: 'product_name', label: 'Product Name', section: 'Machine' },
-    { name: 'serial_number', label: 'Serial Number', section: 'Machine' },
-    { name: 'present_item_status', label: 'Present Item Status', section: 'Machine' },
-    { name: 'contract_start', label: 'Contract Start Date', type: 'date', section: 'Period', inherits: true },
-    { name: 'contract_end', label: 'Contract End Date', type: 'date', section: 'Period', inherits: true },
-    { name: 'contract_type', label: 'Contract Type', section: 'Period', inherits: true },
-    { name: 'contract_years', label: 'Contract Period (Years)', type: 'number', section: 'Period', inherits: true },
-    { name: 'contract_months', label: 'Contract Period (Months)', type: 'number', section: 'Period', inherits: true },
-    { name: 'pm_visits_total', label: 'PM Visits (Total)', type: 'number', section: 'Period', inherits: true },
-    { name: 'status', label: 'Status', section: 'Period', inherits: true },
-    { name: 'party_name', label: 'Party Name', section: 'Period', inherits: true },
-    { name: 'payment_schedule', label: 'Payment Schedule', section: 'Billing', inherits: true },
-    { name: 'bill_generate_at', label: 'Bill Generate At', section: 'Billing', inherits: true },
-    { name: 'rate', label: 'Rate', type: 'number', section: 'Billing' },
-    { name: 'item_tax_amount', label: 'Item Tax Amount', type: 'number', section: 'Billing' },
-    { name: 'total_after_tax', label: 'Total After Tax', type: 'number', section: 'Billing' },
-    { name: 'sa_number', label: 'SA Number (sale)', section: 'History' },
+    // FOUR SECTIONS, IN THIS ORDER (the user, 2026-10-05: "Section 1 - Product
+    // Details - Product Code, Product Name, Serial Number. Section 2 - Rate,
+    // Tax Amount, Total After Tax. Total After Tax is Auto Calculated (Rate+Tax
+    // Amount). Section 3 - All Inherited Details from Parent. Section 4 -
+    // History -> From Product Database - SA Number, MC Number").
+    { name: 'product_code', label: 'Product Code', section: 'Product Details' },
+    { name: 'product_name', label: 'Product Name', section: 'Product Details' },
+    { name: 'serial_number', label: 'Serial Number', section: 'Product Details' },
+    { name: 'rate', label: 'Rate', type: 'number', section: 'Price' },
+    { name: 'item_tax_amount', label: 'Tax Amount', type: 'number', section: 'Price' },
+    { name: 'total_after_tax', label: 'Total After Tax', type: 'number', section: 'Price',
+      derived: 'Rate + Tax Amount' },
+    { name: 'contract_start', label: 'Contract Start Date', type: 'date', section: 'From the entry', inherits: true },
+    { name: 'contract_end', label: 'Contract End Date', type: 'date', section: 'From the entry', inherits: true },
+    { name: 'contract_type', label: 'Contract Type', section: 'From the entry', inherits: true },
+    { name: 'contract_years', label: 'Contract Period (Years)', type: 'number', section: 'From the entry', inherits: true },
+    { name: 'contract_months', label: 'Contract Period (Months)', type: 'number', section: 'From the entry', inherits: true },
+    { name: 'pm_visits_total', label: 'PM Visits (Total)', type: 'number', section: 'From the entry', inherits: true },
+    { name: 'status', label: 'Status', section: 'From the entry', inherits: true },
+    { name: 'party_name', label: 'Party Name', section: 'From the entry', inherits: true },
+    { name: 'payment_schedule', label: 'Payment Schedule', section: 'From the entry', inherits: true },
+    { name: 'bill_generate_at', label: 'Bill Generate At', section: 'From the entry', inherits: true },
+    // FROM THE PRODUCT DATABASE when the machine is picked (contractItemFromMachine).
+    { name: 'sa_number', label: 'SA Number', section: 'History' },
+    { name: 'last_contract_number', label: 'MC Number (before this one)', section: 'History' },
+    { name: 'present_item_status', label: 'Item Status when added', section: 'History' },
     { name: 'sa_end_date', label: 'SA End Date', type: 'date', section: 'History' },
-    { name: 'last_contract_number', label: 'Last Contract Number', section: 'History' },
     { name: 'last_contract_end', label: 'Last Contract End', type: 'date', section: 'History' },
     { name: 'added_by', label: 'Added By', section: 'History' },
   ],

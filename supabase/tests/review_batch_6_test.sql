@@ -1,12 +1,12 @@
 -- ===========================================================================
--- REVIEW BATCH 6, PROVED ON A DATABASE (0378-0373).
+-- REVIEW BATCH 6, PROVED ON A DATABASE (0387-0373).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works.
 --
---   1. D-108  record_indoor_visit() is not a signed-in user's (0378)
---   2. D-116  the indoor visit columns say the visit is filed at approval (0378)
+--   1. D-108  record_indoor_visit() is not a signed-in user's (0387)
+--   2. D-116  the indoor visit columns say the visit is filed at approval (0387)
 --   3. D-086  "Add / edit master records" does not delete a list value (0371)
---   4. D-059  a User Master entry with R&R history is not deleted (0379)
+--   4. D-059  a User Master entry with R&R history is not deleted (0388)
 --   5. D-050  a transfer or return is not dated into a closed period or the future (0373)
 --
 -- Checks raise an unlabelled error when they are wrong, so the harness counts

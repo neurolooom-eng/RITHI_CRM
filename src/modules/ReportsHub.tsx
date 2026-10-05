@@ -6,6 +6,7 @@ import { KpiExport } from './KpiExport';
 import { UnusedSpareReport } from './UnusedSpareReport';
 import { CallReport } from './CallReport';
 import { FeedbackReport } from './FeedbackReport';
+import { StoresDispatchReport } from './StoresDispatchReport';
 import { useAuth } from '../lib/auth';
 import './dccr.css';
 
@@ -38,7 +39,7 @@ import './dccr.css';
 // permission, it is a suggestion.
 // ===========================================================================
 
-type Tab = 'consumption' | 'kpi' | 'unused' | 'calls' | 'feedback';
+type Tab = 'consumption' | 'kpi' | 'unused' | 'calls' | 'feedback' | 'stores-dispatch';
 
 const REPORTS: { key: Tab; label: string; icon: string; blurb: string }[] = [
   { key: 'consumption', label: 'Consumption Report', icon: '🔩',
@@ -51,6 +52,8 @@ const REPORTS: { key: Tab; label: string; icon: string; blurb: string }[] = [
     blurb: 'One row per call, with its latest visit and what was fitted — filtered, with the columns you choose.' },
   { key: 'feedback', label: 'Customer Feedback Report', icon: '⭐',
     blurb: 'One row per feedback, with each question as its own column.' },
+  { key: 'stores-dispatch', label: 'Stores Dispatch Report', icon: '🚚',
+    blurb: 'Every spare dispatched, with the days Stores took after the final approval — the AppSheet Stores format.' },
 ];
 
 const isTab = (v: string | undefined): v is Tab => REPORTS.some((r) => r.key === v);
@@ -118,6 +121,7 @@ export function ReportsHub() {
         : tab === 'kpi' ? <KpiExport />
         : tab === 'calls' ? <CallReport />
         : tab === 'feedback' ? <FeedbackReport />
+        : tab === 'stores-dispatch' ? <StoresDispatchReport />
         : <UnusedSpareReport />}
     </div>
   );

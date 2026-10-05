@@ -5703,8 +5703,61 @@ console.log('\n-- the Product Database and the Product Master are two registers 
   // 2026-10-02 -- so the test is for the PRODUCT-LINE lists, not any list.)
   eq('...and a contract may still name a retired one',
     /optionsFrom: 'sellable-/.test(contractBlock), false);
-  eq("a contract's party is picked from the Product Database",
-    /name: 'party_name'[^}]*optionsFrom: 'product-party'/.test(contractBlock), true);
+  // ...from the PARTY MASTER on the device since 2026-10-05 ("Party Cache has
+  // to be used in Contract Entry"); its machines come from the Product
+  // Database under Add machine.
+  eq("a contract's party is picked from the Party Master (the device copy first)",
+    /name: 'party_name'[^}]*optionsFrom: 'party' \}/.test(contractBlock), true);
+  {
+    // ADD MACHINE PICKS FROM THE CUSTOMER'S MACHINES (the user, 2026-10-05).
+    const cs = await import('../src/lib/coverspec');
+    const sheet = { 'Item Code': 'C1', 'Item Name': 'MONNAL T60', 'Item Serial Number': ' 3771 ', 'Item Status': 'OGP',
+                    'Warranty Number': 'SA100', 'Warranty End Date': '2024-03-31', 'Contract Number': 'MC7000', 'Contract End Date': '2025-08-20T00:00:00' };
+    const line = cs.contractItemFromMachine(sheet, '1000', '180');
+    eq('a picked machine carries the code, name and serial of the Product Database',
+      [line.product_code, line.product_name, line.serial_number], ['C1', 'MONNAL T60', '3771']);
+    eq('...the total is the rate plus the tax', [line.rate, line.item_tax_amount, line.total_after_tax], [1000, 180, 1180]);
+    eq('...and its history is the SA and MC the Product Database shows, dates as days',
+      [line.sa_number, line.sa_end_date, line.last_contract_number, line.last_contract_end], ['SA100', '2024-03-31', 'MC7000', '2025-08-20']);
+    eq('a blank rate is priced later -- no 0, no invented tax',
+      [cs.contractItemFromMachine(sheet, '', '').rate, cs.contractItemFromMachine(sheet, '', '').total_after_tax], [null, null]);
+    eq('...a blank tax counts as nothing', cs.contractItemFromMachine(sheet, '500', '').total_after_tax, 500);
+    eq('a machine already on the contract is recognised by model and serial',
+      cs.contractLineKey({ product_name: 'Monnal T60', serial_number: '3771' }), cs.pickableMachine(sheet).key);
+    const ci = (await import('../src/lib/cover')).CONTRACT.itemFields;
+    eq('a contract machine reads Product Details, Price, From the entry, History',
+      [...new Set(ci.map((f) => f.section))], ['Product Details', 'Price', 'From the entry', 'History']);
+    eq('...every inherited field is in From the entry', ci.filter((f) => f.inherits && f.section !== 'From the entry').map((f) => f.name), []);
+    eq('...and Total After Tax is worked out, not typed', !!ci.find((f) => f.name === 'total_after_tax')?.derived, true);
+    const regSrc = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+    eq('Add machine on a contract opens the picker over sbListPartyItems (device copy first)',
+      /kind === 'contract' \? \(\) => \{ setRenewing\(false\); setPicking\(true\); \}/.test(regSrc)
+      && /sbListPartyItems\(party\)/.test(regSrc), true);
+    eq('...and a machine already on the contract cannot be ticked again', /disabled=\{already\}/.test(regSrc), true);
+    // AN OWNERSHIP TRANSFER IS TAGGED TO A PRODUCT DATABASE MACHINE (2026-10-05).
+    const det = cs.transferDetailsFromMachine({ ...sheet, 'Party Name': 'A HOSP', 'City': 'X', 'Warranty Start Date': '2023-04-01', 'Sold Through': 'D1' });
+    eq('a transfer shows the machine\'s current party, sale and warranty from the Product Database',
+      [det.from[0][1], det.sale.find(([k]) => k === 'SA Number')?.[1], det.warranty[0][1], det.warranty[1][1]],
+      ['A HOSP', 'SA100', '2023-04-01', '2024-03-31']);
+    eq('...and keeps them on the transfer under named headings, blanks left out',
+      Object.keys(cs.transferExtra(det)).includes('From · City') && !('From · Address' in cs.transferExtra(det)), true);
+    const ot = readFileSync('src/modules/OwnershipTransfer.tsx', 'utf8');
+    eq('the transfer picks the machine (sbSearchMachines) and the To party (sbSearchParties)',
+      /sbSearchMachines\('', term, 50\)/.test(ot) && /onSearch=\{\(term\) => sbSearchParties\(term, 50\)\}/.test(ot), true);
+    eq('...and saves the model with the serial and the current party as From',
+      /item_name: machine\.product, serial_number: machine\.serial, from_party: machine\.party/.test(ot), true);
+    // INVOICE AND A FRESH WARRANTY (the user, 2026-10-05).
+    const det2 = cs.transferDetailsFromMachine({ 'Invoice No.': 'INV-9', 'Invoice Date': '2024-02-03' });
+    eq('the Sale Entry block shows the Invoice No. and Date',
+      [det2.sale.find(([k]) => k === 'Invoice No.')?.[1], det2.sale.find(([k]) => k === 'Invoice Date')?.[1]], ['INV-9', '2024-02-03']);
+    eq('a fresh warranty is worked out as Warranty Entry: 12 months from 31-Jan ends 30-Jan, 1 year',
+      cs.freshWarranty('2026-01-31', 12), { years: '1', end: '2027-01-30' });
+    eq('...the month overflow matches the database: 31-Jan + 1 month ends 2-Mar',
+      cs.freshWarranty('2026-01-31', 1).end, '2026-03-02');
+    eq('...and no months is no warranty', cs.freshWarranty('2026-01-31', ''), { years: '', end: '' });
+    eq('the fresh warranty is optional and needs the Reference no.',
+      /const \[fresh, setFresh\] = useState\(false\)/.test(ot) && /A fresh warranty needs the Reference no\./.test(ot), true);
+  }
   // The user, 2026-10-02: start defaults to today; months, Payment Schedule,
   // Bill Generate At and PM Visits (Total) are required; years and end are
   // worked out, never typed.
@@ -5785,8 +5838,8 @@ console.log('\n-- the cover registers open an entry in a pop-up --');
     /@media \(max-width: 900px\)[\s\S]{0,200}\.cover-pop-body, \.cover-pop-body\.cover-pop-body-3 \{ display: block/.test(css), true);
   // RENEW / CONVERT OPEN A THIRD COLUMN (the user, 2026-10-02), not a panel
   // pushed into the details column.
-  eq('Renew and Convert open in a third column',
-    /const sidePanel = renewPanel \?\? convertPanel;[\s\S]{0,3000}cover-pop-col-side/.test(reg2), true);
+  eq('Renew, Convert and the contract machine picker open in a third column',
+    /const sidePanel = renewPanel \?\? convertPanel \?\? pickPanel;[\s\S]{0,3000}cover-pop-col-side/.test(reg2), true);
   // A REGISTER LINE OPENS ITS ENTRY, with that machine marked (2026-10-02).
   eq('a Register line opens its entry', /onRowClick=\{\(r\) => void openFromRegister\(r\)\}/.test(reg2), true);
   eq('...with the clicked machine focused', /focus=\{focusId !== null && Number\(it\.id\) === focusId\}/.test(reg2), true);
@@ -5802,6 +5855,57 @@ console.log('\n-- the cover registers open an entry in a pop-up --');
     eq('...and shows the column', /key: 'pending_install', header: 'Install calls pending'/.test(reg2), true);
     eq('...with a dash, not 0, where it was not counted', /r\.pending_install == null/.test(reg2), true);
   }
+}
+
+console.log('\n-- a warranty sale adds a party the master has not got --');
+{
+  // The user, 2026-10-05: a new party is created from the sale on Save, with
+  // the Party Master's own required fields required here too.
+  const pr = await import('../src/lib/partyRules');
+  const { partyFillForSale } = await import('../src/lib/coverspec');
+  const sale = { party_name: 'X HOSP', country: 'India', city: 'Trichy', state: 'TN', address: 'A', pincode: '1', tel1: '2', tel2: '3',
+                 pan: 'P', gst: 'G', party_type: 'CUSTOMER', profile: 'PRIVATE', engineer: 'E' };
+  eq('the Party Master and the sale require the same three fields',
+    pr.PARTY_REQUIRED.map(([k]) => k), ['party_name', 'city', 'state']);
+  eq('...and a sale with no City or State is refused for both', pr.partyMissing(pr.partyFromSale({ ...sale, city: '', state: ' ' })), ['City', 'State']);
+  // THE ROUND TRIP: a party made from a sale fills the same sale back.
+  const back = partyFillForSale(pr.partyFromSale(sale) as never) as Record<string, unknown>;
+  eq('a party made from a sale fills that sale back unchanged',
+    Object.keys(back).filter((k) => String(back[k] ?? '') !== String((sale as Record<string, unknown>)[k] ?? '')), []);
+  eq('...and carries nothing that was left blank', Object.keys(pr.partyFromSale({ party_name: 'Y', city: 'C', state: 'S', pan: '' })), ['party_name', 'city', 'state']);
+  const pm = readFileSync('src/modules/PartyMaster.tsx', 'utf8');
+  eq('the Party Master reads the shared list', /const addMissing = \(a: Record<string, string>\) => partyMissing\(a\);/.test(pm), true);
+  const reg = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+  eq('a sale adds the party on Save, only with masters.parties.add',
+    /if \(can\('masters\.parties\.add'\)\) \{\s*const res = await addParty\(newParty/.test(reg), true);
+  eq('...and asks the master at save time, not the last lookup', /let info = null;\s*try \{ info = await sbPartyInfo\(partyName\);/.test(reg), true);
+
+  // A NEW PARTY FROM THIS PAGE NEEDS NINE FIELDS (the user, 2026-10-05).
+  eq('a new party from a sale needs the nine fields the user named',
+    pr.SALE_NEW_PARTY_REQUIRED.map(([k]) => k), ['party_type', 'profile', 'country', 'state', 'city', 'address', 'pincode', 'gst', 'engineer']);
+  eq('...each one named when blank', pr.saleNewPartyMissing({ ...sale, gst: '', engineer: ' ' }), ['GST', 'Service Engineer - Initial']);
+  eq('...and the save refuses on them', /saleNewPartyMissing\(draft\)/.test(reg), true);
+  // WRITE-BACK: only what was CHANGED in this edit AND differs from the master.
+  const master = partyFillForSale({ city: 'Trichy', state: 'TN', address: 'Old Rd', phone: '2', service_engineer: 'A' }) as Record<string, unknown>;
+  const before = { ...master, party_name: 'X HOSP' };
+  eq('a changed field goes back under its PARTY column name',
+    pr.partyEdits(before, { ...before, tel1: '99', engineer: 'B' }, master), { phone: '99', service_engineer: 'B' });
+  eq('...a field cleared on the sale clears the master', pr.partyEdits(before, { ...before, address: '' }, master), { address: '' });
+  eq('...an UNCHANGED stale value never reverts the master',
+    pr.partyEdits({ ...before, city: 'OLD' }, { ...before, city: 'OLD' }, master), {});
+  eq('...a change that already matches the master writes nothing',
+    pr.partyEdits({ ...before, city: 'OLD' }, { ...before, city: 'Trichy' }, master), {});
+  eq('...and the name is never written', pr.partyEdits(before, { ...before, party_name: 'Y' }, master), {});
+  eq('the write-back needs masters.parties.edit and runs after the sale is saved',
+    /const saved = await saveHeader[\s\S]*if \(!can\('masters\.parties\.edit'\)\)[\s\S]*await updateParty\(id, edits/.test(reg), true);
+  eq('Party Name is locked once the sale is saved',
+    /const partyLocked = \(name: string\) => kind === 'sale' && name === 'party_name' && !!draft\.id;/.test(reg)
+    && /disabled=\{!canEdit \|\| partyLocked\(f\.name\)\}/.test(reg), true);
+  const sh = (await import('../src/lib/cover')).SALE.headerFields;
+  eq('the six required Warranty Entry fields',
+    sh.filter((f) => f.required).map((f) => f.name), ['party_name', 'invoice_no', 'invoice_date', 'warranty_start', 'warranty_months', 'pm_visits']);
+  eq('every field the party fills sits in the Party section',
+    (await import('../src/lib/coverspec')).SALE_PARTY_FIELDS.filter((k) => sh.find((f) => f.name === k)?.section !== 'Party'), []);
 }
 
 console.log('\n-- KYC: the status and its evidence, both on the row --');
@@ -5927,7 +6031,12 @@ console.log('\n-- the Warranty Sale asks for what it cannot work out, and no mor
   // Re-stamping on every save would silently re-date a sale each time somebody
   // fixed a typo.
   eq('the entry date is stamped on creation only',
-    /!draft\.id && kind === 'sale' && !draft\.entry_at/.test(reg), true);
+    /!draft\.id && \(\(kind === 'sale' && !draft\.entry_at\) \|\| kind === 'contract'\)/.test(reg), true);
+  // CONTRACT ENTRY DATE: today, locked (the user, 2026-10-05).
+  eq('the Contract Entry Date is locked',
+    /name: 'entry_at', label: 'Contract Entry Date'[^}]*derived:/.test(cover), true);
+  eq('...and a new contract shows today in it',
+    /contract_start: todayLocal\(\), entry_at: todayLocal\(\)/.test(reg), true);
 
   // FORCE UPDATE CHILD RECORDS is destructive with no undo, so it must say what
   // it will destroy BEFORE it does it -- and the number that matters is how
@@ -6712,8 +6821,8 @@ console.log('\n-- a part can be renamed, and the rename carries its history --')
   // update. This is the assertion that stops the whole feature becoming a
   // stock bug: `updatePart` must not be able to write either of them.
   eq('the identity is never written as a plain column update',
-    // hsn_code joined the patch in 0309 -- still no code, no description.
-    /export async function updatePart\(\s*id: number, patch: \{ category\?: string; product\?: string; purchase_cost\?: number \| null; hsn_code\?: string \}/.test(sbp), true);
+    // hsn_code joined the patch in 0309, ind_imp in 0383 -- still no code, no description.
+    /export async function updatePart\(\s*id: number, patch: \{ category\?: string; product\?: string; purchase_cost\?: number \| null; hsn_code\?: string; ind_imp\?: string \}/.test(sbp), true);
   eq('...it goes through rename_part instead',
     /rpc\('rename_part'/.test(sbp) && /await renamePart\(edit\.id, edit\.code, edit\.description\)/.test(pm), true);
 
@@ -8798,9 +8907,13 @@ console.log('\n-- an installation call is raised the same way from either place 
   const cvcfg = readFileSync('src/lib/cover.ts', 'utf8');
   const saleCfg = cvcfg.slice(cvcfg.indexOf('export const SALE'), cvcfg.indexOf('export const CONTRACT'));
   eq('the sale entry names an engineer',
-    /\{ name: 'engineer', label: '[^']*', section: 'Installation' \}/.test(saleCfg), true);
+    /\{ name: 'engineer', label: '[^']*', section: 'Party'(, optionsFrom: 'active-user')? \}/.test(saleCfg), true);
   eq('...and its machines inherit it',
-    /\{ name: 'engineer', label: '[^']*', section: 'Installation', inherits: true \}/.test(saleCfg), true);
+    /\{ name: 'engineer', label: '[^']*', section: 'Installation', inherits: true(, optionsFrom: 'active-user')? \}/.test(saleCfg), true);
+  // ...PICKED FROM THE USER MASTER'S ACTIVE PEOPLE, on the sale and on each
+  // machine (the user, 2026-10-05).
+  eq("the sale's Service Engineer is picked from active users",
+    (saleCfg.match(/name: 'engineer'[^}]*optionsFrom: 'active-user'/g) ?? []).length, 2);
   // It arrives from the Party Master when the customer is chosen, which is
   // what makes "allotted to the engineer as per party master" true.
   eq('...from the Party Master, so Allotted To is the master\u2019s answer',
@@ -8911,10 +9024,12 @@ console.log('\n-- the Hand Stock Report loads whole, then lets you download --')
   // -------------------------------------------------------------------------
   const hs = readFileSync('src/modules/HandStockReport.tsx', 'utf8');
 
-  // THE PAGE SIZE IS 1,000 AND THAT IS NOT A PREFERENCE: PostgREST caps a
-  // response at a thousand rows however large the range, so a bigger page is
-  // the line that hides the truncation rather than a bigger request.
-  eq('the report pages a thousand at a time', /const PAGE = 1000;/.test(hs), true);
+  // ONE REQUEST FOR THE WHOLE BALANCE (0384). The view costs the same for a
+  // page as for everything, so paging it was k full aggregates per load. The
+  // report reads `handstock_balance_all()` once; the 1,000-row cap does not
+  // apply to a jsonb result, so there is nothing to page.
+  eq('the report reads the whole balance in ONE request, and never pages it',
+    /listHandstockBalanceAll\(\)/.test(hs) && !/listHandstockBalance\(/.test(hs) && !/isLastPage\(/.test(hs), true);
 
   // EACH WRITER GETS THE VALUE IN THE SHAPE IT READS. `xlsxCell` makes a date
   // object only the .xlsx writer understands; handed to the .xls writer it came
@@ -8928,8 +9043,8 @@ console.log('\n-- the Hand Stock Report loads whole, then lets you download --')
   // extra round trip every time; stopping on a full page would truncate.
   eq('it stops on a SHORT page, which is the only end-of-data signal there is',
     isLastPage(999, 1000) && !isLastPage(1000, 1000) && isLastPage(0, 1000), true);
-  eq('...and the screen asks that rule rather than restating it',
-    /isLastPage\(batch\.length, PAGE\)/.test(hs), true);
+  eq('...and the Hand Stock register reads the same one request',
+    /listHandstockBalanceAll\(\)/.test(readFileSync('src/modules/HandStock.tsx', 'utf8')), true);
 
   // THE DOWNLOAD IS REFUSED UNTIL EVERY PAGE IS IN. A hand-stock export is
   // reconciled against, so a partial one is not a shorter answer but a wrong
@@ -9419,12 +9534,17 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
       new RegExp(`readUpTo\\(${fn}, offsetRef\\.current, PAGE\\)`).test(src) && /offsetRef\.current = offset;/.test(src), true);
   }
   const hs3 = readFileSync('src/modules/HandStock.tsx', 'utf8');
-  eq('Hand Stock: the refresh reads how far it had got from a ref, not frozen state',
-    /const load = async \(want = Math\.max\(PAGE_SIZE, loadedRef\.current\)\)/.test(hs3), true);
-  // #45 ...and while a search shows, its file is capped by the search.
+  // (0384) Hand Stock no longer pages: one request brings the whole balance,
+  // so a refresh has no "how far" to remember. What is left of #22 is that a
+  // restored device cache cut at its cap is NOT shown as the register.
+  eq('Hand Stock: the load is one request and a cache cut at its cap reads as partial',
+    /const load = async \(\) =>/.test(hs3) && /useState\(\(cached\?\.rows\?\.length \?\? 0\) >= MAX_CACHED_ROWS\)/.test(hs3)
+    && /if \(onDb && rows\.length && !more && !isStale\(lastSync\)\)/.test(hs3), true);
+  // #45 ...and while a search shows, its file is the search, complete unless the list is cut.
   eq('Hand Stock: a search export is scoped by the search, not the browse list',
-    /hits \? searchScope\(hits\.length >= PAGE_SIZE\) : partial\(more\)/.test(hs3)
-    && /countMore=\{hits \? hits\.length >= PAGE_SIZE : more\}/.test(hs3), true);
+    /hits \? searchScope\(more\) : partial\(more\)/.test(hs3) && /countMore=\{more\}/.test(hs3), true);
+  eq('Hand Stock: the search is on the device, over the whole register, two characters or more',
+    /const hits = useMemo\(/.test(hs3) && /if \(q\.length < 2\) return null;/.test(hs3), true);
 
   // #15 A UNIQUE TIEBREAKER on the reads that refresh now re-reads page by page.
   const sb3 = readFileSync('src/lib/supabase.ts', 'utf8');
@@ -9795,8 +9915,29 @@ console.log('-- the machine register is searched on the device --');
   const store = rd('src/lib/machinestore.ts');
   eq('only a COMPLETE download replaces the copy', /if \(!r\.complete\) \{[\s\S]{0,200}return;\s*\}[\s\S]*st\.put\(/.test(store), true);
   eq('...and it is refreshed every six hours', /MACHINE_REFRESH_MS = 6 \* 60 \* 60 \* 1000/.test(store), true);
+  // A SNAPSHOT, NOT A RE-CALCULATION (the user, 2026-10-05): the device reads
+  // the stored `products`, never the `product_database` view.
+  eq('the machine copy is a snapshot of the stored products table',
+    /key: 'current', table: 'products', refreshMs: MACHINE_REFRESH_MS/.test(store), true);
+  eq('...and the Party Master copy is refreshed once in ten days',
+    /PARTY_REFRESH_MS = 10 \* 24 \* 60 \* 60 \* 1000/.test(store)
+      && /key: 'parties', table: 'parties', refreshMs: PARTY_REFRESH_MS/.test(store), true);
   for (const m of ['src/modules/Lookup.tsx', 'src/modules/ProductMaster.tsx', 'src/modules/RequestCallRegistration.tsx'])
     eq(`${m} says what the device holds`, /<MachineRegisterNote \/>/.test(rd(m)), true);
+  // ⇄ TRANSFER FROM THE PRODUCT DATABASE (the user, 2026-10-05).
+  { const pm = rd('src/modules/ProductMaster.tsx'), ot = rd('src/modules/OwnershipTransfer.tsx');
+    eq('a Product Database row offers ⇄ Transfer to whoever may record one',
+      /const mayTransfer = can\('ownership\.transfer'\)/.test(pm) && /navigate\('\/ownership-transfer', \{ state: \{ transfer:/.test(pm), true);
+    eq('...and Ownership Transfer opens the drawer with that machine picked',
+      /if \(st\.transfer && st\.transfer\.serial && mayMove\) \{\s*openMove\(\);\s*void chooseMachine\(st\.transfer\);/.test(ot), true); }
+  eq('the Ownership Transfer drawer says what the device holds',
+    /<MachineRegisterNote \/>/.test(rd('src/modules/OwnershipTransfer.tsx')), true);
+  // ONE REGISTER AT A TIME (the user, 2026-10-05).
+  { const note = rd('src/components/machine/MachineRegisterNote.tsx');
+    eq('each cached register can be downloaded on its own',
+      /refreshMachinesOnly\(\{ force: true \}\)/.test(note) && /refreshPartyRegister\(\{ force: true \}\)/.test(note)
+        && /downloadMasterNow\('complaintProducts'\)/.test(note) && /downloadMasterNow\('spareProducts'\)/.test(note), true);
+    eq('...and no button downloads all four', !/refreshMachineRegister/.test(note), true); }
 }
 
 // A STANDARD COMPLAINT CARRIES ITS PRODUCTS (2026-09-29): a multi-select on the
@@ -10061,7 +10202,11 @@ console.log('\n-- the header search finds records and opens each on its own scre
     party: gs.hitFor.party({ id: 1 }), machine: gs.hitFor.machine({ item_name: 'P', serial_number: '1' }),
     part: gs.hitFor.part({ id: 1, code: 'C' }), document: gs.hitFor.document({ id: 1, kind: 'qms', url: 'https://x' }),
     kb: gs.hitFor.kb({ id: 1 }), ffr: gs.hitFor.ffr({ ffr_no: 'F1' }),
+    warranty: gs.hitFor.warranty({ sa_number: 'SA1' }), contract: gs.hitFor.contract({ mc_number: 'MC1' }),
   };
+  eq('a warranty or contract hit opens its register searched to the entry number',
+    [probe.warranty.to, probe.warranty.state, probe.contract.to, probe.contract.state],
+    ['/warranties', { search: 'SA1', tab: 'entries' }, '/contracts', { search: 'MC1', tab: 'entries' }]);
   eq('every kind of hit is gated on a page key that exists',
     Object.entries(probe).filter(([, h]) => h.route && !modulePaths.has(h.route)).map(([k]) => k), []);
   eq('...and only Field Solutions, open to everyone, has none',
@@ -10072,6 +10217,7 @@ console.log('\n-- the header search finds records and opens each on its own scre
     viewUcn: 'src/modules/FieldCalls.tsx', openReqId: 'src/modules/PendingRegistrations.tsx',
     openSpareUid: 'src/modules/SpareRequests.tsx', openConsumptionId: 'src/modules/SpareConsumption.tsx',
     openPartyId: 'src/modules/PartyMaster.tsx', openArticle: 'src/modules/KnowledgeBase.tsx',
+    'st.search': 'src/modules/CoverRegister.tsx',
   };
   eq('every state a hit carries is read by the screen it opens',
     Object.entries(screens).filter(([k, f]) => !readFileSync(f, 'utf8').includes(k)).map(([k]) => k), []);

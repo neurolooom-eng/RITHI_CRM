@@ -6,11 +6,11 @@ import { xlsxDownload, xlsxCell, xlsxText } from '../lib/xlsx';
 import { xlsDownload } from '../lib/xls';
 import { logAudit } from '../lib/audit';
 import { formatDayTime } from '../lib/dates';
-import { listHandstockBalance, supabaseConfigured } from '../lib/supabase';
+import { listHandstockBalanceAll, supabaseConfigured } from '../lib/supabase';
 import { loadFailure } from '../lib/dberror';
 import { useAuth } from '../lib/auth';
 import { seesEveryRecord } from '../lib/rbac';
-import { HANDSTOCK_REPORT_COLUMNS, handStockFileName, isLastPage, otherMovements } from '../lib/handstockreport';
+import { HANDSTOCK_REPORT_COLUMNS, handStockFileName, otherMovements } from '../lib/handstockreport';
 import { COMPLETE, partial } from '../lib/exportscope';
 
 // ===========================================================================
@@ -48,11 +48,11 @@ import { COMPLETE, partial } from '../lib/exportscope';
 
 type Row = Record<string, unknown> & { id: string };
 
-const PAGE = 1000;
-// A GUARD, NOT A LIMIT. The loop ends on a short page; this only stops a
-// runaway from asking for ever if the server ever answered a full page to an
-// exhausted range. 500 pages is half a million balance lines.
-const MAX_PAGES = 500;
+// ONE REQUEST, THE WHOLE BALANCE (0384). This report used to page the view a
+// thousand lines at a time; the view costs the same for a page as for
+// everything, so k pages were k full aggregates. `handstock_balance_all()`
+// returns the lot as one array under the reader's own RLS, and "complete" is
+// the moment it lands.
 
 const num = (v: unknown) => (v == null || v === '' ? '' : String(v));
 const when = (v: unknown) => (v ? formatDayTime(v) : '');
@@ -103,23 +103,17 @@ export function HandStockReport() {
     setLoading(true); setComplete(false); setErr(null); setRows([]);
     const all: Row[] = [];
     try {
-      for (let page = 0; page < MAX_PAGES; page++) {
-        const batch = await listHandstockBalance(PAGE, page * PAGE, '');
-        if (run.current !== mine) return;          // a newer load owns the screen
-        batch.forEach((b, i) => all.push({
-          ...b,
-          other_movements: otherMovements(b as Record<string, unknown>),
-          // engineer_key|part_code IS the row, and it is what the view groups
-          // by — a positional id would change under the next sort and take the
-          // table's row identity with it.
-          id: `${String(b.engineer_key ?? '')}|${String(b.part_code ?? '')}|${page * PAGE + i}`,
-        } as Row));
-        // THE FIRST PAGE IS SHOWN IMMEDIATELY and each one after it as it
-        // lands: "auto load till all the data is displayed" is a thing to
-        // WATCH happening, not a spinner over an empty screen.
-        setRows([...all]);
-        if (isLastPage(batch.length, PAGE)) break;
-      }
+      const batch = await listHandstockBalanceAll();
+      if (run.current !== mine) return;          // a newer load owns the screen
+      batch.forEach((b, i) => all.push({
+        ...b,
+        other_movements: otherMovements(b as Record<string, unknown>),
+        // engineer_key|part_code IS the row, and it is what the view groups
+        // by — a positional id would change under the next sort and take the
+        // table's row identity with it.
+        id: `${String(b.engineer_key ?? '')}|${String(b.part_code ?? '')}|${i}`,
+      } as Row));
+      setRows(all);
       if (run.current === mine) setComplete(true);
     } catch (e) {
       if (run.current !== mine) return;

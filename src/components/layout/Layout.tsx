@@ -120,6 +120,9 @@ export const NAV: NavGroup[] = [
       { to: '/warranties', label: 'Warranty Register', icon: '🛡️' },
       { to: '/contracts', label: 'Contract Register', icon: '📋' },
       { to: '/ownership-transfer', label: 'Ownership Transfer', icon: '🔁' },
+      // MOVED FROM MASTER (the user, 2026-10-05: "Move Product Database to
+      // Contracts & Warranty"): the three registers above are what fill it.
+      { to: '/product-database', label: 'Product Database', icon: '🩺' },
     ],
   },
   {
@@ -235,6 +238,7 @@ export const NAV: NavGroup[] = [
       { to: '/exports/unused', label: 'Not Consumed Against this Call', icon: '🚩', perm: 'mod:/exports/unused' },
       { to: '/exports/calls', label: 'Call Report', icon: '📞', perm: 'mod:/exports/calls' },
       { to: '/exports/feedback', label: 'Customer Feedback Report', icon: '⭐', perm: 'mod:/exports/feedback' },
+      { to: '/exports/stores-dispatch', label: 'Stores Dispatch Report', icon: '🚚', perm: 'mod:/exports/stores-dispatch' },
       // Beside the feedback report it checks, and LAST in the group so the
       // permission matrix's order matches this one.
       { to: '/feedback-without-report', label: 'Feedback Without a Report', icon: '🔎', adminOnly: true },
@@ -265,7 +269,6 @@ export const NAV: NavGroup[] = [
     title: 'Master',
     items: [
       { to: '/parties', label: 'Party Master', icon: '🏥' },
-      { to: '/product-database', label: 'Product Database', icon: '🩺' },
       // 2.0 — the same machines derived from the registers rather than stored.
       { to: '/product-database-2', label: 'Product Database 2.0', icon: '🧬' },
       // THE CATALOGUE, beside the register of machines it describes. One row
@@ -354,6 +357,7 @@ function ModuleSearch() {
       call: '/field-calls', request: '/pending-registrations', spare: '/spare-requests',
       consumption: '/spare-consumption', party: '/parties', machine: '/machine-history',
       part: '/part-search', document: '/service-manuals', kb: '', ffr: '/failure-report',
+      warranty: '/warranties', contract: '/contracts',
     };
     if (g.kind === 'kb') return true;   // Field Solutions is open to everyone
     if (g.kind === 'call') return ['/field-calls', '/installations', '/pm-calls'].some((r) => can(actionForPath(r)));

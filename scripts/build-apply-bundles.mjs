@@ -291,6 +291,10 @@ const MODULES = {
             // parties, FFR and return customers, and indoor job parts (0350).
             // Redefines 0325's master_delete_guard(), so after it.
             '0350_delete_guard_counts_every_name.sql',
+            // The master read policies (0008's loop) asked once per query, not
+            // once per row (0381). Redefines 0008's, so after it; the tail
+            // does not touch them.
+            '0381_master_reads_once_per_query.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -370,9 +374,12 @@ const MODULES = {
       // Re-open, close, close-again, cancel and restore ask whether the caller
       // can SEE the call (D-128). Redefines 0287's and 0311's functions, so after both.
       '0341_call_actions_need_sight_of_the_call.sql',
+      // PM calls already uploaded: complaint / breakdown date = registration
+      // date, and the serial their upload carried (2026-10-05). Data only.
+      '0386_pm_dates_are_registration.sql',
       // D-033: a field call is registered with its three vigilance questions
-      // answered (0380). Before the cr_read tail, which must stay last.
-      '0380_field_call_vigilance_answered.sql',
+      // answered (0389). Before the cr_read tail, which must stay last.
+      '0389_field_call_vigilance_answered.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -508,8 +515,8 @@ const MODULES = {
             // Redefines 0111's view, appending only.
             '0353_review_summary_carries_the_searched_columns.sql',
             // D-129: review answers are read by holders of review.view, given
-            // once to the roles that held review.edit (0381).
-            '0381_review_answers_read_key.sql'],
+            // once to the roles that held review.edit (0390).
+            '0390_review_answers_read_key.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -647,7 +654,10 @@ const MODULES = {
             // and split keys; see 0286 for the parent rule.
             '0288_feedback_update_visit_key.sql',
             // D-132: fb_update asked once per query (0348). Redefines 0288's.
-            '0348_feedback_update_once_per_query.sql'],
+            '0348_feedback_update_once_per_query.sql',
+            // Indexes for the call-number, serial and newest-first lookups
+            // (0381). Indexes only; no policy or function.
+            '0381_feedback_lookup_indexes.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',
@@ -656,7 +666,11 @@ const MODULES = {
             '"canceling statement due to statement timeout" on Search. Runs last so',
             'every table it indexes already exists; skips the calls view / absent columns.'],
     needs: [],
-    files: ['0052_search_indexes.sql', '0098_product_register_names.sql', '0099_no_jit.sql', '0101_kpi_views.sql',
+    files: ['0052_search_indexes.sql',
+            // Eight prefix-redundant btrees dropped (0382); their creators no
+            // longer write them, so no replay puts them back.
+            '0382_redundant_indexes_dropped.sql',
+            '0098_product_register_names.sql', '0099_no_jit.sql', '0101_kpi_views.sql',
       // The KPI workbook's Field_INST tab. LAST in this module: it reads the
       // split call tables and `reports`, both of which earlier modules create.
       '0128_kpi_field_inst.sql',
@@ -740,7 +754,9 @@ const MODULES = {
             // Redefines 0355's request guard and request list.
             '0365_spare_recycling_start_sla_mrn.sql',
             // Delete a request (2026-10-04); re-states 0355's two guards.
-            '0376_spare_recycling_delete.sql'],
+            '0376_spare_recycling_delete.sql',
+            // An MRN import's Source is Defective Spare (2026-10-05).
+            '0379_recycle_mrn_source.sql'],
   },
   indoor: {
     title: 'Indoor Service (the workshop register, §4.5)',
@@ -813,10 +829,12 @@ const MODULES = {
             // Pre-Delivery Quality Check (2026-10-05): its own register, the
             // R/SER/QC/007 columns with the product and serial on the row.
             '0377_pre_delivery_qc.sql',
+            // Its number, PDQC/YY/NNNN (2026-10-05).
+            '0378_pdqc_number.sql',
             // D-145 (the user's decision): approving a DC skips filing the visit
-            // of a unit whose call is already Solved, and says so (0382).
+            // of a unit whose call is already Solved, and says so (0391).
             // Redefines 0327's approve_indoor_dc(), so after it.
-            '0382_indoor_approval_skips_a_solved_call.sql',
+            '0391_indoor_approval_skips_a_solved_call.sql',
             // D-111 / D-112 / D-114 (the user's decisions): a signed PDT is locked
             // and un-signed only with indoor.pdt_unsign and a reason; the dispatch
             // date is when the unit is marked Dispatched; a cleaning time may be
@@ -827,8 +845,8 @@ const MODULES = {
             // 0323's indoor_dc_may_approve(), so after it.
             '0367_indoor_dc_approver_is_the_login.sql',
             // D-108 / D-116: record_indoor_visit() is no signed-in user's, and
-            // the visit columns say the visit is filed at approval (0378).
-            '0378_indoor_record_visit_closed_and_comments.sql'],
+            // the visit columns say the visit is filed at approval (0387).
+            '0387_indoor_record_visit_closed_and_comments.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -875,8 +893,8 @@ const MODULES = {
             // and split keys; see 0286 for the parent rule.
             '0295_user_profile_details_key.sql',
             // D-059: a User Master entry with a profile or R&R history is not
-            // deleted -- set Active to No instead (0379).
-            '0379_user_master_keeps_history.sql'],
+            // deleted -- set Active to No instead (0388).
+            '0388_user_master_keeps_history.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -1064,7 +1082,14 @@ const MODULES = {
             '0373_stock_movement_dates.sql',
             // D-049: stock is transferred from your own or your team's hand
             // stock (else stock.transfer.others), to a User Master name (0375).
-            '0375_stock_transfer_own_or_team.sql'],
+            '0375_stock_transfer_own_or_team.sql',
+            // The Stores Dispatch Report (the AppSheet Stores view) and the part's
+            // IND/IMP; reads the dispatch, request-line and parts tables (0385).
+            '0385_stores_dispatch_report.sql',
+            // LAST: the whole balance in one request (0384). A SQL-language
+            // body resolves the view at creation, so it follows every file
+            // that defines handstock_balance.
+            '0384_handstock_balance_all.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -1176,7 +1201,10 @@ const MODULES = {
             // D-150 / D-154 (the user's decisions): one installation call per
             // machine and per call number; no installation call request for a
             // dealer (0362).
-            '0362_installation_once_and_no_dealer_request.sql'],
+            '0362_installation_once_and_no_dealer_request.sql',
+            // A transfer can give the new owner a fresh warranty, worn by the
+            // machine (the user, 2026-10-05); redefines 0331's sync_product_machine.
+            '0383_transfer_fresh_warranty.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -1393,7 +1421,9 @@ const MODULES = {
             'key for admin and Technical Support. A module of its own so it is a',
             'small file to run, not a replay of rbac.'],
     needs: ['profiles', 'rbac'],
-    files: ['0249_device_cache_status.sql', '0253_device_cache_complaints.sql'],
+    files: ['0249_device_cache_status.sql', '0253_device_cache_complaints.sql',
+            // The Part Master too (2026-10-05).
+            '0380_device_cache_parts.sql'],
   },
   permissions: {
     title: 'Per-screen permission keys: today\'s grants copied across',

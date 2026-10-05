@@ -32,6 +32,10 @@ import { ProductAccessories } from './ProductAccessories';
 // screen still shows the catalogue on an Apps-Script-only deployment.
 // ===========================================================================
 
+// IND/IMP's three words, as the AppSheet Stores view used them (0385). Blank
+// means nobody has recorded it.
+const IND_IMP_OPTIONS = [{ value: '', label: '— not set —' }, { value: 'INDIGENOUS', label: 'Indigenous' },
+  { value: 'IMPORTED', label: 'Imported' }, { value: 'TBD', label: 'TBD' }];
 const CACHE_KEY = 'partMaster';
 type Row = Record<string, unknown> & { id: string };
 
@@ -51,6 +55,9 @@ const COLUMNS: Column<Row>[] = [
   // HSN CODE (0309, the user, 2026-10-01). 29 parts carried it inside the
   // description; it was lifted out once and lives here since.
   { key: 'hsn_code', header: 'HSN Code', width: 110, wrap: false },
+  // IND/IMP (0385, the user, 2026-10-05): Indigenous / Imported / TBD, read by
+  // the Stores Dispatch Report.
+  { key: 'ind_imp', header: 'IND/IMP', width: 110, wrap: false },
   { key: 'purchase_cost', header: 'Purchase Cost', width: 130, wrap: false, align: 'right' },
   { key: 'active', header: 'Active', width: 90, wrap: false, render: (r) => (r.active === false ? 'No' : 'Yes') },
 ];
@@ -197,7 +204,7 @@ export function PartMaster() {
   // A RENAME moves every record naming the part, so it is its own tick
   // (finding 67, 0289); the other fields are ordinary record edits.
   const mayRename = can('masters.edit.rename_part');
-  const [form, setForm] = useState<{ code: string; description: string; category: string; product: string; cost: string; common: boolean; hsn: string } | null>(null);
+  const [form, setForm] = useState<{ code: string; description: string; category: string; product: string; cost: string; common: boolean; hsn: string; indImp: string } | null>(null);
   // Whether Add has been pressed on the new-part form -- its error shows only then.
   const [tried, setTried] = useState(false);
   // DIGITS ONLY, ANY LENGTH. No length is imposed: one part's code on file is
@@ -234,6 +241,7 @@ export function PartMaster() {
       category: form.category, product: form.common ? '' : form.product, common: form.common,
       purchase_cost: form.cost.trim() === '' ? null : Number(form.cost),
       hsn_code: form.hsn.trim(),
+      ind_imp: form.indImp,
     });
     setSaving(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not add the part.' }); return; }
@@ -250,7 +258,7 @@ export function PartMaster() {
   // changing them is a RENAME that carries every one of those records (0196).
   type EditForm = {
     id: number; code: string; description: string;
-    category: string; product: string; cost: string; hsn: string;
+    category: string; product: string; cost: string; hsn: string; indImp: string;
     wasCode: string; wasDescription: string; wasDetail: string;
   };
   // THE FOUR THE ITEM MASTER USES, and they are the importer's own normalisation
@@ -276,6 +284,7 @@ export function PartMaster() {
       category: String(r.category ?? ''), product: String(r.product ?? ''),
       cost: cost === null || cost === undefined ? '' : String(cost),
       hsn: String(r.hsn_code ?? ''),
+      indImp: String(r.ind_imp ?? ''),
       wasCode: String(r.code ?? ''), wasDescription: String(r.description ?? ''),
       wasDetail: String(r.item_detail ?? ''),
     });
@@ -333,6 +342,7 @@ export function PartMaster() {
         // nothing are different answers about a part.
         purchase_cost: edit.cost.trim() === '' ? null : Number(edit.cost),
         hsn_code: edit.hsn.trim(),
+        ind_imp: edit.indImp,
       };
       const res2 = await updatePart(edit.id, patch);
       if (!res2.ok) { setMsg({ tone: 'error', text: res2.error ?? 'Could not save the part.' }); return; }
@@ -427,7 +437,7 @@ export function PartMaster() {
         title="Part Master"
         subtitle="Spare parts catalogue (ITEM Master) — cached locally, synced from the database."
         icon="🔩" count={visible.length}
-        actions={mayAdd && <button className="btn btn-primary" onClick={() => { setTried(false); setForm({ code: '', description: '', category: '', product: '', cost: '', common: false, hsn: '' }); }}>＋ Add entry</button>}
+        actions={mayAdd && <button className="btn btn-primary" onClick={() => { setTried(false); setForm({ code: '', description: '', category: '', product: '', cost: '', common: false, hsn: '', indImp: '' }); }}>＋ Add entry</button>}
       />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
@@ -602,6 +612,12 @@ export function PartMaster() {
               <span className="muted" style={{ fontSize: 12 }}>Optional. Digits only.</span>
             </div>
             <div className="field">
+              <label className="field-label">IND/IMP</label>
+              <SelectPicker value={form.indImp} options={IND_IMP_OPTIONS}
+                onChange={(v) => setForm((f) => f && ({ ...f, indImp: v }))} />
+              <span className="muted" style={{ fontSize: 12 }}>Optional. Shown on the Stores Dispatch Report.</span>
+            </div>
+            <div className="field">
               <label className="field-label">Will be listed as</label>
               <code style={{ fontSize: 13 }}>
                 {form.code || form.description ? composeItemDetail(form.code, form.description) : '—'}
@@ -732,6 +748,12 @@ export function PartMaster() {
               <input className="input" value={edit.hsn} inputMode="numeric"
                 onChange={(e) => setEdit((f) => f && ({ ...f, hsn: e.target.value }))} />
               <span className="muted" style={{ fontSize: 12 }}>Digits only. Changing it is an ordinary edit, not a rename.</span>
+            </div>
+            <div className="field">
+              <label className="field-label">IND/IMP</label>
+              <SelectPicker value={edit.indImp} options={IND_IMP_OPTIONS}
+                onChange={(v) => setEdit((f) => f && ({ ...f, indImp: v }))} />
+              <span className="muted" style={{ fontSize: 12 }}>Indigenous, Imported or TBD. Shown on the Stores Dispatch Report.</span>
             </div>
 
             {!!editProblem() && <div className="sheet-banner sheet-banner-error"><span>{editProblem()}</span></div>}

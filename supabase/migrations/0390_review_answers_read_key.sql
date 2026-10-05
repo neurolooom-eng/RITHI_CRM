@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0381 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
+-- 0390 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
 --        (second re-review D-129, the open half; the user, 2026-10-05)
 --
 -- call_reviews_read (0044) is auth.role() = 'authenticated': every signed-in
@@ -38,7 +38,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0381_review_view_to_editors') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0390_review_view_to_editors') then return; end if;
   update public.app_roles
      set permissions = permissions || '["review.view"]'::jsonb
    where jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
@@ -46,6 +46,6 @@ begin
      and not (permissions ? 'review.view');
   get diagnostics n = row_count;
   insert into public.one_time_fixes_done (name, detail)
-  values ('0381_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
-  raise notice '0381: % role(s) holding review.edit given review.view', n;
+  values ('0390_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
+  raise notice '0390: % role(s) holding review.edit given review.view', n;
 end $$;

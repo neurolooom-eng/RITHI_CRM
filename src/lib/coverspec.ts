@@ -428,6 +428,7 @@ export interface PartyFill {
   state?: unknown; city?: unknown; address?: unknown; pincode?: unknown;
   phone?: unknown; phone_2?: unknown; pan?: unknown; gstin?: unknown;
   party_type?: unknown; profile?: unknown; service_engineer?: unknown;
+  country?: unknown;
 }
 
 const text = (v: unknown) => String(v ?? '').trim();
@@ -445,6 +446,7 @@ export const SALE_PROFILES = ['PRIVATE', 'GOVERNMENT', 'DEALER', 'GENERAL'];
 export function partyFillForSale(p: PartyFill | null): Row {
   const q = p ?? {};
   return {
+    country: text(q.country),
     state: text(q.state),
     city: text(q.city),
     address: text(q.address),
@@ -880,3 +882,116 @@ export function installCallFromTransfer(t: TransferForCall, party: PartyForCall 
   return { ...base, callNumber: transferCallNumber(t.item_name, t.serial_number), complaintDate: day, breakdownDate: day };
 }
 
+
+// ===========================================================================
+// ADD MACHINE ON A CONTRACT: THE CUSTOMER'S MACHINES, PICKED, NOT TYPED (the
+// user, 2026-10-05: "In Add Machine in Contract - It should list all the
+// Products with Serial number with that Customer ... Section 4 - History ->
+// From Product Database - SA Number, MC Number. I should be able to select the
+// Products, Update the Rate, Tax and Save it").
+//
+// The machine comes from the Product Database row (the sheet shape
+// productRowToSheet gives, which the device copy and the server read share),
+// so the code, name and serial are the register's own and cannot be mistyped.
+// The history columns are what the Product Database says about the machine
+// NOW: its sale (SA number and warranty end) and the contract it is on (MC
+// number and end) -- the contract being added to is not "history", so a
+// machine already on THIS contract is offered as already there instead.
+// ===========================================================================
+const isoDay = (v: unknown): string | null => {
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(text(v));
+  return m ? m[1] : null;
+};
+
+/** The machine's identity from a Product Database row. */
+export interface PickableMachine { code: string; name: string; serial: string; sa: string; mc: string; status: string; key: string }
+export function pickableMachine(sheet: Record<string, unknown>): PickableMachine {
+  const name = text(sheet['Item Name']);
+  const serial = text(sheet['Item Serial Number']);
+  return {
+    code: text(sheet['Item Code']), name, serial,
+    sa: text(sheet['Warranty Number']), mc: text(sheet['Contract Number']),
+    status: text(sheet['Item Status']),
+    key: `${name.toLowerCase()}|${serial.toLowerCase()}`,
+  };
+}
+
+/** The same key for a contract line, to tell a machine already on the contract. */
+export const contractLineKey = (row: Row): string =>
+  `${text(row.product_name).toLowerCase()}|${text(row.serial_number).toLowerCase()}`;
+
+/** A new contract line from a picked Product Database machine, with its price.
+ *  The total is the rate plus the tax, worked out rather than typed; a blank
+ *  rate leaves all three blank (priced later), and a blank tax counts as 0. */
+export function contractItemFromMachine(sheet: Record<string, unknown>, rate: unknown, tax: unknown): Row {
+  const m = pickableMachine(sheet);
+  const r = num(rate);
+  const t = r === null ? null : (num(tax) ?? 0);
+  return {
+    product_code: m.code || null,
+    product_name: m.name,
+    serial_number: m.serial,
+    present_item_status: m.status || null,
+    rate: r, item_tax_amount: t, total_after_tax: r === null ? null : totalAfterTax(r, t),
+    sa_number: m.sa || null,
+    sa_end_date: isoDay(sheet['Warranty End Date']),
+    last_contract_number: m.mc || null,
+    last_contract_end: isoDay(sheet['Contract End Date']),
+  };
+}
+
+// ===========================================================================
+// AN OWNERSHIP TRANSFER IS TAGGED TO ONE MACHINE OF THE PRODUCT DATABASE (the
+// user, 2026-10-05: "Tag it to Items in Product Database. Use the Current
+// Details in From Information, Use the Party Cache in To Information. Pull all
+// Details from the Product Database in regards to Sale Entry, Warranty Details
+// [Start Date, End Date]").
+//
+// The machine is its MODEL AND SERIAL, picked from the register -- the typed
+// serial alone it replaces is what made the database guess the owner and the
+// model with `limit 1` (ownership_transfer_apply), which on the eleven machines
+// numbered 219 is a guess. What the register says about the machine at the
+// moment of the transfer is shown, and kept in the transfer's `extra` under
+// these headings, so "what did it carry when it changed hands" stays
+// answerable after the machine moves on.
+// ===========================================================================
+export interface TransferDetails {
+  from: [string, string][];
+  sale: [string, string][];
+  warranty: [string, string][];
+}
+const sheetDay = (v: unknown): string => isoDay(v) ?? text(v);
+export function transferDetailsFromMachine(sheet: Record<string, unknown> | null): TransferDetails {
+  const s = sheet ?? {};
+  const g = (k: string) => text(s[k]);
+  return {
+    from: [['Party Name', g('Party Name')], ['Address', g('Address')], ['City', g('City')],
+           ['State', g('State')], ['Service Engineer', g('Service Engineer')]],
+    // INVOICE NO. AND DATE (the user, 2026-10-05: "Show Invoice No and Date in
+    // the transfer form"): stored on `products` by 0330, and on the row since
+    // the device copy reads that table (0.10.109) and the server lookup adds
+    // them for one machine (serverProductBySerial).
+    sale: [['SA Number', g('Warranty Number')], ['Invoice No.', g('Invoice No.')],
+           ['Invoice Date', sheetDay(s['Invoice Date'])], ['Sold Through', g('Sold Through')]],
+    warranty: [['Warranty Start Date', sheetDay(s['Warranty Start Date'])],
+               ['Warranty End Date', sheetDay(s['Warranty End Date'])],
+               ['Item Status', g('Item Status')], ['Contract Number', g('Contract Number')]],
+  };
+}
+/** A FRESH WARRANTY ON A TRANSFER (0383), worked out as Warranty Entry does
+ *  it: the period in MONTHS, the years and the end following -- the end by
+ *  `addPeriod`, which the database's trigger reproduces day for day. Blank or
+ *  non-positive months give no end, as on the sale. */
+export function freshWarranty(start: string, months: unknown): { years: string; end: string } {
+  const m = Number(String(months ?? '').trim());
+  if (!start || !Number.isFinite(m) || m <= 0) return { years: '', end: '' };
+  const whole = Math.round(m);
+  return { years: String(Math.round((whole / 12) * 100) / 100), end: addPeriod(start, 0, whole) };
+}
+/** The details as the transfer's `extra` keeps them: "From · City", ... */
+export function transferExtra(d: TransferDetails): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [sec, rows] of [['From', d.from], ['Sale', d.sale], ['Warranty', d.warranty]] as const)
+    for (const [k, v] of rows) if (v) out[`${sec} · ${k}`] = v;
+  return out;
+}

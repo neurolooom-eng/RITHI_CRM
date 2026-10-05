@@ -161,6 +161,14 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
               and when that happens the file has to SAY so — a date read the
               wrong way round is wrong by up to eleven months and looks
               perfectly ordinary on screen. */}
+          {(s.splitShared ?? 0) > 0 && (
+            <p style={{ margin: '4px 0' }}>
+              <b>Shared UID, one visit per call ({(s.splitShared ?? 0).toLocaleString('en-IN')} rows):</b>{' '}
+              these rows share a UID with other calls (a bulk call closure gives every call it
+              closed the same one), so each is filed as its own visit, keyed <code>UID|UCN</code>.
+              Without that, every call but the last would be dropped.
+            </p>
+          )}
           {s.monthFirst.length > 0 && (
             <p style={{ margin: '4px 0' }}>
               <b>Read month-first ({s.monthFirst.length}):</b> {s.monthFirst.join(', ')}.{' '}
@@ -227,24 +235,34 @@ export function BulkUploads() {
   const mayUpload = can('bulk.upload');
   const [lists, setLists] = useState<MasterList[]>([]);
   const [counts, setCounts] = useState<Record<string, number | null>>({});
+  const [counting, setCounting] = useState(false);
 
   const defs = useMemo(() => [...UPLOADS, ...lists.map((l) => masterUpload(l))], [lists]);
   const groups = useMemo(() => uploadGroups(defs), [defs]);
 
-  const refresh = async () => {
-    const tables = [...new Set(defs.map((d) => d.table))];
-    const out: Record<string, number | null> = {};
-    for (const t of tables) out[t] = await countTable(t);
-    setCounts(out);
+  // THE ROW COUNTS ARE ASKED FOR, NOT TAKEN ON EVERY OPEN. Each is an exact
+  // count under the table's own read policy, so each is a scan of the whole
+  // table -- and this screen used to run all 31 of them, one after another,
+  // every time it was opened. On the live project's statement log
+  // (2026-10-05) those counts were among the heaviest reads there were:
+  // feedback at ~7 s, parties ~5 s, each spare history ~2.5-3.3 s -- about a
+  // minute of database time to open a screen whose job is to write. Now a
+  // load counts the one register it wrote to (so the number moves by what
+  // landed), and "Count every register" counts them all on request. A count
+  // not yet taken shows nothing rather than a stale number.
+  const refresh = async (only?: string[]) => {
+    const tables = only ?? [...new Set(defs.map((d) => d.table))];
+    setCounting(true);
+    try {
+      const got = await Promise.all(tables.map(async (t) => [t, await countTable(t)] as const));
+      setCounts((c) => ({ ...c, ...Object.fromEntries(got) }));
+    } finally { setCounting(false); }
   };
 
   useEffect(() => {
     if (!supabaseConfigured()) return;
     listMasterLists().then(setLists).catch(() => setLists([]));
   }, []);
-  useEffect(() => { if (supabaseConfigured() && defs.length) void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defs.length]);
 
   if (!mayUpload) return <div style={{ padding: 24 }} className="muted">Bulk uploads need “Load registers in bulk” on Roles &amp; Permissions.</div>;
   if (!supabaseConfigured()) return <div style={{ padding: 24 }} className="muted">Connect the database in Settings first.</div>;
@@ -263,12 +281,20 @@ export function BulkUploads() {
           <li><b>Dates are read day-first</b> (03/04/2026 = 3 April), which is how these exports are written.</li>
           <li>Registers <b>with</b> a natural key can be re-run safely; the ones marked ⚠ cannot.</li>
         </ul>
+        <div className="row" style={{ gap: 10, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
+          <button className="btn btn-sm" disabled={counting} onClick={() => void refresh()}>
+            {counting ? 'Counting…' : '🔢 Count every register'}
+          </button>
+          <span className="muted" style={{ fontSize: 12 }}>
+            Exact counts, one scan per register — taken when you ask, and for the register you just loaded.
+          </span>
+        </div>
       </SectionCard>
 
       {groups.map((g) => (
         <SectionCard key={g.title} title={`${g.title} · ${g.items.length}`}>
           {g.items.map((d) => (
-            <Register key={d.key} def={d} count={counts[d.table] ?? null} onDone={() => void refresh()} />
+            <Register key={d.key} def={d} count={counts[d.table] ?? null} onDone={() => void refresh([d.table])} />
           ))}
         </SectionCard>
       ))}

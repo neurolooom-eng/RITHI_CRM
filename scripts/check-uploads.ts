@@ -8,6 +8,7 @@ import { toDate as coverDate, toTimestamp as coverTs } from '../src/lib/coverImp
 import { toTimestamp as mappingTs, pick } from '../src/lib/reportMapping';
 import { machineKey } from '../src/lib/machine';
 import { parseCSV } from '../src/lib/csv';
+import { shapePmRows } from '../src/lib/pmImport';
 import { planComplaintKeys, KEY_FIELD } from '../src/lib/complaints';
 import { productToCallPrefill, partyToCallPrefill } from '../src/lib/fieldcall';
 
@@ -970,6 +971,81 @@ console.log('\n-- who a new call is allotted to: the machine wins, the party ans
   eq('a DCCR upload row is marked imported', row.imported, true);
   eq('...keeps the file\u2019s reviewer', row.review2_by, 'Old Person');
   eq('...and reads the date day-first', row.review2_at, '2024-03-05');
+}
+
+// THE PM-TO-DO SHEET'S OWN HEADINGS (2026-10-05: "When i upload this list to
+// PM Bulk Upload, the Serial nos are not imported.. it is blank"). Its serial
+// is "Product Serial Number" and its engineer "Call Allocated To"; neither was
+// a recognised name, so both landed in `extra` and the call had no serial.
+{
+  const [row] = shapePmRows([{ 'Party Name': 'P', 'Product Name': 'MONNAL T75', 'Product Serial Number': '11414',
+    'Call Allocated To': 'VICTORY MEDICAL SYSTEMS', 'Complaint Reported': 'SCHEDULED PM VISIT 2 / 15' }],
+    '2026-10', '2026-10-01T00:30:00', 5);
+  eq('a PM sheet\u2019s Product Serial Number is the serial', row.serial, '11414');
+  eq('...Call Allocated To is the engineer', row.allocated_to, 'VICTORY MEDICAL SYSTEMS');
+  eq('...Complaint Reported is the reported problem', row.complaint_reported, 'SCHEDULED PM VISIT 2 / 15');
+}
+// A PM CALL'S COMPLAINT AND BREAKDOWN DATES ARE ITS REGISTRATION DATE (2026-10-05),
+// whatever the sheet says.
+{
+  const [row] = shapePmRows([{ 'Party Name': 'P', 'Product Serial Number': '1', 'Complaint Date': '01-Sep-2026',
+    'Breakdown Date': '03-Oct-2026' }], '2026-10', '2026-10-01T00:30:00', 5);
+  eq('a PM call\u2019s Complaint Date is its registration date', row.complaint_date, '2026-10-01');
+  eq('...and so is its Breakdown Date', row.breakdown_date, '2026-10-01');
+  eq('...and the sheet\u2019s own dates are not kept in extra',
+    Object.keys((row.extra ?? {}) as Record<string, unknown>).filter((k) => /complaint date|breakdown date/i.test(k)), []);
+}
+
+// EXCEL'S SEMICOLON "CSV" (2026-10-05): a PM Reports file saved on a machine
+// whose decimal mark is a comma read as ONE column and came back "Nothing
+// loadable". The same row must load whichever separator carried it — and a
+// comma file must not turn into a semicolon one because a cell has semicolons.
+{
+  const pm = def('pm_reports');
+  const al = { aliases: pm.cols.flatMap((c) => c.from) };
+  const head = ['UCN', 'Call Number', 'Call Status', 'Visit Date & Time', 'Visiting Service Engineer'];
+  const body = ['26A01P0429', '26PMJAN0429-A-ORION-G-873', 'Solved - Report Completed', '06-January-2026', 'KRISHNAMOORTHY'];
+  const load = (t: string) => shapeUpload(pm, parseCSV(t, al)).rows.map((r) => [r.ucn, r.visit_at, r.call_status]);
+  const want = [['26A01P0429', '2026-01-06T00:00:00.000Z', 'Solved - Report Completed']];
+  eq('a comma file loads the visit', load(head.join(',') + '\n' + body.join(',')), want);
+  eq('...a SEMICOLON file (Excel, comma decimal mark) loads the same visit',
+     load('﻿' + head.join(';') + '\r\n' + body.join(';') + '\r\n'), want);
+  eq('...a TAB file still does', load(head.join('\t') + '\n' + body.join('\t')), want);
+  eq('...a comma file whose quoted cells are full of semicolons stays a comma file',
+     load(head.join(',') + '\n' + body.slice(0, 2).join(',') + ',"Solved - Report Completed; a; b; c; d; e",'
+       + body.slice(3).join(',')).map((r) => r[0]), ['26A01P0429']);
+  eq('...a semicolon file with an unquoted decimal comma stays a semicolon file',
+     load(head.join(';') + ';Qty\n' + body.join(';') + ';12,5').map((r) => r[0]), ['26A01P0429']);
+}
+
+// A BULK CALL CLOSURE GIVES SEVERAL CALLS ONE VISIT UID (2026-10-05). Keyed on
+// that UID the rows collapsed and every call but the last was dropped silently
+// -- 2,790 of the PM register's 7,470 visits. Each call must keep its visit, a
+// UID used by one call must not change, and the rule must be the user's Excel
+// one (`UID|UCN`), so a hand-fixed file lands on the same rows.
+{
+  const pm = def('pm_reports');
+  const v = (uid: string, ucn: string, date: string) =>
+    ({ UID: uid, 'UC Number': ucn, 'Call Status': 'Solved - Report Completed', 'Visit Date & Time': date });
+  const s = shapeUpload(pm, [
+    v('v2_N1-4d2ac9b3', '26A01P0429', '06-January-2026'),
+    v('v2_N1-4d2ac9b3', '26A01P0430', '06-January-2026'),
+    v('v2_N1-4d2ac9b3', '26A01P0431', '06-January-2026'),
+    v('v2_N1-solo0001', '26A01P0500', '07-January-2026'),
+    v('v2_N1-dupe0001', '26A01P0600', '08-January-2026'),
+    v('v2_N1-dupe0001', '26A01P0600', '08-January-2026'),
+    v('v2_N1-4d2ac9b3|26A01P0432', '26A01P0432', '06-January-2026'),
+  ]);
+  eq('every call of a shared UID keeps its own visit', s.rows.map((r) => [r.uid, r.ucn]), [
+    ['v2_N1-4d2ac9b3|26A01P0429', '26A01P0429'], ['v2_N1-4d2ac9b3|26A01P0430', '26A01P0430'],
+    ['v2_N1-4d2ac9b3|26A01P0431', '26A01P0431'], ['v2_N1-solo0001', '26A01P0500'],
+    ['v2_N1-dupe0001', '26A01P0600'], ['v2_N1-4d2ac9b3|26A01P0432', '26A01P0432']]);
+  eq('...and the screen is told how many were split', s.splitShared, 3);
+  eq('the same on the Field and Installation visit registers',
+     [def('field_reports').splitShared, def('installation_reports').splitShared], [{ key: 'uid', by: 'ucn' }, { key: 'uid', by: 'ucn' }]);
+  const again = shapeUpload(pm, [v('v2_N1-4d2ac9b3', '26A01P0429', '06-January-2026'), v('v2_N1-4d2ac9b3', '26A01P0430', '06-January-2026')]);
+  eq('a re-load gives the same ids, so it updates rather than adds', again.rows.map((r) => r.uid),
+     ['v2_N1-4d2ac9b3|26A01P0429', 'v2_N1-4d2ac9b3|26A01P0430']);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

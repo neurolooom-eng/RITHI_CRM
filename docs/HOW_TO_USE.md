@@ -35,10 +35,13 @@ a list comes from a master you cannot type a value that is not on it.
 first; then, from three characters, calls (UCN, call number, party, serial,
 product), pending call requests (REQID), spare requests (UID, OR number, UCN,
 part), spares consumed, parties, machines, parts, documents (manuals, technical
-notes, QMS), Field Solutions articles and Field Failure Reports — up to five of
+notes, QMS), Field Solutions articles, Field Failure Reports, warranties (SA
+number, party, invoice, or the serial / model of a machine on it) and contracts
+(MC number, party, or a machine's serial / model) — up to five of
 each. Where there are more than five, the group says so: type more of the name
 or number, or open that register to see them all. **Click one and that record opens** on its own screen: a call opens in its
-view, a machine in Machine History, a document in Drive. ↑ ↓ and Enter work
+view, a machine in Machine History, a document in Drive, a warranty or contract in
+its register, searched to that entry. ↑ ↓ and Enter work
 too. It only ever shows records you could already open on that screen.
 
 **Quality records are never deleted.** A wrong spare line is **voided** — the
@@ -69,9 +72,13 @@ different totals. An empty register usually means access, not emptiness.
   customer offered has something to find.
   > **It searches the copies of the machine register and the Party Master kept
   > on your device** (every column of both), so it
-  > works with a weak or no signal. The copy is refreshed every six hours and when
-  > the signal returns; the line under the title says how many machines it holds
-  > and when it was downloaded. A machine added in the last few hours: press
+  > works with a weak or no signal. The machine copy is a **snapshot of the
+  > Product Database as stored** — the contract, status and engineer each machine
+  > carries — not worked out again while it downloads. It is refreshed every six
+  > hours and when the signal returns; the **Party Master** copy (and the
+  > Standard Complaints) only once in ten days, since they change rarely — an
+  > edit on this device refreshes them at once. The line under the title says how
+  > many machines it holds and when it was downloaded. A machine added in the last few hours: press
   > **Download again** there (or ↻ Refresh on the Product Database screen).
   > **🧹 Clear Cache and Update does not re-download it**, and neither does
   > **⟳ Update now** on the new-version banner — updating the app and refreshing
@@ -176,8 +183,12 @@ on Roles & Permissions does not reach another team's calls.
   > and end are worked out by the system and shown on the row, not loaded.
 - **Device Cache Status** `/device-cache` — which phones and laptops hold the
   machine register and Party Master for offline search: one row per person per
-  device, how many machines and customers it holds, when each was downloaded and
-  the last failure. Everybody is listed, including whoever has **never
+  device, how many machines, customers, Standard Complaints and **parts** (the
+  Part Master the spare pickers use) it holds, when each was downloaded and
+  the last failure. The parts are kept on the device and refreshed every six
+  hours, so a Spare Request can pick a part with no signal (Spare Requests shows when
+  the list was cached on your device, with **Download now** to fetch a fresh
+  copy at once). Everybody is listed, including whoever has **never
   reported** — the engineer worth chasing before they travel. A device reports
   after each download and on sign-out, so one switched off shows its **last
   report**; read *Last reported*. Administrators and Technical Support to begin
@@ -519,10 +530,22 @@ against the call it was fitted to.
   under each.
   > ### Keying a new sale
   >
+  > **Six fields are required on every sale**: Party Name, Invoice No, Invoice
+  > Date, Warranty Start Date, Warranty Period (Months) and PM Visits. The entry
+  > reads top to bottom as Sale, Warranty, then Party.
+  >
   > **Party Name is a search box over the Party Master** — start typing and pick
-  > the customer. Choosing one **fills in the address, city, state, pincode,
-  > both telephone numbers, PAN, GST, the type, the profile and the initial
-  > service engineer** from that customer's record.
+  > the customer. Choosing one **fills in the Party section**: party type,
+  > profile, country, state, city, address, pincode, both telephone numbers,
+  > PAN, GST and the initial service engineer, from that customer's record.
+  >
+  > **Party Name is locked once the sale is saved.** The party's details are
+  > not: change any of them on the sale and **Save entry writes the change back
+  > to the Party Master** as well, and the message lists what was updated. Only
+  > what you changed in that edit goes back — re-saving an old sale does not put
+  > its old values over a party corrected since. Writing to the Party Master
+  > needs the right to edit parties; without it the sale still saves and the
+  > message says the Party Master was not updated.
   >
   > **Changing the customer replaces all of those, blanks included.** That is
   > deliberate: keeping the previous customer's address where the new one has
@@ -531,7 +554,10 @@ against the call it was fitted to.
   > address often differs from the registered one.
   >
   > A customer the Party Master has not got can still be typed. Nothing is
-  > filled in for them, because there is nothing to fill it from.
+  > filled in for them, because there is nothing to fill it from — and **Party
+  > Type, Profile, Country, State, City, Address, Pincode, GST and Service
+  > Engineer become required**. Save entry adds the customer to the Party
+  > Master from those details (if your role may add parties).
   >
   > **Sale Entry Date is stamped** when you create the entry. It is not typed.
   >
@@ -653,6 +679,19 @@ opens on **2,000 rows** — two full requests of the 1,000 the database hands ov
 at once — and every **Load more** fetches twice as much as the one before.
 **Load more** sits at the top, beside the count, as on Field Calls; it loads
 more of the tab that is open (Entries or Register).
+**Adding machines to a contract is picking, not typing.** The contract's Party
+Name is searched in the Party Master kept on this device. Once the contract is
+saved, **+ Add machine** opens a third column listing every machine the Product
+Database shows with that customer — product, serial, code, and the SA Number and
+MC Number it carries now (the device's copy first, the server if the copy is not
+there). Tick the machines, type each one's **Rate** and **Tax** (the tax is
+offered at 18% of the rate and can be changed), and press **Add**; the **Total
+After Tax** is the rate plus the tax and is worked out. A machine already on the
+contract is shown but cannot be ticked again. **Add a machine that is not
+listed** opens a blank card as before. Each machine on the right reads, top to
+bottom: Product Details, Price, From the entry (everything it follows from the
+contract), and History (the SA Number and earlier MC Number from the Product
+Database).
 **"+ New entry" arrives with its number already in it** — offered, not reserved,
 so two people starting at once get the same number and the second is refused on
 saving.
@@ -728,6 +767,19 @@ the list and shown under it as *"Product serial number was transferred to a
 different customer"*, with the customer who has it. The check is made again
 when you press Create the contract.
 
+**Service Engineer** is picked from the **User Master's active people**, on the
+sale and on each machine. If the record names somebody who is not an active user
+(often the Party Master's Serviceman, filled in with the customer), it is shown
+with a red note to choose an engineer from the list.
+
+**A new customer is added to the Party Master when you save the sale.** Type a
+Party Name the master does not have and the sale says so; **City** and **State**
+then become required, as they are on the Party Master. Fill in the address,
+phones, PAN, GST, Type, Profile and Serviceman as you would on the Party Master,
+and **Save entry** adds the party (it gets its Party Key) and saves the sale in
+one step. If your role may not add parties, the sale is saved without adding it,
+and the message says so.
+
 **Save entry stays grey until something on the entry has changed.**
 
 **Prev MC Number** is not on the contract form: **Renew this contract** fills it
@@ -757,8 +809,27 @@ set to zero.
     city, state and Service Engineer**, from their Party Master entry, and keeps
     them when the original sale is saved again. If the new owner's Party Master
     has no address, the machine keeps the one it had.
-  - **Leave "From Party" blank** and it fills from whoever holds the machine now,
-    which is what lets a historical list load in date order.
+  - **＋ Record a transfer picks the MACHINE from the Product Database** — type
+    part of the serial and choose the line showing serial, model and current
+    party (this device's copy first). Choosing it shows **From — the current
+    details** (party, address, city, state, Service Engineer), the **Sale
+    Entry** (SA Number, Invoice No., Invoice Date, Sold Through) and the **Warranty** (start and end
+    date, item status, contract number), all as the Product Database has them,
+    and they are kept on the transfer as a record of what the machine carried
+    when it changed hands. **To party is picked from the Party Master** on this
+    device and shows that party's address, city, state, type and engineer; a
+    party that is not on the Party Master must be added there first.
+  - **A fresh warranty for the new owner** is optional: tick **Give the new
+    owner a fresh warranty**, then enter the **Warranty Start Date** (it starts
+    at the transfer date) and the **Warranty Period (in Months)**. The years and
+    the **End Date** are worked out, as on Warranty Entry. The **Reference no**
+    is then required: it becomes the machine's **Warranty Number** on the
+    Product Database, which shows the fresh dates and Item Status WGP while they
+    run. The original sale entry is not changed. A later sale of the machine
+    (one whose warranty starts after this one) takes the warranty back; saving
+    the old sale again does not.
+  - On a file load, **leave "From Party" blank** and it fills from whoever holds
+    the machine now, which is what lets a historical list load in date order.
   - If the previous owner cannot be worked out the hand-over is still recorded
     with that field blank, not dropped.
   - Matched on the OT number **and** the machine, so a corrected export updates
@@ -782,6 +853,27 @@ set to zero.
     machine: a Sold Through the transfer had set is cleared when no dealer
     transfer is left, and one that came from the Product Database upload is
     kept. Moving a transfer to another serial also re-reads the one it left.
+
+- **Product Database** `/product-database` (menu: Contracts & Warranty) — every machine by model and serial, with its
+  warranty, contract and current owner. This is where a call reads cover from.
+  It keeps **all 32 columns** of the ProdMaster file — Item Code, the address,
+  the PO, PM Visits, the installation fields and the rest. Eleven of them are on
+  screen when it opens; **⚙ Columns** offers the other twenty-one, and
+  **Export CSV** gives you every one of them whether or not it is on screen.
+  **⇄ Transfer** on a row opens *Record a transfer* on Ownership Transfer with
+  that machine already picked — choose the To party and the date and save.
+  Shown to those who may record a transfer.
+  > **Warranty Status** and **Contract Status** here are the words the FILE
+  > used. They are not the Active / About to expire / Inactive the system works
+  > out from the dates, and the two can disagree — which is worth seeing.
+  > **The registers fill it, machine by machine** — product AND serial, never
+  > the serial alone. A **sale entry** adds each machine with its warranty,
+  > invoice, warranty term and accessories; a **contract entry** gives that
+  > machine the contract number, dates, type, status and PM visits (replacing
+  > the sale's PM visits), adding the machine if it is not there yet; an
+  > **ownership transfer** gives it the new owner, their address and the
+  > Transfer Ref and Date. Invoice, warranty term, accessories and transfer
+  > details are in ⚙ Columns.
 
 ## Masters & documents
 
@@ -807,23 +899,6 @@ typed into a form that reads it.
   > missing rather than arguing with the decision. It never works the other way
   > round: documents alone do not make a customer verified.
 
-- **Product Database** `/product-database` — every machine by model and serial, with its
-  warranty, contract and current owner. This is where a call reads cover from.
-  It keeps **all 32 columns** of the ProdMaster file — Item Code, the address,
-  the PO, PM Visits, the installation fields and the rest. Eleven of them are on
-  screen when it opens; **⚙ Columns** offers the other twenty-one, and
-  **Export CSV** gives you every one of them whether or not it is on screen.
-  > **Warranty Status** and **Contract Status** here are the words the FILE
-  > used. They are not the Active / About to expire / Inactive the system works
-  > out from the dates, and the two can disagree — which is worth seeing.
-  > **The registers fill it, machine by machine** — product AND serial, never
-  > the serial alone. A **sale entry** adds each machine with its warranty,
-  > invoice, warranty term and accessories; a **contract entry** gives that
-  > machine the contract number, dates, type, status and PM visits (replacing
-  > the sale's PM visits), adding the machine if it is not there yet; an
-  > **ownership transfer** gives it the new owner, their address and the
-  > Transfer Ref and Date. Invoice, warranty term, accessories and transfer
-  > details are in ⚙ Columns.
 - **Product Database 2.0** `/product-database-2` — the same machines, but
   **worked out** rather than stored. One row per machine (model **and** serial),
   assembled from the warranty sale register, the contract register, the
@@ -1295,6 +1370,16 @@ typed into a form that reads it.
   > installation and a PM visit are asked different things. It is not a missing
   > answer, and the file says so.
   > The date it filters on is the **feedback's own**, not the day it was loaded.
+- **Reports — Stores Dispatch Report** `/exports/stores-dispatch` — every spare
+  dispatched, one row per line, in the **AppSheet Stores format**: OR|Part, SO NO,
+  Timestamp, TO and the engineer's address, quantities, Item Status, **IND/IMP**,
+  and **Dispatched in (Days)** with its band (00-03D … >60D).
+  > **Days are exact**, to one decimal, from the request's **final approval** —
+  > the latest of RM, Commercial and NSM — to the dispatch. 0.7 is about 17 hours.
+  > A spare with **no approval time recorded** reads **No approval date**, not a
+  > number: AppSheet called those ">5 yrs", which was an empty date, not 5 years.
+  > **IND/IMP comes from the Part Master** — set it there, or load it with the
+  > Part Master upload's IND/IMP column. Blank until you do.
 - **Reports — Not Consumed Against this Call** `/exports/unused` — `NOT USED`
   where none was booked, `SHORT` where less was booked than sent. Refused and
   dropped lines are excluded.
@@ -1549,7 +1634,7 @@ typed into a form that reads it.
     quantity of 3 becomes 3 requests**, one per spare.
   - **Import from MRN**: search any MRN, **Pick** a line and import its good
     and defective quantity — each spare becomes its own request, carrying the
-    MRN No. The MRN itself is not changed, and a line can be imported again.
+    MRN No, with the Source **Defective Spare**. The MRN itself is not changed, and a line can be imported again.
   - **Start Work** on a request with the date and time. **The SLA starts only
     then**: due **3 working days** later, Saturday and Sunday skipped — both
     set on **SLA / Objective Configuration → SLA Targets → Spare Recycling SLA**. The list
@@ -1575,6 +1660,7 @@ typed into a form that reads it.
 - **Pre-Delivery Quality Check** `/indoor/pdqc` — imported machines received
   in the godown are checked here **before billing**, as per **R/SER/QC/007**.
   A register of its own: no Indoor job, any product.
+  - Each check is numbered **PDQC/26/0001** (restarting each year) when it is saved.
   - **+ New check**: pick the product from the Product Master, type the SL. No,
     and fill the date, Measuring Equipment ID, Software Version, HV, HT,
     checks 1–5 (OK / NOT OK) and the CMV/ACMV and PCMV readings at FiO2 21, 60

@@ -51,4 +51,5 @@ begin
 end $$;
 
 create index if not exists parts_code_key_idx    on public.parts (code_key);
-create index if not exists products_machine_idx  on public.products (machine_key);
+-- products_machine_idx (machine_key) was here; the same column as products_machine_key_uniq (0081).
+-- Removed 2026-10-05; 0382 drops it where it exists.

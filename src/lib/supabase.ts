@@ -1141,6 +1141,17 @@ export async function updateParty(id: number, patch: PartyPatch): Promise<{ ok: 
   return { ok: true };
 }
 
+/** The id of the party with this name, asked of the SERVER -- the row a
+ *  write is about to change must be the one there now, not a device copy up to
+ *  six hours old. `name_key` is unique, so one or none. */
+export async function sbPartyIdByName(name: string): Promise<number | null> {
+  const k = partyKey(name);
+  if (!k) return null;
+  const { data, error } = await must().from('parties').select('id').eq('name_key', k).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return data ? Number((data as { id: number }).id) : null;
+}
+
 /** A NEW party, from Party Master's Add entry form.
  *
  *  The database assigns the Party Key (`Party-N`, 0076's after-insert trigger)
@@ -1695,7 +1706,14 @@ async function serverProductBySerial(serial: string, product = ''): Promise<Reco
     const { data, error } = await must().from('product_database').select('*')
       .eq('machine_key', dbMachineKey(product, serial)).limit(1).maybeSingle();
     if (error) throw new Error(errMsg(error));
-    return data ? productRowToSheet(data) : null;
+    if (!data) return null;
+    // THE SALE'S INVOICE AND TERM, which 0330 stores on `products` and the
+    // view does not publish -- one row by its unique machine key, so the
+    // transfer form shows the Invoice No. and Date with no device copy too.
+    const { data: inv } = await must().from('products')
+      .select('invoice_no,invoice_date,warranty_years,warranty_months,transfer_ref,transfer_date')
+      .eq('machine_key', dbMachineKey(product, serial)).limit(1).maybeSingle();
+    return productRowToSheet({ ...(inv ?? {}), ...data });
   }
 
   // TWO rows asked for, not one: one is an answer, two is a question, and
@@ -1795,6 +1813,7 @@ export interface PartyInfo {
   pincode: string; phone: string; phone_2: string;
   pan: string; gstin: string;
   party_type: string; profile: string; service_engineer: string;
+  country: string;
 }
 
 export async function sbPartyInfo(party: string): Promise<PartyInfo | null> {
@@ -1818,7 +1837,7 @@ async function serverPartyInfo(party: string): Promise<PartyInfo | null> {
   // index instead of a scan. No fallback is needed here because it is not an
   // approximation of the old behaviour, it IS the old behaviour.
   const { data } = await must().from('parties')
-    .select('state,city,address,extra,pincode,phone,phone_2,pan,gstin,party_type,profile,service_engineer')
+    .select('country,state,city,address,extra,pincode,phone,phone_2,pan,gstin,party_type,profile,service_engineer')
     .eq('name_key', partyKey(party)).limit(1).maybeSingle();
   return data ? partyInfoFrom(data) : null;
 }
@@ -1834,6 +1853,7 @@ function partyInfoFrom(data: Record<string, unknown>): PartyInfo {
     pan: t(data.pan), gstin: t(data.gstin),
     party_type: t(data.party_type), profile: t(data.profile),
     service_engineer: t(data.service_engineer),
+    country: t(data.country),
   };
 }
 
@@ -2732,6 +2752,30 @@ export async function globalSearchKind(kind: HitKind, raw: string): Promise<Sear
       return (await rows(c.from('kb_articles').select('id,title,category,product')
         .or(like(['title', 'product', 'tags', 'category']))
         .order('updated_at', { ascending: false }).order('id', { ascending: false }).limit(n))).map(hitFor.kb);
+    case 'warranty':
+    case 'contract': {
+      // The entry's own fields, and the serial / model of any machine on it --
+      // the same two-read shape as spare requests, merged by the entry number.
+      const w = kind === 'warranty';
+      const key = w ? 'sa_number' : 'mc_number';
+      const [entries, items] = await Promise.all([
+        rows(c.from(w ? 'sale_entries' : 'contract_entries')
+          .select(w ? 'id,sa_number,party_name,invoice_no,warranty_status' : 'id,mc_number,party_name,contract_type,status')
+          .or(like(w ? ['sa_number', 'party_name', 'invoice_no'] : ['mc_number', 'party_name']))
+          .order('entry_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(n)),
+        rows(c.from(w ? 'sale_items' : 'contract_items')
+          .select(w ? 'id,sa_number,product_name,serial_number,warranty_status' : 'id,mc_number,party_name,product_name,serial_number,contract_type,status')
+          .or(like(['serial_number', 'product_name']))
+          .order('id', { ascending: false }).limit(n)),
+      ]);
+      const out = new Map<string, SearchHit>();
+      entries.forEach((r) => { if (String(r[key] ?? '').trim()) out.set(String(r[key]), (w ? hitFor.warranty : hitFor.contract)(r)); });
+      items.forEach((r) => {
+        const no = String(r[key] ?? '').trim();
+        if (no && !out.has(no)) out.set(no, (w ? hitFor.warranty : hitFor.contract)(r));
+      });
+      return [...out.values()].slice(0, n);
+    }
     case 'ffr':
       return (await rows(c.from('field_failure_reports').select('ffr_no,customer_name,product_name,product_serial,ucn,ffr_status')
         .or(like(['ffr_no', 'ucn', 'customer_name', 'product_serial', 'product_name']))
@@ -2948,6 +2992,18 @@ export async function ensureMyProfile(): Promise<Profile | null> {
   if (error) return null;
   const row = Array.isArray(data) ? data[0] : data;
   return (row ?? null) as Profile | null;
+}
+
+/** THE USER MASTER'S ACTIVE PEOPLE, by name -- `validity` true, the same rule
+ *  the hand-stock upload keeps an engineer by. For a picker that must offer
+ *  only somebody who works here now (the Warranty sale's Service Engineer, the
+ *  user, 2026-10-05). PAGED: a capped read would quietly drop people. */
+export async function sbActiveUserNames(): Promise<string[]> {
+  const c = must();
+  const rows = await allRows<{ name: string | null }>((a, b) =>
+    c.from('user_directory').select('name').eq('validity', true).order('name').order('id').range(a, b), 20000);
+  return [...new Set(rows.map((r) => String(r.name ?? '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
 }
 
 export async function sbDirectoryNames(): Promise<string[]> {
@@ -3581,7 +3637,7 @@ export async function partCodeExists(code: string): Promise<boolean> {
 // here as well as on the form, so no other caller can add a part without them.
 export async function addPart(
   code: string, description: string,
-  more: { category: string; product: string; purchase_cost?: number | null; common?: boolean; hsn_code?: string } = { category: '', product: '' },
+  more: { category: string; product: string; purchase_cost?: number | null; common?: boolean; hsn_code?: string; ind_imp?: string } = { category: '', product: '' },
 ): Promise<{ ok: boolean; error?: string }> {
   const c = normalisePartCode(code);
   if (!c) return { ok: false, error: 'Give the part code.' };
@@ -3598,6 +3654,7 @@ export async function addPart(
     category: more.category.trim(), product: more.common ? '' : more.product.trim(),
     ...(more.purchase_cost != null ? { purchase_cost: more.purchase_cost } : {}),
     ...(more.hsn_code ? { hsn_code: more.hsn_code } : {}),
+    ...(more.ind_imp ? { ind_imp: more.ind_imp } : {}),
   });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
@@ -3612,7 +3669,7 @@ export async function addPart(
  *  foreign key to `parts`. Changing them is `renamePart` below, which carries
  *  the history. */
 export async function updatePart(
-  id: number, patch: { category?: string; product?: string; purchase_cost?: number | null; hsn_code?: string },
+  id: number, patch: { category?: string; product?: string; purchase_cost?: number | null; hsn_code?: string; ind_imp?: string },
 ): Promise<{ ok: boolean; error?: string }> {
   // Rows COUNTED (D-141), as updateMasterItem does.
   const { data, error } = await must().from('parts').update(patch).eq('id', id).select('id');
@@ -4369,6 +4426,17 @@ export async function listHandstockBalance(
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
+// THE WHOLE BALANCE IN ONE REQUEST (0384). The view costs the same for one
+// page as for everything, so the paged read above was k full aggregates per
+// load and one more per search keystroke -- 4.6-7.3 s each on the live
+// project. The function returns one jsonb array, which PostgREST's 1,000-row
+// cap does not apply to, and it is security invoker: the reader's own RLS
+// bounds it exactly as the view. The screens search what they hold.
+export async function listHandstockBalanceAll(): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().rpc('handstock_balance_all');
+  if (error) throw new Error(errMsg(error));
+  return Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+}
 // One engineer's stock, for the pickers that may only offer what is in hand
 // (the report form's consumption list, the transfer form).
 /** A HAND STOCK ADJUSTMENT (0266): + adds to the engineer's stock, - removes;
@@ -4855,6 +4923,10 @@ export interface OwnershipTransfer {
   /** The dealer the machine came from: the From party when the Party Master
    *  types it DEALER, stamped by the database (0328); blank otherwise. */
   sold_through?: string;
+  /** A FRESH WARRANTY given to the new owner (0385): start and months typed,
+   *  years and end worked out by the database. Blank on most transfers. */
+  warranty_start?: string | null; warranty_months?: number | null;
+  warranty_years?: number | null; warranty_end?: string | null;
 }
 export async function listOwnershipTransfers(serial = ''): Promise<OwnershipTransfer[]> {
   const c = getSupabase(); if (!c) return [];
@@ -6080,7 +6152,7 @@ export async function saveIndoorJob(
     'indoor_report_no', 'dc_date', 'remarks', 'cover',
     // The stages (0323). The report FILE and its stamps are not here: the
     // upload is saveIndoorReport(), and the database stamps who and when.
-    // visit_uid / visit_filed_at are the DC approval's (0327, 0378).
+    // visit_uid / visit_filed_at are the DC approval's (0327, 0387).
     'standard_complaint',
   ] as const;
   const rest = Object.fromEntries(
@@ -6218,7 +6290,7 @@ export async function listIndoorDcAuthorisers(): Promise<{ name: string; basis: 
 export async function approveIndoorDc(dcNo: string, checkOnly = false): Promise<{ ok: boolean; error?: string; skipped?: string }> {
   const { data, error } = await must().rpc('approve_indoor_dc', { p_dc_no: dcNo, p_check_only: checkOnly });
   if (error) return { ok: false, error: errMsg(error) };
-  // D-145 (0382): a unit whose call was SOLVED since its visit was drafted is
+  // D-145 (0391): a unit whose call was SOLVED since its visit was drafted is
   // not filed; the function names those calls after a " | ".
   const out = String(data ?? '');
   const i = out.indexOf(' | ');
@@ -6761,6 +6833,48 @@ export async function listFeedbackReport(
   }
 }
 
+// THE STORES DISPATCH REPORT (0385): the view in the AppSheet Stores format.
+export interface StoresDispatchQuery {
+  from?: string; to?: string; engineer?: string; part?: string; orNo?: string;
+  band?: string; indImp?: string; itemStatus?: string;
+}
+function storesDispatchQuery(f: StoresDispatchQuery, opts?: { count: 'exact'; head: true }) {
+  let q = opts
+    ? must().from('stores_dispatch_report').select('*', opts)
+    : must().from('stores_dispatch_report').select('*');
+  if (f.from) q = q.gte('Timestamp', f.from);
+  if (f.to) q = q.lte('Timestamp', `${f.to} 23:59:59.999`);
+  if (f.engineer) q = q.ilike('TO', `%${f.engineer}%`);
+  if (f.part) q = q.ilike('Spare', `%${f.part}%`);
+  if (f.orNo) q = q.ilike('Spare Request NO', `%${f.orNo}%`);
+  if (f.band) q = q.eq('Dispatched in (Days - Group)', f.band);
+  if (f.indImp) q = q.eq('IND/IMP', f.indImp);
+  if (f.itemStatus) q = q.ilike('Item Status', `%${f.itemStatus}%`);
+  return q;
+}
+export async function countStoresDispatch(f: StoresDispatchQuery): Promise<number> {
+  const { count, error } = await storesDispatchQuery(f, { count: 'exact', head: true });
+  if (error) throw new Error(errMsg(error));
+  return count ?? 0;
+}
+export async function listStoresDispatch(
+  f: StoresDispatchQuery, onProgress?: (n: number) => void,
+): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  const page = 1000;
+  for (let offset = 0; ; offset += page) {
+    const { data, error } = await storesDispatchQuery(f)
+      .order('Timestamp', { ascending: false })
+      .order('Dispatch Line ID', { ascending: false })
+      .range(offset, offset + page - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = (data ?? []) as Record<string, unknown>[];
+    out.push(...rows);
+    onProgress?.(out.length);
+    if (rows.length < page) return out;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // WHAT EACH DEVICE HOLDS OFFLINE (0249) -- the administrator's view of the
 // machine register and Party Master kept on every phone and laptop.
@@ -6775,6 +6889,7 @@ export interface DeviceCacheReport {
   machines: number; machines_at: string | null; machines_error: string;
   customers: number; customers_at: string | null; customers_error: string;
   complaints?: number; complaints_at?: string | null;
+  parts?: number; parts_at?: string | null;
 }
 /** Never throws: a report that cannot be sent is simply sent next time.
  *  A project that has not run 0253 has no complaints columns, so a refusal
@@ -6784,8 +6899,13 @@ export async function sbReportDeviceCache(r: DeviceCacheReport): Promise<boolean
   try {
     const { error } = await c.from('device_cache_status').upsert(r, { onConflict: 'user_id,device_id' });
     if (!error) return true;
-    if (!/complaints/i.test(errMsg(error))) return false;
-    const { complaints: _c, complaints_at: _a, ...rest } = r;
+    // A project short of 0253 or 0380: drop what it lacks and send the rest.
+    if (!/complaints|parts/i.test(errMsg(error))) return false;
+    const { parts: _p, parts_at: _pa, ...noParts } = r;
+    void _p; void _pa;
+    const second = await c.from('device_cache_status').upsert(noParts, { onConflict: 'user_id,device_id' });
+    if (!second.error) return true;
+    const { complaints: _c, complaints_at: _a, ...rest } = noParts;
     void _c; void _a;
     const again = await c.from('device_cache_status').upsert(rest, { onConflict: 'user_id,device_id' });
     return !again.error;
@@ -6800,6 +6920,7 @@ export interface DeviceCacheRow {
   customers: number | null; customers_at: string | null; customers_error: string | null;
   first_reported_at: string | null; reported_at: string | null;
   complaints?: number | null; complaints_at?: string | null;
+  parts?: number | null; parts_at?: string | null;
 }
 /** Every person, and every device each has reported from -- a person with no
  *  device reported comes back ONCE with the device fields null. */
@@ -7018,6 +7139,8 @@ export async function deleteRecycleRequests(ids: number[]): Promise<Res<number>>
 // database refuses a blank one); Inspected by is stamped from the session.
 // ---------------------------------------------------------------------------
 export interface PdqcRecord extends Omit<IndoorPdt, 'job_id'> {
+  /** PDQC/YY/NNNN, given by the database (0378). */
+  pdqc_no: string;
   product_name: string;
   serial: string;
   created_by: string | null;

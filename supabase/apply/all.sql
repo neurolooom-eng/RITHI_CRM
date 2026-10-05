@@ -68,6 +68,7 @@
 --   0325_party_part_add_edit_delete.sql
 --   0347_feedback_read_once_and_no_machine_delete.sql
 --   0350_delete_guard_counts_every_name.sql
+--   0381_master_reads_once_per_query.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
@@ -96,13 +97,15 @@
 --   0372_indoor_call_status.sql
 --   0374_indoor_new_device_kind.sql
 --   0377_pre_delivery_qc.sql
---   0382_indoor_approval_skips_a_solved_call.sql
+--   0378_pdqc_number.sql
+--   0391_indoor_approval_skips_a_solved_call.sql
 --   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 --   0367_indoor_dc_approver_is_the_login.sql
---   0378_indoor_record_visit_closed_and_comments.sql
+--   0387_indoor_record_visit_closed_and_comments.sql
 --   0355_spare_recycling.sql
 --   0365_spare_recycling_start_sla_mrn.sql
 --   0376_spare_recycling_delete.sql
+--   0379_recycle_mrn_source.sql
 --   0021_master_lists.sql
 --   0066_master_values_active.sql
 --   0067_master_list_permissions.sql
@@ -132,7 +135,7 @@
 --   0368_qms_revision_is_a_new_entry.sql
 --   0264_people_and_training.sql
 --   0295_user_profile_details_key.sql
---   0379_user_master_keeps_history.sql
+--   0388_user_master_keeps_history.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
@@ -167,7 +170,8 @@
 --   0287_call_keys_per_register.sql
 --   0311_cancel_needs_an_open_call.sql
 --   0341_call_actions_need_sight_of_the_call.sql
---   0380_field_call_vigilance_answered.sql
+--   0386_pm_dates_are_registration.sql
+--   0389_field_call_vigilance_answered.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
@@ -200,7 +204,7 @@
 --   0285_auto_review_by_role.sql
 --   0342_review_needs_a_call_you_can_see.sql
 --   0353_review_summary_carries_the_searched_columns.sql
---   0381_review_answers_read_key.sql
+--   0390_review_answers_read_key.sql
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
 --   0115_visit_date_sanity.sql
@@ -287,6 +291,8 @@
 --   0369_filed_under_own_name_unless_granted.sql
 --   0373_stock_movement_dates.sql
 --   0375_stock_transfer_own_or_team.sql
+--   0385_stores_dispatch_report.sql
+--   0384_handstock_balance_all.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
 --   0072_ownership_transfer.sql
@@ -320,6 +326,7 @@
 --   0351_dealer_guard_stands_aside_on_reload.sql
 --   0361_sold_through_cleared_only_if_a_transfer_set_it.sql
 --   0362_installation_once_and_no_dealer_request.sql
+--   0383_transfer_fresh_warranty.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -367,7 +374,9 @@
 --   0208_cover_code_normalised.sql
 --   0288_feedback_update_visit_key.sql
 --   0348_feedback_update_once_per_query.sql
+--   0381_feedback_lookup_indexes.sql
 --   0052_search_indexes.sql
+--   0382_redundant_indexes_dropped.sql
 --   0098_product_register_names.sql
 --   0099_no_jit.sql
 --   0101_kpi_views.sql
@@ -400,6 +409,7 @@
 --   0306_export_keys.sql
 --   0249_device_cache_status.sql
 --   0253_device_cache_complaints.sql
+--   0380_device_cache_parts.sql
 --   0298_permission_grants_copied.sql
 --   0244_sys_columns.sql
 --   0245_sys_columns_view_tail.sql
@@ -558,7 +568,8 @@ create table if not exists public.masters (
   value  text not null,
   extra  jsonb not null default '{}'
 );
-create index if not exists masters_name_idx on public.masters (name);
+-- masters_name_idx (name) was here; a leading prefix of masters_active_idx (name, active),
+-- which serves the same lookups. Removed 2026-10-05; 0382 drops it where it exists.
 
 -- ---------------------------------------------------------------------------
 -- calls — unified Field / Installation / PM register (call_type distinguishes).
@@ -905,7 +916,8 @@ alter table public.reports drop constraint if exists reports_ucn_key;
 -- 2) Add the visit UID and make it the natural key.
 alter table public.reports add column if not exists uid text;
 create unique index if not exists reports_uid_key on public.reports (uid) where uid is not null;
-create index if not exists reports_ucn_idx on public.reports (ucn);
+-- reports_ucn_idx (ucn) was here; a prefix of reports_ucn_entry_idx (ucn, updated_at desc, id desc).
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 -- 3) Clear the earlier de-duped load so the full visit history can be re-imported.
 truncate table public.reports;
@@ -4980,7 +4992,7 @@ insert into public.perm_parents (child, parent) values
   ('masters.product_master.edit', 'masters.edit.records'),
   ('masters.product_master.edit', 'masters.edit'),
   ('masters.product_master.delete', 'masters.edit'),
-  -- D-129 (0381, 2026-10-05): an editor of the review reads its answers.
+  -- D-129 (0390, 2026-10-05): an editor of the review reads its answers.
   ('review.view', 'review.edit');
 
 -- has_perm() keeps its shape and its NULL: with no signed-in user
@@ -5735,6 +5747,58 @@ begin
   return old;
 end $$;
 revoke execute on function public.master_delete_guard() from public, anon, authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0381_master_reads_once_per_query.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE MASTER READ POLICIES ASKED ONCE PER QUERY, NOT ONCE PER ROW (2026-10-05).
+--
+-- The user's pg_stat_statements export ("Supabase - RootCause") put two plain
+-- reads of the masters among the most expensive statements on the project:
+-- `products` paged by id (3,800 calls, ~6.9 s each) and `parties` (2,992
+-- calls, ~3.9 s each), both with almost no disk reads -- so the time is CPU,
+-- not I/O.
+--
+-- 0008 wrote the read policy on parties, products, parts and masters as
+-- `auth.role() = 'authenticated'`, bare. Postgres evaluates a bare function in
+-- a policy once per ROW, and on Supabase auth.role() reads the request's JWT
+-- claims and parses them as jsonb each time. Wrapped as a sub-select it is an
+-- InitPlan, asked once per statement -- the 0095 / 0250 pattern.
+--
+-- Measured on a database built from every migration, as `authenticated` with a
+-- Supabase-shaped auth.role() and a realistic claims string, 20,000 machines:
+--   one 1,000-row page at offset 19,000      147 ms  ->  27 ms
+--   the product-name count (product_register_names) 106 ms -> 11 ms
+-- The live figures are larger than these; the ratio is what this file claims.
+--
+-- WHO MAY READ IS UNCHANGED: the predicate is the same comparison, only asked
+-- once. In the rbac module after 0008, before the policy tail (which does not
+-- touch these), so a replay of rbac.sql ends on this definition.
+--
+-- PRODUCTS FIRST, AND THE ORDER IS NOT TIDINESS. Dropping a policy takes an
+-- ACCESS EXCLUSIVE lock on its table, and the first run of this file on the
+-- live project (run 37300728067, 2026-10-05) died with `deadlock detected`:
+-- it had locked parties and was waiting for products, while a reader of
+-- product_database -- which joins products THEN parties -- held products and
+-- was waiting for parties. Locking in the readers' order (products before
+-- parties) means a reader that holds parties already holds products, so it
+-- cannot be waiting on this file, and this file waits only for readers to
+-- finish. A lock timeout (the second run) is the remaining failure, and it is
+-- safe: the transaction rolls back whole and the workflow is re-run.
+-- ===========================================================================
+
+do $$
+declare t text;
+begin
+  foreach t in array array['products', 'parties', 'parts', 'masters'] loop
+    if to_regclass('public.' || t) is null then continue; end if;
+    execute format('drop policy if exists %1$s_read on public.%1$s', t);
+    execute format('create policy %1$s_read on public.%1$s for select '
+                   'using ((select auth.role()) = ''authenticated'')', t);
+  end loop;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0121_rbac_policy_tail.sql
@@ -11287,11 +11351,70 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0382_indoor_approval_skips_a_solved_call.sql
+-- 0378_pdqc_number.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0382 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
+-- 0378  PRE-DELIVERY QUALITY CHECK NUMBER -- PDQC/YY/NNNN (2026-10-05).
+--
+-- The user, asked whether a check should carry a number such as
+-- PDQC/26/0001: "Yes". Numbered like RCY/YY/NNNN (0355): the two-digit year
+-- of when the check is recorded (India time), restarting at 0001 each year,
+-- stamped by the database on insert and never changed after. Checks already
+-- recorded are numbered once, in the order they were recorded.
+-- ===========================================================================
+
+alter table public.pdqc_records add column if not exists pdqc_no text;
+
+create or replace function public.pdqc_next_no(p_at timestamptz)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  yy text := to_char(p_at at time zone 'Asia/Kolkata', 'YY');
+  n  integer;
+begin
+  perform pg_advisory_xact_lock(hashtext('pdqc_no:' || yy));
+  select coalesce(max(nullif(split_part(pdqc_no, '/', 3), '')::int), 0) into n
+    from public.pdqc_records where pdqc_no like 'PDQC/' || yy || '/%';
+  return 'PDQC/' || yy || '/' || lpad((n + 1)::text, 4, '0');
+end $$;
+revoke execute on function public.pdqc_next_no(timestamptz) from public, anon, authenticated;
+
+-- Number what is already there, oldest first (a no-op once every row has one).
+do $$
+declare r record;
+begin
+  for r in select id, created_at from public.pdqc_records where pdqc_no is null order by created_at, id loop
+    update public.pdqc_records set pdqc_no = public.pdqc_next_no(r.created_at) where id = r.id;
+  end loop;
+end $$;
+
+create unique index if not exists pdqc_records_pdqc_no on public.pdqc_records (pdqc_no);
+
+-- The number is the database's: given on insert, kept on every update.
+create or replace function public.pdqc_number()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    new.pdqc_no := public.pdqc_next_no(now());
+  else
+    new.pdqc_no := coalesce(old.pdqc_no, new.pdqc_no);
+  end if;
+  return new;
+end $$;
+revoke execute on function public.pdqc_number() from public, anon, authenticated;
+
+drop trigger if exists zy_pdqc_number on public.pdqc_records;
+create trigger zy_pdqc_number before insert or update on public.pdqc_records
+  for each row execute function public.pdqc_number();
+
+alter table public.pdqc_records alter column pdqc_no set not null;
+
+-- ------------------------------------------------------------------------
+-- 0391_indoor_approval_skips_a_solved_call.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0391 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
 --        (second re-review D-145; the user's decision, 2026-10-04)
 --
 -- approve_indoor_dc files each unit's drafted visit as Unsolved / Return to
@@ -11501,7 +11624,7 @@ end $function$;
 -- It is named to run AFTER zz_indoor_jobs_guard and zz_indoor_jobs_stamp
 -- (zzy_ sorts between them and zzz_sys_stamp), so its stamps are the last word.
 -- A connection with no session (a repair, an import) is not stopped.
--- In the indoor module, after 0382.
+-- In the indoor module, after 0391.
 -- ===========================================================================
 
 -- ---- D-111 ------------------------------------------------------------------
@@ -11690,11 +11813,11 @@ revoke execute on function public.indoor_dc_may_approve(text) from anon;
 grant execute on function public.indoor_dc_may_approve(text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0378_indoor_record_visit_closed_and_comments.sql
+-- 0387_indoor_record_visit_closed_and_comments.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0378 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
+-- 0387 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
 --        COLUMNS SAY WHEN THE VISIT IS ACTUALLY FILED
 --        (second re-review D-108, D-116)
 --
@@ -12709,6 +12832,37 @@ revoke execute on function public.delete_recycle_requests(bigint[]) from public,
 grant execute on function public.delete_recycle_requests(bigint[]) to authenticated;
 
 -- ------------------------------------------------------------------------
+-- 0379_recycle_mrn_source.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0379  A SPARE IMPORTED FROM AN MRN HAS THE SOURCE "Defective Spare"
+--       (2026-10-05).
+--
+-- 0376's screen made Source a pick of Service Return / Defective Spare, while
+-- an MRN import went on writing "MRN <no> · <engineer>". The user, asked which
+-- it should be: "DEFECTIVE SPARE". The screen now sends it; this puts the
+-- requests already imported in step. The MRN No stays on each in mrn_ref, so
+-- nothing is lost.
+--
+-- A CLOSED request is otherwise unchangeable, so the ONE guard that refuses it
+-- is lifted by name for this statement and put straight back.
+-- ===========================================================================
+do $$
+declare n integer;
+begin
+  if to_regclass('public.recycle_requests') is null then return; end if;
+  alter table public.recycle_requests disable trigger recycle_requests_guard;
+  update public.recycle_requests
+     set received_from = 'Defective Spare'
+   where coalesce(mrn_ref, '') <> ''
+     and received_from is distinct from 'Defective Spare';
+  get diagnostics n = row_count;
+  alter table public.recycle_requests enable trigger recycle_requests_guard;
+  raise notice '0379: % request(s) imported from an MRN now read Source "Defective Spare"', n;
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0021_master_lists.sql
 -- ------------------------------------------------------------------------
 
@@ -13635,7 +13789,8 @@ begin
 end $$;
 
 create index if not exists parts_code_key_idx    on public.parts (code_key);
-create index if not exists products_machine_idx  on public.products (machine_key);
+-- products_machine_idx (machine_key) was here; the same column as products_machine_key_uniq (0081).
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 -- ------------------------------------------------------------------------
 -- 0129_product_serial_key.sql
@@ -15089,7 +15244,8 @@ alter table public.documents add column if not exists notes text not null defaul
 
 -- A call looks a manual up BY PRODUCT, every time a call is opened, so that
 -- lookup gets its own index rather than a scan of the shelf.
-create index if not exists documents_kind_idx     on public.documents (kind);
+-- documents_kind_idx (kind) was here; a prefix of documents_dated_idx (kind, dated desc).
+-- Removed 2026-10-05; 0382 drops it where it exists.
 create index if not exists documents_product_idx  on public.documents (lower(product));
 create index if not exists documents_active_idx   on public.documents (active);
 
@@ -16044,11 +16200,11 @@ AS $function$
 $function$;
 
 -- ------------------------------------------------------------------------
--- 0379_user_master_keeps_history.sql
+-- 0388_user_master_keeps_history.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0379 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
+-- 0388 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
 --        (second re-review D-059)
 --
 -- 0264 declares user_profile.dir_id and user_rr.dir_id ON DELETE CASCADE, so
@@ -20028,11 +20184,63 @@ grant execute on function public.reopen_call(text, text) to authenticated;
 grant execute on function public.close_reopened_call(text, text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0380_field_call_vigilance_answered.sql
+-- 0386_pm_dates_are_registration.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0380 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
+-- 0386  PM CALLS: COMPLAINT DATE AND BREAKDOWN DATE ARE THE REGISTRATION DATE
+--       (2026-10-05) -- a one-time correction of the batch already uploaded.
+--
+-- The user: "Map, Complaint Date, Break Down Date to the Same Date as Call
+-- Registration" -- "I have already uploaded it -- this is only for PM" -- "Not
+-- any other Call Types". PM Bulk Upload now writes both from the
+-- registration date (pmImport.ts); this brings the PM calls uploaded before
+-- that change into line.
+--
+-- SCOPE, deliberately narrow: PM calls only (pm_calls, call type P M VISIT),
+-- and only those registered from 01-Oct-2026 -- the batch that was uploaded.
+-- Older PM calls are left as they are; nothing else is touched.
+--
+-- THE SAME BATCH WENT IN WITHOUT ITS SERIALS (the sheet's "Product Serial
+-- Number" was not a recognised heading until v0.10.117) -- the value was kept
+-- in `extra`, so the serial is filled from there where the call has none.
+-- Nothing is invented: a call whose extra carries no serial stays blank. The
+-- engineer ("Call Allocated To") is NOT filled here: setting allocated_to
+-- notifies the engineer, and 1,333 notifications are not a data fix.
+--
+-- Runs as the migration owner (no signed-in user), which the call guards
+-- treat as an import. Idempotent: a re-run finds nothing to change.
+-- ===========================================================================
+do $$
+declare n_dates integer := 0; n_serial integer := 0;
+begin
+  if to_regclass('public.pm_calls') is null then return; end if;
+
+  update public.pm_calls
+     set complaint_date = reg_date,
+         breakdown_date = reg_date
+   where call_type = 'P M VISIT'
+     and reg_date >= date '2026-10-01'
+     and (complaint_date is distinct from reg_date or breakdown_date is distinct from reg_date);
+  get diagnostics n_dates = row_count;
+
+  update public.pm_calls
+     set serial = btrim(extra->>'Product Serial Number')
+   where call_type = 'P M VISIT'
+     and reg_date >= date '2026-10-01'
+     and coalesce(btrim(serial), '') = ''
+     and coalesce(btrim(extra->>'Product Serial Number'), '') <> '';
+  get diagnostics n_serial = row_count;
+
+  raise notice '0386: % PM call(s) now dated by their registration; % given the serial their upload carried', n_dates, n_serial;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0389_field_call_vigilance_answered.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0389 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
 --        (second re-review D-033; the user's decision, 2026-10-05)
 --
 -- Public Health Threat?, Death? and Serious Incident? carried defaultValue 'NO'
@@ -26082,11 +26290,11 @@ alter view public.field_call_review_summary set (security_invoker = on);
 grant select on public.field_call_review_summary to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0381_review_answers_read_key.sql
+-- 0390_review_answers_read_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0381 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
+-- 0390 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
 --        (second re-review D-129, the open half; the user, 2026-10-05)
 --
 -- call_reviews_read (0044) is auth.role() = 'authenticated': every signed-in
@@ -26125,7 +26333,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0381_review_view_to_editors') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0390_review_view_to_editors') then return; end if;
   update public.app_roles
      set permissions = permissions || '["review.view"]'::jsonb
    where jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
@@ -26133,8 +26341,8 @@ begin
      and not (permissions ? 'review.view');
   get diagnostics n = row_count;
   insert into public.one_time_fixes_done (name, detail)
-  values ('0381_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
-  raise notice '0381: % role(s) holding review.edit given review.view', n;
+  values ('0390_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
+  raise notice '0390: % role(s) holding review.edit given review.view', n;
 end $$;
 
 -- ------------------------------------------------------------------------
@@ -26150,7 +26358,8 @@ end $$;
 -- ===========================================================================
 
 create index if not exists reports_visit_at_idx on public.reports (visit_at desc nulls last, id desc);
-create index if not exists reports_call_number_idx on public.reports (call_number);
+-- reports_call_number_idx (call_number) was here; a prefix of reports_call_number_entry_idx.
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 -- ------------------------------------------------------------------------
 -- 0071_report_source_ref.sql
@@ -31278,7 +31487,8 @@ create table if not exists public.material_returns (
   constraint material_returns_qty_positive check (coalesce(good_qty, 0) + coalesce(defective_qty, 0) > 0)
 );
 
-create index if not exists material_returns_uid_idx      on public.material_returns (uid);
+-- material_returns_uid_idx (uid) was here; a prefix of material_returns_uid_part_idx (0089).
+-- Removed 2026-10-05; 0382 drops it where it exists.
 create index if not exists material_returns_engineer_idx on public.material_returns (lower(btrim(engineer)));
 create index if not exists material_returns_date_idx     on public.material_returns (mrn_date desc nulls last);
 -- The import re-runs; one row per (submission, item) is the natural identity.
@@ -33138,7 +33348,8 @@ create table if not exists public.handstock_opening (
 -- wrong is how an opening balance silently doubles.
 create unique index if not exists handstock_opening_uniq
   on public.handstock_opening (engineer_key, part_code, source_key);
-create index if not exists handstock_opening_eng_idx on public.handstock_opening (engineer_key);
+-- handstock_opening_eng_idx (engineer_key) was here; a prefix of handstock_opening_uniq.
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 create or replace function public.handstock_opening_biu()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -33620,7 +33831,8 @@ begin
   end if;
 end $$;
 
-create index if not exists parts_item_detail_key_idx on public.parts (item_detail_key);
+-- parts_item_detail_key_idx (item_detail_key) was here; the same column as parts_item_detail_key_uniq.
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 -- ------------------------------------------------------------------------
 -- 0089_spare_imports_load.sql
@@ -37140,6 +37352,212 @@ drop trigger if exists stock_transfer_own_or_team on public.stock_transfers;
 create trigger stock_transfer_own_or_team
   before insert on public.stock_transfers
   for each row execute function public.stock_transfer_own_or_team();
+
+-- ------------------------------------------------------------------------
+-- 0385_stores_dispatch_report.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- STORES DISPATCH REPORT -- the AppSheet "Stores" view, one row per spare
+-- line dispatched, with how long Stores took after the request was approved.
+--
+-- The user, 2026-10-05: "I need Objective Data for Stores. Attached the
+-- Format." (AppSheet.ViewData.2026-10-05.csv, 8,315 rows.) Settled with the
+-- user the same day: a DATA REPORT only (no objective row); the IND/IMP field
+-- added to the Part Master; days counted as EXACT elapsed time, in days with a
+-- decimal -- not AppSheet's date-minus-date, which reads a dispatch at 09:00
+-- the morning after a 17:00 approval as one whole day.
+--
+-- 1. parts.ind_imp -- Indigenous / Imported / TBD, typed on the Part Master or
+--    loaded by its bulk upload. FREE TEXT, NO CHECK, and that is deliberate: a
+--    check on `parts` aborts a bulk import part-written (0152's lesson); the
+--    form offers the three words.
+--
+-- 2. public.stores_dispatch_report -- the format's columns, by their headings:
+--    "Request Final Approval Date" is the LATEST of the line's RM, Commercial
+--    and NSM decisions (spare_line_stage's order: whichever came last is when
+--    the line became Stores' to send). Where NO approval was ever recorded it
+--    is BLANK and the band says "No approval date" -- AppSheet subtracted an
+--    empty date and filed those 188 rows under ">5 yrs", 45,839 days, which
+--    is a missing value dressed as a measurement. spare_stock_out_lines falls
+--    back to the request's creation instead; this report does not, because a
+--    figure about Stores must not be computed from a date that is not an
+--    approval.
+--    Bands on the exact days: <=3 00-03D, <=7 04-07D, <=15 08-15D, <=30
+--    16-30D, <=60 31-60D, beyond that >60D. A dispatch BEFORE the recorded
+--    approval (negative days) stays in 00-03D, as AppSheet put its six.
+--    Year / Month / YY - MM are of the DISPATCH, in India time.
+--    "Pending QTY" is what is still to send on the line after every dispatch
+--    so far (qty - dispatched_qty); "Requested Qty" is the line's own qty.
+--
+-- security_invoker, so whoever reads it sees exactly the dispatches the stock
+-- out register shows them (sd_read and the spare policies).
+--
+-- 3. mod:/exports/stores-dispatch merged into Admin, Technical Support (which
+--    holds every page key the admin does -- _status.sql row 114), Stores
+--    Incharge and Spare Coordinator -- MERGE, never overwrite; a role with an EMPTY set is left
+--    alone. Any role holding Reports (mod:/exports) sees it already: a report
+--    key falls back to that one.
+-- ===========================================================================
+
+alter table public.parts add column if not exists ind_imp text not null default '';
+comment on column public.parts.ind_imp is
+  'Indigenous / Imported / TBD -- typed on the Part Master or loaded by its upload. Free text on purpose: a CHECK on parts aborts a bulk import part-written (0152). Shown as IND/IMP on the Stores Dispatch Report (0385).';
+
+drop view if exists public.stores_dispatch_report;
+create view public.stores_dispatch_report as
+with base as (
+  select
+    dl.id                                              as line_key,
+    d.uid                                              as stock_out_no,
+    d.dispatched_at,
+    coalesce(d.engineer, '')                           as engineer,
+    coalesce(dl.part, '')                              as part,
+    public.part_code(dl.part)                          as part_code,
+    btrim(coalesce(nullif(split_part(coalesce(dl.part, ''), '|', 2), ''), pt.description, '')) as part_desc,
+    dl.qty                                             as dispatched_qty,
+    l.qty                                              as requested_qty,
+    greatest(coalesce(l.qty, 0) - coalesce(l.dispatched_qty, 0), 0) as pending_qty,
+    l.row_no,
+    coalesce(r.or_no, '')                              as or_no,
+    r.created_at                                       as or_at,
+    greatest(l.rm_at, l.commercial_at, l.nsm_at)       as approved_at,
+    coalesce(r.item_status, '')                        as item_status,
+    coalesce(pt.ind_imp, '')                           as ind_imp,
+    ud.address, ud.city, ud.state, ud.phone
+  from public.spare_dispatch_lines dl
+  join public.spare_dispatches    d on d.uid = dl.dispatch_uid
+  join public.spare_request_lines l on l.id  = dl.line_id
+  join public.spare_requests      r on r.uid = l.request_uid
+  left join lateral (
+    select p.description, p.ind_imp from public.parts p
+     where p.code = public.part_code(dl.part) order by p.id limit 1) pt on true
+  left join lateral (
+    select u.address, u.city, u.state, u.phone from public.user_directory u
+     where lower(btrim(u.name)) = lower(btrim(coalesce(d.engineer, ''))) and btrim(coalesce(d.engineer, '')) <> ''
+     order by u.id limit 1) ud on true
+),
+timed as (
+  select b.*,
+    case when b.approved_at is null then null
+         else round(extract(epoch from (b.dispatched_at - b.approved_at))::numeric / 86400.0, 1) end as days
+  from base b
+)
+select
+  t.or_no || '|' || t.part_code                                    as "Spare Request NO|Part Number",
+  t.stock_out_no                                                   as "SO NO",
+  t.dispatched_at                                                  as "Timestamp",
+  t.engineer                                                       as "TO",
+  concat_ws(E'\n',
+    nullif(btrim(coalesce(t.address, '')), ''),
+    nullif(concat_ws(' , ', nullif(btrim(coalesce(t.city, '')), ''), nullif(btrim(coalesce(t.state, '')), '')), ''),
+    case when btrim(coalesce(t.phone, '')) <> '' then 'PHONE NO : ' || btrim(t.phone) end)
+                                                                   as "ADDRESS",
+  'Dispatched'::text                                               as "Stores Status",
+  concat_ws('|', nullif(t.or_no, ''), nullif(t.part_code, ''), nullif(t.part_desc, '')) as "DETAILS",
+  t.or_no                                                          as "Spare Request NO",
+  t.part_code                                                      as "Part Number",
+  t.part_desc                                                      as "Part Description",
+  t.dispatched_qty                                                 as "Dispatched Qty",
+  t.pending_qty                                                    as "Pending QTY",
+  nullif(regexp_replace(t.stock_out_no, '[^0-9]', '', 'g'), '')::bigint as "SO(n)",
+  concat_ws('|', nullif(t.part_code, ''), nullif(t.part_desc, '')) as "Spare",
+  t.or_at                                                          as "OR Date",
+  t.approved_at                                                    as "Request Final Approval Date",
+  t.ind_imp                                                        as "IND/IMP",
+  t.item_status                                                    as "Item Status",
+  t.days                                                           as "Dispatched in (Days)",
+  case when t.days is null then 'No approval date'
+       when t.days <= 3  then '00-03D'
+       when t.days <= 7  then '04-07D'
+       when t.days <= 15 then '08-15D'
+       when t.days <= 30 then '16-30D'
+       when t.days <= 60 then '31-60D'
+       else '>60D' end                                             as "Dispatched in (Days - Group)",
+  extract(year  from (t.dispatched_at at time zone 'Asia/Kolkata'))::int as "Year",
+  extract(month from (t.dispatched_at at time zone 'Asia/Kolkata'))::int as "Month",
+  to_char(t.dispatched_at at time zone 'Asia/Kolkata', 'YY-MM')   as "YY - MM",
+  t.row_no                                                         as "Sl No",
+  t.requested_qty                                                  as "Requested Qty",
+  t.part                                                           as "Part (as dispatched)",
+  t.line_key                                                       as "Dispatch Line ID"
+from timed t;
+
+alter view public.stores_dispatch_report set (security_invoker = on);
+grant select on public.stores_dispatch_report to authenticated;
+
+comment on view public.stores_dispatch_report is
+  'Stores Dispatch Report (0385): one row per spare line dispatched, in the AppSheet Stores format -- final approval = latest of RM / Commercial / NSM (blank where none, band "No approval date"), days to dispatch exact to one decimal, banded 00-03D ... >60D; Year / Month / YY - MM of the dispatch in India time.';
+
+do $$
+declare n int;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (select jsonb_array_elements_text(ar.permissions) as v
+                   union select 'mod:/exports/stores-dispatch') u),
+         updated_at = now()
+   where ar.role in ('admin', 'technical_support', 'stores_incharge', 'spare_coordinator')
+     and jsonb_array_length(ar.permissions) > 0
+     and not (ar.permissions ? 'mod:/exports/stores-dispatch');
+  get diagnostics n = row_count;
+  raise notice '0385: % role(s) given the Stores Dispatch Report', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0384_handstock_balance_all.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- HAND STOCK: THE WHOLE BALANCE IN ONE REQUEST (2026-10-05, the user: "Go
+-- ahead with the Hand Stock one-aggregate change").
+--
+-- `handstock_balance` is a GROUP BY over every movement there is (nine arms,
+-- 0023/0102), and it costs the same whether one page or the whole result is
+-- asked for -- measured on 300,000 movements: ~1.2 s either way. PostgREST
+-- caps a response at 1,000 rows, so the Hand Stock screen asked for the
+-- balance a page at a time (k full aggregates per load) and asked it AGAIN for
+-- every search keystroke; on the live project's statement export those pages
+-- took 4.6-7.3 s each, 650 times in two weeks.
+--
+-- This function returns the whole balance as ONE jsonb array, so a load is
+-- ONE aggregate and the screens search what they already hold. Three rules:
+--
+--   SECURITY INVOKER. The view is security_invoker and so is this, so the
+--   reader's own row-level security bounds every arm exactly as before: an
+--   engineer gets their stock and their team's, an office role everything.
+--   A definer function here would hand every engineer's stock to anybody.
+--
+--   work_mem = 64MB, FOR THIS FUNCTION ONLY. Under the default 4MB the
+--   aggregate sorts 300,000 rows to disk (external merge, 25 MB); at 64MB it
+--   is a HashAggregate in memory -- 1.23 s -> 0.88 s on the same data. A
+--   function-level SET lasts the call and touches nothing else.
+--
+--   ORDERED BY ENGINEER THEN PART CODE, as the paged read was, so the screens
+--   show the same sequence. An empty balance is '[]', never null.
+--
+-- The paged read (`listHandstockBalance`) stays for `handstockForEngineer`,
+-- whose equality on engineer_key is pushed below the GROUP BY. In the
+-- handstock module, LAST, since it reads the view every earlier file defines.
+-- ===========================================================================
+
+create or replace function public.handstock_balance_all()
+returns jsonb
+language sql stable security invoker
+set search_path = public
+set work_mem = '64MB'
+as $$
+  select coalesce(jsonb_agg(to_jsonb(b) order by b.engineer, b.part_code), '[]'::jsonb)
+    from public.handstock_balance b;
+$$;
+
+comment on function public.handstock_balance_all() is
+  'The whole hand-stock balance as one jsonb array (0384): one aggregate per load instead of one per page and per search; security invoker, so the reader''s RLS applies.';
+
+revoke execute on function public.handstock_balance_all() from public, anon;
+grant execute on function public.handstock_balance_all() to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0036_sales_contracts.sql
@@ -41981,6 +42399,247 @@ drop trigger if exists call_request_not_installation_for_dealer on public.call_r
 create trigger call_request_not_installation_for_dealer
   before insert or update of party_name, call_type on public.call_requests
   for each row execute function public.call_request_not_installation_for_dealer();
+
+-- ------------------------------------------------------------------------
+-- 0383_transfer_fresh_warranty.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0383 — A TRANSFER CAN GIVE THE NEW OWNER A FRESH WARRANTY
+--
+-- The user, 2026-10-05: "Need to be able to Update the Warranty Start Date,
+-- Period, End Date, Same Logic as to Warranty Entry" -- "During Transfer, the
+-- new Owner gets a Fresh warranty date." Asked: it is OPTIONAL per transfer,
+-- and the Product Database's Warranty Number becomes the transfer's OT number
+-- (its Reference no.).
+--
+-- ON THE TRANSFER, NOT ON THE SALE. The four columns below record what was
+-- given and when; the original sale entry is not touched, so the Warranty
+-- Register keeps saying what was sold.
+--
+-- THE SALE'S LOGIC (cover.ts): the start and the period in MONTHS are entered;
+-- the years and the end are WORKED OUT, here as well as on the form, so a
+-- value sent through the API cannot disagree with its own start and period.
+-- The end is start + months - 1 day by cover_period_end()'s arithmetic (0218,
+-- addPeriod()'s month overflow included), written inline because that
+-- function's module runs after this one on a fresh build.
+--
+-- WHICH WARRANTY THE MACHINE WEARS (sync_product_machine, redefined from the
+-- database's own current body -- 0330 + 0331 -- with only the fresh-warranty
+-- lines added): the transfer's, when it starts on or after the one the sale or
+-- the installation gives. A re-sale after the transfer starts later and takes
+-- the warranty back; an old sale saved again starts earlier and does not.
+-- ===========================================================================
+
+alter table public.ownership_transfers add column if not exists warranty_start  date;
+alter table public.ownership_transfers add column if not exists warranty_months numeric;
+alter table public.ownership_transfers add column if not exists warranty_years  numeric;
+alter table public.ownership_transfers add column if not exists warranty_end    date;
+
+-- ---- the years and the end are worked out, never typed --------------------
+create or replace function public.ownership_transfer_warranty()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.warranty_start is null then
+    new.warranty_months := null; new.warranty_years := null; new.warranty_end := null;
+    return new;
+  end if;
+  if new.warranty_months is null or new.warranty_months <= 0 then
+    raise exception 'A fresh warranty needs its period in months (more than 0).';
+  end if;
+  -- The Warranty Number the machine will carry is this transfer's OT number.
+  if btrim(coalesce(new.reference_no, '')) = '' then
+    raise exception 'A fresh warranty needs the transfer''s Reference no. (its OT number) -- it becomes the machine''s Warranty Number.';
+  end if;
+  new.warranty_months := round(new.warranty_months);
+  new.warranty_years  := round(new.warranty_months / 12.0, 2);
+  new.warranty_end    := (date_trunc('month', new.warranty_start)::date
+                          + make_interval(months => new.warranty_months::int)
+                          + make_interval(days   => extract(day from new.warranty_start)::int - 1))::date - 1;
+  return new;
+end $$;
+revoke execute on function public.ownership_transfer_warranty() from public, anon, authenticated;
+drop trigger if exists ownership_transfer_warranty on public.ownership_transfers;
+create trigger ownership_transfer_warranty before insert or update on public.ownership_transfers
+  for each row execute function public.ownership_transfer_warranty();
+
+-- ---- the machine wears it ---------------------------------------------------
+create or replace function public.sync_product_machine(p_item text, p_serial text)
+ returns void
+ language plpgsql
+ security definer
+ set search_path to 'public'
+as $function$
+declare
+  n text := lower(btrim(coalesce(p_item, '')));
+  s text := lower(btrim(coalesce(p_serial, '')));
+  k text;
+  w record; c record; a record; t record; cur record; pm record;
+  v_party text;
+  foreign_contract boolean := false;
+  foreign_warranty boolean := false;
+  v_inst date; v_months numeric; v_inst_end date;
+  ft record; use_ft boolean := false;
+begin
+  if n = '' or s = '' then return; end if;
+  k := n || '|' || s;
+
+  select i.sa_number,
+         coalesce(i.warranty_start, h.warranty_start) as ws,
+         coalesce(i.warranty_end,   h.warranty_end)   as we,
+         coalesce(i.pm_visits,      h.pm_visits)      as pm,
+         coalesce(nullif(btrim(coalesce(i.invoice_no, '')), ''), nullif(btrim(coalesce(h.invoice_no, '')), '')) as inv,
+         coalesce(i.invoice_date,    h.invoice_date)    as invd,
+         coalesce(i.warranty_years,  h.warranty_years)  as wy,
+         coalesce(i.warranty_months, h.warranty_months) as wm,
+         i.accessories_included as acc
+    into w
+    from public.sale_items i left join public.sale_entries h on h.sa_number = i.sa_number
+   where lower(btrim(coalesce(i.product_name, ''))) = n
+     and lower(btrim(coalesce(i.serial_number, ''))) = s
+   order by coalesce(i.warranty_end, h.warranty_end) desc nulls last, i.id desc limit 1;
+
+  -- THE ENGINEER'S CHOICE AT INSTALLATION (0331, the user, 2026-10-03): where
+  -- the installation's customer feedback answers "Warranty Start Date?" with
+  -- "Installation Call Solved Date", the warranty starts on the day that call
+  -- was solved and ends a warranty period later; "Invoice Date" keeps the
+  -- documented start on the sale.
+  v_inst := public.machine_install_warranty_start(p_item, p_serial);
+  if v_inst is not null then
+    select coalesce(i.warranty_months, h.warranty_months, i.warranty_years * 12, h.warranty_years * 12)
+      into v_months
+      from public.sale_items i left join public.sale_entries h on h.sa_number = i.sa_number
+     where lower(btrim(coalesce(i.product_name, ''))) = n
+       and lower(btrim(coalesce(i.serial_number, ''))) = s
+     order by coalesce(i.warranty_end, h.warranty_end) desc nulls last, i.id desc limit 1;
+    -- cover_period_end() (0218) reproduces the application's own arithmetic;
+    -- asked by name because its module runs after this one on a fresh build.
+    if v_months is not null and v_months > 0 and to_regprocedure('public.cover_period_end(date,numeric)') is not null then
+      execute 'select public.cover_period_end($1, $2)' into v_inst_end using v_inst, v_months;
+    end if;
+  end if;
+
+  select i.mc_number, i.product_code,
+         coalesce(nullif(btrim(coalesce(i.contract_type, '')), ''), h.contract_type) as ct,
+         coalesce(i.contract_start, h.contract_start) as cs,
+         coalesce(i.contract_end,   h.contract_end)   as ce,
+         coalesce(i.pm_visits_total, h.pm_visits_total) as pm,
+         coalesce(nullif(btrim(coalesce(i.status, '')), ''), h.status) as st,
+         coalesce(nullif(btrim(coalesce(i.party_name, '')), ''), h.party_name) as party
+    into c
+    from public.contract_items i left join public.contract_entries h on h.mc_number = i.mc_number
+   where lower(btrim(coalesce(i.product_name, ''))) = n
+     and lower(btrim(coalesce(i.serial_number, ''))) = s
+   order by coalesce(i.contract_end, h.contract_end) desc nulls last, i.id desc limit 1;
+
+  -- The recovered detail, used only where the registers are silent.
+  select e.warranty_number, e.warranty_start, e.warranty_end,
+         e.contract_number, e.contract_type, e.contract_start, e.contract_end
+    into a
+    from public.product_additional_entries e where e.machine_key = k limit 1;
+
+  select x.reference_no as ref, x.transfer_date as d
+    into t
+    from public.ownership_transfers x
+   where lower(btrim(coalesce(x.item_name, ''))) = n
+     and lower(btrim(coalesce(x.serial_number, ''))) = s
+   order by coalesce(x.transferred_at, x.created_at, x.transfer_date::timestamptz) desc nulls last, x.id desc
+   limit 1;
+
+  -- A FRESH WARRANTY GIVEN ON A TRANSFER (0383, the user, 2026-10-05: "During
+  -- Transfer, the new Owner gets a Fresh warranty date"): the latest transfer
+  -- of this machine that carries one. It decides the machine's warranty when
+  -- it starts on or after the warranty the sale (or the installation) gives,
+  -- so a re-sale after the transfer takes the warranty back, and an old sale
+  -- saved again does not.
+  select x.reference_no as ref, x.warranty_start as ws, x.warranty_end as we,
+         x.warranty_months as wm, x.warranty_years as wy
+    into ft
+    from public.ownership_transfers x
+   where lower(btrim(coalesce(x.item_name, ''))) = n
+     and lower(btrim(coalesce(x.serial_number, ''))) = s
+     and x.warranty_start is not null
+   order by coalesce(x.transferred_at, x.created_at, x.transfer_date::timestamptz) desc nulls last, x.id desc
+   limit 1;
+
+  -- A CONTRACT FOR A MACHINE NOT YET HELD is inserted (the user's choice), for
+  -- the owner the registers name, with that owner's Party Master address.
+  if c.mc_number is not null and not exists (select 1 from public.products where machine_key = k) then
+    v_party := coalesce(nullif(btrim(coalesce(public.machine_current_party(p_item, p_serial), '')), ''),
+                        nullif(btrim(coalesce(c.party, '')), ''), '');
+    select nullif(btrim(x.address), '') as address, nullif(btrim(x.city), '') as city,
+           nullif(btrim(x.state), '') as state, nullif(btrim(x.service_engineer), '') as engineer
+      into pm from public.parties x where x.name_key = lower(v_party) limit 1;
+    insert into public.products (item_name, serial_number, party_name, item_code,
+                                 address, city, state, service_engineer)
+    values (btrim(p_item), btrim(p_serial), v_party, coalesce(c.product_code, ''),
+            coalesce(pm.address, ''), coalesce(pm.city, ''), coalesce(pm.state, ''), coalesce(pm.engineer, ''))
+    on conflict (machine_key) do nothing;
+  end if;
+
+  use_ft := ft.ws is not null
+    and ft.ws >= coalesce(case when v_inst is not null then v_inst end, w.ws, a.warranty_start, '-infinity'::date);
+
+  select p.contract_number, p.warranty_number into cur from public.products p where p.machine_key = k;
+  if not found then return; end if;
+
+  -- WHAT THE SERIAL-ONLY SYNC LEFT BEHIND: a number this machine carries that a
+  -- register line DOES hold, but for another model sharing the serial.
+  if c.mc_number is null and nullif(btrim(coalesce(a.contract_number, '')), '') is null
+     and btrim(coalesce(cur.contract_number, '')) <> '' then
+    foreign_contract := exists (select 1 from public.contract_items x where x.mc_number = cur.contract_number);
+  end if;
+  if w.sa_number is null and nullif(btrim(coalesce(a.warranty_number, '')), '') is null
+     and btrim(coalesce(cur.warranty_number, '')) <> '' then
+    foreign_warranty := exists (select 1 from public.sale_items x where x.sa_number = cur.warranty_number);
+  end if;
+
+  update public.products p set
+    warranty_number = case when use_ft then ft.ref
+                           when foreign_warranty then ''
+                           else coalesce(w.sa_number, nullif(a.warranty_number, ''), p.warranty_number) end,
+    warranty_start  = case when use_ft then ft.ws
+                           when v_inst is not null then v_inst
+                           when foreign_warranty then null else coalesce(w.ws, a.warranty_start, p.warranty_start) end,
+    warranty_end    = case when use_ft then ft.we
+                           when v_inst is not null and v_inst_end is not null then v_inst_end
+                           when foreign_warranty then null else coalesce(w.we, a.warranty_end,   p.warranty_end) end,
+    invoice_no      = coalesce(w.inv,  p.invoice_no),
+    invoice_date    = coalesce(w.invd, p.invoice_date),
+    warranty_years  = case when use_ft then ft.wy else coalesce(w.wy,   p.warranty_years) end,
+    warranty_months = case when use_ft then ft.wm::integer else coalesce(w.wm,   p.warranty_months) end,
+    accessories_included = coalesce(w.acc, p.accessories_included),
+    contract_number = case when foreign_contract then ''
+                           else coalesce(c.mc_number, nullif(a.contract_number, ''), p.contract_number) end,
+    contract_start  = case when foreign_contract then null else coalesce(c.cs, a.contract_start, p.contract_start) end,
+    contract_end    = case when foreign_contract then null else coalesce(c.ce, a.contract_end,   p.contract_end) end,
+    contract_type   = case when foreign_contract then ''
+                           else coalesce(nullif(c.ct, ''), nullif(a.contract_type, ''), p.contract_type) end,
+    contract_status_keyed = case when foreign_contract then ''
+                                 else coalesce(nullif(btrim(coalesce(c.st, '')), ''), p.contract_status_keyed) end,
+    -- THE CONTRACT'S PM VISITS OVERWRITE THE SALE'S (the user's choice), while
+    -- the machine has a contract line saying how many.
+    pm_visits       = case when c.mc_number is not null and c.pm is not null then c.pm
+                           else coalesce(w.pm, p.pm_visits) end,
+    transfer_ref    = coalesce(nullif(btrim(coalesce(t.ref, '')), ''), p.transfer_ref),
+    transfer_date   = coalesce(t.d, p.transfer_date),
+    -- machine_cover's rule (0036): a current contract is its type, a current
+    -- warranty WGP, and a machine the registers know with neither is OGP. One
+    -- no register mentions keeps the status it was imported with.
+    item_status     = case
+      when coalesce(c.ce, a.contract_end) >= current_date
+        then coalesce(nullif(c.ct, ''), nullif(a.contract_type, ''), 'CMC')
+      when case when use_ft then ft.we
+                else coalesce(case when v_inst is not null then v_inst_end end, w.we, a.warranty_end) end >= current_date then 'WGP'
+      when use_ft or w.sa_number is not null or c.mc_number is not null or a.warranty_number is not null
+        or a.contract_number is not null or foreign_contract or foreign_warranty then 'OGP'
+      else p.item_status end
+  where p.machine_key = k;
+end $function$;
+revoke execute on function public.sync_product_machine(text, text) from public, anon, authenticated;
+
+comment on column public.ownership_transfers.warranty_start is
+  'A fresh warranty given to the new owner on this transfer (0383); blank keeps the machine''s warranty. Months entered; years and end worked out.';
 
 -- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql
@@ -49654,6 +50313,40 @@ create policy fb_update on public.feedback for update
   with check ((select public.has_perm('visit.feedback')) or (select public.has_perm('feedback.view')));
 
 -- ------------------------------------------------------------------------
+-- 0381_feedback_lookup_indexes.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- FEEDBACK: AN INDEX FOR EVERY WAY A SCREEN LOOKS IT UP (2026-10-05).
+--
+-- The user's pg_stat_statements export ("Supabase - RootCause") put the
+-- feedback lookup BY CALL NUMBER at the top by disk reads: 1,087 calls, 2.66
+-- million blocks read -- about 2,450 per call, i.e. the whole table every
+-- time -- at ~665 ms each. The table had indexes on its key (ucn_key), entry_at
+-- and imported_from, and none on the three columns the app filters or sorts by:
+--
+--   call_number = $1 ORDER BY created_at DESC   the call's feedback (supabase.ts)
+--   serial = $1                                  a machine's feedback (history)
+--   ORDER BY created_at DESC, id DESC            the Customer Feedback register
+--
+-- Each was a sequential scan, plus a sort of every row for the register's
+-- pages (~5.8-7.1 s each). These three indexes serve them as written.
+--
+-- Nothing is read or written differently and no policy changes: an index only
+-- changes how a row is found. `if not exists` guards a NAME, and these names
+-- are new, so nothing older can be standing in for them.
+-- ===========================================================================
+
+create index if not exists feedback_call_number_created_idx
+  on public.feedback (call_number, created_at desc);
+create index if not exists feedback_serial_idx
+  on public.feedback (serial);
+create index if not exists feedback_created_id_idx
+  on public.feedback (created_at desc, id desc);
+
+analyze public.feedback;
+
+-- ------------------------------------------------------------------------
 -- 0052_search_indexes.sql
 -- ------------------------------------------------------------------------
 
@@ -49758,6 +50451,55 @@ begin
     end if;
   end loop;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0382_redundant_indexes_dropped.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- EIGHT INDEXES THAT COST WRITES AND SPACE AND SERVE NO LOOKUP OF THEIR OWN
+-- (2026-10-05, the user: "I want efficient indexing, cost efficient").
+--
+-- Measured on a database built from every migration: 469 indexes in public,
+-- and these eight are each a LEADING PREFIX of a wider btree on the same table
+-- with the same predicate -- so every equality or range lookup they could
+-- serve, the wider index serves from its first column(s). What they cost is
+-- real: every INSERT and UPDATE on the table maintains them (a bulk load of
+-- 20,000 machines writes products_machine_idx AND products_machine_key_uniq,
+-- the same key twice), and they take their own disk and shared buffers.
+--
+--   masters_name_idx            (name)          <  masters_active_idx (name, active)
+--   reports_ucn_idx             (ucn)           <  reports_ucn_entry_idx (ucn, updated_at desc, id desc)
+--   reports_call_number_idx     (call_number)   <  reports_call_number_entry_idx (...)
+--   material_returns_uid_idx    (uid)           <  material_returns_uid_part_idx (uid, part_code(part), ...)
+--   documents_kind_idx          (kind)          <  documents_dated_idx (kind, dated desc)
+--   handstock_opening_eng_idx   (engineer_key)  <  handstock_opening_uniq (engineer_key, part_code, source_key)
+--   products_machine_idx        (machine_key)   =  products_machine_key_uniq (machine_key)
+--   parts_item_detail_key_idx   (item_detail_key) = parts_item_detail_key_uniq (item_detail_key)
+--
+-- None is unique and none is an upsert target (check:upserts asks the UNIQUE
+-- ones), so no ON CONFLICT changes. The eight `create index` lines are REMOVED
+-- from the migrations that wrote them (0001, 0002, 0010, 0039, 0070, 0074,
+-- 0079, 0082) as well as dropped here -- `if not exists` guards a NAME, and a
+-- bundle replay would otherwise put each one straight back. check:replay does
+-- not compare indexes, which is why both halves are needed; _status.sql row
+-- 315 asserts they are absent.
+--
+-- NOT TOUCHED, deliberately: the 33 trigram GIN indexes on the three call
+-- tables. They are the biggest indexes on the project and the global search
+-- ORs eleven columns through them -- whether a single search column could
+-- replace most of them is a decision for the LIVE sizes and scan counts, which
+-- only the project knows: run supabase/apply/_which_indexes_earn_their_keep.sql.
+-- ===========================================================================
+
+drop index if exists public.masters_name_idx;
+drop index if exists public.reports_ucn_idx;
+drop index if exists public.reports_call_number_idx;
+drop index if exists public.material_returns_uid_idx;
+drop index if exists public.documents_kind_idx;
+drop index if exists public.handstock_opening_eng_idx;
+drop index if exists public.products_machine_idx;
+drop index if exists public.parts_item_detail_key_idx;
 
 -- ------------------------------------------------------------------------
 -- 0098_product_register_names.sql
@@ -54413,6 +55155,67 @@ begin
            d.customers, d.customers_at, d.customers_error,
            d.created_at, d.updated_at,
            d.complaints, d.complaints_at
+      from public.profiles p
+      full join public.device_cache_status d on d.user_id = p.id
+     order by coalesce(p.full_name, ''), d.updated_at desc nulls last;
+end $$;
+
+revoke execute on function public.device_cache_report() from public, anon;
+grant execute on function public.device_cache_report() to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0380_device_cache_parts.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- DEVICE CACHE STATUS: THE PART MASTER TOO (2026-10-05).
+--
+--   The user: "Cache Part Master along with Other Cached Registers. And
+--   include it in Device Cache Status".
+--
+-- The spare pickers (Spare Request, the visit's consumption) read the Part
+-- Master through the dropdown cache; from this build each device keeps that
+-- list for six hours, like the products and the Standard Complaints, so it
+-- opens with no signal. It is reported the way 0253 reports the complaints:
+-- how many parts, and when they were stored. Nothing else about the list is
+-- sent.
+--
+-- The report function is DROPPED AND REBUILT because its return columns grow;
+-- the two new columns are LAST. The permission check, the definer rights and
+-- the revoke are exactly 0253's. A device on an older build sends no parts --
+-- the columns default.
+-- ===========================================================================
+
+alter table public.device_cache_status
+  add column if not exists parts    integer not null default 0,
+  add column if not exists parts_at timestamptz;
+
+drop function if exists public.device_cache_report();
+create function public.device_cache_report()
+returns table (
+  user_id uuid, full_name text, email text, role text, active boolean,
+  device_id text, device_label text, user_agent text, app_version text, storage_ok boolean,
+  machines integer, machines_at timestamptz, machines_error text,
+  customers integer, customers_at timestamptz, customers_error text,
+  first_reported_at timestamptz, reported_at timestamptz,
+  complaints integer, complaints_at timestamptz,
+  parts integer, parts_at timestamptz
+)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.has_perm('mod:/device-cache') then
+    raise exception 'RBAC: the Device Cache Status report needs the mod:/device-cache permission.'
+      using errcode = '42501';
+  end if;
+  return query
+    select coalesce(p.id, d.user_id), coalesce(p.full_name, ''), coalesce(p.email, ''),
+           coalesce(p.role, ''), coalesce(p.active, true),
+           d.device_id, d.device_label, d.user_agent, d.app_version, d.storage_ok,
+           d.machines, d.machines_at, d.machines_error,
+           d.customers, d.customers_at, d.customers_error,
+           d.created_at, d.updated_at,
+           d.complaints, d.complaints_at,
+           d.parts, d.parts_at
       from public.profiles p
       full join public.device_cache_status d on d.user_id = p.id
      order by coalesce(p.full_name, ''), d.updated_at desc nulls last;

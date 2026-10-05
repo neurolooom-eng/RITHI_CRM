@@ -29,7 +29,7 @@
 //     IndexedDB itself; then the app simply asks the server, as it always did.
 // ===========================================================================
 import { getSupabase, productRowToSheet, sbReportDeviceCache } from './supabase';
-import { storedListInfo, warmMaster, warmMasterIfMissing, MASTER_STORED_EVENT } from './masters';
+import { storedListInfo, warmMaster, MASTER_STORED_EVENT } from './masters';
 import {
   downloadAfter, packRows, unpackRows, toCached, deviceLabel,
   type CachedMachine, type CachedParty, type DownloadState, type PackedRows,
@@ -38,9 +38,16 @@ import {
 const DB = 'rithi-machines';
 const STORE = 'register';
 // Bump to abandon every stored copy -- a change in what a row MEANS. v2: the
-// whole row is kept, where v1 kept only the 33 screen headings.
-const VERSION = 'v2';
+// whole row is kept, where v1 kept only the 33 screen headings. v3: the copy
+// is a SNAPSHOT of the stored `products` table, not of the `product_database`
+// view (below), so a copy made from the view is abandoned once.
+const VERSION = 'v3';
 export const MACHINE_REFRESH_MS = 6 * 60 * 60 * 1000;
+// THE PARTY MASTER ONCE IN TEN DAYS (the user, 2026-10-05: "Standard
+// Complaint, Party Master dont change Frequently, It can be downloaded Once in
+// 10 Days. Only Product Database and Part Master Can have frequent changes").
+// "Download again" and an edit still refresh it at once.
+export const PARTY_REFRESH_MS = 10 * 24 * 60 * 60 * 1000;
 // A walk that stopped is resumed only while it is this young; after that the
 // register may have moved enough that stitching old and new pages is unwise.
 const PARTIAL_MAX_AGE_MS = 2 * 60 * 60 * 1000;
@@ -110,6 +117,8 @@ async function currentUser(): Promise<string> {
 // different table, so they are the same code with a different table.
 function register<T extends { id: number }>(o: {
   key: string; table: string; toItem: (row: Record<string, unknown>) => T;
+  /** How long a copy is used before it is downloaded again. */
+  refreshMs: number;
 }) {
   let memory: { user: string; at: number; items: T[] } | null = null;
   let loaded: Promise<void> | null = null;
@@ -151,7 +160,7 @@ function register<T extends { id: number }>(o: {
         await loaded;
         const user = await currentUser();
         if (!user) return;
-        const fresh = memory && memory.user === user && Date.now() - memory.at < MACHINE_REFRESH_MS;
+        const fresh = memory && memory.user === user && Date.now() - memory.at < o.refreshMs;
         if (fresh && !opts.force) return;
         if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
 
@@ -193,7 +202,7 @@ function register<T extends { id: number }>(o: {
     await loaded;
     const user = await currentUser();
     if (!memory || !user || memory.user !== user) { void refresh(); return null; }
-    if (Date.now() - memory.at > MACHINE_REFRESH_MS) void refresh();
+    if (Date.now() - memory.at > o.refreshMs) void refresh();
     return memory.items;
   }
 
@@ -247,6 +256,9 @@ export async function reportDeviceCache(opts: { force?: boolean } = {}): Promise
     // THE STANDARD COMPLAINTS the call forms filter by product (0253).
     complaints: storedListInfo('complaintProducts')?.count ?? 0,
     complaints_at: iso(storedListInfo('complaintProducts')?.at ?? null),
+    // THE PART MASTER the spare pickers read (0380).
+    parts: storedListInfo('spareProducts')?.count ?? 0,
+    parts_at: iso(storedListInfo('spareProducts')?.at ?? null),
   };
   const sig = JSON.stringify(payload);
   try {
@@ -258,12 +270,25 @@ export async function reportDeviceCache(opts: { force?: boolean } = {}): Promise
   }
 }
 
+// A SNAPSHOT OF WHAT IS STORED, NOT A RE-CALCULATION (the user, 2026-10-05:
+// "During Caching, the Product need not re-calculate everything ... Just a
+// Snap shot of what ever is present"). The `product_database` view (0239)
+// re-derives every machine's contract and installation call from the whole of
+// `contract_items` and `installation_calls` on EVERY page it serves, and the
+// download stopped on "canceling statement due to statement timeout". The
+// registers already WRITE their values onto `products` (0330:
+// sync_product_machine), so the device reads those, under the same column
+// names the view publishes. What it gives up, and says so: the view's
+// party-matched contract and installation call, its warranty-first Item
+// Status and the Party Master's engineer -- the copy carries the stored
+// contract, status and engineer instead. The screens that ask the server
+// still read the view.
 const machines = register<CachedMachine>({
-  key: 'current', table: 'product_database',
+  key: 'current', table: 'products', refreshMs: MACHINE_REFRESH_MS,
   toItem: (row) => toCached(row, productRowToSheet(row)),
 });
 const parties = register<CachedParty>({
-  key: 'parties', table: 'parties',
+  key: 'parties', table: 'parties', refreshMs: PARTY_REFRESH_MS,
   toItem: (row) => ({ ...row, id: Number(row.id) }),
 });
 
@@ -277,6 +302,9 @@ export function refreshMachineRegister(opts: { force?: boolean } = {}): Promise<
   return Promise.all([machines.refresh(opts), parties.refresh(opts)]).then(() => undefined);
 }
 export const refreshPartyRegister = parties.refresh;
+/** The machines alone -- "Download only the selected database and not all 4"
+ *  (the user, 2026-10-05). */
+export const refreshMachinesOnly = machines.refresh;
 
 /** Wipe both: sign-out. */
 export async function clearMachineRegister(): Promise<void> {
@@ -300,20 +328,25 @@ let watching = false;
 export function watchMachineRegister(): void {
   if (watching || typeof window === 'undefined') return;
   watching = true;
-  window.addEventListener('online', () => { void refreshMachineRegister(); void warmMaster('complaintProducts'); });
+  window.addEventListener('online', () => { void refreshMachineRegister(); warmLists(); });
   // A LIST STORED is something the report should say (the complaints).
   window.addEventListener(MASTER_STORED_EVENT, () => scheduleReport());
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void refreshMachineRegister();
   });
-  window.setInterval(() => { void refreshMachineRegister(); void warmMaster('complaintProducts'); }, 15 * 60 * 1000);
+  window.setInterval(() => { void refreshMachineRegister(); warmLists(); }, 15 * 60 * 1000);
   void refreshMachineRegister();
   // THE STANDARD COMPLAINTS TOO, so a Call Request can be filled with no
   // signal even if no call form was opened while there was one.
+  // THE PART MASTER WITH ITS PRODUCTS, AND EACH PRODUCT'S ACCESSORIES
+  // (partfit.ts), so the spare pickers on a call narrow to the call's product
+  // with no signal. Kept like the complaints since 2026-10-05 (the user:
+  // "Cache Part Master along with Other Cached Registers"): refreshed every
+  // six hours (mastercache.ts), and reported in Device Cache Status.
+  warmLists();
+}
+function warmLists(): void {
   void warmMaster('complaintProducts');
-  // THE PARTS WITH THEIR PRODUCTS, AND EACH PRODUCT'S ACCESSORIES (partfit.ts),
-  // so the spare pickers on a call can narrow to the call's product with no
-  // signal. Only when the device has no copy: the forms re-read them on open.
-  void warmMasterIfMissing('spareProducts');
-  void warmMasterIfMissing('productAccessories');
+  void warmMaster('spareProducts');
+  void warmMaster('productAccessories');
 }

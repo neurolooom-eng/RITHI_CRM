@@ -99,7 +99,8 @@ alter table public.documents add column if not exists notes text not null defaul
 
 -- A call looks a manual up BY PRODUCT, every time a call is opened, so that
 -- lookup gets its own index rather than a scan of the shelf.
-create index if not exists documents_kind_idx     on public.documents (kind);
+-- documents_kind_idx (kind) was here; a prefix of documents_dated_idx (kind, dated desc).
+-- Removed 2026-10-05; 0382 drops it where it exists.
 create index if not exists documents_product_idx  on public.documents (lower(product));
 create index if not exists documents_active_idx   on public.documents (active);
 

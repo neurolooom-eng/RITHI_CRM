@@ -1,12 +1,12 @@
 -- ===========================================================================
--- THE USER'S DECISIONS OF 2026-10-04, PROVED ON A DATABASE (0382-0363, 0369).
+-- THE USER'S DECISIONS OF 2026-10-04, PROVED ON A DATABASE (0391-0363, 0369).
 -- Each section proves BOTH halves: what the decision refuses is refused, AND
 -- the honest path beside it still works.
 --
 --   1. D-125  a visit, its spares and a spare request are filed under your own
 --             name, your team's, or anybody's only with the key (0369)
 --   2. D-125  created_by on a consumption line is the session (0369)
---   3. D-145  approving an Indoor DC skips the visit of a call already Solved (0382)
+--   3. D-145  approving an Indoor DC skips the visit of a call already Solved (0391)
 --   4. D-112  the dispatch date is when the unit is marked Dispatched (0363)
 --   5. D-114  a cleaning time may be earlier, never later; who is the session (0363)
 --   6. D-149  a transfer correction blanks Sold Through only where a transfer set it (0361)

@@ -1,5 +1,5 @@
 import { isMissingTable } from '../lib/dberror';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { PageHeader, SectionCard, Drawer, Toolbar } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -12,8 +12,10 @@ import {
   listOwnershipTransfers, addOwnershipTransfer, listAdditionalEntries, saveAdditionalEntry,
   supabaseConfigured, type OwnershipTransfer as OT, type AdditionalEntry as AE,
   addCall, sbPartyInfo, installCallByNumber, machineCover, sbListProductNames, sbListProductSerials,
+  sbSearchMachines, sbProductBySerial, sbSearchParties, type MachineHit, type PartyInfo,
 } from '../lib/supabase';
-import { installCallFromTransfer, transferCallNumber } from '../lib/coverspec';
+import { installCallFromTransfer, transferCallNumber, transferDetailsFromMachine, transferExtra, freshWarranty, type TransferDetails } from '../lib/coverspec';
+import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
 
 // ===========================================================================
 // OWNERSHIP TRANSFER — where a machine has been, and who has it now.
@@ -67,15 +69,56 @@ export function OwnershipTransfer() {
   // hands names its transfer REFERENCE there, and this opens the register on it.
   const location = useLocation();
   useEffect(() => {
-    const st = location.state as { search?: string; tab?: Tab } | null;
+    const st = location.state as { search?: string; tab?: Tab; transfer?: MachineHit } | null;
     if (!st) return;
     if (st.tab) setTab(st.tab);
     if (st.search !== undefined) setSearch(st.search);
+    // FROM THE PRODUCT DATABASE'S ⇄ Transfer (2026-10-05): the drawer opens
+    // with that machine picked, so only the To party and the date are left.
+    if (st.transfer && st.transfer.serial && mayMove) {
+      openMove();
+      void chooseMachine(st.transfer);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const [moveForm, setMoveForm] = useState<Partial<OT> | null>(null);
+  // THE MACHINE THE TRANSFER IS TAGGED TO (the user, 2026-10-05): picked from
+  // the Product Database (this device's copy first), as its model AND serial,
+  // with what the register says about it now. And the receiving party, picked
+  // from the Party Master on this device, with its details.
+  const [machine, setMachine] = useState<MachineHit | null>(null);
+  const [machineRow, setMachineRow] = useState<TransferDetails | null>(null);
+  const [machineErr, setMachineErr] = useState('');
+  const [toInfo, setToInfo] = useState<PartyInfo | null>(null);
+  // A FRESH WARRANTY FOR THE NEW OWNER (0383, the user, 2026-10-05): optional,
+  // ticked per transfer; the start and months typed, the rest worked out.
+  const [fresh, setFresh] = useState(false);
+  const hits = useRef(new Map<string, MachineHit>());
+  const machineLabel = (h: MachineHit) => `${h.serial} · ${h.product}${h.party ? ` · ${h.party}` : ''}`;
+  const openMove = () => {
+    setMachine(null); setMachineRow(null); setMachineErr(''); setToInfo(null); setFresh(false);
+    setMoveForm({ transfer_date: todayISO() });
+  };
+  const pickMachine = (label: string) => chooseMachine(hits.current.get(label) ?? null);
+  const chooseMachine = async (h: MachineHit | null) => {
+    if (h) hits.current.set(machineLabel(h), h);
+    setMachine(h); setMachineRow(null); setMachineErr('');
+    if (!h) return;
+    setMoveForm((f) => ({ ...(f ?? {}), serial_number: h.serial, item_name: h.product }));
+    try {
+      const row = await sbProductBySerial(h.serial, h.product);
+      if (!row) { setMachineErr('The Product Database did not return this machine’s details.'); return; }
+      setMachineRow(transferDetailsFromMachine(row));
+    } catch (e) { setMachineErr(e instanceof Error ? e.message : String(e)); }
+  };
+  const pickTo = async (name: string) => {
+    setMoveForm((f) => ({ ...(f ?? {}), to_party: name }));
+    setToInfo(null);
+    if (!name.trim()) return;
+    try { setToInfo(await sbPartyInfo(name)); } catch { setToInfo(null); }
+  };
   const [entryForm, setEntryForm] = useState<Partial<AE> | null>(null);
 
   const load = async () => {
@@ -96,14 +139,37 @@ export function OwnershipTransfer() {
   useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);
 
   const saveMove = async () => {
-    if (!moveForm?.serial_number?.trim()) { setMsg({ tone: 'error', text: 'Give the machine serial number.' }); return; }
-    if (!moveForm.to_party?.trim()) { setMsg({ tone: 'error', text: 'Give the party the machine is going to.' }); return; }
+    if (!machine || !moveForm?.serial_number?.trim()) { setMsg({ tone: 'error', text: 'Pick the machine from the Product Database.' }); return; }
+    if (!moveForm.to_party?.trim()) { setMsg({ tone: 'error', text: 'Pick the party the machine is going to from the Party Master.' }); return; }
+    if (moveForm.to_party.trim().toLowerCase() === machine.party.trim().toLowerCase()) {
+      setMsg({ tone: 'error', text: `${machine.serial} is already with ${machine.party}.` }); return;
+    }
+    const fw = fresh ? freshWarranty(moveForm.warranty_start ?? '', moveForm.warranty_months) : null;
+    if (fresh) {
+      if (!moveForm.warranty_start) { setMsg({ tone: 'error', text: 'Give the fresh warranty its Warranty Start Date.' }); return; }
+      if (!fw?.end) { setMsg({ tone: 'error', text: 'Give the fresh warranty its Warranty Period (Months), more than 0.' }); return; }
+      if (!moveForm.reference_no?.trim()) { setMsg({ tone: 'error', text: 'A fresh warranty needs the Reference no. (the OT number) — it becomes the machine\'s Warranty Number.' }); return; }
+    }
     setBusy(true);
-    const res = await addOwnershipTransfer({ ...moveForm, recorded_by_name: user?.fullName || user?.email || '' });
+    // FROM is the machine's current holder as the Product Database shows it,
+    // and the model goes with the serial, so the database does not have to
+    // guess either from the serial alone. What the register said about the
+    // machine at this moment is kept in `extra`.
+    const res = await addOwnershipTransfer({
+      ...moveForm, item_name: machine.product, serial_number: machine.serial, from_party: machine.party,
+      // Sent only when ticked; the database works out the years and the end again.
+      ...(fresh && fw
+        ? { warranty_start: moveForm.warranty_start, warranty_months: Math.round(Number(moveForm.warranty_months)),
+            warranty_years: Number(fw.years), warranty_end: fw.end }
+        : { warranty_start: null, warranty_months: null, warranty_years: null, warranty_end: null }),
+      ...(machineRow ? { extra: transferExtra(machineRow) } : {}),
+      recorded_by_name: user?.fullName || user?.email || '',
+    } as Partial<OT>);
     setBusy(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not record the transfer.' }); return; }
     setMoveForm(null);
-    setMsg({ tone: 'ok', text: `${moveForm.serial_number} moved to ${moveForm.to_party}. Product Database now shows the new owner.` });
+    setMsg({ tone: 'ok', text: `${moveForm.serial_number} moved to ${moveForm.to_party}. Product Database now shows the new owner`
+      + (fresh && fw ? `, with a fresh warranty ${fmtLongDate(moveForm.warranty_start ?? '')} to ${fmtLongDate(fw.end)} (${moveForm.reference_no?.trim()}).` : '.') });
     await load();
   };
 
@@ -179,6 +245,10 @@ export function OwnershipTransfer() {
     // types it DEALER, stamped by the database.
     { key: 'sold_through', header: 'Sold Through', width: 170, render: (r) => (r.sold_through ? String(r.sold_through) : <span className="muted">—</span>) },
     { key: 'reference_no', header: 'Reference', width: 130 },
+    { key: 'warranty_start', header: 'Fresh warranty', width: 210, wrap: false,
+      render: (r) => (r.warranty_start
+        ? `${fmtLongDate(r.warranty_start)} → ${fmtLongDate(r.warranty_end ?? '')}`
+        : <span className="muted">—</span>) },
     { key: 'reason', header: 'Reason', width: 160 },
     { key: 'document_url', header: 'Document', width: 110, render: (r) => (r.document_url ? <a href={r.document_url} target="_blank" rel="noreferrer">open</a> : <span className="muted">—</span>) },
     { key: 'recorded_by_name', header: 'Recorded By', width: 150 },
@@ -217,7 +287,7 @@ export function OwnershipTransfer() {
         count={tab === 'transfers' ? visT.length : visE.length}
         actions={
           tab === 'transfers'
-            ? mayMove && <button className="btn btn-primary" onClick={() => setMoveForm({ transfer_date: todayISO() })}>＋ Record a transfer</button>
+            ? mayMove && <button className="btn btn-primary" onClick={openMove}>＋ Record a transfer</button>
             : mayCover && <button className="btn btn-primary" onClick={() => setEntryForm({})}>＋ Add entry details</button>
         }
       />
@@ -265,15 +335,76 @@ export function OwnershipTransfer() {
       <Drawer open={!!moveForm} onClose={() => setMoveForm(null)} title="Record an ownership transfer">
         {moveForm && (
           <div className="rep-form">
-            <F label="Machine serial number *"><input className="input" value={moveForm.serial_number ?? ''} onChange={(e) => setMoveForm({ ...moveForm, serial_number: e.target.value })} /></F>
-            <F label="From party" hint="Leave blank — it is filled in from whoever holds the machine now. When the From party is a DEALER on the Party Master, it is recorded as Sold Through.">
-              <input className="input" value={moveForm.from_party ?? ''} onChange={(e) => setMoveForm({ ...moveForm, from_party: e.target.value })} />
+            {/* WHAT THIS DEVICE HOLDS (the user, 2026-10-05: "Here also we need
+                the Cached Product Database, Cached Party Master"): both pickers
+                below read these copies first, and each can be downloaded alone. */}
+            <MachineRegisterNote />
+            <div className="field-label" style={{ opacity: 0.75 }}>Machine</div>
+            <F label="Machine — serial, model, current party *" hint="From the Product Database (this device’s copy first). Type part of the serial.">
+              <SelectPicker value={machine ? machineLabel(machine) : ''} placeholder="— find the machine by serial —"
+                options={machine ? [machineLabel(machine)] : []}
+                onSearch={async (term) => {
+                  const found = await sbSearchMachines('', term, 50);
+                  found.forEach((h) => hits.current.set(machineLabel(h), h));
+                  return found.map(machineLabel);
+                }}
+                onChange={(v) => void pickMachine(v)}
+                emptyHint="Machines come from the Product Database. Type more of the serial to narrow the list." />
             </F>
-            <F label="To party *"><input className="input" value={moveForm.to_party ?? ''} onChange={(e) => setMoveForm({ ...moveForm, to_party: e.target.value })} /></F>
+            {machineErr && <div className="sheet-banner sheet-banner-error"><span>{machineErr}</span></div>}
+            {machine && <DetailBlock title="From — the current details" rows={machineRow?.from ?? [['Party Name', machine.party]]} />}
+            {machineRow && <DetailBlock title="Sale Entry" rows={machineRow.sale} />}
+            {machineRow && <DetailBlock title="Warranty" rows={machineRow.warranty} />}
+            <div className="field-label" style={{ opacity: 0.75, marginTop: 8 }}>To</div>
+            <F label="To party *" hint="From the Party Master on this device. A party not on the Party Master has to be added there first.">
+              <SelectPicker value={moveForm.to_party ?? ''} placeholder="— find the party —"
+                options={moveForm.to_party ? [moveForm.to_party] : []}
+                onSearch={(term) => sbSearchParties(term, 50)}
+                onChange={(v) => void pickTo(v)}
+                emptyHint="Parties come from the Party Master." />
+            </F>
+            {toInfo && <DetailBlock title="To — from the Party Master" rows={[
+              ['Address', toInfo.address], ['City', toInfo.city], ['State', toInfo.state],
+              ['Type', toInfo.party_type], ['Service Engineer', toInfo.service_engineer],
+            ]} />}
             <F label="Transfer date"><LongDateInput value={moveForm.transfer_date ?? ''} onChange={(v) => setMoveForm({ ...moveForm, transfer_date: v })} /></F>
-            <F label="Reference no" hint="The customer's own paperwork for the hand-over.">
+            <F label={fresh ? 'Reference no (OT number) *' : 'Reference no'}
+               hint={fresh ? 'Becomes the machine\'s Warranty Number on the Product Database.' : "The customer's own paperwork for the hand-over."}>
               <input className="input" value={moveForm.reference_no ?? ''} onChange={(e) => setMoveForm({ ...moveForm, reference_no: e.target.value })} />
             </F>
+            {/* A FRESH WARRANTY FOR THE NEW OWNER (0383): optional, and worked out
+                as Warranty Entry does -- start and months typed, years and end
+                following. The machine wears it; the original sale is untouched. */}
+            <label className="row" style={{ gap: 6, alignItems: 'center', margin: '8px 0 4px' }}>
+              <input type="checkbox" checked={fresh}
+                onChange={(e) => {
+                  setFresh(e.target.checked);
+                  if (e.target.checked && !moveForm.warranty_start)
+                    setMoveForm({ ...moveForm, warranty_start: moveForm.transfer_date ?? todayISO() });
+                }} />
+              <span>Give the new owner a fresh warranty</span>
+            </label>
+            {fresh && (() => {
+              const fw = freshWarranty(moveForm.warranty_start ?? '', moveForm.warranty_months);
+              return (
+                <div className="req-act-sec" style={{ margin: '0 0 8px' }}>
+                  <div className="field-label">Fresh warranty</div>
+                  <F label="Warranty Start Date *">
+                    <LongDateInput value={moveForm.warranty_start ?? ''} onChange={(v) => setMoveForm({ ...moveForm, warranty_start: v })} />
+                  </F>
+                  <F label="Warranty Period (in Months) *">
+                    <input className="input" type="number" min={1} step={1} value={moveForm.warranty_months ?? ''}
+                      onChange={(e) => setMoveForm({ ...moveForm, warranty_months: e.target.value === '' ? null : Number(e.target.value) })} />
+                  </F>
+                  <F label="Warranty Period (in Years) · the months above">
+                    <input className="input" value={fw.years} readOnly disabled />
+                  </F>
+                  <F label="Warranty End Date · Warranty Start + Period (months)">
+                    <input className="input" value={fw.end ? fmtLongDate(fw.end) : ''} readOnly disabled />
+                  </F>
+                </div>
+              );
+            })()}
             <F label="Reason"><input className="input" value={moveForm.reason ?? ''} onChange={(e) => setMoveForm({ ...moveForm, reason: e.target.value })} /></F>
             <F label="Document link"><input className="input" value={moveForm.document_url ?? ''} onChange={(e) => setMoveForm({ ...moveForm, document_url: e.target.value })} /></F>
             <F label="Remarks"><textarea className="input" rows={2} value={moveForm.remarks ?? ''} onChange={(e) => setMoveForm({ ...moveForm, remarks: e.target.value })} /></F>
@@ -325,6 +456,24 @@ export function OwnershipTransfer() {
           </div>
         )}
       </Drawer>
+    </div>
+  );
+}
+
+/** Details read from a register, shown and not edited: the label and the value,
+ *  with a dash where the register has nothing. */
+function DetailBlock({ title, rows }: { title: string; rows: [string, string][] }) {
+  return (
+    <div className="req-act-sec" style={{ margin: '4px 0 8px' }}>
+      <div className="field-label">{title}</div>
+      <div className="rep-grid">
+        {rows.map(([k, v]) => (
+          <div key={k} className="rep-field">
+            <span className="field-label muted">{k}</span>
+            <span>{k.endsWith('Date') && v ? fmtLongDate(v) : (v || <span className="muted">—</span>)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

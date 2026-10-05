@@ -227,9 +227,11 @@ export function SpareRecycling() {
     const res = await registerRecycleRequests({
       part_code: code, part_description: mrnPick.item_name || splitPart(mrnPick.part).description,
       serial: '', qty, received_on: todayLocal(),
-      received_from: [`MRN ${mrnPick.mrn_no}`, mrnPick.engineer].filter(Boolean).join(' · '),
+      // An MRN import's Source is Defective Spare (the user, 2026-10-05); the
+      // MRN No stays in mrn_ref and the engineer moves to the remarks.
+      received_from: 'Defective Spare',
       call_ref: mrnPick.report_no || '',
-      remarks: [mrnPick.mrn_date ? `MRN dated ${formatDay(mrnPick.mrn_date)}` : '', mrnPick.customer_name ? `Customer ${mrnPick.customer_name}` : '',
+      remarks: [mrnPick.mrn_date ? `MRN dated ${formatDay(mrnPick.mrn_date)}` : '', mrnPick.engineer ? `Engineer ${mrnPick.engineer}` : '', mrnPick.customer_name ? `Customer ${mrnPick.customer_name}` : '',
         `good ${qtyText(mrnPick.good_qty)} / defective ${qtyText(mrnPick.defective_qty)}`].filter(Boolean).join(' · '),
       mrn_ref: mrnPick.mrn_no,
     });

@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.103',
+    version: '0.10.125',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -25,7 +25,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.102',
+    version: '0.10.124',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -39,7 +39,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.101',
+    version: '0.10.123',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -53,7 +53,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.100',
+    version: '0.10.122',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -64,6 +64,227 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.121',
+    date: '2026-10-05',
+    title: 'Bulk call closures load one visit per call',
+    changes: [
+      'Field, Installation and PM Reports uploads: when AppSheet\'s bulk call closure gave several calls the SAME UID, each call now gets its own visit, keyed UID|UCN, the same way you fixed the file by hand. Before this, only the last call in the file kept the visit and the rest were dropped without a word; on the PM register that was 2,790 of 7,470 rows. The upload preview says how many rows were split.',
+      'A UID used by only one call is kept exactly as it is, and a UID that already has a | is left alone, so a file you already fixed by hand loads to the same records.',
+      'One-time cleanup: _shared_uid_visit_duplicates.sql removes the duplicate visits the earlier loads left behind, where the same visit sits under both the plain UID and UID|UCN. It removes only exact copies, lists anything that differs, and does nothing until you change false to true.',
+    ],
+  },
+  {
+    version: '0.10.120',
+    date: '2026-10-05',
+    title: 'PM calls: Complaint Date and Breakdown Date are the registration date',
+    changes: [
+      'PM BULK UPLOAD sets every PM call\'s Complaint Date and Breakdown Date to its registration date — not the dates in the sheet. Only PM calls; no other call type changes.',
+      'The October 2026 PM calls already uploaded were corrected the same way, and the ones that went in without a serial were given the serial their upload carried. Their engineers were not changed, so nobody was sent 1,333 notifications.',
+    ],
+  },
+  {
+    version: '0.10.119',
+    date: '2026-10-05',
+    title: 'Bulk Uploads read a CSV saved with semicolons',
+    changes: [
+      'BULK UPLOADS: a CSV that Excel saved with semicolons between the columns (it does this on a computer set to use a comma as the decimal mark) now loads. Before, the whole file read as one column and came back "Nothing loadable — every row is missing …", as if it were the wrong file.',
+      'Comma and tab files load exactly as before. A comma file whose text happens to contain semicolons is still read as a comma file.',
+    ],
+  },
+  {
+    version: '0.10.118',
+    date: '2026-10-05',
+    title: 'Stores Dispatch Report, and IND/IMP on the Part Master',
+    changes: [
+      'REPORTS → STORES DISPATCH REPORT: every spare dispatched, in the AppSheet Stores format — OR|Part, SO NO, Timestamp, TO and address, the quantities, Item Status, IND/IMP, and Dispatched in (Days) with its band (00-03D, 04-07D, 08-15D, 16-30D, 31-60D, >60D). Filter, pick extra columns, download Excel or CSV.',
+      'DAYS are counted exactly from the request\'s final approval (the latest of RM, Commercial and NSM) to the dispatch, to one decimal. A spare with no approval time recorded shows "No approval date" instead of AppSheet\'s ">5 yrs".',
+      'PART MASTER: a new IND/IMP field (Indigenous / Imported / TBD) on the add and edit forms, and an IND/IMP column in the Part Master bulk upload. It starts blank.',
+      'Open to Admin, Technical Support, Stores Incharge and Spare Coordinator, and to any role that holds Reports; others can be given it under Roles & Permissions.',
+    ],
+  },
+  {
+    version: '0.10.117',
+    date: '2026-10-05',
+    title: 'PM Bulk Upload reads the serial and engineer from the PM-to-DO sheet',
+    changes: [
+      'PM BULK UPLOAD now recognises the PM-to-DO sheet\'s own headings: “Product Serial Number” is the Serial and “Call Allocated To” is the Engineer — before, both were left blank on the call. “Complaint Reported” fills the reported problem.',
+    ],
+  },
+  {
+    version: '0.10.116',
+    date: '2026-10-05',
+    title: 'Hand Stock loads in one request and searches on the device',
+    changes: [
+      'HAND STOCK AND THE HAND STOCK REPORT READ THE WHOLE BALANCE IN ONE REQUEST. The balance is worked out from every movement, and that costs the same whether one page or everything is asked for -- so loading it a thousand lines at a time was the same full calculation once per page, and every search keystroke was one more (4.6-7.3 s each on the live project, 650 times in two weeks). One request now brings the whole register, so every count is exact, there is no Load more, and the search box filters what is already on the screen instantly. Who sees what is unchanged: the same row-level security applies.',
+      'If the device had kept a cut copy of the register (its cache keeps at most 1,500 lines), the screen says so with a + and reloads the whole balance rather than showing the cut copy as the register.',
+      'SQL only for the database half: 0384_handstock_balance_all.sql (HandStock_X.sql), applied by the migration workflow; _status.sql row 317 confirms it.',
+    ],
+  },
+  {
+    version: '0.10.115',
+    date: '2026-10-05',
+    title: 'Ownership Transfer: invoice shown, and a fresh warranty for the new owner',
+    changes: [
+      'RECORD A TRANSFER now shows the machine\'s INVOICE NO. and INVOICE DATE in its Sale Entry details.',
+      'A FRESH WARRANTY FOR THE NEW OWNER: tick "Give the new owner a fresh warranty", enter the Warranty Start Date (it starts at the transfer date) and the Period in months; the years and the End Date are worked out as on Warranty Entry. The Reference no. is then required.',
+      'The Product Database then shows that warranty for the machine: the Reference no. as its Warranty Number, the fresh start and end, and Item Status WGP while it runs. The original sale entry is not changed. A later sale of the machine takes the warranty back; saving the old sale again does not.',
+      'The transfers list has a Fresh warranty column showing each one\'s start and end.',
+    ],
+  },
+  {
+    version: '0.10.114',
+    date: '2026-10-05',
+    title: 'Indexing: eight indexes that cost every write and served nothing are gone; a probe for the rest',
+    changes: [
+      'EIGHT INDEXES DROPPED (0382). Each was a leading prefix of a wider index on the same table -- the wider one answers every lookup the narrow one could, so the narrow one only cost disk and a write on every insert and update. Products carried its machine key TWICE (products_machine_idx beside the unique key); Visit Reports carried ucn and call_number twice; the rest are on masters, documents, material_returns, handstock_opening and parts. Nothing reads differently; _status.sql row 315 confirms they are gone.',
+      'WHICH INDEXES EARN THEIR KEEP -- a read-only probe (supabase/apply/_which_indexes_earn_their_keep.sql). One grid: every index on the live project, biggest first, with its size, how many times it has been used since the statistics were reset (row 1 says when), and a verdict. The 33 trigram search indexes on the three call registers are the biggest on the project and are deliberately NOT touched until that grid says which are scanned.',
+    ],
+  },
+  {
+    version: '0.10.113',
+    date: '2026-10-05',
+    title: 'Product Database: ⇄ Transfer on each machine',
+    changes: [
+      'PRODUCT DATABASE rows now have a ⇄ TRANSFER button beside + Field and + Install. It opens Record a transfer on Ownership Transfer with that machine (model and serial) already picked and its current details, sale and warranty shown, so only the To party and the date are left to fill.',
+      'Only people who may record a transfer see it (the Ownership Transfer permission, which Roles & Permissions now also lists under Product Database).',
+    ],
+  },
+  {
+    version: '0.10.112',
+    date: '2026-10-05',
+    title: 'Bulk Uploads opens at once: row counts on request and after a load',
+    changes: [
+      'BULK UPLOADS NO LONGER COUNTS EVERY REGISTER WHEN IT OPENS. It was running 31 exact counts one after another on each open -- about a minute of database time, and on the live project those counts were among the heaviest reads of all (Customer Feedback ~7 s, Party Master ~5 s, each spare history ~3 s). A load now counts the one register it wrote to, so the number moves by what landed, and "Count every register" takes all of them when you want them. A count not yet taken shows nothing rather than an old number.',
+      'SOFTWARE VALIDATION: _status.sql row 314 confirms the search indexes (0052) are on the project -- the trigram indexes behind every type-to-search on products, parties and the call registers. If it reads NO, searches are scanning whole tables.',
+    ],
+  },
+  {
+    version: '0.10.111',
+    date: '2026-10-05',
+    title: 'Faster masters and feedback: the database stops re-checking every row and re-reading every feedback',
+    changes: [
+      'THE PRODUCT DATABASE, PARTY MASTER, PART MASTER AND VALUE LISTS LOAD FASTER. The read rule on those four tables asked "is this a signed-in user?" once for EVERY ROW -- 20,000 times on a page of machines. It is asked once per request now. Who may read them is unchanged. On a test database one page of machines went from about 150 ms to under 30 ms; the live project\'s pages were taking several seconds each.',
+      'CUSTOMER FEEDBACK IS FOUND BY CALL NUMBER, SERIAL AND DATE WITHOUT READING THE WHOLE TABLE. Opening a call\'s feedback read every feedback row every time (about 2.6 million blocks over a thousand opens, the single heaviest reader on the project). Three indexes serve the three lookups as the screens make them.',
+      'Both are SQL only (v0.10.111), applied by the migration workflow: 0381_master_reads_once_per_query.sql (rbac.sql) and 0381_feedback_lookup_indexes.sql (data_integrity.sql). _status.sql rows 312 and 313 confirm them.',
+    ],
+  },
+  {
+    version: '0.10.110',
+    date: '2026-10-05',
+    title: 'Product Database moves to Contracts & Warranty',
+    changes: [
+      'PRODUCT DATABASE is now in the CONTRACTS & WARRANTY menu, under Ownership Transfer, beside the three registers that fill it. It is no longer under Master. Who can open it is unchanged, and Roles & Permissions shows it under the same heading.',
+    ],
+  },
+  {
+    version: '0.10.109',
+    date: '2026-10-05',
+    title: 'Machine download is a snapshot; Party Master every 10 days; Contract Entry Date locked',
+    changes: [
+      'THE MACHINES KEPT ON YOUR DEVICE are now a plain SNAPSHOT of the Product Database as stored, not worked out again while they download. Working it out page by page is what stopped the download with "statement timeout". Each machine now carries the contract, item status and Service Engineer saved on it, plus the sale\'s Invoice No. and Date and the latest transfer\'s Ref and Date, which the download did not carry before. Every device downloads the machines once more by itself.',
+      'THE PARTY MASTER AND THE STANDARD COMPLAINTS are downloaded once in TEN DAYS instead of every six hours, because they change rarely. The Product Database and the Part Master still refresh every six hours. "Download again" and an edit made on this device still refresh at once.',
+      'CONTRACT ENTRY DATE shows today on a new contract and cannot be changed. It is stamped with the moment of saving, as the Sale Entry Date already was, and is never re-dated when the contract is edited later.',
+    ],
+  },
+  {
+    version: '0.10.108',
+    date: '2026-10-05',
+    title: 'Ownership Transfer: pick the machine and the new party',
+    changes: [
+      'RECORD A TRANSFER now starts by picking the MACHINE from the Product Database: type part of the serial and choose the line showing serial, model and current party. A serial shared by two models can no longer land on the wrong one.',
+      'Choosing it shows the machine\'s CURRENT DETAILS (party, address, city, state, Service Engineer), its SALE ENTRY (SA Number, Sold Through) and its WARRANTY (start date, end date, item status, contract number), as the Product Database has them. They are kept on the transfer as a record of what the machine carried when it changed hands.',
+      'TO PARTY is picked from the Party Master and shows that party\'s address, city, state, type and engineer. A party not on the Party Master has to be added there first.',
+    ],
+  },
+  {
+    version: '0.10.107',
+    date: '2026-10-05',
+    title: 'Contract: pick the customer\'s machines, price them, add them',
+    changes: [
+      'PARTY NAME on a contract is now picked from the Party Master kept on this device.',
+      '+ ADD MACHINE on a saved contract opens a list of every machine the Product Database shows with that customer — product, serial, code, SA Number and MC Number. Tick the ones the contract covers, type a Rate and Tax for each (tax is offered at 18% and can be changed), and press Add. Total After Tax is worked out as Rate + Tax.',
+      'A machine already on the contract is shown but cannot be added twice. "Add a machine that is not listed" still opens a blank card.',
+      'EACH MACHINE now reads, top to bottom: Product Details, Price, From the entry (what it follows from the contract), and History (SA Number and the earlier MC Number from the Product Database).',
+    ],
+  },
+  {
+    version: '0.10.106',
+    date: '2026-10-05',
+    title: 'Spare Requests: Download now for the Part Master on your device',
+    changes: [
+      'Beside “Part Master cached on this device” (under the Spare Requests title and beside Spares on a new request) there is now ⭳ Download now. It fetches a fresh copy of the parts list straight away instead of waiting for the six-hourly refresh, and every open picker uses it at once.',
+      'If the download fails (no signal), the copy already on the device is kept and the note says so.',
+    ],
+  },
+  {
+    version: '0.10.105',
+    date: '2026-10-05',
+    title: 'The Part Master is kept on every device, and shown in Device Cache Status',
+    changes: [
+      'The parts list the Spare Request and the visit\'s consumption pick from is now kept on the device and refreshed every six hours, like the machines, customers and Standard Complaints — so a part can be picked with no signal.',
+      'Device Cache Status shows how many parts each device holds and when they were stored; the note above the machine search shows it for your own device.',
+      'Editing the Part Master still reaches the pickers on that device straight away.',
+      'SPARE REQUESTS shows when the Part Master was cached on your device — under the page title, and beside Spares on a new request.',
+    ],
+  },
+  {
+    version: '0.10.104',
+    date: '2026-10-05',
+    title: 'The search box at the top finds warranties and contracts',
+    changes: [
+      'GLOBAL SEARCH now searches the Warranty Register (SA number, party, invoice number) and the Contract Register (MC number, party) — and finds an entry by the serial number or model of any machine on it. Click one and its register opens on that entry.',
+    ],
+  },
+  {
+    version: '0.10.103',
+    date: '2026-10-05',
+    title: 'Warranty Entry: required fields, and party details saved to the Party Master',
+    changes: [
+      'REQUIRED ON EVERY SALE: Party Name, Invoice No, Invoice Date, Warranty Start Date, Warranty Period (Months) and PM Visits. Save entry names every one left blank. Period in years and the End Date are worked out from the start and the months.',
+      'NEW ORDER: the sale first, then the warranty, then the party. The Party section (Type, Profile, Country, State, City, Address, Pincode, Tel 1, Tel 2, PAN, GST, Service Engineer) fills from the Party Master when you pick the Party Name. Country now fills too.',
+      'PARTY NAME IS LOCKED once the sale is saved.',
+      'PARTY DETAILS GO BACK TO THE PARTY MASTER: change any of them on the sale and Save entry updates the party as well; the message lists what was written. Only what you changed in that edit is written, so re-saving an old sale does not undo a correction made on the Party Master. This needs the right to edit parties — without it the sale still saves and the message says the Party Master was not updated.',
+      'A NEW CUSTOMER from the sale now needs Party Type, Profile, Country, State, City, Address, Pincode, GST and Service Engineer before it saves. These are the existing party fields — no new boxes.',
+      'Old imported sales missing an invoice number or date, or PM visits, must have them filled in before they can be saved again.',
+    ],
+  },
+  {
+    version: '0.10.102',
+    date: '2026-10-05',
+    title: 'Warranty sale: Service Engineer picked from the User Master',
+    changes: [
+      'SERVICE ENGINEER on a warranty sale, and on each of its machines, is now picked from the User Master\'s active people. Type to search, then choose. A name cannot be typed in.',
+      'If the record already names somebody who is not an active user (often the Party Master\'s Serviceman, filled in with the customer), the name is still shown, with a red note asking you to choose an engineer from the list.',
+    ],
+  },
+  {
+    version: '0.10.101',
+    date: '2026-10-05',
+    title: 'Warranty sale: add a new customer to the Party Master as you save',
+    changes: [
+      'NEW CUSTOMER, ONE STEP: type a Party Name the Party Master does not have, and the sale tells you it will be added. City and State become required, as they are on the Party Master. Save entry adds the party, which gets its Party Key, using the address, phones, PAN, GST, Type, Profile and Serviceman you typed, then saves the sale. The next sale for that customer fills in the same details.',
+      'If your role may not add parties, the sale is still saved, without adding the party, and the message says so.',
+    ],
+  },
+  {
+    version: '0.10.100',
+    date: '2026-10-05',
+    title: 'Pre-Delivery Quality Check numbers; an MRN import is a Defective Spare',
+    changes: [
+      'Every Pre-Delivery Quality Check now has a number, PDQC/26/0001, restarting each year. It is shown in the list, on the check and on the printed sheet; checks already recorded were numbered in the order they were saved.',
+    ],
+  },
+  {
+    version: '0.10.100',
+    date: '2026-10-05',
+    title: 'Spare Recycling: a spare imported from an MRN has the Source Defective Spare',
+    auditHidden: true,
+    changes: [
+      'A spare imported from an MRN is registered with the Source Defective Spare. The MRN No stays on the request and the engineer is written in its remarks.',
+      'Requests already imported from an MRN now read Defective Spare too.',
     ],
   },
   {
