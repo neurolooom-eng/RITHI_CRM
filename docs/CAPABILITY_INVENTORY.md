@@ -1620,6 +1620,7 @@ Purpose: Sale Entries (warranty) and Contract Entries with the machines under ea
 | 38 | Renew / Convert to Contract open in a third column | CoverRegister.tsx sidePanel; fieldcalls.css .cover-pop-body-3 | — | NAR-007.9, OQ-225 | |
 | 39 | Warranty Register tab: Installation call column (Pending / UCN / —) and INSTALL CALL PENDING tile with count, filtered on the server | cover.ts PENDING_INSTALL / machineFilter; CoverRegister.tsx | read policy | FRS-231, OQ-225 | |
 | 40 | Warranty Entries tab: Install calls pending per sale (filtered embedded count) and SALES WITH INSTALL CALLS PENDING tile with count, filtered on the server | cover.ts listHeaders / countPendingSales; CoverRegister.tsx | read policy | FRS-231.3 | |
+| 41 | A sale naming a party the Party Master lacks: notice, City and State required (shared PARTY_REQUIRED), and Save entry adds the party from the sale's fields (masters.parties.add) before saving; without the right it saves and says so | CoverRegister.tsx saveEntry / partyNotice; partyRules.ts; supabase.ts addParty | masters.parties.add; DB 0325 | FRS-256, OQ-253 | |
 
 ### Ownership Transfer (`/ownership-transfer`) — `src/modules/OwnershipTransfer.tsx`
 Purpose: Records a machine changing hands, and warranty/contract details recovered for machines whose sale paperwork was lost.

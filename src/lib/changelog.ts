@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.100',
+    date: '2026-10-05',
+    title: 'Warranty sale: add a new customer to the Party Master as you save',
+    changes: [
+      'NEW CUSTOMER, ONE STEP: type a Party Name the Party Master does not have, and the sale tells you it will be added. City and State become required, as they are on the Party Master. Save entry adds the party, which gets its Party Key, using the address, phones, PAN, GST, Type, Profile and Serviceman you typed, then saves the sale. The next sale for that customer fills in the same details.',
+      'If your role may not add parties, the sale is still saved, without adding the party, and the message says so.',
+    ],
+  },
+  {
     version: '0.10.99',
     date: '2026-10-05',
     title: 'Pre-Delivery Quality Check — a register of its own under Indoor Service',

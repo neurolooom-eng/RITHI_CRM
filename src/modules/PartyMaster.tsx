@@ -1,3 +1,4 @@
+import { partyMissing } from '../lib/partyRules';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useColumns } from '../components/ui/useColumns';
 import { useLocation } from 'react-router-dom';
@@ -214,9 +215,9 @@ export function PartyMaster() {
   // database's to give (0076), and a name already on the register is refused.
   const [adding, setAdding] = useState<Record<string, string> | null>(null);
   const [addTried, setAddTried] = useState(false);
-  const addMissing = (a: Record<string, string>) =>
-    ([['party_name', 'Party Name'], ['city', 'City'], ['state', 'State']] as const)
-      .filter(([k]) => !String(a[k] ?? '').trim()).map(([, l]) => l);
+  // The list is SHARED with the Warranty sale that adds a party on save
+  // (partyRules.ts), so the two cannot ask for different things.
+  const addMissing = (a: Record<string, string>) => partyMissing(a);
   const [addErr, setAddErr] = useState('');
   const saveAdd = async () => {
     if (!adding) return;

@@ -5790,6 +5790,30 @@ console.log('\n-- the cover registers open an entry in a pop-up --');
   }
 }
 
+console.log('\n-- a warranty sale adds a party the master has not got --');
+{
+  // The user, 2026-10-05: a new party is created from the sale on Save, with
+  // the Party Master's own required fields required here too.
+  const pr = await import('../src/lib/partyRules');
+  const { partyFillForSale } = await import('../src/lib/coverspec');
+  const sale = { party_name: 'X HOSP', city: 'Trichy', state: 'TN', address: 'A', pincode: '1', tel1: '2', tel2: '3',
+                 pan: 'P', gst: 'G', party_type: 'CUSTOMER', profile: 'PRIVATE', engineer: 'E' };
+  eq('the Party Master and the sale require the same three fields',
+    pr.PARTY_REQUIRED.map(([k]) => k), ['party_name', 'city', 'state']);
+  eq('...and a sale with no City or State is refused for both', pr.partyMissing(pr.partyFromSale({ ...sale, city: '', state: ' ' })), ['City', 'State']);
+  // THE ROUND TRIP: a party made from a sale fills the same sale back.
+  const back = partyFillForSale(pr.partyFromSale(sale) as never) as Record<string, unknown>;
+  eq('a party made from a sale fills that sale back unchanged',
+    Object.keys(back).filter((k) => String(back[k] ?? '') !== String((sale as Record<string, unknown>)[k] ?? '')), []);
+  eq('...and carries nothing that was left blank', Object.keys(pr.partyFromSale({ party_name: 'Y', city: 'C', state: 'S', pan: '' })), ['party_name', 'city', 'state']);
+  const pm = readFileSync('src/modules/PartyMaster.tsx', 'utf8');
+  eq('the Party Master reads the shared list', /const addMissing = \(a: Record<string, string>\) => partyMissing\(a\);/.test(pm), true);
+  const reg = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+  eq('a sale adds the party on Save, only with masters.parties.add',
+    /if \(can\('masters\.parties\.add'\)\) \{\s*const res = await addParty\(newParty/.test(reg), true);
+  eq('...and asks the master at save time, not the last lookup', /let info = null;\s*try \{ info = await sbPartyInfo\(partyName\);/.test(reg), true);
+}
+
 console.log('\n-- KYC: the status and its evidence, both on the row --');
 {
   const pm = readFileSync('src/modules/PartyMaster.tsx', 'utf8');
