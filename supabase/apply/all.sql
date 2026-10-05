@@ -308,7 +308,7 @@
 --   0331_install_solved_date_starts_warranty.sql
 --   0332_installation_warranty_starts.sql
 --   0351_dealer_guard_stands_aside_on_reload.sql
---   0382_transfer_fresh_warranty.sql
+--   0383_transfer_fresh_warranty.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -358,6 +358,7 @@
 --   0348_feedback_update_once_per_query.sql
 --   0381_feedback_lookup_indexes.sql
 --   0052_search_indexes.sql
+--   0382_redundant_indexes_dropped.sql
 --   0098_product_register_names.sql
 --   0099_no_jit.sql
 --   0101_kpi_views.sql
@@ -549,7 +550,8 @@ create table if not exists public.masters (
   value  text not null,
   extra  jsonb not null default '{}'
 );
-create index if not exists masters_name_idx on public.masters (name);
+-- masters_name_idx (name) was here; a leading prefix of masters_active_idx (name, active),
+-- which serves the same lookups. Removed 2026-10-05; 0382 drops it where it exists.
 
 -- ---------------------------------------------------------------------------
 -- calls — unified Field / Installation / PM register (call_type distinguishes).
@@ -896,7 +898,8 @@ alter table public.reports drop constraint if exists reports_ucn_key;
 -- 2) Add the visit UID and make it the natural key.
 alter table public.reports add column if not exists uid text;
 create unique index if not exists reports_uid_key on public.reports (uid) where uid is not null;
-create index if not exists reports_ucn_idx on public.reports (ucn);
+-- reports_ucn_idx (ucn) was here; a prefix of reports_ucn_entry_idx (ucn, updated_at desc, id desc).
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 -- 3) Clear the earlier de-duped load so the full visit history can be re-imported.
 truncate table public.reports;
@@ -13327,7 +13330,8 @@ begin
 end $$;
 
 create index if not exists parts_code_key_idx    on public.parts (code_key);
-create index if not exists products_machine_idx  on public.products (machine_key);
+-- products_machine_idx (machine_key) was here; the same column as products_machine_key_uniq (0081).
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 -- ------------------------------------------------------------------------
 -- 0129_product_serial_key.sql
@@ -14557,7 +14561,8 @@ alter table public.documents add column if not exists notes text not null defaul
 
 -- A call looks a manual up BY PRODUCT, every time a call is opened, so that
 -- lookup gets its own index rather than a scan of the shelf.
-create index if not exists documents_kind_idx     on public.documents (kind);
+-- documents_kind_idx (kind) was here; a prefix of documents_dated_idx (kind, dated desc).
+-- Removed 2026-10-05; 0382 drops it where it exists.
 create index if not exists documents_product_idx  on public.documents (lower(product));
 create index if not exists documents_active_idx   on public.documents (active);
 
@@ -25371,7 +25376,8 @@ grant select on public.field_call_review_summary to authenticated;
 -- ===========================================================================
 
 create index if not exists reports_visit_at_idx on public.reports (visit_at desc nulls last, id desc);
-create index if not exists reports_call_number_idx on public.reports (call_number);
+-- reports_call_number_idx (call_number) was here; a prefix of reports_call_number_entry_idx.
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 -- ------------------------------------------------------------------------
 -- 0071_report_source_ref.sql
@@ -30499,7 +30505,8 @@ create table if not exists public.material_returns (
   constraint material_returns_qty_positive check (coalesce(good_qty, 0) + coalesce(defective_qty, 0) > 0)
 );
 
-create index if not exists material_returns_uid_idx      on public.material_returns (uid);
+-- material_returns_uid_idx (uid) was here; a prefix of material_returns_uid_part_idx (0089).
+-- Removed 2026-10-05; 0382 drops it where it exists.
 create index if not exists material_returns_engineer_idx on public.material_returns (lower(btrim(engineer)));
 create index if not exists material_returns_date_idx     on public.material_returns (mrn_date desc nulls last);
 -- The import re-runs; one row per (submission, item) is the natural identity.
@@ -32359,7 +32366,8 @@ create table if not exists public.handstock_opening (
 -- wrong is how an opening balance silently doubles.
 create unique index if not exists handstock_opening_uniq
   on public.handstock_opening (engineer_key, part_code, source_key);
-create index if not exists handstock_opening_eng_idx on public.handstock_opening (engineer_key);
+-- handstock_opening_eng_idx (engineer_key) was here; a prefix of handstock_opening_uniq.
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 create or replace function public.handstock_opening_biu()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -32841,7 +32849,8 @@ begin
   end if;
 end $$;
 
-create index if not exists parts_item_detail_key_idx on public.parts (item_detail_key);
+-- parts_item_detail_key_idx (item_detail_key) was here; the same column as parts_item_detail_key_uniq.
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 -- ------------------------------------------------------------------------
 -- 0089_spare_imports_load.sql
@@ -40649,11 +40658,11 @@ end $$;
 revoke execute on function public.installation_call_not_for_dealer() from public, anon, authenticated;
 
 -- ------------------------------------------------------------------------
--- 0382_transfer_fresh_warranty.sql
+-- 0383_transfer_fresh_warranty.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0382 — A TRANSFER CAN GIVE THE NEW OWNER A FRESH WARRANTY
+-- 0383 — A TRANSFER CAN GIVE THE NEW OWNER A FRESH WARRANTY
 --
 -- The user, 2026-10-05: "Need to be able to Update the Warranty Start Date,
 -- Period, End Date, Same Logic as to Warranty Entry" -- "During Transfer, the
@@ -40794,7 +40803,7 @@ begin
    order by coalesce(x.transferred_at, x.created_at, x.transfer_date::timestamptz) desc nulls last, x.id desc
    limit 1;
 
-  -- A FRESH WARRANTY GIVEN ON A TRANSFER (0382, the user, 2026-10-05: "During
+  -- A FRESH WARRANTY GIVEN ON A TRANSFER (0383, the user, 2026-10-05: "During
   -- Transfer, the new Owner gets a Fresh warranty date"): the latest transfer
   -- of this machine that carries one. It decides the machine's warranty when
   -- it starts on or after the warranty the sale (or the installation) gives,
@@ -40887,7 +40896,7 @@ end $function$;
 revoke execute on function public.sync_product_machine(text, text) from public, anon, authenticated;
 
 comment on column public.ownership_transfers.warranty_start is
-  'A fresh warranty given to the new owner on this transfer (0382); blank keeps the machine''s warranty. Months entered; years and end worked out.';
+  'A fresh warranty given to the new owner on this transfer (0383); blank keeps the machine''s warranty. Months entered; years and end worked out.';
 
 -- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql
@@ -48699,6 +48708,55 @@ begin
     end if;
   end loop;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0382_redundant_indexes_dropped.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- EIGHT INDEXES THAT COST WRITES AND SPACE AND SERVE NO LOOKUP OF THEIR OWN
+-- (2026-10-05, the user: "I want efficient indexing, cost efficient").
+--
+-- Measured on a database built from every migration: 469 indexes in public,
+-- and these eight are each a LEADING PREFIX of a wider btree on the same table
+-- with the same predicate -- so every equality or range lookup they could
+-- serve, the wider index serves from its first column(s). What they cost is
+-- real: every INSERT and UPDATE on the table maintains them (a bulk load of
+-- 20,000 machines writes products_machine_idx AND products_machine_key_uniq,
+-- the same key twice), and they take their own disk and shared buffers.
+--
+--   masters_name_idx            (name)          <  masters_active_idx (name, active)
+--   reports_ucn_idx             (ucn)           <  reports_ucn_entry_idx (ucn, updated_at desc, id desc)
+--   reports_call_number_idx     (call_number)   <  reports_call_number_entry_idx (...)
+--   material_returns_uid_idx    (uid)           <  material_returns_uid_part_idx (uid, part_code(part), ...)
+--   documents_kind_idx          (kind)          <  documents_dated_idx (kind, dated desc)
+--   handstock_opening_eng_idx   (engineer_key)  <  handstock_opening_uniq (engineer_key, part_code, source_key)
+--   products_machine_idx        (machine_key)   =  products_machine_key_uniq (machine_key)
+--   parts_item_detail_key_idx   (item_detail_key) = parts_item_detail_key_uniq (item_detail_key)
+--
+-- None is unique and none is an upsert target (check:upserts asks the UNIQUE
+-- ones), so no ON CONFLICT changes. The eight `create index` lines are REMOVED
+-- from the migrations that wrote them (0001, 0002, 0010, 0039, 0070, 0074,
+-- 0079, 0082) as well as dropped here -- `if not exists` guards a NAME, and a
+-- bundle replay would otherwise put each one straight back. check:replay does
+-- not compare indexes, which is why both halves are needed; _status.sql row
+-- 315 asserts they are absent.
+--
+-- NOT TOUCHED, deliberately: the 33 trigram GIN indexes on the three call
+-- tables. They are the biggest indexes on the project and the global search
+-- ORs eleven columns through them -- whether a single search column could
+-- replace most of them is a decision for the LIVE sizes and scan counts, which
+-- only the project knows: run supabase/apply/_which_indexes_earn_their_keep.sql.
+-- ===========================================================================
+
+drop index if exists public.masters_name_idx;
+drop index if exists public.reports_ucn_idx;
+drop index if exists public.reports_call_number_idx;
+drop index if exists public.material_returns_uid_idx;
+drop index if exists public.documents_kind_idx;
+drop index if exists public.handstock_opening_eng_idx;
+drop index if exists public.products_machine_idx;
+drop index if exists public.parts_item_detail_key_idx;
 
 -- ------------------------------------------------------------------------
 -- 0098_product_register_names.sql

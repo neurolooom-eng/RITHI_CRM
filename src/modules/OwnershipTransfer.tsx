@@ -79,7 +79,7 @@ export function OwnershipTransfer() {
   const [machineRow, setMachineRow] = useState<TransferDetails | null>(null);
   const [machineErr, setMachineErr] = useState('');
   const [toInfo, setToInfo] = useState<PartyInfo | null>(null);
-  // A FRESH WARRANTY FOR THE NEW OWNER (0382, the user, 2026-10-05): optional,
+  // A FRESH WARRANTY FOR THE NEW OWNER (0383, the user, 2026-10-05): optional,
   // ticked per transfer; the start and months typed, the rest worked out.
   const [fresh, setFresh] = useState(false);
   const hits = useRef(new Map<string, MachineHit>());
@@ -337,7 +337,7 @@ export function OwnershipTransfer() {
                hint={fresh ? 'Becomes the machine\'s Warranty Number on the Product Database.' : "The customer's own paperwork for the hand-over."}>
               <input className="input" value={moveForm.reference_no ?? ''} onChange={(e) => setMoveForm({ ...moveForm, reference_no: e.target.value })} />
             </F>
-            {/* A FRESH WARRANTY FOR THE NEW OWNER (0382): optional, and worked out
+            {/* A FRESH WARRANTY FOR THE NEW OWNER (0383): optional, and worked out
                 as Warranty Entry does -- start and months typed, years and end
                 following. The machine wears it; the original sale is untouched. */}
             <label className="row" style={{ gap: 6, alignItems: 'center', margin: '8px 0 4px' }}>

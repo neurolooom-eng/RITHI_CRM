@@ -978,7 +978,7 @@ export function transferDetailsFromMachine(sheet: Record<string, unknown> | null
                ['Item Status', g('Item Status')], ['Contract Number', g('Contract Number')]],
   };
 }
-/** A FRESH WARRANTY ON A TRANSFER (0382), worked out as Warranty Entry does
+/** A FRESH WARRANTY ON A TRANSFER (0383), worked out as Warranty Entry does
  *  it: the period in MONTHS, the years and the end following -- the end by
  *  `addPeriod`, which the database's trigger reproduces day for day. Blank or
  *  non-positive months give no end, as on the sale. */

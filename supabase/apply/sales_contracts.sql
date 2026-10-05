@@ -49,7 +49,7 @@
 --   0331_install_solved_date_starts_warranty.sql
 --   0332_installation_warranty_starts.sql
 --   0351_dealer_guard_stands_aside_on_reload.sql
---   0382_transfer_fresh_warranty.sql
+--   0383_transfer_fresh_warranty.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -4662,11 +4662,11 @@ end $$;
 revoke execute on function public.installation_call_not_for_dealer() from public, anon, authenticated;
 
 -- ------------------------------------------------------------------------
--- 0382_transfer_fresh_warranty.sql
+-- 0383_transfer_fresh_warranty.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0382 — A TRANSFER CAN GIVE THE NEW OWNER A FRESH WARRANTY
+-- 0383 — A TRANSFER CAN GIVE THE NEW OWNER A FRESH WARRANTY
 --
 -- The user, 2026-10-05: "Need to be able to Update the Warranty Start Date,
 -- Period, End Date, Same Logic as to Warranty Entry" -- "During Transfer, the
@@ -4807,7 +4807,7 @@ begin
    order by coalesce(x.transferred_at, x.created_at, x.transfer_date::timestamptz) desc nulls last, x.id desc
    limit 1;
 
-  -- A FRESH WARRANTY GIVEN ON A TRANSFER (0382, the user, 2026-10-05: "During
+  -- A FRESH WARRANTY GIVEN ON A TRANSFER (0383, the user, 2026-10-05: "During
   -- Transfer, the new Owner gets a Fresh warranty date"): the latest transfer
   -- of this machine that carries one. It decides the machine's warranty when
   -- it starts on or after the warranty the sale (or the installation) gives,
@@ -4900,6 +4900,6 @@ end $function$;
 revoke execute on function public.sync_product_machine(text, text) from public, anon, authenticated;
 
 comment on column public.ownership_transfers.warranty_start is
-  'A fresh warranty given to the new owner on this transfer (0382); blank keeps the machine''s warranty. Months entered; years and end worked out.';
+  'A fresh warranty given to the new owner on this transfer (0383); blank keeps the machine''s warranty. Months entered; years and end worked out.';
 
 commit;

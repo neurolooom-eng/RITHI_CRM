@@ -657,7 +657,11 @@ const MODULES = {
             '"canceling statement due to statement timeout" on Search. Runs last so',
             'every table it indexes already exists; skips the calls view / absent columns.'],
     needs: [],
-    files: ['0052_search_indexes.sql', '0098_product_register_names.sql', '0099_no_jit.sql', '0101_kpi_views.sql',
+    files: ['0052_search_indexes.sql',
+            // Eight prefix-redundant btrees dropped (0382); their creators no
+            // longer write them, so no replay puts them back.
+            '0382_redundant_indexes_dropped.sql',
+            '0098_product_register_names.sql', '0099_no_jit.sql', '0101_kpi_views.sql',
       // The KPI workbook's Field_INST tab. LAST in this module: it reads the
       // split call tables and `reports`, both of which earlier modules create.
       '0128_kpi_field_inst.sql',
@@ -1134,7 +1138,7 @@ const MODULES = {
             '0351_dealer_guard_stands_aside_on_reload.sql',
             // A transfer can give the new owner a fresh warranty, worn by the
             // machine (the user, 2026-10-05); redefines 0331's sync_product_machine.
-            '0382_transfer_fresh_warranty.sql'],
+            '0383_transfer_fresh_warranty.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

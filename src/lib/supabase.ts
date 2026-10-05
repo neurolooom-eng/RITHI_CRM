@@ -4884,7 +4884,7 @@ export interface OwnershipTransfer {
   /** The dealer the machine came from: the From party when the Party Master
    *  types it DEALER, stamped by the database (0328); blank otherwise. */
   sold_through?: string;
-  /** A FRESH WARRANTY given to the new owner (0382): start and months typed,
+  /** A FRESH WARRANTY given to the new owner (0383): start and months typed,
    *  years and end worked out by the database. Blank on most transfers. */
   warranty_start?: string | null; warranty_months?: number | null;
   warranty_years?: number | null; warranty_end?: string | null;

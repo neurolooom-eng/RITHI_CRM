@@ -2068,7 +2068,14 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regclass('public.field_calls_ucn_trgm') is not null
      and to_regclass('public.installation_calls_serial_trgm') is not null
      and to_regclass('public.pm_calls_party_name_trgm') is not null)),
-    (315, 'A transfer can give the new owner a fresh warranty, which the machine wears', 'ownership_transfers carries warranty_start / warranty_months / warranty_years / warranty_end; ownership_transfer_warranty works out the years and the end and needs the period and the Reference no.; sync_product_machine() gives the machine that warranty, numbered with the transfer''s Reference no., when it starts on or after the sale''s (0382). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0382)',
+    (315, 'No index duplicates a wider one', 'The eight prefix-redundant btrees (masters_name_idx, reports_ucn_idx, reports_call_number_idx, material_returns_uid_idx, documents_kind_idx, handstock_opening_eng_idx, products_machine_idx, parts_item_detail_key_idx) are gone and their wider twins remain (0382). Each cost every write to its table and served no lookup the wider index does not. NO means performance.sql has not been re-run since, OR an older bundle re-created one -- check which name is back. Restore: performance.sql (0382)',
+        (to_regclass('public.masters_name_idx') is null and to_regclass('public.reports_ucn_idx') is null
+     and to_regclass('public.reports_call_number_idx') is null and to_regclass('public.material_returns_uid_idx') is null
+     and to_regclass('public.documents_kind_idx') is null and to_regclass('public.handstock_opening_eng_idx') is null
+     and to_regclass('public.products_machine_idx') is null and to_regclass('public.parts_item_detail_key_idx') is null
+     and to_regclass('public.masters_active_idx') is not null and to_regclass('public.reports_ucn_entry_idx') is not null
+     and to_regclass('public.products_machine_key_uniq') is not null and to_regclass('public.parts_item_detail_key_uniq') is not null)),
+    (316, 'A transfer can give the new owner a fresh warranty, which the machine wears', 'ownership_transfers carries warranty_start / warranty_months / warranty_years / warranty_end; ownership_transfer_warranty works out the years and the end and needs the period and the Reference no.; sync_product_machine() gives the machine that warranty, numbered with the transfer''s Reference no., when it starts on or after the sale''s (0383). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0383)',
         (exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'ownership_transfers' and column_name = 'warranty_end')
      and exists (select 1 from pg_trigger where tgname = 'ownership_transfer_warranty' and not tgisinternal)

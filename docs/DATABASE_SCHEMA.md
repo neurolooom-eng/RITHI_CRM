@@ -1187,8 +1187,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `handstock_adjustments_reason` — `CHECK ((btrim(reason) <> ''::text))`
 - `handstock_adjustments_qty_nonzero` — `CHECK ((qty <> (0)::numeric))`
+- `handstock_adjustments_reason` — `CHECK ((btrim(reason) <> ''::text))`
 
 **Triggers:** `handstock_adjustments_bi` → `handstock_adjustments_bi()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -2310,7 +2310,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 20 | `sys_updated_by` | uuid | yes |  |  |
 | 21 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 | 22 | `sold_through` | text | **no** | `''::text` |  |
-| 23 | `warranty_start` | date | yes |  | A fresh warranty given to the new owner on this transfer (0382); blank keeps the machine's warranty. Months entered; years and end worked out. |
+| 23 | `warranty_start` | date | yes |  | A fresh warranty given to the new owner on this transfer (0383); blank keeps the machine's warranty. Months entered; years and end worked out. |
 | 24 | `warranty_months` | numeric | yes |  |  |
 | 25 | `warranty_years` | numeric | yes |  |  |
 | 26 | `warranty_end` | date | yes |  |  |
@@ -3469,8 +3469,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
 - `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
+- `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
 
 **Triggers:** `recycle_requests_guard` → `recycle_requests_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 

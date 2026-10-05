@@ -129,7 +129,8 @@ create table if not exists public.masters (
   value  text not null,
   extra  jsonb not null default '{}'
 );
-create index if not exists masters_name_idx on public.masters (name);
+-- masters_name_idx (name) was here; a leading prefix of masters_active_idx (name, active),
+-- which serves the same lookups. Removed 2026-10-05; 0382 drops it where it exists.
 
 -- ---------------------------------------------------------------------------
 -- calls — unified Field / Installation / PM register (call_type distinguishes).
