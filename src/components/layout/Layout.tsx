@@ -120,6 +120,9 @@ export const NAV: NavGroup[] = [
       { to: '/warranties', label: 'Warranty Register', icon: '🛡️' },
       { to: '/contracts', label: 'Contract Register', icon: '📋' },
       { to: '/ownership-transfer', label: 'Ownership Transfer', icon: '🔁' },
+      // MOVED FROM MASTER (the user, 2026-10-05: "Move Product Database to
+      // Contracts & Warranty"): the three registers above are what fill it.
+      { to: '/product-database', label: 'Product Database', icon: '🩺' },
     ],
   },
   {
@@ -265,7 +268,6 @@ export const NAV: NavGroup[] = [
     title: 'Master',
     items: [
       { to: '/parties', label: 'Party Master', icon: '🏥' },
-      { to: '/product-database', label: 'Product Database', icon: '🩺' },
       // 2.0 — the same machines derived from the registers rather than stored.
       { to: '/product-database-2', label: 'Product Database 2.0', icon: '🧬' },
       // THE CATALOGUE, beside the register of machines it describes. One row

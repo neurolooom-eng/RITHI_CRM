@@ -712,6 +712,8 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/warranties', label: 'Warranty Register', actions: ['masters.view', 'cover.edit', 'cover.edit.entries', 'cover.edit.delete', 'calls.create', 'install.create', 'masters.parties.add', 'masters.parties.edit'] },
     { path: '/contracts', label: 'Contract Register', actions: ['masters.view', 'contract.edit', 'contract.edit.entries', 'contract.edit.delete', 'calls.create'] },
     { path: '/ownership-transfer', label: 'Ownership Transfer', actions: ['ownership.transfer', 'cover.edit.entries', 'install.create'] },
+    // Moved from Master with the menu entry (2026-10-05); same key, so no grant changes.
+    { path: '/product-database', label: 'Product Database', actions: ['calls.create', 'install.create'] },
   ] },
   // KNOWLEDGE BASE, WHICH THE MATRIX DID NOT HAVE AT ALL until 2026-09-14.
   // Service Manuals sat under Documents here while the MENU put it under
@@ -787,7 +789,6 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.edit', 'masters.edit.records', 'masters.parties.add', 'masters.parties.edit', 'masters.parties.delete', 'masters.edit.kyc', 'masters.edit.swap_serviceman'] },
-    { path: '/product-database', label: 'Product Database', actions: ['calls.create', 'install.create'] },
     { path: '/product-database-2', label: 'Product Database 2.0', actions: ['masters.view', 'pd2.rebuild'] },
     { path: '/product-master', label: 'Product Master (product lines)', actions: ['masters.edit', 'masters.edit.records', 'masters.product_master.add', 'masters.product_master.edit', 'masters.product_master.delete'] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage', 'users.manage.details', 'users.manage.create', 'users.manage.disable', 'users.manage.access', 'users.reset_password'] },
