@@ -20,7 +20,7 @@ export function PageHeader({
   status,
 }: {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   actions?: ReactNode;
   icon?: ReactNode;
   // How many records this screen is showing. Renders a badge next to the title

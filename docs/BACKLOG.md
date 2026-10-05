@@ -78,6 +78,24 @@ up)_
 
 ---
 
+## 2026-10-05 — Part Master on every device + in Device Cache Status (0380, v0.10.105)
+
+- The user: "Cache Part Master along with Other Cached Registers. And include
+  it in Device Cache Status".
+- `spareProducts` and `productAccessories` join `REFRESH_EVERY` (six hours) and
+  are warmed with the complaints on start, on coming back online and every 15
+  minutes; the Part Master screen still clears the device's copy on reload.
+- 0380: `device_cache_status.parts / parts_at`, `device_cache_report()`
+  rebuilt with them last; the device reports them; Device Cache Status and the
+  machine-register note show them. FRS-092.6, `_status.sql` row 311.
+- **Spare Requests "canceling statement due to lock timeout" (same day)**: not
+  a code fault. The read-only probe `_who_holds_locks.sql` (run through the
+  workflow's probe mode) caught a `postgres` session running `alter table
+  public.app_super_admins enable row level security` (0008 -- a hand-run
+  bundle) queued behind three 16-20 s offline downloads of product_database;
+  every read touching that table queued behind the ALTER and hit the
+  `authenticator` role's `lock_timeout=8s`. A minute later nothing was blocked.
+
 ## 2026-10-05 — PDQC numbers (0378); MRN import's Source is Defective Spare (0379), v0.10.100
 
 - The user's answers: a number for each check — "Yes"; a field-by-field

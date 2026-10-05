@@ -31,6 +31,7 @@ import {
 import { useAuth } from '../lib/auth';
 import { useAccessScope, allowsAllottee, useTeamEngineers, useRegionByEngineer } from '../lib/access';
 import { useSpareParts } from '../lib/useSpareParts';
+import { PartsCacheNote } from '../components/machine/PartsCacheNote';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
@@ -286,7 +287,7 @@ export function SpareRequestDrawer({
 
         <section className="rep-sec">
           <div className="rep-sec-title">
-            Spares <span className="muted">{spareMaster.ready ? `(${spareMaster.values.length} parts)` : '(loading parts…)'} · {spares.length}/{MAX_SPARES}</span>
+            Spares <span className="muted">{spareMaster.ready ? `(${spareMaster.values.length} parts)` : '(loading parts…)'} · {spares.length}/{MAX_SPARES} · </span><PartsCacheNote compact />
           </div>
           {callProduct && (
             <div className="muted" style={{ fontSize: 12.5, margin: '0 0 6px', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -975,7 +976,7 @@ export function SpareRequests() {
         refreshing={busy}
         syncedAt={lastSync}
         title="Spare Requests"
-        subtitle="Raise, approve, dispatch and acknowledge spare requests against calls."
+        subtitle={<>Raise, approve, dispatch and acknowledge spare requests against calls. <PartsCacheNote /></>}
         icon="📦"
         count={visible.length}
         countMore={partial}

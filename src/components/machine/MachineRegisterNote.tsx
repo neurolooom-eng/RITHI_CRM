@@ -40,8 +40,10 @@ export function MachineRegisterNote() {
   // product). Read from the dropdown cache, and re-read whenever a list is
   // stored, so the line follows a refresh without a reload.
   const [complaints, setComplaints] = useState(() => storedListInfo('complaintProducts'));
+  // The Part Master the spare pickers read (2026-10-05), the same way.
+  const [parts, setParts] = useState(() => storedListInfo('spareProducts'));
   useEffect(() => {
-    const read = () => setComplaints(storedListInfo('complaintProducts'));
+    const read = () => { setComplaints(storedListInfo('complaintProducts')); setParts(storedListInfo('spareProducts')); };
     window.addEventListener(MASTER_STORED_EVENT, read);
     return () => window.removeEventListener(MASTER_STORED_EVENT, read);
   }, []);
@@ -55,7 +57,10 @@ export function MachineRegisterNote() {
         {describe('machines', m, admin)} {describe('customers', p, admin)}{' '}
         {complaints
           ? `${complaints.count.toLocaleString()} standard complaints on this device, stored ${timeAgo(new Date(complaints.at).toISOString())} (${formatDayTime(new Date(complaints.at).toISOString())}).`
-          : 'Standard complaints not on this device yet.'}
+          : 'Standard complaints not on this device yet.'}{' '}
+        {parts
+          ? `${parts.count.toLocaleString()} parts on this device, stored ${timeAgo(new Date(parts.at).toISOString())} (${formatDayTime(new Date(parts.at).toISOString())}).`
+          : 'Parts not on this device yet.'}
       </span>
       {!m.downloading && !p.downloading && (
         <button className="btn btn-ghost btn-sm" onClick={() => void refreshMachineRegister({ force: true })}>

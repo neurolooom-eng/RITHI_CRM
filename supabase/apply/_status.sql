@@ -2045,7 +2045,13 @@ with checks(sort_order, bundle, provides, present) as (
     (310, 'Pre-Delivery Quality Check: every check numbered PDQC/YY/NNNN', 'Asked for 2026-10-05. pdqc_records.pdqc_no (0378), NOT NULL and unique, given by zy_pdqc_number on insert and kept on every update. NO means indoor.sql has not been re-run since. Restore: indoor.sql (0378)',
         (coalesce((select a.attnotnull from pg_attribute a where a.attrelid = to_regclass('public.pdqc_records') and a.attname = 'pdqc_no'), false)
      and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.pdqc_records') and tgname = 'zy_pdqc_number')
-     and to_regclass('public.pdqc_records_pdqc_no') is not null))
+     and to_regclass('public.pdqc_records_pdqc_no') is not null)),
+    (311, 'Devices report their Part Master too', 'device_cache_status.parts / parts_at, and device_cache_report() returning them (0380). Since v0.10.105 every device keeps the Part Master the spare pickers read for six hours and says how many parts it holds and when they were stored. NO means device_cache.sql has not been re-run since. Restore: device_cache.sql (0380)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'device_cache_status' and column_name = 'parts_at')
+         and exists (select 1 from pg_proc p
+                      where p.oid = to_regprocedure('public.device_cache_report()')
+                        and pg_get_function_result(p.oid) like '%parts_at%')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

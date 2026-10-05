@@ -39,6 +39,12 @@ export const REFRESH_EVERY: Record<string, number> = {
   // related to Call Request, make this offline"). Edited rarely, and an edit on
   // the Standard Complaint screen clears this device's copy at once.
   complaintProducts: 6 * HOUR,
+  // THE PART MASTER the spare pickers read, with each part's products, and the
+  // accessories of each product (the user, 2026-10-05: "Cache Part Master
+  // along with Other Cached Registers"). The Part Master screen clears this
+  // device's copy whenever it reloads, so an edit there reaches the pickers.
+  spareProducts: 6 * HOUR,
+  productAccessories: 6 * HOUR,
 };
 
 /** True when the stored copy is young enough to use without asking the server. */

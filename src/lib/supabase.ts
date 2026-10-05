@@ -6771,6 +6771,7 @@ export interface DeviceCacheReport {
   machines: number; machines_at: string | null; machines_error: string;
   customers: number; customers_at: string | null; customers_error: string;
   complaints?: number; complaints_at?: string | null;
+  parts?: number; parts_at?: string | null;
 }
 /** Never throws: a report that cannot be sent is simply sent next time.
  *  A project that has not run 0253 has no complaints columns, so a refusal
@@ -6780,8 +6781,13 @@ export async function sbReportDeviceCache(r: DeviceCacheReport): Promise<boolean
   try {
     const { error } = await c.from('device_cache_status').upsert(r, { onConflict: 'user_id,device_id' });
     if (!error) return true;
-    if (!/complaints/i.test(errMsg(error))) return false;
-    const { complaints: _c, complaints_at: _a, ...rest } = r;
+    // A project short of 0253 or 0380: drop what it lacks and send the rest.
+    if (!/complaints|parts/i.test(errMsg(error))) return false;
+    const { parts: _p, parts_at: _pa, ...noParts } = r;
+    void _p; void _pa;
+    const second = await c.from('device_cache_status').upsert(noParts, { onConflict: 'user_id,device_id' });
+    if (!second.error) return true;
+    const { complaints: _c, complaints_at: _a, ...rest } = noParts;
     void _c; void _a;
     const again = await c.from('device_cache_status').upsert(rest, { onConflict: 'user_id,device_id' });
     return !again.error;
@@ -6796,6 +6802,7 @@ export interface DeviceCacheRow {
   customers: number | null; customers_at: string | null; customers_error: string | null;
   first_reported_at: string | null; reported_at: string | null;
   complaints?: number | null; complaints_at?: string | null;
+  parts?: number | null; parts_at?: string | null;
 }
 /** Every person, and every device each has reported from -- a person with no
  *  device reported comes back ONCE with the device fields null. */
