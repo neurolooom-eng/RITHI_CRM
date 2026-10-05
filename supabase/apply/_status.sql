@@ -2080,7 +2080,13 @@ with checks(sort_order, bundle, provides, present) as (
                   where table_schema = 'public' and table_name = 'ownership_transfers' and column_name = 'warranty_end')
      and exists (select 1 from pg_trigger where tgname = 'ownership_transfer_warranty' and not tgisinternal)
      and coalesce((select p.prosrc like '%use_ft%' from pg_proc p
-                    where p.oid = to_regprocedure('public.sync_product_machine(text,text)')), false)))
+                    where p.oid = to_regprocedure('public.sync_product_machine(text,text)')), false))),
+    (317, 'Hand Stock: the whole balance in one request', 'handstock_balance_all() (0384) returns the balance as one jsonb array, SECURITY INVOKER (the reader''s own row-level security bounds it, as the view) with work_mem raised for the call, and the public key cannot run it. The Hand Stock and Hand Stock Report screens read it once per load instead of once per page and once per search keystroke. NO means HandStock_X.sql has not been re-run since, or the function was re-created as definer. Restore: HandStock_X.sql (0384)',
+        (to_regprocedure('public.handstock_balance_all()') is not null
+     and not coalesce((select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.handstock_balance_all()')), true)
+     and coalesce((select 'work_mem=64MB' = any(p.proconfig) from pg_proc p where p.oid = to_regprocedure('public.handstock_balance_all()')), false)
+     and not coalesce(has_function_privilege('anon', 'public.handstock_balance_all()', 'EXECUTE'), true)
+     and coalesce(has_function_privilege('authenticated', 'public.handstock_balance_all()', 'EXECUTE'), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

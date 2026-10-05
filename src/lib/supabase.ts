@@ -4398,6 +4398,17 @@ export async function listHandstockBalance(
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
+// THE WHOLE BALANCE IN ONE REQUEST (0384). The view costs the same for one
+// page as for everything, so the paged read above was k full aggregates per
+// load and one more per search keystroke -- 4.6-7.3 s each on the live
+// project. The function returns one jsonb array, which PostgREST's 1,000-row
+// cap does not apply to, and it is security invoker: the reader's own RLS
+// bounds it exactly as the view. The screens search what they hold.
+export async function listHandstockBalanceAll(): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().rpc('handstock_balance_all');
+  if (error) throw new Error(errMsg(error));
+  return Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+}
 // One engineer's stock, for the pickers that may only offer what is in hand
 // (the report form's consumption list, the transfer form).
 /** A HAND STOCK ADJUSTMENT (0266): + adds to the engineer's stock, - removes;
