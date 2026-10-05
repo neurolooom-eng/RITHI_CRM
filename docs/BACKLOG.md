@@ -78,6 +78,32 @@ up)_
 
 ---
 
+## 2026-10-05 — Bulk Uploads: counts on request (v0.10.112); search-index status row 314
+
+- **0381 is LIVE**: `0381_feedback_lookup_indexes.sql` applied on the first
+  run; `0381_master_reads_once_per_query.sql` deadlocked once (it locked
+  `parties` then `products`, against a `product_database` reader holding
+  products and waiting for parties), timed out once, and applied on run
+  37301086213 after #568 reordered it to the readers' order. **A policy drop
+  takes ACCESS EXCLUSIVE; lock the tables in the order the views join them.**
+- **Bulk Uploads** ran 31 exact counts, sequentially, on every open — in the
+  statement export those were `feedback` ~7 s, `parties` ~5 s, each spare
+  history ~3 s. A load now counts its own register; "Count every register"
+  takes all of them on request (FRS-196.4 updated).
+- **`_status.sql` row 314** checks the 0052 trigram indexes exist on the live
+  project. Nothing in the repository can tell whether pg_trgm was enabled
+  there before performance.sql ran; the row is how to ask.
+- **Hand Stock is the next cost and is NOT changed here** — one page of
+  `handstock_balance` costs the same as the whole aggregate (measured locally:
+  ~1.2 s either way on 300k movements; 4.6–7.3 s per page on the live
+  project), and the screen takes k pages plus one full aggregate per search
+  keystroke. One jsonb RPC returning the whole balance (security invoker, so
+  the RLS stays; `set work_mem = '64MB'` takes the aggregate in-memory, ~28%
+  faster locally) with the search on the device would make it one aggregate
+  per load — but it replaces the paging and the database search that
+  FRS-159.6 / FRS-160 / several check:ui rules pin, so it is proposed, not
+  done.
+
 ## 2026-10-05 — Root cause from pg_stat_statements: master reads paid per row, feedback with no lookup index (0381, v0.10.110)
 
 The user exported the project's heaviest statements ("Supabase - RootCause").

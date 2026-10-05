@@ -2059,7 +2059,15 @@ with checks(sort_order, bundle, provides, present) as (
     (313, 'Feedback found by call number, serial and date without reading the whole table', 'feedback_call_number_created_idx, feedback_serial_idx and feedback_created_id_idx (0381). NO means data_integrity.sql has not been re-run since. Restore: data_integrity.sql (0381)',
         (to_regclass('public.feedback_call_number_created_idx') is not null
      and to_regclass('public.feedback_serial_idx') is not null
-     and to_regclass('public.feedback_created_id_idx') is not null))
+     and to_regclass('public.feedback_created_id_idx') is not null)),
+    (314, 'Search is index-backed: the trigram indexes behind every substring search', 'pg_trgm GIN indexes on products (serial_number, item_name, party_name), parties (party_name) and the three call tables (ucn, call_number, party_name, serial, product_name) -- 0052, which creates them only where pg_trgm is installed. Without them every type-to-search is a scan of the whole table and the big ones time out. NO means pg_trgm is not enabled (Dashboard -> Database -> Extensions) or performance.sql has not been run since it was. Restore: performance.sql (0052)',
+        (to_regclass('public.products_serial_number_trgm') is not null
+     and to_regclass('public.products_item_name_trgm') is not null
+     and to_regclass('public.products_party_name_trgm') is not null
+     and to_regclass('public.parties_party_name_trgm') is not null
+     and to_regclass('public.field_calls_ucn_trgm') is not null
+     and to_regclass('public.installation_calls_serial_trgm') is not null
+     and to_regclass('public.pm_calls_party_name_trgm') is not null))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
