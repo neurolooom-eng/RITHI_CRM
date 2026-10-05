@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.107',
+    date: '2026-10-05',
+    title: 'Contract: pick the customer\'s machines, price them, add them',
+    changes: [
+      'PARTY NAME on a contract is now picked from the Party Master kept on this device.',
+      '+ ADD MACHINE on a saved contract opens a list of every machine the Product Database shows with that customer — product, serial, code, SA Number and MC Number. Tick the ones the contract covers, type a Rate and Tax for each (tax is offered at 18% and can be changed), and press Add. Total After Tax is worked out as Rate + Tax.',
+      'A machine already on the contract is shown but cannot be added twice. "Add a machine that is not listed" still opens a blank card.',
+      'EACH MACHINE now reads, top to bottom: Product Details, Price, From the entry (what it follows from the contract), and History (SA Number and the earlier MC Number from the Product Database).',
+    ],
+  },
+  {
     version: '0.10.106',
     date: '2026-10-05',
     title: 'Spare Requests: Download now for the Part Master on your device',

@@ -5689,8 +5689,38 @@ console.log('\n-- the Product Database and the Product Master are two registers 
   // 2026-10-02 -- so the test is for the PRODUCT-LINE lists, not any list.)
   eq('...and a contract may still name a retired one',
     /optionsFrom: 'sellable-/.test(contractBlock), false);
-  eq("a contract's party is picked from the Product Database",
-    /name: 'party_name'[^}]*optionsFrom: 'product-party'/.test(contractBlock), true);
+  // ...from the PARTY MASTER on the device since 2026-10-05 ("Party Cache has
+  // to be used in Contract Entry"); its machines come from the Product
+  // Database under Add machine.
+  eq("a contract's party is picked from the Party Master (the device copy first)",
+    /name: 'party_name'[^}]*optionsFrom: 'party' \}/.test(contractBlock), true);
+  {
+    // ADD MACHINE PICKS FROM THE CUSTOMER'S MACHINES (the user, 2026-10-05).
+    const cs = await import('../src/lib/coverspec');
+    const sheet = { 'Item Code': 'C1', 'Item Name': 'MONNAL T60', 'Item Serial Number': ' 3771 ', 'Item Status': 'OGP',
+                    'Warranty Number': 'SA100', 'Warranty End Date': '2024-03-31', 'Contract Number': 'MC7000', 'Contract End Date': '2025-08-20T00:00:00' };
+    const line = cs.contractItemFromMachine(sheet, '1000', '180');
+    eq('a picked machine carries the code, name and serial of the Product Database',
+      [line.product_code, line.product_name, line.serial_number], ['C1', 'MONNAL T60', '3771']);
+    eq('...the total is the rate plus the tax', [line.rate, line.item_tax_amount, line.total_after_tax], [1000, 180, 1180]);
+    eq('...and its history is the SA and MC the Product Database shows, dates as days',
+      [line.sa_number, line.sa_end_date, line.last_contract_number, line.last_contract_end], ['SA100', '2024-03-31', 'MC7000', '2025-08-20']);
+    eq('a blank rate is priced later -- no 0, no invented tax',
+      [cs.contractItemFromMachine(sheet, '', '').rate, cs.contractItemFromMachine(sheet, '', '').total_after_tax], [null, null]);
+    eq('...a blank tax counts as nothing', cs.contractItemFromMachine(sheet, '500', '').total_after_tax, 500);
+    eq('a machine already on the contract is recognised by model and serial',
+      cs.contractLineKey({ product_name: 'Monnal T60', serial_number: '3771' }), cs.pickableMachine(sheet).key);
+    const ci = (await import('../src/lib/cover')).CONTRACT.itemFields;
+    eq('a contract machine reads Product Details, Price, From the entry, History',
+      [...new Set(ci.map((f) => f.section))], ['Product Details', 'Price', 'From the entry', 'History']);
+    eq('...every inherited field is in From the entry', ci.filter((f) => f.inherits && f.section !== 'From the entry').map((f) => f.name), []);
+    eq('...and Total After Tax is worked out, not typed', !!ci.find((f) => f.name === 'total_after_tax')?.derived, true);
+    const regSrc = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+    eq('Add machine on a contract opens the picker over sbListPartyItems (device copy first)',
+      /kind === 'contract' \? \(\) => \{ setRenewing\(false\); setPicking\(true\); \}/.test(regSrc)
+      && /sbListPartyItems\(party\)/.test(regSrc), true);
+    eq('...and a machine already on the contract cannot be ticked again', /disabled=\{already\}/.test(regSrc), true);
+  }
   // The user, 2026-10-02: start defaults to today; months, Payment Schedule,
   // Bill Generate At and PM Visits (Total) are required; years and end are
   // worked out, never typed.
@@ -5771,8 +5801,8 @@ console.log('\n-- the cover registers open an entry in a pop-up --');
     /@media \(max-width: 900px\)[\s\S]{0,200}\.cover-pop-body, \.cover-pop-body\.cover-pop-body-3 \{ display: block/.test(css), true);
   // RENEW / CONVERT OPEN A THIRD COLUMN (the user, 2026-10-02), not a panel
   // pushed into the details column.
-  eq('Renew and Convert open in a third column',
-    /const sidePanel = renewPanel \?\? convertPanel;[\s\S]{0,3000}cover-pop-col-side/.test(reg2), true);
+  eq('Renew, Convert and the contract machine picker open in a third column',
+    /const sidePanel = renewPanel \?\? convertPanel \?\? pickPanel;[\s\S]{0,3000}cover-pop-col-side/.test(reg2), true);
   // A REGISTER LINE OPENS ITS ENTRY, with that machine marked (2026-10-02).
   eq('a Register line opens its entry', /onRowClick=\{\(r\) => void openFromRegister\(r\)\}/.test(reg2), true);
   eq('...with the clicked machine focused', /focus=\{focusId !== null && Number\(it\.id\) === focusId\}/.test(reg2), true);

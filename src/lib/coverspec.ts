@@ -882,3 +882,60 @@ export function installCallFromTransfer(t: TransferForCall, party: PartyForCall 
   return { ...base, callNumber: transferCallNumber(t.item_name, t.serial_number), complaintDate: day, breakdownDate: day };
 }
 
+
+// ===========================================================================
+// ADD MACHINE ON A CONTRACT: THE CUSTOMER'S MACHINES, PICKED, NOT TYPED (the
+// user, 2026-10-05: "In Add Machine in Contract - It should list all the
+// Products with Serial number with that Customer ... Section 4 - History ->
+// From Product Database - SA Number, MC Number. I should be able to select the
+// Products, Update the Rate, Tax and Save it").
+//
+// The machine comes from the Product Database row (the sheet shape
+// productRowToSheet gives, which the device copy and the server read share),
+// so the code, name and serial are the register's own and cannot be mistyped.
+// The history columns are what the Product Database says about the machine
+// NOW: its sale (SA number and warranty end) and the contract it is on (MC
+// number and end) -- the contract being added to is not "history", so a
+// machine already on THIS contract is offered as already there instead.
+// ===========================================================================
+const isoDay = (v: unknown): string | null => {
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(text(v));
+  return m ? m[1] : null;
+};
+
+/** The machine's identity from a Product Database row. */
+export interface PickableMachine { code: string; name: string; serial: string; sa: string; mc: string; status: string; key: string }
+export function pickableMachine(sheet: Record<string, unknown>): PickableMachine {
+  const name = text(sheet['Item Name']);
+  const serial = text(sheet['Item Serial Number']);
+  return {
+    code: text(sheet['Item Code']), name, serial,
+    sa: text(sheet['Warranty Number']), mc: text(sheet['Contract Number']),
+    status: text(sheet['Item Status']),
+    key: `${name.toLowerCase()}|${serial.toLowerCase()}`,
+  };
+}
+
+/** The same key for a contract line, to tell a machine already on the contract. */
+export const contractLineKey = (row: Row): string =>
+  `${text(row.product_name).toLowerCase()}|${text(row.serial_number).toLowerCase()}`;
+
+/** A new contract line from a picked Product Database machine, with its price.
+ *  The total is the rate plus the tax, worked out rather than typed; a blank
+ *  rate leaves all three blank (priced later), and a blank tax counts as 0. */
+export function contractItemFromMachine(sheet: Record<string, unknown>, rate: unknown, tax: unknown): Row {
+  const m = pickableMachine(sheet);
+  const r = num(rate);
+  const t = r === null ? null : (num(tax) ?? 0);
+  return {
+    product_code: m.code || null,
+    product_name: m.name,
+    serial_number: m.serial,
+    present_item_status: m.status || null,
+    rate: r, item_tax_amount: t, total_after_tax: r === null ? null : totalAfterTax(r, t),
+    sa_number: m.sa || null,
+    sa_end_date: isoDay(sheet['Warranty End Date']),
+    last_contract_number: m.mc || null,
+    last_contract_end: isoDay(sheet['Contract End Date']),
+  };
+}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput, LongDateText } from '../components/ui/LongDate';
-import { sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers, addParty, sbActiveUserNames, sbPartyIdByName, updateParty, type PartyPatch } from '../lib/supabase';
+import { sbListPartyItems, sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers, addParty, sbActiveUserNames, sbPartyIdByName, updateParty, type PartyPatch } from '../lib/supabase';
 import { partyMissing, partyFromSale, partyEdits, saleNewPartyMissing, SALE_NEW_PARTY_REQUIRED, SALE_TO_PARTY } from '../lib/partyRules';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT,
@@ -35,7 +35,7 @@ import {
 // contract form's own rules; the renewal panel shows what it is about to write
 // and must not compute it a second way, or the preview and the saved row can
 // disagree about money.
-import { itemTaxAmount, totalAfterTax, upliftRate } from '../lib/coverspec';
+import { itemTaxAmount, totalAfterTax, upliftRate, pickableMachine, contractItemFromMachine, contractLineKey } from '../lib/coverspec';
 import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
 import { xlsxDownload, xlsxCell } from '../lib/xlsx';
@@ -325,6 +325,7 @@ function ItemCard({
                 <label key={f.name} className="rep-field">
                   <span className="field-label">
                     {f.label}
+                    {f.derived && <span className="muted"> · {f.derived}</span>}
                     {inherits && (pinnedHere
                       ? <> · <button className="linklike" onClick={() => unpin(f)} disabled={!canEdit} title="Follow the entry again">↺ inherit</button></>
                       : <span className="muted"> · from entry</span>)}
@@ -333,7 +334,9 @@ function ItemCard({
                     field={f}
                     value={fromDb(f, draft[f.name])}
                     placeholder={headerText || undefined}
-                    disabled={!canEdit}
+                    // WORKED OUT, NOT TYPED: Total After Tax is the rate plus
+                    // the tax (deriveItem), so the box only shows it.
+                    disabled={!canEdit || !!f.derived}
                     runtimeOptions={f.optionsFrom === 'sellable-name' ? sellableNames(lines)
                       : f.optionsFrom === 'sellable-code' ? sellableCodes(lines)
                       : f.optionsFrom === 'active-user' ? activeUsers : undefined}
@@ -345,6 +348,153 @@ function ItemCard({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ===========================================================================
+// ADD MACHINE ON A CONTRACT: PICK FROM THE CUSTOMER'S MACHINES (the user,
+// 2026-10-05: "In Add Machine in Contract - It should list all the Products
+// with Serial number with that Customer ... I should be able to select the
+// Products, Update the Rate, Tax and Save it").
+//
+// THE LIST IS THE PRODUCT DATABASE'S, for the contract's Party Name -- read
+// from this device's copy first and the server otherwise (sbListPartyItems),
+// so it is the same answer the Product Database screen gives. A machine
+// already on THIS contract is shown and cannot be ticked twice. Tax is offered
+// from the rate (GST, coverspec.itemTaxAmount) and stays editable; the total is
+// the rate plus the tax and is not typed. Each ticked machine is saved as its
+// own line (saveItem), so one refused line does not lose the others, and the
+// message says which.
+// ===========================================================================
+function ContractMachinePicker({ header, items, onAdded, onManual, onCancel }: {
+  header: Row; items: Row[]; onAdded: (rows: Row[], all: boolean) => void; onManual: () => void; onCancel: () => void;
+}) {
+  const party = str(header.party_name).trim();
+  const [rows, setRows] = useState<Record<string, unknown>[] | null>(null);
+  const [loadErr, setLoadErr] = useState('');
+  const [picked, setPicked] = useState<Record<string, { rate: string; tax: string }>>({});
+  const [filter, setFilter] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => {
+    let live = true;
+    setRows(null); setLoadErr('');
+    if (!party) { setRows([]); return; }
+    sbListPartyItems(party)
+      .then((r) => { if (live) setRows(r); })
+      .catch((e) => { if (live) { setRows([]); setLoadErr(e instanceof Error ? e.message : String(e)); } });
+    return () => { live = false; };
+  }, [party]);
+
+  const onContract = useMemo(() => new Set(items.map(contractLineKey)), [items]);
+  const machines = useMemo(() => {
+    const seen = new Set<string>();
+    return (rows ?? []).map((r) => ({ row: r, m: pickableMachine(r) }))
+      .filter(({ m }) => m.name && m.serial && !seen.has(m.key) && (seen.add(m.key), true))
+      .sort((a, b) => a.m.name.localeCompare(b.m.name) || a.m.serial.localeCompare(b.m.serial, undefined, { numeric: true }));
+  }, [rows]);
+  const q = filter.trim().toLowerCase();
+  const shown = q ? machines.filter(({ m }) => `${m.code} ${m.name} ${m.serial} ${m.sa} ${m.mc}`.toLowerCase().includes(q)) : machines;
+
+  const toggle = (key: string) => setPicked((p) => {
+    const n = { ...p };
+    if (n[key]) delete n[key]; else n[key] = { rate: '', tax: '' };
+    return n;
+  });
+  // The rate offers its tax, as the machine card does; the tax stays editable.
+  const setRate = (key: string, v: string) => setPicked((p) => {
+    const t = itemTaxAmount(v);
+    return { ...p, [key]: { rate: v, tax: v.trim() === '' || t === null ? '' : String(Math.round(t * 100) / 100) } };
+  });
+  const setTax = (key: string, v: string) => setPicked((p) => ({ ...p, [key]: { ...p[key], tax: v } }));
+  const keys = Object.keys(picked);
+  const bad = keys.some((k) => ['rate', 'tax'].some((f) => {
+    const v = picked[k][f as 'rate' | 'tax'].trim();
+    return v !== '' && !(Number.isFinite(Number(v)) && Number(v) >= 0);
+  }));
+
+  const save = async () => {
+    setBusy(true); setMsg('');
+    const added: Row[] = [];
+    const failed: string[] = [];
+    const failedKeys = new Set<string>();
+    for (const { row, m } of machines.filter(({ m }) => picked[m.key])) {
+      const p = picked[m.key];
+      try {
+        added.push(await saveItem('contract', str(header.mc_number), contractItemFromMachine(row, p.rate, p.tax)));
+      } catch (e) {
+        failedKeys.add(m.key);
+        failed.push(`${m.name} ${m.serial}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    setBusy(false);
+    // What failed stays ticked, with its prices, to be tried again.
+    setPicked((p) => Object.fromEntries(Object.entries(p).filter(([k]) => failedKeys.has(k))));
+    if (added.length) onAdded(added, failed.length === 0);
+    if (failed.length) setMsg(`${added.length} added. Not added: ${failed.join(' · ')}`);
+  };
+
+  return (
+    <div>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <b>Add machines — {party || 'no Party Name'}</b>
+        <button className="btn btn-sm" onClick={onCancel}>✕</button>
+      </div>
+      <div className="muted" style={{ fontSize: 12.5, margin: '4px 0 8px' }}>
+        Every machine the Product Database shows with this customer. Tick the ones this contract covers,
+        give each a rate and tax, and press Add. SA Number and MC Number are the Product Database&apos;s and
+        are kept on the line as its history.
+      </div>
+      {!party && <div className="sheet-banner sheet-banner-error"><span>Give the entry a Party Name and save it first.</span></div>}
+      {party && rows === null && <div className="muted">Reading this customer&apos;s machines…</div>}
+      {loadErr && <div className="sheet-banner sheet-banner-error"><span>The machines could not be read — {loadErr}</span></div>}
+      {party && rows !== null && !loadErr && machines.length === 0 && (
+        <div className="muted">The Product Database shows no machine with {party}.</div>
+      )}
+      {machines.length > 8 && (
+        <input className="input" placeholder="Filter by product, serial, SA or MC" value={filter}
+               onChange={(e) => setFilter(e.target.value)} style={{ marginBottom: 6, width: '100%' }} />
+      )}
+      <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+        {shown.map(({ m }) => {
+          const already = onContract.has(m.key);
+          const p = picked[m.key];
+          const rate = p ? Number(p.rate) : NaN;
+          const total = p && p.rate.trim() !== '' && Number.isFinite(rate) ? totalAfterTax(rate, p.tax.trim() === '' ? 0 : p.tax) : null;
+          return (
+            <div key={m.key} className="renew-row" style={{ opacity: already ? 0.55 : 1 }}>
+              <input type="checkbox" checked={!!p} disabled={already} onChange={() => toggle(m.key)} />
+              <span className="renew-name">
+                <b>{m.name}</b> · {m.serial}{m.code && <span className="muted"> · {m.code}</span>}
+                <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                  SA {m.sa || '—'} · MC {m.mc || '—'}{m.status && ` · ${m.status}`}
+                  {already && <b> · already on this contract</b>}
+                </span>
+              </span>
+              {p && (
+                <span className="renew-money">
+                  <input className="input renew-rate" type="number" min={0} step="0.01" placeholder="Rate"
+                         value={p.rate} onChange={(e) => setRate(m.key, e.target.value)} />
+                  <input className="input renew-rate" type="number" min={0} step="0.01" placeholder="Tax"
+                         value={p.tax} onChange={(e) => setTax(m.key, e.target.value)} />
+                  <span className="muted renew-tot">{total === null ? 'price later' : `= ${total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}</span>
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {msg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{msg}</span></div>}
+      <div className="row" style={{ gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="btn btn-primary" disabled={busy || !keys.length || bad} onClick={() => void save()}>
+          {busy ? 'Adding…' : `Add ${keys.length || ''} machine${keys.length === 1 ? '' : 's'}`}
+        </button>
+        {bad && <span className="muted" style={{ fontSize: 12.5 }}>A rate or tax is not a number.</span>}
+        <button className="linklike" onClick={onManual} title="A machine the Product Database does not show with this customer">
+          Add a machine that is not listed
+        </button>
+      </div>
     </div>
   );
 }
@@ -921,6 +1071,8 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const [renewing, setRenewing] = useState(false);
   // The warranty-to-contract panel, closed the same way a renewal is.
   const [converting, setConverting] = useState(false);
+  // THE CONTRACT'S ADD MACHINE PICKER, in the third column (ContractMachinePicker).
+  const [picking, setPicking] = useState(false);
   const [items, setItems] = useState<Row[]>([]);
   // TRUE WHILE AN ENTRY'S MACHINES ARE BEING READ. The Renew panel seeds its
   // draft ONCE, from `items`, when it opens -- so pressed before the read
@@ -1516,7 +1668,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     const what = [entryDirty ? 'the entry' : '', cards ? `${cards} machine(s)` : ''].filter(Boolean).join(' and ');
     if (what && !window.confirm(`Unsaved changes to ${what} will be lost. Close anyway?`)) return;
     dirtyCards.current.clear();
-    setRenewing(false); setConverting(false); setFocusId(null);
+    setRenewing(false); setConverting(false); setPicking(false); setFocusId(null);
     setOpen(null);
   };
   // A machine added from the TOP of the window lands at the BOTTOM of the
@@ -1640,7 +1792,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // The buttons that act on the machines under the entry.
   const machineButtons = canEdit && open && !!open.id ? (
     <>
-      <button className="btn btn-sm" onClick={addMachine}>+ Add machine</button>
+      <button className="btn btn-sm"
+        onClick={kind === 'contract' ? () => { setRenewing(false); setPicking(true); } : addMachine}
+        title={kind === 'contract' ? 'Pick from the machines the Product Database shows with this customer' : undefined}>
+        + Add machine
+      </button>
       {/* DISABLED ONCE EVERY MACHINE HAS ITS CALL, by the mapping
           itself rather than by a flag somebody has to maintain. A line
           with no product or no serial is not a machine yet and gets no
@@ -1692,7 +1848,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       ? <button className="btn" onClick={() => setRenewing(false)}
           title="Close the renewal without creating anything">✕ Cancel renewal</button>
       : <button className="btn" disabled={loadingItems}
-          onClick={() => setRenewing(true)}
+          onClick={() => { setPicking(false); setRenewing(true); }}
           title={loadingItems ? 'Waiting for this contract’s machines to load' : undefined}>
           {loadingItems ? 'Loading machines…' : '↻ Renew this contract'}
         </button>
@@ -1776,7 +1932,17 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // Contract -- Open this in the Third Column"). The entry and its products
   // stay in view beside it, so the machines being carried over can be read
   // against the panel ticking them.
-  const sidePanel = renewPanel ?? convertPanel;
+  const pickPanel = kind === 'contract' && picking && open?.id ? (
+    <ContractMachinePicker header={draft} items={items}
+      onCancel={() => setPicking(false)}
+      onManual={() => { setPicking(false); addMachine(); }}
+      onAdded={(rows, all) => {
+        setItems((cur) => [...cur, ...rows]);
+        if (all) setPicking(false);
+        setMsg({ tone: 'ok', text: `${rows.length} machine(s) added to ${str(draft.mc_number)}.` });
+      }} />
+  ) : null;
+  const sidePanel = renewPanel ?? convertPanel ?? pickPanel;
   const entryPopup = open ? (
     <div className="cover-pop-overlay" role="dialog" aria-modal="true">
       <div className={`cover-pop${sidePanel ? ' cover-pop-wide' : ''}`}>

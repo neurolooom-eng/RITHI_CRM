@@ -238,10 +238,12 @@ export const CONTRACT: CoverConfig = {
   headerFields: [
     { name: 'mc_number', label: 'MC Number', section: 'Contract' },
     { name: 'entry_at', label: 'Contract Entry Date', type: 'date', section: 'Contract' },
-    // FROM THE PRODUCT DATABASE, TYPE TO SEARCH (the user, 2026-10-02). A
-    // contract covers machines already installed, so its customer is one who
-    // owns them.
-    { name: 'party_name', label: 'Party Name', section: 'Contract', optionsFrom: 'product-party' },
+    // FROM THE PARTY MASTER ON THIS DEVICE, TYPE TO SEARCH (the user,
+    // 2026-10-05: "Party Cache has to be used in Contract Entry"). It replaces
+    // 2026-10-02's search over the Product Database's owners, which needs the
+    // machine copy -- the one that is not downloading. The machines are then
+    // picked from the Product Database under Add machine.
+    { name: 'party_name', label: 'Party Name', section: 'Contract', optionsFrom: 'party' },
     { name: 'contract_type', label: 'Contract Type', type: 'select', options: ['', 'CMC', 'AMC'], section: 'Contract' },
     // HIDDEN, AND FILLED BY RENEW (renewContract sets it to the contract being
     // renewed). Still read by Machine History ("renewed from …") and still
@@ -282,26 +284,33 @@ export const CONTRACT: CoverConfig = {
       options: ['', 'Beginning Of Period', 'End Of Period'], section: 'Billing', required: true },
   ],
   itemFields: [
-    { name: 'product_code', label: 'Product Code', section: 'Machine' },
-    { name: 'product_name', label: 'Product Name', section: 'Machine' },
-    { name: 'serial_number', label: 'Serial Number', section: 'Machine' },
-    { name: 'present_item_status', label: 'Present Item Status', section: 'Machine' },
-    { name: 'contract_start', label: 'Contract Start Date', type: 'date', section: 'Period', inherits: true },
-    { name: 'contract_end', label: 'Contract End Date', type: 'date', section: 'Period', inherits: true },
-    { name: 'contract_type', label: 'Contract Type', section: 'Period', inherits: true },
-    { name: 'contract_years', label: 'Contract Period (Years)', type: 'number', section: 'Period', inherits: true },
-    { name: 'contract_months', label: 'Contract Period (Months)', type: 'number', section: 'Period', inherits: true },
-    { name: 'pm_visits_total', label: 'PM Visits (Total)', type: 'number', section: 'Period', inherits: true },
-    { name: 'status', label: 'Status', section: 'Period', inherits: true },
-    { name: 'party_name', label: 'Party Name', section: 'Period', inherits: true },
-    { name: 'payment_schedule', label: 'Payment Schedule', section: 'Billing', inherits: true },
-    { name: 'bill_generate_at', label: 'Bill Generate At', section: 'Billing', inherits: true },
-    { name: 'rate', label: 'Rate', type: 'number', section: 'Billing' },
-    { name: 'item_tax_amount', label: 'Item Tax Amount', type: 'number', section: 'Billing' },
-    { name: 'total_after_tax', label: 'Total After Tax', type: 'number', section: 'Billing' },
-    { name: 'sa_number', label: 'SA Number (sale)', section: 'History' },
+    // FOUR SECTIONS, IN THIS ORDER (the user, 2026-10-05: "Section 1 - Product
+    // Details - Product Code, Product Name, Serial Number. Section 2 - Rate,
+    // Tax Amount, Total After Tax. Total After Tax is Auto Calculated (Rate+Tax
+    // Amount). Section 3 - All Inherited Details from Parent. Section 4 -
+    // History -> From Product Database - SA Number, MC Number").
+    { name: 'product_code', label: 'Product Code', section: 'Product Details' },
+    { name: 'product_name', label: 'Product Name', section: 'Product Details' },
+    { name: 'serial_number', label: 'Serial Number', section: 'Product Details' },
+    { name: 'rate', label: 'Rate', type: 'number', section: 'Price' },
+    { name: 'item_tax_amount', label: 'Tax Amount', type: 'number', section: 'Price' },
+    { name: 'total_after_tax', label: 'Total After Tax', type: 'number', section: 'Price',
+      derived: 'Rate + Tax Amount' },
+    { name: 'contract_start', label: 'Contract Start Date', type: 'date', section: 'From the entry', inherits: true },
+    { name: 'contract_end', label: 'Contract End Date', type: 'date', section: 'From the entry', inherits: true },
+    { name: 'contract_type', label: 'Contract Type', section: 'From the entry', inherits: true },
+    { name: 'contract_years', label: 'Contract Period (Years)', type: 'number', section: 'From the entry', inherits: true },
+    { name: 'contract_months', label: 'Contract Period (Months)', type: 'number', section: 'From the entry', inherits: true },
+    { name: 'pm_visits_total', label: 'PM Visits (Total)', type: 'number', section: 'From the entry', inherits: true },
+    { name: 'status', label: 'Status', section: 'From the entry', inherits: true },
+    { name: 'party_name', label: 'Party Name', section: 'From the entry', inherits: true },
+    { name: 'payment_schedule', label: 'Payment Schedule', section: 'From the entry', inherits: true },
+    { name: 'bill_generate_at', label: 'Bill Generate At', section: 'From the entry', inherits: true },
+    // FROM THE PRODUCT DATABASE when the machine is picked (contractItemFromMachine).
+    { name: 'sa_number', label: 'SA Number', section: 'History' },
+    { name: 'last_contract_number', label: 'MC Number (before this one)', section: 'History' },
+    { name: 'present_item_status', label: 'Item Status when added', section: 'History' },
     { name: 'sa_end_date', label: 'SA End Date', type: 'date', section: 'History' },
-    { name: 'last_contract_number', label: 'Last Contract Number', section: 'History' },
     { name: 'last_contract_end', label: 'Last Contract End', type: 'date', section: 'History' },
     { name: 'added_by', label: 'Added By', section: 'History' },
   ],
