@@ -65,7 +65,6 @@ export function IndoorPdtPrint() {
   const complete = gaps.blank.length === 0 && gaps.notOk.length === 0;
   const inspector = pdt?.inspector_name ?? '';
   const signature = signatureBelongsTo(inspector, user) ? (mySig?.signature ?? '') : '';
-  const box = (on: boolean) => <span className="ip-box">{on ? '✓' : ''}</span>;
 
   return (
     <div className="ip-page">
@@ -81,6 +80,23 @@ export function IndoorPdtPrint() {
         </span>
       </div>
 
+      <PdtSheet productName={job.product_name} serial={job.serial} pdt={pdt} refText={`Job ${job.job_no}`} signature={signature} />
+    </div>
+  );
+}
+
+/** THE R/SER/QC/007 SHEET ITSELF -- one copy, printed for an Indoor job's
+ *  test and for a Pre-Delivery Quality Check (0377) alike, so the two cannot
+ *  drift. `pdt` carries the form's columns; `refText` names the record. */
+export function PdtSheet({ productName, serial, pdt, refText, signature }: {
+  productName: string; serial: string; refText: string; signature: string;
+  pdt: Omit<IndoorPdt, 'id' | 'job_id'> | null;
+}) {
+  const gaps = pdtGaps(pdt as IndoorPdt | null);
+  const complete = gaps.blank.length === 0 && gaps.notOk.length === 0;
+  const inspector = pdt?.inspector_name ?? '';
+  const box = (on: boolean) => <span className="ip-box">{on ? '✓' : ''}</span>;
+  return (
       <section className="ip-sheet ip-portrait">
         <table className="ip-head">
           <tbody>
@@ -97,8 +113,8 @@ export function IndoorPdtPrint() {
         <table className="ip-grid">
           <tbody>
             <tr>
-              <td><span className="ip-label">Product Name: </span>{job.product_name}</td>
-              <td><span className="ip-label">SL. No: </span>{job.serial}</td>
+              <td><span className="ip-label">Product Name: </span>{productName}</td>
+              <td><span className="ip-label">SL. No: </span>{serial}</td>
               <td><span className="ip-label">Date: </span>{pdt?.test_date ? formatDay(pdt.test_date) : ''}</td>
             </tr>
             <tr>
@@ -160,7 +176,7 @@ export function IndoorPdtPrint() {
           </tbody>
         </table>
         {pdt?.inspected_at
-          ? <p className="ip-note">Signed in RITHI on {formatDayTime(pdt.inspected_at)} · Job {job.job_no}</p>
+          ? <p className="ip-note">Signed in RITHI on {formatDayTime(pdt.inspected_at)} · {refText}</p>
           : null}
         {!complete ? (
           <div className="ip-draft">
@@ -174,6 +190,5 @@ export function IndoorPdtPrint() {
           <div className="ip-foot-tmpl">{PDT_HEADER.tmpl}</div>
         </div>
       </section>
-    </div>
   );
 }
