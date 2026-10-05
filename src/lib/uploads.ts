@@ -21,6 +21,7 @@ import { approvalWord } from './spareflow';
 import { toIsoDate, toIsoTimestamp, parseAnyDate, isMonthFirst, type DateOpts } from './dates';
 import { loose, findHeaderFor } from './headers';
 import { applyProductsFromFile, PRODUCTS_HEADING, KEY_HEADING } from './complaints';
+import { splitSharedKeys } from './visitkey';
 
 export type ColType = 'text' | 'date' | 'ts' | 'num' | 'int' | 'bool' | 'json';
 
@@ -128,6 +129,11 @@ export interface UploadDef {
   claims?: { heading: RegExp; as: string }[];
   /** What has to be loaded first, because rows here point at it. */
   requires?: string;
+  /** An id the FILE may share between different calls (AppSheet's bulk call
+   *  closure gives every call it closed one visit UID). Such ids are made
+   *  per-call -- `UID|UCN` -- before rows are de-duplicated, or every call but
+   *  the last is silently dropped. See `visitkey.ts`. */
+  splitShared?: { key: string; by: string };
   /** A step that runs BEFORE the rows are written, when they point at rows the
    *  database has to have first. `spare-line-parents` resolves each line's OR
    *  number to the request that holds it and creates the ones that are missing
@@ -205,6 +211,9 @@ export interface ShapeResult {
   /** Headers the register deliberately overrides (Call Type on a call
    *  register). Not a problem, and not listed as one. */
   stamped?: string[];
+  /** Rows whose id the file shared with OTHER calls and which were given a
+   *  per-call id (UploadDef.splitShared). */
+  splitShared?: number;
 }
 
 export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): ShapeResult {
@@ -379,6 +388,9 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   // by the database from reqid + product + serial, and parties' `name_key` from
   // the party name — deduping on a column the row does not carry silently
   // dedupes nothing.
+  // BEFORE the de-duplication below, which keeps the LAST row of a repeated key:
+  // a key the file shares between calls is not a repeat of one row.
+  const splitShared = def.splitShared ? splitSharedKeys(rows, def.splitShared.key, def.splitShared.by) : 0;
   const dedupeOn = def.conflictFrom ?? (def.conflict ? def.conflict.split(',') : []);
   const deduped = def.fold ? fold(rows, def.fold) : dedupeOn.length ? dedupe(rows, dedupeOn) : rows;
 
@@ -395,6 +407,7 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
     monthFirst: [...monthFirst],
     stamped: headers.filter((h) => !claimed.has(h) && stamped.has(norm(h))),
     ignored: [...ignored],
+    splitShared,
   };
 }
 
@@ -675,12 +688,14 @@ export const UPLOADS: UploadDef[] = [
   // ---- visit reports. One table; the register only says which calls they are
   // for, so nothing is stamped.
   { key: 'field_reports', label: 'Field Reports', group: 'Visit Reports', table: 'reports',
-    cols: REPORT_COLS, conflict: 'uid', extraInto: 'data', requires: 'Field Calls',
+    cols: REPORT_COLS, conflict: 'uid', extraInto: 'data', requires: 'Field Calls', splitShared: { key: 'uid', by: 'ucn' },
     note: 'For attaching recovered visits with AppSheet attachments, use Bulk Report Mapping instead — it resolves those to Drive links.' },
   { key: 'installation_reports', label: 'Installation Reports', group: 'Visit Reports', table: 'reports',
-    cols: REPORT_COLS, conflict: 'uid', extraInto: 'data', requires: 'Installation Calls' },
+    cols: REPORT_COLS, conflict: 'uid', extraInto: 'data', requires: 'Installation Calls',
+    splitShared: { key: 'uid', by: 'ucn' } },
   { key: 'pm_reports', label: 'PM Reports', group: 'Visit Reports', table: 'reports',
-    cols: REPORT_COLS, conflict: 'uid', extraInto: 'data', requires: 'PM Calls' },
+    cols: REPORT_COLS, conflict: 'uid', extraInto: 'data', requires: 'PM Calls',
+    splitShared: { key: 'uid', by: 'ucn' } },
 
   { key: 'call_requests', label: 'Call Registration Requests', group: 'Calls', table: 'call_requests',
     conflict: 'unique_key', conflictFrom: ['reqid', 'product', 'serial_no'], extraInto: 'extra',

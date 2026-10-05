@@ -11,6 +11,7 @@ import {
   shapeRow, summarise, fileNamesToResolve, parseRef, decideVisit, summariseActions, SOLVED_REPORT_COMPLETED,
   type MappedRow, type CallKey, type ExistingVisit, type VisitDecision,
 } from '../lib/reportMapping';
+import { splitSharedKeys } from '../lib/visitkey';
 
 // ===========================================================================
 // BULK REPORT → CALL MAPPING — putting recovered visit history back.
@@ -87,6 +88,9 @@ export function ReportMapping() {
       setVisits(byUcn);
 
       const shaped = raw.map((r, i) => shapeRow(r, calls, i));
+      // A bulk call closure gives every call it closed ONE visit UID; without
+      // a per-call id the second call's new visit would overwrite the first's.
+      splitSharedKeys(shaped as unknown as Record<string, unknown>[]);
       setRows(shaped);
       setStep('read');
       const s = summarise(shaped);
