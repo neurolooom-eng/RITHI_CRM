@@ -9880,6 +9880,12 @@ console.log('-- the machine register is searched on the device --');
       && /key: 'parties', table: 'parties', refreshMs: PARTY_REFRESH_MS/.test(store), true);
   for (const m of ['src/modules/Lookup.tsx', 'src/modules/ProductMaster.tsx', 'src/modules/RequestCallRegistration.tsx'])
     eq(`${m} says what the device holds`, /<MachineRegisterNote \/>/.test(rd(m)), true);
+  // ⇄ TRANSFER FROM THE PRODUCT DATABASE (the user, 2026-10-05).
+  { const pm = rd('src/modules/ProductMaster.tsx'), ot = rd('src/modules/OwnershipTransfer.tsx');
+    eq('a Product Database row offers ⇄ Transfer to whoever may record one',
+      /const mayTransfer = can\('ownership\.transfer'\)/.test(pm) && /navigate\('\/ownership-transfer', \{ state: \{ transfer:/.test(pm), true);
+    eq('...and Ownership Transfer opens the drawer with that machine picked',
+      /if \(st\.transfer && st\.transfer\.serial && mayMove\) \{\s*openMove\(\);\s*void chooseMachine\(st\.transfer\);/.test(ot), true); }
   eq('the Ownership Transfer drawer says what the device holds',
     /<MachineRegisterNote \/>/.test(rd('src/modules/OwnershipTransfer.tsx')), true);
   // ONE REGISTER AT A TIME (the user, 2026-10-05).

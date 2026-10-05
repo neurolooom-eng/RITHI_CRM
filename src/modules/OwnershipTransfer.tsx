@@ -56,10 +56,16 @@ export function OwnershipTransfer() {
   // hands names its transfer REFERENCE there, and this opens the register on it.
   const location = useLocation();
   useEffect(() => {
-    const st = location.state as { search?: string; tab?: Tab } | null;
+    const st = location.state as { search?: string; tab?: Tab; transfer?: MachineHit } | null;
     if (!st) return;
     if (st.tab) setTab(st.tab);
     if (st.search !== undefined) setSearch(st.search);
+    // FROM THE PRODUCT DATABASE'S ⇄ Transfer (2026-10-05): the drawer opens
+    // with that machine picked, so only the To party and the date are left.
+    if (st.transfer && st.transfer.serial && mayMove) {
+      openMove();
+      void chooseMachine(st.transfer);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
   const [busy, setBusy] = useState(false);
@@ -79,8 +85,9 @@ export function OwnershipTransfer() {
     setMachine(null); setMachineRow(null); setMachineErr(''); setToInfo(null);
     setMoveForm({ transfer_date: todayISO() });
   };
-  const pickMachine = async (label: string) => {
-    const h = hits.current.get(label) ?? null;
+  const pickMachine = (label: string) => chooseMachine(hits.current.get(label) ?? null);
+  const chooseMachine = async (h: MachineHit | null) => {
+    if (h) hits.current.set(machineLabel(h), h);
     setMachine(h); setMachineRow(null); setMachineErr('');
     if (!h) return;
     setMoveForm((f) => ({ ...(f ?? {}), serial_number: h.serial, item_name: h.product }));

@@ -794,6 +794,9 @@ set to zero.
   the PO, PM Visits, the installation fields and the rest. Eleven of them are on
   screen when it opens; **⚙ Columns** offers the other twenty-one, and
   **Export CSV** gives you every one of them whether or not it is on screen.
+  **⇄ Transfer** on a row opens *Record a transfer* on Ownership Transfer with
+  that machine already picked — choose the To party and the date and save.
+  Shown to those who may record a transfer.
   > **Warranty Status** and **Contract Status** here are the words the FILE
   > used. They are not the Active / About to expire / Inactive the system works
   > out from the dates, and the two can disagree — which is worth seeing.
