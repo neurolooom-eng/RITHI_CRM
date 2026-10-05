@@ -19,13 +19,15 @@ const ALIASES: Record<string, string[]> = {
   city:               ['city', 'town'],
   state:              ['state'],
   product_name:       ['product', 'product name', 'equipment', 'model', 'machine'],
-  serial:             ['serial', 'serial no', 'serial number', 'sl no', 'sr no', 'sr. no'],
+  // 'product serial number' is the PM-to-DO sheet's own heading (2026-10-05:
+  // "the Serial nos are not imported.. it is blank").
+  serial:             ['serial', 'serial no', 'serial number', 'sl no', 'sr no', 'sr. no', 'product serial number', 'product serial no', 'machine serial number'],
   item_status:        ['item status', 'cover', 'warranty status', 'cmc/wgp', 'contract status'],
-  allocated_to:       ['engineer', 'allocated to', 'service engineer', 'assigned to', 'allocated engineer', 'fse', 'engineer name'],
+  allocated_to:       ['engineer', 'allocated to', 'service engineer', 'assigned to', 'allocated engineer', 'fse', 'engineer name', 'call allocated to'],
   allocated_to_email: ['engineer email', 'engineer mail', 'allocated email', 'fse email'],
   reg_date:           ['reg date', 'registration date', 'pm date', 'pm due date', 'plan date', 'planned date', 'due date', 'scheduled date', 'visit date', 'date'],
   standard_complaint: ['standard complaint', 'complaint', 'fault', 'reason'],
-  complaint_reported: ['reported problem', 'remarks', 'reported complaint', 'description', 'notes', 'comments'],
+  complaint_reported: ['reported problem', 'complaint reported', 'remarks', 'reported complaint', 'description', 'notes', 'comments'],
   customer_name:      ['contact name', 'customer contact', 'contact person', 'contact'],
   customer_number:    ['contact number', 'phone', 'mobile', 'customer number', 'contact no'],
   email_address:      ['email', 'email address', 'customer email', 'mail id', 'e-mail id'],

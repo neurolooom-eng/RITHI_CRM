@@ -8,6 +8,7 @@ import { toDate as coverDate, toTimestamp as coverTs } from '../src/lib/coverImp
 import { toTimestamp as mappingTs, pick } from '../src/lib/reportMapping';
 import { machineKey } from '../src/lib/machine';
 import { parseCSV } from '../src/lib/csv';
+import { shapePmRows } from '../src/lib/pmImport';
 import { planComplaintKeys, KEY_FIELD } from '../src/lib/complaints';
 import { productToCallPrefill, partyToCallPrefill } from '../src/lib/fieldcall';
 
@@ -970,6 +971,19 @@ console.log('\n-- who a new call is allotted to: the machine wins, the party ans
   eq('a DCCR upload row is marked imported', row.imported, true);
   eq('...keeps the file\u2019s reviewer', row.review2_by, 'Old Person');
   eq('...and reads the date day-first', row.review2_at, '2024-03-05');
+}
+
+// THE PM-TO-DO SHEET'S OWN HEADINGS (2026-10-05: "When i upload this list to
+// PM Bulk Upload, the Serial nos are not imported.. it is blank"). Its serial
+// is "Product Serial Number" and its engineer "Call Allocated To"; neither was
+// a recognised name, so both landed in `extra` and the call had no serial.
+{
+  const [row] = shapePmRows([{ 'Party Name': 'P', 'Product Name': 'MONNAL T75', 'Product Serial Number': '11414',
+    'Call Allocated To': 'VICTORY MEDICAL SYSTEMS', 'Complaint Reported': 'SCHEDULED PM VISIT 2 / 15' }],
+    '2026-10', '2026-10-01T00:30:00', 5);
+  eq('a PM sheet\u2019s Product Serial Number is the serial', row.serial, '11414');
+  eq('...Call Allocated To is the engineer', row.allocated_to, 'VICTORY MEDICAL SYSTEMS');
+  eq('...Complaint Reported is the reported problem', row.complaint_reported, 'SCHEDULED PM VISIT 2 / 15');
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
