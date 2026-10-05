@@ -967,15 +967,26 @@ export function transferDetailsFromMachine(sheet: Record<string, unknown> | null
   return {
     from: [['Party Name', g('Party Name')], ['Address', g('Address')], ['City', g('City')],
            ['State', g('State')], ['Service Engineer', g('Service Engineer')]],
-    // NO INVOICE NO / DATE: 0330 stored them on `products`, but the
-    // `product_database` view this row comes from (0239) does not publish
-    // them, so they would read blank on every machine -- a blank that looks
-    // like missing paperwork. Shown once the view carries them.
-    sale: [['SA Number', g('Warranty Number')], ['Sold Through', g('Sold Through')]],
+    // INVOICE NO. AND DATE (the user, 2026-10-05: "Show Invoice No and Date in
+    // the transfer form"): stored on `products` by 0330, and on the row since
+    // the device copy reads that table (0.10.109) and the server lookup adds
+    // them for one machine (serverProductBySerial).
+    sale: [['SA Number', g('Warranty Number')], ['Invoice No.', g('Invoice No.')],
+           ['Invoice Date', sheetDay(s['Invoice Date'])], ['Sold Through', g('Sold Through')]],
     warranty: [['Warranty Start Date', sheetDay(s['Warranty Start Date'])],
                ['Warranty End Date', sheetDay(s['Warranty End Date'])],
                ['Item Status', g('Item Status')], ['Contract Number', g('Contract Number')]],
   };
+}
+/** A FRESH WARRANTY ON A TRANSFER (0382), worked out as Warranty Entry does
+ *  it: the period in MONTHS, the years and the end following -- the end by
+ *  `addPeriod`, which the database's trigger reproduces day for day. Blank or
+ *  non-positive months give no end, as on the sale. */
+export function freshWarranty(start: string, months: unknown): { years: string; end: string } {
+  const m = Number(String(months ?? '').trim());
+  if (!start || !Number.isFinite(m) || m <= 0) return { years: '', end: '' };
+  const whole = Math.round(m);
+  return { years: String(Math.round((whole / 12) * 100) / 100), end: addPeriod(start, 0, whole) };
 }
 /** The details as the transfer's `extra` keeps them: "From · City", ... */
 export function transferExtra(d: TransferDetails): Record<string, string> {

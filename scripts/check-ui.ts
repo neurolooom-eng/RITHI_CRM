@@ -5732,6 +5732,17 @@ console.log('\n-- the Product Database and the Product Master are two registers 
       /sbSearchMachines\('', term, 50\)/.test(ot) && /onSearch=\{\(term\) => sbSearchParties\(term, 50\)\}/.test(ot), true);
     eq('...and saves the model with the serial and the current party as From',
       /item_name: machine\.product, serial_number: machine\.serial, from_party: machine\.party/.test(ot), true);
+    // INVOICE AND A FRESH WARRANTY (the user, 2026-10-05).
+    const det2 = cs.transferDetailsFromMachine({ 'Invoice No.': 'INV-9', 'Invoice Date': '2024-02-03' });
+    eq('the Sale Entry block shows the Invoice No. and Date',
+      [det2.sale.find(([k]) => k === 'Invoice No.')?.[1], det2.sale.find(([k]) => k === 'Invoice Date')?.[1]], ['INV-9', '2024-02-03']);
+    eq('a fresh warranty is worked out as Warranty Entry: 12 months from 31-Jan ends 30-Jan, 1 year',
+      cs.freshWarranty('2026-01-31', 12), { years: '1', end: '2027-01-30' });
+    eq('...the month overflow matches the database: 31-Jan + 1 month ends 2-Mar',
+      cs.freshWarranty('2026-01-31', 1).end, '2026-03-02');
+    eq('...and no months is no warranty', cs.freshWarranty('2026-01-31', ''), { years: '', end: '' });
+    eq('the fresh warranty is optional and needs the Reference no.',
+      /const \[fresh, setFresh\] = useState\(false\)/.test(ot) && /A fresh warranty needs the Reference no\./.test(ot), true);
   }
   // The user, 2026-10-02: start defaults to today; months, Payment Schedule,
   // Bill Generate At and PM Visits (Total) are required; years and end are

@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**109 tables · 41 views · 3063 columns · 223 policies · 68 foreign keys.**
+**110 tables · 41 views · 3116 columns · 226 policies · 68 foreign keys.**
 
 ## How to read this
 
@@ -89,6 +89,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [parts](#parts)
 - [party_key_seq](#party-key-seq)
 - [password_resets](#password-resets)
+- [pdqc_records](#pdqc-records)
 - [pending_registrations](#pending-registrations)
 - [perm_parents](#perm-parents)
 - [permission_copies_done](#permission-copies-done)
@@ -712,6 +713,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 20 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 | 21 | `complaints` | integer | **no** | `0` |  |
 | 22 | `complaints_at` | timestamp with time zone | yes |  |  |
+| 23 | `parts` | integer | **no** | `0` |  |
+| 24 | `parts_at` | timestamp with time zone | yes |  |  |
 
 **Unique:** `sys_id` _(device_cache_status_sys_id_key)_ · `user_id, device_id` _(device_cache_status_user_device)_
 
@@ -1608,8 +1611,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 1 | `id` | bigint _(identity)_ | **no** |  |  |
 | 2 | `job_no` | text | **no** |  |  |
 | 3 | `ucn` | text | yes |  |  |
-| 4 | `kind` | text | **no** | `'Customer property'::text` | Customer property · DEMO unit |
-| 5 | `activity` | text | **no** | `'Repair'::text` | Repair · Rework · Salvage · Pre-delivery inspection · Demo · Other |
+| 4 | `kind` | text | **no** | `'Customer property'::text` | Customer property · DEMO unit · New device |
+| 5 | `activity` | text | **no** | `'Repair'::text` | Repair · Rework · Troubleshooting · Salvage · Pre-delivery inspection · Demo · Other |
 | 6 | `product_name` | text | **no** | `''::text` |  |
 | 7 | `serial` | text | **no** | `''::text` |  |
 | 8 | `party_name` | text | yes |  |  |
@@ -1702,6 +1705,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 95 | `visit_date` | date | yes |  |  |
 | 96 | `visit_uid` | text | yes |  | The reports row (visit) filed against the UCN from this job's draft (0323). Must name a visit of this job's UCN. |
 | 97 | `visit_filed_at` | timestamp with time zone | yes |  | When the drafted visit was filed in full -- the visit, its spares and its feedback (0323). Stamped; create_indoor_dc() requires it for a job with a UCN. |
+| 98 | `call_status` | text | **no** | `''::text` | (empty) · Solved - Report Completed · Unsolved · Solved - Report Pending |
+| 99 | `call_pending_reason` | text | **no** | `''::text` |  |
 
 **Unique:** `job_no` _(indoor_jobs_job_no_key)_ · `job_no` _(indoor_jobs_job_no_key)_ · `sys_id` _(indoor_jobs_sys_id_key)_
 
@@ -1712,7 +1717,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 - `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 - `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
 
-**Triggers:** `indoor_job_visit_by_approval` → `indoor_job_visit_by_approval()` · `indoor_report_keeps_its_number` → `indoor_report_keeps_its_number()` · `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `indoor_job_visit_by_approval` → `indoor_job_visit_by_approval()` · `indoor_report_keeps_its_number` → `indoor_report_keeps_its_number()` · `zy_indoor_jobs_call_status` → `indoor_jobs_call_status()` · `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2067,7 +2072,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | --- | --- | --- | --- |
 | DELETE | `masters_delete` | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.delete'::text)))` | — |
 | INSERT | `masters_insert` | — | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.add'::text)) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '…` |
-| SELECT | `masters_read` | `(auth.role() = 'authenticated'::text)` | — |
+| SELECT | `masters_read` | `(( SELECT auth.role() AS role) = 'authenticated'::text)` | — |
 | UPDATE | `masters_update` | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.edit'::text)))` | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.edit'::text)))` |
 
 ---
@@ -2305,6 +2310,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 20 | `sys_updated_by` | uuid | yes |  |  |
 | 21 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 | 22 | `sold_through` | text | **no** | `''::text` |  |
+| 23 | `warranty_start` | date | yes |  | A fresh warranty given to the new owner on this transfer (0382); blank keeps the machine's warranty. Months entered; years and end worked out. |
+| 24 | `warranty_months` | numeric | yes |  |  |
+| 25 | `warranty_years` | numeric | yes |  |  |
+| 26 | `warranty_end` | date | yes |  |  |
 
 **Unique:** `reference_no, serial_number` _(ownership_transfer_key_uniq)_ · `sys_id` _(ownership_transfers_sys_id_key)_
 
@@ -2316,7 +2325,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `ownership_transfer_parties_differ` — `CHECK ((btrim(lower(from_party)) IS DISTINCT FROM btrim(lower(to_party))))`
 
-**Triggers:** `ownership_transfer_aiu` → `ownership_transfer_move()` · `ownership_transfer_biu` → `ownership_transfer_apply()` · `ownership_transfer_sold_through` → `ownership_transfer_sold_through()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zz_transfer_to_product` → `transfer_to_product()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `ownership_transfer_aiu` → `ownership_transfer_move()` · `ownership_transfer_biu` → `ownership_transfer_apply()` · `ownership_transfer_sold_through` → `ownership_transfer_sold_through()` · `ownership_transfer_warranty` → `ownership_transfer_warranty()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zz_transfer_to_product` → `transfer_to_product()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2413,7 +2422,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | --- | --- | --- | --- |
 | DELETE | `parties_delete` | `( SELECT has_perm('masters.parties.delete'::text) AS has_perm)` | — |
 | INSERT | `parties_insert` | — | `( SELECT has_perm('masters.parties.add'::text) AS has_perm)` |
-| SELECT | `parties_read` | `(auth.role() = 'authenticated'::text)` | — |
+| SELECT | `parties_read` | `(( SELECT auth.role() AS role) = 'authenticated'::text)` | — |
 | UPDATE | `parties_update` | `( SELECT has_perm('masters.parties.edit'::text) AS has_perm)` | `( SELECT has_perm('masters.parties.edit'::text) AS has_perm)` |
 
 ---
@@ -2458,7 +2467,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | --- | --- | --- | --- |
 | DELETE | `parts_delete` | `( SELECT has_perm('masters.parts.delete'::text) AS has_perm)` | — |
 | INSERT | `parts_insert` | — | `( SELECT has_perm('masters.parts.add'::text) AS has_perm)` |
-| SELECT | `parts_read` | `(auth.role() = 'authenticated'::text)` | — |
+| SELECT | `parts_read` | `(( SELECT auth.role() AS role) = 'authenticated'::text)` | — |
 | UPDATE | `parts_update` | `( SELECT has_perm('masters.parts.edit'::text) AS has_perm)` | `( SELECT has_perm('masters.parts.edit'::text) AS has_perm)` |
 
 ---
@@ -2509,6 +2518,83 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | SELECT | `pwr_read` | `(( SELECT is_admin() AS is_admin) OR ( SELECT has_perm('users.reset_password'::text) AS has_perm))` | — |
+
+---
+
+## pdqc_records
+
+> Pre-Delivery Quality Check (R/SER/QC/007) of an imported machine in the godown before billing, one row per check (0377). Every field is mandatory; Inspected by is stamped from the session at every save. Record only: nothing else reads it. A quality record: never deleted.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `product_name` | text | **no** |  |  |
+| 3 | `serial` | text | **no** |  |  |
+| 4 | `test_date` | date | **no** |  |  |
+| 5 | `measuring_equipment_id` | text | **no** |  |  |
+| 6 | `software_version` | text | **no** |  |  |
+| 7 | `hv` | text | **no** |  |  |
+| 8 | `ht` | text | **no** |  |  |
+| 9 | `check1` | text | **no** |  | OK · NOT OK |
+| 10 | `check2` | text | **no** |  | OK · NOT OK |
+| 11 | `check3` | text | **no** |  | OK · NOT OK |
+| 12 | `check4` | text | **no** |  | OK · NOT OK |
+| 13 | `check5` | text | **no** |  | OK · NOT OK |
+| 14 | `cmv_vte_21` | numeric | **no** |  |  |
+| 15 | `cmv_vte_60` | numeric | **no** |  |  |
+| 16 | `cmv_vte_100` | numeric | **no** |  |  |
+| 17 | `cmv_peep_21` | numeric | **no** |  |  |
+| 18 | `cmv_peep_60` | numeric | **no** |  |  |
+| 19 | `cmv_peep_100` | numeric | **no** |  |  |
+| 20 | `cmv_o2_21` | numeric | **no** |  |  |
+| 21 | `cmv_o2_60` | numeric | **no** |  |  |
+| 22 | `cmv_o2_100` | numeric | **no** |  |  |
+| 23 | `pcmv_pip_21` | numeric | **no** |  |  |
+| 24 | `pcmv_pip_60` | numeric | **no** |  |  |
+| 25 | `pcmv_pip_100` | numeric | **no** |  |  |
+| 26 | `pcmv_peep_21` | numeric | **no** |  |  |
+| 27 | `pcmv_peep_60` | numeric | **no** |  |  |
+| 28 | `pcmv_peep_100` | numeric | **no** |  |  |
+| 29 | `pcmv_o2_21` | numeric | **no** |  |  |
+| 30 | `pcmv_o2_60` | numeric | **no** |  |  |
+| 31 | `pcmv_o2_100` | numeric | **no** |  |  |
+| 32 | `inspected_by` | uuid | yes |  |  |
+| 33 | `inspector_name` | text | **no** | `''::text` |  |
+| 34 | `inspector_designation` | text | **no** | `''::text` |  |
+| 35 | `inspected_at` | timestamp with time zone | yes |  |  |
+| 36 | `created_by` | uuid | yes |  |  |
+| 37 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 38 | `updated_by` | uuid | yes |  |  |
+| 39 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 40 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 41 | `sys_created_by` | uuid | yes |  |  |
+| 42 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 43 | `sys_updated_by` | uuid | yes |  |  |
+| 44 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 45 | `pdqc_no` | text | **no** |  |  |
+
+**Unique:** `pdqc_no` _(pdqc_records_pdqc_no)_ · `sys_id` _(pdqc_records_sys_id_key)_
+
+**Constraints:**
+
+- `pdqc_records_product_name_check` — `CHECK ((btrim(product_name) <> ''::text))`
+- `pdqc_records_serial_check` — `CHECK ((btrim(serial) <> ''::text))`
+- `pdqc_records_measuring_equipment_id_check` — `CHECK ((btrim(measuring_equipment_id) <> ''::text))`
+- `pdqc_records_software_version_check` — `CHECK ((btrim(software_version) <> ''::text))`
+- `pdqc_records_hv_check` — `CHECK ((btrim(hv) <> ''::text))`
+- `pdqc_records_ht_check` — `CHECK ((btrim(ht) <> ''::text))`
+
+**Triggers:** `zy_pdqc_number` → `pdqc_number()` · `zz_pdqc_stamp` → `pdqc_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `pdqc_insert` | — | `( SELECT has_perm('pdqc.record'::text) AS has_perm)` |
+| SELECT | `pdqc_read` | `(( SELECT has_perm('mod:/indoor/pdqc'::text) AS has_perm) OR ( SELECT has_perm('pdqc.record'::text) AS has_perm))` | — |
+| UPDATE | `pdqc_update` | `( SELECT has_perm('pdqc.record'::text) AS has_perm)` | `( SELECT has_perm('pdqc.record'::text) AS has_perm)` |
 
 ---
 
@@ -2919,7 +3005,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | INSERT | `products_insert` | — | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
-| SELECT | `products_read` | `(auth.role() = 'authenticated'::text)` | — |
+| SELECT | `products_read` | `(( SELECT auth.role() AS role) = 'authenticated'::text)` | — |
 | UPDATE | `products_update` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 
 ---
@@ -3383,8 +3469,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
 - `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
+- `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
 
 **Triggers:** `recycle_requests_guard` → `recycle_requests_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 

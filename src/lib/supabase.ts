@@ -1703,7 +1703,14 @@ async function serverProductBySerial(serial: string, product = ''): Promise<Reco
     const { data, error } = await must().from('product_database').select('*')
       .eq('machine_key', dbMachineKey(product, serial)).limit(1).maybeSingle();
     if (error) throw new Error(errMsg(error));
-    return data ? productRowToSheet(data) : null;
+    if (!data) return null;
+    // THE SALE'S INVOICE AND TERM, which 0330 stores on `products` and the
+    // view does not publish -- one row by its unique machine key, so the
+    // transfer form shows the Invoice No. and Date with no device copy too.
+    const { data: inv } = await must().from('products')
+      .select('invoice_no,invoice_date,warranty_years,warranty_months,transfer_ref,transfer_date')
+      .eq('machine_key', dbMachineKey(product, serial)).limit(1).maybeSingle();
+    return productRowToSheet({ ...(inv ?? {}), ...data });
   }
 
   // TWO rows asked for, not one: one is an answer, two is a question, and
@@ -4877,6 +4884,10 @@ export interface OwnershipTransfer {
   /** The dealer the machine came from: the From party when the Party Master
    *  types it DEALER, stamped by the database (0328); blank otherwise. */
   sold_through?: string;
+  /** A FRESH WARRANTY given to the new owner (0382): start and months typed,
+   *  years and end worked out by the database. Blank on most transfers. */
+  warranty_start?: string | null; warranty_months?: number | null;
+  warranty_years?: number | null; warranty_end?: string | null;
 }
 export async function listOwnershipTransfers(serial = ''): Promise<OwnershipTransfer[]> {
   const c = getSupabase(); if (!c) return [];

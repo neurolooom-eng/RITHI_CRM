@@ -2067,7 +2067,13 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regclass('public.parties_party_name_trgm') is not null
      and to_regclass('public.field_calls_ucn_trgm') is not null
      and to_regclass('public.installation_calls_serial_trgm') is not null
-     and to_regclass('public.pm_calls_party_name_trgm') is not null))
+     and to_regclass('public.pm_calls_party_name_trgm') is not null)),
+    (315, 'A transfer can give the new owner a fresh warranty, which the machine wears', 'ownership_transfers carries warranty_start / warranty_months / warranty_years / warranty_end; ownership_transfer_warranty works out the years and the end and needs the period and the Reference no.; sync_product_machine() gives the machine that warranty, numbered with the transfer''s Reference no., when it starts on or after the sale''s (0382). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0382)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'ownership_transfers' and column_name = 'warranty_end')
+     and exists (select 1 from pg_trigger where tgname = 'ownership_transfer_warranty' and not tgisinternal)
+     and coalesce((select p.prosrc like '%use_ft%' from pg_proc p
+                    where p.oid = to_regprocedure('public.sync_product_machine(text,text)')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

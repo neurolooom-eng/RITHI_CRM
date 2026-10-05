@@ -765,12 +765,21 @@ set to zero.
     part of the serial and choose the line showing serial, model and current
     party (this device's copy first). Choosing it shows **From — the current
     details** (party, address, city, state, Service Engineer), the **Sale
-    Entry** (SA Number, Sold Through) and the **Warranty** (start and end
+    Entry** (SA Number, Invoice No., Invoice Date, Sold Through) and the **Warranty** (start and end
     date, item status, contract number), all as the Product Database has them,
     and they are kept on the transfer as a record of what the machine carried
     when it changed hands. **To party is picked from the Party Master** on this
     device and shows that party's address, city, state, type and engineer; a
     party that is not on the Party Master must be added there first.
+  - **A fresh warranty for the new owner** is optional: tick **Give the new
+    owner a fresh warranty**, then enter the **Warranty Start Date** (it starts
+    at the transfer date) and the **Warranty Period (in Months)**. The years and
+    the **End Date** are worked out, as on Warranty Entry. The **Reference no**
+    is then required: it becomes the machine's **Warranty Number** on the
+    Product Database, which shows the fresh dates and Item Status WGP while they
+    run. The original sale entry is not changed. A later sale of the machine
+    (one whose warranty starts after this one) takes the warranty back; saving
+    the old sale again does not.
   - On a file load, **leave "From Party" blank** and it fills from whoever holds
     the machine now, which is what lets a historical list load in date order.
   - If the previous owner cannot be worked out the hand-over is still recorded
