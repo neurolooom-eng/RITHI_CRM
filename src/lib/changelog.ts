@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.121',
+    date: '2026-10-05',
+    title: 'Bulk call closures load one visit per call',
+    changes: [
+      'Field, Installation and PM Reports uploads: when AppSheet\'s bulk call closure gave several calls the SAME UID, each call now gets its own visit, keyed UID|UCN, the same way you fixed the file by hand. Before this, only the last call in the file kept the visit and the rest were dropped without a word; on the PM register that was 2,790 of 7,470 rows. The upload preview says how many rows were split.',
+      'A UID used by only one call is kept exactly as it is, and a UID that already has a | is left alone, so a file you already fixed by hand loads to the same records.',
+      'One-time cleanup: _shared_uid_visit_duplicates.sql removes the duplicate visits the earlier loads left behind, where the same visit sits under both the plain UID and UID|UCN. It removes only exact copies, lists anything that differs, and does nothing until you change false to true.',
+    ],
+  },
+  {
     version: '0.10.120',
     date: '2026-10-05',
     title: 'PM calls: Complaint Date and Breakdown Date are the registration date',

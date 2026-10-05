@@ -149,6 +149,14 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
               and when that happens the file has to SAY so — a date read the
               wrong way round is wrong by up to eleven months and looks
               perfectly ordinary on screen. */}
+          {(s.splitShared ?? 0) > 0 && (
+            <p style={{ margin: '4px 0' }}>
+              <b>Shared UID, one visit per call ({(s.splitShared ?? 0).toLocaleString('en-IN')} rows):</b>{' '}
+              these rows share a UID with other calls (a bulk call closure gives every call it
+              closed the same one), so each is filed as its own visit, keyed <code>UID|UCN</code>.
+              Without that, every call but the last would be dropped.
+            </p>
+          )}
           {s.monthFirst.length > 0 && (
             <p style={{ margin: '4px 0' }}>
               <b>Read month-first ({s.monthFirst.length}):</b> {s.monthFirst.join(', ')}.{' '}

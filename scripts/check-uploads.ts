@@ -1018,5 +1018,35 @@ console.log('\n-- who a new call is allotted to: the machine wins, the party ans
      load(head.join(';') + ';Qty\n' + body.join(';') + ';12,5').map((r) => r[0]), ['26A01P0429']);
 }
 
+// A BULK CALL CLOSURE GIVES SEVERAL CALLS ONE VISIT UID (2026-10-05). Keyed on
+// that UID the rows collapsed and every call but the last was dropped silently
+// -- 2,790 of the PM register's 7,470 visits. Each call must keep its visit, a
+// UID used by one call must not change, and the rule must be the user's Excel
+// one (`UID|UCN`), so a hand-fixed file lands on the same rows.
+{
+  const pm = def('pm_reports');
+  const v = (uid: string, ucn: string, date: string) =>
+    ({ UID: uid, 'UC Number': ucn, 'Call Status': 'Solved - Report Completed', 'Visit Date & Time': date });
+  const s = shapeUpload(pm, [
+    v('v2_N1-4d2ac9b3', '26A01P0429', '06-January-2026'),
+    v('v2_N1-4d2ac9b3', '26A01P0430', '06-January-2026'),
+    v('v2_N1-4d2ac9b3', '26A01P0431', '06-January-2026'),
+    v('v2_N1-solo0001', '26A01P0500', '07-January-2026'),
+    v('v2_N1-dupe0001', '26A01P0600', '08-January-2026'),
+    v('v2_N1-dupe0001', '26A01P0600', '08-January-2026'),
+    v('v2_N1-4d2ac9b3|26A01P0432', '26A01P0432', '06-January-2026'),
+  ]);
+  eq('every call of a shared UID keeps its own visit', s.rows.map((r) => [r.uid, r.ucn]), [
+    ['v2_N1-4d2ac9b3|26A01P0429', '26A01P0429'], ['v2_N1-4d2ac9b3|26A01P0430', '26A01P0430'],
+    ['v2_N1-4d2ac9b3|26A01P0431', '26A01P0431'], ['v2_N1-solo0001', '26A01P0500'],
+    ['v2_N1-dupe0001', '26A01P0600'], ['v2_N1-4d2ac9b3|26A01P0432', '26A01P0432']]);
+  eq('...and the screen is told how many were split', s.splitShared, 3);
+  eq('the same on the Field and Installation visit registers',
+     [def('field_reports').splitShared, def('installation_reports').splitShared], [{ key: 'uid', by: 'ucn' }, { key: 'uid', by: 'ucn' }]);
+  const again = shapeUpload(pm, [v('v2_N1-4d2ac9b3', '26A01P0429', '06-January-2026'), v('v2_N1-4d2ac9b3', '26A01P0430', '06-January-2026')]);
+  eq('a re-load gives the same ids, so it updates rather than adds', again.rows.map((r) => r.uid),
+     ['v2_N1-4d2ac9b3|26A01P0429', 'v2_N1-4d2ac9b3|26A01P0430']);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
