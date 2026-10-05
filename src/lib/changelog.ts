@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.110',
+    date: '2026-10-05',
+    title: 'Product Database moves to Contracts & Warranty',
+    changes: [
+      'PRODUCT DATABASE is now in the CONTRACTS & WARRANTY menu, under Ownership Transfer, beside the three registers that fill it. It is no longer under Master. Who can open it is unchanged, and Roles & Permissions shows it under the same heading.',
+    ],
+  },
+  {
     version: '0.10.109',
     date: '2026-10-05',
     title: 'Machine download is a snapshot; Party Master every 10 days; Contract Entry Date locked',

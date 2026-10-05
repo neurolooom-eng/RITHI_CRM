@@ -788,6 +788,24 @@ set to zero.
     engineer from the Party Master and the machine's cover from the Product
     Database. A machine that already has its OT- call is not given a second.
 
+- **Product Database** `/product-database` (menu: Contracts & Warranty) — every machine by model and serial, with its
+  warranty, contract and current owner. This is where a call reads cover from.
+  It keeps **all 32 columns** of the ProdMaster file — Item Code, the address,
+  the PO, PM Visits, the installation fields and the rest. Eleven of them are on
+  screen when it opens; **⚙ Columns** offers the other twenty-one, and
+  **Export CSV** gives you every one of them whether or not it is on screen.
+  > **Warranty Status** and **Contract Status** here are the words the FILE
+  > used. They are not the Active / About to expire / Inactive the system works
+  > out from the dates, and the two can disagree — which is worth seeing.
+  > **The registers fill it, machine by machine** — product AND serial, never
+  > the serial alone. A **sale entry** adds each machine with its warranty,
+  > invoice, warranty term and accessories; a **contract entry** gives that
+  > machine the contract number, dates, type, status and PM visits (replacing
+  > the sale's PM visits), adding the machine if it is not there yet; an
+  > **ownership transfer** gives it the new owner, their address and the
+  > Transfer Ref and Date. Invoice, warranty term, accessories and transfer
+  > details are in ⚙ Columns.
+
 ## Masters & documents
 
 What the rest of the application picks from. A value not on a master cannot be
@@ -812,23 +830,6 @@ typed into a form that reads it.
   > missing rather than arguing with the decision. It never works the other way
   > round: documents alone do not make a customer verified.
 
-- **Product Database** `/product-database` — every machine by model and serial, with its
-  warranty, contract and current owner. This is where a call reads cover from.
-  It keeps **all 32 columns** of the ProdMaster file — Item Code, the address,
-  the PO, PM Visits, the installation fields and the rest. Eleven of them are on
-  screen when it opens; **⚙ Columns** offers the other twenty-one, and
-  **Export CSV** gives you every one of them whether or not it is on screen.
-  > **Warranty Status** and **Contract Status** here are the words the FILE
-  > used. They are not the Active / About to expire / Inactive the system works
-  > out from the dates, and the two can disagree — which is worth seeing.
-  > **The registers fill it, machine by machine** — product AND serial, never
-  > the serial alone. A **sale entry** adds each machine with its warranty,
-  > invoice, warranty term and accessories; a **contract entry** gives that
-  > machine the contract number, dates, type, status and PM visits (replacing
-  > the sale's PM visits), adding the machine if it is not there yet; an
-  > **ownership transfer** gives it the new owner, their address and the
-  > Transfer Ref and Date. Invoice, warranty term, accessories and transfer
-  > details are in ⚙ Columns.
 - **Product Database 2.0** `/product-database-2` — the same machines, but
   **worked out** rather than stored. One row per machine (model **and** serial),
   assembled from the warranty sale register, the contract register, the
