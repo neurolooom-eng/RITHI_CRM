@@ -211,6 +211,10 @@ console.log('-- a stored list survives a failed refresh; products re-read every 
   eq('another list is re-read every time, as before', isFresh('party', now - 1 * HOUR, now), false);
   eq('no stored copy is never fresh', isFresh('product', null, now), false);
   eq('a copy dated in the future (a wrong phone clock) is not trusted', isFresh('product', now + HOUR, now), false);
+  // ONCE IN TEN DAYS (the user, 2026-10-05).
+  eq('Standard Complaints stored 9 days ago are still served', isFresh('complaintProducts', now - 9 * 24 * HOUR, now), true);
+  eq('...10 days ago are re-read', isFresh('complaintProducts', now - 10 * 24 * HOUR, now), false);
+  eq('the Part Master is still re-read after six hours', isFresh('spareProducts', now - 6 * HOUR, now), false);
 }
 
 // ---------------------------------------------------------------------------

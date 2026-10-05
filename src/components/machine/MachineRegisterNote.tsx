@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { onMachineRegister, onPartyRegister, refreshMachineRegister, type MachineRegisterStatus } from '../../lib/machinestore';
+import { onMachineRegister, onPartyRegister, refreshMachinesOnly, refreshPartyRegister, type MachineRegisterStatus } from '../../lib/machinestore';
 import { timeAgo } from '../../lib/format';
 import { formatDayTime } from '../../lib/dates';
 import { supabaseConfigured } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { storedListInfo, MASTER_STORED_EVENT } from '../../lib/masters';
+import { storedListInfo, downloadMasterNow, MASTER_STORED_EVENT } from '../../lib/masters';
 
 // ONE LINE SAYING WHAT THIS DEVICE HOLDS. The searches on these screens answer
 // from the copies on the phone or laptop -- the machine register and the Party
@@ -47,6 +47,14 @@ export function MachineRegisterNote() {
     window.addEventListener(MASTER_STORED_EVENT, read);
     return () => window.removeEventListener(MASTER_STORED_EVENT, read);
   }, []);
+  // ONE REGISTER AT A TIME (the user, 2026-10-05: "Need provision to Download
+  // only the selected database and not all 4"). Each button fetches its own
+  // copy and nothing else; a list being fetched shows its button busy.
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const fetchList = async (key: string, run: () => Promise<unknown>) => {
+    setBusy((b) => ({ ...b, [key]: true }));
+    try { await run(); } finally { setBusy((b) => ({ ...b, [key]: false })); }
+  };
   const admin = can('users.manage.details') || can('admin.view');
   useEffect(() => onMachineRegister(setM), []);
   useEffect(() => onPartyRegister(setP), []);
@@ -62,11 +70,25 @@ export function MachineRegisterNote() {
           ? `${parts.count.toLocaleString()} parts on this device, stored ${timeAgo(new Date(parts.at).toISOString())} (${formatDayTime(new Date(parts.at).toISOString())}).`
           : 'Parts not on this device yet.'}
       </span>
-      {!m.downloading && !p.downloading && (
-        <button className="btn btn-ghost btn-sm" onClick={() => void refreshMachineRegister({ force: true })}>
-          Download again
+      <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+        Download again:
+        <button className="btn btn-ghost btn-sm" disabled={m.downloading}
+                onClick={() => void refreshMachinesOnly({ force: true })}>
+          {m.downloading ? 'Machines…' : 'Machines'}
         </button>
-      )}
+        <button className="btn btn-ghost btn-sm" disabled={p.downloading}
+                onClick={() => void refreshPartyRegister({ force: true })}>
+          {p.downloading ? 'Customers…' : 'Customers'}
+        </button>
+        <button className="btn btn-ghost btn-sm" disabled={!!busy.complaints}
+                onClick={() => void fetchList('complaints', () => downloadMasterNow('complaintProducts'))}>
+          {busy.complaints ? 'Complaints…' : 'Complaints'}
+        </button>
+        <button className="btn btn-ghost btn-sm" disabled={!!busy.parts}
+                onClick={() => void fetchList('parts', () => Promise.all([downloadMasterNow('spareProducts'), downloadMasterNow('productAccessories')]))}>
+          {busy.parts ? 'Parts…' : 'Parts'}
+        </button>
+      </span>
     </div>
   );
 }

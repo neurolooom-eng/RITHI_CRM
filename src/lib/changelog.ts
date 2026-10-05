@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.109',
+    date: '2026-10-05',
+    title: 'Machine download is a snapshot; Party Master every 10 days; Contract Entry Date locked',
+    changes: [
+      'THE MACHINES KEPT ON YOUR DEVICE are now a plain SNAPSHOT of the Product Database as stored, not worked out again while they download. Working it out page by page is what stopped the download with "statement timeout". Each machine now carries the contract, item status and Service Engineer saved on it, plus the sale\'s Invoice No. and Date and the latest transfer\'s Ref and Date, which the download did not carry before. Every device downloads the machines once more by itself.',
+      'THE PARTY MASTER AND THE STANDARD COMPLAINTS are downloaded once in TEN DAYS instead of every six hours, because they change rarely. The Product Database and the Part Master still refresh every six hours. "Download again" and an edit made on this device still refresh at once.',
+      'CONTRACT ENTRY DATE shows today on a new contract and cannot be changed. It is stamped with the moment of saving, as the Sale Entry Date already was, and is never re-dated when the contract is edited later.',
+    ],
+  },
+  {
     version: '0.10.108',
     date: '2026-10-05',
     title: 'Ownership Transfer: pick the machine and the new party',

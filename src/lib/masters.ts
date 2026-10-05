@@ -57,7 +57,9 @@ const STORE_PREFIX = 'rithi.master.';
 // (reported for RAJU VISHWAKARMA). Bumping this is the one lever that reaches a
 // list already sitting on somebody's phone.
 const STORE_VERSION = 'v3-after-prefix-fix';
-const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+// Longer than the longest refresh (ten days, the Standard Complaints --
+// mastercache.ts), or a list kept for ten days would be thrown away at seven.
+const MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
 interface Stored { v: string; at: number; values: string }
 

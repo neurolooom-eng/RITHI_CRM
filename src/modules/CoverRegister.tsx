@@ -1045,7 +1045,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     // "automatic" has to mean if it is to be trusted.
     // CONTRACT START DEFAULTS TO TODAY as well (the user, 2026-10-02), typed
     // over for a contract that starts on another day.
-    setDraft(kind === 'sale' ? { warranty_start: todayLocal() } : { contract_start: todayLocal() });
+    // THE CONTRACT ENTRY DATE SHOWS TODAY from the start, locked (the user,
+    // 2026-10-05); the save below stamps the moment itself.
+    setDraft(kind === 'sale' ? { warranty_start: todayLocal() } : { contract_start: todayLocal(), entry_at: todayLocal() });
     try {
       const n = await nextCoverNumber(kind);
       setDraft((d) => (str(d[cfg.key]) ? d : { ...d, [cfg.key]: n }));
@@ -1341,7 +1343,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       // (0230) so the form works on a project that has not run that file yet;
       // on an UPDATE it is left exactly as it was, because re-stamping it would
       // silently re-date a sale every time somebody fixed a typo.
-      const toSave = (!draft.id && kind === 'sale' && !draft.entry_at)
+      // A NEW CONTRACT is stamped likewise, over the "today" the form showed
+      // (the user, 2026-10-05: "Default it to Today [Locked]").
+      const toSave = (!draft.id && ((kind === 'sale' && !draft.entry_at) || kind === 'contract'))
         ? { ...draft, entry_at: new Date().toISOString() }
         : draft;
       const saved = await saveHeader(kind, toSave);
