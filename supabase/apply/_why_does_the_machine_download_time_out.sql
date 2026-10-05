@@ -31,6 +31,9 @@
 -- READ ROW 1 FIRST. "NO CLAIMS" means the email matched no profile, and every
 -- timing below it was taken as nobody.
 --
+-- ROWS 101+ list every read policy on the tables the page reads; a line
+-- beginning "per ROW?" is one to look at first.
+--
 -- HOW TO READ THE TIMES (rows 20-25). Row 20 is the page the download asks
 -- for. Rows 22-25 are its parts, each timed alone: whichever of them is close
 -- to row 20 is where the time goes. Row 21 is a page from the END of the
@@ -118,6 +121,21 @@ union all select 22, '   its installation calls, read as this person: ms', curre
 union all select 23, '   its contract lines: ms', current_setting('rithi.contract_ms', true) || '  (' || current_setting('rithi.contract_n', true) || ' visible)'
 union all select 24, '   its machines alone: ms', current_setting('rithi.products_ms', true) || '  (' || current_setting('rithi.products_n', true) || ' rows)'
 union all select 25, '   this person''s team (visible_engineer_names): ms', current_setting('rithi.team_ms', true) || '  (' || current_setting('rithi.team_n', true) || ' names)'
+-- EVERY READ POLICY THE PAGE PASSES THROUGH (rows 101+). Policies that cover a
+-- read are ORed, so ONE leftover policy with a bare function in it -- left by
+-- a bundle run by hand, say -- is paid on every row however good the others
+-- are (the 0250 fault). "per ROW" marks a function call not wrapped in a
+-- sub-select; this project's own read policies are all wrapped.
+union all
+select 100 + row_number() over (order by pl.tablename, pl.policyname),
+       'read policy: ' || pl.tablename || '.' || pl.policyname || ' (' || pl.cmd || ')',
+       case when pl.qual ~ '(^|[^(])\m(has_perm|is_admin|can_view_all_calls|visible_engineer_names|auth\.uid|auth\.email)\('
+                 and pl.qual !~ '\(\s*SELECT\s+(has_perm|is_admin|can_view_all_calls|auth\.uid|auth\.email)'
+            then 'per ROW? ' else '' end || left(regexp_replace(pl.qual, '\s+', ' ', 'g'), 300)
+  from pg_policies pl
+ where pl.schemaname = 'public'
+   and pl.tablename in ('products', 'parties', 'contract_items', 'contract_entries', 'installation_calls', 'user_directory', 'profiles')
+   and pl.cmd in ('SELECT', 'ALL')
 order by 1;
 
 rollback;
