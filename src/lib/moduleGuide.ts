@@ -284,14 +284,15 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     route: '/ownership-transfer',
     purpose: 'One row per machine changing hands, plus warranty and contract details recovered for machines whose sale paperwork was lost.',
     does: [
-      'Record a transfer: serial, To party, date, reference, reason, document',
+      'Record a transfer: pick the machine from the Product Database (serial, model, current party), see its current details, sale and warranty; pick the To party from the Party Master; date, reference, reason, document',
       'Raise the installation call for the customer a dealer sold the machine to: + Installation call on the transfer (OT-PRODUCT-SERIAL, dated the transfer date)',
       'Add entry details for a machine with no sale record',
       'Search either tab',
     ],
     records: ['ownership_transfers', 'product_additional_entries', 'products'],
     rules: [
-      'Leave From Party blank and it fills from whoever holds the machine now',
+      'On the screen, From is the machine\'s current party on the Product Database; on a file load, a blank From fills from whoever holds the machine now',
+      'To party must be on the Party Master',
       'The machine follows the latest transfer; a back-dated one does not undo a later one',
       'There is no edit or delete of a transfer on this screen',
       'Sold Through is the From party when the Party Master types it DEALER — filled in by the system, and shown in the Product Database',

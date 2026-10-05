@@ -5720,6 +5720,18 @@ console.log('\n-- the Product Database and the Product Master are two registers 
       /kind === 'contract' \? \(\) => \{ setRenewing\(false\); setPicking\(true\); \}/.test(regSrc)
       && /sbListPartyItems\(party\)/.test(regSrc), true);
     eq('...and a machine already on the contract cannot be ticked again', /disabled=\{already\}/.test(regSrc), true);
+    // AN OWNERSHIP TRANSFER IS TAGGED TO A PRODUCT DATABASE MACHINE (2026-10-05).
+    const det = cs.transferDetailsFromMachine({ ...sheet, 'Party Name': 'A HOSP', 'City': 'X', 'Warranty Start Date': '2023-04-01', 'Sold Through': 'D1' });
+    eq('a transfer shows the machine\'s current party, sale and warranty from the Product Database',
+      [det.from[0][1], det.sale.find(([k]) => k === 'SA Number')?.[1], det.warranty[0][1], det.warranty[1][1]],
+      ['A HOSP', 'SA100', '2023-04-01', '2024-03-31']);
+    eq('...and keeps them on the transfer under named headings, blanks left out',
+      Object.keys(cs.transferExtra(det)).includes('From · City') && !('From · Address' in cs.transferExtra(det)), true);
+    const ot = readFileSync('src/modules/OwnershipTransfer.tsx', 'utf8');
+    eq('the transfer picks the machine (sbSearchMachines) and the To party (sbSearchParties)',
+      /sbSearchMachines\('', term, 50\)/.test(ot) && /onSearch=\{\(term\) => sbSearchParties\(term, 50\)\}/.test(ot), true);
+    eq('...and saves the model with the serial and the current party as From',
+      /item_name: machine\.product, serial_number: machine\.serial, from_party: machine\.party/.test(ot), true);
   }
   // The user, 2026-10-02: start defaults to today; months, Payment Schedule,
   // Bill Generate At and PM Visits (Total) are required; years and end are

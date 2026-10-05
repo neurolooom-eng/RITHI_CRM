@@ -939,3 +939,48 @@ export function contractItemFromMachine(sheet: Record<string, unknown>, rate: un
     last_contract_end: isoDay(sheet['Contract End Date']),
   };
 }
+
+// ===========================================================================
+// AN OWNERSHIP TRANSFER IS TAGGED TO ONE MACHINE OF THE PRODUCT DATABASE (the
+// user, 2026-10-05: "Tag it to Items in Product Database. Use the Current
+// Details in From Information, Use the Party Cache in To Information. Pull all
+// Details from the Product Database in regards to Sale Entry, Warranty Details
+// [Start Date, End Date]").
+//
+// The machine is its MODEL AND SERIAL, picked from the register -- the typed
+// serial alone it replaces is what made the database guess the owner and the
+// model with `limit 1` (ownership_transfer_apply), which on the eleven machines
+// numbered 219 is a guess. What the register says about the machine at the
+// moment of the transfer is shown, and kept in the transfer's `extra` under
+// these headings, so "what did it carry when it changed hands" stays
+// answerable after the machine moves on.
+// ===========================================================================
+export interface TransferDetails {
+  from: [string, string][];
+  sale: [string, string][];
+  warranty: [string, string][];
+}
+const sheetDay = (v: unknown): string => isoDay(v) ?? text(v);
+export function transferDetailsFromMachine(sheet: Record<string, unknown> | null): TransferDetails {
+  const s = sheet ?? {};
+  const g = (k: string) => text(s[k]);
+  return {
+    from: [['Party Name', g('Party Name')], ['Address', g('Address')], ['City', g('City')],
+           ['State', g('State')], ['Service Engineer', g('Service Engineer')]],
+    // NO INVOICE NO / DATE: 0330 stored them on `products`, but the
+    // `product_database` view this row comes from (0239) does not publish
+    // them, so they would read blank on every machine -- a blank that looks
+    // like missing paperwork. Shown once the view carries them.
+    sale: [['SA Number', g('Warranty Number')], ['Sold Through', g('Sold Through')]],
+    warranty: [['Warranty Start Date', sheetDay(s['Warranty Start Date'])],
+               ['Warranty End Date', sheetDay(s['Warranty End Date'])],
+               ['Item Status', g('Item Status')], ['Contract Number', g('Contract Number')]],
+  };
+}
+/** The details as the transfer's `extra` keeps them: "From · City", ... */
+export function transferExtra(d: TransferDetails): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [sec, rows] of [['From', d.from], ['Sale', d.sale], ['Warranty', d.warranty]] as const)
+    for (const [k, v] of rows) if (v) out[`${sec} · ${k}`] = v;
+  return out;
+}
