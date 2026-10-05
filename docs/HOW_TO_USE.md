@@ -1470,7 +1470,7 @@ typed into a form that reads it.
     quantity of 3 becomes 3 requests**, one per spare.
   - **Import from MRN**: search any MRN, **Pick** a line and import its good
     and defective quantity — each spare becomes its own request, carrying the
-    MRN No. The MRN itself is not changed, and a line can be imported again.
+    MRN No, with the Source **Defective Spare**. The MRN itself is not changed, and a line can be imported again.
   - **Start Work** on a request with the date and time. **The SLA starts only
     then**: due **3 working days** later, Saturday and Sunday skipped — both
     set on **SLA / Objective Configuration → SLA Targets → Spare Recycling SLA**. The list
@@ -1496,6 +1496,7 @@ typed into a form that reads it.
 - **Pre-Delivery Quality Check** `/indoor/pdqc` — imported machines received
   in the godown are checked here **before billing**, as per **R/SER/QC/007**.
   A register of its own: no Indoor job, any product.
+  - Each check is numbered **PDQC/26/0001** (restarting each year) when it is saved.
   - **+ New check**: pick the product from the Product Master, type the SL. No,
     and fill the date, Measuring Equipment ID, Software Version, HV, HT,
     checks 1–5 (OK / NOT OK) and the CMV/ACMV and PCMV readings at FiO2 21, 60

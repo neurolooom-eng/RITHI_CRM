@@ -113,13 +113,14 @@ export function PreDeliveryQc() {
     const r = await savePdqcRecord(editId, row as Partial<PdqcRecord>);
     setSaving(false);
     if (!r.ok || !r.data) { setFormErr(r.error ?? 'Could not save.'); return; }
-    logAudit({ action: editId == null ? 'pdqc.create' : 'pdqc.update', target: `${r.data.product_name} ${r.data.serial}`, status: 'ok',
+    logAudit({ action: editId == null ? 'pdqc.create' : 'pdqc.update', target: r.data.pdqc_no, status: 'ok',
       meta: { id: r.data.id, notOk: notOkOf(r.data as unknown as Record<string, unknown>) } });
     setOpen(false);
     void load();
   };
 
   const cols: Column<PdqcRecord>[] = useMemo(() => [
+    { key: 'pdqc_no', header: 'PDQC No', width: 120, render: (r) => <span className="mono">{r.pdqc_no}</span> },
     { key: 'test_date', header: 'Date', width: 110, render: (r) => formatDay(r.test_date) },
     { key: 'product_name', header: 'Product Name', width: 180 },
     { key: 'serial', header: 'SL. No', width: 130, render: (r) => <span className="mono">{r.serial}</span> },
@@ -158,7 +159,7 @@ export function PreDeliveryQc() {
         emptyText={busy ? 'Loading…' : 'No Pre-Delivery Quality Checks recorded yet.'}
         toolbar={<Toolbar>
           <button className="btn btn-sm" onClick={() => csvExport('pre-delivery-quality-checks.csv',
-            [{ key: 'test_date', header: 'Date' }, { key: 'product_name', header: 'Product Name' }, { key: 'serial', header: 'SL. No' },
+            [{ key: 'pdqc_no', header: 'PDQC No' }, { key: 'test_date', header: 'Date' }, { key: 'product_name', header: 'Product Name' }, { key: 'serial', header: 'SL. No' },
              ...TEXT_FIELDS.map((f) => ({ key: f.key, header: f.label })),
              ...PDT_CHECKS.filter((c) => c.key).map((c) => ({ key: c.key!, header: `Check ${c.no}` })),
              ...PDT_MODES.flatMap((m) => m.rows.flatMap((r) => r.keys.map((k, i) => ({ key: k, header: `${m.no === 7 ? 'CMV' : 'PCMV'} ${r.label} FiO2 ${PDT_FIO2[i]}%` })))),
@@ -169,7 +170,7 @@ export function PreDeliveryQc() {
       />
 
       <Modal open={open} onClose={() => setOpen(false)} width={900}
-        title={editId == null ? 'New Pre-Delivery Quality Check · R/SER/QC/007' : `Pre-Delivery Quality Check · ${draft.product_name} ${draft.serial}`}>
+        title={editId == null ? 'New Pre-Delivery Quality Check · R/SER/QC/007' : `Pre-Delivery Quality Check ${draft.pdqc_no} · ${draft.product_name} ${draft.serial}`}>
         <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
           <div className="field" style={{ flex: 2, minWidth: 220 }}><label className="field-label">Product Name *</label>
             <SelectPicker value={draft.product_name} onChange={(v) => set('product_name', v)} options={products}

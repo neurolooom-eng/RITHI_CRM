@@ -47,6 +47,8 @@ call public.be('pdqc_a@x.com');
 begin; set local role authenticated;
   insert into public.pdqc_records (:cols) select :cols from good;
 commit;
+select 'numbered PDQC/YY/0001', pdqc_no = 'PDQC/' || to_char(now() at time zone 'Asia/Kolkata', 'YY') || '/0001' as ok
+  from public.pdqc_records where product_name = 'ORION-G';
 select 'saved, serial trimmed, signed by the saver with their designation (the forged id discarded)',
        serial = 'SN-77' and check3 = 'NOT OK'
    and inspected_by = 'e1e1e377-0000-0000-0000-000000000001'
@@ -72,11 +74,12 @@ commit;
 \echo '--- 3. AN EDIT RE-SIGNS AS THE EDITOR ---'
 call public.be('pdqc_b@x.com');
 begin; set local role authenticated;
-  update public.pdqc_records set software_version = 'v2.2' where product_name = 'ORION-G';
+  update public.pdqc_records set software_version = 'v2.2', pdqc_no = 'FORGED' where product_name = 'ORION-G';
 commit;
-select 'now signed by the editor, created_by kept',
+select 'now signed by the editor, created_by and the number kept',
        inspector_name = 'PDQC B' and inspector_designation = 'QC Engineer'
-   and created_by = 'e1e1e377-0000-0000-0000-000000000001' and software_version = 'v2.2' as ok
+   and created_by = 'e1e1e377-0000-0000-0000-000000000001' and software_version = 'v2.2'
+   and pdqc_no like 'PDQC/%/0001' as ok
   from public.pdqc_records where product_name = 'ORION-G';
 
 \echo '--- 4. THE PAGE KEY READS, IT DOES NOT WRITE ---'

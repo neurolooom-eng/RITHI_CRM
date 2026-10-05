@@ -6965,6 +6965,8 @@ export async function deleteRecycleRequests(ids: number[]): Promise<Res<number>>
 // database refuses a blank one); Inspected by is stamped from the session.
 // ---------------------------------------------------------------------------
 export interface PdqcRecord extends Omit<IndoorPdt, 'job_id'> {
+  /** PDQC/YY/NNNN, given by the database (0378). */
+  pdqc_no: string;
   product_name: string;
   serial: string;
   created_by: string | null;

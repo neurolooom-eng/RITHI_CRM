@@ -681,7 +681,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'Recycle defective spares on a track of their own — registration, an MRS with no approval, stock out with cost into a separate recycling hand stock, consumption, job done and the cost of each recycling. Hidden while Audit Mode is on.',
     does: [
       'Register a defective spare for recycling (RCY/YY/NNNN): the part from the Part Master, quantity, received on, its Source (Service Return or Defective Spare) and an optional call reference kept as text — a quantity of 3 becomes 3 requests, one per spare; requests can be ticked and deleted with Delete a recycling request',
-      'Import spares from MRN: search any MRN, pick a line, and import its good and defective quantity as requests (the MRN No kept on each); a line can be imported again',
+      'Import spares from MRN: search any MRN, pick a line, and import its good and defective quantity as requests with the Source Defective Spare (the MRN No kept on each); a line can be imported again',
       'Start Work on a request with the date and time — the SLA (working days, set on the SLA page) runs from then, and the list shows the due time and On track / Due today / Breached / Met',
       'Raise an MRS (RMRS/YY/NNNN) for the spares needed — no approval — optionally against an open recycling request',
       'Stores books an MRS line out with its unit cost, in one go or in parts; the quantity goes to the raiser\'s recycling hand stock',
@@ -708,7 +708,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     route: '/indoor/pdqc',
     purpose: 'Record the Pre-Delivery Quality Check (R/SER/QC/007) of an imported machine in the godown before billing — a register of its own, for any product.',
     does: [
-      'Record a new check: the product (from the Product Master), SL. No, date, measuring equipment ID, software version, HV and HT, checks 1–5 as OK / NOT OK, and the CMV/ACMV and PCMV readings at FiO2 21, 60 and 100%',
+      'Record a new check, numbered PDQC/YY/NNNN when saved: the product (from the Product Master), SL. No, date, measuring equipment ID, software version, HV and HT, checks 1–5 as OK / NOT OK, and the CMV/ACMV and PCMV readings at FiO2 21, 60 and 100%',
       'Open a check to see it or, with the right, correct it',
       'Print a check on the R/SER/QC/007 sheet',
       'Download the checks',

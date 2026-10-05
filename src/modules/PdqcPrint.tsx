@@ -39,12 +39,12 @@ export function PdqcPrint() {
       <div className="ip-toolbar">
         {back}
         <button className="btn btn-sm btn-primary"
-          onClick={() => { logAudit({ action: 'pdqc.print', target: `${rec.product_name} ${rec.serial}`, status: 'ok', meta: { id: rec.id } }); window.print(); }}>
+          onClick={() => { logAudit({ action: 'pdqc.print', target: rec.pdqc_no, status: 'ok', meta: { id: rec.id } }); window.print(); }}>
           🖨 Print
         </button>
-        <span className="muted">{rec.product_name} · {rec.serial} · R/SER/QC/007</span>
+        <span className="muted">{rec.pdqc_no} · {rec.product_name} · {rec.serial} · R/SER/QC/007</span>
       </div>
-      <PdtSheet productName={rec.product_name} serial={rec.serial} pdt={rec} refText="Pre-Delivery Quality Check" signature={signature} />
+      <PdtSheet productName={rec.product_name} serial={rec.serial} pdt={rec} refText={rec.pdqc_no} signature={signature} />
     </div>
   );
 }

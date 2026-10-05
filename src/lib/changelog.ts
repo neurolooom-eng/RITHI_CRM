@@ -14,12 +14,30 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.100',
+    version: '0.10.101',
     date: '2026-10-05',
     title: 'Warranty sale: add a new customer to the Party Master as you save',
     changes: [
       'NEW CUSTOMER, ONE STEP: type a Party Name the Party Master does not have, and the sale tells you it will be added. City and State become required, as they are on the Party Master. Save entry adds the party, which gets its Party Key, using the address, phones, PAN, GST, Type, Profile and Serviceman you typed, then saves the sale. The next sale for that customer fills in the same details.',
       'If your role may not add parties, the sale is still saved, without adding the party, and the message says so.',
+    ],
+  },
+  {
+    version: '0.10.100',
+    date: '2026-10-05',
+    title: 'Pre-Delivery Quality Check numbers; an MRN import is a Defective Spare',
+    changes: [
+      'Every Pre-Delivery Quality Check now has a number, PDQC/26/0001, restarting each year. It is shown in the list, on the check and on the printed sheet; checks already recorded were numbered in the order they were saved.',
+    ],
+  },
+  {
+    version: '0.10.100',
+    date: '2026-10-05',
+    title: 'Spare Recycling: a spare imported from an MRN has the Source Defective Spare',
+    auditHidden: true,
+    changes: [
+      'A spare imported from an MRN is registered with the Source Defective Spare. The MRN No stays on the request and the engineer is written in its remarks.',
+      'Requests already imported from an MRN now read Defective Spare too.',
     ],
   },
   {
