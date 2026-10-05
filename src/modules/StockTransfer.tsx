@@ -5,14 +5,13 @@ import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo, todayISO } from '../lib/format';
-import { listUsers } from '../lib/sheets';
 import {
   listEngineerStock, addStockTransfer, listStockTransfers,
   supabaseConfigured, type StockRow,
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { useAuth } from '../lib/auth';
-import { useAccessScope, previewScoped } from '../lib/access';
+import { useAccessScope, previewScoped, useFilingNames, useActivePeople } from '../lib/access';
 import './fieldcalls.css';
 import { cappedAt } from '../lib/exportscope';
 
@@ -37,15 +36,31 @@ const CACHE_KEY = 'stockTransfers';
 // ---------------------------------------------------------------------------
 // Raise-transfer drawer.
 // ---------------------------------------------------------------------------
+// D-049 (the system owner, 2026-10-05: "Same rule as spares"):
+//   FROM — your own stock or an engineer below you in the User Master (by
+//          Reporting / Regional Manager); anybody else's only with
+//          `stock.transfer.others`. The list is useFilingNames(), the SAME list
+//          a visit or a spare request files under, so the two rules cannot drift.
+//   TO   — a person on the User Master (active). Picked, never typed: a name
+//          nobody holds is stock moved to nobody.
+// Both are type-search pickers with no free text. The database enforces the
+// same two rules (imports exempt); this screen is the courtesy.
 function TransferDrawer({
-  open, onClose, onSaved, defaultFrom, engineers,
+  open, onClose, onSaved, selfName,
 }: {
   open: boolean;
   onClose: () => void;
   onSaved: (uid?: string) => void;
-  defaultFrom: string;
-  engineers: string[];
+  /** The signed-in person's own name, used as the From default when it is on the list. */
+  selfName: string;
 }) {
+  const fromList = useFilingNames('stock.transfer.others');
+  const toList = useActivePeople();
+  const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  // Your own name when the list carries it (the User Master's spelling wins);
+  // the one name when there is only one; otherwise nothing, and you choose.
+  const defaultFrom = fromList.names.find((n) => sameName(n, selfName))
+    ?? (fromList.names.length === 1 ? fromList.names[0] : '');
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState('');
   const [on, setOn] = useState(todayISO());
@@ -57,12 +72,21 @@ function TransferDrawer({
   const [picks, setPicks] = useState<{ part: string; qty: string; reason: string }[]>([{ part: '', qty: '1', reason: '' }]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const { can } = useAuth();
+  const mayTransferOthers = can('stock.transfer.others');
 
   useEffect(() => {
     if (!open) return;
     setFrom(defaultFrom); setTo(''); setOn(todayISO()); setRemarks('');
     setPicks([{ part: '', qty: '1', reason: '' }]); setErr('');
-  }, [open, defaultFrom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  // The User Master can arrive after the drawer opens: fill the default then,
+  // without wiping anything already chosen.
+  useEffect(() => {
+    if (open && !from && defaultFrom) setFrom(defaultFrom);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultFrom]);
 
   // What the sender is holding right now. Re-read whenever the sender changes,
   // so the caps always reflect that engineer.
@@ -103,6 +127,12 @@ function TransferDrawer({
       .filter((p) => p.part !== '');
     if (!from.trim()) { setErr('Choose the engineer transferring the stock.'); return; }
     if (!to.trim()) { setErr('Choose the engineer receiving the stock.'); return; }
+    // The pickers offer nothing else; this catches a stale value (a list that
+    // changed under an open drawer) before the database has to refuse it.
+    if (!fromList.names.some((n) => sameName(n, from))) {
+      setErr(`${from} is not yours or your team's to transfer from${mayTransferOthers ? '' : ' — moving anybody else\'s stock needs “Transfer stock from any engineer”'}.`); return;
+    }
+    if (!toList.people.some((p) => sameName(p.name, to))) { setErr(`${to} is not an active person on the User Master.`); return; }
     if (from.trim().toLowerCase() === to.trim().toLowerCase()) { setErr('From and To must be different engineers.'); return; }
     if (lines.length === 0) { setErr('Add at least one part.'); return; }
     for (const l of lines) {
@@ -137,20 +167,33 @@ function TransferDrawer({
           <div className="rep-grid">
             <label className="rep-field">
               <span className="field-label">From engineer *</span>
-              <input className="input" list="dl-stock-engineers" value={from} onChange={(e) => setFrom(e.target.value)} />
+              <SelectPicker value={from} onChange={setFrom}
+                options={fromList.names}
+                loading={!fromList.ready}
+                placeholder="— whose stock —"
+                emptyHint={mayTransferOthers
+                  ? 'Active people on the User Master.'
+                  : 'Your own stock, or an engineer in your team on the User Master.'} />
             </label>
             <label className="rep-field">
               <span className="field-label">To engineer *</span>
-              <input className="input" list="dl-stock-engineers" value={to} onChange={(e) => setTo(e.target.value)} />
+              <SelectPicker value={to} onChange={setTo}
+                options={toList.people.map((p) => p.name).filter((n) => !sameName(n, from))}
+                loading={!toList.ready}
+                placeholder="— receiving engineer —"
+                emptyHint="Only a person on the User Master can receive stock." />
             </label>
             <label className="rep-field">
               <span className="field-label">Date</span>
               <input className="input" type="date" value={on} onChange={(e) => setOn(e.target.value)} />
             </label>
           </div>
-          <datalist id="dl-stock-engineers">
-            {engineers.map((n) => <option key={n} value={n} />)}
-          </datalist>
+          {!mayTransferOthers && (
+            <div className="muted" style={{ fontSize: 12 }}>
+              From: your own stock, or an engineer in your team. Moving anybody else's needs
+              “Transfer stock from any engineer”.
+            </div>
+          )}
         </section>
 
         <section className="rep-sec">
@@ -251,7 +294,6 @@ export function StockTransfer() {
     () => previewScoped(allTransfers, !!viewAs, scope, ['from_engineer', 'to_engineer'], [], viewAs?.email),
     [allTransfers, viewAs, scope],
   );
-  const [engineers, setEngineers] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   // Read by the background sync, which waits while a read is in flight.
@@ -279,9 +321,6 @@ export function StockTransfer() {
   useEffect(() => {
     if (onDb && transfers.length && !isStale(lastSync)) setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
     void load();
-    listUsers('', 2000)
-      .then((rows) => setEngineers([...new Set(rows.map((r) => String(r['User Name'] ?? '').trim()).filter(Boolean))].sort()))
-      .catch(() => { /* the field stays free text */ });
     const stop = onDb ? startBackgroundSync(() => void load(), () => busyRef.current) : undefined;
     return () => stop?.();
     // eslint-disable-next-line
@@ -352,8 +391,7 @@ export function StockTransfer() {
         open={drawer}
         onClose={() => setDrawer(false)}
         onSaved={(uid) => { setMsg({ tone: 'ok', text: `Stock transfer ${uid ?? ''} recorded.` }); void load(); }}
-        defaultFrom={user?.fullName ?? ''}
-        engineers={engineers}
+        selfName={(viewAs ?? user)?.fullName ?? ''}
       />
     </div>
   );

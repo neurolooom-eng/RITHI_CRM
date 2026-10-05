@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useArrivingFilter } from '../lib/arriveWith';
+import { ReviewAnswersNote } from '../components/ui/ReviewAnswersNote';
 import { PageHeader, SectionCard, Toolbar, Drawer, Modal } from '../components/ui/ui';
 import { PickList } from '../components/ui/PickList';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -19,7 +20,8 @@ import {
 import { logAudit } from '../lib/audit';
 import { formatDayTime } from '../lib/dates';
 import {
-  CALL_STATE_TONES, curatedProduct, DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUSES, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
+  CALL_STATE_TONES, curatedProduct, DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
+  reviewStatusAsSeen, reviewStatusesSeen,
   bulkReview2Block, firstYearFailure, readMyAutoSave, writeMyAutoSave, effectiveAutoSave, AUTOSAVE_DELAY_MS,
   SPARE_CATEGORY, YES_NO, actionFor, potentialEffect, toExportRow, yearStartISO,
   type ReviewPatch, type ReviewRow,
@@ -128,6 +130,12 @@ export function DailyCallReview() {
   const { user, can } = useAuth();
   const live = supabaseConfigured();
   const editable = live && can('review.edit');
+  // D-129: the review ANSWERS are withheld by the database from anybody without
+  // `review.view` (review.edit grants it). For them the stages past Review 1
+  // derive from blanks, so they are not shown as stages and not counted; the
+  // worklist tabs, whose membership IS those stages, are not offered.
+  const mayReadReview = can('review.view');
+  const tabs = mayReadReview ? TABS : TABS.filter((t) => t.key === 'register' || t.key === 'export');
   // AUTO SAVE IS A SETTING FOR THE MODULE, not for a record — and there are two
   // of them: this reviewer's, and the one an administrator applied to everyone.
   // The LATER decision wins (see effectiveAutoSave), so "apply for everyone"
@@ -165,6 +173,7 @@ export function DailyCallReview() {
   };
 
   const [tab, setTab] = useState<Tab>('register');
+  useEffect(() => { if (!tabs.some((t) => t.key === tab)) setTab('register'); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [mayReadReview]);
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [more, setMore] = useState(false);
@@ -195,13 +204,15 @@ export function DailyCallReview() {
   const [to, setTo] = useState('');
   const [status, setStatus] = useState('');       // the PAPERWORK: Review 1/2/3
   // ARRIVING FROM MY WORKLOAD with the review stage that was clicked.
-  useArrivingFilter<string>('status', setStatus);
+  // A stage past Review 1 is not a filter for a reader who cannot see the
+  // answers it is derived from (D-129): it would match every reviewed call.
+  useArrivingFilter<string>('status', (v) => setStatus(reviewStatusesSeen(mayReadReview).includes(v as never) ? v : ''));
   const [callState, setCallState] = useState('');  // the CALL: Unattended / Solved / …
   const [product, setProduct] = useState('');
   const [engineer, setEngineer] = useState('');
   const [effectOnly, setEffectOnly] = useState(false);
   // ...and with Any Potential Effect, so that card opens the calls it counts (D-022).
-  useArrivingFilter<boolean>('effectOnly', (v) => setEffectOnly(!!v));
+  useArrivingFilter<boolean>('effectOnly', (v) => setEffectOnly(mayReadReview && !!v));
   const [search, setSearch] = useState('');
   // What the loaded page set was actually read with, so Load more keeps asking
   // for the same thing while the boxes are being typed in.
@@ -510,6 +521,12 @@ export function DailyCallReview() {
   }, [live]);
 
   const statusCount = (s: string) => counts.byStatus[s] ?? 0;
+  // What the register TABLE groups and shows: for a reader without the key, a
+  // stage past Review 1 reads as not visible rather than as "Review 2 Pending"
+  // (D-129) — the column, the grouping and the group counts all agree.
+  const shownRows = useMemo(() => (mayReadReview ? rows
+    // A display label, not one of the four stages — hence the cast.
+    : rows.map((r) => ({ ...r, review_status: reviewStatusAsSeen(r.review_status, false) as ReviewRow['review_status'] }))), [rows, mayReadReview]);
   // WHAT IS IN VIEW. The counters are deliberately not scoped by review status
   // (so every tab keeps its own number), which means `counts.total` is the
   // whole register — right for the Review Register tab, wrong the moment a
@@ -590,7 +607,9 @@ export function DailyCallReview() {
   };
 
   const columns: Column<ReviewRow>[] = [
-    { key: 'review_status', header: 'Review Status', width: 150, wrap: false, render: (r) => statusBadge(r.review_status, REVIEW_STATUS_TONES) },
+    { key: 'review_status', header: 'Review Status', width: 150, wrap: false,
+      render: (r) => (mayReadReview ? statusBadge(r.review_status, REVIEW_STATUS_TONES)
+        : <span className="muted">{reviewStatusAsSeen(r.review_status, false) || '—'}</span>) },
     { key: 'ucn', header: 'UC Number', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={r.last_status || r.open_state} /> },
     { key: 'call_number', header: 'Call Number', width: 130, wrap: false },
     { key: 'reg_date', header: 'Call Date', width: 105, wrap: false, render: (r) => fmtLongDate(r.reg_date) },
@@ -708,8 +727,10 @@ export function DailyCallReview() {
         </div>
       )}
 
+      <ReviewAnswersNote extra="Stages after Review 1 are not shown or counted here, and the review columns read empty." />
+
       <div className="dccr-tabs" role="tablist">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.key}
             role="tab"
@@ -721,9 +742,9 @@ export function DailyCallReview() {
             {t.key === 'register' && counts.total > 0 && <span className="dccr-tab-count">{counts.total.toLocaleString()}</span>}
             {/* EXACT: countCallReviews walks every page of the summary view, so
                 these take no "+" even while only the first page is on screen. */}
-            {t.key === 'todo' && counts.solvedPending > 0 && <span className="dccr-tab-count">{counts.solvedPending.toLocaleString()}</span>}
-            {t.key === 'r2' && statusCount('Review 2 Pending') > 0 && <span className="dccr-tab-count">{statusCount('Review 2 Pending').toLocaleString()}</span>}
-            {t.key === 'r3' && statusCount('Review 3 Pending') > 0 && <span className="dccr-tab-count">{statusCount('Review 3 Pending').toLocaleString()}</span>}
+            {mayReadReview && t.key === 'todo' && counts.solvedPending > 0 && <span className="dccr-tab-count">{counts.solvedPending.toLocaleString()}</span>}
+            {mayReadReview && t.key === 'r2' && statusCount('Review 2 Pending') > 0 && <span className="dccr-tab-count">{statusCount('Review 2 Pending').toLocaleString()}</span>}
+            {mayReadReview && t.key === 'r3' && statusCount('Review 3 Pending') > 0 && <span className="dccr-tab-count">{statusCount('Review 3 Pending').toLocaleString()}</span>}
           </button>
         ))}
       </div>
@@ -892,7 +913,7 @@ export function DailyCallReview() {
             <div>
               <label className="field-label">Review Status</label>
               <SelectPicker value={status} onChange={setStatus} placeholder="All stages"
-                            options={[...REVIEW_STATUSES]} />
+                            options={[...reviewStatusesSeen(mayReadReview)]} />
             </div>
             <div>
               {/* Two different questions about the same call: Review Status is
@@ -911,6 +932,9 @@ export function DailyCallReview() {
               <SelectPicker value={engineer} onChange={setEngineer} placeholder="All engineers"
                             options={engineers} />
             </div>
+            {/* Any Potential Effect is a review answer (D-129): offered only
+                to a reader who can see it. */}
+            {mayReadReview && (
             <div>
               <label className="field-label">&nbsp;</label>
               <label className="row" style={{ height: 36 }}>
@@ -918,12 +942,13 @@ export function DailyCallReview() {
                 <span>Potential effect only</span>
               </label>
             </div>
+            )}
           </div>
 
           <SectionCard title="Daily Complaint Review Register (R/SER/35)">
             <DataTable<ReviewRow>
               columns={columns}
-              rows={rows}
+              rows={shownRows}
               getRowId={(r) => r.ucn}
               onRowClick={(r) => setOpen(r)}
               storageKey="dccr-register"
@@ -1900,6 +1925,7 @@ function ReviewDrawer({
   return (
     <>
       <Drawer open onClose={onClose} title={`Daily Review — ${ucn}`} width={760}>
+        <ReviewAnswersNote />
         {detailsPane}
         {reviewPane}
       </Drawer>

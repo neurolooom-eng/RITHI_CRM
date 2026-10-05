@@ -27,7 +27,7 @@ import {
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   proposeConversion, conversionHeader, convertWarrantyToContract, contractsFromSale, suggestedContractPmVisits,
   machinesWithAnotherCustomer, dealerParties, isDealerParty, coverMachineKey,
-  CONTRACT, type ConversionDraft,
+  CONTRACT, type ConversionDraft, contractMissing, contractMissingText, renewalHeader,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
 // THE PRICING RULE COMES FROM ONE PLACE. GST and "total = rate + tax" are the
@@ -360,6 +360,17 @@ function ItemCard({
 // its own old rate — visibly, and each one still editable. A machine with no
 // old rate stays empty rather than becoming 0.
 // ===========================================================================
+// The contract form's own options for a select field — one list, read by both
+// panels, so a renewal and a conversion offer what the form offers.
+const contractOptions = (name: string): string[] =>
+  CONTRACT.headerFields.find((f) => f.name === name)?.options?.filter(Boolean) ?? [];
+
+// D-104: what a panel's Create is waiting for, said beside the button.
+function MissingNote({ missing }: { missing: string[] }) {
+  if (!missing.length) return null;
+  return <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>{contractMissingText(missing)}</span>;
+}
+
 function RenewPanel({ header, items, onDone, blocked }: {
   /** The contract AS SAVED, never the window's draft (D-100). */
   header: Row; items: Row[]; onDone: (mc: string) => void;
@@ -369,6 +380,12 @@ function RenewPanel({ header, items, onDone, blocked }: {
   const [d, setD] = useState<RenewalDraft>(() => proposeRenewal(header, items));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  // PM VISITS: the old contract's number is carried; where it had none, the
+  // contract form's suggestion follows the months until somebody types over it
+  // (FRS-090) — the same rule the conversion panel uses.
+  const [pmTyped, setPmTyped] = useState(() => proposeRenewal(header, items).pm_visits_total != null);
+  // D-104: the contract form's required fields, checked on what will be written.
+  const missing = contractMissing(renewalHeader(header, d));
 
   const set = <K extends keyof RenewalDraft>(k: K, v: RenewalDraft[K]) => setD((x) => ({ ...x, [k]: v }));
   // The end date follows the start and the period, so the three cannot disagree
@@ -388,6 +405,7 @@ function RenewPanel({ header, items, onDone, blocked }: {
       contract_months: months,
       contract_years: months === null ? null : months / 12,
       contract_end: addPeriod(startIso, 0, months ?? 0) || x.contract_end,
+      pm_visits_total: pmTyped ? x.pm_visits_total : suggestedContractPmVisits(months),
     }));
 
   // TICKED, PRICED AND LISTED BY MACHINE — product AND serial (D-105, CW-001):
@@ -470,7 +488,8 @@ function RenewPanel({ header, items, onDone, blocked }: {
       </div>
       <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
         The new contract starts the day after this one ends, so cover has no gap and no overlap.
-        The machines, type, party, period and billing schedule carry over.
+        The machines, type, party, period, PM visits and billing schedule carry over — editable here,
+        and any the old contract left blank must be filled before the renewal can be created.
         <b> Rates do not</b> — a renewal is re-priced, and a figure carried over silently is a price
         nobody agreed. Set the new rates below, or leave them blank and price the contract later.
       </p>
@@ -482,9 +501,9 @@ function RenewPanel({ header, items, onDone, blocked }: {
                  onChange={(e) => set('mc_number', e.target.value)} />
         </label>
         <label className="rep-field">
-          <span className="field-label">Contract Type</span>
+          <span className="field-label">Contract Type *</span>
           <SelectPicker value={d.contract_type} onChange={(v) => set('contract_type', v)}
-            placeholder="— none —" options={['CMC', 'AMC']} />
+            placeholder="— choose —" options={contractOptions('contract_type')} />
         </label>
         <label className="rep-field">
           <span className="field-label">Start</span>
@@ -507,6 +526,23 @@ function RenewPanel({ header, items, onDone, blocked }: {
           {yearsHint(d as unknown as Row, 'contract_months') && (
             <span className="muted rep-hint">{yearsHint(d as unknown as Row, 'contract_months')}</span>
           )}
+        </label>
+        {/* D-104: required on the contract form, so carried AND editable — a
+            blank on the old contract is asked for here, never copied. */}
+        <label className="rep-field">
+          <span className="field-label">PM Visits (Total) *</span>
+          <input className="input" type="number" min={0} value={d.pm_visits_total ?? ''}
+                 onChange={(e) => { setPmTyped(true); set('pm_visits_total', e.target.value === '' ? null : Number(e.target.value)); }} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Payment Schedule *</span>
+          <SelectPicker value={d.payment_schedule} onChange={(v) => set('payment_schedule', v)}
+            placeholder="—" options={contractOptions('payment_schedule')} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Bill Generate At *</span>
+          <SelectPicker value={d.bill_generate_at} onChange={(v) => set('bill_generate_at', v)}
+            placeholder="—" options={contractOptions('bill_generate_at')} />
         </label>
       </div>
 
@@ -586,11 +622,12 @@ function RenewPanel({ header, items, onDone, blocked }: {
 
       {msg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{msg}</span></div>}
       <div className="row" style={{ gap: 8, marginTop: 10 }}>
-        <button className="btn btn-primary" disabled={busy || badRate || !!blocked} onClick={() => void go()}
-          title={blocked || undefined}>
+        <button className="btn btn-primary" disabled={busy || badRate || !!blocked || missing.length > 0} onClick={() => void go()}
+          title={blocked || (missing.length ? contractMissingText(missing) : undefined)}>
           {busy ? 'Creating…' : 'Create the renewal'}
         </button>
         {blocked && <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>{blocked}</span>}
+        <MissingNote missing={missing} />
         {badRate && (
           <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>
             One of the rates is not a number — clear it or correct it.
@@ -658,7 +695,9 @@ function ConvertPanel({ sale, items, onDone, onCancel, blocked }: {
   };
 
   const header = conversionHeader(sale, d);
-  const opt = (name: string) => CONTRACT.headerFields.find((f) => f.name === name)?.options?.filter(Boolean) ?? [];
+  const opt = contractOptions;
+  // D-104: the contract form's required fields, and a Contract Type.
+  const missing = contractMissing(header);
   const withSerial = items.filter((i) => str(i.serial_number));
   // BY MACHINE, product AND serial (D-105): a transfer of one machine no
   // longer hides every machine on the sale that shares its number.
@@ -704,7 +743,7 @@ function ConvertPanel({ sale, items, onDone, onCancel, blocked }: {
           <input className="input" value={d.mc_number} onChange={(e) => set('mc_number', e.target.value)} />
         </label>
         <label className="rep-field">
-          <span className="field-label">Contract Type</span>
+          <span className="field-label">Contract Type *</span>
           <SelectPicker value={d.contract_type} onChange={(v) => set('contract_type', v)}
             placeholder="— choose —" options={opt('contract_type')} />
         </label>
@@ -801,12 +840,13 @@ function ConvertPanel({ sale, items, onDone, onCancel, blocked }: {
 
       {msg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{msg}</span></div>}
       <div className="row" style={{ gap: 8, marginTop: 10 }}>
-        <button className="btn btn-primary" disabled={busy || checking || !!awayErr || !machines.length || !!blocked}
-          onClick={() => void go()} title={blocked || undefined}>
+        <button className="btn btn-primary" disabled={busy || checking || !!awayErr || !machines.length || !!blocked || missing.length > 0}
+          onClick={() => void go()} title={blocked || (missing.length ? contractMissingText(missing) : undefined)}>
           {busy ? 'Creating…' : 'Create the contract'}
         </button>
         <button className="btn" disabled={busy} onClick={onCancel}>Cancel</button>
         {blocked && <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>{blocked}</span>}
+        <MissingNote missing={missing} />
       </div>
     </div>
   );

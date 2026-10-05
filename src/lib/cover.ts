@@ -102,6 +102,37 @@ export function missingRequired(fields: CoverField[], row: Row): string[] {
     .map((f) => f.label);
 }
 
+// ---------------------------------------------------------------------------
+// D-104 (the system owner, 2026-10-05: "Same rules as the form") — a contract
+// made by RENEW THIS CONTRACT or CONVERT TO CONTRACT is refused for exactly the
+// blanks the contract form refuses, and the panels say which before Create can
+// be pressed.
+//
+// THE LIST IS THE FORM'S OWN — `required` on CONTRACT.headerFields, read through
+// missingRequired() — never restated here. ONE ADDITION, named rather than
+// hidden: Contract Type. The contract FORM does not mark it required (an entry
+// loaded from the old system often has none, and editing one must stay
+// possible), but a contract CREATED from these panels is a new contract whose
+// promise is CMC or AMC, and a blank one reads "CONTRACT (TYPE NOT RECORDED)"
+// where the handbook says a type is given (D-104). If the form ever marks it
+// required, this addition becomes a no-op rather than a second copy.
+// ---------------------------------------------------------------------------
+export const NEW_CONTRACT_ALSO_REQUIRES = ['contract_type'] as const;
+
+/** The labels of the contract fields `row` leaves blank that a new contract
+ *  may not — the form's required list plus NEW_CONTRACT_ALSO_REQUIRES — in the
+ *  form's own order and words. Empty when the contract may be created. */
+export function contractMissing(row: Row): string[] {
+  return missingRequired(
+    CONTRACT.headerFields.map((f) => ((NEW_CONTRACT_ALSO_REQUIRES as readonly string[]).includes(f.name) ? { ...f, required: true } : f)),
+    row,
+  );
+}
+
+/** "Fill in A, B — they are required on a contract." */
+export const contractMissingText = (missing: string[]): string =>
+  `Fill in ${missing.join(', ')} — ${missing.length === 1 ? 'it is' : 'they are'} required on a contract.`;
+
 export interface CoverConfig {
   kind: CoverKind;
   title: string;
@@ -801,6 +832,12 @@ export interface RenewalDraft {
   contract_end: string;
   contract_years: number | null;
   contract_months: number | null;
+  // CARRIED FROM THE OLD CONTRACT AND EDITABLE (D-104): the contract form
+  // requires all three, so a renewal of a contract that has them blank asks
+  // for them rather than copying the blank.
+  pm_visits_total: number | null;
+  payment_schedule: string;
+  bill_generate_at: string;
   machines: string[];         // which machines carry over, by coverMachineKey (D-105)
   // THE NEW RATE PER MACHINE, keyed by coverMachineKey — product AND serial. A missing or empty entry means
   // "leave it blank", which is what every machine starts as and what the whole
@@ -829,6 +866,10 @@ export function proposeRenewal(header: Row, items: Row[]): RenewalDraft {
     contract_end: addPeriod(start, 0, months ?? 0),
     contract_years: years,
     contract_months: months,
+    pm_visits_total: header.pm_visits_total == null || str(header.pm_visits_total).trim() === ''
+      ? null : Number(header.pm_visits_total),
+    payment_schedule: str(header.payment_schedule),
+    bill_generate_at: str(header.bill_generate_at),
     // Every machine on the old contract, and the caller unticks what is not
     // being renewed — dropping one is the common case, adding one is not.
     machines: machineKeysOf(items),
@@ -837,6 +878,27 @@ export function proposeRenewal(header: Row, items: Row[]): RenewalDraft {
     // is what anybody pricing a renewal is working from — but it is not put IN
     // the box, since a figure sitting in a field reads as one somebody agreed.
     rates: {},
+  };
+}
+
+/** The contract header a renewal would write — what the panel checks with
+ *  contractMissing() and what renewContract() saves, so the two cannot differ. */
+export function renewalHeader(from: Row, d: RenewalDraft): Row {
+  return {
+    mc_number: d.mc_number.trim(),
+    entry_at: todayLocal(),
+    party_name: from.party_name ?? null,
+    contract_type: d.contract_type || null,
+    // THE LINK BACK. Without it a renewal is just another contract that happens
+    // to follow, and "what did this machine used to be on?" has no answer.
+    prev_mc_number: str(from.mc_number) || null,
+    contract_start: d.contract_start,
+    contract_end: d.contract_end || null,
+    contract_years: d.contract_years,
+    contract_months: d.contract_months,
+    pm_visits_total: d.pm_visits_total,
+    payment_schedule: d.payment_schedule || null,
+    bill_generate_at: d.bill_generate_at || null,
   };
 }
 
@@ -870,6 +932,11 @@ export async function renewContract(
   if (d.contract_months == null || !(d.contract_months > 0)) {
     throw new Error('Give the new contract its Period (Months) — the end date is worked out from it.');
   }
+  // THE CONTRACT FORM'S RULES (D-104): a blank Payment Schedule or Bill
+  // Generate At on the old contract is asked for, not copied.
+  const header = renewalHeader(from, d);
+  const missing = contractMissing(header);
+  if (missing.length) throw new Error(contractMissingText(missing));
   if (!d.machines.length) throw new Error('Tick at least one machine to carry over.');
 
   // EVERY RATE IS CHECKED BEFORE ANYTHING IS WRITTEN. The header goes in first
@@ -888,22 +955,7 @@ export async function renewContract(
   };
   for (const k of d.machines) rateFor(k);
 
-  await saveHeader('contract', {
-    mc_number: mc,
-    entry_at: todayLocal(),
-    party_name: from.party_name ?? null,
-    contract_type: d.contract_type || null,
-    // THE LINK BACK. Without it a renewal is just another contract that happens
-    // to follow, and "what did this machine used to be on?" has no answer.
-    prev_mc_number: str(from.mc_number) || null,
-    contract_start: d.contract_start,
-    contract_end: d.contract_end || null,
-    contract_years: d.contract_years,
-    contract_months: d.contract_months,
-    pm_visits_total: from.pm_visits_total ?? null,
-    payment_schedule: from.payment_schedule ?? null,
-    bill_generate_at: from.bill_generate_at ?? null,
-  });
+  await saveHeader('contract', header);
 
   const keep = new Set(d.machines);
   const carried = items.filter((i) => str(i.serial_number).trim() && keep.has(coverMachineKey(i)));
@@ -1080,10 +1132,10 @@ export async function convertWarrantyToContract(
   if (!mc) throw new Error('Give the MC Number for the new contract.');
   if (!d.contract_start) throw new Error('The new contract needs a start date.');
   // THE CONTRACT FORM'S REQUIRED FIELDS, refused by the same rule and named
-  // together (FRS-220.4).
+  // together (FRS-220.4), and a Contract Type (D-104).
   const header = conversionHeader(sale, d);
-  const missing = missingRequired(CONTRACT.headerFields, header);
-  if (missing.length) throw new Error(`Fill in ${missing.join(', ')} — ${missing.length === 1 ? 'it is' : 'they are'} required on a contract.`);
+  const missing = contractMissing(header);
+  if (missing.length) throw new Error(contractMissingText(missing));
   if (!d.machines.length) throw new Error('Tick at least one machine to put on the contract.');
   // ASKED AGAIN AT THE WRITE, not only when the panel opened: a transfer
   // recorded meanwhile, or a draft that never went through the panel, must not

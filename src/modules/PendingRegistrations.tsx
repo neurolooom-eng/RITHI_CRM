@@ -9,7 +9,7 @@ import { FIELD_CALL_FIELDS, VIGILANCE_SECTION } from './FieldCalls';
 import { useCallFieldMasters } from './callFields';
 import { useTeamEngineers } from '../lib/access';
 import { StateBadge } from '../lib/callstate';
-import { productToCallPrefill, callDateFromRequest } from '../lib/fieldcall';
+import { productToCallPrefill, callDateFromRequest, withVigilanceRule } from '../lib/fieldcall';
 import { SupportingDocs } from './CallAssociations';
 import { todayISO, fmtLongDate } from '../lib/format';
 import { buildCreateFields, buildPayload, ProductLookup, FIELD_CONFIG, INST_CONFIG, lockCallFields, callPermPrefix, mayEditCallOn, type CallSheetConfig } from './FieldCalls';
@@ -496,7 +496,11 @@ function RequestActions({
   // does not take from the directory at large.
   // THE SAME SECTION LOCKS AS THE CALL REGISTERS (finding 57): this editor
   // rewrote any field of a live call with no check on screen at all.
-  const editFields = lockCallFields(callMasters.inject(FIELD_CALL_FIELDS).map((f) =>
+  // D-033: editing a registered FIELD call drops the default NO, so a blank
+  // answer stays blank rather than being written as a NO nobody chose (the
+  // patch below sends whatever differs from the call as loaded).
+  const editFields = lockCallFields(callMasters.inject(withVigilanceRule(FIELD_CALL_FIELDS,
+    editing?.values.callType, 'edit')).map((f) =>
     f.name === 'allocatedTo'
       ? { ...f, options: editTeam.names.map((n) => ({ value: n, label: n })) }
       : f), editing?.perm ?? 'calls', can);
@@ -800,7 +804,7 @@ function RegisterPanel({
   // The two dates come from the REQUEST, so the form says which date and why —
   // a field that quietly disagrees with today looks like a bug otherwise.
   const when = requestCallDate(row);
-  const registerFields = masters.inject(buildCreateFields(pf)).map((f) => (
+  const registerFields = masters.inject(buildCreateFields(pf, config.callType)).map((f) => (
     f.name === 'complaintDate' || f.name === 'breakdownDate' ? { ...f, help: when.why } : f));
 
   const submit = async (v: FormValues) => {

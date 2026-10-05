@@ -74,6 +74,39 @@ export function masterValueApplies(tag: string, product: string): boolean {
 export type ReviewStatus = 'Review 1 Pending' | 'Review 2 Pending' | 'Review 3 Pending' | 'Review Completed';
 export const REVIEW_STATUSES: ReviewStatus[] = ['Review 1 Pending', 'Review 2 Pending', 'Review 3 Pending', 'Review Completed'];
 
+// ---------------------------------------------------------------------------
+// D-129 (the user, 2026-10-05) — THE REVIEW ANSWERS ARE READ ONLY BY HOLDERS OF
+// `review.view` ("Read Daily Complaint Review answers"; review.edit is its
+// parent). The database withholds call_reviews from everybody else, and the
+// views built on it (field_call_review, field_call_review_summary,
+// field_failure_register) then return the review columns EMPTY.
+//
+// AN EMPTY ANSWER THERE IS NOT AN UNANSWERED REVIEW. Read naively it is: the
+// view derives review_status from the answers, so every call with Review 1 done
+// reads "Review 2 Pending" to such a reader, every effect reads 0 and every
+// root cause "(not answered)". So a screen says it cannot see them, and does not
+// count what it cannot see.
+//
+// Review 1 is the exception and stays: its three answers are the CALL's own
+// vigilance fields, which this key does not govern.
+// ---------------------------------------------------------------------------
+export const REVIEW_ANSWERS_HIDDEN =
+  "Review answers are visible only to people given 'Read Daily Complaint Review answers'.";
+/** What a reader without the key sees in place of a stage past Review 1. */
+export const REVIEW_STAGE_HIDDEN = 'Review 2/3 — not visible to you';
+
+/** A row's review status as this reader may honestly be shown it. */
+export function reviewStatusAsSeen(status: unknown, mayRead: boolean): string {
+  const s = String(status ?? '');
+  if (mayRead || s === '' || s === 'Review 1 Pending') return s;
+  return REVIEW_STAGE_HIDDEN;
+}
+
+/** The stages a reader may filter or count by: all four with the key, else
+ *  only Review 1 Pending — the one stage decided without the review's answers. */
+export const reviewStatusesSeen = (mayRead: boolean): ReviewStatus[] =>
+  (mayRead ? REVIEW_STATUSES : REVIEW_STATUSES.filter((s) => s === 'Review 1 Pending'));
+
 // THE CALL's own state, which is a different fact from the paperwork's. Kept
 // beside the review tones so the two are read together and nobody colours
 // "Unattended" as though it were a review stage.

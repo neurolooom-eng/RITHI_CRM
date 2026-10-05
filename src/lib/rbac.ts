@@ -700,7 +700,7 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Quality & Analytics', pages: [
     { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', actions: ['review.view', 'review.edit', 'review.auto', 'review.correct_date', 'ffr.manage'] },
-    { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.view', 'ffr.manage'] },
+    { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.view', 'ffr.manage', 'review.view'] },
     // MOVED HERE FROM OVERVIEW WITH THE MENU (the user, 2026-09-15). The
     // header follows the menu because that is where an administrator looks
     // for the screen; the ROUTE did not change, so `mod:/product-failure` and
@@ -708,7 +708,7 @@ export const PERM_TREE: PermHeader[] = [
     // needed — unlike a rename, where the key IS the route and must move.
     // READ-ONLY, and it holds no action of its own: it analyses the review
     // register, which `call_reviews_read` already opens to any signed-in user.
-    { path: '/product-failure', label: 'Product Failure Analysis', actions: ['charts.share'] },
+    { path: '/product-failure', label: 'Product Failure Analysis', actions: ['charts.share', 'review.view'] },
     { path: '/kpi', label: 'KPI & Failure Analysis', actions: [] },
     { path: '/spare-insights', label: 'Spare Insights', actions: ['consumption.view'] },
     { path: '/objective', label: 'Objective', actions: ['objective.manage', 'objective.lock', 'reports.view'] },

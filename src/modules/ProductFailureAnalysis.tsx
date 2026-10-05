@@ -30,6 +30,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SectionCard, PageHeader, Drawer } from '../components/ui/ui';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useAuth } from '../lib/auth';
+import { ReviewAnswersNote } from '../components/ui/ReviewAnswersNote';
 import { rolesWith } from '../lib/rbac';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { ColumnChart, DonutChart, LineChart, ParetoChart } from '../components/charts/Charts';
@@ -907,6 +908,13 @@ const SCAN_PAGES = 8;          // 8,000 reviews before it admits a lower bound
 const PAGE_SIZE = 1000;
 
 export function ProductFailureAnalysis() {
+  // D-129: EVERY FIGURE ON THIS PAGE IS A REVIEW ANSWER, or is counted over
+  // reviewed calls — and the database returns those answers EMPTY to a reader
+  // without `review.view`. Drawn for them it would say no call carries a risk
+  // to the patient and every root cause is "(not answered)". So it is not
+  // drawn at all; the page says why.
+  const { can } = useAuth();
+  const mayReadReview = can('review.view');
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -914,7 +922,7 @@ export function ProductFailureAnalysis() {
   const [at, setAt] = useState('');
 
   const load = async () => {
-    if (!supabaseConfigured()) return;
+    if (!supabaseConfigured() || !mayReadReview) return;
     setBusy(true); setErr('');
     try {
       const out: Record<string, unknown>[] = [];
@@ -933,7 +941,7 @@ export function ProductFailureAnalysis() {
     } finally { setBusy(false); }
   };
 
-  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [mayReadReview]);
 
   return (
     <div>
@@ -941,16 +949,17 @@ export function ProductFailureAnalysis() {
         title="Product Failure Analysis" icon="📈"
         subtitle="What fails and why, from every reviewed call. Click any bar — or any row — to narrow every chart below it."
         onRefresh={() => void load()} refreshing={busy} syncedAt={at}
-        count={rows.length} countMore={more}
+        count={mayReadReview ? rows.length : undefined} countMore={more}
       />
       {!supabaseConfigured() && (
         <div className="sheet-banner sheet-banner-info">
           <span>Connect the database in Settings to analyse the reviews.</span>
         </div>
       )}
+      <ReviewAnswersNote extra="This page counts those answers, so it is not drawn without them." />
       {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span></div>}
       {busy && !rows.length && <div className="muted" style={{ padding: 16 }}>Reading the reviews…</div>}
-      {rows.length > 0 && <ProductFailureCharts rows={rows} more={more} />}
+      {mayReadReview && rows.length > 0 && <ProductFailureCharts rows={rows} more={more} />}
     </div>
   );
 }

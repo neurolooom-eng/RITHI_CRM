@@ -291,7 +291,11 @@ export async function commercialInstallSection(): Promise<WorkloadSection> {
   };
 }
 
-export async function reviewSection(): Promise<WorkloadSection> {
+/** `mayRead` — does the reader hold `review.view` (D-129)? Without it the
+ *  database returns the review answers empty, so every stage past Review 1
+ *  would count every reviewed call as pending and Any Potential Effect would
+ *  read 0. Those cards are left out rather than shown wrong. */
+export async function reviewSection(mayRead = true): Promise<WorkloadSection> {
   const c = await countCallReviews({});
   const at = (s: string) => c.byStatus[s] ?? 0;
   // `effectOnly` travels with every card, so arriving from one card clears what
@@ -302,7 +306,7 @@ export async function reviewSection(): Promise<WorkloadSection> {
   return {
     key: 'review', title: 'Daily Complaint Review Register (R/SER/35)', path: '/daily-review', needs: 'mod:/daily-review',
     more: false,
-    cards: [
+    cards: ([
       { label: 'Review 1 Pending', value: at('Review 1 Pending'), sub: 'the first look', icon: '1️⃣',
         tone: at('Review 1 Pending') ? 'danger' : 'neutral',
         to: open('Review 1 Pending', 'the calls awaiting review 1') },
@@ -318,9 +322,12 @@ export async function reviewSection(): Promise<WorkloadSection> {
       { label: 'Review Completed', value: at('Review Completed'), sub: 'nothing left to answer', icon: '✅',
         tone: 'success', to: open('Review Completed', 'the completed reviews') },
       { label: 'Calls in view', value: c.total, sub: 'on the register', icon: '📋', tone: 'neutral' },
-    ],
+    ] satisfies WorkloadCard[]).filter((card) => mayRead || REVIEW_CARDS_WITHOUT_ANSWERS.includes(card.label)),
   };
 }
+/** The review cards that need no review answer: Review 1 is the call's own
+ *  vigilance fields, and the call count is the register's. */
+export const REVIEW_CARDS_WITHOUT_ANSWERS = ['Review 1 Pending', 'Calls in view'];
 
 /** Indoor DCs (0323) -- "Only the INDOOR DC needs an approval". Awaiting the
  *  reader is the list's own test (`i_may_approve`: they are its AUTHORISED BY,

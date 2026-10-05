@@ -8,7 +8,7 @@
 // text/plain (a "simple" request that skips pre-flight). GET is simple already.
 // ---------------------------------------------------------------------------
 
-import { recordToRow, rowToRecord } from './fieldcall';
+import { recordToRow, rowToRecord, vigilanceUnanswered } from './fieldcall';
 import type { DriveFolder } from './drivefolders';
 import type { GSheet } from './exportscope';
 import * as sb from './supabase';
@@ -186,6 +186,14 @@ export interface AddResult {
 // Add a new call. `record` is keyed by app keys; UCN + reg date are assigned
 // by the server so the number is unique against the live sheet.
 export async function addFieldCall(record: Record<string, unknown>, tab = ''): Promise<AddResult> {
+  // D-033: a FIELD call is never sent with a vigilance answer missing — the
+  // form requires all three, and this is the one door every screen's
+  // registration goes through, so no path can send them blank. Not `offline`:
+  // it is a refusal, and a screen must show it rather than keep the call.
+  const missing = vigilanceUnanswered(record, record.callType || (tab ? sb.callTypeForTab(tab) : ''));
+  if (missing.length) {
+    return { ok: false, error: 'Public Health Threat?, Death? and Serious Incident? must each be answered YES or NO before a Field call is registered.' };
+  }
   if (sb.supabaseConfigured()) {
     const rec = { ...record };
     if (!rec.callType && tab) rec.callType = sb.callTypeForTab(tab);

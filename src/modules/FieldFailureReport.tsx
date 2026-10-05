@@ -18,6 +18,7 @@ import {
 } from '../lib/ffr';
 import { ffrDocDownload } from '../lib/ffrdoc';
 import { FieldFailureInsights } from './FieldFailureInsights';
+import { ReviewAnswersNote } from '../components/ui/ReviewAnswersNote';
 import { FieldFailureDesk } from './FieldFailureDesk';
 import { useMySignature, signatureBelongsTo } from '../lib/signature';
 import { companyLogoBytes, COMPANY_LOGO_TYPE } from '../lib/brand';
@@ -289,6 +290,10 @@ export function FieldFailureReport() {
           <button className="btn btn-ghost btn-sm" onClick={() => setMsg(null)}>✕</button>
         </div>
       )}
+      {/* D-129: the "(now)" review columns — Any Potential Effect, Risk to
+          Patient, Root Cause and the rest — come from the Daily Complaint
+          Review and read EMPTY without the key. */}
+      <ReviewAnswersNote extra="The columns this register takes from the review (Any Potential Effect (now), Risk to Patient, Root Cause and the rest) read empty here." />
       {!mayRaise && (
         <div className="sheet-banner sheet-banner-info">
           <span>You can read the register but not raise or edit a report — that needs the <b>Field Failure Register</b> right.</span>
@@ -375,7 +380,7 @@ export function FieldFailureReport() {
         // from the one the page appears to be answering, so the search and the
         // status chips stop here. The YEAR does reach it — that is a reporting
         // period, and it is shown beside the tabs so it is never invisible.
-        <FieldFailureInsights rows={inYear} more={rows.length >= 5000} />
+        <FieldFailureInsights rows={inYear} more={rows.length >= 5000} mayReadReview={can('review.view')} />
       ) : view === 'desk' ? (
         <FieldFailureDesk
           rows={visible}

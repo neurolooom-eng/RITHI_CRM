@@ -312,7 +312,11 @@ console.log('\n-- every screen rendering the call form injects its lists --');
         && !/return FIELD_CALL_FIELDS/.test(line)
         && !/inject/i.test(line)
         // a derivation, not a render
-        && !/^\s*const \w+ = \(\) => FIELD_CALL_FIELDS/.test(line))
+        && !/^\s*const \w+ = \(\) => FIELD_CALL_FIELDS/.test(line)
+        // D-033: the vigilance rule applied to the schema is a derivation too,
+        // and both callers (buildCreateFields, viewFields) reach the render
+        // through `inject` above.
+        && !/withVigilanceRule\(FIELD_CALL_FIELDS, callType, '?\w+'?\)/.test(line))
       .map(({ i }) => `${f}:${i + 1}`);
     strays.push(...stray);
   });
@@ -1669,7 +1673,8 @@ console.log('\n-- the evidence workbook --');
       /\{TRANSFERRED_AWAY\}/.test(cov), true);
     eq('...and cannot create the contract until the check has answered',
       // `|| !!blocked` since D-100: nor while the entry holds an unsaved change.
-      /disabled=\{busy \|\| checking \|\| !!awayErr \|\| !machines\.length \|\| !!blocked\}/.test(cov), true);
+      // `|| missing.length > 0` since D-104: nor while a required field is blank.
+      /disabled=\{busy \|\| checking \|\| !!awayErr \|\| !machines\.length \|\| !!blocked \|\| missing\.length > 0\}/.test(cov), true);
     {
       const cl = readFileSync(`${process.cwd()}/src/lib/cover.ts`, 'utf8');
       eq('...and the write asks again, so a draft cannot carry one past it',
@@ -2735,7 +2740,11 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
 
   // ...and the link back must be written, or "what was this machine on before?"
   // has no answer.
-  eq('the new contract points back at the old one', /prev_mc_number:/.test(renew), true);
+  // Since D-104 the header is built by renewalHeader() — what the panel checks
+  // and what renewContract() saves — so the link back is asserted there.
+  const renewHead = cov.slice(cov.indexOf('export function renewalHeader'), cov.indexOf('export async function contractNumberExists'));
+  eq('the new contract points back at the old one',
+    /prev_mc_number: str\(from\.mc_number\) \|\| null/.test(renewHead) && /await saveHeader\('contract', header\)/.test(renew), true);
   // HIDDEN ON THE FORM, NOT DROPPED (the user, 2026-10-02): the header field
   // list is also the save's whitelist, so removing the field would make the
   // renewal's write of it disappear.
@@ -5103,7 +5112,9 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   const rbac = readFileSync('src/lib/rbac.ts', 'utf8');
   eq('ffr.view is on the action list', /key: 'ffr\.view'/.test(rbac), true);
   eq('and on the Field Failure page in the matrix',
-    /'\/failure-report', label: 'Field Failure Register', actions: \['ffr\.view', 'ffr\.manage'\]/.test(rbac), true);
+    // ffr.view on the row, wherever it sits among the row's keys (review.view
+    // joined it for D-129).
+    /'\/failure-report', label: 'Field Failure Register', actions: \[[^\]]*'ffr\.view'/.test(rbac), true);
 
   // AN EMPTY REGISTER MUST SAY WHY. "There are no reports" and "you cannot see
   // the reports" look identical and mean opposite things.
@@ -6227,7 +6238,10 @@ console.log('\n-- the Insights tab can be interrogated --');
   // another — and it is also what lets picking a machine on the bar chart ABOVE
   // advance this chart, which is the same question asked from the other end.
   eq('the level follows the filters',
-    /const paretoOpen = PARETO_LEVELS\.filter\(\(l\) => !picked\[l\.key\]\)/.test(ins), true);
+    // `levels` is PARETO_LEVELS, narrowed to the machine for a reader without
+    // the review answers (D-129).
+    /const paretoOpen = levels\.filter\(\(l\) => !picked\[l\.key\]\)/.test(ins)
+      && /const levels = mayReadReview \? PARETO_LEVELS :/.test(ins), true);
   // "The 2nd and the 3rd are interchangeable or can be skipped": the open
   // levels are OFFERED, so the reader picks the next question rather than being
   // marched through a fixed order.
@@ -9944,7 +9958,7 @@ console.log('\n-- the Daily Complaint Review: auto review is a role’s switch (
     /Auto review: <b>\{auto\.enabled \? 'On' : 'Off'\}<\/b>/.test(dccr), true);
   eq('...and only review.auto may switch it', /auto && can\('review\.auto'\) && \(/.test(dccr), true);
   eq('review.auto is on Roles & Permissions, on the Daily Review row',
-    /key: 'review\.auto'/.test(r('src/lib/rbac.ts')) && /'\/daily-review'[^\n]*actions: \['review\.edit', 'review\.auto'/.test(r('src/lib/rbac.ts')), true);
+    /key: 'review\.auto'/.test(r('src/lib/rbac.ts')) && /'\/daily-review'[^\n]*actions: \[[^\]]*'review\.edit', 'review\.auto'/.test(r('src/lib/rbac.ts')), true);
   const up = r('src/lib/uploads.ts');
   const dccrUpload = up.slice(up.indexOf("key: 'call_reviews'"), up.indexOf("key: 'parties'"));
   eq('the DCCR Register upload marks every row imported', /\{ to: 'imported', from: \[\], derive: \(\) => true, always: true \}/.test(dccrUpload), true);
@@ -10426,6 +10440,147 @@ console.log('\n-- six recorded defects: D-018/D-065, D-031, D-032, D-040, D-105,
   eq('...Save entry, Force update and Raise calls all keep them, and a card is keyed by its line',
     (crx.match(/setItems\(\(cur\) => keepUnsavedMachines\(fresh, cur\)\)/g) ?? []).length === 3
       && /<ItemCard key=\{lineKey\(it\)\}/.test(crx) && !/`new-\$\{i\}`/.test(crx), true);
+}
+
+console.log('\n-- the owner\'s four decisions of 2026-10-05: D-033, D-049, D-104, D-129 --');
+{
+  const rd = (f: string) => code(readFileSync(f, 'utf8'));
+
+  // ---- D-033: a FIELD call's three vigilance answers start blank and must be given
+  const fcl = await import('../src/lib/fieldcall');
+  eq('D-033: the FIELD register demands the answers; Installation and PM do not',
+    ['FIELD', 'Field', '', 'INSTALLATION CALL', 'INSTALLATION', 'P M VISIT', 'PM'].map(fcl.vigilanceMustBeAnswered),
+    [true, true, true, false, false, false, false]);
+  const schema = [
+    { name: 'partyName', required: true },
+    { name: 'publicHealthThreat', defaultValue: 'NO' },
+    { name: 'death', defaultValue: 'NO' },
+    { name: 'seriousIncident', defaultValue: 'NO' },
+  ];
+  const vig = (fs: { name: string; required?: boolean; defaultValue?: unknown }[]) =>
+    fs.filter((f) => f.name !== 'partyName').map((f) => [f.name, 'defaultValue' in f, !!f.required]);
+  eq('...registering a FIELD call: no default, required',
+    vig(fcl.withVigilanceRule(schema, 'FIELD', 'create')),
+    [['publicHealthThreat', false, true], ['death', false, true], ['seriousIncident', false, true]]);
+  eq('...editing or viewing one: no default (a blank shows blank, an edit writes no NO nobody chose), not required',
+    vig(fcl.withVigilanceRule(schema, 'FIELD', 'edit')),
+    [['publicHealthThreat', false, false], ['death', false, false], ['seriousIncident', false, false]]);
+  eq('...Installation and PM keep today\'s form exactly (the same list, default NO)',
+    [fcl.withVigilanceRule(schema, 'INSTALLATION CALL', 'create') === schema, fcl.withVigilanceRule(schema, 'P M VISIT', 'create') === schema],
+    [true, true]);
+  eq('...and the other fields are untouched', fcl.withVigilanceRule(schema, 'FIELD', 'create')[0], schema[0]);
+  eq('...a FIELD call is unanswered until each reads YES or NO',
+    [fcl.vigilanceUnanswered({ callType: 'FIELD' }),
+     fcl.vigilanceUnanswered({ callType: 'FIELD', publicHealthThreat: 'yes', death: 'No', seriousIncident: ' NO ' }),
+     fcl.vigilanceUnanswered({ callType: 'FIELD', publicHealthThreat: 'NO', death: '', seriousIncident: 'maybe' })],
+    [['publicHealthThreat', 'death', 'seriousIncident'], [], ['death', 'seriousIncident']]);
+  eq('...an Installation or PM call is never held for them',
+    [fcl.vigilanceUnanswered({ callType: 'INSTALLATION CALL' }), fcl.vigilanceUnanswered({}, 'P M VISIT')], [[], []]);
+  const fcx = rd('src/modules/FieldCalls.tsx');
+  eq('...the schema itself still carries NO (for Installation and PM)',
+    (fcx.match(/name: '(publicHealthThreat|death|seriousIncident)'[^\n]*defaultValue: 'NO'/g) ?? []).length, 3);
+  eq('...both create forms say which register they are for',
+    /buildCreateFields\(prefill, config\.callType\)/.test(fcx)
+      && /buildCreateFields\(pf, config\.callType\)/.test(rd('src/modules/PendingRegistrations.tsx'))
+      && /export function buildCreateFields\(prefill: FormValues \| undefined, callType: string\)/.test(fcx), true);
+  eq('...the registers\' edit/view and Pending Registrations\' editor drop the default on a FIELD call',
+    /withVigilanceRule\(FIELD_CALL_FIELDS, callType, mode\)/.test(fcx)
+      && /withVigilanceRule\(FIELD_CALL_FIELDS,\s*editing\?\.values\.callType, 'edit'\)/.test(rd('src/modules/PendingRegistrations.tsx')), true);
+  eq('...answering at registration is not locked by "Edit the vigilance answers" (it is required there)',
+    /answering && vigilanceMustBeAnswered\(config\.callType\) \? VIGILANCE_KEYS : \[\]/.test(fcx)
+      && /exempt\.includes\(f\.name\)/.test(fcx), true);
+  const sh = rd('src/lib/sheets.ts');
+  const afc = sh.slice(sh.indexOf('export async function addFieldCall'), sh.indexOf('export async function listParties'));
+  eq('...and the one door every registration goes through refuses an unanswered FIELD call, as a refusal not an outage',
+    /const missing = vigilanceUnanswered\(record,/.test(afc) && afc.indexOf('vigilanceUnanswered') < afc.indexOf('sb.addCall')
+      && !/offline: true/.test(afc), true);
+  eq('...Sync does not send an unanswered held call, and says why',
+    /if \(vigilanceUnanswered\(rest, rest\.callType \|\| config\.callType\)\.length\) \{ unanswered\+\+; continue; \}/.test(fcx)
+      && /must each be answered YES or NO/.test(fcx), true);
+  eq('...calls raised from a Sale Entry or a transfer still record NO (FRS-085.5)',
+    (rd('src/lib/coverspec.ts').match(/(publicHealthThreat|death|seriousIncident): 'NO'/g) ?? []).length >= 3, true);
+
+  // ---- D-049: Stock Transfer — From is yours or your team's, To is on the User Master
+  const stx = rd('src/modules/StockTransfer.tsx');
+  eq('D-049: From is the filing list (self + team, everyone with stock.transfer.others)',
+    /const fromList = useFilingNames\('stock\.transfer\.others'\)/.test(stx)
+      && /<SelectPicker value=\{from\} onChange=\{setFrom\}\s*options=\{fromList\.names\}/.test(stx), true);
+  eq('...To is a picker of active User Master people',
+    /const toList = useActivePeople\(\)/.test(stx)
+      && /<SelectPicker value=\{to\} onChange=\{setTo\}\s*options=\{toList\.people\.map/.test(stx), true);
+  eq('...neither takes free text, and the old typed boxes are gone',
+    !/allowFreeText/.test(stx) && !/dl-stock-engineers/.test(stx) && !/listUsers\(/.test(stx), true);
+  eq('...a stale value is refused before the database has to',
+    /if \(!fromList\.names\.some\(\(n\) => sameName\(n, from\)\)\)/.test(stx)
+      && /if \(!toList\.people\.some\(\(p\) => sameName\(p\.name, to\)\)\)/.test(stx), true);
+
+  // ---- D-104: Renew and Convert make only contracts the contract form would accept
+  const cvr = await import('../src/lib/cover');
+  const ALL5 = ['Contract Type', 'Contract Period (Months)', 'PM Visits (Total)', 'Payment Schedule', 'Bill Generate At'];
+  eq('D-104: a blank contract misses the form\'s four and a Contract Type, in the form\'s order and words',
+    cvr.contractMissing({}), ALL5);
+  eq('...the four are the FORM\'s own required list, not a restatement',
+    cvr.missingRequired(cvr.CONTRACT.headerFields, {}), ALL5.slice(1));
+  const full = { contract_type: 'CMC', contract_months: 12, pm_visits_total: 4, payment_schedule: 'Yearly', bill_generate_at: 'End Of Period' };
+  eq('...and a filled one misses nothing', cvr.contractMissing(full), []);
+  const oldBlank = { mc_number: 'MC1', contract_type: 'AMC', contract_end: '2026-03-31', contract_months: 12, pm_visits_total: 2 };
+  const rd1 = cvr.proposeRenewal(oldBlank, []);
+  eq('...a renewal of a contract with blank billing is asked for it, not handed the blank',
+    cvr.contractMissing(cvr.renewalHeader(oldBlank, { ...rd1, mc_number: 'MC2' })), ['Payment Schedule', 'Bill Generate At']);
+  const rd2 = cvr.proposeRenewal({ ...oldBlank, payment_schedule: 'Yearly', bill_generate_at: 'End Of Period' }, []);
+  eq('...a renewal carries what the old contract had, editable',
+    [rd2.pm_visits_total, rd2.payment_schedule, rd2.bill_generate_at, cvr.contractMissing(cvr.renewalHeader(oldBlank, rd2))],
+    [2, 'Yearly', 'End Of Period', []]);
+  eq('...a conversion starts missing all five (Contract Type is never guessed)',
+    cvr.contractMissing(cvr.conversionHeader({ warranty_end: '2026-03-31' }, cvr.proposeConversion({ warranty_end: '2026-03-31' }, []))), ALL5);
+  const cvl = rd('src/lib/cover.ts');
+  eq('...both writers refuse by the same helper',
+    /const missing = contractMissing\(header\);\s*if \(missing\.length\) throw new Error\(contractMissingText\(missing\)\)/.test(
+      cvl.slice(cvl.indexOf('export async function renewContract'), cvl.indexOf('export interface ConversionDraft')))
+    && /const missing = contractMissing\(header\);\s*if \(missing\.length\) throw new Error\(contractMissingText\(missing\)\)/.test(
+      cvl.slice(cvl.indexOf('export async function convertWarrantyToContract'))), true);
+  const crg = rd('src/modules/CoverRegister.tsx');
+  const renewP = crg.slice(crg.indexOf('function RenewPanel('), crg.indexOf('function ConvertPanel('));
+  const convP = crg.slice(crg.indexOf('function ConvertPanel('), crg.indexOf('export function CoverRegister('));
+  eq('...and each panel shows the fields, disables Create while one is blank, and says which',
+    [renewP, convP].map((p) => /const missing = contractMissing\(/.test(p) && /missing\.length > 0\}/.test(p)
+      && /<MissingNote missing=\{missing\} \/>/.test(p)
+      && ['contract_type', 'payment_schedule', 'bill_generate_at'].every((k) => new RegExp(`set\\('${k}', v\\)`).test(p))
+      && /set\('pm_visits_total',/.test(p)), [true, true]);
+
+  // ---- D-129: review answers are read only by holders of review.view
+  const dc = await import('../src/lib/dccr');
+  eq('D-129: past Review 1 a stage is not shown to a reader without the key',
+    ['Review 1 Pending', 'Review 2 Pending', 'Review 3 Pending', 'Review Completed', ''].map((x) => dc.reviewStatusAsSeen(x, false)),
+    ['Review 1 Pending', dc.REVIEW_STAGE_HIDDEN, dc.REVIEW_STAGE_HIDDEN, dc.REVIEW_STAGE_HIDDEN, '']);
+  eq('...and is, to a reader with it', dc.reviewStatusAsSeen('Review 3 Pending', true), 'Review 3 Pending');
+  eq('...the stages offered as a filter follow the same rule',
+    [dc.reviewStatusesSeen(false), dc.reviewStatusesSeen(true).length], [['Review 1 Pending'], 4]);
+  eq('...the note is the decision\'s words',
+    dc.REVIEW_ANSWERS_HIDDEN, "Review answers are visible only to people given 'Read Daily Complaint Review answers'.");
+  const dcr = rd('src/modules/DailyCallReview.tsx');
+  eq('...the register says so, hides the worklists and their counts, and does not filter on a hidden answer',
+    /const mayReadReview = can\('review\.view'\)/.test(dcr)
+      && /const tabs = mayReadReview \? TABS : TABS\.filter/.test(dcr) && /\{tabs\.map\(\(t\) =>/.test(dcr)
+      && (dcr.match(/\{mayReadReview && t\.key === '(todo|r2|r3)'/g) ?? []).length === 3
+      && /<ReviewAnswersNote extra=/.test(dcr) && /rows=\{shownRows\}/.test(dcr)
+      && /reviewStatusesSeen\(mayReadReview\)/.test(dcr) && /setEffectOnly\(mayReadReview && !!v\)/.test(dcr), true);
+  eq('...and so does its review drawer',
+    /title=\{`Daily Review — \$\{ucn\}`\} width=\{760\}>\s*<ReviewAnswersNote \/>/.test(dcr), true);
+  const pfa = rd('src/modules/ProductFailureAnalysis.tsx');
+  eq('...Product Failure Analysis is not drawn over answers it cannot see',
+    /if \(!supabaseConfigured\(\) \|\| !mayReadReview\) return;/.test(pfa)
+      && /\{mayReadReview && rows\.length > 0 && <ProductFailureCharts/.test(pfa) && /<ReviewAnswersNote/.test(pfa), true);
+  const ffrR = rd('src/modules/FieldFailureReport.tsx');
+  const ffrI = rd('src/modules/FieldFailureInsights.tsx');
+  eq('...the Field Failure Register says so, and its Insights draw neither root cause, grouping nor withdrawn effects',
+    /<ReviewAnswersNote/.test(ffrR) && /mayReadReview=\{can\('review\.view'\)\}/.test(ffrR)
+      && /\{mayReadReview && \(\s*<KpiCard label="Effect withdrawn"/.test(ffrI)
+      && /\{!mayReadReview \? \(/.test(ffrI), true);
+  const wl = rd('src/lib/workload.ts');
+  eq('...and My Workload counts only the review cards that need no answer',
+    /run: \(\) => reviewSection\(can\('review\.view'\)\)/.test(rd('src/modules/Workload.tsx'))
+      && /\.filter\(\(card\) => mayRead \|\| REVIEW_CARDS_WITHOUT_ANSWERS\.includes\(card\.label\)\)/.test(wl), true);
 }
 
 console.log('\n-- every requirement carries a version and a date (Rev 3.2, 2026-10-03) --');
