@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Quality Works</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#131a22;
+  --ink-2:#38434f;
+  --muted:#6a7885;
+  --surface:#ffffff;
+  --page:#f2f4f7;
+  --line:#d9dfe6;
+  --line-soft:#e7ebf0;
+  --rail:#9aa7b4;
+
+  /* THE CALL-STATUS CODE. Literal, and the same in both themes — these are the
+     hexes in src/lib/callstate.tsx. A colour people have learned to read is a
+     code, and a code that means something else in dark mode is not one. */
+  --st-unattended:#d32f2f;
+  --st-unsolved:#1565c0;
+  --st-pending:#c2185b;
+  --st-solved:#2e7d32;
+  --st-reopened:#ef6c00;
+  --st-cancelled:#546e7a;
+
+  --master:#00695c;      /* what flows IN  */
+  --rule:#8e2d8e;        /* what is REFUSED */
+  --mandate:#b25000;     /* what is DEMANDED */
+
+  --shadow:0 1px 2px rgba(19,26,34,.06), 0 8px 20px -12px rgba(19,26,34,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+    --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+    --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+  --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+  --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--page); color:var(--ink);
+  font-family:'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size:16px; line-height:1.55;
+}
+code, .mono{font-family:'IBM Plex Mono', ui-monospace, monospace}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 16px 88px}
+/* FRAMED IN THE APP, the page is already inside a padded shell, so it drops its
+   own bottom gutter and its top rule — the app's header is directly above. */
+body.framed .wrap{padding-bottom:28px}
+body.framed header.top{padding-top:8px}
+
+/* ---- masthead ---------------------------------------------------------- */
+header.top{padding:44px 0 26px; border-bottom:1px solid var(--line)}
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 12px;
+}
+h1{
+  font-size:clamp(30px,5.2vw,46px); line-height:1.08; margin:0 0 14px;
+  letter-spacing:-.021em; font-weight:700; text-wrap:balance; max-width:20ch;
+}
+.standfirst{margin:0; max-width:64ch; color:var(--ink-2); font-size:17px}
+.standfirst b{color:var(--ink)}
+
+/* ---- the three-gutter key --------------------------------------------- */
+.key{
+  display:grid; gap:10px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+}
+.key div{
+  border-left:3px solid var(--k); padding:2px 0 2px 12px;
+  font-size:13.5px; color:var(--ink-2);
+}
+.key strong{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--k); font-weight:600;
+}
+
+/* ---- the spine --------------------------------------------------------- */
+.flow{margin-top:14px}
+.stage{
+  display:grid; gap:0 28px; padding:34px 0 6px;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.32fr) minmax(0,1fr);
+  border-bottom:1px solid var(--line-soft);
+}
+.stage:last-child{border-bottom:0}
+
+/* the centre column carries the rail */
+.step{grid-column:2; position:relative; padding-left:38px}
+.step::before{           /* the rail */
+  content:""; position:absolute; left:11px; top:-34px; bottom:-40px; width:2px;
+  background:var(--line);
+}
+/* THE RAIL STOPS AT EACH FLOW'S EDGE. With two flows on one page it would
+   otherwise run straight through the band announcing the second one and the
+   ledger between them — drawing a line between two things that are not
+   sequential. A rail that lies about continuity is worse than no rail. */
+.stage:first-of-type .step::before{top:14px}
+.stage:last-of-type .step::before{bottom:auto; height:14px}
+.flowhead + .stage .step::before{top:14px}
+.stage:has(+ .flowhead) .step::before,
+.stage:has(+ .ledger) .step::before{bottom:auto; height:14px}
+.step::after{            /* the node */
+  content:""; position:absolute; left:4px; top:7px;
+  width:16px; height:16px; border-radius:50%;
+  background:var(--surface); border:3px solid var(--node,var(--rail));
+}
+.n{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em;
+  color:var(--muted); text-transform:uppercase; margin:0 0 4px;
+}
+h2{font-size:21px; line-height:1.25; margin:0 0 8px; letter-spacing:-.012em; font-weight:600}
+.step p{margin:0 0 10px; color:var(--ink-2); font-size:14.5px; max-width:52ch}
+.step p:last-child{margin-bottom:0}
+.step .who{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+  color:var(--ink); background:var(--line-soft); border-radius:3px;
+  padding:2px 7px; margin:0 6px 8px 0;
+}
+
+/* side columns */
+.side{align-self:start; padding-top:22px}
+.side.in{grid-column:1; text-align:right}
+.side.out{grid-column:3}
+.side h3{
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.13em;
+  text-transform:uppercase; margin:0 0 9px; font-weight:600; color:var(--c);
+}
+.side ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px}
+.side.in ul{align-items:flex-end}
+.side li{font-size:13.2px; line-height:1.45; color:var(--ink-2); max-width:34ch}
+.side li b{color:var(--ink); font-weight:600}
+.side.in li{border-right:2px solid var(--c); padding-right:10px}
+.side.out li{border-left:2px solid var(--c); padding-left:10px}
+.side.in{--c:var(--master)}
+.side.out{--c:var(--rule)}
+.side.out li.mandate{--c:var(--mandate); border-left-color:var(--mandate)}
+.tag{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10px;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--surface);
+  background:var(--mandate); border-radius:2px; padding:1px 5px; margin-right:6px;
+  vertical-align:1px; font-weight:600;
+}
+.tag.db{background:var(--rule)}
+
+/* ---- the status code --------------------------------------------------- */
+.states{
+  margin:38px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.states h2{margin-bottom:6px}
+.states > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+.chips{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px}
+.chip{
+  color:#fff; font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500;
+  padding:5px 11px; border-radius:3px; white-space:nowrap;
+}
+.transitions{width:100%; border-collapse:collapse; font-size:13.5px}
+.transitions th{
+  text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--muted);
+  font-weight:600; padding:0 14px 8px 0; border-bottom:1px solid var(--line);
+}
+.transitions td{padding:11px 14px 11px 0; border-bottom:1px solid var(--line-soft); vertical-align:top; color:var(--ink-2)}
+.transitions tr:last-child td{border-bottom:0}
+.transitions td:first-child{color:var(--ink); font-weight:600; white-space:nowrap}
+.scroll{overflow-x:auto}
+
+/* ---- closing panels ---------------------------------------------------- */
+.panels{display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); margin-top:38px}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:22px; box-shadow:var(--shadow)}
+.panel h3{margin:0 0 10px; font-size:16.5px; font-weight:600; letter-spacing:-.008em}
+.panel p{margin:0 0 10px; font-size:14px; color:var(--ink-2)}
+.panel p:last-child{margin-bottom:0}
+.panel ul{margin:0; padding-left:18px; font-size:14px; color:var(--ink-2)}
+.panel li{margin-bottom:7px}
+.panel li:last-child{margin-bottom:0}
+.panel li b{color:var(--ink)}
+
+footer{margin-top:44px; padding-top:20px; border-top:1px solid var(--line); font-size:13px; color:var(--muted)}
+footer code{font-size:12.5px}
+
+
+/* ---- the two flows ------------------------------------------------------ */
+/* TWO PATHS INTO THE SAME RECORD, and the reader needs to know which one they
+   are in before the first stage rather than after it — so each flow opens with
+   a full-width band, and the contents strip at the top says there are two. */
+.flownav{
+  display:grid; gap:12px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+}
+.flownav a{
+  display:block; text-decoration:none; color:inherit;
+  border:1px solid var(--line); border-radius:8px; padding:14px 16px;
+  background:var(--surface); box-shadow:var(--shadow);
+}
+.flownav a:hover{border-color:var(--rail)}
+.flownav a:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
+.flownav-n{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--muted); margin-bottom:4px;
+}
+.flownav-t{display:block; font-weight:600; font-size:15.5px; line-height:1.3; margin-bottom:4px}
+.flownav-s{display:block; font-size:12.5px; color:var(--muted)}
+
+.flowhead{
+  margin:44px 0 0; padding:24px 0 22px;
+  border-top:3px solid var(--ink); border-bottom:1px solid var(--line);
+}
+.flowhead-n{
+  font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 8px;
+}
+.flowhead-t{font-size:clamp(22px,3.4vw,30px); line-height:1.15; margin:0 0 12px; letter-spacing:-.016em; text-wrap:balance}
+.flowhead-p{margin:0 0 10px; max-width:68ch; color:var(--ink-2); font-size:15px}
+.flowhead-p:last-child{margin-bottom:0}
+
+/* The ledger: which master answers which field. A table rather than prose
+   because that is the question people come back to this page with. */
+.ledger{
+  margin:34px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.ledger h2{margin:0 0 6px}
+.ledger > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+
+/* ---- narrow ------------------------------------------------------------ */
+@media (max-width:900px){
+  .stage{grid-template-columns:1fr; gap:0; padding:28px 0 10px}
+  .step{grid-column:1}
+  .side.in, .side.out{grid-column:1; text-align:left; padding:16px 0 0 38px}
+  .side.in ul{align-items:flex-start}
+  .side.in li{border-right:0; padding-right:0; border-left:2px solid var(--c); padding-left:10px}
+  .side.in{order:2} .step{order:1} .side.out{order:3}
+  .stage{display:flex; flex-direction:column}
+  .step::before{display:none}
+  .step::after{left:0}
+  .step{padding-left:30px}
+}
+</style>
+</head>
+<body>
+<script>
+  // Set before paint, so a framed page never flashes its standalone padding.
+  try { if (window.parent !== window) document.body.className = 'framed'; } catch (e) {}
+</script>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">RITHI CRM · Quality &amp; Analytics · process reference</p>
+  <h1>How quality works</h1>
+  <p class="standfirst">
+    <b>A complaint becomes quality evidence in three movements.</b> Every field call is reviewed in
+    the Daily Complaint Review Register; a review that finds a potential effect raises a Field Failure
+    Report without anybody having to remember to; and the reviews and reports are then counted —
+    into the Objective, Product Failure Analysis, KPI &amp; Failure Analysis and Spare Insights.
+    Read the middle column for <b>what happens</b>, the left for <b>which record or rule the step
+    reads</b>, and the right for <b>what the system refuses and what it demands</b>. Where a rule is
+    a target that is not yet fully built, this page says so.
+  </p>
+
+  <div class="key">
+    <div style="--k:var(--master)"><strong>Reads</strong>The record, master or rule the step draws on.</div>
+    <div style="--k:var(--rule)"><strong>Restrictions</strong>What the system will not allow, and where the refusal comes from.</div>
+    <div style="--k:var(--mandate)"><strong>Mandates</strong>What it will not proceed without.</div>
+  </div>
+</header>
+
+<nav class="flownav" aria-label="The three flows">
+  <a href="#flow1">
+    <span class="flownav-n">Flow 1</span>
+    <span class="flownav-t">The review — every field call, in three stages</span>
+    <span class="flownav-s">Daily Complaint Review Register · R/SER/35 · /daily-review</span>
+  </a>
+  <a href="#flow2">
+    <span class="flownav-n">Flow 2</span>
+    <span class="flownav-t">The Field Failure Report</span>
+    <span class="flownav-s">Field Failure Register · R-SER-03 · /failure-report</span>
+  </a>
+  <a href="#flow3">
+    <span class="flownav-n">Flow 3</span>
+    <span class="flownav-t">Counting and analysis</span>
+    <span class="flownav-s">Objective · Product Failure Analysis · KPI · Spare Insights</span>
+  </a>
+</nav>
+
+<main class="flow">
+
+  <!-- ================= FLOW 1 ================= -->
+  <section class="flowhead" id="flow1">
+    <p class="flowhead-n">Flow 1</p>
+    <h2 class="flowhead-t">The review — every field call, in three stages</h2>
+    <p class="flowhead-p">
+      The <b>Daily Complaint Review Register (R/SER/35)</b> holds one review per field call.
+      <b>Review 1</b> is the vigilance answer taken at registration; <b>Review 2</b> asks whether the
+      failure has a potential effect; <b>Review 3</b> codes it. Any Potential Effect, Action Taken and
+      the Review Status are <b>worked out by the database</b> from the answers, never typed.
+    </p>
+    <p class="flowhead-p">
+      Tabs: the <b>Register</b>, the <b>Review Desk</b>, three worklists (<b>To be Reviewed</b>, <b>Review 2
+      Pending</b>, <b>Review 3 Pending</b>) and <b>Export</b>. The register opens on this year.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Standard Complaint</b> master — the complaint is chosen, never typed</li>
+        <li><b>The call</b> — its three vigilance answers</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unattended)">
+      <p class="n">Flow 1 · Step 01</p>
+      <h2>The call arrives with its complaint and Review 1</h2>
+      <span class="who">Hotline</span>
+      <p>
+        A field call is registered with a <b>Standard Complaint</b> picked from its master. That value is
+        what every count, filter and frequent-failure match downstream runs on, which is why it takes no
+        free text on any screen.
+      </p>
+      <p>
+        <b>Review 1</b> — Public Health Threat? Death? Serious Incident? — is answered on the call itself,
+        so its date is the call's registration date. The review shows it back <b>read-only</b>; to change
+        it, the call is edited in the Field Call Register.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>A <b>Standard Complaint</b> from the master. An empty master is reported as empty; the field stays a picker.</li>
+        <li>A call stays <b>Review 1 Pending</b> until all three vigilance answers are recorded on it.</li>
+        <li>The register lists <b>field calls</b>; installation and PM calls are not reviewed here.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The call card</b> — number, date, customer, product · serial, engineer, status, complaint</li>
+        <li><b>Age at failure</b> — complaint date (else registration date) less warranty start</li>
+        <li><b>Visits</b>, newest first, with the hour meter, software version and the signed service report</li>
+        <li><b>Spares consumed</b> on the call</li>
+        <li><b>Machine History</b>, in a pop-up</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 1 · Step 02</p>
+      <h2>Review 2 — does the failure have a potential effect?</h2>
+      <span class="who">Reviewer · <code>review.edit</code></span>
+      <p>
+        Three YES/NO questions: <b>Risk to Patient / Any Clinical Impact</b>, <b>Warranty Failure (1 yr)</b>
+        and <b>Frequent Failure</b>. The evidence sits beside them, so the reviewer does not leave the
+        review to find it. Under Warranty Failure the machine's age is shown, flagged
+        <b>WITHIN THE FIRST YEAR</b> below 366 days and stated as <i>not known</i> where no warranty start
+        is recorded.
+      </p>
+      <p>
+        <b>Any Potential Effect</b> is shown as the answers are chosen: YES if any of the three is YES,
+        NO when all three are NO, nothing until all three are given. When it reads YES the screen says a
+        Field Failure Report is to be raised — before anything is saved. <b>All NO</b> fills the three
+        boxes in one click but does not save them; the reviewer reads them and saves.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>All <b>three</b> answers before Review 2 is complete. Two answered is a stage still pending.</li>
+        <li class="mandate"><span class="tag db">Policy</span><b>Only on a call you can see</b> (0342): a review — and the Field Failure Report a <i>Yes</i> raises — is saved only on a call that exists and is one of yours, your team's, or every call if your role sees everything. The DCCR Register upload still loads reviews of history.</li>
+        <li><span class="tag db">Policy</span>Writing a review needs <code>review.edit</code>. Without it the register, desk and drawer are read-only and say which permission is missing; the database refuses the write regardless.</li>
+        <li>The answer pickers commit on a click or Enter only — a stray keystroke never chooses an answer.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every call</b> on the same product, regardless of who may see it</li>
+        <li><b>Spares fitted</b>, by part code</li>
+        <li><b>Admin Config</b> — the window, threshold and switch for each rule</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 1 · Step 03 · automatic</p>
+      <h2>The frequent-failure verdict, computed in the database</h2>
+      <span class="who">The database</span>
+      <p>
+        Beside the Frequent Failure question the register shows its own verdict, worked out by
+        <code>frequent_failure()</code>. <b>Rule 1 — this machine again:</b> earlier calls on the same
+        product <b>and</b> serial within the window — <b>always</b> where the same part was fitted,
+        otherwise on the same complaint (or on any complaint, if Admin Config switches that requirement
+        off) — counted <b>including</b> the call under review. Defaults: one month, threshold two.
+      </p>
+      <p>
+        <b>Rule 2 — the same fault across the fleet:</b> the same complaint on different serial numbers of
+        one product within 30 days. It counts <b>distinct serials, not calls</b>, so five visits to one
+        machine stay rule 1's finding. Either rule makes it a frequent failure, and the screen says which
+        fired, the counts, the threshold and the earlier UCNs behind it.
+      </p>
+      <p>
+        The verdict informs; <b>the reviewer still answers</b>. Cancelled calls are not counted, and the
+        window runs back from the call's own date.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>A call with <b>no serial</b> reads <i>"its machine cannot be identified"</i> — never a confident "no earlier failure".</li>
+        <li>Rule settings are changed on <b>Admin Config</b>; the database refuses a change from anyone but an administrator or a holder of <code>config.manage</code>.</li>
+        <li><b>Answers already recorded are not re-based</b> when a rule or its settings change.</li>
+        <li><i>Not yet in place:</i> a change to the frequent-failure rules is not itself recorded with its old and new value (D-067).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Age at failure</b> of each selected call</li>
+        <li><b>The Auto Review switch</b> — on or off, and in whose name</li>
+        <li>The reviewer's own <b>Auto save</b> choice, over the organisation default</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Flow 1 · Step 04</p>
+      <h2>Faster paths that must leave the same record</h2>
+      <span class="who">Reviewer · <code>review.edit</code></span><span class="who">Admin · NSM · Technical Support · <code>review.auto</code></span>
+      <p>
+        <b>Mark N as NO.</b> Tick calls, or <i>Select all eligible</i>, and answer Review 2 = NO for all of
+        them after a confirmation that says how many. Only calls whose Review 2 is unanswered and whose
+        age at failure is known and 366 days or more are eligible.
+      </p>
+      <p>
+        <b>Auto save.</b> A personal switch: answers are written a moment after they are chosen and the
+        screen acknowledges each save. The person recorded is whoever's session wrote the answers.
+      </p>
+      <p>
+        <b>Auto Review.</b> A switch at the top of the register, which always shows whether it is on and
+        in whose name. It starts off. While it is on, from 9:15 am (India time) each day Review 2 is
+        answered <b>NO</b> on field calls logged before that day that failed outside their first year and
+        whose Review 2 is still empty — <b>in the name of the person who switched it on</b>, and marked as
+        an auto-review answer so Review 3 can tell it from one given by looking at the call.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Function</span>The bulk answer <b>skips</b> a first-year failure, an unknown age and an already-answered Review 2, whatever the screen sends, and is written to the audit trail.</li>
+        <li><span class="tag db">Function</span>Only a holder of <code>review.auto</code> can switch Auto Review; the database refuses anyone else, and every switch is kept with who and when.</li>
+        <li>Auto Review <b>never</b> answers a first-year failure, an unknown age, or a Review 2 a person has started.</li>
+        <li>Switching it on is refused to a sign-in with no name on the User Master.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>DCCR Complaint Grouping</b> and <b>Root Cause Key Word</b> masters, tagged per product</li>
+        <li><b>Product Master</b> — the product lines, for <i>Change product?</i></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-reopened)">
+      <p class="n">Flow 1 · Step 05</p>
+      <h2>Review 3 — coding the failure</h2>
+      <span class="who">Reviewer · <code>review.edit</code></span>
+      <p>
+        <b>Complaint Grouping</b>, <b>Root Cause Key Word</b> and <b>Spare / Consumable / Correction /
+        Calibration</b>, each a pick list. The lists offer the values tagged for the call's product, or
+        every product's where it has no list of its own, and say which. A value already recorded that has
+        since left the list is kept and shown, not cleared.
+      </p>
+      <p>
+        <b>Change product?</b> — where what failed is an accessory logged against the machine it is fitted
+        to, the reviewer names the real product line. The failure is then <b>counted against that product
+        and not the machine</b>; the call itself is not changed. Blank is the normal answer.
+      </p>
+      <p>
+        <b>Service Dept Observation</b> is free text. <b>Action Taken</b> reads <i>FFR Generation</i> while
+        Any Potential Effect is YES, until the report number is entered over it.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>All <b>three</b> codes before Review 3 is complete.</li>
+        <li>A value not on a list is added on <b>Masters → All Masters</b>, not typed into the review.</li>
+        <li><span class="tag db">Trigger</span>Action Taken is filled with <i>FFR Generation</i> by the database when the effect turns YES and the box is empty.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The signed-in session</b> and the person's <b>User Master</b> name</li>
+        <li>For a historical load, <b>the file's</b> reviewer names and dates</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Flow 1 · Step 06 · automatic</p>
+      <h2>Who reviewed it, and when, is the database's to say</h2>
+      <span class="who">The database</span><span class="who"><code>review.correct_date</code></span>
+      <p>
+        When a stage becomes complete, the database records <b>who completed it</b> from the signed-in
+        session — on every path, Save, auto save and the bulk answer alike — and <b>dates</b> the stage that
+        day. A later edit does not reassign the reviewer: the person who answered is the reviewer, not
+        whoever last corrected a spelling.
+      </p>
+      <p>
+        <b>Old reviews</b> loaded through Bulk Uploads → DCCR Register come in as they were: the file's
+        reviewer names and dates are kept, the person loading is not recorded as the reviewer, a date the
+        file leaves blank stays blank, every row is marked imported, and <b>no Field Failure Report is
+        raised</b>. Re-loading a corrected file updates the same calls, matched on the UCN.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span>Correcting the Review 2 or Review 3 completion date needs <code>review.correct_date</code>; the database refuses anyone else. Holding <code>review.edit</code> is not enough.</li>
+        <li><span class="tag db">Trigger</span>Only a holder of <code>bulk.upload</code> can mark a review imported — it switches off the report rule for that call.</li>
+        <li><i>Not yet in place:</i> a corrected date is recorded only by the screen's own audit entry, not by the database (D-020).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 1, as a ledger</h2>
+    <p>
+      Every answer on the review, who gives it, and how it is held.
+    </p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Answer</th><th>Given by</th><th>How</th></tr></thead>
+        <tbody>
+          <tr><td>Review 1 × 3</td><td>The caller, at registration</td><td>On the call. Read-only on the review</td></tr>
+          <tr><td>Risk to Patient</td><td>Reviewer</td><td>YES / NO</td></tr>
+          <tr><td>Warranty Failure (1 yr)</td><td>Reviewer, or Auto Review</td><td>YES / NO, with the age at failure shown beside it</td></tr>
+          <tr><td>Frequent Failure</td><td>Reviewer, or Auto Review</td><td>YES / NO, with the database's rule 1 and rule 2 verdict beside it</td></tr>
+          <tr><td>Any Potential Effect</td><td>The database</td><td>Derived. YES if any Review 2 answer is YES</td></tr>
+          <tr><td>Complaint Grouping · Root Cause</td><td>Reviewer</td><td>Pick list per product</td></tr>
+          <tr><td>Spare / Consumable / …</td><td>Reviewer</td><td>Pick list</td></tr>
+          <tr><td>Change product?</td><td>Reviewer</td><td>Product Master line. Blank unless an accessory failed</td></tr>
+          <tr><td>Action Taken</td><td>The database, then the reviewer</td><td><i>FFR Generation</i>, replaced by the report number</td></tr>
+          <tr><td>Reviewed by · date</td><td>The database</td><td>Stamped at completion. Date correctable with <code>review.correct_date</code></td></tr>
+          <tr><td>Review Status</td><td>The database</td><td>Derived from which stages are complete</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= FLOW 2 ================= -->
+  <section class="flowhead" id="flow2">
+    <p class="flowhead-n">Flow 2</p>
+    <h2 class="flowhead-t">The Field Failure Report</h2>
+    <p class="flowhead-p">
+      The <b>Field Failure Register</b> holds the failures that go back to manufacturing, on the
+      controlled form <b>R-SER-03</b>. A report is numbered <code>FFR - 001/26</code>, restarting each year.
+      It has two tabs — <b>Register</b> (as a Desk or a Table) and <b>Insights</b> — and both are narrowed by
+      the same Year and Product filters, so the two cannot disagree about the period.
+    </p>
+    <p class="flowhead-p">
+      <b>A report is a record, not an opinion.</b> It is never deleted, and if the review that raised it
+      later says NO, the report still stands and shows as <i>withdrawn</i>.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The review</b> — its three Review 2 answers and its reviewers</li>
+        <li><b>The call</b> — customer, place, product, serial, cover, installation date, problem, call type, status</li>
+        <li><b>Its visits</b>, newest first, and its <b>spares</b>, voided lines excluded</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unattended)">
+      <p class="n">Flow 2 · Step 01 · automatic</p>
+      <h2>A potential effect raises the report by itself</h2>
+      <span class="who">The database</span>
+      <p>
+        When a review is saved with all three Review 2 answers given and any one of them YES, the database
+        raises a Field Failure Report for that call. It is <b>dated the day Review 2 was completed</b> — and
+        its number takes that date's year — filled from the call, its visits and its spares, read from the
+        base call tables so the reviewer's own visibility cannot stop it being raised.
+      </p>
+      <p>
+        It starts <b>Open</b>, carries which answer was YES and the reviewer's name (Review 3's, else
+        Review 2's), and its <b>CAPA responsibility, CAPA No and CAPA status are left blank</b> for whoever
+        handles the CAPA. While the report's Service Dept Observation is blank, the one written in Review 3
+        is copied onto it; an observation already on the report is never overwritten.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span><b>One report per call.</b> A further save, a correction or a second YES on a call that already has a report raises nothing.</li>
+        <li>A review loaded from a historical file raises nothing.</li>
+        <li>A later change of the review to NO does not delete, cancel or alter the report.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The review row</b>, when raised from the review — call, visits, spares, observation</li>
+        <li><b>Reports already raised</b> on the call</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 2 · Step 02</p>
+      <h2>Or a person raises it by hand</h2>
+      <span class="who"><code>ffr.manage</code></span>
+      <p>
+        <b>🧪 Raise FFR</b> on the review opens the register's form already filled from the review and the
+        call, and warns where the call is not yet solved. Above it the review lists any report <b>Already
+        reported</b> on the call: a machine can fail twice, so raising another is allowed — it is a decision,
+        not a slip. <b>＋ Raise FFR</b> on the register opens a blank form.
+      </p>
+      <p>A report raised by hand is numbered and stamped the same way, and its CAPA fields start blank too.</p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>Both buttons are offered only to holders of <code>ffr.manage</code>, and the database refuses an insert from anybody else.</li>
+        <li class="mandate"><span class="tag">Mandate</span><b>Problem reported by customer</b> and <b>Customer Name</b>. <i>Today the form alone refuses a report without them; the database does not yet (D-027).</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The year's counter</b>, moved up to the highest number already on record for that year</li>
+        <li><b>The signed-in session</b></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 2 · Step 03 · automatic</p>
+      <h2>The database numbers it and records who raised it</h2>
+      <span class="who">The database</span>
+      <p>
+        On save the report takes the next <code>FFR - NNN/YY</code>. The number is the report's identity:
+        it is shown on the form as <i>issued once, never edited</i>, and an update cannot change it.
+      </p>
+      <p>
+        <b>Raised By</b> is set once, when the report is raised, and the database stamps the raiser's
+        account and keeps it through every later edit. A report loaded from an old year's register carries
+        no raiser, because the sheet's name has no account behind it.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span>The number cannot be supplied on an edit or changed by one; the raiser's account cannot be changed.</li>
+        <li>Old years loaded through Bulk Uploads stay marked as migrated, and cannot disturb the current year's number.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The call as it stands now</b> — status, engineer, visits, spares, the live review answers</li>
+        <li><b>CAPA status</b> list — Not required · Open · In-Progress · Closed · TBD</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Flow 2 · Step 04</p>
+      <h2>Completing it, and the weekly review</h2>
+      <span class="who"><code>ffr.manage</code></span>
+      <p>
+        The report is completed in its drawer: the failure (problem, additional problem, observation,
+        problem status, visit remarks, spares), then <b>CAPA and closure</b> — responsibility, CAPA No, CAPA
+        status, <b>FFR Status</b> (Open, Closed or Cancelled), verified by and remarks.
+      </p>
+      <p>
+        The <b>Desk</b> shows reports on the left and, beside the report, the call <b>as it stands now</b> with
+        its visits and spares. Its chips are <b>All</b>, <b>Open</b> and <b>Due a review</b> — an Open report
+        not reviewed in the last 7 days.
+      </p>
+      <p>
+        <i>Not yet in place:</i> the drawer has no field for the weekly review date or the attachment, so a
+        report cannot leave <i>Due a review</i> from this screen (D-027).
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>Editing needs <code>ffr.manage</code>; the database refuses anybody else. <i>Edit / weekly review</i> is shown on the Desk to everyone and does nothing without it.</li>
+        <li>An edit sends only the report's own columns — never the live call shown beside it.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>R-SER-03 Rev 02</b> — one form definition for the printed page and the Word copy</li>
+        <li><b>Your saved signature</b>, from My Profile</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-reopened)">
+      <p class="n">Flow 2 · Step 05</p>
+      <h2>Printing and signing R-SER-03</h2>
+      <span class="who">The raiser</span><span class="who">Any reader of the register</span>
+      <p>
+        <b>🖨 Print</b> opens the report as the controlled A4 form, with Print, a Word copy and Back to the
+        register; <b>📄 Word</b> downloads the same form. The Word download is written to the audit trail.
+      </p>
+      <p>
+        A saved signature is printed <b>only in the block that names the person producing the document</b> —
+        the raiser, matched exactly on name or e-mail. Anybody else printing the same report gets an empty
+        block to sign by hand.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>A signature is readable and writable by its owner alone — no manager, no administrator.</li>
+        <li>Row-level security decides which report the print page can find.</li>
+        <li><i>Not yet in place:</i> the print page sits outside the module guard, so a signed-in user without the register can reach, by its address, any report row-level security lets them read (D-026).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The update log</b>, written by the database</li>
+        <li><b>The live review</b> — whether it still says YES</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Flow 2 · Step 06</p>
+      <h2>It is never deleted, and every change is kept</h2>
+      <span class="who">The database</span>
+      <p>
+        Every change to a report is recorded by the database: only the fields that differed, from and to,
+        with who and when. The <b>Update log</b> is shown on the report.
+      </p>
+      <p>
+        A report raised on Any Potential Effect = YES whose review now reads otherwise shows
+        <b>— withdrawn</b> beside it. The withdrawal is itself the thing worth seeing; a report no longer
+        pursued is set to <i>Closed</i> or <i>Cancelled</i>, never removed.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span><b>No report can be deleted.</b></li>
+        <li>The update log cannot be written, edited or removed through the application; reading it needs <code>ffr.manage</code> or administration.</li>
+        <li><span class="tag db">Policy</span><code>ffr.view</code> reads the whole register, with the visits and spares behind each report. Without it a reader sees reports on calls they may see, or reports they raised — and an empty register says it may be their access.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 2, as a ledger</h2>
+    <p>
+      Where each part of a report raised by a review comes from. On a report raised by hand, the same
+      boxes are filled from the review where it was raised from one, or typed.
+    </p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Field</th><th>Comes from</th><th>How</th></tr></thead>
+        <tbody>
+          <tr><td>FFR No</td><td>The database</td><td><code>FFR - NNN/YY</code>, per year. Never edited</td></tr>
+          <tr><td>FFR Date</td><td>The review</td><td>The day Review 2 was completed</td></tr>
+          <tr><td>CRN No · CRN Date</td><td>The call</td><td>UCN and registration date</td></tr>
+          <tr><td>Customer · Place · Product · Serial</td><td>The call</td><td>Copied as they were when the report was raised</td></tr>
+          <tr><td>Cover</td><td>The call's item status</td><td>WGP / OGP / AMC / CMC</td></tr>
+          <tr><td>Problem reported</td><td>The call</td><td>Complaint reported, else the Standard Complaint</td></tr>
+          <tr><td>Service Dept Observation</td><td>Review 3</td><td>Copied while the report's own is blank</td></tr>
+          <tr><td>Visit remarks · Spares</td><td>Visits · consumption</td><td>Date : job done, newest first · voided lines excluded</td></tr>
+          <tr><td>CAPA × 3</td><td>Whoever handles the CAPA</td><td><b>Blank</b> at raising</td></tr>
+          <tr><td>FFR Status</td><td>The database, then <code>ffr.manage</code></td><td>Open · Closed · Cancelled</td></tr>
+          <tr><td>Raised by</td><td>Review 3 reviewer, else Review 2's</td><td>Account stamped by the database, kept for ever</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= FLOW 3 ================= -->
+  <section class="flowhead" id="flow3">
+    <p class="flowhead-n">Flow 3</p>
+    <h2 class="flowhead-t">Counting and analysis</h2>
+    <p class="flowhead-p">
+      The reviews and reports are read back in four places. Each is computed from the service record
+      rather than kept separately — and each answers only over the rows its reader may see. <b>The module
+      key opens the screen; the read policies decide the rows.</b>
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The year's objectives</b> — process, parameter, target, frequency, responsible</li>
+        <li><b>The Field Failure Register</b>, for the FFR count</li>
+        <li><b>A cut-off date</b> per month</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unattended)">
+      <p class="n">Flow 3 · Step 01</p>
+      <h2>Objective — the month-by-month figures</h2>
+      <span class="who"><code>objective.manage</code></span><span class="who"><code>objective.lock</code></span>
+      <p>
+        A row marked <b>ƒ</b> is worked out from the register; the rest are typed. <b>Re-calculate</b> is
+        explicit, never on opening the page: it asks first, writes only the ƒ rows and only up to this
+        month, and replaces whatever those months hold. A row nobody computes keeps exactly what was typed.
+      </p>
+      <p>
+        <b>No. of Field failures registered in FFR</b> counts the reports dated in the month — <b>distinct FFR
+        numbers</b>, so one report covering three machines counts once while its evidence lists all three.
+        A month with none reads <b>0</b>. A rate over nothing stays <b>blank</b>, which means not measured.
+      </p>
+      <p>
+        A quarterly objective reports cumulatively in Mar, Jun, Sep and Dec; its other months read NA, not
+        zero. Each month has its own cut-off date; a blank one measures to the end of that month. The
+        evidence behind a computed month downloads as a workbook.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>Typing a figure, re-calculating, setting a cut-off and adding or editing an objective need <code>objective.manage</code>.</li>
+        <li><span class="tag db">Function</span>While the cut-offs are locked, only a holder of <code>objective.lock</code> may change one, or unlock them.</li>
+        <li><i>Not yet in place:</i> the database does not yet record each figure change with its old value, and an objective can be deleted with its twelve figures after a confirmation (D-021).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The review register</b>, built over the field calls</li>
+        <li><b>The product the review records</b>, where <i>Change product?</i> named one</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 3 · Step 02</p>
+      <h2>Product Failure Analysis — what fails, and why</h2>
+      <span class="who">Opened by its module key</span>
+      <p>
+        Failures are counted under the product <b>the review says actually failed</b>, so a fault moved to
+        an accessory counts there and not against the machine it was logged on. It opens on this year, and
+        a failure's year is when the machine failed — its complaint date, else its registration date.
+        <i>Every year</i> warns that migrated history is included.
+      </p>
+      <p>
+        Cards for failures reviewed, any potential effect, risk to patient, failed in warranty, frequent
+        failure and product corrected; then ranked charts — by product, cover, root cause, grouping,
+        standard complaint, spare category, repeat machines, software version and age at failure — each with
+        its table. Click a bar and every chart narrows. <b>＋ New chart</b> builds and keeps your own.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>It reads up to 8,000 reviews; a figure over a capped read carries a <b>+</b>.</li>
+        <li><span class="tag db">Policy</span>Sharing a saved chart with a role or everyone needs <code>charts.share</code>. <b>Sharing a chart never shares data</b>: each reader's chart is drawn from their own rows.</li>
+        <li><i>Not yet in place:</i> its workbook downloads do not yet test <code>export.data</code> (D-018).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The Field Failure Register</b>, under the same Year and Product filters</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Flow 3 · Step 03</p>
+      <h2>Field Failure Insights — whether the CAPA is in hand</h2>
+      <span class="who">Readers of the register</span>
+      <p>
+        The register's <b>Insights</b> tab counts reports, open, due a review, CAPA in hand, call still open,
+        effect withdrawn, closed, cancelled and migrated, and charts which machines fail, cover, root cause,
+        grouping, customer, report status and CAPA status. Click any bar, slice or point and every figure
+        narrows to it.
+      </p>
+      <p>
+        <b>Reports raised</b> is a monthly, quarterly or yearly trend; the <b>Pareto</b> drills from Machine to
+        Complaint grouping and Root cause, its dashes marking 80%.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Every figure is taken from the reports the reader may see.</li>
+        <li><i>Not yet in place:</i> its trend and Pareto workbooks do not yet test <code>export.data</code> (D-018).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Calls</b> in the last 365 days, by product</li>
+        <li><b>Product Database</b> — the machines in the field, the denominator</li>
+        <li><b>Spare consumption</b>, by cover, product and region</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 3 · Step 04</p>
+      <h2>KPI &amp; Failure Analysis — failure rate per 100 machines</h2>
+      <span class="who">Opened by its module key</span>
+      <p>
+        The <b>failure rate</b> is a product's calls in the last twelve months per 100 of its machines in the
+        field. A product with no machines on record shows no rate at all rather than one divided by a guess.
+        Cards for machines in the field, calls in 12 months, spares consumed, parts per call, parts on OGP
+        calls and parts under warranty.
+      </p>
+      <p>
+        Cover is counted in one vocabulary — <b>WGP, OGP, CMC, AMC</b>. Product and Region chips narrow every
+        panel. <b>How products fail</b> lists standard complaints; clicking one opens the Field Call Register
+        searched for it.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>A cover value it does not recognise is counted in <b>neither</b> the OGP nor the warranty figure — never guessed into one.</li>
+        <li>The calls are scoped to the reader; <b>the machine count is not</b> — it is the whole fleet, and the screen says so where the reader sees only part of the calls.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Spare consumption</b>, dated by when each line was booked</li>
+        <li><b>Part Master</b> — consumable or spare</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Flow 3 · Step 05</p>
+      <h2>Spare Insights — what was really fitted in a period</h2>
+      <span class="who">Opened by its module key</span>
+      <p>
+        For a chosen period: spares consumed (quantity and lines), distinct parts, calls involved and the
+        share unclassified; consumable against spare; consumption by the call's cover; the
+        highest-consuming parts and products; and month by month where the period spans more than one.
+      </p>
+      <p>
+        Both ends of the period count, as whole days in India time. A <b>voided</b> line counts as nothing.
+        A part with no category shows as <i>Unclassified</i> rather than guessed at, and a banner says how
+        much and points to Part Master.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>Computed only from the consumption the reader may see.</li>
+        <li>The unclassified share is never rounded to 0 while any line is unclassified.</li>
+        <li><i>Not yet in place:</i> the period opens on 01-Jan-2026 in every year, and <i>This year</i> sets the same date (D-023).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 3, as a ledger</h2>
+    <p>
+      What each screen counts, and whose rows it counts them over.
+    </p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Screen</th><th>Counts</th><th>Over whose rows</th></tr></thead>
+        <tbody>
+          <tr><td>Objective</td><td>Distinct FFR numbers in the month; other ƒ rows by their formula</td><td>Re-calculated by a holder of <code>objective.manage</code></td></tr>
+          <tr><td>Product Failure Analysis</td><td>Reviews, under the product as reviewed</td><td>The calls the reader may see</td></tr>
+          <tr><td>Field Failure Insights</td><td>Reports, by machine, cover, cause, CAPA</td><td>The reports the reader may see</td></tr>
+          <tr><td>KPI &amp; Failure Analysis</td><td>Calls per 100 machines per year; spares by cover and region</td><td>Reader's calls over the whole fleet's machines</td></tr>
+          <tr><td>Spare Insights</td><td>Consumption in the period, voids excluded</td><td>The consumption the reader may see</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<!-- the states ----------------------------------------------------------- -->
+<section class="states">
+  <h2>The states</h2>
+  <p>
+    A review's stage and a report's status are separate facts from the call's own colour-coded state,
+    and are shown as words rather than in the call colours for that reason.
+  </p>
+  <div class="scroll">
+    <table class="transitions">
+      <thead>
+        <tr><th>State</th><th>Means</th><th>Moves on when</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Review 1 Pending</td><td>A vigilance answer is missing on the call</td><td>All three are recorded on the call</td></tr>
+        <tr><td>Review 2 Pending</td><td>Review 1 done; not all three Review 2 answers given</td><td>All three are given — by a person, the bulk answer or Auto Review</td></tr>
+        <tr><td>Review 3 Pending</td><td>Review 2 done; a Review 3 code is missing</td><td>Grouping, root cause and category are all chosen</td></tr>
+        <tr><td>Review Completed</td><td>All three stages complete</td><td>—</td></tr>
+        <tr><td>FFR · Open</td><td>Raised; work on it continues</td><td>Set to Closed or Cancelled by a holder of <code>ffr.manage</code></td></tr>
+        <tr><td>FFR · Closed</td><td>Finished</td><td>—</td></tr>
+        <tr><td>FFR · Cancelled</td><td>Not pursued — still a record</td><td>—</td></tr>
+        <tr><td>FFR · withdrawn</td><td>Shown, not set: the review no longer answers YES</td><td>The record stands either way</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- panels --------------------------------------------------------------- -->
+<div class="panels">
+
+  <div class="panel">
+    <h3>Who may see what</h3>
+    <p>
+      Opening a screen and seeing its rows are two different rights: the module key opens the page,
+      the read policies decide the rows.
+    </p>
+    <ul>
+      <li><b>The review register and Product Failure Analysis</b> are bounded by the call policies — <code>calls.view</code> <b>and</b> the visibility rule: your own calls, your team's, or every call for an office role.</li>
+      <li><b><code>data.view_all</code></b> is the grant that gives any other role every record — needed as well as the permission, never instead of it.</li>
+      <li><b>The Field Failure Register</b> is whole for <code>ffr.view</code>; otherwise the reports on calls you may see, or reports you raised.</li>
+      <li><b>Spare Insights</b> follows the consumption's own read rule.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h3>Not yet in place</h3>
+    <p>Stated here so nobody reads this page as describing them as done.</p>
+    <ul>
+      <li><b>D-018</b> — workbook downloads on Product Failure Analysis, Field Failure Insights and the Objective evidence do not test <code>export.data</code>.</li>
+      <li><b>D-020</b> — a corrected review date is recorded by the screen, not the database.</li>
+      <li><b>D-021</b> — objective figures change without a database record; an objective can be deleted.</li>
+      <li><b>D-026</b> — the printable report is outside the module guard.</li>
+      <li><b>D-027</b> — no weekly review date on the report form; the two required fields are the form's alone.</li>
+      <li><b>D-067</b> — a frequent-failure rule change leaves no record.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer>
+  <p>
+    Drawn from the running system: <code>src/modules/DailyCallReview.tsx</code>,
+    <code>FieldFailureReport.tsx</code> and the analysis screens, <code>src/lib/dccr.ts</code> and
+    <code>src/lib/ffr.ts</code>, the migrations they rest on, and the requirements in
+    <code>src/lib/validation.ts</code>. Where this page and the code disagree, the code is the fact and
+    this page is the bug.
+  </p>
+</footer>
+
+</div>
+
+<script>
+// ===========================================================================
+// THIS FILE IS BOTH THE SHARED DIAGRAM AND THE IN-APP PAGE, and it must behave
+// as either. Standalone it is an ordinary document. Framed by RITHI CRM it has
+// two more jobs, and both fail silently if left to chance:
+//
+//   1. FOLLOW THE HOST'S THEME. The app has its own light/dark toggle, and a
+//      framed document cannot see it — a viewer in dark mode would otherwise
+//      get a white page inside a dark one. The app passes ?theme= and this
+//      stamps it, which is the same attribute the CSS above already honours.
+//      With no parameter nothing is stamped and prefers-color-scheme decides,
+//      exactly as before.
+//   2. SAY HOW TALL IT IS. A fixed-height iframe gives the reader a second
+//      scrollbar inside the first, which on a long document is worse than no
+//      frame at all. The height is posted on load, on resize, and whenever the
+//      content changes.
+//
+// Everything here is guarded: a failure leaves a page that still reads.
+(function () {
+  try {
+    var t = new URLSearchParams(location.search).get('theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { /* no theme is not a broken page */ }
+
+  if (window.parent === window) return;   // standalone: nothing to report to
+  var last = 0;
+  function tell() {
+    var h = Math.ceil(document.documentElement.scrollHeight);
+    if (Math.abs(h - last) < 2) return;
+    last = h;
+    try { window.parent.postMessage({ type: 'rithi-doc-height', height: h }, '*'); } catch (e) { /* ignore */ }
+  }
+  window.addEventListener('load', tell);
+  window.addEventListener('resize', tell);
+  document.addEventListener('DOMContentLoaded', tell);
+  if (window.ResizeObserver) new ResizeObserver(tell).observe(document.documentElement);
+  setTimeout(tell, 60); setTimeout(tell, 400); setTimeout(tell, 1200);
+})();
+</script>
+</body>
+</html>
