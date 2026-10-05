@@ -60,6 +60,8 @@ const REPORTS = [
     mandatory: 'CALL_REPORT_MANDATORY', optional: 'CALL_REPORT_OPTIONAL' },
   { label: 'Customer Feedback', view: 'feedback_report',
     mandatory: 'FEEDBACK_REPORT_MANDATORY', optional: 'FEEDBACK_REPORT_OPTIONAL' },
+  { label: 'Stores Dispatch', view: 'stores_dispatch_report',
+    mandatory: 'STORES_DISPATCH_MANDATORY', optional: 'STORES_DISPATCH_OPTIONAL' },
 ];
 
 let fail = 0;

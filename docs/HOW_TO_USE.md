@@ -1296,6 +1296,16 @@ typed into a form that reads it.
   > installation and a PM visit are asked different things. It is not a missing
   > answer, and the file says so.
   > The date it filters on is the **feedback's own**, not the day it was loaded.
+- **Reports — Stores Dispatch Report** `/exports/stores-dispatch` — every spare
+  dispatched, one row per line, in the **AppSheet Stores format**: OR|Part, SO NO,
+  Timestamp, TO and the engineer's address, quantities, Item Status, **IND/IMP**,
+  and **Dispatched in (Days)** with its band (00-03D … >60D).
+  > **Days are exact**, to one decimal, from the request's **final approval** —
+  > the latest of RM, Commercial and NSM — to the dispatch. 0.7 is about 17 hours.
+  > A spare with **no approval time recorded** reads **No approval date**, not a
+  > number: AppSheet called those ">5 yrs", which was an empty date, not 5 years.
+  > **IND/IMP comes from the Part Master** — set it there, or load it with the
+  > Part Master upload's IND/IMP column. Blank until you do.
 - **Reports — Not Consumed Against this Call** `/exports/unused` — `NOT USED`
   where none was booked, `SHORT` where less was booked than sent. Refused and
   dropped lines are excluded.

@@ -796,6 +796,21 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     ],
   },
   {
+    route: '/exports/stores-dispatch',
+    purpose: 'Every spare Stores dispatched, with the days it took after the request\u2019s final approval -- the AppSheet Stores format.',
+    does: [
+      'Filter by dispatch date, engineer, part, Spare Request NO, days band, IND/IMP or Item Status',
+      'Tick the extra columns you want',
+      'Download Excel or CSV',
+    ],
+    records: ['stores_dispatch_report', 'audit_log'],
+    rules: [
+      'Days are exact elapsed time from the final approval (latest of RM, Commercial, NSM) to the dispatch, one decimal',
+      'A line with no approval time recorded has a blank date and the band "No approval date", never ">5 yrs"',
+      'IND/IMP comes from the Part Master',
+    ],
+  },
+  {
     route: '/feedback-without-report',
     purpose: 'Calls where the customer gave feedback but the visit was never written up.',
     does: [

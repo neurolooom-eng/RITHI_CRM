@@ -408,3 +408,75 @@ export const feedbackReportColumns = (picked: Set<string>): string[] => [
   ...FEEDBACK_REPORT_MANDATORY,
   ...FEEDBACK_REPORT_OPTIONAL.filter((c) => picked.has(c)),
 ];
+
+// ---------------------------------------------------------------------------
+// THE STORES DISPATCH REPORT (0385) -- the AppSheet "Stores" view (the user,
+// 2026-10-05: "I need Objective Data for Stores. Attached the Format."). One
+// row per spare line dispatched; MANDATORY is the format's own columns in its
+// own order, so the file reads like the one it replaces.
+// ---------------------------------------------------------------------------
+export const STORES_DISPATCH_MANDATORY: string[] = [
+  'Spare Request NO|Part Number',
+  'SO NO',
+  'Timestamp',
+  'TO',
+  'ADDRESS',
+  'Stores Status',
+  'DETAILS',
+  'Spare Request NO',
+  'Part Number',
+  'Part Description',
+  'Dispatched Qty',
+  'Pending QTY',
+  'SO(n)',
+  'Spare',
+  'OR Date',
+  'Request Final Approval Date',
+  'IND/IMP',
+  'Item Status',
+  'Dispatched in (Days)',
+  'Dispatched in (Days - Group)',
+  'Year',
+  'Month',
+  'YY - MM',
+  'Sl No',
+];
+
+export const STORES_DISPATCH_OPTIONAL: string[] = [
+  'Requested Qty',
+  'Part (as dispatched)',
+  'Dispatch Line ID',
+];
+
+export interface StoresDispatchFilter {
+  [k: string]: string;
+  from: string;        // dispatch date, inclusive
+  to: string;
+  engineer: string;    // contains
+  part: string;        // contains (code or description)
+  orNo: string;        // contains
+  band: string;        // exact band
+  indImp: string;      // exact
+  itemStatus: string;  // contains
+}
+export const EMPTY_STORES_DISPATCH_FILTER: StoresDispatchFilter = {
+  from: '', to: '', engineer: '', part: '', orNo: '', band: '', indImp: '', itemStatus: '',
+};
+export const STORES_DISPATCH_BANDS = ['00-03D', '04-07D', '08-15D', '16-30D', '31-60D', '>60D', 'No approval date'];
+
+export function describeStoresDispatchFilter(f: StoresDispatchFilter): string {
+  const bits: string[] = [];
+  if (f.from || f.to) bits.push(`Dispatched ${f.from || '…'} to ${f.to || '…'}`);
+  if (f.engineer) bits.push(`Engineer contains "${f.engineer}"`);
+  if (f.part) bits.push(`Part contains "${f.part}"`);
+  if (f.orNo) bits.push(`OR contains "${f.orNo}"`);
+  if (f.band) bits.push(`Band = ${f.band}`);
+  if (f.indImp) bits.push(`IND/IMP = ${f.indImp}`);
+  if (f.itemStatus) bits.push(`Item Status contains "${f.itemStatus}"`);
+  return bits.length ? bits.join(' · ') : 'every dispatched spare — no filter set';
+}
+
+export const storesDispatchColumns = (picked: Set<string>): string[] => [
+  ...STORES_DISPATCH_MANDATORY,
+  ...STORES_DISPATCH_OPTIONAL.filter((c) => picked.has(c)),
+];

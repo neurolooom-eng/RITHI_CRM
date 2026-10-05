@@ -6804,8 +6804,8 @@ console.log('\n-- a part can be renamed, and the rename carries its history --')
   // update. This is the assertion that stops the whole feature becoming a
   // stock bug: `updatePart` must not be able to write either of them.
   eq('the identity is never written as a plain column update',
-    // hsn_code joined the patch in 0309 -- still no code, no description.
-    /export async function updatePart\(\s*id: number, patch: \{ category\?: string; product\?: string; purchase_cost\?: number \| null; hsn_code\?: string \}/.test(sbp), true);
+    // hsn_code joined the patch in 0309, ind_imp in 0383 -- still no code, no description.
+    /export async function updatePart\(\s*id: number, patch: \{ category\?: string; product\?: string; purchase_cost\?: number \| null; hsn_code\?: string; ind_imp\?: string \}/.test(sbp), true);
   eq('...it goes through rename_part instead',
     /rpc\('rename_part'/.test(sbp) && /await renamePart\(edit\.id, edit\.code, edit\.description\)/.test(pm), true);
 
