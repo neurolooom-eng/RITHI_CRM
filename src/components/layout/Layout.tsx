@@ -354,6 +354,7 @@ function ModuleSearch() {
       call: '/field-calls', request: '/pending-registrations', spare: '/spare-requests',
       consumption: '/spare-consumption', party: '/parties', machine: '/machine-history',
       part: '/part-search', document: '/service-manuals', kb: '', ffr: '/failure-report',
+      warranty: '/warranties', contract: '/contracts',
     };
     if (g.kind === 'kb') return true;   // Field Solutions is open to everyone
     if (g.kind === 'call') return ['/field-calls', '/installations', '/pm-calls'].some((r) => can(actionForPath(r)));

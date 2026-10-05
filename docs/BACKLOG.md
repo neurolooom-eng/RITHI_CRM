@@ -78,7 +78,7 @@ up)_
 
 ---
 
-## 2026-10-05 — Part Master on every device + in Device Cache Status (0380, v0.10.104)
+## 2026-10-05 — Part Master on every device + in Device Cache Status (0380, v0.10.105)
 
 - The user: "Cache Part Master along with Other Cached Registers. And include
   it in Device Cache Status".

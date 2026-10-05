@@ -2046,7 +2046,7 @@ with checks(sort_order, bundle, provides, present) as (
         (coalesce((select a.attnotnull from pg_attribute a where a.attrelid = to_regclass('public.pdqc_records') and a.attname = 'pdqc_no'), false)
      and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.pdqc_records') and tgname = 'zy_pdqc_number')
      and to_regclass('public.pdqc_records_pdqc_no') is not null)),
-    (311, 'Devices report their Part Master too', 'device_cache_status.parts / parts_at, and device_cache_report() returning them (0380). Since v0.10.104 every device keeps the Part Master the spare pickers read for six hours and says how many parts it holds and when they were stored. NO means device_cache.sql has not been re-run since. Restore: device_cache.sql (0380)',
+    (311, 'Devices report their Part Master too', 'device_cache_status.parts / parts_at, and device_cache_report() returning them (0380). Since v0.10.105 every device keeps the Part Master the spare pickers read for six hours and says how many parts it holds and when they were stored. NO means device_cache.sql has not been re-run since. Restore: device_cache.sql (0380)',
         (exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'device_cache_status' and column_name = 'parts_at')
          and exists (select 1 from pg_proc p

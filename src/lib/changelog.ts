@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.104',
+    version: '0.10.105',
     date: '2026-10-05',
     title: 'The Part Master is kept on every device, and shown in Device Cache Status',
     changes: [
@@ -22,6 +22,14 @@ export const CHANGELOG: ChangeEntry[] = [
       'Device Cache Status shows how many parts each device holds and when they were stored; the note above the machine search shows it for your own device.',
       'Editing the Part Master still reaches the pickers on that device straight away.',
       'SPARE REQUESTS shows when the Part Master was cached on your device — under the page title, and beside Spares on a new request.',
+    ],
+  },
+  {
+    version: '0.10.104',
+    date: '2026-10-05',
+    title: 'The search box at the top finds warranties and contracts',
+    changes: [
+      'GLOBAL SEARCH now searches the Warranty Register (SA number, party, invoice number) and the Contract Register (MC number, party) — and finds an entry by the serial number or model of any machine on it. Click one and its register opens on that entry.',
     ],
   },
   {
