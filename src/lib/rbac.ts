@@ -267,6 +267,11 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // pending.register", shown on no row. Copied from those two by 0298.
   { group: 'Calls', key: 'calls.reopen', label: 'Re-open, close or close again a Field call' },
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
+  // D-129 (the user, 2026-10-05: "visible only to a selected few as set through
+  // roles & permissions"): reading the review answers is its own key, given once
+  // to the roles that held review.edit (0376); review.edit grants it, since an
+  // editor reads what they edit.
+  { group: 'Calls', key: 'review.view', label: 'Read Daily Complaint Review answers' },
   // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269, 0285). Its answers carry the
   // name of whoever switched it on. Held by ROLE -- Admin, NSM and Technical
   // Support (0285, which replaced 0269's two names); anybody else can be given
@@ -372,6 +377,9 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
   { group: 'Spares', key: 'consumption.reconcile', label: 'Add consumption against a call (reconciliation)' },
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
+  // D-049 (the user, 2026-10-05: "Same rule as spares"): your own stock or your
+  // team's without it; any engineer's with it. Given to nobody by role (0375).
+  { group: 'Spares', key: 'stock.transfer.others', label: 'Transfer stock from any engineer (not only your team)' },
   { group: 'Masters', key: 'masters.view', label: 'View masters' },
   { group: 'Masters', key: 'masters.edit', label: 'Edit masters (all of the below)' },
   // THE PARTS OF "EDIT MASTERS" (finding 67). Its children, so a role holding
@@ -691,7 +699,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/part-search', label: 'Part Search', actions: [] },
   ] },
   { title: 'Quality & Analytics', pages: [
-    { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', actions: ['review.edit', 'review.auto', 'review.correct_date', 'ffr.manage'] },
+    { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', actions: ['review.view', 'review.edit', 'review.auto', 'review.correct_date', 'ffr.manage'] },
     { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.view', 'ffr.manage'] },
     // MOVED HERE FROM OVERVIEW WITH THE MENU (the user, 2026-09-15). The
     // header follows the menu because that is where an administrator looks
@@ -753,7 +761,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/spare-consumption', label: 'Spare Consumption', actions: ['consumption.view', 'consumption.reconcile'] },
     { path: '/handstock', label: 'Hand Stock', actions: ['consumption.reconcile', 'stock.transfer'] },
     { path: '/mrn', label: 'Material Returns (MRN)', actions: ['stock.return', 'stock.return.others'] },
-    { path: '/stock-transfer', label: 'Stock Transfer', actions: ['stock.transfer'] },
+    { path: '/stock-transfer', label: 'Stock Transfer', actions: ['stock.transfer', 'stock.transfer.others'] },
   ] },
   // A HEADER OF ITS OWN, because the MENU has one (2026-09-08). The matrix is
   // read next to the menu — "what can this role open?" is asked with the menu
@@ -845,6 +853,7 @@ export const dynamicActionLabel = (key: string): string | undefined => {
 // check:ui -- a parent honoured here and not there is a button that is offered
 // and then refused, and the reverse is a right nobody can see.
 export const PERM_PARENTS: Record<string, string[]> = {
+  'review.view': ['review.edit'],
   'calls.edit.complaint': ['calls.edit'], 'calls.edit.customer': ['calls.edit'],
   'calls.edit.vigilance': ['calls.edit'], 'calls.edit.contact': ['calls.edit'],
   'install.edit.complaint': ['install.edit'], 'install.edit.customer': ['install.edit'],

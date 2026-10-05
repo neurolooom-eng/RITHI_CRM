@@ -370,6 +370,9 @@ const MODULES = {
       // Re-open, close, close-again, cancel and restore ask whether the caller
       // can SEE the call (D-128). Redefines 0287's and 0311's functions, so after both.
       '0341_call_actions_need_sight_of_the_call.sql',
+      // D-033: a field call is registered with its three vigilance questions
+      // answered (0374). Before the cr_read tail, which must stay last.
+      '0374_field_call_vigilance_answered.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -503,7 +506,10 @@ const MODULES = {
             // D-130: the summary view carries the five columns the register's
             // search names, so a search no longer zeroes the counts (0353).
             // Redefines 0111's view, appending only.
-            '0353_review_summary_carries_the_searched_columns.sql'],
+            '0353_review_summary_carries_the_searched_columns.sql',
+            // D-129: review answers are read by holders of review.view, given
+            // once to the roles that held review.edit (0376).
+            '0376_review_answers_read_key.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -1039,7 +1045,10 @@ const MODULES = {
             '0369_filed_under_own_name_unless_granted.sql',
             // D-050: a transfer or return is not dated into a closed hand-stock
             // period or the future (0373).
-            '0373_stock_movement_dates.sql'],
+            '0373_stock_movement_dates.sql',
+            // D-049: stock is transferred from your own or your team's hand
+            // stock (else stock.transfer.others), to a User Master name (0375).
+            '0375_stock_transfer_own_or_team.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {

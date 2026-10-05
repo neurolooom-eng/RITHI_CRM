@@ -2064,7 +2064,20 @@ with checks(sort_order, bundle, provides, present) as (
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.user_directory') and tgname = 'user_directory_keeps_history')),
     (311, 'A stock transfer or return is not dated into a closed hand-stock period or the future', 'stock_movement_date_open on stock_transfers and material_returns refuses, for a signed-in non-importer, a date on or before the last closed day or after today (0373, D-050). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0373)',
         (select count(*) from pg_trigger where tgname = 'stock_movement_date_open' and not tgisinternal
-          and tgrelid in (to_regclass('public.stock_transfers'), to_regclass('public.material_returns'))) = 2)
+          and tgrelid in (to_regclass('public.stock_transfers'), to_regclass('public.material_returns'))) = 2),
+    (312, 'A field call is registered with its three vigilance questions answered', 'field_call_vigilance_answered refuses a signed-in registration of a field call whose Public Health Threat?, Death? or Serious Incident? is not YES or NO; imports, installation and PM calls are not stopped (0374, D-033). NO means call_requests.sql has not been re-run since. Restore: call_requests.sql (0374)',
+        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.field_calls') and tgname = 'field_call_vigilance_answered')),
+    (313, 'Stock is transferred from your own or your team''s hand stock, to a person on the User Master', 'stock_transfer_own_or_team refuses a signed-in transfer from an engineer who is not you or in your team (unless stock.transfer.others) or to a name the User Master does not carry; imports are not stopped (0375, D-049). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0375)',
+        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.stock_transfers') and tgname = 'stock_transfer_own_or_team')),
+    (314, 'Daily Complaint Review answers are read by holders of review.view', 'call_reviews_read asks has_perm(''review.view''); review.edit grants it (perm_parents), and the roles holding review.edit were given it once (0376, D-129). NO means daily_review.sql has not been re-run since. Restore: daily_review.sql (0376)',
+        (exists (select 1 from pg_policy where polrelid = to_regclass('public.call_reviews') and polname = 'call_reviews_read'
+                  and pg_get_expr(polqual, polrelid) like '%review.view%')
+         -- perm_parents READ THROUGH query_to_xml: named directly, a project
+         -- without the table would fail the whole report at plan time.
+         and (to_regclass('public.perm_parents') is not null
+              and coalesce((xpath('/row/c/text()', query_to_xml(
+                    'select count(*) as c from public.perm_parents where child = ''review.view'' and parent = ''review.edit''',
+                    false, true, '')))[1]::text::int > 0, false))))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

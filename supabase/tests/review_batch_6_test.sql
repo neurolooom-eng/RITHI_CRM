@@ -20,7 +20,7 @@ insert into public.app_roles (role, label, permissions) values
  ('rb6_records', 'RB6 Records', '["masters.view", "masters.edit.records"]'::jsonb),
  ('rb6_listdel', 'RB6 List delete', '["masters.view", "master.callpendingreason.delete"]'::jsonb),
  ('rb6_people',  'RB6 People',  '["users.manage", "users.manage.disable"]'::jsonb),
- ('rb6_stock',   'RB6 Stock',   '["stock.transfer", "stock.return"]'::jsonb),
+ ('rb6_stock',   'RB6 Stock',   '["stock.transfer", "stock.transfer.others", "stock.return"]'::jsonb),
  ('rb6_loader',  'RB6 Loader',  '["stock.transfer", "bulk.upload"]'::jsonb)
 on conflict (role) do update set permissions = excluded.permissions;
 
@@ -125,6 +125,10 @@ end $$;
 -- ===========================================================================
 call public.nobody();
 delete from public.stock_transfers where uid like 'RB6-ST%';
+-- The engineers are on the User Master, and the transferrer may move anybody's
+-- stock (stock.transfer.others): this section is about the DATE (0375 is D-049's).
+delete from public.user_directory where name in ('RB6 A', 'RB6 B');
+insert into public.user_directory (name, email) values ('RB6 A', 'rb6-a@x.com'), ('RB6 B', 'rb6-b@x.com');
 delete from public.handstock_period;
 insert into public.handstock_period (singleton, closed_through) values (true, current_date - 30);
 
