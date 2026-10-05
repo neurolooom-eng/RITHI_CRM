@@ -1031,7 +1031,11 @@ const MODULES = {
             '0340_spare_request_fixed_once_decided.sql',
             // D-136: a master key changes only through a rename. Reads
             // part_rename_ticket (0196) and stock_import_allowed() (0339).
-            '0335_master_key_changes_only_by_rename.sql'],
+            '0335_master_key_changes_only_by_rename.sql',
+            // LAST: the whole balance in one request (0384). A SQL-language
+            // body resolves the view at creation, so it follows every file
+            // that defines handstock_balance.
+            '0384_handstock_balance_all.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {

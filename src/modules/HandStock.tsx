@@ -7,11 +7,11 @@ import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { useArrivingFilter } from '../lib/arriveWith';
 import {
-  listHandstockBalance, listHandstockMovements, listAllHandstockMovements, supabaseConfigured, addHandstockAdjustment,
+  listHandstockBalanceAll, listHandstockMovements, listAllHandstockMovements, supabaseConfigured, addHandstockAdjustment,
 } from '../lib/supabase';
 import { PickList } from '../components/ui/PickList';
 import { useMaster } from '../lib/masters';
-import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync, MAX_CACHED_ROWS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { useAccessScope, previewScoped, useTeamEngineers } from '../lib/access';
 import {
@@ -103,9 +103,6 @@ const stockBadge = (onHand: number) => (
   <span className={`badge badge-${balanceTone(onHand)}`}>{onHand}</span>
 );
 
-// PostgREST answers at most 1,000 rows however wide a range is asked for, so
-// that is the page — asking for more in one request does not get more.
-const PAGE_SIZE = 1000;
 
 export function HandStock() {
   const { can, viewAs } = useAuth();
@@ -156,28 +153,12 @@ export function HandStock() {
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
-  // The balance is paged, like the call registers. `loaded` is how many rows
-  // have been asked for; `more` says the last page came back full, so there is
-  // at least one more.
-  const [loaded, setLoaded] = useState(cached?.rows?.length ?? 0);
-  // HOW FAR THE READER HAS GOT, as a ref because the 30-minute sync is
-  // registered once at mount: a value read from state inside that timer is
-  // the mount-time value for ever, and the sync then re-read only page one,
-  // throwing away every page Load more had added (finding 22).
-  const loadedRef = useRef(loaded);
-  loadedRef.current = loaded;
-  // Restored from a cache that ends exactly on a page boundary: there was
-  // almost certainly another page, so offer it rather than making somebody
-  // press Refresh to find out.
-  // A FULL PAGE PROVES NOTHING, so a restored cache of at least one page may
-  // have more behind it. `% PAGE_SIZE === 0` said a 1,500-row cache (the cache
-  // keeps at most 1,500) was the whole register -- no "+", no Load more.
-  const [more, setMore] = useState((cached?.rows?.length ?? 0) >= PAGE_SIZE);
-  // A SEARCH ASKS THE DATABASE, not the page already loaded — a part somebody
-  // is looking for is exactly the one that has not been paged in yet. These are
-  // what came back; while they are set, they are what the table shows.
-  const [hits, setHits] = useState<Row[] | null>(null);
-  const [searching, setSearching] = useState(false);
+  // THE WHOLE BALANCE ARRIVES IN ONE REQUEST (0384), so after a load `more`
+  // is false and every count is exact. The one way this screen can still be
+  // showing PART of the register is a restored device cache, which keeps at
+  // most MAX_CACHED_ROWS lines: a cache AT that cap was almost certainly cut,
+  // so it reads "+" and offers a reload until the full balance is in.
+  const [more, setMore] = useState((cached?.rows?.length ?? 0) >= MAX_CACHED_ROWS);
   // Every ACTIVE engineer, not only the ones with a line on this page. Ten
   // names in a dropdown, on a register covering eighty, reads as "there are ten".
   const team = useTeamEngineers();
@@ -187,22 +168,18 @@ export function HandStock() {
     onDb ? null : { tone: 'info', text: 'Connect the database in Settings to load hand stock.' },
   );
 
-  const load = async (want = Math.max(PAGE_SIZE, loadedRef.current)) => {
+  const load = async () => {
     if (!onDb) return;
     setBusy(true); setMsg({ tone: 'info', text: 'Loading hand stock…' });
     try {
-      // Paged, because PostgREST caps a response however wide a range is asked
-      // for — which is why this screen used to say "Synced 1000 lines" whatever
-      // the register held.
-      const mapped: Row[] = [];
-      for (let from = 0; from < want; from += PAGE_SIZE) {
-        const page = (await listHandstockBalance(PAGE_SIZE, from)).map(asRow);
-        mapped.push(...page);
-        if (page.length < PAGE_SIZE) { setMore(false); break; }
-        if (from + PAGE_SIZE >= want) setMore(true);
-      }
-      setAllRows(mapped); setLoaded(mapped.length); setLastSync(saveCache(CACHE_KEY, mapped));
-      setMsg({ tone: 'ok', text: `Synced ${mapped.length} engineer/spare line${mapped.length === 1 ? '' : 's'}.` });
+      // ONE REQUEST, ONE AGGREGATE. The balance view costs the same for a page
+      // as for everything (the GROUP BY runs over every movement either way),
+      // so paging it was k full aggregates per load and another per search
+      // keystroke -- 4.6-7.3 s each on the live project. The function returns
+      // the whole balance as one array, under the reader's own RLS.
+      const mapped = (await listHandstockBalanceAll()).map(asRow);
+      setAllRows(mapped); setMore(false); setLastSync(saveCache(CACHE_KEY, mapped));
+      setMsg({ tone: 'ok', text: `Loaded ${mapped.length} engineer/spare line${mapped.length === 1 ? '' : 's'} — the whole register.` });
     } catch (e) {
       const text = e instanceof Error ? e.message : String(e);
       setMsg({
@@ -211,47 +188,21 @@ export function HandStock() {
       });
     } finally { setBusy(false); }
   };
-  // Load more APPENDS one page. Re-reading everything from the start each time
-  // would mean six requests to see the seventh thousand, and the pages already
-  // in hand do not change under us — the balance is not re-ordered by reading it.
-  const loadMore = async () => {
-    if (!onDb || busy) return;
-    setBusy(true);
-    try {
-      // `_state` is not set here: the `rows` memo derives it for everything in
-      // `allRows`, and deriving it twice is how the two readings drift apart.
-      const page = (await listHandstockBalance(PAGE_SIZE, loaded)).map(asRow);
-      const next = [...allRows, ...page];
-      setAllRows(next); setLoaded(next.length); setMore(page.length === PAGE_SIZE);
-      setLastSync(saveCache(CACHE_KEY, next));
-      setMsg({ tone: 'ok', text: `${next.length} engineer/spare lines loaded${page.length === PAGE_SIZE ? ' — there are more' : ' — that is all of them'}.` });
-    } catch (e) {
-      setMsg({ tone: 'error', text: `Could not load more: ${e instanceof Error ? e.message : String(e)}` });
-    } finally { setBusy(false); }
-  };
-
-  // The search, debounced, against the whole register.
-  useEffect(() => {
-    const q = search.trim();
-    if (!onDb || q.length < 2) { setHits(null); setSearching(false); return; }
-    let cancelled = false;
-    setSearching(true);
-    const id = window.setTimeout(() => {
-      void listHandstockBalance(PAGE_SIZE, 0, q)
-        .then((r) => {
-          if (cancelled) return;
-          setHits(r.map(asRow)
-            .map((h) => (liveOnly ? withoutHistory(h) : h))
-            .map((h) => ({ ...h, _state: h.on_hand > 0 ? 'In hand' : h.on_hand < 0 ? 'Short' : 'Settled' })));
-        })
-        .catch(() => { if (!cancelled) setHits(null); })
-        .finally(() => { if (!cancelled) setSearching(false); });
-    }, 300);
-    return () => { cancelled = true; window.clearTimeout(id); setSearching(false); };
-  }, [search, onDb, liveOnly]);
+  // THE SEARCH IS ON THE DEVICE, over the whole register, because the whole
+  // register is here. It used to ask the database -- right while the screen
+  // was paged, since the part somebody wanted was the one not yet paged in --
+  // and each keystroke was a full aggregate. Two characters or more; `rows`
+  // already carries the History switch and the preview scope, so a hit is
+  // exactly a line the table would show.
+  const hits = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (q.length < 2) return null;
+    return rows.filter((r) => `${r.engineer} ${r.part_code} ${r.part}`.toLowerCase().includes(q));
+  }, [rows, search]);
 
   useEffect(() => {
-    if (onDb && rows.length && !isStale(lastSync)) setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
+    // A cache cut at its cap is not the register: load rather than show it.
+    if (onDb && rows.length && !more && !isStale(lastSync)) setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
     else void load();
     const stop = onDb ? startBackgroundSync(() => void load(), () => busyRef.current) : undefined;
     return () => stop?.();
@@ -324,11 +275,11 @@ export function HandStock() {
         subtitle="Stock level per engineer and spare: opening + stock out from Stores − consumption − transfers out + transfers in − returns ± adjustments."
         icon="🎒"
         count={visible.length}
-        // A SEARCH THAT FILLED ITS ONE REQUEST IS A LOWER BOUND TOO. Load more
-        // stays hidden while one shows: it pages the browse list, not the search.
-        countMore={hits ? hits.length >= PAGE_SIZE : more}
+        // EXACT once the whole balance is in; a "+" only over a device cache
+        // cut at its cap, where the offer is a full reload, not a next page.
+        countMore={more}
         moreAvailable={!hits && more}
-        onLoadMore={() => void loadMore()}
+        onLoadMore={() => void load()}
         loadingMore={busy}
         status={
           <>
@@ -340,7 +291,7 @@ export function HandStock() {
                 ⟳ synced {timeAgo(lastSync)}
               </span>
             )}
-            {hits && <span className="conn-dot conn-on">🔎 searching the whole register — {hits.length}{hits.length >= PAGE_SIZE ? '+' : ''} match{hits.length === 1 ? '' : 'es'}</span>}
+            {hits && <span className="conn-dot conn-on">🔎 searching the whole register — {hits.length}{more ? '+' : ''} match{hits.length === 1 ? '' : 'es'}</span>}
           </>
         }
         actions={(can('stock.transfer') || can('consumption.reconcile')) && (
@@ -425,8 +376,7 @@ export function HandStock() {
               { key: '_state', label: 'Stock level' },
             ]}
             emptyText={
-              searching ? 'Searching…'
-                : hits ? 'Nothing in the whole register matches that.'
+              hits ? 'Nothing in the whole register matches that.'
                   : rows.length ? 'No lines match this filter.'
                     : 'No hand stock yet — Refresh to load.'}
             toolbar={
@@ -439,11 +389,10 @@ export function HandStock() {
                     label: `${e.engineer}${e.onHand === undefined ? '' : ` (${e.onHand})`}`,
                   }))} />
                 <div className="spacer" />
-                {/* WHILE A SEARCH SHOWS, THE FILE IS THE SEARCH: one request of
-                    PAGE_SIZE lines, so it is capped by that, not by whether
-                    the browse list has more pages (finding 45). */}
+                {/* WHILE A SEARCH SHOWS, THE FILE IS THE SEARCH, and it is
+                    complete unless the list itself is (a cut cache). */}
                 {rows.length > 0 && (
-                  <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], hits ? searchScope(hits.length >= PAGE_SIZE) : partial(more))}>⭳ Export CSV</button>
+                  <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], hits ? searchScope(more) : partial(more))}>⭳ Export CSV</button>
                 )}
               </Toolbar>
             }

@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.116',
+    date: '2026-10-05',
+    title: 'Hand Stock loads in one request and searches on the device',
+    changes: [
+      'HAND STOCK AND THE HAND STOCK REPORT READ THE WHOLE BALANCE IN ONE REQUEST. The balance is worked out from every movement, and that costs the same whether one page or everything is asked for -- so loading it a thousand lines at a time was the same full calculation once per page, and every search keystroke was one more (4.6-7.3 s each on the live project, 650 times in two weeks). One request now brings the whole register, so every count is exact, there is no Load more, and the search box filters what is already on the screen instantly. Who sees what is unchanged: the same row-level security applies.',
+      'If the device had kept a cut copy of the register (its cache keeps at most 1,500 lines), the screen says so with a + and reloads the whole balance rather than showing the cut copy as the register.',
+      'SQL only for the database half: 0384_handstock_balance_all.sql (HandStock_X.sql), applied by the migration workflow; _status.sql row 317 confirms it.',
+    ],
+  },
+  {
     version: '0.10.115',
     date: '2026-10-05',
     title: 'Ownership Transfer: invoice shown, and a fresh warranty for the new owner',
