@@ -2035,7 +2035,13 @@ with checks(sort_order, bundle, provides, present) as (
     (308, 'Spare Recycling: a request can be deleted, with its consumption and costs', 'Asked for 2026-10-04. delete_recycle_requests() asks recycle.delete (and Audit Mode off), removes the requests with their consumption and other costs and unlinks their MRSs; the consumption and other-cost guards step aside only for it (0376). NO means recycling.sql has not been re-run since. Restore: recycling.sql (0376)',
         (to_regprocedure('public.delete_recycle_requests(bigint[])') is not null
      and coalesce((select p.prosrc like '%rithi.recycle_delete%' from pg_proc p where p.oid = to_regprocedure('public.recycle_consumption_guard()')), false)
-     and coalesce((select p.prosrc like '%rithi.recycle_delete%' from pg_proc p where p.oid = to_regprocedure('public.recycle_other_costs_guard()')), false)))
+     and coalesce((select p.prosrc like '%rithi.recycle_delete%' from pg_proc p where p.oid = to_regprocedure('public.recycle_other_costs_guard()')), false))),
+    (309, 'Pre-Delivery Quality Check: its own register, every field mandatory, never deleted', 'Asked for 2026-10-05. pdqc_records (0377) with the R/SER/QC/007 columns NOT NULL, the inspector stamped by zz_pdqc_stamp, row-level security on, and no DELETE grant to authenticated. NO means indoor.sql has not been re-run since. Restore: indoor.sql (0377)',
+        (to_regclass('public.pdqc_records') is not null
+     and coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.pdqc_records')), false)
+     and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.pdqc_records') and tgname = 'zz_pdqc_stamp')
+     and coalesce((select a.attnotnull from pg_attribute a where a.attrelid = to_regclass('public.pdqc_records') and a.attname = 'pcmv_o2_100'), false)
+     and not coalesce((select has_table_privilege('authenticated', 'public.pdqc_records', 'DELETE') where to_regclass('public.pdqc_records') is not null), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

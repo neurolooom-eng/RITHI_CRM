@@ -78,6 +78,22 @@ up)_
 
 ---
 
+## 2026-10-05 — Pre-Delivery Quality Check register (0377, v0.10.99)
+
+- The user: imported machines in the godown, checked before billing as per
+  R/SER/QC/007, all fields mandatory. Answers: its own register, any product,
+  record only, same checks and tables.
+- `pdqc_records`: indoor_pdt's columns with product + serial on the row, every
+  one NOT NULL / non-blank (the database refuses a partial check on any path);
+  `pdqc_stamp()` stamps the inspector from the session on every save (an edit
+  re-signs as the editor); no DELETE grant. Keys: `mod:/indoor/pdqc` (admin +
+  technical_support), `pdqc.record` to no role.
+- Screen `/indoor/pdqc`; print `/indoor-pdqc/:id` through `PdtSheet`, now the
+  one R/SER/QC/007 sheet shared with the Indoor job's test.
+- Not done, not asked: a record number (the list is keyed by product, serial
+  and date), an amendment log of before/after values.
+- URS-180, FRS-255, OQ-252, `pdqc_test`, `_status.sql` row 309.
+
 ## 2026-10-04 — Spare Recycling: Delete, and Source instead of Received from / Serial (0376)
 
 - **Delete** ("Add Delete Option"): `delete_recycle_requests(ids)` asks the new

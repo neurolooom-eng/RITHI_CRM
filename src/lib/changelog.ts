@@ -14,6 +14,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.99',
+    date: '2026-10-05',
+    title: 'Pre-Delivery Quality Check — a register of its own under Indoor Service',
+    changes: [
+      'New page Indoor Service → Pre-Delivery Quality Check, for imported machines in the godown checked before billing.',
+      'The form is R/SER/QC/007: product (from the Product Master), SL. No, date, measuring equipment ID, software version, HV, HT, checks 1–5 OK / NOT OK, and the CMV/ACMV and PCMV readings at FiO2 21, 60 and 100%.',
+      'Every field is mandatory — Save stays off until all are filled. Whoever saves is recorded as the inspector, with their designation.',
+      'A record only: a NOT OK is recorded and shown, billing is not blocked. A check is never deleted. Each one prints on the R/SER/QC/007 sheet.',
+      'Recording needs the new permission “Record a Pre-Delivery Quality Check”, given to no role — tick it on Roles & Permissions → Indoor Service.',
+    ],
+  },
+  {
     version: '0.10.98',
     date: '2026-10-05',
     title: 'Request Registration: Unmap a request mapped to the wrong call',

@@ -1485,6 +1485,20 @@ typed into a form that reads it.
     is kept. Needs **Delete a recycling request**.
   - Its keys are given to no role — grant them on **Roles & Permissions →
     Indoor Service**.
+- **Pre-Delivery Quality Check** `/indoor/pdqc` — imported machines received
+  in the godown are checked here **before billing**, as per **R/SER/QC/007**.
+  A register of its own: no Indoor job, any product.
+  - **+ New check**: pick the product from the Product Master, type the SL. No,
+    and fill the date, Measuring Equipment ID, Software Version, HV, HT,
+    checks 1–5 (OK / NOT OK) and the CMV/ACMV and PCMV readings at FiO2 21, 60
+    and 100%. **Every field is mandatory** — Save stays off until all are filled.
+  - **Whoever saves is the inspector** — your name and designation (from the
+    User Master) are recorded. Correcting a check later signs it as you.
+  - **A record only**: a NOT OK is recorded and shown in red in the list;
+    billing is not blocked. A check is never deleted.
+  - **🖨 Print** gives the R/SER/QC/007 sheet; **Export CSV** downloads the list.
+  - Recording needs **Record a Pre-Delivery Quality Check** — given to no role;
+    tick it on **Roles & Permissions → Indoor Service**.
 - **Solved Without a Report** `/missing-visit-reports` — **administrators
   only.** Every call that reads Solved while its visit record is incomplete —
   the list of what to re-upload.

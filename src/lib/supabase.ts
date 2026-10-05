@@ -6958,3 +6958,47 @@ export async function deleteRecycleRequests(ids: number[]): Promise<Res<number>>
   const { data, error } = await must().rpc('delete_recycle_requests', { p_ids: ids });
   return error ? { ok: false, error: errMsg(error) } : { ok: true, data: Number(data ?? 0) };
 }
+
+// ---------------------------------------------------------------------------
+// PRE-DELIVERY QUALITY CHECK (0377) -- its own register, R/SER/QC/007's
+// columns with the product and serial on the row. Every field mandatory (the
+// database refuses a blank one); Inspected by is stamped from the session.
+// ---------------------------------------------------------------------------
+export interface PdqcRecord extends Omit<IndoorPdt, 'job_id'> {
+  product_name: string;
+  serial: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export const PDQC_WRITABLE = [
+  'product_name', 'serial', 'test_date', 'measuring_equipment_id', 'software_version', 'hv', 'ht',
+  'check1', 'check2', 'check3', 'check4', 'check5',
+  'cmv_vte_21', 'cmv_vte_60', 'cmv_vte_100', 'cmv_peep_21', 'cmv_peep_60', 'cmv_peep_100',
+  'cmv_o2_21', 'cmv_o2_60', 'cmv_o2_100',
+  'pcmv_pip_21', 'pcmv_pip_60', 'pcmv_pip_100', 'pcmv_peep_21', 'pcmv_peep_60', 'pcmv_peep_100',
+  'pcmv_o2_21', 'pcmv_o2_60', 'pcmv_o2_100',
+] as const;
+export async function listPdqcRecords(): Promise<PdqcRecord[]> {
+  const c = must();
+  return allRows<PdqcRecord>((a, b) => c.from('pdqc_records').select('*')
+    .order('test_date', { ascending: false }).order('id', { ascending: false }).range(a, b));
+}
+export async function getPdqcRecord(id: number): Promise<PdqcRecord | null> {
+  const { data, error } = await must().from('pdqc_records').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return (data as PdqcRecord | null) ?? null;
+}
+/** Save a whole check -- new (no id) or edited. Only the form's columns are
+ *  sent; the inspector is the session's. Rows counted (finding 48). */
+export async function savePdqcRecord(id: number | null, row: Partial<PdqcRecord>): Promise<Res<PdqcRecord>> {
+  const body = Object.fromEntries(Object.entries(row).filter(([k]) => (PDQC_WRITABLE as readonly string[]).includes(k)));
+  const c = must();
+  const q = id == null
+    ? c.from('pdqc_records').insert(body).select('*')
+    : c.from('pdqc_records').update(body).eq('id', id).select('*');
+  const { data, error } = await q;
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not record a Pre-Delivery Quality Check.' };
+  return { ok: true, data: data[0] as PdqcRecord };
+}

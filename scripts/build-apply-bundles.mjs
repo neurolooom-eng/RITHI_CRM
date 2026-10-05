@@ -803,7 +803,10 @@ const MODULES = {
             '0372_indoor_call_status.sql',
             // "New device" as its own kind (2026-10-04); re-states 0327's
             // create_indoor_dc(), so after it.
-            '0374_indoor_new_device_kind.sql'],
+            '0374_indoor_new_device_kind.sql',
+            // Pre-Delivery Quality Check (2026-10-05): its own register, the
+            // R/SER/QC/007 columns with the product and serial on the row.
+            '0377_pre_delivery_qc.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
