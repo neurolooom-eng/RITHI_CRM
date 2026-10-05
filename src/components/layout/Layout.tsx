@@ -238,6 +238,7 @@ export const NAV: NavGroup[] = [
       { to: '/exports/unused', label: 'Not Consumed Against this Call', icon: '🚩', perm: 'mod:/exports/unused' },
       { to: '/exports/calls', label: 'Call Report', icon: '📞', perm: 'mod:/exports/calls' },
       { to: '/exports/feedback', label: 'Customer Feedback Report', icon: '⭐', perm: 'mod:/exports/feedback' },
+      { to: '/exports/stores-dispatch', label: 'Stores Dispatch Report', icon: '🚚', perm: 'mod:/exports/stores-dispatch' },
       // Beside the feedback report it checks, and LAST in the group so the
       // permission matrix's order matches this one.
       { to: '/feedback-without-report', label: 'Feedback Without a Report', icon: '🔎', adminOnly: true },

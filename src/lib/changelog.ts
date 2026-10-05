@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.115',
+    date: '2026-10-05',
+    title: 'Stores Dispatch Report, and IND/IMP on the Part Master',
+    changes: [
+      'REPORTS → STORES DISPATCH REPORT: every spare dispatched, in the AppSheet Stores format — OR|Part, SO NO, Timestamp, TO and address, the quantities, Item Status, IND/IMP, and Dispatched in (Days) with its band (00-03D, 04-07D, 08-15D, 16-30D, 31-60D, >60D). Filter, pick extra columns, download Excel or CSV.',
+      'DAYS are counted exactly from the request\'s final approval (the latest of RM, Commercial and NSM) to the dispatch, to one decimal. A spare with no approval time recorded shows "No approval date" instead of AppSheet\'s ">5 yrs".',
+      'PART MASTER: a new IND/IMP field (Indigenous / Imported / TBD) on the add and edit forms, and an IND/IMP column in the Part Master bulk upload. It starts blank.',
+      'Open to Admin, Technical Support, Stores Incharge and Spare Coordinator, and to any role that holds Reports; others can be given it under Roles & Permissions.',
+    ],
+  },
+  {
     version: '0.10.114',
     date: '2026-10-05',
     title: 'Indexing: eight indexes that cost every write and served nothing are gone; a probe for the rest',

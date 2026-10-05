@@ -156,6 +156,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/exports/unused', label: 'Reports — Not Consumed Against this Call' },
   { path: '/exports/calls', label: 'Reports — Call Report' },
   { path: '/exports/feedback', label: 'Reports — Customer Feedback Report' },
+  { path: '/exports/stores-dispatch', label: 'Reports — Stores Dispatch Report' },
   // IN THE REPORTS GROUP, BUT NOT UNDER `/exports` — and that is the whole
   // reason for the path. Every `mod:/exports/...` key INHERITS from
   // `mod:/exports` (parentAction), so filing it there would hand it to every
@@ -776,6 +777,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/exports/unused', label: '↳ Not Consumed Against this Call', actions: ['reports.view'] },
     { path: '/exports/calls', label: '↳ Call Report', actions: ['reports.view'] },
     { path: '/exports/feedback', label: '↳ Customer Feedback Report', actions: ['feedback.view', 'visit.feedback'] },
+    { path: '/exports/stores-dispatch', label: '↳ Stores Dispatch Report', actions: ['spare.dispatch', 'reports.view'] },
     // NOT a child of /exports: it does not inherit, and it is administrators
     // only. Its position here matches the menu's, which is the half of this
     // that is easy to get wrong — a page filed under the wrong neighbour is

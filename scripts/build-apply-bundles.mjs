@@ -1031,7 +1031,10 @@ const MODULES = {
             '0340_spare_request_fixed_once_decided.sql',
             // D-136: a master key changes only through a rename. Reads
             // part_rename_ticket (0196) and stock_import_allowed() (0339).
-            '0335_master_key_changes_only_by_rename.sql'],
+            '0335_master_key_changes_only_by_rename.sql',
+            // The Stores Dispatch Report (the AppSheet Stores view) and the part's
+            // IND/IMP; reads the dispatch, request-line and parts tables (0383).
+            '0383_stores_dispatch_report.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {

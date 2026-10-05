@@ -3607,7 +3607,7 @@ export async function partCodeExists(code: string): Promise<boolean> {
 // here as well as on the form, so no other caller can add a part without them.
 export async function addPart(
   code: string, description: string,
-  more: { category: string; product: string; purchase_cost?: number | null; common?: boolean; hsn_code?: string } = { category: '', product: '' },
+  more: { category: string; product: string; purchase_cost?: number | null; common?: boolean; hsn_code?: string; ind_imp?: string } = { category: '', product: '' },
 ): Promise<{ ok: boolean; error?: string }> {
   const c = normalisePartCode(code);
   if (!c) return { ok: false, error: 'Give the part code.' };
@@ -3624,6 +3624,7 @@ export async function addPart(
     category: more.category.trim(), product: more.common ? '' : more.product.trim(),
     ...(more.purchase_cost != null ? { purchase_cost: more.purchase_cost } : {}),
     ...(more.hsn_code ? { hsn_code: more.hsn_code } : {}),
+    ...(more.ind_imp ? { ind_imp: more.ind_imp } : {}),
   });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
@@ -3638,7 +3639,7 @@ export async function addPart(
  *  foreign key to `parts`. Changing them is `renamePart` below, which carries
  *  the history. */
 export async function updatePart(
-  id: number, patch: { category?: string; product?: string; purchase_cost?: number | null; hsn_code?: string },
+  id: number, patch: { category?: string; product?: string; purchase_cost?: number | null; hsn_code?: string; ind_imp?: string },
 ): Promise<{ ok: boolean; error?: string }> {
   // Rows COUNTED (D-141), as updateMasterItem does.
   const { data, error } = await must().from('parts').update(patch).eq('id', id).select('id');
@@ -6748,6 +6749,48 @@ export async function listFeedbackReport(
     const { data, error } = await feedbackReportQuery(f)
       .order('Date', { ascending: false })
       .order('UC Number', { ascending: false })
+      .range(offset, offset + page - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = (data ?? []) as Record<string, unknown>[];
+    out.push(...rows);
+    onProgress?.(out.length);
+    if (rows.length < page) return out;
+  }
+}
+
+// THE STORES DISPATCH REPORT (0383): the view in the AppSheet Stores format.
+export interface StoresDispatchQuery {
+  from?: string; to?: string; engineer?: string; part?: string; orNo?: string;
+  band?: string; indImp?: string; itemStatus?: string;
+}
+function storesDispatchQuery(f: StoresDispatchQuery, opts?: { count: 'exact'; head: true }) {
+  let q = opts
+    ? must().from('stores_dispatch_report').select('*', opts)
+    : must().from('stores_dispatch_report').select('*');
+  if (f.from) q = q.gte('Timestamp', f.from);
+  if (f.to) q = q.lte('Timestamp', `${f.to} 23:59:59.999`);
+  if (f.engineer) q = q.ilike('TO', `%${f.engineer}%`);
+  if (f.part) q = q.ilike('Spare', `%${f.part}%`);
+  if (f.orNo) q = q.ilike('Spare Request NO', `%${f.orNo}%`);
+  if (f.band) q = q.eq('Dispatched in (Days - Group)', f.band);
+  if (f.indImp) q = q.eq('IND/IMP', f.indImp);
+  if (f.itemStatus) q = q.ilike('Item Status', `%${f.itemStatus}%`);
+  return q;
+}
+export async function countStoresDispatch(f: StoresDispatchQuery): Promise<number> {
+  const { count, error } = await storesDispatchQuery(f, { count: 'exact', head: true });
+  if (error) throw new Error(errMsg(error));
+  return count ?? 0;
+}
+export async function listStoresDispatch(
+  f: StoresDispatchQuery, onProgress?: (n: number) => void,
+): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  const page = 1000;
+  for (let offset = 0; ; offset += page) {
+    const { data, error } = await storesDispatchQuery(f)
+      .order('Timestamp', { ascending: false })
+      .order('Dispatch Line ID', { ascending: false })
       .range(offset, offset + page - 1);
     if (error) throw new Error(errMsg(error));
     const rows = (data ?? []) as Record<string, unknown>[];

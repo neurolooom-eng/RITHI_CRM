@@ -2074,7 +2074,13 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regclass('public.documents_kind_idx') is null and to_regclass('public.handstock_opening_eng_idx') is null
      and to_regclass('public.products_machine_idx') is null and to_regclass('public.parts_item_detail_key_idx') is null
      and to_regclass('public.masters_active_idx') is not null and to_regclass('public.reports_ucn_entry_idx') is not null
-     and to_regclass('public.products_machine_key_uniq') is not null and to_regclass('public.parts_item_detail_key_uniq') is not null))
+     and to_regclass('public.products_machine_key_uniq') is not null and to_regclass('public.parts_item_detail_key_uniq') is not null)),
+    (316, 'Stores Dispatch Report and the part''s IND/IMP', 'parts.ind_imp; the view stores_dispatch_report (security_invoker, granted to authenticated) in the AppSheet Stores format, with exact days from the final approval and "No approval date" where none; mod:/exports/stores-dispatch merged into admin, technical_support, stores_incharge and spare_coordinator (0383). Restore: HandStock_X.sql (0383)',
+        (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'parts' and column_name = 'ind_imp')
+         and to_regclass('public.stores_dispatch_report') is not null
+         and coalesce((select array_to_string(c.reloptions, ',') like '%security_invoker=on%' from pg_class c where c.oid = to_regclass('public.stores_dispatch_report')), false)
+         and has_table_privilege('authenticated', to_regclass('public.stores_dispatch_report'), 'SELECT')
+         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stores_dispatch_report' and column_name = 'Dispatched in (Days - Group)')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
