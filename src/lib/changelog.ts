@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.106',
+    date: '2026-10-05',
+    title: 'Spare Requests: Download now for the Part Master on your device',
+    changes: [
+      'Beside “Part Master cached on this device” (under the Spare Requests title and beside Spares on a new request) there is now ⭳ Download now. It fetches a fresh copy of the parts list straight away instead of waiting for the six-hourly refresh, and every open picker uses it at once.',
+      'If the download fails (no signal), the copy already on the device is kept and the note says so.',
+    ],
+  },
+  {
     version: '0.10.105',
     date: '2026-10-05',
     title: 'The Part Master is kept on every device, and shown in Device Cache Status',

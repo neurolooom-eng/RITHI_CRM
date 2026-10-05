@@ -164,7 +164,8 @@ on Roles & Permissions does not reach another team's calls.
   Part Master the spare pickers use) it holds, when each was downloaded and
   the last failure. The parts are kept on the device and refreshed every six
   hours, so a Spare Request can pick a part with no signal (Spare Requests shows when
-  the list was cached on your device). Everybody is listed, including whoever has **never
+  the list was cached on your device, with **Download now** to fetch a fresh
+  copy at once). Everybody is listed, including whoever has **never
   reported** — the engineer worth chasing before they travel. A device reports
   after each download and on sign-out, so one switched off shows its **last
   report**; read *Last reported*. Administrators and Technical Support to begin
