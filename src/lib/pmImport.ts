@@ -36,6 +36,9 @@ const ALIASES: Record<string, string[]> = {
   warranty_number:    ['warranty number', 'warranty no'],
 };
 const DATE_COLS = new Set(['reg_date', 'complaint_date']);
+// The sheet's own complaint / breakdown dates: replaced by the registration
+// date on every PM call, so they are not kept in `extra` either.
+const PM_DATED_HERE = new Set(['complaint date', 'breakdown date', 'break down date']);
 
 const todayISO = todayLocal;
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -103,10 +106,17 @@ export function shapePmRows(
       }
     }
     out.reg_date = regDate;
+    // COMPLAINT DATE AND BREAKDOWN DATE ARE THE REGISTRATION DATE on a PM call
+    // (the user, 2026-10-05: "Map, Complaint Date, Break Down Date to the Same
+    // Date as Call Registration ... this is only for PM"). A PM visit is
+    // scheduled, not reported, so the sheet's own values are not used.
+    out.complaint_date = regDate;
+    out.breakdown_date = regDate;
     out.added_on = added;
     // Keep any column we didn't map (incl. a per-row PM due date), so nothing is lost.
     const extra: Record<string, string> = {};
     for (const [k, v] of Object.entries(r)) {
+      if (PM_DATED_HERE.has(norm(k))) continue;   // superseded by the registration date above
       if (!used.has(norm(k)) && String(v ?? '').trim() !== '') extra[k.trim()] = String(v).trim();
     }
     if (Object.keys(extra).length) out.extra = extra;

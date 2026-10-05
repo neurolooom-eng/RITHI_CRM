@@ -374,6 +374,9 @@ const MODULES = {
       // Re-open, close, close-again, cancel and restore ask whether the caller
       // can SEE the call (D-128). Redefines 0287's and 0311's functions, so after both.
       '0341_call_actions_need_sight_of_the_call.sql',
+      // PM calls already uploaded: complaint / breakdown date = registration
+      // date, and the serial their upload carried (2026-10-05). Data only.
+      '0386_pm_dates_are_registration.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
