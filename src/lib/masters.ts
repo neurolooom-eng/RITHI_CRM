@@ -120,6 +120,22 @@ function load(name: string): Promise<string[]> {
   return p;
 }
 
+/** DOWNLOAD NOW (the user, 2026-10-05: "Give Download Now Option in the Cache
+ *  info"): fetch a fresh copy whatever the age of the stored one. The stored
+ *  copy is NOT cleared first -- a download that fails on a weak signal keeps
+ *  the good list (mastercache.ts, rule 1). True when a fresh copy was stored;
+ *  every open picker follows through MASTER_STORED_EVENT. Never throws. */
+export async function downloadMasterNow(name: string): Promise<boolean> {
+  try {
+    if (!dataConfigured()) return false;
+    const v = await listMaster(name);
+    if (!v.length) return false;
+    cache.set(name, v); inflight.delete(name); failedNames.delete(name);
+    writeStored(name, v);
+    return true;
+  } catch { return false; }
+}
+
 // Clear cached master values (e.g. after editing the registry, or a force sync).
 // Clears the STORED copy too, or "Clear Cache and Update" would leave the very
 // thing somebody pressed it to get rid of.
@@ -176,6 +192,18 @@ export function useMaster(
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, enabled]);
+
+  // A FRESH COPY STORED ELSEWHERE (Download now) reaches this picker at once.
+  useEffect(() => {
+    if (!enabled) return;
+    const onStored = (e: Event) => {
+      if ((e as CustomEvent).detail !== name) return;
+      const v = cache.get(name) ?? readStored(name);
+      if (v && v.length) { setValues(v); setFailed(false); setReady(true); }
+    };
+    window.addEventListener(MASTER_STORED_EVENT, onStored);
+    return () => window.removeEventListener(MASTER_STORED_EVENT, onStored);
   }, [name, enabled]);
 
   return { values, ready, failed };
