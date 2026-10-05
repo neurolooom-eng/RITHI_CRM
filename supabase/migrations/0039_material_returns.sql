@@ -46,7 +46,8 @@ create table if not exists public.material_returns (
   constraint material_returns_qty_positive check (coalesce(good_qty, 0) + coalesce(defective_qty, 0) > 0)
 );
 
-create index if not exists material_returns_uid_idx      on public.material_returns (uid);
+-- material_returns_uid_idx (uid) was here; a prefix of material_returns_uid_part_idx (0089).
+-- Removed 2026-10-05; 0382 drops it where it exists.
 create index if not exists material_returns_engineer_idx on public.material_returns (lower(btrim(engineer)));
 create index if not exists material_returns_date_idx     on public.material_returns (mrn_date desc nulls last);
 -- The import re-runs; one row per (submission, item) is the natural identity.

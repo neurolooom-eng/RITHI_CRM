@@ -48,7 +48,8 @@ begin;
 -- ===========================================================================
 
 create index if not exists reports_visit_at_idx on public.reports (visit_at desc nulls last, id desc);
-create index if not exists reports_call_number_idx on public.reports (call_number);
+-- reports_call_number_idx (call_number) was here; a prefix of reports_call_number_entry_idx.
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 -- ------------------------------------------------------------------------
 -- 0071_report_source_ref.sql

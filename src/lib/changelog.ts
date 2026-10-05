@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.114',
+    date: '2026-10-05',
+    title: 'Indexing: eight indexes that cost every write and served nothing are gone; a probe for the rest',
+    changes: [
+      'EIGHT INDEXES DROPPED (0382). Each was a leading prefix of a wider index on the same table -- the wider one answers every lookup the narrow one could, so the narrow one only cost disk and a write on every insert and update. Products carried its machine key TWICE (products_machine_idx beside the unique key); Visit Reports carried ucn and call_number twice; the rest are on masters, documents, material_returns, handstock_opening and parts. Nothing reads differently; _status.sql row 315 confirms they are gone.',
+      'WHICH INDEXES EARN THEIR KEEP -- a read-only probe (supabase/apply/_which_indexes_earn_their_keep.sql). One grid: every index on the live project, biggest first, with its size, how many times it has been used since the statistics were reset (row 1 says when), and a verdict. The 33 trigram search indexes on the three call registers are the biggest on the project and are deliberately NOT touched until that grid says which are scanned.',
+    ],
+  },
+  {
     version: '0.10.113',
     date: '2026-10-05',
     title: 'Product Database: ⇄ Transfer on each machine',

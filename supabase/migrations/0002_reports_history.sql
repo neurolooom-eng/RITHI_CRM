@@ -11,7 +11,8 @@ alter table public.reports drop constraint if exists reports_ucn_key;
 -- 2) Add the visit UID and make it the natural key.
 alter table public.reports add column if not exists uid text;
 create unique index if not exists reports_uid_key on public.reports (uid) where uid is not null;
-create index if not exists reports_ucn_idx on public.reports (ucn);
+-- reports_ucn_idx (ucn) was here; a prefix of reports_ucn_entry_idx (ucn, updated_at desc, id desc).
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 -- 3) Clear the earlier de-duped load so the full visit history can be re-imported.
 truncate table public.reports;
