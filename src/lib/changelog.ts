@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.102',
+    date: '2026-10-05',
+    title: 'Warranty sale: Service Engineer picked from the User Master',
+    changes: [
+      'SERVICE ENGINEER on a warranty sale, and on each of its machines, is now picked from the User Master\'s active people. Type to search, then choose. A name cannot be typed in.',
+      'If the record already names somebody who is not an active user (often the Party Master\'s Serviceman, filled in with the customer), the name is still shown, with a red note asking you to choose an engineer from the list.',
+    ],
+  },
+  {
     version: '0.10.101',
     date: '2026-10-05',
     title: 'Warranty sale: add a new customer to the Party Master as you save',

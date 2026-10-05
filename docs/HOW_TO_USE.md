@@ -680,6 +680,11 @@ the list and shown under it as *"Product serial number was transferred to a
 different customer"*, with the customer who has it. The check is made again
 when you press Create the contract.
 
+**Service Engineer** is picked from the **User Master's active people**, on the
+sale and on each machine. If the record names somebody who is not an active user
+(often the Party Master's Serviceman, filled in with the customer), it is shown
+with a red note to choose an engineer from the list.
+
 **A new customer is added to the Party Master when you save the sale.** Type a
 Party Name the master does not have and the sale says so; **City** and **State**
 then become required, as they are on the Party Master. Fill in the address,

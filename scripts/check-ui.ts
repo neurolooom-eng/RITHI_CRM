@@ -8798,9 +8798,13 @@ console.log('\n-- an installation call is raised the same way from either place 
   const cvcfg = readFileSync('src/lib/cover.ts', 'utf8');
   const saleCfg = cvcfg.slice(cvcfg.indexOf('export const SALE'), cvcfg.indexOf('export const CONTRACT'));
   eq('the sale entry names an engineer',
-    /\{ name: 'engineer', label: '[^']*', section: 'Installation' \}/.test(saleCfg), true);
+    /\{ name: 'engineer', label: '[^']*', section: 'Installation'(, optionsFrom: 'active-user')? \}/.test(saleCfg), true);
   eq('...and its machines inherit it',
-    /\{ name: 'engineer', label: '[^']*', section: 'Installation', inherits: true \}/.test(saleCfg), true);
+    /\{ name: 'engineer', label: '[^']*', section: 'Installation', inherits: true(, optionsFrom: 'active-user')? \}/.test(saleCfg), true);
+  // ...PICKED FROM THE USER MASTER'S ACTIVE PEOPLE, on the sale and on each
+  // machine (the user, 2026-10-05).
+  eq("the sale's Service Engineer is picked from active users",
+    (saleCfg.match(/name: 'engineer'[^}]*optionsFrom: 'active-user'/g) ?? []).length, 2);
   // It arrives from the Party Master when the customer is chosen, which is
   // what makes "allotted to the engineer as per party master" true.
   eq('...from the Party Master, so Allotted To is the master\u2019s answer',

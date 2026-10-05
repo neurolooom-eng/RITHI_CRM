@@ -2927,6 +2927,18 @@ export async function ensureMyProfile(): Promise<Profile | null> {
   return (row ?? null) as Profile | null;
 }
 
+/** THE USER MASTER'S ACTIVE PEOPLE, by name -- `validity` true, the same rule
+ *  the hand-stock upload keeps an engineer by. For a picker that must offer
+ *  only somebody who works here now (the Warranty sale's Service Engineer, the
+ *  user, 2026-10-05). PAGED: a capped read would quietly drop people. */
+export async function sbActiveUserNames(): Promise<string[]> {
+  const c = must();
+  const rows = await allRows<{ name: string | null }>((a, b) =>
+    c.from('user_directory').select('name').eq('validity', true).order('name').order('id').range(a, b), 20000);
+  return [...new Set(rows.map((r) => String(r.name ?? '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+}
+
 export async function sbDirectoryNames(): Promise<string[]> {
   return distinctColumn('user_directory', 'name');
 }
