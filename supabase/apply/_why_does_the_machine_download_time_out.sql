@@ -68,8 +68,17 @@ select set_config('request.jwt.claims',
     limit 1), true);
 select set_config('rithi.who',
        coalesce((select p.email || ' · ' || coalesce(p.role, '') from public.profiles p
-                  where p.id::text = (current_setting('request.jwt.claims', true)::json ->> 'sub')),
+                  where p.id::text = (nullif(current_setting('request.jwt.claims', true), '')::json ->> 'sub')),
                 '*** NO CLAIMS — the email above matched no profile ***'), true);
+
+-- AN EMAIL THAT MATCHES NOBODY STOPS HERE, saying so. Timings taken as nobody
+-- would read as an answer about somebody (and the first version of this file
+-- failed further down with "invalid input syntax for type json" instead).
+do $$ begin
+  if coalesce(current_setting('request.jwt.claims', true), '') = '' then
+    raise exception 'The email on the line marked >>> CHANGE THIS ONE LINE matched no profile. Put the affected person''s sign-in email there (as it is on User Management) and run again.';
+  end if;
+end $$;
 
 set local role authenticated;
 
