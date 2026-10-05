@@ -385,6 +385,7 @@ footer code{font-size:12.5px}
       <ul>
         <li><span class="tag db">Policy</span>Changing a party needs <b>Add / edit master records</b> (or its parent, <b>Edit masters</b>).</li>
         <li><span class="tag db">Trigger</span>The <b>Key</b> cannot be changed once given; the party name is trimmed of spaces at either end on every save.</li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>The party name cannot be changed through the data interface either</b> (0335): <i>"A party's name is the key every machine, call and contract names it by, so it is not changed here"</i>. A change of capital letters or outer spaces is allowed; a re-load by Bulk Uploads matches on the name and does not change it. This is also what keeps the delete guard honest — a party cannot be renamed first and then deleted.</li>
       </ul>
     </div>
   </section>
@@ -573,7 +574,8 @@ footer code{font-size:12.5px}
         <li><b>The Product Database file</b> (Bulk Uploads)</li>
         <li><b>Warranty Register</b> sale entries and their machines</li>
         <li><b>Ownership Transfer</b></li>
-        <li><b>Contract Register</b> and <b>Installation Calls</b>, matched when read</li>
+        <li><b>Contract Register</b> contracts and their machines</li>
+        <li><b>Installation warranty record</b> — the engineer's Warranty Start Date? choice, from a report or the bulk upload</li>
         <li><b>Party Master</b> — the Serviceman</li>
       </ul>
     </div>
@@ -581,11 +583,20 @@ footer code{font-size:12.5px}
       <p class="n">Flow 2 · Step 02 · automatic</p>
       <h2>How a machine gets there, and what is worked out</h2>
       <p>
-        <b>Stored.</b> The <b>Product Database</b> upload adds or corrects machines, matched on model + serial. Saving a
-        machine on a <b>Warranty Register</b> sale adds it, or updates it if that model and serial are already there —
-        its party, product code, warranty dates and the sale's other details. The party written is the machine's
-        <b>current owner</b>: whichever is later of its latest sale entry and its latest ownership transfer. The sale
-        writes nothing about the contract.
+        <b>Stored — by product AND serial, never the serial alone.</b> The <b>Product Database</b> upload adds or
+        corrects machines. A <b>Warranty Register</b> sale adds each machine, or updates it — warranty number and dates,
+        PM visits, invoice number and date, warranty years and months, accessories included. A <b>Contract Register</b>
+        entry gives that machine its contract number, dates, type, status and PM visits (which replace the sale's), and
+        adds a machine not yet held. An <b>Ownership Transfer</b> moves that one machine to its new owner, with the new
+        owner's Party Master address and the transfer's Ref and Date. The owner written is the machine's <b>current
+        owner</b>: whichever is later of its latest sale entry and its latest ownership transfer.
+      </p>
+      <p>
+        <b>Where the warranty starts.</b> The installing engineer chooses on the installation report —
+        <b>Installation Call Solved Date</b> or <b>Invoice Date</b>. The first starts the machine's warranty on the day
+        the installation call was solved and ends it one warranty period later; the second keeps the sale's start.
+        Each installation's choice, solved date and resulting warranty are kept in the <b>installation warranty
+        record</b>, one row per call, which Bulk Uploads can fill for installations back to 2018.
       </p>
       <p>
         <b>Worked out each time it is read.</b> <b>Status</b>: <i>WGP</i> while the warranty end date is today or
@@ -677,8 +688,9 @@ footer code{font-size:12.5px}
         <b>Active</b> and <b>Inactive</b> carry exact counts. <b>⭳ Export CSV</b>.
       </p>
       <p>
-        The screen is read-only. Lines are loaded and corrected by the upload, matched on the Product Code; a line the
-        file does not clearly mark Inactive comes in Active.
+        Lines are loaded and corrected by the upload, matched on the Product Code; a line the file does not clearly
+        mark Inactive comes in Active. <b>＋ Add entry</b>, <b>✎ Edit</b> and <b>🗑 Delete</b> are on the screen, each
+        with its own permission; Edit changes everything but the Product Code.
       </p>
       <p>
         <b>Inactive</b> stops the line being offered for a <b>new sale</b> on the Warranty Register — the Product Code
@@ -690,7 +702,8 @@ footer code{font-size:12.5px}
       <h3>Restrictions &amp; mandates</h3>
       <ul>
         <li class="mandate"><span class="tag">Mandate</span>The upload needs <b>Product Code</b> and <b>Product Name</b> on every row.</li>
-        <li><span class="tag db">Policy</span>Writing lines needs <b>Add / edit master records</b>; reading is open to every signed-in user.</li>
+        <li><span class="tag db">Policy</span>Writing lines needs the Product Master's add, edit or delete permission (or <b>Add / edit master records</b>); reading is open to every signed-in user.</li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>The Product Code is never changed</b> (0335): <i>"A product line's code is the key machines name it by, so it is not changed"</i> — not by the screen and not through the data interface.</li>
       </ul>
     </div>
   </section>
@@ -831,6 +844,7 @@ footer code{font-size:12.5px}
       <ul>
         <li>Without the rename right the screen refuses first: <i>"Changing the code or description renames the part everywhere, which needs the “Rename a part” permission."</i></li>
         <li><span class="tag db">Function</span><i>"RBAC: only a role that maintains the masters may rename a part"</i></li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>Rename is the only way</b> (0335): a code or description changed any other way is refused — <i>"A part's code and description are renamed with "Rename part", which carries every record that names it"</i>.</li>
         <li><span class="tag db">Function</span><i>"Another part is already called "…" — a rename cannot merge two parts"</i></li>
         <li><span class="tag db">Function</span><i>"A part needs both a code and a description"</i> · <i>"Neither the code nor the description may contain "|""</i></li>
         <li><i>"A description cannot contain "|" either."</i></li>
