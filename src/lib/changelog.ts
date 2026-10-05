@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.98',
+    date: '2026-10-05',
+    title: 'Request Registration: Unmap a request mapped to the wrong call',
+    changes: [
+      'REQUEST REGISTRATION: a Mapped request now has ↩ Unmap in its details. It clears the UCN and puts the request back on the Pending list, to be registered or mapped again. The call it was mapped to is not changed. Only for those who can register calls.',
+    ],
+  },
+  {
     version: '0.10.97',
     date: '2026-10-05',
     title: 'Request Registration: Installation Report and KYC open with a click',

@@ -4,7 +4,7 @@ import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { addCallRequestBatch, listCallRequests, sbPartyInfo, sbProductBySerial, supabaseConfigured,
-         updateCallRequest, callRequestEditableKeys, sbKycByParties, kycKeyFor,
+         updateCallRequest, callRequestEditableKeys, unmapCallRequest, sbKycByParties, kycKeyFor,
          type CallRequestItem } from '../lib/supabase';
 import { csvExport, timeAgo, fmtDateTime, fmtLongDate } from '../lib/format';
 import { listPartyItems, uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
@@ -246,6 +246,23 @@ export function RequestCallRegistration() {
     return st === '' || st === 'pending';
   };
 
+  // Back to Pending: the UCN is cleared and the request returns to the Pending
+  // Registrations list. The call it was mapped to is not touched -- mapping
+  // never wrote to it.
+  const [unmapping, setUnmapping] = useState(false);
+  const unmap = async () => {
+    if (!detail) return;
+    const ucn = String(detail.ucn ?? '');
+    if (!confirm(`Unmap ${String(detail.reqid ?? 'this request')} from ${ucn || 'its call'} and put it back on the Pending list?\n\nThe call ${ucn} itself is not changed.`)) return;
+    setUnmapping(true);
+    const res = await unmapCallRequest(Number(detail.id));
+    setUnmapping(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not unmap the request.' }); return; }
+    setDetail(null);
+    setMsg({ tone: 'ok', text: `${String(detail.reqid ?? 'Request')} unmapped from ${ucn} — back on the Pending list.` });
+    await load();
+  };
+
   const saveDetail = async () => {
     if (!editRow || !detail) return;
     setSavingEdit(true);
@@ -359,10 +376,22 @@ export function RequestCallRegistration() {
                   </button>
                 )
               ) : (
-                <span className="muted" style={{ fontSize: 12 }}>
-                  This request is <b>{String(detail.status ?? '')}</b>. The call carries these details now —
-                  correct them on the call, where the change is recorded.
-                </span>
+                <>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    This request is <b>{String(detail.status ?? '')}</b>. The call carries these details now —
+                    correct them on the call, where the change is recorded.
+                  </span>
+                  {/* UNMAP (the user, 2026-10-05: "I want to unmap this and put
+                      it back on pending list"). Only a MAPPED request: a
+                      Registered one created its call, a Cancelled one was closed
+                      on purpose. The same permission as mapping it. */}
+                  {String(detail.status ?? '').trim().toLowerCase() === 'mapped' && can('pending.register') && (
+                    <button className="btn btn-sm" disabled={unmapping} onClick={() => void unmap()}
+                      title="Clear the UCN and put this request back on the Pending list">
+                      {unmapping ? 'Unmapping…' : '↩ Unmap'}
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
