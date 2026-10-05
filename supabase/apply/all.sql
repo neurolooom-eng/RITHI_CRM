@@ -5752,12 +5752,23 @@ revoke execute on function public.master_delete_guard() from public, anon, authe
 -- WHO MAY READ IS UNCHANGED: the predicate is the same comparison, only asked
 -- once. In the rbac module after 0008, before the policy tail (which does not
 -- touch these), so a replay of rbac.sql ends on this definition.
+--
+-- PRODUCTS FIRST, AND THE ORDER IS NOT TIDINESS. Dropping a policy takes an
+-- ACCESS EXCLUSIVE lock on its table, and the first run of this file on the
+-- live project (run 37300728067, 2026-10-05) died with `deadlock detected`:
+-- it had locked parties and was waiting for products, while a reader of
+-- product_database -- which joins products THEN parties -- held products and
+-- was waiting for parties. Locking in the readers' order (products before
+-- parties) means a reader that holds parties already holds products, so it
+-- cannot be waiting on this file, and this file waits only for readers to
+-- finish. A lock timeout (the second run) is the remaining failure, and it is
+-- safe: the transaction rolls back whole and the workflow is re-run.
 -- ===========================================================================
 
 do $$
 declare t text;
 begin
-  foreach t in array array['parties', 'products', 'parts', 'masters'] loop
+  foreach t in array array['products', 'parties', 'parts', 'masters'] loop
     if to_regclass('public.' || t) is null then continue; end if;
     execute format('drop policy if exists %1$s_read on public.%1$s', t);
     execute format('create policy %1$s_read on public.%1$s for select '
