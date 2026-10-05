@@ -428,6 +428,7 @@ export interface PartyFill {
   state?: unknown; city?: unknown; address?: unknown; pincode?: unknown;
   phone?: unknown; phone_2?: unknown; pan?: unknown; gstin?: unknown;
   party_type?: unknown; profile?: unknown; service_engineer?: unknown;
+  country?: unknown;
 }
 
 const text = (v: unknown) => String(v ?? '').trim();
@@ -445,6 +446,7 @@ export const SALE_PROFILES = ['PRIVATE', 'GOVERNMENT', 'DEALER', 'GENERAL'];
 export function partyFillForSale(p: PartyFill | null): Row {
   const q = p ?? {};
   return {
+    country: text(q.country),
     state: text(q.state),
     city: text(q.city),
     address: text(q.address),

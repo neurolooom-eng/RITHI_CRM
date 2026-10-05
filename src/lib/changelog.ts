@@ -14,6 +14,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.103',
+    date: '2026-10-05',
+    title: 'Warranty Entry: required fields, and party details saved to the Party Master',
+    changes: [
+      'REQUIRED ON EVERY SALE: Party Name, Invoice No, Invoice Date, Warranty Start Date, Warranty Period (Months) and PM Visits. Save entry names every one left blank. Period in years and the End Date are worked out from the start and the months.',
+      'NEW ORDER: the sale first, then the warranty, then the party. The Party section (Type, Profile, Country, State, City, Address, Pincode, Tel 1, Tel 2, PAN, GST, Service Engineer) fills from the Party Master when you pick the Party Name. Country now fills too.',
+      'PARTY NAME IS LOCKED once the sale is saved.',
+      'PARTY DETAILS GO BACK TO THE PARTY MASTER: change any of them on the sale and Save entry updates the party as well; the message lists what was written. Only what you changed in that edit is written, so re-saving an old sale does not undo a correction made on the Party Master. This needs the right to edit parties — without it the sale still saves and the message says the Party Master was not updated.',
+      'A NEW CUSTOMER from the sale now needs Party Type, Profile, Country, State, City, Address, Pincode, GST and Service Engineer before it saves. These are the existing party fields — no new boxes.',
+      'Old imported sales missing an invoice number or date, or PM visits, must have them filled in before they can be saved again.',
+    ],
+  },
+  {
     version: '0.10.102',
     date: '2026-10-05',
     title: 'Warranty sale: Service Engineer picked from the User Master',

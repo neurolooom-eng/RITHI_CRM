@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput, LongDateText } from '../components/ui/LongDate';
-import { sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers, addParty, sbActiveUserNames, type PartyPatch } from '../lib/supabase';
-import { partyMissing, partyFromSale } from '../lib/partyRules';
+import { sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers, addParty, sbActiveUserNames, sbPartyIdByName, updateParty, type PartyPatch } from '../lib/supabase';
+import { partyMissing, partyFromSale, partyEdits, saleNewPartyMissing, SALE_NEW_PARTY_REQUIRED, SALE_TO_PARTY } from '../lib/partyRules';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT,
          // THE VALUE TEST, not the row test. `isPinned` from ./cover takes
@@ -1139,6 +1139,10 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     }
     setSaving(true);
     let partyNote = '';
+    // The party as the master holds it NOW, in the sale's field names -- what
+    // the write-back below compares against. Null for a party just added or
+    // not found: there is nothing on the master to update.
+    let masterFill: Record<string, unknown> | null = null;
     try {
       // A NEW PARTY IS ADDED TO THE PARTY MASTER IN THE SAME STEP (the user,
       // 2026-10-05: "allow the user to create a new party and use it in
@@ -1156,10 +1160,12 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         try { info = await sbPartyInfo(partyName); } catch { info = undefined; }
         if (info === null) {
           const newParty = partyFromSale(draft);
-          const lacking = partyMissing(newParty);
+          // The Party Master's own required fields AND the nine this page
+          // asks of a party it creates (partyRules.SALE_NEW_PARTY_REQUIRED).
+          const lacking = [...new Set([...partyMissing(newParty), ...saleNewPartyMissing(draft)])];
           if (lacking.length) {
             setPartyKnown(false);
-            setMsg({ tone: 'error', text: `${partyName} is not on the Party Master, so the Party Master's required fields apply here too: fill in ${lacking.join(', ')}.` });
+            setMsg({ tone: 'error', text: `${partyName} is not on the Party Master, so a new party's required fields apply: fill in ${lacking.join(', ')}.` });
             return;
           }
           if (can('masters.parties.add')) {
@@ -1174,6 +1180,8 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           } else {
             partyNote = ` ${partyName} is not on the Party Master and your role may not add it — ask somebody who may add parties.`;
           }
+        } else if (info) {
+          masterFill = partyFillForSale(info);
         }
       }
       // THE ENTRY DATE IS STAMPED ON CREATION, never typed (the user,
@@ -1189,7 +1197,41 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       setFeed('entries', { rows: feeds.entries.rows.map((r) => (r.id === saved.id ? { ...r, ...saved } : r)) });
       // The header moved, so every machine that inherits from it moved too.
       setItems(await listItems(kind, str(saved[cfg.key])));
-      setMsg({ tone: 'ok', text: `${cfg.keyLabel} ${str(saved[cfg.key])} saved — machines following it were updated.${partyNote}` });
+      // THE PARTY DETAILS CHANGED HERE GO BACK TO THE PARTY MASTER (the user,
+      // 2026-10-05: "All Party Related Fields, if Updated - Should be Saved to
+      // Party Master once the Entry is Saved", choosing "Save updates Party
+      // Master"). AFTER the sale, so a refused party edit never loses the sale.
+      // Only what was changed in THIS edit and differs from the master
+      // (partyRules.partyEdits) -- re-saving an old sale must not put back a
+      // value since corrected on the master. Needs masters.parties.edit, which
+      // the database's own update policy also asks (0325).
+      if (masterFill) {
+        const edits = partyEdits(open ?? {}, draft, masterFill);
+        const cols = Object.keys(edits);
+        if (cols.length) {
+          const labelOf = (col: string) => {
+            const field = SALE_TO_PARTY.find(([c]) => c === col)?.[1] ?? col;
+            return cfg.headerFields.find((h) => h.name === field)?.label ?? col;
+          };
+          const names = cols.map(labelOf).join(', ');
+          if (!can('masters.parties.edit')) {
+            partyNote += ` The Party Master was NOT updated (${names}) — your role may not edit parties.`;
+          } else {
+            try {
+              const id = await sbPartyIdByName(partyName);
+              const res = id == null
+                ? { ok: false, error: 'the party is no longer on the Party Master' }
+                : await updateParty(id, edits as PartyPatch);
+              partyNote += res.ok
+                ? ` Party Master updated for ${partyName}: ${names}.`
+                : ` The Party Master was NOT updated (${names}) — ${res.error}`;
+            } catch (e) {
+              partyNote += ` The Party Master was NOT updated (${names}) — ${e instanceof Error ? e.message : String(e)}`;
+            }
+          }
+        }
+      }
+      setMsg({ tone: partyNote.includes('NOT updated') ? 'info' : 'ok', text: `${cfg.keyLabel} ${str(saved[cfg.key])} saved — machines following it were updated.${partyNote}` });
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
     finally { setSaving(false); }
   };
@@ -1502,20 +1544,27 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     </div>
   );
 
-  // THE PARTY MASTER'S REQUIRED FIELDS, required here while the sale names a
-  // party the master has not got (partyRules.PARTY_REQUIRED, minus the name
-  // itself, which is the field that raised the question).
-  const newPartyFields = new Set(kind === 'sale' && partyKnown === false ? ['city', 'state'] : []);
+  // A NEW PARTY'S REQUIRED FIELDS, required here while the sale names a party
+  // the master has not got (partyRules.SALE_NEW_PARTY_REQUIRED -- the user,
+  // 2026-10-05: Party Type, Profile, Country, State, City, Address, Pincode,
+  // GST and Service Engineer).
+  const newPartyFields = new Set(kind === 'sale' && partyKnown === false ? SALE_NEW_PARTY_REQUIRED.map(([k]) => k) : []);
   const partyNotice = kind === 'sale' && partyKnown === false && str(draft.party_name).trim() ? (
     <div className={`sheet-banner sheet-banner-${can('masters.parties.add') ? 'info' : 'error'}`} style={{ margin: '0 0 10px' }}>
       <span>
         <b>{str(draft.party_name).trim()}</b> is not on the Party Master.{' '}
         {can('masters.parties.add')
-          ? <>It will be <b>added to the Party Master</b> when you press Save entry, with the details typed here. City and State are required, as they are on the Party Master.</>
-          : <>Your role may not add parties, so the sale will be saved without adding it. City and State are still required.</>}
+          ? <>It will be <b>added to the Party Master</b> when you press Save entry, with the details typed here. A new party needs {SALE_NEW_PARTY_REQUIRED.map(([, l]) => l).join(', ')}.</>
+          : <>Your role may not add parties, so the sale will be saved without adding it. {SALE_NEW_PARTY_REQUIRED.map(([, l]) => l).join(', ')} are still required.</>}
       </span>
     </div>
   ) : null;
+
+  // PARTY NAME IS NOT EDITABLE ONCE THE SALE IS SAVED (the user, 2026-10-05:
+  // "Party Name is Non Editable", choosing "Locked once the sale is saved").
+  // A new sale still has to pick its customer; after that the party's details
+  // are edited here and the name is the key they are written back under.
+  const partyLocked = (name: string) => kind === 'sale' && name === 'party_name' && !!draft.id;
 
   const entryFields = sections.map((sec) => (
     <div key={sec} style={{ marginBottom: 10 }}>
@@ -1529,7 +1578,8 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
               {kind === 'sale' && SALE_PARTY_FIELDS.includes(f.name)
                 && <span className="muted"> · from the party</span>}
             </span>
-            <FieldInput field={f} value={f.compute ? f.compute(draft) : fromDb(f, draft[f.name])} disabled={!canEdit}
+            <FieldInput field={f} value={f.compute ? f.compute(draft) : fromDb(f, draft[f.name])}
+              disabled={!canEdit || partyLocked(f.name)}
               runtimeOptions={f.optionsFrom === 'active-user' ? activeUsers : undefined}
               onChange={(v) => {
                 setDraft((d) => {
@@ -1549,6 +1599,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 if (kind === 'sale' && f.name === 'party_name') void fillFromParty(v);
               }} />
             {f.hint && f.hint(draft) && <span className="muted rep-hint">{f.hint(draft)}</span>}
+            {partyLocked(f.name) && <span className="muted rep-hint">Locked once the sale is saved.</span>}
             {/* A NAME ON THE RECORD THAT IS NOT AN ACTIVE USER -- often the
                 Party Master's Serviceman, filled in with the customer. Said,
                 not silently kept or cleared: choose an active engineer. */}
