@@ -986,5 +986,27 @@ console.log('\n-- who a new call is allotted to: the machine wins, the party ans
   eq('...Complaint Reported is the reported problem', row.complaint_reported, 'SCHEDULED PM VISIT 2 / 15');
 }
 
+// EXCEL'S SEMICOLON "CSV" (2026-10-05): a PM Reports file saved on a machine
+// whose decimal mark is a comma read as ONE column and came back "Nothing
+// loadable". The same row must load whichever separator carried it — and a
+// comma file must not turn into a semicolon one because a cell has semicolons.
+{
+  const pm = def('pm_reports');
+  const al = { aliases: pm.cols.flatMap((c) => c.from) };
+  const head = ['UCN', 'Call Number', 'Call Status', 'Visit Date & Time', 'Visiting Service Engineer'];
+  const body = ['26A01P0429', '26PMJAN0429-A-ORION-G-873', 'Solved - Report Completed', '06-January-2026', 'KRISHNAMOORTHY'];
+  const load = (t: string) => shapeUpload(pm, parseCSV(t, al)).rows.map((r) => [r.ucn, r.visit_at, r.call_status]);
+  const want = [['26A01P0429', '2026-01-06T00:00:00.000Z', 'Solved - Report Completed']];
+  eq('a comma file loads the visit', load(head.join(',') + '\n' + body.join(',')), want);
+  eq('...a SEMICOLON file (Excel, comma decimal mark) loads the same visit',
+     load('﻿' + head.join(';') + '\r\n' + body.join(';') + '\r\n'), want);
+  eq('...a TAB file still does', load(head.join('\t') + '\n' + body.join('\t')), want);
+  eq('...a comma file whose quoted cells are full of semicolons stays a comma file',
+     load(head.join(',') + '\n' + body.slice(0, 2).join(',') + ',"Solved - Report Completed; a; b; c; d; e",'
+       + body.slice(3).join(',')).map((r) => r[0]), ['26A01P0429']);
+  eq('...a semicolon file with an unquoted decimal comma stays a semicolon file',
+     load(head.join(';') + ';Qty\n' + body.join(';') + ';12,5').map((r) => r[0]), ['26A01P0429']);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.119',
+    date: '2026-10-05',
+    title: 'Bulk Uploads read a CSV saved with semicolons',
+    changes: [
+      'BULK UPLOADS: a CSV that Excel saved with semicolons between the columns (it does this on a computer set to use a comma as the decimal mark) now loads. Before, the whole file read as one column and came back "Nothing loadable — every row is missing …", as if it were the wrong file.',
+      'Comma and tab files load exactly as before. A comma file whose text happens to contain semicolons is still read as a comma file.',
+    ],
+  },
+  {
     version: '0.10.118',
     date: '2026-10-05',
     title: 'Stores Dispatch Report, and IND/IMP on the Part Master',
