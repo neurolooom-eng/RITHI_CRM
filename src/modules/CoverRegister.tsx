@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput, LongDateText } from '../components/ui/LongDate';
-import { sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers } from '../lib/supabase';
+import { sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers, addParty, type PartyPatch } from '../lib/supabase';
+import { partyMissing, partyFromSale } from '../lib/partyRules';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT,
          // THE VALUE TEST, not the row test. `isPinned` from ./cover takes
@@ -872,7 +873,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
    *  not being able to suggest one is no reason to refuse the entry. */
   const newEntry = async () => {
     setOpen({}); setItems([]);
-    filledFor.current = '';
+    filledFor.current = ''; setPartyKnown(null);
     // WARRANTY START DEFAULTS TO TODAY and is then typed over where the machine
     // was installed on another day (the user, 2026-09-22). The ENTRY date is
     // not set here at all: the database stamps it (0230), which is what
@@ -1041,6 +1042,13 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     setFocusId(focus);
     setRenewing(false); setConverting(false);
     setOpen(h); setDraft(h); setItems([]);
+    // An existing sale's party is looked up once, so a name the master lacks
+    // is flagged before anybody presses Save.
+    filledFor.current = str(h.party_name).trim(); setPartyKnown(null);
+    if (kind === 'sale' && str(h.party_name).trim()) {
+      void sbPartyInfo(str(h.party_name).trim())
+        .then((i) => { if (seq === openSeq.current) setPartyKnown(!!i); }).catch(() => {});
+    }
     setLoadingItems(true);
     try {
       const got = await listItems(kind, str(h[cfg.key]));
@@ -1076,12 +1084,18 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // helpful and is the worst outcome available — a sale carrying a DIFFERENT
   // customer's address, with nothing on screen saying so.
   const filledFor = useRef('');
+  // IS THE SALE'S PARTY ON THE PARTY MASTER? null = not asked yet. False turns
+  // the master's required fields on here, and says the party will be added.
+  const [partyKnown, setPartyKnown] = useState<boolean | null>(null);
   const fillFromParty = async (name: string) => {
     const want = name.trim();
-    if (!want || want.toLowerCase() === filledFor.current.toLowerCase()) return;
+    if (!want) { setPartyKnown(null); return; }
+    if (want.toLowerCase() === filledFor.current.toLowerCase()) return;
     filledFor.current = want;
     let info = null;
-    try { info = await sbPartyInfo(want); } catch { /* the name still stands */ }
+    let looked = false;
+    try { info = await sbPartyInfo(want); looked = true; } catch { /* the name still stands */ }
+    if (want.toLowerCase() === filledFor.current.toLowerCase()) setPartyKnown(looked ? !!info : null);
     // A name the master has not got fills nothing rather than clearing what is
     // there: it has nothing to fill it FROM, and blanking on a typo would lose
     // work somebody had already done.
@@ -1102,7 +1116,44 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       return;
     }
     setSaving(true);
+    let partyNote = '';
     try {
+      // A NEW PARTY IS ADDED TO THE PARTY MASTER IN THE SAME STEP (the user,
+      // 2026-10-05: "allow the user to create a new party and use it in
+      // warranty sale at the same time", choosing "on Save, in one step").
+      // ASKED OF THE MASTER NOW, not read off the screen's last lookup, so a
+      // party somebody added meanwhile is not added twice. A name the master
+      // has not got must carry the master's own required fields (partyRules)
+      // -- for everybody, so the sale itself is complete. With
+      // masters.parties.add the party is created first, from what was typed
+      // on the sale; without it the sale saves as it always has (the user's
+      // choice), and says so.
+      const partyName = str(draft.party_name).trim();
+      if (kind === 'sale' && partyName) {
+        let info = null;
+        try { info = await sbPartyInfo(partyName); } catch { info = undefined; }
+        if (info === null) {
+          const newParty = partyFromSale(draft);
+          const lacking = partyMissing(newParty);
+          if (lacking.length) {
+            setPartyKnown(false);
+            setMsg({ tone: 'error', text: `${partyName} is not on the Party Master, so the Party Master's required fields apply here too: fill in ${lacking.join(', ')}.` });
+            return;
+          }
+          if (can('masters.parties.add')) {
+            const res = await addParty(newParty as unknown as PartyPatch & { party_name: string });
+            if (!res.ok && !/already on the Party Master/.test(res.error)) {
+              setMsg({ tone: 'error', text: `The party could not be added to the Party Master, so the sale was not saved — ${res.error}` });
+              return;
+            }
+            filledFor.current = partyName;
+            setPartyKnown(true);
+            partyNote = res.ok ? ` ${partyName} was added to the Party Master${res.partyKey ? ` as ${res.partyKey}` : ''}.` : '';
+          } else {
+            partyNote = ` ${partyName} is not on the Party Master and your role may not add it — ask somebody who may add parties.`;
+          }
+        }
+      }
       // THE ENTRY DATE IS STAMPED ON CREATION, never typed (the user,
       // 2026-09-22). Sent from here as well as defaulted in the database
       // (0230) so the form works on a project that has not run that file yet;
@@ -1116,7 +1167,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       setFeed('entries', { rows: feeds.entries.rows.map((r) => (r.id === saved.id ? { ...r, ...saved } : r)) });
       // The header moved, so every machine that inherits from it moved too.
       setItems(await listItems(kind, str(saved[cfg.key])));
-      setMsg({ tone: 'ok', text: `${cfg.keyLabel} ${str(saved[cfg.key])} saved — machines following it were updated.` });
+      setMsg({ tone: 'ok', text: `${cfg.keyLabel} ${str(saved[cfg.key])} saved — machines following it were updated.${partyNote}` });
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
     finally { setSaving(false); }
   };
@@ -1429,6 +1480,21 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     </div>
   );
 
+  // THE PARTY MASTER'S REQUIRED FIELDS, required here while the sale names a
+  // party the master has not got (partyRules.PARTY_REQUIRED, minus the name
+  // itself, which is the field that raised the question).
+  const newPartyFields = new Set(kind === 'sale' && partyKnown === false ? ['city', 'state'] : []);
+  const partyNotice = kind === 'sale' && partyKnown === false && str(draft.party_name).trim() ? (
+    <div className={`sheet-banner sheet-banner-${can('masters.parties.add') ? 'info' : 'error'}`} style={{ margin: '0 0 10px' }}>
+      <span>
+        <b>{str(draft.party_name).trim()}</b> is not on the Party Master.{' '}
+        {can('masters.parties.add')
+          ? <>It will be <b>added to the Party Master</b> when you press Save entry, with the details typed here. City and State are required, as they are on the Party Master.</>
+          : <>Your role may not add parties, so the sale will be saved without adding it. City and State are still required.</>}
+      </span>
+    </div>
+  ) : null;
+
   const entryFields = sections.map((sec) => (
     <div key={sec} style={{ marginBottom: 10 }}>
       <div className="field-label" style={{ opacity: 0.75 }}>{sec}</div>
@@ -1436,7 +1502,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         {shownHeader.filter((f) => f.section === sec).map((f) => (
           <label key={f.name} className="rep-field">
             <span className="field-label">
-              {f.label}{f.required && <span title="Required"> *</span>}
+              {f.label}{(f.required || (newPartyFields.has(f.name))) && <span title="Required"> *</span>}
               {f.derived && <span className="muted"> · from {f.derived}</span>}
               {kind === 'sale' && SALE_PARTY_FIELDS.includes(f.name)
                 && <span className="muted"> · from the party</span>}
@@ -1657,6 +1723,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                 six hours; this line says how old that copy is. */}
             <MachineRegisterNote />
             {entryNote}
+            {partyNotice}
             {entryFields}
           </div>
           <div className="cover-pop-col" ref={productsRef}>

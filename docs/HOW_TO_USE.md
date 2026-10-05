@@ -680,6 +680,14 @@ the list and shown under it as *"Product serial number was transferred to a
 different customer"*, with the customer who has it. The check is made again
 when you press Create the contract.
 
+**A new customer is added to the Party Master when you save the sale.** Type a
+Party Name the master does not have and the sale says so; **City** and **State**
+then become required, as they are on the Party Master. Fill in the address,
+phones, PAN, GST, Type, Profile and Serviceman as you would on the Party Master,
+and **Save entry** adds the party (it gets its Party Key) and saves the sale in
+one step. If your role may not add parties, the sale is saved without adding it,
+and the message says so.
+
 **Save entry stays grey until something on the entry has changed.**
 
 **Prev MC Number** is not on the contract form: **Renew this contract** fills it
