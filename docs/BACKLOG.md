@@ -78,15 +78,16 @@ up)_
 
 ---
 
-## 2026-10-05 — ⚠️ Machine download: "canceling statement due to statement timeout" — WORKED AROUND in 0.10.109 (cause still unmeasured)
+## 2026-10-05 — ⚠️ Machine download: "canceling statement due to statement timeout" — ✅ FIXED in 0.10.109 (confirmed by the user, 2026-10-05: "Machines downloaded fine now")
 
 **0.10.109:** the device copy now reads the stored `products` table, not the
 `product_database` view (the user: *"During Caching, the Product need not
 re-calculate everything ... Just a Snap shot of what ever is present"*). It
 carries the stored contract, Item Status and engineer, not the view's
-party-matched ones. Still pending: confirm on the live project that a device
-completes the download, and the probe grid would still say why the view is
-slow for the screens that ask the server.
+party-matched ones. CONFIRMED on the live project the same day: the machines
+download in full. Still open, lower priority: the screens that ask the SERVER
+(while a device has no copy) still read the view, and
+`_why_does_the_machine_download_time_out.sql` would say why it is slow there.
 
 
 > *"Machines not on this device yet — the download stopped (canceling statement
