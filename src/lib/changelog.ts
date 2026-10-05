@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.104',
+    date: '2026-10-05',
+    title: 'The Part Master is kept on every device, and shown in Device Cache Status',
+    changes: [
+      'The parts list the Spare Request and the visit\'s consumption pick from is now kept on the device and refreshed every six hours, like the machines, customers and Standard Complaints — so a part can be picked with no signal.',
+      'Device Cache Status shows how many parts each device holds and when they were stored; the note above the machine search shows it for your own device.',
+      'Editing the Part Master still reaches the pickers on that device straight away.',
+      'SPARE REQUESTS shows when the Part Master was cached on your device — under the page title, and beside Spares on a new request.',
+    ],
+  },
+  {
     version: '0.10.103',
     date: '2026-10-05',
     title: 'Warranty Entry: required fields, and party details saved to the Party Master',

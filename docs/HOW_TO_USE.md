@@ -157,8 +157,11 @@ on Roles & Permissions does not reach another team's calls.
   > and end are worked out by the system and shown on the row, not loaded.
 - **Device Cache Status** `/device-cache` — which phones and laptops hold the
   machine register and Party Master for offline search: one row per person per
-  device, how many machines and customers it holds, when each was downloaded and
-  the last failure. Everybody is listed, including whoever has **never
+  device, how many machines, customers, Standard Complaints and **parts** (the
+  Part Master the spare pickers use) it holds, when each was downloaded and
+  the last failure. The parts are kept on the device and refreshed every six
+  hours, so a Spare Request can pick a part with no signal (Spare Requests shows when
+  the list was cached on your device). Everybody is listed, including whoever has **never
   reported** — the engineer worth chasing before they travel. A device reports
   after each download and on sign-out, so one switched off shows its **last
   report**; read *Last reported*. Administrators and Technical Support to begin

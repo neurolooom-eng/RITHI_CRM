@@ -29,7 +29,7 @@
 //     IndexedDB itself; then the app simply asks the server, as it always did.
 // ===========================================================================
 import { getSupabase, productRowToSheet, sbReportDeviceCache } from './supabase';
-import { storedListInfo, warmMaster, warmMasterIfMissing, MASTER_STORED_EVENT } from './masters';
+import { storedListInfo, warmMaster, MASTER_STORED_EVENT } from './masters';
 import {
   downloadAfter, packRows, unpackRows, toCached, deviceLabel,
   type CachedMachine, type CachedParty, type DownloadState, type PackedRows,
@@ -247,6 +247,9 @@ export async function reportDeviceCache(opts: { force?: boolean } = {}): Promise
     // THE STANDARD COMPLAINTS the call forms filter by product (0253).
     complaints: storedListInfo('complaintProducts')?.count ?? 0,
     complaints_at: iso(storedListInfo('complaintProducts')?.at ?? null),
+    // THE PART MASTER the spare pickers read (0380).
+    parts: storedListInfo('spareProducts')?.count ?? 0,
+    parts_at: iso(storedListInfo('spareProducts')?.at ?? null),
   };
   const sig = JSON.stringify(payload);
   try {
@@ -300,20 +303,25 @@ let watching = false;
 export function watchMachineRegister(): void {
   if (watching || typeof window === 'undefined') return;
   watching = true;
-  window.addEventListener('online', () => { void refreshMachineRegister(); void warmMaster('complaintProducts'); });
+  window.addEventListener('online', () => { void refreshMachineRegister(); warmLists(); });
   // A LIST STORED is something the report should say (the complaints).
   window.addEventListener(MASTER_STORED_EVENT, () => scheduleReport());
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void refreshMachineRegister();
   });
-  window.setInterval(() => { void refreshMachineRegister(); void warmMaster('complaintProducts'); }, 15 * 60 * 1000);
+  window.setInterval(() => { void refreshMachineRegister(); warmLists(); }, 15 * 60 * 1000);
   void refreshMachineRegister();
   // THE STANDARD COMPLAINTS TOO, so a Call Request can be filled with no
   // signal even if no call form was opened while there was one.
+  // THE PART MASTER WITH ITS PRODUCTS, AND EACH PRODUCT'S ACCESSORIES
+  // (partfit.ts), so the spare pickers on a call narrow to the call's product
+  // with no signal. Kept like the complaints since 2026-10-05 (the user:
+  // "Cache Part Master along with Other Cached Registers"): refreshed every
+  // six hours (mastercache.ts), and reported in Device Cache Status.
+  warmLists();
+}
+function warmLists(): void {
   void warmMaster('complaintProducts');
-  // THE PARTS WITH THEIR PRODUCTS, AND EACH PRODUCT'S ACCESSORIES (partfit.ts),
-  // so the spare pickers on a call can narrow to the call's product with no
-  // signal. Only when the device has no copy: the forms re-read them on open.
-  void warmMasterIfMissing('spareProducts');
-  void warmMasterIfMissing('productAccessories');
+  void warmMaster('spareProducts');
+  void warmMaster('productAccessories');
 }

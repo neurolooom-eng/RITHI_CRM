@@ -70,6 +70,10 @@ const COLUMNS: Column<Row>[] = [
   // device running a build older than 0.9.396, which does not report them.
   { key: 'complaints', header: 'Complaints', width: 100, wrap: false, render: (r) => (r.complaints_at ? count(r.complaints ?? null) : '') },
   { key: 'complaints_at', header: 'Complaints stored', width: 230, render: (r) => when(r.complaints_at ?? null) },
+  // THE PART MASTER the spare pickers read (0380). Blank on a device running a
+  // build older than 0.10.103, which does not report it.
+  { key: 'parts', header: 'Parts', width: 90, wrap: false, render: (r) => (r.parts_at ? count(r.parts ?? null) : '') },
+  { key: 'parts_at', header: 'Parts stored', width: 230, render: (r) => when(r.parts_at ?? null) },
   { key: 'problem', header: 'Problem', width: 300, sortable: false,
     render: (r) => [
       r.storage_ok === false ? 'This browser will not keep a copy (private window, or site data blocked)' : '',

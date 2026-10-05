@@ -1341,7 +1341,9 @@ const MODULES = {
             'key for admin and Technical Support. A module of its own so it is a',
             'small file to run, not a replay of rbac.'],
     needs: ['profiles', 'rbac'],
-    files: ['0249_device_cache_status.sql', '0253_device_cache_complaints.sql'],
+    files: ['0249_device_cache_status.sql', '0253_device_cache_complaints.sql',
+            // The Part Master too (2026-10-05).
+            '0380_device_cache_parts.sql'],
   },
   permissions: {
     title: 'Per-screen permission keys: today\'s grants copied across',
