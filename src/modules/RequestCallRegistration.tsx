@@ -63,6 +63,26 @@ const STATUS_TONE: Record<string, string> = {
 };
 const STATUSES = ['', 'Pending', 'Registered', 'Mapped', 'Cancelled'];
 
+// THE TWO DOCUMENT FIELDS ARE LINKS, so they open (the user, 2026-10-05: "make
+// the reports and KYC clickable"). Each holds the Drive link the request form
+// stored; a cell may carry more than one, and anything that is not a link is
+// shown as written rather than dressed up as one.
+const DOC_KEYS = new Set(['installationReport', 'kyc']);
+const URL_RE = /https?:\/\/[^\s,;]+/g;
+function LinkCell({ value }: { value: unknown }) {
+  const text = String(value ?? '').trim();
+  const urls = text.match(URL_RE) ?? [];
+  if (!urls.length) return <>{text}</>;
+  return (
+    <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap' }}>
+      {urls.map((u, i) => (
+        <a key={u + i} href={u} target="_blank" rel="noreferrer" title={u}
+          onClick={(e) => e.stopPropagation()}>📎 Open{urls.length > 1 ? ` ${i + 1}` : ''}</a>
+      ))}
+    </span>
+  );
+}
+
 const COLUMNS: Column<Row>[] = [
   { key: 'submittedAt', header: 'Requested', width: 160, wrap: false, render: (r) => fmtDateTime(r.submittedAt) },
   { key: 'reqid', header: 'REQID', width: 90, wrap: false },
@@ -182,6 +202,17 @@ export function RequestCallRegistration() {
   // THE CUSTOMER'S KYC, ON THE ROW. Added here rather than in the module-level
   // list because it reads a map this screen loads; three answers, each with a
   // different next step.
+  // Every field of the loaded rows stays offered in the Columns picker, as the
+  // table derives it -- named as the drawer names them, with the two document
+  // fields rendered as links.
+  const extraFields = useMemo(() => {
+    const ks = new Set<string>();
+    rows.slice(0, 50).forEach((r) => Object.keys(r as Record<string, unknown>).forEach((k) => ks.add(k)));
+    return [...ks].map((k) => ({
+      key: k, header: LABELS[k],
+      render: DOC_KEYS.has(k) ? (r: Row) => <LinkCell value={(r as Record<string, unknown>)[k]} /> : undefined,
+    }));
+  }, [rows]);
   const columnsWithKyc = useMemo<Column<Row>[]>(() => {
     const kyc: Column<Row> = {
       key: '_kyc', header: 'KYC', width: 120, wrap: false,
@@ -266,6 +297,7 @@ export function RequestCallRegistration() {
         rowsBeforeScroll={16}
         dense
         columns={columnsWithKyc}
+        allFields={extraFields}
         onRowClick={(r) => setDetail(r)}
         onLoadMore={() => setLimit((l) => l + 2000)}
         moreAvailable={moreAvailable}
@@ -351,7 +383,7 @@ export function RequestCallRegistration() {
               .map(([k, v]) => (
                 <div className="reg-detail-row" key={k}>
                   <div className="reg-detail-k">{LABELS[k] ?? k}</div>
-                  <div className="reg-detail-v">{String(v)}</div>
+                  <div className="reg-detail-v">{/^https?:\/\//.test(String(v).trim()) ? <LinkCell value={v} /> : String(v)}</div>
                 </div>
               )))}
             {/* THE SUBMITTED REQUEST, not just the form. This drawer was missed

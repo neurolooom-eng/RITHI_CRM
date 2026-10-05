@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.97',
+    date: '2026-10-05',
+    title: 'Request Registration: Installation Report and KYC open with a click',
+    changes: [
+      'REQUEST REGISTRATION: the Installation Report and KYC columns show 📎 Open instead of the long Drive address — click it and the document opens in a new tab. The same in a request\'s details.',
+    ],
+  },
+  {
     version: '0.10.96',
     date: '2026-10-04',
     title: 'Spare Recycling: Delete, and Source on the register form',
