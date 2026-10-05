@@ -166,8 +166,19 @@ export function ProductMaster() {
   const register = (row: Row, path: string) =>
     navigate(path, { state: { prefill: productToCallPrefill(row) } });
 
+  // A TRANSFER STARTED FROM THE MACHINE (the user, 2026-10-05: "add the
+  // Transfer button"): opens Record a transfer on Ownership Transfer with this
+  // machine -- model AND serial -- already picked. Ownership Transfer's own key.
+  const mayTransfer = can('ownership.transfer') && can('mod:/ownership-transfer');
+  const transfer = (row: Row) =>
+    navigate('/ownership-transfer', { state: { transfer: {
+      serial: String(row['Item Serial Number'] ?? ''), product: String(row['Item Name'] ?? ''),
+      party: String(row['Party Name'] ?? ''), city: String(row['City'] ?? ''),
+      state: String(row['State'] ?? ''), address: String(row['Address'] ?? ''),
+    } } });
+
   const actionsColumn: Column<Row> = {
-    key: '_actions', header: 'Register Call', width: 170, sortable: false, wrap: false,
+    key: '_actions', header: 'Actions', width: 250, sortable: false, wrap: false,
     render: (row) => (
       <div className="row" onClick={(e) => e.stopPropagation()}>
         {/* EACH BUTTON ASKS ITS OWN REGISTER'S KEY -- the column used to be shown
@@ -175,6 +186,9 @@ export function ProductMaster() {
             not installations got neither button. */}
         {can('calls.create') && <button className="btn btn-sm btn-primary" title="Register a field call for this item" onClick={() => register(row, '/field-calls')}>+ Field</button>}
         {can('install.create') && <button className="btn btn-sm" title="Register an installation call for this item" onClick={() => register(row, '/installations')}>+ Install</button>}
+        {mayTransfer && String(row['Item Serial Number'] ?? '').trim() && String(row['Item Name'] ?? '').trim() && (
+          <button className="btn btn-sm" title="Record an ownership transfer of this machine" onClick={() => transfer(row)}>⇄ Transfer</button>
+        )}
       </div>
     ),
   };
@@ -189,7 +203,7 @@ export function ProductMaster() {
         refreshing={busy}
         syncedAt={lastSync}
         title="Product Database"
-        subtitle="Search the install base and register a call straight from a product."
+        subtitle="Search the install base, register a call or record a transfer straight from a machine."
         icon="🩺"
         count={rows.length}
         // A LOWER BOUND WHILE MORE PAGES REMAIN. The register is ~20,000 machines
@@ -221,7 +235,7 @@ export function ProductMaster() {
         // "+ Install" raises an INSTALLATION call: install.create, which the
         // database asks of it (finding 64 -- it tested calls.create); "+ Field"
         // asks calls.create. The column shows when either is held.
-        columns={can('install.create') || can('calls.create') ? [...COLUMNS, actionsColumn] : COLUMNS}
+        columns={can('install.create') || can('calls.create') || mayTransfer ? [...COLUMNS, actionsColumn] : COLUMNS}
         allFields={ALL_FIELDS}
         rows={rows}
         getRowId={(r) => r.id}

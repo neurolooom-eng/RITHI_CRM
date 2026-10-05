@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.113',
+    date: '2026-10-05',
+    title: 'Product Database: ⇄ Transfer on each machine',
+    changes: [
+      'PRODUCT DATABASE rows now have a ⇄ TRANSFER button beside + Field and + Install. It opens Record a transfer on Ownership Transfer with that machine (model and serial) already picked and its current details, sale and warranty shown, so only the To party and the date are left to fill.',
+      'Only people who may record a transfer see it (the Ownership Transfer permission, which Roles & Permissions now also lists under Product Database).',
+    ],
+  },
+  {
     version: '0.10.112',
     date: '2026-10-05',
     title: 'Bulk Uploads opens at once: row counts on request and after a load',
