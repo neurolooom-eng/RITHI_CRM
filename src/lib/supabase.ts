@@ -1138,6 +1138,17 @@ export async function updateParty(id: number, patch: PartyPatch): Promise<{ ok: 
   return { ok: true };
 }
 
+/** The id of the party with this name, asked of the SERVER -- the row a
+ *  write is about to change must be the one there now, not a device copy up to
+ *  six hours old. `name_key` is unique, so one or none. */
+export async function sbPartyIdByName(name: string): Promise<number | null> {
+  const k = partyKey(name);
+  if (!k) return null;
+  const { data, error } = await must().from('parties').select('id').eq('name_key', k).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return data ? Number((data as { id: number }).id) : null;
+}
+
 /** A NEW party, from Party Master's Add entry form.
  *
  *  The database assigns the Party Key (`Party-N`, 0076's after-insert trigger)
@@ -1792,6 +1803,7 @@ export interface PartyInfo {
   pincode: string; phone: string; phone_2: string;
   pan: string; gstin: string;
   party_type: string; profile: string; service_engineer: string;
+  country: string;
 }
 
 export async function sbPartyInfo(party: string): Promise<PartyInfo | null> {
@@ -1815,7 +1827,7 @@ async function serverPartyInfo(party: string): Promise<PartyInfo | null> {
   // index instead of a scan. No fallback is needed here because it is not an
   // approximation of the old behaviour, it IS the old behaviour.
   const { data } = await must().from('parties')
-    .select('state,city,address,extra,pincode,phone,phone_2,pan,gstin,party_type,profile,service_engineer')
+    .select('country,state,city,address,extra,pincode,phone,phone_2,pan,gstin,party_type,profile,service_engineer')
     .eq('name_key', partyKey(party)).limit(1).maybeSingle();
   return data ? partyInfoFrom(data) : null;
 }
@@ -1831,6 +1843,7 @@ function partyInfoFrom(data: Record<string, unknown>): PartyInfo {
     pan: t(data.pan), gstin: t(data.gstin),
     party_type: t(data.party_type), profile: t(data.profile),
     service_engineer: t(data.service_engineer),
+    country: t(data.country),
   };
 }
 

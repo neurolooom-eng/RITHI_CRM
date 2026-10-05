@@ -709,7 +709,7 @@ export const PERM_TREE: PermHeader[] = [
     // masters.parties.add: a sale naming a party the master lacks adds it on
     // Save (2026-10-05) -- the same key the Party Master's Add uses, shown
     // here too so whoever grants this page sees what it can create.
-    { path: '/warranties', label: 'Warranty Register', actions: ['masters.view', 'cover.edit', 'cover.edit.entries', 'cover.edit.delete', 'calls.create', 'install.create', 'masters.parties.add'] },
+    { path: '/warranties', label: 'Warranty Register', actions: ['masters.view', 'cover.edit', 'cover.edit.entries', 'cover.edit.delete', 'calls.create', 'install.create', 'masters.parties.add', 'masters.parties.edit'] },
     { path: '/contracts', label: 'Contract Register', actions: ['masters.view', 'contract.edit', 'contract.edit.entries', 'contract.edit.delete', 'calls.create'] },
     { path: '/ownership-transfer', label: 'Ownership Transfer', actions: ['ownership.transfer', 'cover.edit.entries', 'install.create'] },
   ] },
