@@ -734,7 +734,9 @@ const MODULES = {
             // Redefines 0355's request guard and request list.
             '0365_spare_recycling_start_sla_mrn.sql',
             // Delete a request (2026-10-04); re-states 0355's two guards.
-            '0376_spare_recycling_delete.sql'],
+            '0376_spare_recycling_delete.sql',
+            // An MRN import's Source is Defective Spare (2026-10-05).
+            '0379_recycle_mrn_source.sql'],
   },
   indoor: {
     title: 'Indoor Service (the workshop register, §4.5)',
@@ -806,7 +808,9 @@ const MODULES = {
             '0374_indoor_new_device_kind.sql',
             // Pre-Delivery Quality Check (2026-10-05): its own register, the
             // R/SER/QC/007 columns with the product and serial on the row.
-            '0377_pre_delivery_qc.sql'],
+            '0377_pre_delivery_qc.sql',
+            // Its number, PDQC/YY/NNNN (2026-10-05).
+            '0378_pdqc_number.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
