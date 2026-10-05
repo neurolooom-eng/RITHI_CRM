@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.112',
+    date: '2026-10-05',
+    title: 'Bulk Uploads opens at once: row counts on request and after a load',
+    changes: [
+      'BULK UPLOADS NO LONGER COUNTS EVERY REGISTER WHEN IT OPENS. It was running 31 exact counts one after another on each open -- about a minute of database time, and on the live project those counts were among the heaviest reads of all (Customer Feedback ~7 s, Party Master ~5 s, each spare history ~3 s). A load now counts the one register it wrote to, so the number moves by what landed, and "Count every register" takes all of them when you want them. A count not yet taken shows nothing rather than an old number.',
+      'SOFTWARE VALIDATION: _status.sql row 314 confirms the search indexes (0052) are on the project -- the trigram indexes behind every type-to-search on products, parties and the call registers. If it reads NO, searches are scanning whole tables.',
+    ],
+  },
+  {
     version: '0.10.111',
     date: '2026-10-05',
     title: 'Faster masters and feedback: the database stops re-checking every row and re-reading every feedback',
