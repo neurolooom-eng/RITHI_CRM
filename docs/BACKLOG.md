@@ -78,6 +78,28 @@ up)_
 
 ---
 
+## 2026-10-05 — ⚠️ Machine download: "canceling statement due to statement timeout" — NOT YET DIAGNOSED
+
+> *"Machines not on this device yet — the download stopped (canceling statement
+> due to statement timeout). Searching the server meanwhile. 5,877 customers on
+> this device …"*
+
+The machine register is downloaded from `product_database` a thousand rows a
+page, and that view re-derives every machine's contract and installation call
+from the whole of `contract_items` and `installation_calls` on EVERY page
+(0239), the calls under their per-row visibility policy. **Not reproduced**: on
+a database built from every migration and loaded to 20,000 machines, 5,900
+parties, 12,000 contract lines and 15,000 installation calls, one page took
+0.1–0.2 s as an admin and as an engineer. Today's migrations (0377–0380) all
+applied cleanly, and none touches this view. So the cause is in something only
+the live project has, and no fix is offered until it is measured.
+
+**To run (read-only, one grid):**
+[`supabase/apply/_why_does_the_machine_download_time_out.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_why_does_the_machine_download_time_out.sql)
+with the affected person's email on the marked line. It becomes that person,
+times one page and each of its parts with the timeout lifted, and prints the
+register sizes beside them.
+
 ## 2026-10-05 — Part Master on every device + in Device Cache Status (0380, v0.10.105)
 
 - The user: "Cache Part Master along with Other Cached Registers. And include
