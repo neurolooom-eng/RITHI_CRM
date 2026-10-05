@@ -237,7 +237,11 @@ export const CONTRACT: CoverConfig = {
   endColumn: 'contract_end',
   headerFields: [
     { name: 'mc_number', label: 'MC Number', section: 'Contract' },
-    { name: 'entry_at', label: 'Contract Entry Date', type: 'date', section: 'Contract' },
+    // TODAY, AND LOCKED (the user, 2026-10-05: "Contract Entry Date - Default
+    // it to Today [Locked]"). Shown as today on a new entry and stamped with
+    // the moment of saving, as the Sale Entry Date is; never re-dated on edit.
+    { name: 'entry_at', label: 'Contract Entry Date', type: 'date', section: 'Contract',
+      derived: 'today, stamped when the entry is created' },
     // FROM THE PARTY MASTER ON THIS DEVICE, TYPE TO SEARCH (the user,
     // 2026-10-05: "Party Cache has to be used in Contract Entry"). It replaces
     // 2026-10-02's search over the Product Database's owners, which needs the

@@ -15,6 +15,7 @@ import {
 } from '../lib/supabase';
 import { installCallFromTransfer, transferCallNumber, transferDetailsFromMachine, transferExtra, type TransferDetails } from '../lib/coverspec';
 import { SelectPicker } from '../components/ui/SelectPicker';
+import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
 
 // ===========================================================================
 // OWNERSHIP TRANSFER — where a machine has been, and who has it now.
@@ -273,6 +274,10 @@ export function OwnershipTransfer() {
       <Drawer open={!!moveForm} onClose={() => setMoveForm(null)} title="Record an ownership transfer">
         {moveForm && (
           <div className="rep-form">
+            {/* WHAT THIS DEVICE HOLDS (the user, 2026-10-05: "Here also we need
+                the Cached Product Database, Cached Party Master"): both pickers
+                below read these copies first, and each can be downloaded alone. */}
+            <MachineRegisterNote />
             <div className="field-label" style={{ opacity: 0.75 }}>Machine</div>
             <F label="Machine — serial, model, current party *" hint="From the Product Database (this device’s copy first). Type part of the serial.">
               <SelectPicker value={machine ? machineLabel(machine) : ''} placeholder="— find the machine by serial —"

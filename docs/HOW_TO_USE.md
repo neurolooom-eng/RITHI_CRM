@@ -72,9 +72,13 @@ different totals. An empty register usually means access, not emptiness.
   customer offered has something to find.
   > **It searches the copies of the machine register and the Party Master kept
   > on your device** (every column of both), so it
-  > works with a weak or no signal. The copy is refreshed every six hours and when
-  > the signal returns; the line under the title says how many machines it holds
-  > and when it was downloaded. A machine added in the last few hours: press
+  > works with a weak or no signal. The machine copy is a **snapshot of the
+  > Product Database as stored** — the contract, status and engineer each machine
+  > carries — not worked out again while it downloads. It is refreshed every six
+  > hours and when the signal returns; the **Party Master** copy (and the
+  > Standard Complaints) only once in ten days, since they change rarely — an
+  > edit on this device refreshes them at once. The line under the title says how
+  > many machines it holds and when it was downloaded. A machine added in the last few hours: press
   > **Download again** there (or ↻ Refresh on the Product Database screen).
   > **🧹 Clear Cache and Update does not re-download it**, and neither does
   > **⟳ Update now** on the new-version banner — updating the app and refreshing

@@ -6006,7 +6006,12 @@ console.log('\n-- the Warranty Sale asks for what it cannot work out, and no mor
   // Re-stamping on every save would silently re-date a sale each time somebody
   // fixed a typo.
   eq('the entry date is stamped on creation only',
-    /!draft\.id && kind === 'sale' && !draft\.entry_at/.test(reg), true);
+    /!draft\.id && \(\(kind === 'sale' && !draft\.entry_at\) \|\| kind === 'contract'\)/.test(reg), true);
+  // CONTRACT ENTRY DATE: today, locked (the user, 2026-10-05).
+  eq('the Contract Entry Date is locked',
+    /name: 'entry_at', label: 'Contract Entry Date'[^}]*derived:/.test(cover), true);
+  eq('...and a new contract shows today in it',
+    /contract_start: todayLocal\(\), entry_at: todayLocal\(\)/.test(reg), true);
 
   // FORCE UPDATE CHILD RECORDS is destructive with no undo, so it must say what
   // it will destroy BEFORE it does it -- and the number that matters is how
@@ -9866,8 +9871,23 @@ console.log('-- the machine register is searched on the device --');
   const store = rd('src/lib/machinestore.ts');
   eq('only a COMPLETE download replaces the copy', /if \(!r\.complete\) \{[\s\S]{0,200}return;\s*\}[\s\S]*st\.put\(/.test(store), true);
   eq('...and it is refreshed every six hours', /MACHINE_REFRESH_MS = 6 \* 60 \* 60 \* 1000/.test(store), true);
+  // A SNAPSHOT, NOT A RE-CALCULATION (the user, 2026-10-05): the device reads
+  // the stored `products`, never the `product_database` view.
+  eq('the machine copy is a snapshot of the stored products table',
+    /key: 'current', table: 'products', refreshMs: MACHINE_REFRESH_MS/.test(store), true);
+  eq('...and the Party Master copy is refreshed once in ten days',
+    /PARTY_REFRESH_MS = 10 \* 24 \* 60 \* 60 \* 1000/.test(store)
+      && /key: 'parties', table: 'parties', refreshMs: PARTY_REFRESH_MS/.test(store), true);
   for (const m of ['src/modules/Lookup.tsx', 'src/modules/ProductMaster.tsx', 'src/modules/RequestCallRegistration.tsx'])
     eq(`${m} says what the device holds`, /<MachineRegisterNote \/>/.test(rd(m)), true);
+  eq('the Ownership Transfer drawer says what the device holds',
+    /<MachineRegisterNote \/>/.test(rd('src/modules/OwnershipTransfer.tsx')), true);
+  // ONE REGISTER AT A TIME (the user, 2026-10-05).
+  { const note = rd('src/components/machine/MachineRegisterNote.tsx');
+    eq('each cached register can be downloaded on its own',
+      /refreshMachinesOnly\(\{ force: true \}\)/.test(note) && /refreshPartyRegister\(\{ force: true \}\)/.test(note)
+        && /downloadMasterNow\('complaintProducts'\)/.test(note) && /downloadMasterNow\('spareProducts'\)/.test(note), true);
+    eq('...and no button downloads all four', !/refreshMachineRegister/.test(note), true); }
 }
 
 // A STANDARD COMPLAINT CARRIES ITS PRODUCTS (2026-09-29): a multi-select on the
