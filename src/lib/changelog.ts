@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.117',
+    version: '0.10.118',
     date: '2026-10-05',
     title: 'Stores Dispatch Report, and IND/IMP on the Part Master',
     changes: [
@@ -22,6 +22,14 @@ export const CHANGELOG: ChangeEntry[] = [
       'DAYS are counted exactly from the request\'s final approval (the latest of RM, Commercial and NSM) to the dispatch, to one decimal. A spare with no approval time recorded shows "No approval date" instead of AppSheet\'s ">5 yrs".',
       'PART MASTER: a new IND/IMP field (Indigenous / Imported / TBD) on the add and edit forms, and an IND/IMP column in the Part Master bulk upload. It starts blank.',
       'Open to Admin, Technical Support, Stores Incharge and Spare Coordinator, and to any role that holds Reports; others can be given it under Roles & Permissions.',
+    ],
+  },
+  {
+    version: '0.10.117',
+    date: '2026-10-05',
+    title: 'PM Bulk Upload reads the serial and engineer from the PM-to-DO sheet',
+    changes: [
+      'PM BULK UPLOAD now recognises the PM-to-DO sheet\'s own headings: “Product Serial Number” is the Serial and “Call Allocated To” is the Engineer — before, both were left blank on the call. “Complaint Reported” fills the reported problem.',
     ],
   },
   {
