@@ -90,10 +90,12 @@ on merge; `_status.sql` rows 312 and 313 confirm them:
   id: 3,800 calls at ~6.9 s; `parties`: 2,992 calls at ~3.9 s; almost no disk
   reads, so CPU. Wrapped as a sub-select (`0381_master_reads_once_per_query.sql`,
   rbac.sql) — measured 147 ms → 27 ms a page on 20,000 machines with a
-  Supabase-shaped `auth.role()`. **This is also the likely cause the entry below
-  could not reproduce**: `supabase/tests/_stub.sql` replaces `auth.role()` with
-  a constant, so the per-row cost is invisible on every local build. Not
-  certain until the live project is measured again after 0381 is applied.
+  Supabase-shaped `auth.role()`. **This is also the likely reason the entry below
+  could not reproduce the timeout locally** (the snapshot in 0.10.109 fixed it
+  on the live project; `products` itself is read under this same policy):
+  `supabase/tests/_stub.sql` replaces `auth.role()` with a constant, so the
+  per-row cost is invisible on every local build. Not certain until the live
+  project is measured again after 0381 is applied.
 - **`feedback` by call number** — 1,087 calls reading 2.66 million blocks
   (the whole table each time); no index on `call_number`, `serial` or
   `created_at, id`. Three added (`0381_feedback_lookup_indexes.sql`,
@@ -104,15 +106,16 @@ over every movement on each page, 4.6–7.3 s), the `spare_*_history` exact
 counts (`count: 'exact'` over 2,500+ ms tables), and
 `refresh_product_database_2_if_stale()` at ~680 ms every five minutes.
 
-## 2026-10-05 — ⚠️ Machine download: "canceling statement due to statement timeout" — WORKED AROUND in 0.10.109 (cause still unmeasured)
+## 2026-10-05 — ⚠️ Machine download: "canceling statement due to statement timeout" — ✅ FIXED in 0.10.109 (confirmed by the user, 2026-10-05: "Machines downloaded fine now")
 
 **0.10.109:** the device copy now reads the stored `products` table, not the
 `product_database` view (the user: *"During Caching, the Product need not
 re-calculate everything ... Just a Snap shot of what ever is present"*). It
 carries the stored contract, Item Status and engineer, not the view's
-party-matched ones. Still pending: confirm on the live project that a device
-completes the download, and the probe grid would still say why the view is
-slow for the screens that ask the server.
+party-matched ones. CONFIRMED on the live project the same day: the machines
+download in full. Still open, lower priority: the screens that ask the SERVER
+(while a device has no copy) still read the view, and
+`_why_does_the_machine_download_time_out.sql` would say why it is slow there.
 
 
 > *"Machines not on this device yet — the download stopped (canceling statement
