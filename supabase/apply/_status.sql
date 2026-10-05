@@ -2075,7 +2075,19 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regclass('public.products_machine_idx') is null and to_regclass('public.parts_item_detail_key_idx') is null
      and to_regclass('public.masters_active_idx') is not null and to_regclass('public.reports_ucn_entry_idx') is not null
      and to_regclass('public.products_machine_key_uniq') is not null and to_regclass('public.parts_item_detail_key_uniq') is not null)),
-    (316, 'Stores Dispatch Report and the part''s IND/IMP', 'parts.ind_imp; the view stores_dispatch_report (security_invoker, granted to authenticated) in the AppSheet Stores format, with exact days from the final approval and "No approval date" where none; mod:/exports/stores-dispatch merged into admin, technical_support, stores_incharge and spare_coordinator (0383). Restore: HandStock_X.sql (0383)',
+    (316, 'A transfer can give the new owner a fresh warranty, which the machine wears', 'ownership_transfers carries warranty_start / warranty_months / warranty_years / warranty_end; ownership_transfer_warranty works out the years and the end and needs the period and the Reference no.; sync_product_machine() gives the machine that warranty, numbered with the transfer''s Reference no., when it starts on or after the sale''s (0383). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0383)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'ownership_transfers' and column_name = 'warranty_end')
+     and exists (select 1 from pg_trigger where tgname = 'ownership_transfer_warranty' and not tgisinternal)
+     and coalesce((select p.prosrc like '%use_ft%' from pg_proc p
+                    where p.oid = to_regprocedure('public.sync_product_machine(text,text)')), false))),
+    (317, 'Hand Stock: the whole balance in one request', 'handstock_balance_all() (0384) returns the balance as one jsonb array, SECURITY INVOKER (the reader''s own row-level security bounds it, as the view) with work_mem raised for the call, and the public key cannot run it. The Hand Stock and Hand Stock Report screens read it once per load instead of once per page and once per search keystroke. NO means HandStock_X.sql has not been re-run since, or the function was re-created as definer. Restore: HandStock_X.sql (0384)',
+        (to_regprocedure('public.handstock_balance_all()') is not null
+     and not coalesce((select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.handstock_balance_all()')), true)
+     and coalesce((select 'work_mem=64MB' = any(p.proconfig) from pg_proc p where p.oid = to_regprocedure('public.handstock_balance_all()')), false)
+     and not coalesce(has_function_privilege('anon', 'public.handstock_balance_all()', 'EXECUTE'), true)
+     and coalesce(has_function_privilege('authenticated', 'public.handstock_balance_all()', 'EXECUTE'), false))),
+    (318, 'Stores Dispatch Report and the part''s IND/IMP', 'parts.ind_imp; the view stores_dispatch_report (security_invoker, granted to authenticated) in the AppSheet Stores format, with exact days from the final approval and "No approval date" where none; mod:/exports/stores-dispatch merged into admin, technical_support, stores_incharge and spare_coordinator (0385). Restore: HandStock_X.sql (0385)',
         (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'parts' and column_name = 'ind_imp')
          and to_regclass('public.stores_dispatch_report') is not null
          and coalesce((select array_to_string(c.reloptions, ',') like '%security_invoker=on%' from pg_class c where c.oid = to_regclass('public.stores_dispatch_report')), false)

@@ -5732,6 +5732,17 @@ console.log('\n-- the Product Database and the Product Master are two registers 
       /sbSearchMachines\('', term, 50\)/.test(ot) && /onSearch=\{\(term\) => sbSearchParties\(term, 50\)\}/.test(ot), true);
     eq('...and saves the model with the serial and the current party as From',
       /item_name: machine\.product, serial_number: machine\.serial, from_party: machine\.party/.test(ot), true);
+    // INVOICE AND A FRESH WARRANTY (the user, 2026-10-05).
+    const det2 = cs.transferDetailsFromMachine({ 'Invoice No.': 'INV-9', 'Invoice Date': '2024-02-03' });
+    eq('the Sale Entry block shows the Invoice No. and Date',
+      [det2.sale.find(([k]) => k === 'Invoice No.')?.[1], det2.sale.find(([k]) => k === 'Invoice Date')?.[1]], ['INV-9', '2024-02-03']);
+    eq('a fresh warranty is worked out as Warranty Entry: 12 months from 31-Jan ends 30-Jan, 1 year',
+      cs.freshWarranty('2026-01-31', 12), { years: '1', end: '2027-01-30' });
+    eq('...the month overflow matches the database: 31-Jan + 1 month ends 2-Mar',
+      cs.freshWarranty('2026-01-31', 1).end, '2026-03-02');
+    eq('...and no months is no warranty', cs.freshWarranty('2026-01-31', ''), { years: '', end: '' });
+    eq('the fresh warranty is optional and needs the Reference no.',
+      /const \[fresh, setFresh\] = useState\(false\)/.test(ot) && /A fresh warranty needs the Reference no\./.test(ot), true);
   }
   // The user, 2026-10-02: start defaults to today; months, Payment Schedule,
   // Bill Generate At and PM Visits (Total) are required; years and end are
@@ -8989,10 +9000,12 @@ console.log('\n-- the Hand Stock Report loads whole, then lets you download --')
   // -------------------------------------------------------------------------
   const hs = readFileSync('src/modules/HandStockReport.tsx', 'utf8');
 
-  // THE PAGE SIZE IS 1,000 AND THAT IS NOT A PREFERENCE: PostgREST caps a
-  // response at a thousand rows however large the range, so a bigger page is
-  // the line that hides the truncation rather than a bigger request.
-  eq('the report pages a thousand at a time', /const PAGE = 1000;/.test(hs), true);
+  // ONE REQUEST FOR THE WHOLE BALANCE (0384). The view costs the same for a
+  // page as for everything, so paging it was k full aggregates per load. The
+  // report reads `handstock_balance_all()` once; the 1,000-row cap does not
+  // apply to a jsonb result, so there is nothing to page.
+  eq('the report reads the whole balance in ONE request, and never pages it',
+    /listHandstockBalanceAll\(\)/.test(hs) && !/listHandstockBalance\(/.test(hs) && !/isLastPage\(/.test(hs), true);
 
   // EACH WRITER GETS THE VALUE IN THE SHAPE IT READS. `xlsxCell` makes a date
   // object only the .xlsx writer understands; handed to the .xls writer it came
@@ -9006,8 +9019,8 @@ console.log('\n-- the Hand Stock Report loads whole, then lets you download --')
   // extra round trip every time; stopping on a full page would truncate.
   eq('it stops on a SHORT page, which is the only end-of-data signal there is',
     isLastPage(999, 1000) && !isLastPage(1000, 1000) && isLastPage(0, 1000), true);
-  eq('...and the screen asks that rule rather than restating it',
-    /isLastPage\(batch\.length, PAGE\)/.test(hs), true);
+  eq('...and the Hand Stock register reads the same one request',
+    /listHandstockBalanceAll\(\)/.test(readFileSync('src/modules/HandStock.tsx', 'utf8')), true);
 
   // THE DOWNLOAD IS REFUSED UNTIL EVERY PAGE IS IN. A hand-stock export is
   // reconciled against, so a partial one is not a shorter answer but a wrong
@@ -9495,12 +9508,17 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
       new RegExp(`readUpTo\\(${fn}, offsetRef\\.current, PAGE\\)`).test(src) && /offsetRef\.current = offset;/.test(src), true);
   }
   const hs3 = readFileSync('src/modules/HandStock.tsx', 'utf8');
-  eq('Hand Stock: the refresh reads how far it had got from a ref, not frozen state',
-    /const load = async \(want = Math\.max\(PAGE_SIZE, loadedRef\.current\)\)/.test(hs3), true);
-  // #45 ...and while a search shows, its file is capped by the search.
+  // (0384) Hand Stock no longer pages: one request brings the whole balance,
+  // so a refresh has no "how far" to remember. What is left of #22 is that a
+  // restored device cache cut at its cap is NOT shown as the register.
+  eq('Hand Stock: the load is one request and a cache cut at its cap reads as partial',
+    /const load = async \(\) =>/.test(hs3) && /useState\(\(cached\?\.rows\?\.length \?\? 0\) >= MAX_CACHED_ROWS\)/.test(hs3)
+    && /if \(onDb && rows\.length && !more && !isStale\(lastSync\)\)/.test(hs3), true);
+  // #45 ...and while a search shows, its file is the search, complete unless the list is cut.
   eq('Hand Stock: a search export is scoped by the search, not the browse list',
-    /hits \? searchScope\(hits\.length >= PAGE_SIZE\) : partial\(more\)/.test(hs3)
-    && /countMore=\{hits \? hits\.length >= PAGE_SIZE : more\}/.test(hs3), true);
+    /hits \? searchScope\(more\) : partial\(more\)/.test(hs3) && /countMore=\{more\}/.test(hs3), true);
+  eq('Hand Stock: the search is on the device, over the whole register, two characters or more',
+    /const hits = useMemo\(/.test(hs3) && /if \(q\.length < 2\) return null;/.test(hs3), true);
 
   // #15 A UNIQUE TIEBREAKER on the reads that refresh now re-reads page by page.
   const sb3 = readFileSync('src/lib/supabase.ts', 'utf8');

@@ -1425,7 +1425,7 @@ export const UPLOADS: UploadDef[] = [
       { to: 'active', from: ['active/inactive?', 'active inactive', 'active', 'status'], type: 'bool' },
       // HSN CODE (0309): its own column, so a file carrying it fills it.
       TEXT('hsn_code', 'hsn', 'hsn code', 'hsn no', 'hsn no.', 'hsn/sac', 'hsn / sac', 'hsn sac code'),
-      // Indigenous / Imported / TBD (0383), read by the Stores Dispatch Report.
+      // Indigenous / Imported / TBD (0385), read by the Stores Dispatch Report.
       TEXT('ind_imp', 'ind/imp', 'ind / imp', 'ind imp', 'indigenous/imported', 'imported/indigenous', 'origin'),
       TS('created_at', 'added on'),
       // THE ITEM MASTER'S OWN FIELDS, as fields (0148/0149). They already

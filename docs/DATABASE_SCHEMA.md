@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**110 tables · 41 views · 3112 columns · 226 policies · 68 foreign keys.**
+**110 tables · 41 views · 3116 columns · 226 policies · 68 foreign keys.**
 
 ## How to read this
 
@@ -1187,8 +1187,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `handstock_adjustments_reason` — `CHECK ((btrim(reason) <> ''::text))`
 - `handstock_adjustments_qty_nonzero` — `CHECK ((qty <> (0)::numeric))`
+- `handstock_adjustments_reason` — `CHECK ((btrim(reason) <> ''::text))`
 
 **Triggers:** `handstock_adjustments_bi` → `handstock_adjustments_bi()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -2310,6 +2310,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 20 | `sys_updated_by` | uuid | yes |  |  |
 | 21 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 | 22 | `sold_through` | text | **no** | `''::text` |  |
+| 23 | `warranty_start` | date | yes |  | A fresh warranty given to the new owner on this transfer (0383); blank keeps the machine's warranty. Months entered; years and end worked out. |
+| 24 | `warranty_months` | numeric | yes |  |  |
+| 25 | `warranty_years` | numeric | yes |  |  |
+| 26 | `warranty_end` | date | yes |  |  |
 
 **Unique:** `reference_no, serial_number` _(ownership_transfer_key_uniq)_ · `sys_id` _(ownership_transfers_sys_id_key)_
 
@@ -2321,7 +2325,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `ownership_transfer_parties_differ` — `CHECK ((btrim(lower(from_party)) IS DISTINCT FROM btrim(lower(to_party))))`
 
-**Triggers:** `ownership_transfer_aiu` → `ownership_transfer_move()` · `ownership_transfer_biu` → `ownership_transfer_apply()` · `ownership_transfer_sold_through` → `ownership_transfer_sold_through()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zz_transfer_to_product` → `transfer_to_product()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `ownership_transfer_aiu` → `ownership_transfer_move()` · `ownership_transfer_biu` → `ownership_transfer_apply()` · `ownership_transfer_sold_through` → `ownership_transfer_sold_through()` · `ownership_transfer_warranty` → `ownership_transfer_warranty()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zz_transfer_to_product` → `transfer_to_product()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -3465,8 +3469,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
 - `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
+- `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
 
 **Triggers:** `recycle_requests_guard` → `recycle_requests_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 

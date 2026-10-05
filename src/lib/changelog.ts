@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.115',
+    version: '0.10.117',
     date: '2026-10-05',
     title: 'Stores Dispatch Report, and IND/IMP on the Part Master',
     changes: [
@@ -22,6 +22,27 @@ export const CHANGELOG: ChangeEntry[] = [
       'DAYS are counted exactly from the request\'s final approval (the latest of RM, Commercial and NSM) to the dispatch, to one decimal. A spare with no approval time recorded shows "No approval date" instead of AppSheet\'s ">5 yrs".',
       'PART MASTER: a new IND/IMP field (Indigenous / Imported / TBD) on the add and edit forms, and an IND/IMP column in the Part Master bulk upload. It starts blank.',
       'Open to Admin, Technical Support, Stores Incharge and Spare Coordinator, and to any role that holds Reports; others can be given it under Roles & Permissions.',
+    ],
+  },
+  {
+    version: '0.10.116',
+    date: '2026-10-05',
+    title: 'Hand Stock loads in one request and searches on the device',
+    changes: [
+      'HAND STOCK AND THE HAND STOCK REPORT READ THE WHOLE BALANCE IN ONE REQUEST. The balance is worked out from every movement, and that costs the same whether one page or everything is asked for -- so loading it a thousand lines at a time was the same full calculation once per page, and every search keystroke was one more (4.6-7.3 s each on the live project, 650 times in two weeks). One request now brings the whole register, so every count is exact, there is no Load more, and the search box filters what is already on the screen instantly. Who sees what is unchanged: the same row-level security applies.',
+      'If the device had kept a cut copy of the register (its cache keeps at most 1,500 lines), the screen says so with a + and reloads the whole balance rather than showing the cut copy as the register.',
+      'SQL only for the database half: 0384_handstock_balance_all.sql (HandStock_X.sql), applied by the migration workflow; _status.sql row 317 confirms it.',
+    ],
+  },
+  {
+    version: '0.10.115',
+    date: '2026-10-05',
+    title: 'Ownership Transfer: invoice shown, and a fresh warranty for the new owner',
+    changes: [
+      'RECORD A TRANSFER now shows the machine\'s INVOICE NO. and INVOICE DATE in its Sale Entry details.',
+      'A FRESH WARRANTY FOR THE NEW OWNER: tick "Give the new owner a fresh warranty", enter the Warranty Start Date (it starts at the transfer date) and the Period in months; the years and the End Date are worked out as on Warranty Entry. The Reference no. is then required.',
+      'The Product Database then shows that warranty for the machine: the Reference no. as its Warranty Number, the fresh start and end, and Item Status WGP while it runs. The original sale entry is not changed. A later sale of the machine takes the warranty back; saving the old sale again does not.',
+      'The transfers list has a Fresh warranty column showing each one\'s start and end.',
     ],
   },
   {

@@ -410,7 +410,7 @@ export const feedbackReportColumns = (picked: Set<string>): string[] => [
 ];
 
 // ---------------------------------------------------------------------------
-// THE STORES DISPATCH REPORT (0383) -- the AppSheet "Stores" view (the user,
+// THE STORES DISPATCH REPORT (0385) -- the AppSheet "Stores" view (the user,
 // 2026-10-05: "I need Objective Data for Stores. Attached the Format."). One
 // row per spare line dispatched; MANDATORY is the format's own columns in its
 // own order, so the file reads like the one it replaces.

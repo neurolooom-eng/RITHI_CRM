@@ -1703,7 +1703,14 @@ async function serverProductBySerial(serial: string, product = ''): Promise<Reco
     const { data, error } = await must().from('product_database').select('*')
       .eq('machine_key', dbMachineKey(product, serial)).limit(1).maybeSingle();
     if (error) throw new Error(errMsg(error));
-    return data ? productRowToSheet(data) : null;
+    if (!data) return null;
+    // THE SALE'S INVOICE AND TERM, which 0330 stores on `products` and the
+    // view does not publish -- one row by its unique machine key, so the
+    // transfer form shows the Invoice No. and Date with no device copy too.
+    const { data: inv } = await must().from('products')
+      .select('invoice_no,invoice_date,warranty_years,warranty_months,transfer_ref,transfer_date')
+      .eq('machine_key', dbMachineKey(product, serial)).limit(1).maybeSingle();
+    return productRowToSheet({ ...(inv ?? {}), ...data });
   }
 
   // TWO rows asked for, not one: one is an answer, two is a question, and
@@ -4392,6 +4399,17 @@ export async function listHandstockBalance(
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
+// THE WHOLE BALANCE IN ONE REQUEST (0384). The view costs the same for one
+// page as for everything, so the paged read above was k full aggregates per
+// load and one more per search keystroke -- 4.6-7.3 s each on the live
+// project. The function returns one jsonb array, which PostgREST's 1,000-row
+// cap does not apply to, and it is security invoker: the reader's own RLS
+// bounds it exactly as the view. The screens search what they hold.
+export async function listHandstockBalanceAll(): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().rpc('handstock_balance_all');
+  if (error) throw new Error(errMsg(error));
+  return Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+}
 // One engineer's stock, for the pickers that may only offer what is in hand
 // (the report form's consumption list, the transfer form).
 /** A HAND STOCK ADJUSTMENT (0266): + adds to the engineer's stock, - removes;
@@ -4878,6 +4896,10 @@ export interface OwnershipTransfer {
   /** The dealer the machine came from: the From party when the Party Master
    *  types it DEALER, stamped by the database (0328); blank otherwise. */
   sold_through?: string;
+  /** A FRESH WARRANTY given to the new owner (0385): start and months typed,
+   *  years and end worked out by the database. Blank on most transfers. */
+  warranty_start?: string | null; warranty_months?: number | null;
+  warranty_years?: number | null; warranty_end?: string | null;
 }
 export async function listOwnershipTransfers(serial = ''): Promise<OwnershipTransfer[]> {
   const c = getSupabase(); if (!c) return [];
@@ -6758,7 +6780,7 @@ export async function listFeedbackReport(
   }
 }
 
-// THE STORES DISPATCH REPORT (0383): the view in the AppSheet Stores format.
+// THE STORES DISPATCH REPORT (0385): the view in the AppSheet Stores format.
 export interface StoresDispatchQuery {
   from?: string; to?: string; engineer?: string; part?: string; orNo?: string;
   band?: string; indImp?: string; itemStatus?: string;

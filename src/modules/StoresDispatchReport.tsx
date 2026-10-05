@@ -10,7 +10,7 @@ import {
 // THE STORES DISPATCH REPORT -- the AppSheet "Stores" view (the user,
 // 2026-10-05: "I need Objective Data for Stores. Attached the Format."). One
 // row per spare line dispatched, with how long Stores took after the request's
-// final approval. The view is stores_dispatch_report (0383).
+// final approval. The view is stores_dispatch_report (0385).
 // ===========================================================================
 
 export function StoresDispatchReport() {

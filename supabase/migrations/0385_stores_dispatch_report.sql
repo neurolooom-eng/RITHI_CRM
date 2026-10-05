@@ -43,7 +43,7 @@
 
 alter table public.parts add column if not exists ind_imp text not null default '';
 comment on column public.parts.ind_imp is
-  'Indigenous / Imported / TBD -- typed on the Part Master or loaded by its upload. Free text on purpose: a CHECK on parts aborts a bulk import part-written (0152). Shown as IND/IMP on the Stores Dispatch Report (0383).';
+  'Indigenous / Imported / TBD -- typed on the Part Master or loaded by its upload. Free text on purpose: a CHECK on parts aborts a bulk import part-written (0152). Shown as IND/IMP on the Stores Dispatch Report (0385).';
 
 drop view if exists public.stores_dispatch_report;
 create view public.stores_dispatch_report as
@@ -128,7 +128,7 @@ alter view public.stores_dispatch_report set (security_invoker = on);
 grant select on public.stores_dispatch_report to authenticated;
 
 comment on view public.stores_dispatch_report is
-  'Stores Dispatch Report (0383): one row per spare line dispatched, in the AppSheet Stores format -- final approval = latest of RM / Commercial / NSM (blank where none, band "No approval date"), days to dispatch exact to one decimal, banded 00-03D ... >60D; Year / Month / YY - MM of the dispatch in India time.';
+  'Stores Dispatch Report (0385): one row per spare line dispatched, in the AppSheet Stores format -- final approval = latest of RM / Commercial / NSM (blank where none, band "No approval date"), days to dispatch exact to one decimal, banded 00-03D ... >60D; Year / Month / YY - MM of the dispatch in India time.';
 
 do $$
 declare n int;
@@ -144,5 +144,5 @@ begin
      and jsonb_array_length(ar.permissions) > 0
      and not (ar.permissions ? 'mod:/exports/stores-dispatch');
   get diagnostics n = row_count;
-  raise notice '0383: % role(s) given the Stores Dispatch Report', n;
+  raise notice '0385: % role(s) given the Stores Dispatch Report', n;
 end $$;

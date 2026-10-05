@@ -597,7 +597,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Open a line for its movement trail, or read the Movements ledger',
       '± Adjust stock with a reason and reference (reconciliation permission)',
     ],
-    records: ['handstock_balance', 'handstock_movements', 'handstock_adjustments'],
+    records: ['handstock_balance', 'rpc:handstock_balance_all', 'handstock_movements', 'handstock_adjustments'],
     rules: [
       'A negative (Short) level is a finding: more was consumed than this system knows was issued',
       'If the balance is wrong the Spare Coordinator corrects the stock; the engineer does not book around it',
@@ -844,7 +844,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Let it load every line, then download CSV, .xlsx or .xls',
       'Search before downloading to take only those rows',
     ],
-    records: ['handstock_balance', 'audit_log'],
+    records: ['handstock_balance', 'rpc:handstock_balance_all', 'audit_log'],
     rules: [
       'Downloads stay greyed out until every line has loaded — a short stock file is a wrong one',
       'An office role gets every engineer; anyone else gets their own stock and their team’s, and the file says which',

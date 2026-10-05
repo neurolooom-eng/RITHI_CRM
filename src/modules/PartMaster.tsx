@@ -32,7 +32,7 @@ import { ProductAccessories } from './ProductAccessories';
 // screen still shows the catalogue on an Apps-Script-only deployment.
 // ===========================================================================
 
-// IND/IMP's three words, as the AppSheet Stores view used them (0383). Blank
+// IND/IMP's three words, as the AppSheet Stores view used them (0385). Blank
 // means nobody has recorded it.
 const IND_IMP_OPTIONS = [{ value: '', label: '— not set —' }, { value: 'INDIGENOUS', label: 'Indigenous' },
   { value: 'IMPORTED', label: 'Imported' }, { value: 'TBD', label: 'TBD' }];
@@ -55,7 +55,7 @@ const COLUMNS: Column<Row>[] = [
   // HSN CODE (0309, the user, 2026-10-01). 29 parts carried it inside the
   // description; it was lifted out once and lives here since.
   { key: 'hsn_code', header: 'HSN Code', width: 110, wrap: false },
-  // IND/IMP (0383, the user, 2026-10-05): Indigenous / Imported / TBD, read by
+  // IND/IMP (0385, the user, 2026-10-05): Indigenous / Imported / TBD, read by
   // the Stores Dispatch Report.
   { key: 'ind_imp', header: 'IND/IMP', width: 110, wrap: false },
   { key: 'purchase_cost', header: 'Purchase Cost', width: 130, wrap: false, align: 'right' },

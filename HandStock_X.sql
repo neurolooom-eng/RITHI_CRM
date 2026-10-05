@@ -64,7 +64,8 @@
 --   0339_stock_moves_only_within_what_is_held.sql
 --   0340_spare_request_fixed_once_decided.sql
 --   0335_master_key_changes_only_by_rename.sql
---   0383_stores_dispatch_report.sql
+--   0385_stores_dispatch_report.sql
+--   0384_handstock_balance_all.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -6000,7 +6001,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0383_stores_dispatch_report.sql
+-- 0385_stores_dispatch_report.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -6048,7 +6049,7 @@ end $$;
 
 alter table public.parts add column if not exists ind_imp text not null default '';
 comment on column public.parts.ind_imp is
-  'Indigenous / Imported / TBD -- typed on the Part Master or loaded by its upload. Free text on purpose: a CHECK on parts aborts a bulk import part-written (0152). Shown as IND/IMP on the Stores Dispatch Report (0383).';
+  'Indigenous / Imported / TBD -- typed on the Part Master or loaded by its upload. Free text on purpose: a CHECK on parts aborts a bulk import part-written (0152). Shown as IND/IMP on the Stores Dispatch Report (0385).';
 
 drop view if exists public.stores_dispatch_report;
 create view public.stores_dispatch_report as
@@ -6133,7 +6134,7 @@ alter view public.stores_dispatch_report set (security_invoker = on);
 grant select on public.stores_dispatch_report to authenticated;
 
 comment on view public.stores_dispatch_report is
-  'Stores Dispatch Report (0383): one row per spare line dispatched, in the AppSheet Stores format -- final approval = latest of RM / Commercial / NSM (blank where none, band "No approval date"), days to dispatch exact to one decimal, banded 00-03D ... >60D; Year / Month / YY - MM of the dispatch in India time.';
+  'Stores Dispatch Report (0385): one row per spare line dispatched, in the AppSheet Stores format -- final approval = latest of RM / Commercial / NSM (blank where none, band "No approval date"), days to dispatch exact to one decimal, banded 00-03D ... >60D; Year / Month / YY - MM of the dispatch in India time.';
 
 do $$
 declare n int;
@@ -6149,8 +6150,61 @@ begin
      and jsonb_array_length(ar.permissions) > 0
      and not (ar.permissions ? 'mod:/exports/stores-dispatch');
   get diagnostics n = row_count;
-  raise notice '0383: % role(s) given the Stores Dispatch Report', n;
+  raise notice '0385: % role(s) given the Stores Dispatch Report', n;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0384_handstock_balance_all.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- HAND STOCK: THE WHOLE BALANCE IN ONE REQUEST (2026-10-05, the user: "Go
+-- ahead with the Hand Stock one-aggregate change").
+--
+-- `handstock_balance` is a GROUP BY over every movement there is (nine arms,
+-- 0023/0102), and it costs the same whether one page or the whole result is
+-- asked for -- measured on 300,000 movements: ~1.2 s either way. PostgREST
+-- caps a response at 1,000 rows, so the Hand Stock screen asked for the
+-- balance a page at a time (k full aggregates per load) and asked it AGAIN for
+-- every search keystroke; on the live project's statement export those pages
+-- took 4.6-7.3 s each, 650 times in two weeks.
+--
+-- This function returns the whole balance as ONE jsonb array, so a load is
+-- ONE aggregate and the screens search what they already hold. Three rules:
+--
+--   SECURITY INVOKER. The view is security_invoker and so is this, so the
+--   reader's own row-level security bounds every arm exactly as before: an
+--   engineer gets their stock and their team's, an office role everything.
+--   A definer function here would hand every engineer's stock to anybody.
+--
+--   work_mem = 64MB, FOR THIS FUNCTION ONLY. Under the default 4MB the
+--   aggregate sorts 300,000 rows to disk (external merge, 25 MB); at 64MB it
+--   is a HashAggregate in memory -- 1.23 s -> 0.88 s on the same data. A
+--   function-level SET lasts the call and touches nothing else.
+--
+--   ORDERED BY ENGINEER THEN PART CODE, as the paged read was, so the screens
+--   show the same sequence. An empty balance is '[]', never null.
+--
+-- The paged read (`listHandstockBalance`) stays for `handstockForEngineer`,
+-- whose equality on engineer_key is pushed below the GROUP BY. In the
+-- handstock module, LAST, since it reads the view every earlier file defines.
+-- ===========================================================================
+
+create or replace function public.handstock_balance_all()
+returns jsonb
+language sql stable security invoker
+set search_path = public
+set work_mem = '64MB'
+as $$
+  select coalesce(jsonb_agg(to_jsonb(b) order by b.engineer, b.part_code), '[]'::jsonb)
+    from public.handstock_balance b;
+$$;
+
+comment on function public.handstock_balance_all() is
+  'The whole hand-stock balance as one jsonb array (0384): one aggregate per load instead of one per page and per search; security invoker, so the reader''s RLS applies.';
+
+revoke execute on function public.handstock_balance_all() from public, anon;
+grant execute on function public.handstock_balance_all() to authenticated;
 
 commit;
 

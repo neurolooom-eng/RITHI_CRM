@@ -1,5 +1,5 @@
 -- ===========================================================================
--- STORES DISPATCH REPORT (0383) -- the AppSheet Stores view, one row per
+-- STORES DISPATCH REPORT (0385) -- the AppSheet Stores view, one row per
 -- spare line dispatched.
 --
 -- WHAT THIS PROVES:
@@ -13,7 +13,7 @@
 --      date that is not an approval (AppSheet's ">5 yrs");
 --   4. an undispatched line is not on the report;
 --   5. as `authenticated`, the Stores Incharge reads it, and the role holds
---      the report's page key after 0383.
+--      the report's page key after 0385.
 -- Run ONCE after _stub.sql + every migration.
 -- Every error printed is labelled `expect ERROR` -- anything else is a failure.
 -- ===========================================================================
@@ -21,12 +21,12 @@
 \pset pager off
 
 insert into auth.users (id, email) values
-  ('0383a000-0000-0000-0000-000000000001', 'sdr-rm@x.com'),
-  ('0383a000-0000-0000-0000-000000000002', 'sdr-st@x.com')
+  ('0385a000-0000-0000-0000-000000000001', 'sdr-rm@x.com'),
+  ('0385a000-0000-0000-0000-000000000002', 'sdr-st@x.com')
 on conflict do nothing;
 insert into public.profiles (id, email, full_name, role) values
-  ('0383a000-0000-0000-0000-000000000001', 'sdr-rm@x.com', 'SDR RM', 'rm'),
-  ('0383a000-0000-0000-0000-000000000002', 'sdr-st@x.com', 'SDR STORES', 'stores_incharge')
+  ('0385a000-0000-0000-0000-000000000001', 'sdr-rm@x.com', 'SDR RM', 'rm'),
+  ('0385a000-0000-0000-0000-000000000002', 'sdr-st@x.com', 'SDR STORES', 'stores_incharge')
 on conflict do nothing;
 create or replace procedure public.be(p text) language plpgsql as $$
 begin update public.harness set uid = (select id from auth.users where email = p), email = p; end $$;
