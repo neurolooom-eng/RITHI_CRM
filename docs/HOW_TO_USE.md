@@ -167,7 +167,11 @@ on Roles & Permissions does not reach another team's calls.
 
 ## Getting data in
 
-- **Bulk Uploads** `/bulk-uploads` — **this is the importer.** It finds the
+- **Bulk Uploads** `/bulk-uploads` — **this is the importer.** **Nothing is
+  written until you press OK**: where an upload needs other records first (a
+  visit on each call of a consumption file, a request for each OR number of a
+  spare-line file), the confirmation says how many it will create, and Cancel
+  leaves everything as it was. It finds the
   heading row even under a letterhead, reads tab-separated files, and lists what
   it kept and what it held back. Unrecognised columns are **kept on the row**
   where the register allows it.

@@ -161,6 +161,13 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-10-05 — Review batch 7: the three larger defects (v0.10.126, 0392–0393)
+- **Your ask:** *"Continue work"*. First I merged main again (#579–#581); my 0378–0382 became 0387–0391.
+- **D-041 (0393):** the five names on a spare line (approved at each stage, dispatched, received) are written from the session, and the value sent is discarded. Imports, renames and Auto-Approved are untouched.
+- **D-044 (0392):** three `SECURITY INVOKER` functions save the header and the lines in one transaction. The screens call them, and the clean-up deletes that could never run are gone.
+- **D-075** (screens, done by a helper agent and reviewed): Bulk Uploads plans with reads only. The confirmation states the preparation writes, which happen only after OK. A failed preparation stops the upload and says what was written.
+- **Checked:** `review_batch_7_test` is clean. On a database built without 0392–0393 every section fails. `check:uploads` has 18 new assertions; rows 330–331; OQ-266. Not run in a browser.
+
 ### 2026-10-05 — Your decisions of 2026-10-05 built (v0.10.125, 0375, 0389, 0390)
 - **Your answers:**
   - **D-033:** blank, must be answered.

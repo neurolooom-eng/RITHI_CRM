@@ -1,7 +1,8 @@
 // Checks for src/lib/uploads.ts — the shaping behind the individual register
 // uploads. No test runner in this repo, so: `npm run check:uploads`.
 import { shapeUpload, byColumnSet, UPLOADS, masterUpload, toDate, toTs, coerce, uploadGroups,
-  planConsumptionVisits } from '../src/lib/uploads';
+  planConsumptionVisits, planConsumptionVisitUpload, planSpareLineParents, prepWritesQuestion,
+  prepFailureMessage, describeWrite } from '../src/lib/uploads';
 import { parseDateParts, toIsoDate, toIsoTimestamp, parseAnyDate } from '../src/lib/dates';
 import { findHeaderFor, strict, loose, squash } from '../src/lib/headers';
 import { toDate as coverDate, toTimestamp as coverTs } from '../src/lib/coverImport';
@@ -958,6 +959,61 @@ console.log('\n-- who a new call is allotted to: the machine wins, the party ans
       [row('U-1', '2026-03-04T10:00:00+05:30')], new Set()).visits[0].uid);
     eq('...and both paths build the SAME visit uid', viaSpares, viaReports);
   }
+}
+
+// NOTHING IS WRITTEN BEFORE THE OPERATOR CONFIRMS (D-075). The planners
+// return what must be written first AS DATA -- the confirmation names it with
+// exact counts, and applyUploadPlan writes it only after OK. Proved here as
+// behaviour: the plans write nothing (they cannot: these modules have no
+// client), leave their input untouched, and count what they will write.
+{
+  console.log('\n-- the upload plan writes nothing and leaves the file as read (D-075) --');
+  const lines = [
+    { request_uid: 'OR1', part: 'A' }, { request_uid: 'OR1', part: 'B' },
+    { request_uid: 'OR2', part: 'C' }, { request_uid: 'OR3', part: 'D' },
+  ];
+  const before = JSON.stringify(lines);
+  // OR1 is here; OR2 is here under uid U-2; OR3 is in neither.
+  const p = planSpareLineParents(lines, new Set(['OR1']), new Map([['OR2', 'U-2']]));
+  eq('the spare-line plan does not touch the caller\'s rows', JSON.stringify(lines), before);
+  eq('...numbers the lines per request, in file order', p.rows.map((r) => r.row_no), [1, 2, 1, 1]);
+  eq('...re-points a line at the request already holding its OR number', p.rows[2].request_uid, 'U-2');
+  eq('...and RETURNS the one stub request to create, rather than creating it',
+    p.writes.map((w) => [w.table, w.rows.map((r) => r.uid), w.onConflict, w.ignoreDuplicates]),
+    [['spare_requests', ['OR3'], 'uid', true]]);
+  eq('...marked Imported', p.writes[0].rows[0].status, 'Imported');
+  eq('...the re-pointing is in the note', /1 line pointed/.test(p.note), true);
+  eq('the confirmation names the count it will write first',
+    /FIRST write/.test(prepWritesQuestion(p.writes)) && /• 1 spare request \(/.test(prepWritesQuestion(p.writes)), true);
+  eq('all parents present: nothing to write, no question',
+    [planSpareLineParents(lines, new Set(['OR1', 'OR2', 'OR3']), new Map()).writes.length, prepWritesQuestion([])], [0, '']);
+
+  const cRows = [
+    { ucn: 'U-1', created_at: '2026-03-04T10:00:00+05:30', data: {} },
+    { ucn: 'U-1', created_at: '2026-03-04T10:00:00+05:30', data: {} },
+    { ucn: 'U-9', created_at: '', data: {} },
+  ];
+  const cBefore = JSON.stringify(cRows);
+  const cp = planConsumptionVisitUpload(cRows, new Set());
+  eq('the consumption plan does not touch the caller\'s rows', JSON.stringify(cRows), cBefore);
+  eq('...returns ONE visit to file as a write, not a write done',
+    cp.writes.map((w) => [w.table, w.rows.length, w.onConflict]), [['reports', 1, 'uid']]);
+  eq('...the rows it will upload exclude the call it cannot date', cp.rows.map((r) => r.ucn), ['U-1', 'U-1']);
+  eq('...and its note is the held-back half only (the visits are the write\'s)',
+    /held back/.test(cp.note) && !/filed/.test(cp.note), true);
+  eq('a call that already has a visit: nothing to write',
+    planConsumptionVisitUpload(cRows.slice(0, 2), new Set(['U-1'])).writes.length, 0);
+
+  // A FAILURE AFTER OK says, write by write, what was written and what was not.
+  const w2 = { table: 'reports', rows: Array.from({ length: 450 }, (_, i) => ({ uid: `V${i}` })),
+    onConflict: 'uid', noun: ['visit report', 'visit reports'] as [string, string], why: '' };
+  const m = prepFailureMessage([w2], [400], 'boom', 1200);
+  eq('a part-written preparation names what was written', /Written: 400 visit reports/.test(m), true);
+  eq('...and what was not', /Not written: 50 visit reports/.test(m), true);
+  eq('...and that the upload itself did not start', /before any of its 1,200 rows were written/.test(m), true);
+  eq('a preparation that failed at once says nothing was written',
+    /Written: nothing\./.test(prepFailureMessage([w2], [0], 'boom', 10)), true);
+  eq('describeWrite counts singular and plural', [describeWrite(w2, 1), describeWrite(w2)], ['1 visit report', '450 visit reports']);
 }
 
 // OLD REVIEWS LOAD AS IMPORTED (0269, the user: "no new FFRs"). The database

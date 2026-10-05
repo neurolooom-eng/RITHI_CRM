@@ -15,7 +15,8 @@ import { ffrWritable } from './ffr';
 export { machineKey } from './machine';
 import { machineKey } from './machine';
 export { callFamily, callTable, type CallFamily } from './calltype';
-import { byColumnSet, planConsumptionVisits } from './uploads';
+import { byColumnSet, planConsumptionVisitUpload, planSpareLineParents, describeWrite, prepFailureMessage,
+  type UploadPlan } from './uploads';
 import { callTable } from './calltype';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { manualMatchesCall } from './docmatch';
@@ -3778,28 +3779,36 @@ export async function refreshSpareRequestsFromCall(uids: string[]): Promise<{ ok
   return error ? { ok: false, error: errMsg(error) } : { ok: true, changed: Number(data ?? 0) };
 }
 
+/** THE MESSAGE FOR A FAILED ONE-TRANSACTION SAVE (0392, D-044). A refusal the
+ *  DATABASE answered (it carries a code -- a SQLSTATE or a PGRST code) rolled the
+ *  whole record back, so "nothing was saved" is true. A request that never got
+ *  an answer (no code: the network, a timeout) may or may not have committed,
+ *  and saying "nothing was saved" there would send somebody to save it twice. */
+function wholeSaveError(e: { message?: string; code?: string } | null | undefined): string {
+  return e?.code
+    ? `Nothing was saved: ${errMsg(e)}`
+    : `No answer from the database (${errMsg(e)}) — reload the register to see whether it was saved before trying again.`;
+}
+
 export async function addSpareRequest(
   req: Record<string, unknown>,
   lines: { part: string; qty: number }[],
 ): Promise<{ ok: boolean; uid?: string; orNo?: string; error?: string; visitError?: string }> {
   const c = must();
-  // or_no / or_req_date are assigned by the database (0011_spare_intake.sql).
-  const { data, error } = await c.from('spare_requests').insert(req).select('uid, or_no').single();
-  if (error) return { ok: false, error: errMsg(error) };
-  const uid = String(data.uid);
-  const orNo = String(data.or_no ?? '');
-  if (lines.length) {
-    // RowNo is sent explicitly: every row of one multi-row insert fires the
-    // trigger against the same snapshot, so a max()+1 default would hand the
-    // whole batch the same number. The trigger stays as the fallback.
-    const { error: le } = await c.from('spare_request_lines')
-      .insert(lines.map((l, i) => ({ request_uid: uid, row_no: i + 1, part: l.part, qty: l.qty })));
-    if (le) {
-      // The lines are the request; a header with none is not a usable record.
-      await c.from('spare_requests').delete().eq('uid', uid);
-      return { ok: false, error: errMsg(le) };
-    }
-  }
+  // THE REQUEST AND ITS LINES IN ONE TRANSACTION (0392, D-044). It used to be
+  // two requests with a clean-up DELETE of the header when the lines failed --
+  // a delete the retention guard (0049) refuses, unchecked, so a request with
+  // no lines stayed behind with its OR number consumed. save_spare_request()
+  // runs as the caller (RLS and triggers unchanged) and writes both or neither.
+  // or_no / or_req_date and the row numbers (1..n) are the database's.
+  const { data, error } = await c.rpc('save_spare_request', {
+    p_req: req, p_lines: lines.map((l) => ({ part: l.part, qty: l.qty })),
+  });
+  if (error) return { ok: false, error: wholeSaveError(error) };
+  const saved = (data ?? {}) as { uid?: unknown; or_no?: unknown };
+  const uid = String(saved.uid ?? '');
+  const orNo = String(saved.or_no ?? '');
+  if (!uid) return { ok: false, error: 'The database returned no request reference — reload the register to see whether it was saved.' };
   // A call with no visit yet gets one: Unsolved, "spare not available",
   // Update Visit Work Details = No (0333). Only now, once the lines are in, so
   // a request that failed to save never turns its call Unsolved. The database
@@ -3882,27 +3891,22 @@ export async function listAllStock(cap = 5000): Promise<StockRow[]> {
 export async function addStockTransfer(
   from: string, to: string, lines: { part: string; qty: number; reason?: string }[], remarks = '', on?: string,
 ): Promise<{ ok: boolean; uid?: string; error?: string }> {
-  const c = must();
-  // uid / row_no are assigned by the database.
-  const { data, error } = await c.from('stock_transfers')
-    .insert({ from_engineer: from.trim(), to_engineer: to.trim(), remarks, ...(on ? { transfer_date: on } : {}) })
-    .select('uid').single();
-  if (error) return { ok: false, error: errMsg(error) };
-  const uid = String(data.uid);
+  // THE HEADER AND ITS LINES IN ONE TRANSACTION (0392, D-044). The clean-up
+  // DELETE this replaced matched nothing -- stock_transfers has no delete
+  // policy -- so every refused transfer left an empty header. uid / row_no
+  // (1..n) are assigned by the database; it runs as the caller.
   // The per-line reason is OPTIONAL (0322). It is sent on EVERY line once ANY
-  // line has one (D-113): a bulk insert lists the union of the rows' keys, so a
-  // line without the key was written NULL into a NOT NULL column and the whole
-  // transfer was refused. A transfer with no reasons at all still sends none.
+  // line has one (D-113); the function also writes '' for a line without one,
+  // so a NULL can no longer reach the NOT NULL column either way.
   const anyReason = lines.some((l) => !!l.reason?.trim());
-  const { error: le } = await c.from('stock_transfer_lines')
-    .insert(lines.map((l, i) => ({ transfer_uid: uid, row_no: i + 1, part: l.part, qty: l.qty,
-                                   ...(anyReason ? { reason: (l.reason ?? '').trim() } : {}) })));
-  if (le) {
-    // The lines are the transfer; a header alone is not a usable record. The
-    // stock check rejects the whole insert, so nothing moved.
-    await c.from('stock_transfers').delete().eq('uid', uid);
-    return { ok: false, error: errMsg(le) };
-  }
+  const { data, error } = await must().rpc('save_stock_transfer', {
+    p_header: { from_engineer: from.trim(), to_engineer: to.trim(), remarks, ...(on ? { transfer_date: on } : {}) },
+    p_lines: lines.map((l) => ({ part: l.part, qty: l.qty,
+                                 ...(anyReason ? { reason: (l.reason ?? '').trim() } : {}) })),
+  });
+  if (error) return { ok: false, error: wholeSaveError(error) };
+  const uid = String(data ?? '');
+  if (!uid) return { ok: false, error: 'The database returned no transfer number — reload the register to see whether it was saved.' };
   return { ok: true, uid };
 }
 
@@ -4356,23 +4360,17 @@ export async function addMaterialReturn(
   header: { mrn_no: string; mrn_date?: string; engineer: string; engineer_email?: string; remarks?: string },
   lines: MrnLineInput[],
 ): Promise<{ ok: boolean; uid?: string; error?: string }> {
-  const c = must();
-  // The uid and row numbers are assigned by the database. Ask for the first
-  // row's uid so every line of one submission shares it.
-  const first = { ...header, ...lines[0], source: 'app' };
-  const { data, error } = await c.from('material_returns').insert(first).select('uid').single();
-  if (error) return { ok: false, error: errMsg(error) };
-  const uid = String(data.uid);
-  if (lines.length > 1) {
-    const { error: le } = await c.from('material_returns')
-      .insert(lines.slice(1).map((l, i) => ({ ...header, ...l, uid, row_no: i + 2, source: 'app' })));
-    if (le) {
-      // The stock check runs per row, so a rejected line leaves the rest
-      // standing — take the whole submission back out rather than half of it.
-      await c.from('material_returns').delete().eq('uid', uid);
-      return { ok: false, error: errMsg(le) };
-    }
-  }
+  // EVERY LINE IN ONE TRANSACTION (0392, D-044). The clean-up DELETE this
+  // replaced matched nothing for anybody but an administrator (mr_delete), so a
+  // refused second line left the first standing -- with the stock already off
+  // the engineer. save_material_return() writes each row as header ∪ line ∪
+  // {source:'app'}, lines 2..n sharing the first row's uid with row_no = their
+  // position; it runs as the caller, so the stock check (0039) applies per row
+  // and a refusal rolls the whole return back.
+  const { data, error } = await must().rpc('save_material_return', { p_header: header, p_lines: lines });
+  if (error) return { ok: false, error: wholeSaveError(error) };
+  const uid = String(data ?? '');
+  if (!uid) return { ok: false, error: 'The database returned no return reference — reload the register to see whether it was saved.' };
   return { ok: true, uid };
 }
 export async function listMaterialReturns(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
@@ -5008,6 +5006,8 @@ export async function saveAdditionalEntry(e: Partial<AdditionalEntry>): Promise<
 //   2. of the rest, which are here under a DIFFERENT uid — matched on the OR
 //      number, which is what the line actually names — and point the line at it;
 //   3. create what is genuinely missing, marked as created from a line.
+// 1 and 2 are READS, done by planUpload before the confirmation; 3 is a WRITE,
+// done by applyUploadPlan only after the operator presses OK (D-075).
 //
 // Every one of those is a separate statement, so the parents are plainly there
 // by the time the lines go up. The upload then works whatever the database has
@@ -5015,12 +5015,21 @@ export async function saveAdditionalEntry(e: Partial<AdditionalEntry>): Promise<
 // ---------------------------------------------------------------------------
 const IN_CHUNK = 200;   // keeps the request URL well inside every gateway's limit
 
-export async function prepareUpload(
+// READS ONLY (D-075). Nothing here may write: the plan is what the confirmation
+// shows, and pressing Cancel there must leave the database exactly as it was.
+// What has to be written first is RETURNED as `plan.writes` and done by
+// `applyUploadPlan` below, after OK. `check:ui` refuses a write in this body.
+// The caller's rows are never modified: the plan's rows are new objects, so a
+// Cancel and a second Upload plan again from the file as it was read.
+export async function planUpload(
   kind: 'spare-line-parents' | 'stock-transfer-parents' | 'handstock-engineers'
     | 'consumption-visits' | 'complaint-keys',
-  rows: Record<string, unknown>[],
-): Promise<{ ok: boolean; note?: string; error?: string }> {
+  input: Record<string, unknown>[],
+): Promise<{ ok: boolean; plan?: UploadPlan; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  const rows = input.map((r) => ({ ...r }));
+  const plain = (keep: Record<string, unknown>[], note = ''): { ok: true; plan: UploadPlan } =>
+    ({ ok: true, plan: { rows: keep, writes: [], note } });
 
   // ---- A STANDARD COMPLAINT IS MATCHED BY ITS KEY, AND NEVER RENAMED -------
   // (the user, 2026-09-29). The whole list is read -- PAGED, since a complaint
@@ -5037,8 +5046,7 @@ export async function prepareUpload(
           extra: (r.extra ?? {}) as Record<string, unknown> }));
     } catch (e) { return { ok: false, error: `Could not read the Standard Complaint list: ${e instanceof Error ? e.message : String(e)}` }; }
     const plan = planComplaintKeys(rows, existing);
-    rows.splice(0, rows.length, ...plan.rows);
-    return { ok: true, note: plan.note };
+    return plain(plan.rows, plan.note);
   }
 
   // ---- A SPARE NEEDS A VISIT, AND THE FILE USUALLY SAYS WHAT IT WAS -------
@@ -5049,10 +5057,10 @@ export async function prepareUpload(
   // `Visit Date & Time` is mapped onto `created_at` by this upload already, and
   // `Visit Entry Date` falls into `data` with the other unmapped headings.
   //
-  // So the visit is FILED FIRST, from the file's own values. Nothing is
-  // invented -- a UCN the file gives no date for keeps no visit, and its rows
-  // are held back BY NAME so the rest of the file still loads. That is the
-  // whole gain over the database's refusal, which could only stop everything.
+  // So the visit is FILED FIRST, from the file's own values -- after the
+  // confirmation, by applyUploadPlan. Nothing is invented -- a UCN the file
+  // gives no date for keeps no visit, and its rows are held back BY NAME so the
+  // rest of the file still loads.
   //
   // THE UID CONVENTION IS `REPORT_COLS`' OWN, character for character:
   // `IMP-<ucn>-<yyyymmddhhmmss>`. Loading the same data through Bulk Uploads ->
@@ -5060,7 +5068,7 @@ export async function prepareUpload(
   // same call on the same day, and re-running either is idempotent.
   if (kind === 'consumption-visits') {
     const ucns = [...new Set(rows.map((r) => String(r.ucn ?? '').trim()).filter(Boolean))];
-    if (!ucns.length) return { ok: true };
+    if (!ucns.length) return plain(rows);
 
     // Which calls already have a visit. Chunked like every other `in` here.
     const have = new Set<string>();
@@ -5069,22 +5077,9 @@ export async function prepareUpload(
       if (error) return { ok: false, error: `Could not read the visits: ${errMsg(error)}` };
       (data ?? []).forEach((r) => have.add(String(r.ucn ?? '').trim()));
     }
-
     // WHAT to write and what to hold back is decided in `uploads.ts`, where a
-    // node script can import it and `check:uploads` can prove it. Only the two
-    // round trips are here.
-    const plan = planConsumptionVisits(rows, have);
-
-    for (let i = 0; i < plan.visits.length; i += 200) {
-      const { error } = await c.from('reports')
-        .upsert(plan.visits.slice(i, i + 200), { onConflict: 'uid' });
-      if (error) return { ok: false, error: `Could not file the visits these spares belong to: ${errMsg(error)}` };
-    }
-
-    for (let i = rows.length - 1; i >= 0; i -= 1) {
-      if (plan.holdBack.has(String(rows[i].ucn ?? '').trim())) rows.splice(i, 1);
-    }
-    return { ok: true, note: plan.note || undefined };
+    // node script can import it and `check:uploads` can prove it.
+    return { ok: true, plan: planConsumptionVisitUpload(rows, have) };
   }
 
   // ---- Hand stock belongs to an ACTIVE ENGINEER ---------------------------
@@ -5118,16 +5113,17 @@ export async function prepareUpload(
       return { ok: false, error: 'The User Master has no active users on this project, so every row would be held back. Load the User Master first.' };
     }
     const dropped = new Set<string>();
-    for (let i = rows.length - 1; i >= 0; i -= 1) {
-      const name = String(rows[i].engineer ?? '').trim();
-      if (!active.has(name.toLowerCase())) { dropped.add(name || '(blank)'); rows.splice(i, 1); }
-    }
-    if (!dropped.size) return { ok: true };
+    const keep = rows.filter((r) => {
+      const name = String(r.engineer ?? '').trim();
+      if (active.has(name.toLowerCase())) return true;
+      dropped.add(name || '(blank)'); return false;
+    });
+    if (!dropped.size) return plain(keep);
     const shown = [...dropped].sort().slice(0, 6).join(', ');
-    return { ok: true, note:
+    return plain(keep,
       `${dropped.size} name${dropped.size === 1 ? '' : 's'} held back — not an active user in the User Master`
       + ` (${shown}${dropped.size > 6 ? `, and ${dropped.size - 6} more` : ''}).`
-      + ' Hand stock is what an ENGINEER carries, so a dealer or a former user is left out.' };
+      + ' Hand stock is what an ENGINEER carries, so a dealer or a former user is left out.');
   }
 
   // A stock transfer cannot be invented from its lines — its from / to and date
@@ -5137,41 +5133,29 @@ export async function prepareUpload(
   // came with them and failed the first batch of 500.
   if (kind === 'stock-transfer-parents') {
     const wanted = [...new Set(rows.map((r) => String(r.transfer_uid ?? '').trim()).filter(Boolean))];
-    if (!wanted.length) return { ok: true };
+    if (!wanted.length) return plain(rows);
     const here = new Set<string>();
     for (let i = 0; i < wanted.length; i += IN_CHUNK) {
       const { data, error } = await c.from('stock_transfers').select('uid').in('uid', wanted.slice(i, i + IN_CHUNK));
       if (error) return { ok: false, error: `Could not read the stock transfers: ${errMsg(error)}` };
       (data ?? []).forEach((r) => here.add(String(r.uid)));
     }
-    let dropped = 0;
-    for (let i = rows.length - 1; i >= 0; i -= 1) {
-      if (!here.has(String(rows[i].transfer_uid ?? ''))) { rows.splice(i, 1); dropped += 1; }
-    }
-    return { ok: true, note: dropped
+    const keep = rows.filter((r) => here.has(String(r.transfer_uid ?? '')));
+    const dropped = rows.length - keep.length;
+    return plain(keep, dropped
       ? `${dropped} line${dropped === 1 ? '' : 's'} held back — their transfer is not in the register (load Stock Transfer Register first, or it was held back there).`
-      : undefined };
+      : '');
   }
 
-  if (kind !== 'spare-line-parents') return { ok: true };
+  if (kind !== 'spare-line-parents') return plain(rows);
 
-  // RowNo is the part's position within its request. The export does not carry
-  // one, and the database's own numbering asks `max(row_no) + 1` from a BEFORE
-  // trigger — which cannot see the rows the same insert is writing, so a whole
-  // batch would come out as row 1. Number them here, from the order the file
-  // itself puts them in, which is also the same on every re-run.
-  const seen = new Map<string, number>();
-  rows.forEach((r) => {
-    if (r.row_no !== undefined && r.row_no !== null && r.row_no !== '') return;
-    const key = String(r.request_uid ?? '');
-    const n = (seen.get(key) ?? 0) + 1;
-    seen.set(key, n);
-    r.row_no = n;
-  });
-
+  // The spare LINES export names its request by OR number and nothing else, and
+  // the header export does not go back as far as the lines do — 58 of the OR
+  // numbers on 8,675 lines are in neither file. Which requests are here, by uid
+  // and then by OR number, is READ here; numbering the lines, re-pointing them
+  // and which stub requests to create is decided by planSpareLineParents() in
+  // uploads.ts, and the stubs are written by applyUploadPlan after OK.
   const wanted = [...new Set(rows.map((r) => String(r.request_uid ?? '').trim()).filter(Boolean))];
-  if (!wanted.length) return { ok: true };
-
   const chunks = <T,>(a: T[]) => Array.from({ length: Math.ceil(a.length / IN_CHUNK) },
     (_, i) => a.slice(i * IN_CHUNK, i * IN_CHUNK + IN_CHUNK));
 
@@ -5182,46 +5166,45 @@ export async function prepareUpload(
     if (error) return { ok: false, error: `Could not read the spare requests: ${errMsg(error)}` };
     (data ?? []).forEach((r) => here.add(String(r.uid)));
   }
-  const missing = wanted.filter((u) => !here.has(u));
-  if (!missing.length) return { ok: true };
-
   // 2. Here under a different uid — the OR number is what the line names.
   const byOrNo = new Map<string, string>();
-  for (const part of chunks(missing)) {
+  for (const part of chunks(wanted.filter((u) => !here.has(u)))) {
     const { data, error } = await c.from('spare_requests').select('uid,or_no').in('or_no', part);
     if (error) return { ok: false, error: `Could not read the spare requests: ${errMsg(error)}` };
     (data ?? []).forEach((r) => { if (r.or_no) byOrNo.set(String(r.or_no), String(r.uid)); });
   }
-  let repointed = 0;
-  if (byOrNo.size) {
-    rows.forEach((r) => {
-      const held = byOrNo.get(String(r.request_uid ?? ''));
-      if (held) { r.request_uid = held; repointed += 1; }
-    });
-  }
+  return { ok: true, plan: planSpareLineParents(rows, here, byOrNo) };
+}
 
-  // 3. What is in neither file gets a request, MARKED as one — the gap stays
-  //    visible in the register instead of costing the whole load.
-  const orphans = missing.filter((u) => !byOrNo.has(u));
-  if (orphans.length) {
-    const stubs = orphans.map((uid) => ({
-      uid, or_no: uid, req_type: 'Call Based', status: 'Imported',
-      remarks: 'Created from an imported spare line — the request header was not in the export.',
-    }));
-    for (const part of chunks(stubs)) {
-      const { error } = await c.from('spare_requests').upsert(part, { onConflict: 'uid', ignoreDuplicates: true });
+// ---------------------------------------------------------------------------
+// THE PLAN'S WRITES, AFTER THE CONFIRMATION (D-075).
+//
+// Called only once the operator has pressed OK, immediately before the rows go
+// up. Each write is its own statement, so the parents are plainly there by the
+// time the rows that point at them are written -- a trigger's insert would be
+// INVISIBLE to the command inserting the line, which is why this is not a
+// trigger. If any of it fails the caller must NOT upload, and the message says,
+// write by write, what was written and what was not.
+// ---------------------------------------------------------------------------
+export async function applyUploadPlan(
+  plan: UploadPlan,
+): Promise<{ ok: boolean; done: string; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, done: '', error: 'Database not connected — nothing was written.' };
+  const writes = plan.writes.filter((w) => w.rows.length);
+  const sent = writes.map(() => 0);
+  for (const [wi, w] of writes.entries()) {
+    for (let i = 0; i < w.rows.length; i += IN_CHUNK) {
+      const part = w.rows.slice(i, i + IN_CHUNK);
+      const { error } = await c.from(w.table).upsert(part,
+        { onConflict: w.onConflict, ...(w.ignoreDuplicates ? { ignoreDuplicates: true } : {}) });
       if (error) {
-        return { ok: false,
-          error: `${errMsg(error)} — ${orphans.length} of these lines name a request that is not in the header export,`
-            + ' and creating it was refused. Load the Spare Request file first, or ask an administrator to run this one.' };
+        return { ok: false, done: '',
+          error: prepFailureMessage(writes, sent, `Could not write ${describeWrite(w, part.length)}: ${errMsg(error)}`, plan.rows.length) };
       }
+      sent[wi] += part.length;
     }
   }
-  const bits = [
-    orphans.length ? `${orphans.length} request${orphans.length === 1 ? '' : 's'} created for lines whose request was not in the header export` : '',
-    repointed ? `${repointed} line${repointed === 1 ? '' : 's'} pointed at the request already holding that OR number` : '',
-  ].filter(Boolean);
-  return { ok: true, note: bits.join('; ') };
+  return { ok: true, done: writes.map((w) => describeWrite(w)).join('; ') };
 }
 
 export async function uploadRows(

@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.126',
+    date: '2026-10-05',
+    title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
+    changes: [
+      'SPARES: the name shown as having approved, dispatched or received a spare is now always the person who did it — the system writes it, whatever the screen sends.',
+      'SPARE REQUESTS, STOCK TRANSFERS and MATERIAL RETURNS: a record is saved whole or not at all. If one line is refused, nothing is left behind — no request without parts, no used-up OR number, no stock taken off for half a return.',
+      'BULK UPLOADS: nothing is written until you press OK. Where an upload needs other records first (visits, requests), the confirmation says how many, and Cancel leaves everything as it was.',
+    ],
+  },
+  {
     version: '0.10.125',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',

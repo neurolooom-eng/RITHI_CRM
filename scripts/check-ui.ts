@@ -2471,7 +2471,7 @@ console.log('\n-- Reports: access one report at a time --');
     {
       const sb = readFileSync('src/lib/supabase.ts', 'utf8');
       eq('the consumption upload files its visits through the tested planner',
-        /planConsumptionVisits\(rows, have\)/.test(sb), true);
+        /planConsumptionVisitUpload\(rows, have\)/.test(sb), true);
       eq('...and supabase.ts does not decide any of it itself',
         /IMP-\$\{ucn\}/.test(sb), false);
       eq('...the register asks for the step',
@@ -10318,6 +10318,45 @@ console.log('\n-- High batch 1: what a screen could not read, and what it leaves
     // D-113: a transfer sends the reason on every line once any line has one.
     eq('D-113: a stock transfer sends the reason on every line or none',
       /anyReason \? \{ reason:/.test(fnBody(sb, 'addStockTransfer')), true);
+    // D-044: a header and its lines are ONE call -- the save_* functions
+    // (0392) -- and the compensating DELETE that could not run is gone.
+    for (const [f, rpc] of [['addSpareRequest', 'save_spare_request'], ['addStockTransfer', 'save_stock_transfer'],
+                            ['addMaterialReturn', 'save_material_return']] as const) {
+      const body = fnBody(sb, f);
+      eq(`D-044: ${f} saves the record whole through ${rpc}()`, body.includes(`.rpc('${rpc}'`), true);
+      eq(`D-044: ${f} issues no clean-up .delete()`, body !== '' && !/\.delete\(/.test(body), true);
+      eq(`D-044: ${f} writes no table directly`, /\.from\('(spare_request|stock_transfer|material_return)/.test(body), false);
+    }
+    // ...and the spare request still files its visit only AFTER a save that worked.
+    {
+      const body = fnBody(sb, 'addSpareRequest');
+      const save = body.indexOf(".rpc('save_spare_request'"), visit = body.indexOf(".rpc('file_visit_for_spare_request'");
+      eq('D-044: addSpareRequest files the visit after the save, never before', save >= 0 && visit > save, true);
+    }
+    // D-075: nothing is written before the operator confirms. The PLAN reads
+    // and returns its writes as data; applyUploadPlan writes them after OK.
+    {
+      const plan = fnBody(sb, 'planUpload');
+      eq('D-075: planUpload exists', plan !== '', true);
+      eq('D-075: planUpload performs no write (no insert / upsert / update / delete / rpc)',
+        /\.(insert|upsert|update|delete|rpc)\(/.test(plan), false);
+      eq('D-075: planUpload never modifies the caller\'s rows (no splice)', /\.splice\(/.test(plan), false);
+      eq('D-075: the old write-before-confirm prepareUpload is gone', /function prepareUpload\b/.test(sb), false);
+      const apply = fnBody(sb, 'applyUploadPlan');
+      eq('D-075: applyUploadPlan writes the plan and reports what was and was not written',
+        /\.upsert\(/.test(apply) && /prepFailureMessage\(/.test(apply), true);
+      const bu = code(readFileSync('src/modules/BulkUploads.tsx', 'utf8'));
+      const w = bu.slice(bu.indexOf('const write = async'), bu.indexOf('const s = pending?.shaped;'));
+      const iPlan = w.indexOf('planUpload('), iConfirm = w.indexOf('confirm('),
+        iApply = w.indexOf('applyUploadPlan('), iUpload = w.indexOf('uploadRows(');
+      eq('D-075: Bulk Uploads plans BEFORE the confirmation', iPlan >= 0 && iPlan < iConfirm, true);
+      eq('D-075: ...applies the plan only AFTER it, and before the rows', iConfirm >= 0 && iApply > iConfirm && iUpload > iApply, true);
+      eq('D-075: ...the confirmation names what will be written first', /prepWritesQuestion\(plan\.writes\)/.test(w), true);
+      eq('D-075: ...a failed preparation returns before the upload',
+        /if \(!pre\.ok\) \{[^\n]*return; \}/.test(w.slice(iApply, iUpload)), true);
+      eq('D-075: ...and uploads the PLANNED rows, which are the rows the confirmation counted',
+        /uploadRows\(def\.table, rows,/.test(w) && /const n = rows\.length;/.test(w), true);
+    }
     // D-117: one hit more than is shown is fetched, and the panel says so.
     eq('D-117: global search fetches one more than it shows', /const n = PER_KIND \+ 1;/.test(sb), true);
     eq('...and the panel shows only PER_KIND and says there are more',

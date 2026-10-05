@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
 import { parseCSV } from '../lib/dataImport';
-import { uploadRows, prepareUpload, countTable, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
-import { UPLOADS, masterUpload, shapeUpload, uploadGroups, soldThroughNotDealers, type UploadDef, type ShapeResult } from '../lib/uploads';
+import { uploadRows, planUpload, applyUploadPlan, countTable, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
+import { UPLOADS, masterUpload, shapeUpload, uploadGroups, soldThroughNotDealers, prepWritesQuestion,
+  type UploadDef, type ShapeResult, type UploadPlan } from '../lib/uploads';
 import { dealerParties } from '../lib/cover';
 import './fieldcalls.css';
 
@@ -59,30 +60,35 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
   const write = async () => {
     if (!pending) return;
     // Some registers point at rows that have to be there first, or accept only
-    // some of the names in the file (see `prepare`). Done in its own statements
-    // BEFORE anything is written — a database trigger cannot do this for us —
-    // and before the confirmation, so the number you are asked to approve is the
-    // number that will actually be written. It used to run after, which meant
-    // agreeing to 257,130 rows and being told afterwards that 4,538 went in.
-    let note = '';
+    // some of the names in the file (see `prepare`). PLANNED before the
+    // confirmation -- reads only -- so the number you are asked to approve is
+    // the number that will actually be written. It used to run after, which
+    // meant agreeing to 257,130 rows and being told afterwards that 4,538 went in.
+    // What the plan must WRITE first (stub spare requests, the visits a
+    // consumption file describes) is only NAMED in the confirmation and written
+    // after OK (D-075): it used to be written before it, so Cancel left those
+    // rows behind -- and a visit moves its call's status.
+    let plan: UploadPlan = { rows: pending.shaped.rows, writes: [], note: '' };
     if (def.prepare) {
       setBusy('Checking what these rows point at…');
-      const pre = await prepareUpload(def.prepare, pending.shaped.rows);
+      const pre = await planUpload(def.prepare, pending.shaped.rows);
       setBusy('');
-      if (!pre.ok) { setMsg({ tone: 'error', text: pre.error ?? 'Could not prepare the upload.' }); return; }
-      note = pre.note ?? '';
-      if (!pending.shaped.rows.length) {
-        setMsg({ tone: 'error', text: `Nothing left to load.${note ? ` ${note}` : ''}` });
+      if (!pre.ok || !pre.plan) { setMsg({ tone: 'error', text: pre.error ?? 'Could not prepare the upload.' }); return; }
+      plan = pre.plan;
+      if (!plan.rows.length) {
+        setMsg({ tone: 'error', text: `Nothing left to load — nothing was written.${plan.note ? ` ${plan.note}` : ''}` });
         return;
       }
     }
-    const n = pending.shaped.rows.length;
+    const rows = plan.rows;
+    const note = plan.note;
+    const n = rows.length;
     // D-152: a Sold Through that is not a dealer on the Party Master is FLAGGED,
     // not refused (the user: "Just flag it for now, Lets Observe and then decide").
     let flag = '';
-    if (pending.shaped.rows.some((r) => String(r.sold_through ?? '').trim())) {
+    if (rows.some((r) => String(r.sold_through ?? '').trim())) {
       try {
-        const odd = soldThroughNotDealers(pending.shaped.rows, await dealerParties());
+        const odd = soldThroughNotDealers(rows, await dealerParties());
         if (odd.length) {
           flag = `⚑ ${odd.length} Sold Through value${odd.length === 1 ? ' is' : 's are'} not a DEALER on the Party Master and will be loaded as they are: ${odd.slice(0, 20).join(', ')}${odd.length > 20 ? ` and ${odd.length - 20} more` : ''}.`;
         }
@@ -91,12 +97,24 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
     const warn = def.conflict
       ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
       : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
-    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${note ? `${note}\n\n` : ''}${flag ? `${flag}\n\n` : ''}${warn}`)) return;
+    const first = prepWritesQuestion(plan.writes);
+    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${first ? `${first}\n\n` : ''}${note ? `${note}\n\n` : ''}${flag ? `${flag}\n\n` : ''}${warn}`)) return;
+    // Only now, with OK pressed: what the rows point at, then the rows. A
+    // failure here stops the upload, and says what was and was not written.
+    let wroteFirst = '';
+    if (plan.writes.length) {
+      setBusy('Writing what these rows point at…');
+      const pre = await applyUploadPlan(plan);
+      setBusy('');
+      if (!pre.ok) { setMsg({ tone: 'error', text: pre.error ?? 'Could not prepare the upload — the upload was not started.' }); onDone(); return; }
+      wroteFirst = pre.done;
+    }
     setBusy(`Writing 0 / ${n}…`);
-    const res = await uploadRows(def.table, pending.shaped.rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
+    const res = await uploadRows(def.table, rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
     setBusy('');
-    if (!res.ok) { setMsg({ tone: 'error', text: `${res.error} (${res.written} written before it stopped.)` }); onDone(); return; }
-    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${note ? ` ${note}` : ''}${flag ? ` ${flag}` : ''}` });
+    const firstNote = wroteFirst ? ` Written first: ${wroteFirst}.` : '';
+    if (!res.ok) { setMsg({ tone: 'error', text: `${res.error} (${res.written} written before it stopped.)${firstNote}` }); onDone(); return; }
+    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${firstNote}${note ? ` ${note}` : ''}${flag ? ` ${flag}` : ''}` });
     setPending(null);
     onDone();
   };
