@@ -190,6 +190,8 @@ export const MODULES: ModuleDef[] = [
   { path: '/indoor', label: 'Indoor Service Register' },
   // SPARE RECYCLING (0355): a non-auditable parallel track, hidden in Audit Mode.
   { path: '/indoor/recycling', label: 'Spare Recycling' },
+  // PRE-DELIVERY QUALITY CHECK (0377): its own register of R/SER/QC/007.
+  { path: '/indoor/pdqc', label: 'Pre-Delivery Quality Check' },
   // SOLVED WITHOUT A REPORT — administrators only (the user, 2026-09-20:
   // "View only for Admins and Super Admins"). `admin: true` keeps the key out
   // of NON_ADMIN_MODULES, leaving SEES_EVERY_MODULE's three; 0224 is the other
@@ -269,7 +271,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
   // D-129 (the user, 2026-10-05: "visible only to a selected few as set through
   // roles & permissions"): reading the review answers is its own key, given once
-  // to the roles that held review.edit (0376); review.edit grants it, since an
+  // to the roles that held review.edit (0381); review.edit grants it, since an
   // editor reads what they edit.
   { group: 'Calls', key: 'review.view', label: 'Read Daily Complaint Review answers' },
   // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269, 0285). Its answers carry the
@@ -374,6 +376,10 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Indoor Service', key: 'recycle.request', label: 'Raise a recycling MRS (no approval)' },
   { group: 'Indoor Service', key: 'recycle.issue', label: 'Book out a recycling MRS with cost (Stores)' },
   { group: 'Indoor Service', key: 'recycle.close', label: 'Consume, add costs and close a recycling request' },
+  // 0376: deleting a request -- granted to NO role (an administrator passes).
+  { group: 'Indoor Service', key: 'recycle.delete', label: 'Delete a recycling request' },
+  // 0377: recording a Pre-Delivery Quality Check -- granted to NO role.
+  { group: 'Indoor Service', key: 'pdqc.record', label: 'Record a Pre-Delivery Quality Check' },
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
   { group: 'Spares', key: 'consumption.reconcile', label: 'Add consumption against a call (reconciliation)' },
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
@@ -771,7 +777,8 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/indoor', label: 'Indoor Service Register',
       actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn', 'indoor.verify', 'indoor.delete', 'indoor.pdt_unsign'] },
     { path: '/indoor/recycling', label: 'Spare Recycling',
-      actions: ['recycle.view', 'recycle.register', 'recycle.request', 'recycle.issue', 'recycle.close'] },
+      actions: ['recycle.view', 'recycle.register', 'recycle.request', 'recycle.issue', 'recycle.close', 'recycle.delete'] },
+    { path: '/indoor/pdqc', label: 'Pre-Delivery Quality Check', actions: ['pdqc.record'] },
   ] },
   { title: 'Reports', pages: [
     // The parent GRANTS ALL THREE below it, so a role that only needs one is

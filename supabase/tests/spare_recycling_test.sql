@@ -252,3 +252,32 @@ begin; set local role authenticated;
   select count(*) from public.recycle_mrn_lines('');
 commit;
 update public.app_settings set value = 'off' where key = 'audit_mode';
+
+\echo '--- 14. DELETE A REQUEST (0376): ITS CONSUMPTION AND COSTS GO, ITS MRS STAYS ---'
+call public.be('rcy_user@x.com');
+\echo 'expect ERROR: deleting needs recycle.delete'
+begin; set local role authenticated;
+  select public.delete_recycle_requests(array(select id from public.recycle_requests where part_code = 'PCB-100'));
+commit;
+call public.be('rcy_nobody@x.com');
+update public.profiles set extra_permissions = extra_permissions || '["recycle.delete"]'::jsonb where email = 'rcy_user@x.com';
+call public.be('rcy_user@x.com');
+update public.app_settings set value = 'on' where key = 'audit_mode';
+\echo 'expect ERROR: not in Audit Mode'
+begin; set local role authenticated;
+  select public.delete_recycle_requests(array(select id from public.recycle_requests where part_code = 'PCB-100'));
+commit;
+update public.app_settings set value = 'off' where key = 'audit_mode';
+create temp table del_ids as select id from public.recycle_requests where part_code = 'PCB-100';
+grant select on del_ids to authenticated;
+begin; set local role authenticated;
+  select 'a closed request with consumption and costs is deleted' as t,
+         public.delete_recycle_requests(array(select id from del_ids)) = 1 as ok;
+commit;
+select 'its consumption, costs and the request are gone; its MRS is kept, unlinked',
+       not exists (select 1 from public.recycle_requests r join del_ids d using (id))
+   and not exists (select 1 from public.recycle_consumption c join del_ids d on d.id = c.request_id)
+   and not exists (select 1 from public.recycle_other_costs c join del_ids d on d.id = c.request_id)
+   and exists (select 1 from public.recycle_mrs where request_id is null) as ok;
+select 'the guards still refuse a plain delete (flag is off again)',
+       current_setting('rithi.recycle_delete', true) is distinct from 'on' as ok;

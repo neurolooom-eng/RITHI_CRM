@@ -92,12 +92,17 @@
 --   0334_indoor_testing_data_emptied.sql
 --   0336_indoor_job_worked_on_is_kept.sql
 --   0352_indoor_report_keeps_its_number.sql
---   0360_indoor_approval_skips_a_solved_call.sql
+--   0370_indoor_troubleshooting.sql
+--   0372_indoor_call_status.sql
+--   0374_indoor_new_device_kind.sql
+--   0377_pre_delivery_qc.sql
+--   0382_indoor_approval_skips_a_solved_call.sql
 --   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 --   0367_indoor_dc_approver_is_the_login.sql
---   0370_indoor_record_visit_closed_and_comments.sql
+--   0378_indoor_record_visit_closed_and_comments.sql
 --   0355_spare_recycling.sql
 --   0365_spare_recycling_start_sla_mrn.sql
+--   0376_spare_recycling_delete.sql
 --   0021_master_lists.sql
 --   0066_master_values_active.sql
 --   0067_master_list_permissions.sql
@@ -127,7 +132,7 @@
 --   0368_qms_revision_is_a_new_entry.sql
 --   0264_people_and_training.sql
 --   0295_user_profile_details_key.sql
---   0372_user_master_keeps_history.sql
+--   0379_user_master_keeps_history.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
@@ -162,7 +167,7 @@
 --   0287_call_keys_per_register.sql
 --   0311_cancel_needs_an_open_call.sql
 --   0341_call_actions_need_sight_of_the_call.sql
---   0374_field_call_vigilance_answered.sql
+--   0380_field_call_vigilance_answered.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
@@ -195,7 +200,7 @@
 --   0285_auto_review_by_role.sql
 --   0342_review_needs_a_call_you_can_see.sql
 --   0353_review_summary_carries_the_searched_columns.sql
---   0376_review_answers_read_key.sql
+--   0381_review_answers_read_key.sql
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
 --   0115_visit_date_sanity.sql
@@ -4975,7 +4980,7 @@ insert into public.perm_parents (child, parent) values
   ('masters.product_master.edit', 'masters.edit.records'),
   ('masters.product_master.edit', 'masters.edit'),
   ('masters.product_master.delete', 'masters.edit'),
-  -- D-129 (0376, 2026-10-05): an editor of the review reads its answers.
+  -- D-129 (0381, 2026-10-05): an editor of the review reads its answers.
   ('review.view', 'review.edit');
 
 -- has_perm() keeps its shape and its NULL: with no signed-in user
@@ -10178,35 +10183,668 @@ create trigger indoor_report_keeps_its_number
   for each row execute function public.indoor_report_keeps_its_number();
 
 -- ------------------------------------------------------------------------
--- 0360_indoor_approval_skips_a_solved_call.sql
+-- 0370_indoor_troubleshooting.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0360 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
---        (second re-review D-145; the user's decision, 2026-10-04)
+-- 0370 — INDOOR SERVICE: A FIELD RETURN IS A TROUBLESHOOTING JOB.
 --
--- approve_indoor_dc files each unit's drafted visit as Unsolved / Return to
--- Field without asking the call's state. Measured: a call solved by a field
--- visit after the draft received the approval's Unsolved visit as its latest
--- entry, so it read Unsolved, reopen_count 0, nothing saying why.
+-- The user, 2026-10-04 (the Receive equipment intake): "Fix it to
+-- Troubleshooting - when it is Field Return", and Troubleshooting follows the
+-- Repair rules ("Same as Repair"): it cannot be dispatched or closed before
+-- its quality check is recorded (4.5.6).
 --
--- THE USER'S DECISION: "Approve, skip that visit" -- the DC is approved and
--- its other units' visits are filed; for a unit whose call is already Solved
--- the drafted visit (and its spares) is NOT filed, the skip is written to the
--- audit log (indoor.visit_skipped) and the approver is told which calls: the
--- function returns "<DC No> | visit not filed, call already Solved: <UCNs>",
--- and the screen shows it. "Solved" is the call's last status beginning with
--- Solved (Solved, Solved - Report Pending ...) -- NOT open_state's "Report
--- pending", which also covers a visit with a blank status.
---
--- The function is the DATABASE'S definition (pg_get_functiondef on a database
--- built from every migration, i.e. 0327's) VERBATIM, with those lines added.
--- In the indoor module, after 0327.
+-- The activity CHECK gains 'Troubleshooting'; indoor_jobs_guard() is re-stated
+-- from the DATABASE's current definition (0352's, read with
+-- pg_get_functiondef, never from an older migration file) with the one line
+-- that names Repair and Rework now naming Troubleshooting too.
 -- ===========================================================================
 
-create or replace function public.approve_indoor_dc(p_dc_no text, p_check_only boolean default false)
-returns text language plpgsql security definer set search_path = public as $function$
+alter table public.indoor_jobs drop constraint if exists indoor_jobs_activity_check;
+alter table public.indoor_jobs add constraint indoor_jobs_activity_check
+  check (activity in ('Repair', 'Rework', 'Troubleshooting', 'Salvage', 'Pre-delivery inspection', 'Demo', 'Other'));
+
+CREATE OR REPLACE FUNCTION public.indoor_jobs_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
 declare
+  v_pdt   public.indoor_pdt%rowtype;
+  v_blank text[];
+  v_bad   text[];
+begin
+  -- An administrator is not gated by the stage rights; every other rule below
+  -- still applies to them, because the ones that follow are about the RECORD
+  -- being coherent rather than about who is allowed to act.
+  if not public.is_admin() then
+    if tg_op = 'UPDATE' then
+      if (new.qc_result is distinct from old.qc_result
+       or new.qc_by     is distinct from old.qc_by
+       or new.qc_at     is distinct from old.qc_at
+       or new.qc_notes  is distinct from old.qc_notes)
+         and not public.has_perm('indoor.qc') then
+        raise exception 'indoor.qc is required to record a quality check'
+          using errcode = '42501';
+      end if;
+
+      if (new.dispatched_at is distinct from old.dispatched_at
+       or new.dispatch_ref  is distinct from old.dispatch_ref
+       or new.dispatched_by is distinct from old.dispatched_by)
+         and not public.has_perm('indoor.dispatch')
+         -- 0323: a REJECTED Indoor DC releases its units through
+         -- reject_indoor_dc(), whose approver need not hold indoor.dispatch.
+         -- The exemption is a ticket only that definer function can write.
+         and not public.indoor_dc_release_ticketed(new.id) then
+        raise exception 'indoor.dispatch is required to dispatch a unit'
+          using errcode = '42501';
+      end if;
+
+      if new.status in ('Dispatched', 'Closed') and new.status is distinct from old.status
+         and not public.has_perm('indoor.dispatch') then
+        raise exception 'indoor.dispatch is required to mark a unit %', new.status
+          using errcode = '42501';
+      end if;
+    end if;
+
+    -- CONDEMNING IS ITS OWN RIGHT, on insert as well as update. Scrapping
+    -- customer property in particular cannot be an engineer's own decision
+    -- (open question 8 in the plan, settled here the safe way: a separate
+    -- permission granted to nobody by default).
+    if (tg_op = 'INSERT' and (btrim(new.condemned_reason) <> '' or new.status = 'Condemned'))
+    or (tg_op = 'UPDATE' and (new.condemned_reason is distinct from old.condemned_reason
+                           or new.condemned_at     is distinct from old.condemned_at
+                           or (new.status = 'Condemned' and old.status <> 'Condemned'))) then
+      if not public.has_perm('indoor.condemn') then
+        raise exception 'indoor.condemn is required to condemn a unit'
+          using errcode = '42501';
+      end if;
+      if new.condemned_at is null then new.condemned_at := now(); end if;
+      if new.condemned_by is null then new.condemned_by := auth.uid(); end if;
+    end if;
+  end if;
+
+  -- A MACHINE CANNOT LEAVE WITH A FAILED CHECK. 4.5.6 puts the quality check
+  -- before the return, so a failed one sends it back to Under repair rather
+  -- than being noted and stepped over.
+  if new.status in ('Ready', 'Dispatched', 'Closed') and new.qc_result = 'Fail' then
+    raise exception 'the quality check failed -- the unit returns to Under repair, it does not leave'
+      using errcode = '23514';
+  end if;
+
+  -- AND A REPAIR OR REWORK CANNOT LEAVE WITH NO CHECK AT ALL. The other four
+  -- activities are exempt on purpose: a demo going out and a unit stripped for
+  -- parts have no repair to verify, and a pre-delivery inspection records its
+  -- verdict in pdi_result instead.
+  if new.status in ('Dispatched', 'Closed')
+     and new.activity in ('Repair', 'Rework', 'Troubleshooting')
+     and new.qc_result is null then
+    raise exception 'a % cannot be dispatched before its quality check is recorded (4.5.6)', lower(new.activity)
+      using errcode = '23514';
+  end if;
+
+  -- A FAILED PRE-DELIVERY INSPECTION DOES NOT SHIP either, and a held one says
+  -- why it is being held.
+  if new.status in ('Dispatched', 'Closed')
+     and new.activity = 'Pre-delivery inspection' and new.pdi_result = 'Fail' then
+    raise exception 'a failed pre-delivery inspection does not leave the workshop'
+      using errcode = '23514';
+  end if;
+
+  -- Timestamps that follow from an action are stamped, not typed: a cleaning
+  -- date somebody can type is a cleaning date somebody can back-date.
+  if new.status <> 'Received' and old is distinct from null then
+    if new.cleaned_by is distinct from coalesce(old.cleaned_by, new.cleaned_by)
+       and new.cleaned_at is null then
+      new.cleaned_at := now();
+    end if;
+  end if;
+  if new.qc_result is not null and new.qc_at is null then
+    new.qc_at := now();
+    if new.qc_by is null then new.qc_by := auth.uid(); end if;
+  end if;
+  if new.dispatch_ref <> '' and new.dispatched_at is null then
+    new.dispatched_at := now();
+    if new.dispatched_by is null then new.dispatched_by := auth.uid(); end if;
+  end if;
+
+  -- ======================== 0320 ========================================
+
+  -- R/SER/QC/007. A DEMO UNIT OF AN IMPORTED PRODUCT DOES NOT LEAVE UNTESTED.
+  -- Asked on the MOVE into Dispatched / Closed (or a job filed or re-kinded
+  -- straight into one), not on every later edit: a unit already out before
+  -- this rule existed can still be verified and remarked. UNKNOWN imported-ness
+  -- does not require the test -- the user's decision; the screen says unknown.
+  if new.kind = 'DEMO unit' and new.status in ('Dispatched', 'Closed')
+     and (tg_op = 'INSERT' or new.status is distinct from old.status
+          or new.kind is distinct from old.kind
+          or new.product_name is distinct from old.product_name
+          or new.serial is distinct from old.serial)
+     and coalesce(public.indoor_job_is_imported(new.product_name, new.serial), false) then
+    select * into v_pdt from public.indoor_pdt where job_id = new.id;
+    if not found then
+      raise exception 'a DEMO unit of an imported product does not leave before its Pre-Delivery Testing (R/SER/QC/007) is recorded'
+        using errcode = '23514';
+    end if;
+    v_bad := array_remove(array[
+      case when v_pdt.check1 = 'NOT OK' then '1' end,
+      case when v_pdt.check2 = 'NOT OK' then '2' end,
+      case when v_pdt.check3 = 'NOT OK' then '3' end,
+      case when v_pdt.check4 = 'NOT OK' then '4' end,
+      case when v_pdt.check5 = 'NOT OK' then '5' end], null);
+    if cardinality(v_bad) > 0 then
+      raise exception 'Pre-Delivery Testing check % reads NOT OK -- a machine cannot leave with a failed check',
+        array_to_string(v_bad, ', ')
+        using errcode = '23514';
+    end if;
+    v_blank := array_remove(array[
+      case when v_pdt.test_date is null then 'Date' end,
+      case when btrim(v_pdt.measuring_equipment_id) = '' then 'Measuring Equipment ID No' end,
+      case when btrim(v_pdt.software_version) = '' then 'Software Version' end,
+      case when btrim(v_pdt.hv) = '' then 'HV' end,
+      case when btrim(v_pdt.ht) = '' then 'HT' end,
+      case when v_pdt.check1 is null or v_pdt.check2 is null or v_pdt.check3 is null
+             or v_pdt.check4 is null or v_pdt.check5 is null then 'checks 1-5' end,
+      case when v_pdt.cmv_vte_21 is null or v_pdt.cmv_vte_60 is null or v_pdt.cmv_vte_100 is null
+             or v_pdt.cmv_peep_21 is null or v_pdt.cmv_peep_60 is null or v_pdt.cmv_peep_100 is null
+             or v_pdt.cmv_o2_21 is null or v_pdt.cmv_o2_60 is null or v_pdt.cmv_o2_100 is null
+           then 'the CMV/ACMV readings' end,
+      case when v_pdt.pcmv_pip_21 is null or v_pdt.pcmv_pip_60 is null or v_pdt.pcmv_pip_100 is null
+             or v_pdt.pcmv_peep_21 is null or v_pdt.pcmv_peep_60 is null or v_pdt.pcmv_peep_100 is null
+             or v_pdt.pcmv_o2_21 is null or v_pdt.pcmv_o2_60 is null or v_pdt.pcmv_o2_100 is null
+           then 'the PCMV readings' end,
+      case when v_pdt.inspected_by is null then 'Inspected by (not signed)' end], null);
+    if cardinality(v_blank) > 0 then
+      raise exception 'Pre-Delivery Testing (R/SER/QC/007) is incomplete -- still blank: %',
+        array_to_string(v_blank, ', ')
+        using errcode = '23514';
+    end if;
+  end if;
+
+  -- R/SER/07 "VERIFIED BY". Its own key; only on a completed row; who and when
+  -- from the session. On insert there is nothing to verify yet, so whatever
+  -- was sent is discarded.
+  if tg_op = 'INSERT' then
+    new.verified_by := null;
+    new.verified_at := null;
+  elsif new.verified_by is distinct from old.verified_by
+     or new.verified_at is distinct from old.verified_at then
+    if not public.has_perm('indoor.verify') then
+      raise exception 'indoor.verify is required to verify an Indoor Service register entry'
+        using errcode = '42501';
+    end if;
+    if new.verified_by is null then
+      new.verified_at := null;               -- a verification withdrawn
+    else
+      if new.status not in ('Dispatched', 'Closed', 'Condemned') then
+        raise exception 'a register entry is verified once the unit is Dispatched, Closed or Condemned -- this one is %', new.status
+          using errcode = '23514';
+      end if;
+      new.verified_by := auth.uid();
+      new.verified_at := now();
+    end if;
+  end if;
+
+  -- R/SER/07 "Status" is the COVER, in the one vocabulary (0208), where that
+  -- rule is installed. Run-time lookup: data_integrity runs after this module.
+  if new.cover is distinct from (case when tg_op = 'UPDATE' then old.cover end)
+     and to_regprocedure('public.cover_code(text)') is not null then
+    execute 'select public.cover_code($1)' into new.cover using new.cover;
+    new.cover := coalesce(new.cover, '');
+  end if;
+
+
+  -- ======================== 0323 ========================================
+
+  -- A UNIT ON AN INDOOR DC THAT IS STILL PENDING APPROVAL DOES NOT LEAVE.
+  -- Asked on the move into Dispatched / Closed.
+  if new.status in ('Dispatched', 'Closed')
+     and (tg_op = 'INSERT' or new.status is distinct from old.status)
+     and btrim(coalesce(new.dispatch_ref, '')) <> ''
+     and exists (select 1 from public.indoor_dcs d
+                  where d.dc_no = btrim(new.dispatch_ref) and d.approval_status = 'Pending approval') then
+    raise exception 'Indoor DC % is still pending approval -- the unit is dispatched once it is approved', btrim(new.dispatch_ref)
+      using errcode = '23514';
+  end if;
+
+  -- STAGE 4 -- THE INDOOR SERVICE REPORT. Uploaded after CLEANING, with its
+  -- number; the indoor.work right; who and when from the session.
+  if new.report_file_url is distinct from (case when tg_op = 'UPDATE' then old.report_file_url end)
+     and btrim(coalesce(new.report_file_url, '')) <> '' then
+    if not public.is_admin() and not public.has_perm('indoor.work') then
+      raise exception 'indoor.work is required to upload the Indoor Service Report'
+        using errcode = '42501';
+    end if;
+    if new.cleaned_at is null then
+      raise exception 'the Indoor Service Report is uploaded after cleaning (WI/SER/01) -- this unit has not been cleaned yet'
+        using errcode = '23514';
+    end if;
+    if btrim(coalesce(new.indoor_report_no, '')) = '' then
+      raise exception 'an uploaded Indoor Service Report needs its Indoor Service Report No'
+        using errcode = '23514';
+    end if;
+    new.report_uploaded_by := auth.uid();
+    new.report_uploaded_at := now();
+  elsif btrim(coalesce(new.report_file_url, '')) = '' then
+    new.report_file_url    := '';
+    new.report_file_name   := '';
+    new.report_uploaded_by := null;
+    new.report_uploaded_at := null;
+  elsif tg_op = 'UPDATE' then
+    new.report_uploaded_by := old.report_uploaded_by;   -- unchanged file: the stamps stand
+    new.report_uploaded_at := old.report_uploaded_at;
+  end if;
+
+  -- STAGE 5 -- THE VISIT FILED FROM THE DRAFT. visit_uid must be a visit of
+  -- THIS job's call; visit_filed_at is stamped, and only once a visit is named.
+  if new.visit_uid is distinct from (case when tg_op = 'UPDATE' then old.visit_uid end)
+     and new.visit_uid is not null then
+    if new.ucn is null or not exists (select 1 from public.reports r
+                                       where r.uid = new.visit_uid and r.ucn = new.ucn) then
+      raise exception 'visit % is not a visit of call % -- a job records only the visit filed against its own call',
+        new.visit_uid, coalesce(new.ucn, '(none)')
+        using errcode = '23514';
+    end if;
+    -- THE USER'S RULE FOR THIS VISIT (2026-10-02): the unit goes back to the
+    -- field, so the call is Unsolved, pending "Return to Field", with the work
+    -- details updated. A visit saying anything else is not the one this stage
+    -- files.
+    if not exists (select 1 from public.reports r
+                    where r.uid = new.visit_uid
+                      and r.call_status = 'Unsolved'
+                      and r.pending_reason = 'Return to Field'
+                      and r.data ->> 'Update Visit Work Details?' = 'Yes') then
+      raise exception 'visit % does not read Unsolved / Return to Field / Update Visit Work Details? = Yes -- the visit filed from Indoor Service always does',
+        new.visit_uid
+        using errcode = '23514';
+    end if;
+    if btrim(coalesce(new.report_file_url, '')) = '' then
+      raise exception 'the visit is filed from the Indoor Service Report stage -- upload the report first'
+        using errcode = '23514';
+    end if;
+  end if;
+  if new.visit_uid is null then
+    new.visit_filed_at := null;
+  elsif new.visit_filed_at is distinct from (case when tg_op = 'UPDATE' then old.visit_filed_at end) then
+    new.visit_filed_at := case when new.visit_filed_at is null then null else now() end;
+  end if;
+
+  return new;
+end $function$
+
+;
+
+-- ------------------------------------------------------------------------
+-- 0372_indoor_call_status.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0372 — INDOOR SERVICE: THE JOB'S CALL STATUS AND CALL PENDING REASON.
+--
+-- The user, 2026-10-04 (the Repair page's Workshop record): "Move this to Top
+-- of this Page, Remove Status and Add - Call Status, Call Pending Reason.
+-- Follow the Exact same rule as to Visit Work Details - All Fields should be
+-- Mimicked as we are basically calling the same module here." And:
+--   * ONE VALUE: what is chosen on the job IS the visit's Call Status and
+--     Pending Reason (until now fixed at Unsolved / Return to Field);
+--   * the job's own status is DERIVED from it, not chosen:
+--       Solved - ...                 -> Ready (a Repair / Rework /
+--                                       Troubleshooting first needs its QC
+--                                       Pass: until then QC)
+--       Unsolved, spare not available -> Awaiting spares
+--       Unsolved, any other reason    -> Under repair
+--     never once the unit is Dispatched, Closed or Condemned, and not before
+--     it is cleaned;
+--   * a DEMO / new device (no call) keeps its Status chosen by hand.
+-- The visit form's rules, mirrored: the three statuses of that form; a Pending
+-- Reason for Unsolved (asked of the DC approval, which files the visit); a
+-- report pending reads "Report Pending"; a completed report has none.
+-- ===========================================================================
+
+alter table public.indoor_jobs add column if not exists call_status         text not null default '';
+alter table public.indoor_jobs add column if not exists call_pending_reason text not null default '';
+
+alter table public.indoor_jobs drop constraint if exists indoor_jobs_call_status_check;
+alter table public.indoor_jobs add constraint indoor_jobs_call_status_check
+  check (call_status in ('', 'Solved - Report Completed', 'Unsolved', 'Solved - Report Pending'));
+
+-- What the filed visit reads: the job's choice, or -- for a job from before
+-- 0372 with none -- the old fixed Unsolved / Return to Field.
+create or replace function public.indoor_visit_status(p_status text, p_reason text)
+returns table (call_status text, pending_reason text)
+language sql immutable set search_path = public as $$
+  select case when btrim(coalesce(p_status, '')) = '' then 'Unsolved' else btrim(p_status) end,
+         case when btrim(coalesce(p_status, '')) = '' then 'Return to Field'
+              when btrim(p_status) = 'Solved - Report Pending' then 'Report Pending'
+              when btrim(p_status) = 'Solved - Report Completed' then ''
+              else btrim(coalesce(p_reason, '')) end;
+$$;
+
+-- THE DERIVATION, BEFORE the guard (zy < zz) so the guard judges the status it
+-- produced. Also keeps a saved visit draft in step, so the two never disagree.
+create or replace function public.indoor_jobs_call_status()
+returns trigger language plpgsql set search_path = public as $$
+declare
+  st     text := btrim(coalesce(new.call_status, ''));
+  rsn    text := upper(btrim(coalesce(new.call_pending_reason, '')));
+begin
+  -- The visit form's own normalising: a pending report reads Report Pending,
+  -- a completed one carries no reason.
+  if st = 'Solved - Report Pending' then new.call_pending_reason := 'Report Pending';
+  elsif st = 'Solved - Report Completed' then new.call_pending_reason := '';
+  end if;
+
+  if coalesce(btrim(new.ucn), '') <> '' and st <> ''
+     and new.cleaned_at is not null
+     and coalesce(new.status, '') not in ('Dispatched', 'Closed', 'Condemned') then
+    if st like 'Solved%' then
+      new.status := case when new.activity in ('Repair', 'Rework', 'Troubleshooting')
+                              and new.qc_result is distinct from 'Pass' then 'QC' else 'Ready' end;
+    elsif rsn like '%SPARE%' and (rsn like '%NOT AVAILABLE%' or rsn like '%UNAVAILABLE%') then
+      new.status := 'Awaiting spares';
+    else
+      new.status := 'Under repair';
+    end if;
+  end if;
+
+  if st <> '' and new.visit_draft is not null and jsonb_typeof(new.visit_draft) = 'object' then
+    new.visit_draft := new.visit_draft || jsonb_build_object(
+      'status', st, 'pendingReason', coalesce(new.call_pending_reason, ''), 'updateWork', 'Yes');
+  end if;
+  return new;
+end $$;
+revoke execute on function public.indoor_jobs_call_status() from public, anon, authenticated;
+
+drop trigger if exists zy_indoor_jobs_call_status on public.indoor_jobs;
+create trigger zy_indoor_jobs_call_status before insert or update on public.indoor_jobs
+  for each row execute function public.indoor_jobs_call_status();
+
+-- The guard, re-stated from the database's current definition (0370's) with
+-- its visit check reading the job's choice.
+CREATE OR REPLACE FUNCTION public.indoor_jobs_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_pdt   public.indoor_pdt%rowtype;
+  v_blank text[];
+  v_bad   text[];
+begin
+  -- An administrator is not gated by the stage rights; every other rule below
+  -- still applies to them, because the ones that follow are about the RECORD
+  -- being coherent rather than about who is allowed to act.
+  if not public.is_admin() then
+    if tg_op = 'UPDATE' then
+      if (new.qc_result is distinct from old.qc_result
+       or new.qc_by     is distinct from old.qc_by
+       or new.qc_at     is distinct from old.qc_at
+       or new.qc_notes  is distinct from old.qc_notes)
+         and not public.has_perm('indoor.qc') then
+        raise exception 'indoor.qc is required to record a quality check'
+          using errcode = '42501';
+      end if;
+
+      if (new.dispatched_at is distinct from old.dispatched_at
+       or new.dispatch_ref  is distinct from old.dispatch_ref
+       or new.dispatched_by is distinct from old.dispatched_by)
+         and not public.has_perm('indoor.dispatch')
+         -- 0323: a REJECTED Indoor DC releases its units through
+         -- reject_indoor_dc(), whose approver need not hold indoor.dispatch.
+         -- The exemption is a ticket only that definer function can write.
+         and not public.indoor_dc_release_ticketed(new.id) then
+        raise exception 'indoor.dispatch is required to dispatch a unit'
+          using errcode = '42501';
+      end if;
+
+      if new.status in ('Dispatched', 'Closed') and new.status is distinct from old.status
+         and not public.has_perm('indoor.dispatch') then
+        raise exception 'indoor.dispatch is required to mark a unit %', new.status
+          using errcode = '42501';
+      end if;
+    end if;
+
+    -- CONDEMNING IS ITS OWN RIGHT, on insert as well as update. Scrapping
+    -- customer property in particular cannot be an engineer's own decision
+    -- (open question 8 in the plan, settled here the safe way: a separate
+    -- permission granted to nobody by default).
+    if (tg_op = 'INSERT' and (btrim(new.condemned_reason) <> '' or new.status = 'Condemned'))
+    or (tg_op = 'UPDATE' and (new.condemned_reason is distinct from old.condemned_reason
+                           or new.condemned_at     is distinct from old.condemned_at
+                           or (new.status = 'Condemned' and old.status <> 'Condemned'))) then
+      if not public.has_perm('indoor.condemn') then
+        raise exception 'indoor.condemn is required to condemn a unit'
+          using errcode = '42501';
+      end if;
+      if new.condemned_at is null then new.condemned_at := now(); end if;
+      if new.condemned_by is null then new.condemned_by := auth.uid(); end if;
+    end if;
+  end if;
+
+  -- A MACHINE CANNOT LEAVE WITH A FAILED CHECK. 4.5.6 puts the quality check
+  -- before the return, so a failed one sends it back to Under repair rather
+  -- than being noted and stepped over.
+  if new.status in ('Ready', 'Dispatched', 'Closed') and new.qc_result = 'Fail' then
+    raise exception 'the quality check failed -- the unit returns to Under repair, it does not leave'
+      using errcode = '23514';
+  end if;
+
+  -- AND A REPAIR OR REWORK CANNOT LEAVE WITH NO CHECK AT ALL. The other four
+  -- activities are exempt on purpose: a demo going out and a unit stripped for
+  -- parts have no repair to verify, and a pre-delivery inspection records its
+  -- verdict in pdi_result instead.
+  if new.status in ('Dispatched', 'Closed')
+     and new.activity in ('Repair', 'Rework', 'Troubleshooting')
+     and new.qc_result is null then
+    raise exception 'a % cannot be dispatched before its quality check is recorded (4.5.6)', lower(new.activity)
+      using errcode = '23514';
+  end if;
+
+  -- A FAILED PRE-DELIVERY INSPECTION DOES NOT SHIP either, and a held one says
+  -- why it is being held.
+  if new.status in ('Dispatched', 'Closed')
+     and new.activity = 'Pre-delivery inspection' and new.pdi_result = 'Fail' then
+    raise exception 'a failed pre-delivery inspection does not leave the workshop'
+      using errcode = '23514';
+  end if;
+
+  -- Timestamps that follow from an action are stamped, not typed: a cleaning
+  -- date somebody can type is a cleaning date somebody can back-date.
+  if new.status <> 'Received' and old is distinct from null then
+    if new.cleaned_by is distinct from coalesce(old.cleaned_by, new.cleaned_by)
+       and new.cleaned_at is null then
+      new.cleaned_at := now();
+    end if;
+  end if;
+  if new.qc_result is not null and new.qc_at is null then
+    new.qc_at := now();
+    if new.qc_by is null then new.qc_by := auth.uid(); end if;
+  end if;
+  if new.dispatch_ref <> '' and new.dispatched_at is null then
+    new.dispatched_at := now();
+    if new.dispatched_by is null then new.dispatched_by := auth.uid(); end if;
+  end if;
+
+  -- ======================== 0320 ========================================
+
+  -- R/SER/QC/007. A DEMO UNIT OF AN IMPORTED PRODUCT DOES NOT LEAVE UNTESTED.
+  -- Asked on the MOVE into Dispatched / Closed (or a job filed or re-kinded
+  -- straight into one), not on every later edit: a unit already out before
+  -- this rule existed can still be verified and remarked. UNKNOWN imported-ness
+  -- does not require the test -- the user's decision; the screen says unknown.
+  if new.kind = 'DEMO unit' and new.status in ('Dispatched', 'Closed')
+     and (tg_op = 'INSERT' or new.status is distinct from old.status
+          or new.kind is distinct from old.kind
+          or new.product_name is distinct from old.product_name
+          or new.serial is distinct from old.serial)
+     and coalesce(public.indoor_job_is_imported(new.product_name, new.serial), false) then
+    select * into v_pdt from public.indoor_pdt where job_id = new.id;
+    if not found then
+      raise exception 'a DEMO unit of an imported product does not leave before its Pre-Delivery Testing (R/SER/QC/007) is recorded'
+        using errcode = '23514';
+    end if;
+    v_bad := array_remove(array[
+      case when v_pdt.check1 = 'NOT OK' then '1' end,
+      case when v_pdt.check2 = 'NOT OK' then '2' end,
+      case when v_pdt.check3 = 'NOT OK' then '3' end,
+      case when v_pdt.check4 = 'NOT OK' then '4' end,
+      case when v_pdt.check5 = 'NOT OK' then '5' end], null);
+    if cardinality(v_bad) > 0 then
+      raise exception 'Pre-Delivery Testing check % reads NOT OK -- a machine cannot leave with a failed check',
+        array_to_string(v_bad, ', ')
+        using errcode = '23514';
+    end if;
+    v_blank := array_remove(array[
+      case when v_pdt.test_date is null then 'Date' end,
+      case when btrim(v_pdt.measuring_equipment_id) = '' then 'Measuring Equipment ID No' end,
+      case when btrim(v_pdt.software_version) = '' then 'Software Version' end,
+      case when btrim(v_pdt.hv) = '' then 'HV' end,
+      case when btrim(v_pdt.ht) = '' then 'HT' end,
+      case when v_pdt.check1 is null or v_pdt.check2 is null or v_pdt.check3 is null
+             or v_pdt.check4 is null or v_pdt.check5 is null then 'checks 1-5' end,
+      case when v_pdt.cmv_vte_21 is null or v_pdt.cmv_vte_60 is null or v_pdt.cmv_vte_100 is null
+             or v_pdt.cmv_peep_21 is null or v_pdt.cmv_peep_60 is null or v_pdt.cmv_peep_100 is null
+             or v_pdt.cmv_o2_21 is null or v_pdt.cmv_o2_60 is null or v_pdt.cmv_o2_100 is null
+           then 'the CMV/ACMV readings' end,
+      case when v_pdt.pcmv_pip_21 is null or v_pdt.pcmv_pip_60 is null or v_pdt.pcmv_pip_100 is null
+             or v_pdt.pcmv_peep_21 is null or v_pdt.pcmv_peep_60 is null or v_pdt.pcmv_peep_100 is null
+             or v_pdt.pcmv_o2_21 is null or v_pdt.pcmv_o2_60 is null or v_pdt.pcmv_o2_100 is null
+           then 'the PCMV readings' end,
+      case when v_pdt.inspected_by is null then 'Inspected by (not signed)' end], null);
+    if cardinality(v_blank) > 0 then
+      raise exception 'Pre-Delivery Testing (R/SER/QC/007) is incomplete -- still blank: %',
+        array_to_string(v_blank, ', ')
+        using errcode = '23514';
+    end if;
+  end if;
+
+  -- R/SER/07 "VERIFIED BY". Its own key; only on a completed row; who and when
+  -- from the session. On insert there is nothing to verify yet, so whatever
+  -- was sent is discarded.
+  if tg_op = 'INSERT' then
+    new.verified_by := null;
+    new.verified_at := null;
+  elsif new.verified_by is distinct from old.verified_by
+     or new.verified_at is distinct from old.verified_at then
+    if not public.has_perm('indoor.verify') then
+      raise exception 'indoor.verify is required to verify an Indoor Service register entry'
+        using errcode = '42501';
+    end if;
+    if new.verified_by is null then
+      new.verified_at := null;               -- a verification withdrawn
+    else
+      if new.status not in ('Dispatched', 'Closed', 'Condemned') then
+        raise exception 'a register entry is verified once the unit is Dispatched, Closed or Condemned -- this one is %', new.status
+          using errcode = '23514';
+      end if;
+      new.verified_by := auth.uid();
+      new.verified_at := now();
+    end if;
+  end if;
+
+  -- R/SER/07 "Status" is the COVER, in the one vocabulary (0208), where that
+  -- rule is installed. Run-time lookup: data_integrity runs after this module.
+  if new.cover is distinct from (case when tg_op = 'UPDATE' then old.cover end)
+     and to_regprocedure('public.cover_code(text)') is not null then
+    execute 'select public.cover_code($1)' into new.cover using new.cover;
+    new.cover := coalesce(new.cover, '');
+  end if;
+
+
+  -- ======================== 0323 ========================================
+
+  -- A UNIT ON AN INDOOR DC THAT IS STILL PENDING APPROVAL DOES NOT LEAVE.
+  -- Asked on the move into Dispatched / Closed.
+  if new.status in ('Dispatched', 'Closed')
+     and (tg_op = 'INSERT' or new.status is distinct from old.status)
+     and btrim(coalesce(new.dispatch_ref, '')) <> ''
+     and exists (select 1 from public.indoor_dcs d
+                  where d.dc_no = btrim(new.dispatch_ref) and d.approval_status = 'Pending approval') then
+    raise exception 'Indoor DC % is still pending approval -- the unit is dispatched once it is approved', btrim(new.dispatch_ref)
+      using errcode = '23514';
+  end if;
+
+  -- STAGE 4 -- THE INDOOR SERVICE REPORT. Uploaded after CLEANING, with its
+  -- number; the indoor.work right; who and when from the session.
+  if new.report_file_url is distinct from (case when tg_op = 'UPDATE' then old.report_file_url end)
+     and btrim(coalesce(new.report_file_url, '')) <> '' then
+    if not public.is_admin() and not public.has_perm('indoor.work') then
+      raise exception 'indoor.work is required to upload the Indoor Service Report'
+        using errcode = '42501';
+    end if;
+    if new.cleaned_at is null then
+      raise exception 'the Indoor Service Report is uploaded after cleaning (WI/SER/01) -- this unit has not been cleaned yet'
+        using errcode = '23514';
+    end if;
+    if btrim(coalesce(new.indoor_report_no, '')) = '' then
+      raise exception 'an uploaded Indoor Service Report needs its Indoor Service Report No'
+        using errcode = '23514';
+    end if;
+    new.report_uploaded_by := auth.uid();
+    new.report_uploaded_at := now();
+  elsif btrim(coalesce(new.report_file_url, '')) = '' then
+    new.report_file_url    := '';
+    new.report_file_name   := '';
+    new.report_uploaded_by := null;
+    new.report_uploaded_at := null;
+  elsif tg_op = 'UPDATE' then
+    new.report_uploaded_by := old.report_uploaded_by;   -- unchanged file: the stamps stand
+    new.report_uploaded_at := old.report_uploaded_at;
+  end if;
+
+  -- STAGE 5 -- THE VISIT FILED FROM THE DRAFT. visit_uid must be a visit of
+  -- THIS job's call; visit_filed_at is stamped, and only once a visit is named.
+  if new.visit_uid is distinct from (case when tg_op = 'UPDATE' then old.visit_uid end)
+     and new.visit_uid is not null then
+    if new.ucn is null or not exists (select 1 from public.reports r
+                                       where r.uid = new.visit_uid and r.ucn = new.ucn) then
+      raise exception 'visit % is not a visit of call % -- a job records only the visit filed against its own call',
+        new.visit_uid, coalesce(new.ucn, '(none)')
+        using errcode = '23514';
+    end if;
+    -- THE USER'S RULE FOR THIS VISIT (2026-10-02): the unit goes back to the
+    -- field, so the call is Unsolved, pending "Return to Field", with the work
+    -- details updated. A visit saying anything else is not the one this stage
+    -- files.
+    -- 0372: the visit reads the Call Status and Pending Reason chosen on the
+    -- job's Workshop record (a job from before 0372 with none chosen keeps the
+    -- old fixed Unsolved / Return to Field).
+    if not exists (select 1 from public.reports r, public.indoor_visit_status(new.call_status, new.call_pending_reason) v
+                    where r.uid = new.visit_uid
+                      and r.call_status = v.call_status
+                      and coalesce(r.pending_reason, '') = coalesce(v.pending_reason, '')
+                      and r.data ->> 'Update Visit Work Details?' = 'Yes') then
+      raise exception 'visit % does not read the Call Status / Pending Reason chosen on the job, with Update Visit Work Details? = Yes',
+        new.visit_uid
+        using errcode = '23514';
+    end if;
+    if btrim(coalesce(new.report_file_url, '')) = '' then
+      raise exception 'the visit is filed from the Indoor Service Report stage -- upload the report first'
+        using errcode = '23514';
+    end if;
+  end if;
+  if new.visit_uid is null then
+    new.visit_filed_at := null;
+  elsif new.visit_filed_at is distinct from (case when tg_op = 'UPDATE' then old.visit_filed_at end) then
+    new.visit_filed_at := case when new.visit_filed_at is null then null else now() end;
+  end if;
+
+  return new;
+end $function$;
+
+-- approve_indoor_dc(), re-stated from the database's current definition
+-- (0327's), filing the visit with the job's choice and refusing an Unsolved
+-- job with no Pending Reason.
+CREATE OR REPLACE FUNCTION public.approve_indoor_dc(p_dc_no text, p_check_only boolean DEFAULT false)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_vs     record;
   v_dc    public.indoor_dcs%rowtype;
   j       record;
   v_call  record;
@@ -10214,7 +10852,6 @@ declare
   v_uid   text;
   v_me    text;
   v_sp    jsonb;
-  v_skipped text[] := '{}';
 begin
   select * into v_dc from public.indoor_dcs where dc_no = btrim(p_dc_no) for update;
   if not found then
@@ -10243,6 +10880,491 @@ begin
       raise exception '%: no visit was drafted with its Indoor Service Report -- the Indoor engineer completes it (Report stage) before Indoor DC % can be approved', j.job_no, v_dc.dc_no
         using errcode = '23514';
     end if;
+    if btrim(coalesce(j.call_status, '')) = 'Unsolved' and btrim(coalesce(j.call_pending_reason, '')) = '' then
+      raise exception '%: the Call Status is Unsolved with no Call Pending Reason -- choose one in the Workshop record before Indoor DC % can be approved', j.job_no, v_dc.dc_no
+        using errcode = '23514';
+    end if;
+    if not exists (select 1 from public.calls c where c.ucn = btrim(j.ucn)) then
+      raise exception '%: call % was not found -- its visit cannot be filed', j.job_no, btrim(j.ucn)
+        using errcode = '23503';
+    end if;
+  end loop;
+  if p_check_only then return 'OK'; end if;
+
+  v_me := coalesce((select nullif(btrim(p.email), '') from public.profiles p where p.id = auth.uid()), auth.email(), '');
+  perform set_config('rithi.indoor_visit', 'on', true);
+
+  for j in select * from public.indoor_jobs
+            where btrim(dispatch_ref) = v_dc.dc_no
+              and coalesce(btrim(ucn), '') <> '' and visit_filed_at is null
+            order by id loop
+    select c.ucn, c.call_number, c.call_type into v_call from public.calls c where c.ucn = btrim(j.ucn) limit 1;
+    v_draft := j.visit_draft;
+    -- 0372: the Call Status / Pending Reason chosen on the job's Workshop record.
+    select * into v_vs from public.indoor_visit_status(j.call_status, j.call_pending_reason);
+    -- WHAT THE VISIT ENTRY'S SAVE PATH FILES (fileVisit, CallReporting.tsx),
+    -- with the user's fixed Indoor values whatever the draft says: Unsolved /
+    -- Return to Field / work details Yes; the report is the uploaded Indoor
+    -- Service Report and its number travels as Manual Report No.
+    -- A VISIT ALREADY FILED by an earlier attempt through the screen (0323's
+    -- path recorded its uid before finishing) is reused, never filed twice;
+    -- that path's retry then filed the spares, and so does this.
+    if j.visit_uid is not null and exists (select 1 from public.reports r where r.uid = j.visit_uid) then
+      v_uid := j.visit_uid;
+    else
+    v_uid := 'WEB-' || upper(to_hex((extract(epoch from clock_timestamp()) * 1000)::bigint))
+             || '-' || upper(substr(md5(random()::text || j.id::text), 1, 5));
+    insert into public.reports (uid, ucn, call_number, manual_report, call_status, pending_reason,
+                                engineer, engineer_email, visit_at, data, updated_at)
+    values (v_uid, btrim(j.ucn), coalesce(v_call.call_number, ''), coalesce(j.report_file_url, ''),
+            v_vs.call_status, v_vs.pending_reason,
+            coalesce(v_draft->>'engineer', ''), coalesce(v_draft->>'engineerEmail', ''),
+            case when coalesce(v_draft->>'visitDate', '') <> '' then ((v_draft->>'visitDate') || 'T00:00:00Z')::timestamptz end,
+            jsonb_build_object(
+              'Email-ID', v_me,
+              'Call Type', coalesce(v_call.call_type, ''),
+              'Visit Entry Date', to_char(now() at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI:SS'),
+              'Visit Date & Time', coalesce(v_draft->>'visitDate', ''))
+            || case when jsonb_typeof(v_draft->'work') = 'object' then v_draft->'work' else '{}'::jsonb end
+            -- the fixed values LAST, so nothing in the draft can override them
+            || jsonb_build_object('Update Visit Work Details?', 'Yes',
+                                  'Manual Report', coalesce(j.report_file_url, ''),
+                                  'Manual Report No.', coalesce(j.indoor_report_no, '')),
+            now());
+    end if;
+
+    -- The drafted spares, every part in ONE statement, as the screen did.
+    if jsonb_typeof(v_draft->'spares') = 'array' and jsonb_array_length(v_draft->'spares') > 0 then
+      insert into public.spare_consumption (ucn, call_number, part, qty, grir, engineer, engineer_email, data)
+      select btrim(j.ucn), coalesce(v_call.call_number, ''), coalesce(sp->>'part', ''),
+             coalesce(nullif(sp->>'qty', '')::numeric, 1), coalesce(sp->>'grir', ''),
+             coalesce(v_draft->>'engineer', ''), coalesce(v_draft->>'engineerEmail', ''), '{}'::jsonb
+        from jsonb_array_elements(v_draft->'spares') sp;
+    end if;
+
+    update public.indoor_jobs set visit_uid = v_uid, visit_filed_at = now() where id = j.id;
+  end loop;
+
+  update public.indoor_dcs
+     set approval_status  = 'Approved',
+         approved_by      = auth.uid(),
+         approved_at      = now(),
+         approved_by_name = coalesce((select coalesce(nullif(btrim(p.full_name), ''), p.email)
+                                        from public.profiles p where p.id = auth.uid()), '')
+   where id = v_dc.id;
+  return v_dc.dc_no;
+end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0374_indoor_new_device_kind.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0374 — INDOOR SERVICE: "NEW DEVICE" IS ITS OWN KIND.
+--
+-- The user, 2026-10-04: "Split Demo / New Device -> Demo, New Device as
+-- Separate Options", a New Device recorded as "its own kind: New device", its
+-- activity fixed to Troubleshooting (as a Field Return), a Demo's to Demo.
+--
+-- A New device has no customer behind it, so wherever that matters it is
+-- treated as a DEMO unit is: create_indoor_dc() sends it to the party it is
+-- going to (demo_for_party), never to a party_name it does not have. The
+-- Pre-Delivery Testing rule stays the DEMO unit's (the user's rule of
+-- 2026-10-02: a DEMO unit of an imported product).
+-- ===========================================================================
+
+alter table public.indoor_jobs drop constraint if exists indoor_jobs_kind_check;
+alter table public.indoor_jobs add constraint indoor_jobs_kind_check
+  check (kind in ('Customer property', 'DEMO unit', 'New device'));
+
+-- create_indoor_dc(), re-stated from the database's current definition
+-- (0327's) with its two consignee lines counting a New device as a DEMO unit.
+CREATE OR REPLACE FUNCTION public.create_indoor_dc(p_job_ids bigint[], p_consignee text, p_customer_ref text DEFAULT ''::text, p_customer_ref_date date DEFAULT NULL::date, p_mode text DEFAULT ''::text, p_purpose text DEFAULT ''::text, p_line_purposes jsonb DEFAULT '[]'::jsonb, p_authorised_by text DEFAULT ''::text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ids   bigint[];
+  v_date  date := (now() at time zone 'Asia/Kolkata')::date;
+  v_dc    bigint;
+  v_no    text;
+  v_line  integer := 0;
+  v_state text;
+  v_msg   text;
+  v_keys  text;
+  v_auth  text;
+  j       record;
+  a       record;
+  v_ov    jsonb;
+begin
+  if not public.has_perm('indoor.dispatch') then
+    raise exception 'indoor.dispatch is required to issue an Indoor DC'
+      using errcode = '42501';
+  end if;
+
+  select array_agg(x order by o) into v_ids
+    from (select x, min(o) as o from unnest(p_job_ids) with ordinality u(x, o)
+           where x is not null group by x) d;
+  if coalesce(cardinality(v_ids), 0) = 0 then
+    raise exception 'choose at least one Ready unit for the Indoor DC'
+      using errcode = '22023';
+  end if;
+  if coalesce(btrim(p_consignee), '') = '' then
+    raise exception 'an Indoor DC needs its consignee (To)'
+      using errcode = '23514';
+  end if;
+
+  -- AUTHORISED BY: one of the issuer's choices, matched without regard to case
+  -- and stored as the list spells it. REQUIRED -- it names who approves.
+  if coalesce(btrim(p_authorised_by), '') = '' then
+    raise exception 'choose who AUTHORISES this Indoor DC (your Reporting Manager, Regional Manager or an NSM) -- they approve it'
+      using errcode = '23514';
+  end if;
+  select au.name into v_auth from public.indoor_dc_authorisers() au
+   where upper(btrim(au.name)) = upper(btrim(p_authorised_by))
+   limit 1;
+  if v_auth is null then
+    raise exception 'AUTHORISED BY must be your Reporting Manager, your Regional Manager or an NSM -- % is none of them', btrim(p_authorised_by)
+      using errcode = '23514';
+  end if;
+
+  -- Every job must exist, and is locked for the rest of the transaction so two
+  -- people cannot put one unit on two challans at once.
+  perform 1 from public.indoor_jobs where id = any (v_ids) order by id for update;
+  if (select count(*) from public.indoor_jobs where id = any (v_ids)) <> cardinality(v_ids) then
+    raise exception 'an Indoor Service job on this DC was not found'
+      using errcode = '23503';
+  end if;
+
+  -- ONE DC, ONE CONSIGNEE: a customer unit goes to its party, a DEMO unit to
+  -- its "going to" party.
+  select string_agg(distinct coalesce(nullif(btrim(k), ''), '(none)'), ' / ') into v_keys
+    from (select case when kind in ('DEMO unit', 'New device') then demo_for_party else party_name end as k
+            from public.indoor_jobs where id = any (v_ids)) s;
+  if (select count(distinct upper(btrim(coalesce(case when kind in ('DEMO unit', 'New device') then demo_for_party
+                                                       else party_name end, ''))))
+        from public.indoor_jobs where id = any (v_ids)) > 1 then
+    raise exception 'one Indoor DC goes to one consignee -- these units go to %', v_keys
+      using errcode = '23514';
+  end if;
+
+  for j in
+    select ij.*, u.o from public.indoor_jobs ij
+      join unnest(v_ids) with ordinality u(x, o) on u.x = ij.id
+     order by u.o
+  loop
+    if j.status <> 'Ready' then
+      raise exception '%: only a Ready unit goes on an Indoor DC -- this one is %', j.job_no, j.status
+        using errcode = '23514';
+    end if;
+    if btrim(j.dispatch_ref) <> '' then
+      raise exception '%: already carries DC No. % -- one unit, one DC', j.job_no, j.dispatch_ref
+        using errcode = '23514';
+    end if;
+    -- 0323: THE REPORT BEFORE THE DC, AND THE VISIT WITH IT.
+    if btrim(coalesce(j.report_file_url, '')) = '' then
+      raise exception '%: the Indoor Service Report has not been uploaded -- a unit goes on an Indoor DC after its report', j.job_no
+        using errcode = '23514';
+    end if;
+
+    -- THE TRIAL. Would the guard let this unit leave? Asked by moving it to
+    -- Dispatched and always rolling the move back.
+    begin
+      update public.indoor_jobs set status = 'Dispatched' where id = j.id;
+      raise exception using errcode = 'P0001', message = 'indoor_dc_trial_passed';
+    exception when others then
+      get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text;
+      if v_msg <> 'indoor_dc_trial_passed' then
+        raise exception '%: %', j.job_no, v_msg using errcode = v_state;
+      end if;
+    end;
+  end loop;
+
+  -- Overrides must name a job on this DC (a purpose for a unit that is not
+  -- here is a mistake, said rather than dropped).
+  for v_ov in select * from jsonb_array_elements(coalesce(p_line_purposes, '[]'::jsonb)) loop
+    if not coalesce((v_ov ->> 'job_id')::bigint = any (v_ids), false) then
+      raise exception 'a line purpose names job %, which is not on this DC', v_ov ->> 'job_id'
+        using errcode = '22023';
+    end if;
+  end loop;
+
+  insert into public.indoor_dcs (dc_no, dc_date, consignee, customer_ref, customer_ref_date,
+                                 mode_of_despatch, purpose, authorised_by_name, approval_status)
+  values ('auto', v_date, btrim(p_consignee), btrim(coalesce(p_customer_ref, '')), p_customer_ref_date,
+          btrim(coalesce(p_mode, '')), btrim(coalesce(p_purpose, '')), v_auth, 'Pending approval')
+  returning id, dc_no into v_dc, v_no;
+
+  for j in
+    select ij.*, u.o from public.indoor_jobs ij
+      join unnest(v_ids) with ordinality u(x, o) on u.x = ij.id
+     order by u.o
+  loop
+    v_line := v_line + 1;
+    insert into public.indoor_dc_lines (dc_id, line_no, job_id, accessory_id, part_no, description, qty, purpose)
+    values (v_dc, v_line, j.id, null,
+            coalesce(public.indoor_job_product_code(j.product_name, j.serial), ''),
+            btrim(btrim(j.product_name) || case when btrim(j.serial) <> '' then ' Sl.No ' || btrim(j.serial) else '' end),
+            1,
+            coalesce((select e ->> 'purpose' from jsonb_array_elements(coalesce(p_line_purposes, '[]'::jsonb)) e
+                       where (e ->> 'job_id')::bigint = j.id
+                         and nullif(e ->> 'accessory_id', '') is null
+                       limit 1), btrim(coalesce(p_purpose, ''))));
+    for a in
+      select * from public.indoor_job_accessories
+       where job_id = j.id and (btrim(name) <> '' or btrim(serial) <> '')
+       order by id
+    loop
+      v_line := v_line + 1;
+      insert into public.indoor_dc_lines (dc_id, line_no, job_id, accessory_id, part_no, description, qty, purpose)
+      values (v_dc, v_line, j.id, a.id, '',
+              btrim(btrim(a.name) || case when btrim(a.serial) <> '' then ' Sl.No ' || btrim(a.serial) else '' end),
+              a.qty,
+              coalesce((select e ->> 'purpose' from jsonb_array_elements(coalesce(p_line_purposes, '[]'::jsonb)) e
+                         where (e ->> 'job_id')::bigint = j.id
+                           and (e ->> 'accessory_id')::bigint = a.id
+                         limit 1), btrim(coalesce(p_purpose, ''))));
+    end loop;
+  end loop;
+
+  -- THE STAMP ON EACH JOB. Through the guard, as the caller: it asks
+  -- indoor.dispatch for a change of dispatch_ref and stamps dispatched_at /
+  -- dispatched_by, exactly as a reference typed on the job does.
+  update public.indoor_jobs
+     set dispatch_ref = v_no, dc_date = v_date
+   where id = any (v_ids);
+
+  return v_no;
+end $function$
+
+;
+
+-- ------------------------------------------------------------------------
+-- 0377_pre_delivery_qc.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0377  PRE-DELIVERY QUALITY CHECK -- a register of its own (2026-10-05).
+--
+-- The user: "Pre-Delivery Quality Check [Under Indoor] 1. Imported Machines
+-- are received in Godown. 2. It is done before Billing 3. It is done as per
+-- the Record. 4. There are certain Checks. 5. Use the Image for Fields, Ensure
+-- all the Fields are Mandatory". Their answers: its OWN register (no Indoor
+-- job behind it), ANY product, RECORD ONLY (billing is not blocked), and the
+-- SAME checks and tables as R/SER/QC/007 -- so the columns are indoor_pdt's
+-- (0320), word for word, with the product and serial on the row itself.
+--
+-- EVERY FIELD IS MANDATORY, and the database says so: NOT NULL and non-blank
+-- on every column of the form, so a half-filled check cannot be saved by any
+-- path. A record is therefore written whole, in one save.
+--
+-- INSPECTED BY is the SESSION'S, stamped by the trigger with the name and the
+-- designation held then -- whoever saves the record is the person vouching
+-- for it, so an edit re-signs it as the editor. A value the browser sends is
+-- discarded.
+--
+-- A QUALITY RECORD: no DELETE policy and no DELETE grant (0049's rule).
+--
+-- KEYS: mod:/indoor/pdqc opens the page (admin + technical_support only, the
+-- 0241 pattern); pdqc.record writes, granted to NO role -- an administrator
+-- passes has_perm() anyway; every other grant is made on Roles & Permissions.
+-- ===========================================================================
+
+create table if not exists public.pdqc_records (
+  id        bigint generated always as identity primary key,
+
+  product_name text not null check (btrim(product_name) <> ''),
+  serial       text not null check (btrim(serial) <> ''),
+  test_date    date not null,
+  measuring_equipment_id text not null check (btrim(measuring_equipment_id) <> ''),
+  software_version       text not null check (btrim(software_version) <> ''),
+  hv                     text not null check (btrim(hv) <> ''),
+  ht                     text not null check (btrim(ht) <> ''),
+
+  check1 text not null check (check1 in ('OK', 'NOT OK')),
+  check2 text not null check (check2 in ('OK', 'NOT OK')),
+  check3 text not null check (check3 in ('OK', 'NOT OK')),
+  check4 text not null check (check4 in ('OK', 'NOT OK')),
+  check5 text not null check (check5 in ('OK', 'NOT OK')),
+
+  -- 7. Mode CMV/ACMV -- Volume (Vte), Peep, O2% at FiO2 21 / 60 / 100 %
+  cmv_vte_21  numeric not null, cmv_vte_60  numeric not null, cmv_vte_100  numeric not null,
+  cmv_peep_21 numeric not null, cmv_peep_60 numeric not null, cmv_peep_100 numeric not null,
+  cmv_o2_21   numeric not null, cmv_o2_60   numeric not null, cmv_o2_100   numeric not null,
+  -- 8. Mode PCMV -- PIP, Peep, O2% at FiO2 21 / 60 / 100 %
+  pcmv_pip_21  numeric not null, pcmv_pip_60  numeric not null, pcmv_pip_100  numeric not null,
+  pcmv_peep_21 numeric not null, pcmv_peep_60 numeric not null, pcmv_peep_100 numeric not null,
+  pcmv_o2_21   numeric not null, pcmv_o2_60   numeric not null, pcmv_o2_100   numeric not null,
+
+  inspected_by          uuid,
+  inspector_name        text not null default '',
+  inspector_designation text not null default '',
+  inspected_at          timestamptz,
+
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  updated_by uuid,
+  updated_at timestamptz not null default now()
+);
+
+comment on table public.pdqc_records is
+  'Pre-Delivery Quality Check (R/SER/QC/007) of an imported machine in the godown before billing, one row per check (0377). Every field is mandatory; Inspected by is stamped from the session at every save. Record only: nothing else reads it. A quality record: never deleted.';
+
+create index if not exists pdqc_records_serial on public.pdqc_records (serial);
+create index if not exists pdqc_records_test_date on public.pdqc_records (test_date desc, id desc);
+
+create or replace function public.pdqc_stamp()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.product_name := btrim(new.product_name);
+  new.serial       := btrim(new.serial);
+  new.updated_at   := now();
+  new.updated_by   := auth.uid();
+  if tg_op = 'INSERT' then
+    new.created_at := now();
+    new.created_by := auth.uid();
+  else
+    new.created_at := old.created_at;
+    new.created_by := old.created_by;
+  end if;
+  -- WHOEVER SAVES IS THE INSPECTOR -- never what the browser sent.
+  new.inspected_by := auth.uid();
+  new.inspected_at := case when auth.uid() is null then null else now() end;
+  new.inspector_name := ''; new.inspector_designation := '';
+  select coalesce(nullif(btrim(p.full_name), ''), p.email, ''), coalesce(btrim(p.designation), '')
+    into new.inspector_name, new.inspector_designation
+    from public.profiles p where p.id = auth.uid();
+  new.inspector_name        := coalesce(new.inspector_name, '');
+  new.inspector_designation := coalesce(new.inspector_designation, '');
+  return new;
+end $$;
+revoke execute on function public.pdqc_stamp() from public, anon, authenticated;
+
+drop trigger if exists zz_pdqc_stamp on public.pdqc_records;
+create trigger zz_pdqc_stamp before insert or update on public.pdqc_records
+  for each row execute function public.pdqc_stamp();
+
+alter table public.pdqc_records enable row level security;
+drop policy if exists pdqc_read on public.pdqc_records;
+create policy pdqc_read on public.pdqc_records for select
+  using ((select public.has_perm('mod:/indoor/pdqc')) or (select public.has_perm('pdqc.record')));
+drop policy if exists pdqc_insert on public.pdqc_records;
+create policy pdqc_insert on public.pdqc_records for insert
+  with check ((select public.has_perm('pdqc.record')));
+drop policy if exists pdqc_update on public.pdqc_records;
+create policy pdqc_update on public.pdqc_records for update
+  using ((select public.has_perm('pdqc.record')))
+  with check ((select public.has_perm('pdqc.record')));
+revoke all on public.pdqc_records from anon;
+revoke delete, truncate on public.pdqc_records from authenticated;
+grant select, insert, update on public.pdqc_records to authenticated;
+
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.pdqc_records'::regclass);
+  end if;
+end $$;
+
+-- THE SCREEN'S KEY, IN THE ADMIN AND TECHNICAL SUPPORT ROLES ONLY (0241, 0355).
+do $$
+declare n integer;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (select jsonb_array_elements_text(ar.permissions) as v
+                   union select unnest(array['mod:/indoor/pdqc']) as v) u),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and ar.role in ('admin', 'technical_support')
+     and not (ar.permissions ? 'mod:/indoor/pdqc');
+  get diagnostics n = row_count;
+  raise notice '0377: Pre-Delivery Quality Check screen key given to admin + technical_support (% of 2 rows) -- grant the rest on Roles & Permissions', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0382_indoor_approval_skips_a_solved_call.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0382 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
+--        (second re-review D-145; the user's decision, 2026-10-04)
+--
+-- approve_indoor_dc files each unit's drafted visit as Unsolved / Return to
+-- Field without asking the call's state. Measured: a call solved by a field
+-- visit after the draft received the approval's Unsolved visit as its latest
+-- entry, so it read Unsolved, reopen_count 0, nothing saying why.
+--
+-- THE USER'S DECISION: "Approve, skip that visit" -- the DC is approved and
+-- its other units' visits are filed; for a unit whose call is already Solved
+-- the drafted visit (and its spares) is NOT filed, the skip is written to the
+-- audit log (indoor.visit_skipped) and the approver is told which calls: the
+-- function returns "<DC No> | visit not filed, call already Solved: <UCNs>",
+-- and the screen shows it. "Solved" is the call's last status beginning with
+-- Solved (Solved, Solved - Report Pending ...) -- NOT open_state's "Report
+-- pending", which also covers a visit with a blank status.
+--
+-- Built on 0372's definition (the workshop's Call Status / Pending Reason
+-- decide the visit's), VERBATIM, with those lines added -- so the skip applies
+-- only where the call is already Solved AND the visit this job would file is
+-- not: a visit the workshop records as Solved is still filed.
+-- (Written as 0360 against 0327; renumbered after main's 0372 re-stated the
+-- function without it, which would otherwise have dropped the skip.)
+-- In the indoor module, after 0372.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.approve_indoor_dc(p_dc_no text, p_check_only boolean DEFAULT false)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_vs     record;
+  v_skipped text[] := '{}';
+  v_dc    public.indoor_dcs%rowtype;
+  j       record;
+  v_call  record;
+  v_draft jsonb;
+  v_uid   text;
+  v_me    text;
+  v_sp    jsonb;
+begin
+  select * into v_dc from public.indoor_dcs where dc_no = btrim(p_dc_no) for update;
+  if not found then
+    raise exception 'Indoor DC % was not found', p_dc_no using errcode = '23503';
+  end if;
+  if not public.indoor_dc_may_approve(v_dc.authorised_by_name) then
+    raise exception 'only % (AUTHORISED BY) or an administrator approves Indoor DC %', coalesce(nullif(v_dc.authorised_by_name, ''), '(nobody named)'), v_dc.dc_no
+      using errcode = '42501';
+  end if;
+  if v_dc.created_by = auth.uid() and not public.is_admin() then
+    raise exception 'Indoor DC % was issued by you -- the Reporting Manager, Regional Manager or NSM the User Master names approves it', v_dc.dc_no
+      using errcode = '42501';
+  end if;
+  if v_dc.approval_status <> 'Pending approval' then
+    raise exception 'Indoor DC % is %, not pending approval', v_dc.dc_no, v_dc.approval_status
+      using errcode = '23514';
+  end if;
+
+  -- Every unit with a call must have its visit drafted before anything is
+  -- written -- including on a check-only call, so the screen says so first.
+  for j in select * from public.indoor_jobs
+            where btrim(dispatch_ref) = v_dc.dc_no
+              and coalesce(btrim(ucn), '') <> '' and visit_filed_at is null
+            order by id loop
+    if j.visit_draft is null or jsonb_typeof(j.visit_draft) <> 'object' then
+      raise exception '%: no visit was drafted with its Indoor Service Report -- the Indoor engineer completes it (Report stage) before Indoor DC % can be approved', j.job_no, v_dc.dc_no
+        using errcode = '23514';
+    end if;
+    if btrim(coalesce(j.call_status, '')) = 'Unsolved' and btrim(coalesce(j.call_pending_reason, '')) = '' then
+      raise exception '%: the Call Status is Unsolved with no Call Pending Reason -- choose one in the Workshop record before Indoor DC % can be approved', j.job_no, v_dc.dc_no
+        using errcode = '23514';
+    end if;
     if not exists (select 1 from public.calls c where c.ucn = btrim(j.ucn)) then
       raise exception '%: call % was not found -- its visit cannot be filed', j.job_no, btrim(j.ucn)
         using errcode = '23503';
@@ -10259,19 +11381,24 @@ begin
             order by id loop
     select c.ucn, c.call_number, c.call_type, c.last_status into v_call from public.calls c where c.ucn = btrim(j.ucn) limit 1;
     v_draft := j.visit_draft;
-    -- D-145 (the user's decision, 2026-10-04: "Approve, skip that visit"):
-    -- a call SOLVED since the visit was drafted is not put back to Unsolved.
-    -- Its drafted visit and spares are not filed, the job keeps no visit, the
-    -- skip is written to the audit log, and the approver is told which calls.
-    -- A visit an earlier attempt already filed is still reused, as before.
+    -- 0372: the Call Status / Pending Reason chosen on the job's Workshop record.
+    select * into v_vs from public.indoor_visit_status(j.call_status, j.call_pending_reason);
+    -- D-145 (the user's decision, 2026-10-04: "Approve, skip that visit"): a
+    -- call SOLVED since the visit was drafted is not put back to an open
+    -- status. When the call's last status is Solved and the visit this job
+    -- would file is not, the visit and its spares are not filed, the job keeps
+    -- no visit, the skip goes to the audit log, and the approver is told which
+    -- calls. A visit the workshop records as Solved (0372) is still filed, and
+    -- a visit an earlier attempt already filed is still reused.
     if lower(btrim(coalesce(v_call.last_status, ''))) like 'solved%'
+       and lower(btrim(coalesce(v_vs.call_status, ''))) not like 'solved%'
        and not (j.visit_uid is not null and exists (select 1 from public.reports r where r.uid = j.visit_uid)) then
       v_skipped := v_skipped || btrim(j.ucn);
       insert into public.audit_log (actor, role, action, target, status, meta)
       values (v_me, '', 'indoor.visit_skipped', j.job_no, 'ok',
               jsonb_build_object('dc_no', v_dc.dc_no, 'job_no', j.job_no, 'ucn', btrim(j.ucn),
                                  'call_status', coalesce(v_call.last_status, ''),
-                                 'reason', 'the call was Solved after the visit was drafted, so the Unsolved visit was not filed'));
+                                 'reason', 'the call was Solved after the visit was drafted, so the visit was not filed'));
       continue;
     end if;
     -- WHAT THE VISIT ENTRY'S SAVE PATH FILES (fileVisit, CallReporting.tsx),
@@ -10289,7 +11416,7 @@ begin
     insert into public.reports (uid, ucn, call_number, manual_report, call_status, pending_reason,
                                 engineer, engineer_email, visit_at, data, updated_at)
     values (v_uid, btrim(j.ucn), coalesce(v_call.call_number, ''), coalesce(j.report_file_url, ''),
-            'Unsolved', 'Return to Field',
+            v_vs.call_status, v_vs.pending_reason,
             coalesce(v_draft->>'engineer', ''), coalesce(v_draft->>'engineerEmail', ''),
             case when coalesce(v_draft->>'visitDate', '') <> '' then ((v_draft->>'visitDate') || 'T00:00:00Z')::timestamptz end,
             jsonb_build_object(
@@ -10374,7 +11501,7 @@ end $function$;
 -- It is named to run AFTER zz_indoor_jobs_guard and zz_indoor_jobs_stamp
 -- (zzy_ sorts between them and zzz_sys_stamp), so its stamps are the last word.
 -- A connection with no session (a repair, an import) is not stopped.
--- In the indoor module, after 0360.
+-- In the indoor module, after 0382.
 -- ===========================================================================
 
 -- ---- D-111 ------------------------------------------------------------------
@@ -10563,11 +11690,11 @@ revoke execute on function public.indoor_dc_may_approve(text) from anon;
 grant execute on function public.indoor_dc_may_approve(text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0370_indoor_record_visit_closed_and_comments.sql
+-- 0378_indoor_record_visit_closed_and_comments.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0370 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
+-- 0378 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
 --        COLUMNS SAY WHEN THE VISIT IS ACTUALLY FILED
 --        (second re-review D-108, D-116)
 --
@@ -11479,6 +12606,107 @@ select r.id, r.rcy_no, r.received_on, r.part_code, r.part_description, r.serial,
   left join lateral (select public.recycle_sla_due(r.work_started_at) as due_at) sla on true;
 alter view public.recycle_request_list set (security_invoker = on);
 grant select on public.recycle_request_list to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0376_spare_recycling_delete.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0376 — SPARE RECYCLING: DELETE A REQUEST.
+--
+-- The user, 2026-10-04: "Add Delete Option" (on the Spare Recycling list).
+-- delete_recycle_requests() removes one or many requests, open or closed,
+-- with the consumption booked on them (those parts go back to the recycling
+-- hand stock, which is derived) and their other costs; an MRS raised for one
+-- stays, unlinked. Its own key, recycle.delete, granted to NO role (an
+-- administrator passes); refused, like the whole track, in Audit Mode.
+-- Non-auditable (NAR-008), so a deletion is a deletion -- it is logged to the
+-- audit log by the screen, not kept as a voided row.
+-- ===========================================================================
+
+-- The two guards, re-stated from the database's definitions (0355's), each
+-- stepping aside for the delete function only.
+CREATE OR REPLACE FUNCTION public.recycle_consumption_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  st   text;
+  bal  numeric;
+begin
+  if tg_op = 'UPDATE' then
+    raise exception 'A consumption line is not edited. Remove it and enter it again.';
+  end if;
+  if tg_op = 'DELETE' then
+    -- 0376: delete_recycle_requests() removes a request's consumption with it.
+    if coalesce(current_setting('rithi.recycle_delete', true), '') = 'on' then return old; end if;
+    select r.status into st from public.recycle_requests r where r.id = old.request_id;
+    if st <> 'Open' then raise exception 'The request is closed; its consumption stays.'; end if;
+    return old;
+  end if;
+  select r.status into st from public.recycle_requests r where r.id = new.request_id;
+  if st is null then raise exception 'No such recycling request.'; end if;
+  if st <> 'Open' then raise exception 'The request is closed; nothing more can be consumed on it.'; end if;
+  -- FROM THE CONSUMER'S OWN RECYCLING HAND STOCK, and never more than it holds.
+  new.holder := auth.uid();
+  new.holder_name := public.recycle_me_name();
+  new.part_code := btrim(new.part_code);
+  perform pg_advisory_xact_lock(hashtext('recycle_bal:' || coalesce(new.holder::text, '') || ':' || new.part_code));
+  bal := public.recycle_balance(new.holder, new.part_code);
+  if new.qty > bal then
+    raise exception 'Your recycling hand stock of % is %; % cannot be consumed.', new.part_code, bal, new.qty;
+  end if;
+  new.consumed_at := now();
+  return new;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.recycle_other_costs_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  st text;
+begin
+  select r.status into st from public.recycle_requests r
+   where r.id = case when tg_op = 'DELETE' then old.request_id else new.request_id end;
+  -- 0376: delete_recycle_requests() removes a request's costs with it.
+  if tg_op = 'DELETE' and coalesce(current_setting('rithi.recycle_delete', true), '') = 'on' then return old; end if;
+  if st is distinct from 'Open' then raise exception 'The request is closed; its costs stay as they are.'; end if;
+  if tg_op = 'DELETE' then return old; end if;
+  if tg_op = 'INSERT' then
+    new.created_by := auth.uid();
+    new.created_by_name := public.recycle_me_name();
+    new.created_at := now();
+  else
+    new.request_id := old.request_id; new.created_by := old.created_by;
+    new.created_by_name := old.created_by_name; new.created_at := old.created_at;
+  end if;
+  return new;
+end $function$;
+
+create or replace function public.delete_recycle_requests(p_ids bigint[])
+returns integer language plpgsql security definer set search_path = public as $$
+declare n integer;
+begin
+  if not coalesce(public.recycle_may('recycle.delete'), false) then
+    raise exception 'RBAC: deleting a recycling request needs "Delete a recycling request" (and Audit Mode off)';
+  end if;
+  if p_ids is null or array_length(p_ids, 1) is null then return 0; end if;
+  perform set_config('rithi.recycle_delete', 'on', true);
+  delete from public.recycle_consumption where request_id = any (p_ids);
+  delete from public.recycle_other_costs where request_id = any (p_ids);
+  update public.recycle_mrs set request_id = null where request_id = any (p_ids);
+  delete from public.recycle_requests where id = any (p_ids);
+  get diagnostics n = row_count;
+  perform set_config('rithi.recycle_delete', '', true);
+  return n;
+end $$;
+revoke execute on function public.delete_recycle_requests(bigint[]) from public, anon;
+grant execute on function public.delete_recycle_requests(bigint[]) to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0021_master_lists.sql
@@ -14816,11 +16044,11 @@ AS $function$
 $function$;
 
 -- ------------------------------------------------------------------------
--- 0372_user_master_keeps_history.sql
+-- 0379_user_master_keeps_history.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0372 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
+-- 0379 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
 --        (second re-review D-059)
 --
 -- 0264 declares user_profile.dir_id and user_rr.dir_id ON DELETE CASCADE, so
@@ -18800,11 +20028,11 @@ grant execute on function public.reopen_call(text, text) to authenticated;
 grant execute on function public.close_reopened_call(text, text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0374_field_call_vigilance_answered.sql
+-- 0380_field_call_vigilance_answered.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0374 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
+-- 0380 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
 --        (second re-review D-033; the user's decision, 2026-10-05)
 --
 -- Public Health Threat?, Death? and Serious Incident? carried defaultValue 'NO'
@@ -24854,11 +26082,11 @@ alter view public.field_call_review_summary set (security_invoker = on);
 grant select on public.field_call_review_summary to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0376_review_answers_read_key.sql
+-- 0381_review_answers_read_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0376 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
+-- 0381 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
 --        (second re-review D-129, the open half; the user, 2026-10-05)
 --
 -- call_reviews_read (0044) is auth.role() = 'authenticated': every signed-in
@@ -24897,7 +26125,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0376_review_view_to_editors') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0381_review_view_to_editors') then return; end if;
   update public.app_roles
      set permissions = permissions || '["review.view"]'::jsonb
    where jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
@@ -24905,8 +26133,8 @@ begin
      and not (permissions ? 'review.view');
   get diagnostics n = row_count;
   insert into public.one_time_fixes_done (name, detail)
-  values ('0376_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
-  raise notice '0376: % role(s) holding review.edit given review.view', n;
+  values ('0381_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
+  raise notice '0381: % role(s) holding review.edit given review.view', n;
 end $$;
 
 -- ------------------------------------------------------------------------

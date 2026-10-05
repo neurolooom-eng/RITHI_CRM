@@ -14,7 +14,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.92',
+    version: '0.10.103',
+    date: '2026-10-05',
+    title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
+    changes: [
+      'FIELD CALL REGISTER: the three vigilance questions (Public Health Threat?, Death?, Serious Incident?) start blank and must be answered before a call is registered. Installation and PM calls are unchanged.',
+      'STOCK TRANSFER: you transfer from your own stock or your team\'s; anybody else\'s needs the new permission "Transfer stock from any engineer". The recipient is picked from the User Master — no typed names.',
+      'RENEW and CONVERT: a contract is not created until Period, PM Visits, Payment Schedule, Bill Generate At and Contract Type are filled; the panel asks for any that are blank.',
+      'DAILY COMPLAINT REVIEW: the answers are visible only to people given the new permission "Read Daily Complaint Review answers". Everyone who may complete the review has it; tick it in Roles & Permissions for anyone else who should see them.',
+    ],
+  },
+  {
+    version: '0.10.102',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -28,7 +39,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.91',
+    version: '0.10.101',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -42,7 +53,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.90',
+    version: '0.10.100',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -53,6 +64,102 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.99',
+    date: '2026-10-05',
+    title: 'Pre-Delivery Quality Check — a register of its own under Indoor Service',
+    changes: [
+      'New page Indoor Service → Pre-Delivery Quality Check, for imported machines in the godown checked before billing.',
+      'The form is R/SER/QC/007: product (from the Product Master), SL. No, date, measuring equipment ID, software version, HV, HT, checks 1–5 OK / NOT OK, and the CMV/ACMV and PCMV readings at FiO2 21, 60 and 100%.',
+      'Every field is mandatory — Save stays off until all are filled. Whoever saves is recorded as the inspector, with their designation.',
+      'A record only: a NOT OK is recorded and shown, billing is not blocked. A check is never deleted. Each one prints on the R/SER/QC/007 sheet.',
+      'Recording needs the new permission “Record a Pre-Delivery Quality Check”, given to no role — tick it on Roles & Permissions → Indoor Service.',
+    ],
+  },
+  {
+    version: '0.10.98',
+    date: '2026-10-05',
+    title: 'Request Registration: Unmap a request mapped to the wrong call',
+    changes: [
+      'REQUEST REGISTRATION: a Mapped request now has ↩ Unmap in its details. It clears the UCN and puts the request back on the Pending list, to be registered or mapped again. The call it was mapped to is not changed. Only for those who can register calls.',
+    ],
+  },
+  {
+    version: '0.10.97',
+    date: '2026-10-05',
+    title: 'Request Registration: Installation Report and KYC open with a click',
+    changes: [
+      'REQUEST REGISTRATION: the Installation Report and KYC columns show 📎 Open instead of the long Drive address — click it and the document opens in a new tab. The same in a request\'s details.',
+    ],
+  },
+  {
+    version: '0.10.96',
+    date: '2026-10-04',
+    title: 'Spare Recycling: Delete, and Source on the register form',
+    auditHidden: true,
+    changes: [
+      'Delete one or more recycling requests — tick them in the list and press Delete, or open one and press Delete this request. Its consumption and other costs go with it; an MRS raised against it is kept. Needs the new permission “Delete a recycling request”, given to no role.',
+      '“Received from” is now Source — pick Service Return or Defective Spare.',
+      'The Serial field is removed from the register form, the request window and the list.',
+    ],
+  },
+  {
+    version: '0.10.95',
+    date: '2026-10-04',
+    title: 'Indoor intake: Field Return, Demo and New Device as three separate options',
+    changes: [
+      'RECEIVE EQUIPMENT now has three options: Field Return, Demo and New Device (Demo / new device is split in two).',
+      'Each fixes what is being done: Field Return → Troubleshooting, Demo → Demo, New Device → Troubleshooting.',
+      'A New Device is recorded as its own kind — NEW DEVICE on the register, its own “New Devices” sheet on R/SER/07 and in the Excel download — and goes on the DC to the party it is going to, like a Demo.',
+    ],
+  },
+  {
+    version: '0.10.94',
+    date: '2026-10-04',
+    title: 'Indoor job: a plain summary beside the Create Indoor DC form',
+    changes: [
+      'DC / DISPATCHED page: while the Create Indoor DC form is open on the right, the left side shows only a read-only summary of the unit — customer, product and serial, the call and its Call Status, job status, report number, and any accessories still to go back. The DC number, DC date and Remarks boxes no longer sit beside the form.',
+    ],
+  },
+  {
+    version: '0.10.93',
+    date: '2026-10-04',
+    title: 'Indoor job: Call Status and Call Pending Reason at the top of the Repair page; MIRN removed from the DC',
+    changes: [
+      'REPAIR PAGE: the Workshop record is now at the top. For a job with a call, the Status box is replaced by Call Status and Call Pending Reason, with the same choices and rules as the Visit Entry — the reason is required while Unsolved, reads Report Pending for a pending report, and a completed report has none.',
+      'They are the visit’s values: the visit filed when the Indoor DC is approved carries what you chose (no longer always Unsolved / Return to Field). An Unsolved job with no reason cannot have its DC approved.',
+      'The job status now follows the Call Status: Solved → Ready (a Repair, Rework or Troubleshooting needs its QC Pass first); Unsolved with spares not available → Awaiting spares; any other Unsolved → Under repair. A Demo / new device keeps its Status box.',
+      'CREATE INDOOR DC: the MIRN No. / Customer Ref No., its date and the Mode of despatch are removed from the form.',
+      'PRINTED INDOOR DC: “SERVICE CENTER” is gone from the letterhead, “ISSUED BY (Stores)” now reads “ISSUED BY”, and the “PACKED & DESPATCH BY” box is removed.',
+    ],
+  },
+  {
+    version: '0.10.92',
+    date: '2026-10-04',
+    title: 'Indoor job: the Checks table is removed',
+    changes: [
+      'INDOOR SERVICE job: the “Checks · expected against measured” table is removed. The Quality Check (4.5.6) stays, and a Repair, Rework or Troubleshooting job still cannot leave until its quality check is recorded.',
+    ],
+  },
+  {
+    version: '0.10.91',
+    date: '2026-10-04',
+    title: 'Indoor intake: Field Return is Troubleshooting; tags are Yes / No; no accessory serial; numeric WI revision',
+    changes: [
+      'RECEIVE EQUIPMENT → Field Return: “What is being done to it?” is fixed to Troubleshooting. A Troubleshooting job follows the Repair rule — it cannot be dispatched or closed until its quality check is recorded.',
+      'IDENTIFICATION TAG: pick Yes, Identified or Not Identified — for the unit and for each accessory, on the intake and on the job. A tag typed on an older job stays as it was.',
+      'ACCESSORIES RECEIVED: the Serial column is removed; each line is Item, Qty and Tag.',
+      'CLEANING: the work instruction Revision is a number — two digits, 01 to begin with.',
+    ],
+  },
+  {
+    version: '0.10.90',
+    date: '2026-10-04',
+    title: 'Indoor Service intake: “From a call” is now “Field Return”',
+    changes: [
+      'INDOOR SERVICE → Receive equipment: the first option is renamed from “From a call” to “Field Return”. It works exactly as before — the unit comes in on its call.',
     ],
   },
   {

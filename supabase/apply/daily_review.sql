@@ -59,7 +59,7 @@
 --   0285_auto_review_by_role.sql
 --   0342_review_needs_a_call_you_can_see.sql
 --   0353_review_summary_carries_the_searched_columns.sql
---   0376_review_answers_read_key.sql
+--   0381_review_answers_read_key.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -6024,11 +6024,11 @@ alter view public.field_call_review_summary set (security_invoker = on);
 grant select on public.field_call_review_summary to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0376_review_answers_read_key.sql
+-- 0381_review_answers_read_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0376 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
+-- 0381 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
 --        (second re-review D-129, the open half; the user, 2026-10-05)
 --
 -- call_reviews_read (0044) is auth.role() = 'authenticated': every signed-in
@@ -6067,7 +6067,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0376_review_view_to_editors') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0381_review_view_to_editors') then return; end if;
   update public.app_roles
      set permissions = permissions || '["review.view"]'::jsonb
    where jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
@@ -6075,8 +6075,8 @@ begin
      and not (permissions ? 'review.view');
   get diagnostics n = row_count;
   insert into public.one_time_fixes_done (name, detail)
-  values ('0376_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
-  raise notice '0376: % role(s) holding review.edit given review.view', n;
+  values ('0381_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
+  raise notice '0381: % role(s) holding review.edit given review.view', n;
 end $$;
 
 commit;

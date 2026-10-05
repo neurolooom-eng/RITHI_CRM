@@ -92,6 +92,10 @@ different totals. An empty register usually means access, not emptiness.
   > Product, serial and the customer's details all come from the copies kept on
   > your device first, and from the server only for something the device does
   > not have yet — so the form works on a weak signal.
+  > **The Installation Report and KYC open with a click** — the columns (and a
+  > request's details) show **📎 Open**, which opens the stored file in a new tab.
+  > **Mapped to the wrong call?** Open the request and press **↩ Unmap** — the UCN is
+  > cleared and it goes back on the Pending list. The call itself is not changed.
 - **Pending Registrations** `/pending-registrations` — the Hotline queue.
   Registering one issues the UCN and files the call. Mapping a request to an
   existing call needs a UCN that a call really has; if marking the request
@@ -104,6 +108,10 @@ different totals. An empty register usually means access, not emptiness.
 ## The call registers
 
 - **Field Call Register** `/field-calls` — breakdown calls.
+  > **The three vigilance questions start blank and must be answered** —
+  > Public Health Threat?, Death? and Serious Incident? — before the call can be
+  > registered. Nothing is pre-filled, so a NO on record is an answer somebody
+  > gave. (Installation and PM calls are unchanged.)
   > A call is kept on this device only when there is **no connection**, and the
   > message says it is not registered yet and its number is temporary. If the
   > system refuses the call (your role, a rule), the reason is shown and nothing
@@ -392,7 +400,10 @@ against the call it was fitted to.
   > **A return is your own stock.** Returning for another engineer needs *Return
   > stock for another engineer* (Stores and the approvers hold it).
 - **Stock Transfer** `/stock-transfer` — hand stock between engineers. A transfer
-  to the same person is held back and named. A transfer (or a return) cannot be
+  to the same person is held back and named. **From** offers your own name and
+  the engineers in your team (the User Master); anybody else's stock needs
+  *Transfer stock from any engineer*, ticked per role or per person. **To** is
+  somebody on the User Master. A transfer (or a return) cannot be
   dated in the future, nor on or before the last day hand stock was closed —
   it would then be counted nowhere. Each part can carry a **reason of
   its own** besides the common Remarks. **🖨 MTN** on a transfer prints the
@@ -411,6 +422,10 @@ against the call it was fitted to.
   taken at registration; **Review 2** asks what the failure was; **Review 3**
   classifies it. A review is saved only on a call you can see — so a Field
   Failure Report is never raised in your name on somebody else's call.
+  > **Who can read the answers:** only people given *Read Daily Complaint Review
+  > answers* (everybody who may complete the review has it). Anyone else sees a
+  > note saying so, here and on Product Failure Analysis and the Field Failure
+  > Register, instead of the answers.
   > **Frequent failure has two rules.** **Rule 1** — this machine failing again
   > (same product and serial) within the window. **Rule 2** — the same complaint
   > on **different serial numbers** of one product within 30 days, which is a
@@ -692,7 +707,9 @@ written as `dd-MMM-yyyy` text.
 **Renew this contract** and **⇢ Convert to Contract** open in a **third column**
 beside the details and the products, so the machines being carried over stay in
 view. Both work from the entry **as saved**: while it has unsaved changes they
-are not offered — save the entry first.
+are not offered — save the entry first. Neither creates a contract until
+Period (Months), PM Visits, Payment Schedule, Bill Generate At and Contract
+Type are filled: the panel shows any that are blank and names them.
 > **Saving an entry writes only what you changed**, so a field a colleague
 > changed meanwhile is not put back. If you both changed the same field, the
 > later save wins.
@@ -1362,7 +1379,22 @@ typed into a form that reads it.
   The work runs in four **stages**, one page each, shown as a stepper at the
   top of each job and as a chip on every row of the register — and a job opens
   only the stages it has reached (no DC page at intake, for example):
-  1. **Intake** — **Receive equipment** opens the intake form. Either pick the
+  - **The Repair page opens with the Workshop record.** For a job with a call
+    it asks **Call Status** and **Call Pending Reason**, with exactly the Visit
+    Entry's choices and rules — and they are the visit's own values, filed with
+    it when the Indoor DC is approved. The job's status follows: Solved →
+    **Ready** (after the QC Pass for a Repair, Rework or Troubleshooting);
+    Unsolved with spares not available → **Awaiting spares**; other Unsolved →
+    **Under repair**. A Demo / new device keeps its Status box.
+  1. **Intake** — **Receive equipment** opens the intake form, with three
+     options: **Field Return**, **Demo** and **New Device** (Demo → activity
+     Demo; New Device → Troubleshooting, its own kind, its own **New Devices**
+     register sheet, sent on the DC to where it is going). A **Field
+     Return** (a unit that came in on a call) is always a **Troubleshooting**
+     job — it follows the Repair rule, so it cannot leave until its quality
+     check is recorded. The **Identification tag** is **Yes, Identified** or
+     **Not Identified**, for the unit and for each accessory; accessories are
+     listed as Item, Qty and Tag. For the call, either pick the
      **Product Name** and **Serial Number**, which lists that machine's **open
      calls** to choose from, or **type the UCN**. The job then fills itself from
      the call: UC No, customer and place, the engineer the call is allotted to
@@ -1511,10 +1543,10 @@ typed into a form that reads it.
   Requests, Stock Out or the regular Hand Stock. **While Audit Mode is on the
   whole page disappears** (an open page goes back to the home screen), along
   with its menu entry, guide entry, data flow and SLA section.
-  - **Register** a defective spare (RCY/26/0001): the part, serial, quantity,
-    received on and from, and an optional call reference (text only). **A
-    quantity of 3 becomes 3 requests**, one per spare; give each its serial on
-    its own request.
+  - **Register** a defective spare (RCY/26/0001): the part, quantity,
+    received on, its **Source** — **Service Return** or **Defective Spare** —
+    and an optional call reference (text only). There is no serial. **A
+    quantity of 3 becomes 3 requests**, one per spare.
   - **Import from MRN**: search any MRN, **Pick** a line and import its good
     and defective quantity — each spare becomes its own request, carrying the
     MRN No. The MRN itself is not changed, and a line can be imported again.
@@ -1534,8 +1566,26 @@ typed into a form that reads it.
     job done must be filled first; a closed request cannot be changed.
   - **Cost**: each request shows parts (at their stock-out cost) + other
     costs; the Cost tab totals everything spent on recycling.
+  - **Delete**: tick one or more requests in the list (or open one) and press
+    **Delete** — open or closed. Its consumption and other costs go with it
+    (the parts return to your recycling hand stock); an MRS raised against it
+    is kept. Needs **Delete a recycling request**.
   - Its keys are given to no role — grant them on **Roles & Permissions →
     Indoor Service**.
+- **Pre-Delivery Quality Check** `/indoor/pdqc` — imported machines received
+  in the godown are checked here **before billing**, as per **R/SER/QC/007**.
+  A register of its own: no Indoor job, any product.
+  - **+ New check**: pick the product from the Product Master, type the SL. No,
+    and fill the date, Measuring Equipment ID, Software Version, HV, HT,
+    checks 1–5 (OK / NOT OK) and the CMV/ACMV and PCMV readings at FiO2 21, 60
+    and 100%. **Every field is mandatory** — Save stays off until all are filled.
+  - **Whoever saves is the inspector** — your name and designation (from the
+    User Master) are recorded. Correcting a check later signs it as you.
+  - **A record only**: a NOT OK is recorded and shown in red in the list;
+    billing is not blocked. A check is never deleted.
+  - **🖨 Print** gives the R/SER/QC/007 sheet; **Export CSV** downloads the list.
+  - Recording needs **Record a Pre-Delivery Quality Check** — given to no role;
+    tick it on **Roles & Permissions → Indoor Service**.
 - **Solved Without a Report** `/missing-visit-reports` — **administrators
   only.** Every call that reads Solved while its visit record is incomplete —
   the list of what to re-upload.

@@ -2441,6 +2441,20 @@ export async function setCallRequestUcn(id: number, ucn: string, status: 'Regist
   return count === 0 ? { ok: false, error: CALL_REQUEST_NOT_SAVED } : { ok: true };
 }
 
+// UNMAP: a request mapped to the wrong call goes back to Pending (the user,
+// 2026-10-05). Only a MAPPED one -- the status test is in the UPDATE, so a
+// request registered or cancelled meanwhile is left alone -- and the rows are
+// COUNTED, because a refused or unmatched update raises no error (finding 48).
+// The call it was mapped to is not touched: mapping never wrote to it.
+export async function unmapCallRequest(id: number): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await must().from('call_requests')
+    .update({ ucn: '', status: 'Pending', actioned_by: '', actioned_at: null })
+    .eq('id', id).eq('status', 'Mapped').select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  return (data ?? []).length ? { ok: true }
+    : { ok: false, error: 'Nothing was changed — the request is no longer Mapped, or your role may not change it. Refresh and look again.' };
+}
+
 // Cancel a request — it stops being pending without ever becoming a call.
 export async function cancelCallRequest(id: number, reason: string, by = ''): Promise<{ ok: boolean; error?: string }> {
   const now = new Date().toISOString();
@@ -5835,9 +5849,11 @@ export async function saveValidationResult(testId: string, patch: { result?: str
 // unit is, which turns the custody duties of §7.5.10 on or off; `activity` says
 // what is being done to it. A DEMO unit in for repair is still a DEMO unit.
 // ===========================================================================
-export const INDOOR_KINDS = ['Customer property', 'DEMO unit'] as const;
+// 'New device' (0374): its own kind, split from DEMO on the intake.
+export const INDOOR_KINDS = ['Customer property', 'DEMO unit', 'New device'] as const;
 export const INDOOR_ACTIVITIES = [
-  'Repair', 'Rework', 'Salvage', 'Pre-delivery inspection', 'Demo', 'Other',
+  // Troubleshooting (0370): what a Field Return is, held to the Repair rule.
+  'Repair', 'Rework', 'Troubleshooting', 'Salvage', 'Pre-delivery inspection', 'Demo', 'Other',
 ] as const;
 export const INDOOR_STATUSES = [
   'Received', 'Cleaned', 'Under repair', 'Awaiting spares', 'QC',
@@ -5871,6 +5887,10 @@ export interface IndoorJob {
   dispatched_at: string | null;
   dispatch_ref: string;
   damage_note: string;
+  /** 0372: the job's Call Status / Call Pending Reason — the visit files with
+   *  them, and the job's status is derived from them (a job with a call). */
+  call_status?: string;
+  call_pending_reason?: string;
   reported_to_customer_at: string | null;
   // Rework (§8.3.4)
   nc_reference: string;
@@ -6060,7 +6080,7 @@ export async function saveIndoorJob(
     'indoor_report_no', 'dc_date', 'remarks', 'cover',
     // The stages (0323). The report FILE and its stamps are not here: the
     // upload is saveIndoorReport(), and the database stamps who and when.
-    // visit_uid / visit_filed_at are the DC approval's (0327, 0370).
+    // visit_uid / visit_filed_at are the DC approval's (0327, 0378).
     'standard_complaint',
   ] as const;
   const rest = Object.fromEntries(
@@ -6198,7 +6218,7 @@ export async function listIndoorDcAuthorisers(): Promise<{ name: string; basis: 
 export async function approveIndoorDc(dcNo: string, checkOnly = false): Promise<{ ok: boolean; error?: string; skipped?: string }> {
   const { data, error } = await must().rpc('approve_indoor_dc', { p_dc_no: dcNo, p_check_only: checkOnly });
   if (error) return { ok: false, error: errMsg(error) };
-  // D-145 (0360): a unit whose call was SOLVED since its visit was drafted is
+  // D-145 (0382): a unit whose call was SOLVED since its visit was drafted is
   // not filed; the function names those calls after a " | ".
   const out = String(data ?? '');
   const i = out.indexOf(' | ');
@@ -6985,4 +7005,53 @@ export async function getRecycleSla(): Promise<{ working_days: number; weekend_d
 export async function setRecycleSla(workingDays: number, weekendDays: number[]): Promise<Res> {
   const { error } = await must().rpc('set_recycle_sla', { p_working_days: workingDays, p_weekend_days: weekendDays });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+/** Deletes recycling requests with their consumption and other costs (0376). */
+export async function deleteRecycleRequests(ids: number[]): Promise<Res<number>> {
+  const { data, error } = await must().rpc('delete_recycle_requests', { p_ids: ids });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, data: Number(data ?? 0) };
+}
+
+// ---------------------------------------------------------------------------
+// PRE-DELIVERY QUALITY CHECK (0377) -- its own register, R/SER/QC/007's
+// columns with the product and serial on the row. Every field mandatory (the
+// database refuses a blank one); Inspected by is stamped from the session.
+// ---------------------------------------------------------------------------
+export interface PdqcRecord extends Omit<IndoorPdt, 'job_id'> {
+  product_name: string;
+  serial: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export const PDQC_WRITABLE = [
+  'product_name', 'serial', 'test_date', 'measuring_equipment_id', 'software_version', 'hv', 'ht',
+  'check1', 'check2', 'check3', 'check4', 'check5',
+  'cmv_vte_21', 'cmv_vte_60', 'cmv_vte_100', 'cmv_peep_21', 'cmv_peep_60', 'cmv_peep_100',
+  'cmv_o2_21', 'cmv_o2_60', 'cmv_o2_100',
+  'pcmv_pip_21', 'pcmv_pip_60', 'pcmv_pip_100', 'pcmv_peep_21', 'pcmv_peep_60', 'pcmv_peep_100',
+  'pcmv_o2_21', 'pcmv_o2_60', 'pcmv_o2_100',
+] as const;
+export async function listPdqcRecords(): Promise<PdqcRecord[]> {
+  const c = must();
+  return allRows<PdqcRecord>((a, b) => c.from('pdqc_records').select('*')
+    .order('test_date', { ascending: false }).order('id', { ascending: false }).range(a, b));
+}
+export async function getPdqcRecord(id: number): Promise<PdqcRecord | null> {
+  const { data, error } = await must().from('pdqc_records').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return (data as PdqcRecord | null) ?? null;
+}
+/** Save a whole check -- new (no id) or edited. Only the form's columns are
+ *  sent; the inspector is the session's. Rows counted (finding 48). */
+export async function savePdqcRecord(id: number | null, row: Partial<PdqcRecord>): Promise<Res<PdqcRecord>> {
+  const body = Object.fromEntries(Object.entries(row).filter(([k]) => (PDQC_WRITABLE as readonly string[]).includes(k)));
+  const c = must();
+  const q = id == null
+    ? c.from('pdqc_records').insert(body).select('*')
+    : c.from('pdqc_records').update(body).eq('id', id).select('*');
+  const { data, error } = await q;
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not record a Pre-Delivery Quality Check.' };
+  return { ok: true, data: data[0] as PdqcRecord };
 }

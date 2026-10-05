@@ -371,8 +371,8 @@ const MODULES = {
       // can SEE the call (D-128). Redefines 0287's and 0311's functions, so after both.
       '0341_call_actions_need_sight_of_the_call.sql',
       // D-033: a field call is registered with its three vigilance questions
-      // answered (0374). Before the cr_read tail, which must stay last.
-      '0374_field_call_vigilance_answered.sql',
+      // answered (0380). Before the cr_read tail, which must stay last.
+      '0380_field_call_vigilance_answered.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -508,8 +508,8 @@ const MODULES = {
             // Redefines 0111's view, appending only.
             '0353_review_summary_carries_the_searched_columns.sql',
             // D-129: review answers are read by holders of review.view, given
-            // once to the roles that held review.edit (0376).
-            '0376_review_answers_read_key.sql'],
+            // once to the roles that held review.edit (0381).
+            '0381_review_answers_read_key.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -738,7 +738,9 @@ const MODULES = {
             // Start Work and its SLA in working days (settings on the SLA
             // page), one request per spare, import from MRN (2026-10-04).
             // Redefines 0355's request guard and request list.
-            '0365_spare_recycling_start_sla_mrn.sql'],
+            '0365_spare_recycling_start_sla_mrn.sql',
+            // Delete a request (2026-10-04); re-states 0355's two guards.
+            '0376_spare_recycling_delete.sql'],
   },
   indoor: {
     title: 'Indoor Service (the workshop register, §4.5)',
@@ -797,10 +799,24 @@ const MODULES = {
             // D-115: a job with an uploaded report keeps its report number --
             // a trigger of its own beside the stage guard (0352).
             '0352_indoor_report_keeps_its_number.sql',
+            // A Field Return is a Troubleshooting job, held to the Repair rule
+            // (2026-10-04). Re-states indoor_jobs_guard() from the database's
+            // current definition (0352's), so AFTER it.
+            '0370_indoor_troubleshooting.sql',
+            // The job's Call Status / Call Pending Reason (2026-10-04): the
+            // visit files with them and the job's status is derived from them.
+            // Re-states 0370's guard and 0327's approve_indoor_dc, so AFTER both.
+            '0372_indoor_call_status.sql',
+            // "New device" as its own kind (2026-10-04); re-states 0327's
+            // create_indoor_dc(), so after it.
+            '0374_indoor_new_device_kind.sql',
+            // Pre-Delivery Quality Check (2026-10-05): its own register, the
+            // R/SER/QC/007 columns with the product and serial on the row.
+            '0377_pre_delivery_qc.sql',
             // D-145 (the user's decision): approving a DC skips filing the visit
-            // of a unit whose call is already Solved, and says so (0360).
+            // of a unit whose call is already Solved, and says so (0382).
             // Redefines 0327's approve_indoor_dc(), so after it.
-            '0360_indoor_approval_skips_a_solved_call.sql',
+            '0382_indoor_approval_skips_a_solved_call.sql',
             // D-111 / D-112 / D-114 (the user's decisions): a signed PDT is locked
             // and un-signed only with indoor.pdt_unsign and a reason; the dispatch
             // date is when the unit is marked Dispatched; a cleaning time may be
@@ -811,8 +827,8 @@ const MODULES = {
             // 0323's indoor_dc_may_approve(), so after it.
             '0367_indoor_dc_approver_is_the_login.sql',
             // D-108 / D-116: record_indoor_visit() is no signed-in user's, and
-            // the visit columns say the visit is filed at approval (0370).
-            '0370_indoor_record_visit_closed_and_comments.sql'],
+            // the visit columns say the visit is filed at approval (0378).
+            '0378_indoor_record_visit_closed_and_comments.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -859,8 +875,8 @@ const MODULES = {
             // and split keys; see 0286 for the parent rule.
             '0295_user_profile_details_key.sql',
             // D-059: a User Master entry with a profile or R&R history is not
-            // deleted -- set Active to No instead (0372).
-            '0372_user_master_keeps_history.sql'],
+            // deleted -- set Active to No instead (0379).
+            '0379_user_master_keeps_history.sql'],
   },
   masters: {
     title: 'Master Value Lists',

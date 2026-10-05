@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0360 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
+-- 0382 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
 --        (second re-review D-145; the user's decision, 2026-10-04)
 --
 -- approve_indoor_dc files each unit's drafted visit as Unsolved / Return to
@@ -16,14 +16,24 @@
 -- Solved (Solved, Solved - Report Pending ...) -- NOT open_state's "Report
 -- pending", which also covers a visit with a blank status.
 --
--- The function is the DATABASE'S definition (pg_get_functiondef on a database
--- built from every migration, i.e. 0327's) VERBATIM, with those lines added.
--- In the indoor module, after 0327.
+-- Built on 0372's definition (the workshop's Call Status / Pending Reason
+-- decide the visit's), VERBATIM, with those lines added -- so the skip applies
+-- only where the call is already Solved AND the visit this job would file is
+-- not: a visit the workshop records as Solved is still filed.
+-- (Written as 0360 against 0327; renumbered after main's 0372 re-stated the
+-- function without it, which would otherwise have dropped the skip.)
+-- In the indoor module, after 0372.
 -- ===========================================================================
 
-create or replace function public.approve_indoor_dc(p_dc_no text, p_check_only boolean default false)
-returns text language plpgsql security definer set search_path = public as $function$
+CREATE OR REPLACE FUNCTION public.approve_indoor_dc(p_dc_no text, p_check_only boolean DEFAULT false)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
 declare
+  v_vs     record;
+  v_skipped text[] := '{}';
   v_dc    public.indoor_dcs%rowtype;
   j       record;
   v_call  record;
@@ -31,7 +41,6 @@ declare
   v_uid   text;
   v_me    text;
   v_sp    jsonb;
-  v_skipped text[] := '{}';
 begin
   select * into v_dc from public.indoor_dcs where dc_no = btrim(p_dc_no) for update;
   if not found then
@@ -60,6 +69,10 @@ begin
       raise exception '%: no visit was drafted with its Indoor Service Report -- the Indoor engineer completes it (Report stage) before Indoor DC % can be approved', j.job_no, v_dc.dc_no
         using errcode = '23514';
     end if;
+    if btrim(coalesce(j.call_status, '')) = 'Unsolved' and btrim(coalesce(j.call_pending_reason, '')) = '' then
+      raise exception '%: the Call Status is Unsolved with no Call Pending Reason -- choose one in the Workshop record before Indoor DC % can be approved', j.job_no, v_dc.dc_no
+        using errcode = '23514';
+    end if;
     if not exists (select 1 from public.calls c where c.ucn = btrim(j.ucn)) then
       raise exception '%: call % was not found -- its visit cannot be filed', j.job_no, btrim(j.ucn)
         using errcode = '23503';
@@ -76,19 +89,24 @@ begin
             order by id loop
     select c.ucn, c.call_number, c.call_type, c.last_status into v_call from public.calls c where c.ucn = btrim(j.ucn) limit 1;
     v_draft := j.visit_draft;
-    -- D-145 (the user's decision, 2026-10-04: "Approve, skip that visit"):
-    -- a call SOLVED since the visit was drafted is not put back to Unsolved.
-    -- Its drafted visit and spares are not filed, the job keeps no visit, the
-    -- skip is written to the audit log, and the approver is told which calls.
-    -- A visit an earlier attempt already filed is still reused, as before.
+    -- 0372: the Call Status / Pending Reason chosen on the job's Workshop record.
+    select * into v_vs from public.indoor_visit_status(j.call_status, j.call_pending_reason);
+    -- D-145 (the user's decision, 2026-10-04: "Approve, skip that visit"): a
+    -- call SOLVED since the visit was drafted is not put back to an open
+    -- status. When the call's last status is Solved and the visit this job
+    -- would file is not, the visit and its spares are not filed, the job keeps
+    -- no visit, the skip goes to the audit log, and the approver is told which
+    -- calls. A visit the workshop records as Solved (0372) is still filed, and
+    -- a visit an earlier attempt already filed is still reused.
     if lower(btrim(coalesce(v_call.last_status, ''))) like 'solved%'
+       and lower(btrim(coalesce(v_vs.call_status, ''))) not like 'solved%'
        and not (j.visit_uid is not null and exists (select 1 from public.reports r where r.uid = j.visit_uid)) then
       v_skipped := v_skipped || btrim(j.ucn);
       insert into public.audit_log (actor, role, action, target, status, meta)
       values (v_me, '', 'indoor.visit_skipped', j.job_no, 'ok',
               jsonb_build_object('dc_no', v_dc.dc_no, 'job_no', j.job_no, 'ucn', btrim(j.ucn),
                                  'call_status', coalesce(v_call.last_status, ''),
-                                 'reason', 'the call was Solved after the visit was drafted, so the Unsolved visit was not filed'));
+                                 'reason', 'the call was Solved after the visit was drafted, so the visit was not filed'));
       continue;
     end if;
     -- WHAT THE VISIT ENTRY'S SAVE PATH FILES (fileVisit, CallReporting.tsx),
@@ -106,7 +124,7 @@ begin
     insert into public.reports (uid, ucn, call_number, manual_report, call_status, pending_reason,
                                 engineer, engineer_email, visit_at, data, updated_at)
     values (v_uid, btrim(j.ucn), coalesce(v_call.call_number, ''), coalesce(j.report_file_url, ''),
-            'Unsolved', 'Return to Field',
+            v_vs.call_status, v_vs.pending_reason,
             coalesce(v_draft->>'engineer', ''), coalesce(v_draft->>'engineerEmail', ''),
             case when coalesce(v_draft->>'visitDate', '') <> '' then ((v_draft->>'visitDate') || 'T00:00:00Z')::timestamptz end,
             jsonb_build_object(

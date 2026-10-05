@@ -599,7 +599,7 @@ export const FLOWS: Flow[] = [
         records: ['indoor_job_parts'], reqs: ['FRS-058', 'URS-050', 'OQ-44'] },
       { id: 'job', label: 'The job, by its kind', route: '/indoor', area: 'quality',
         detail: 'A rework records its nonconformity, instruction and revision and who re-verified it; a pre-delivery inspection its checklist, firmware and result; a demonstration loan where it went and when it is due back. Activity Other is refused without a description.',
-        records: ['indoor_jobs', 'indoor_job_checks'], reqs: ['FRS-144', 'URS-117'] },
+        records: ['indoor_jobs'], reqs: ['FRS-144', 'URS-117'] },
       { id: 'qc', label: 'Quality check — its own record and right', route: '/indoor', area: 'quality',
         detail: 'The check is recorded on the job and needs indoor.qc, a right separate from indoor.work, enforced by the database. A Fail sends the job back to Under repair, and it cannot reach Ready, Dispatched or Closed while the check reads Fail.',
         records: ['indoor_jobs'], reqs: ['FRS-059', 'FRS-144', 'URS-051', 'SR-043', 'OQ-45'] },

@@ -213,6 +213,8 @@ export const NAV: NavGroup[] = [
       // A parallel track of its own (the user, 2026-10-04): its own MRS, stock
       // out with cost, hand stock and consumption -- never the regular ones.
       { to: '/indoor/recycling', label: 'Spare Recycling', icon: '♻️', hideInAudit: true },
+      // Imported machines in the godown, checked before billing (0377).
+      { to: '/indoor/pdqc', label: 'Pre-Delivery Quality Check', icon: '✅' },
     ],
   },
   {

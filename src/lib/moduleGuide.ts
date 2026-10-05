@@ -654,7 +654,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Arrange the R/SER/07 register\'s columns — order, width, wrap, which are shown — as on every register',
       'Delete a job received in error, permanently, with a reason (needs the Delete an Indoor Service job right)',
     ],
-    records: ['indoor_jobs', 'indoor_job_list', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks', 'indoor_pdt', 'product_master', 'indoor_dcs', 'indoor_dc_lines', 'indoor_dc_list', 'parties', 'calls', 'pending_calls', 'reports', 'spare_consumption', 'spare_requests', 'rpc:indoor_dc_authorisers', 'rpc:create_indoor_dc', 'rpc:approve_indoor_dc', 'rpc:reject_indoor_dc', 'rpc:delete_indoor_job', 'user_directory', 'audit_log'],
+    records: ['indoor_jobs', 'indoor_job_list', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_pdt', 'product_master', 'indoor_dcs', 'indoor_dc_lines', 'indoor_dc_list', 'parties', 'calls', 'pending_calls', 'reports', 'spare_consumption', 'spare_requests', 'rpc:indoor_dc_authorisers', 'rpc:create_indoor_dc', 'rpc:approve_indoor_dc', 'rpc:reject_indoor_dc', 'rpc:delete_indoor_job', 'user_directory', 'audit_log'],
     rules: [
       'A harvested part cannot go back into stock until decontamination is recorded',
       'A job cannot be Dispatched or Closed without a quality check',
@@ -679,7 +679,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     route: '/indoor/recycling',
     purpose: 'Recycle defective spares on a track of their own — registration, an MRS with no approval, stock out with cost into a separate recycling hand stock, consumption, job done and the cost of each recycling. Hidden while Audit Mode is on.',
     does: [
-      'Register a defective spare for recycling (RCY/YY/NNNN): the part from the Part Master, serial, quantity, received on and from, and an optional call reference kept as text — a quantity of 3 becomes 3 requests, one per spare',
+      'Register a defective spare for recycling (RCY/YY/NNNN): the part from the Part Master, quantity, received on, its Source (Service Return or Defective Spare) and an optional call reference kept as text — a quantity of 3 becomes 3 requests, one per spare; requests can be ticked and deleted with Delete a recycling request',
       'Import spares from MRN: search any MRN, pick a line, and import its good and defective quantity as requests (the MRN No kept on each); a line can be imported again',
       'Start Work on a request with the date and time — the SLA (working days, set on the SLA page) runs from then, and the list shows the due time and On track / Due today / Breached / Met',
       'Raise an MRS (RMRS/YY/NNNN) for the spares needed — no approval — optionally against an open recycling request',
@@ -697,10 +697,28 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'A part cannot be consumed beyond your recycling hand stock; an MRS line cannot be booked out beyond what it asked for',
       'A request closes only once its job done is recorded; Not recyclable needs a reason; a closed request cannot be changed',
       'Start Work is recorded once and never in the future; the SLA counts working days only, skipping the holiday weekdays set on the SLA page',
-      'One request per spare: a serial is set on its own request, never for several at once',
+      'One request per spare; a request carries no serial',
       'While Audit Mode is on the whole page disappears, back to the home screen',
       'The returned spare is recorded as R<PartNo>; the Part Master and the regular stock are not changed',
-      'Its five keys are granted to no role (the administrator passes anyway); give them on Roles & Permissions → Indoor Service',
+      'Its six keys are granted to no role (the administrator passes anyway); give them on Roles & Permissions → Indoor Service',
+    ],
+  },
+  {
+    route: '/indoor/pdqc',
+    purpose: 'Record the Pre-Delivery Quality Check (R/SER/QC/007) of an imported machine in the godown before billing — a register of its own, for any product.',
+    does: [
+      'Record a new check: the product (from the Product Master), SL. No, date, measuring equipment ID, software version, HV and HT, checks 1–5 as OK / NOT OK, and the CMV/ACMV and PCMV readings at FiO2 21, 60 and 100%',
+      'Open a check to see it or, with the right, correct it',
+      'Print a check on the R/SER/QC/007 sheet',
+      'Download the checks',
+    ],
+    records: ['pdqc_records', 'product_master'],
+    rules: [
+      'Every field is mandatory — a check cannot be saved with any of them blank',
+      'Whoever saves the check is recorded as its inspector, with their designation from the User Master; a correction re-signs it as the person correcting it',
+      'A record only: a NOT OK is recorded as it is, and billing is not blocked',
+      'A check is never deleted',
+      'Recording a check needs Record a Pre-Delivery Quality Check, given to no role (the administrator passes anyway)',
     ],
   },
 

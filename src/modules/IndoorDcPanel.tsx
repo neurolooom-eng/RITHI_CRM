@@ -180,10 +180,9 @@ export function IndoorDcForm({ jobs, onClose, onIssued, inPane }: {
             <textarea rows={4} value={to} onChange={(e) => setTo(e.target.value)} />
             <span className="ind-hint">From the Party Master where the consignee is on it. Edit it as the challan should read.</span>
           </label>
-          <label className="ind-field"><span className="ind-label">MIRN No. / Customer Ref No.</span>
-            <input value={ref} onChange={(e) => setRef(e.target.value)} /></label>
-          <label className="ind-field"><span className="ind-label">Its date</span>
-            <input type="date" value={refDate} onChange={(e) => setRefDate(e.target.value)} /></label>
+          {/* MIRN No. / Customer Ref No. and its date were removed from this form
+              (the user, 2026-10-04). They are sent empty; the printed DC keeps
+              its two lines, blank, as the controlled form lays them out. */}
         </div>
       </section>
 
@@ -191,8 +190,7 @@ export function IndoorDcForm({ jobs, onClose, onIssued, inPane }: {
         <div className="ind-group-head"><h4 className="ind-eyebrow">Despatch</h4></div>
         <div className="ind-grid">
           <Value label="DC date" hint="The date of entry — set by the database.">{formatDay(dcDate)}</Value>
-          <label className="ind-field"><span className="ind-label">Mode of despatch</span>
-            <input value={mode} onChange={(e) => setMode(e.target.value)} placeholder="By hand, courier …" /></label>
+          {/* Mode of despatch removed from this form (the user, 2026-10-04). */}
           <label className="ind-field is-wide">
             <span className="ind-label">Purpose (every line)</span>
             <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="e.g. Returned after repair" />

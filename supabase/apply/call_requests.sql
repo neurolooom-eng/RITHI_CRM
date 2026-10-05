@@ -45,7 +45,7 @@
 --   0287_call_keys_per_register.sql
 --   0311_cancel_needs_an_open_call.sql
 --   0341_call_actions_need_sight_of_the_call.sql
---   0374_field_call_vigilance_answered.sql
+--   0380_field_call_vigilance_answered.sql
 --   0164_cr_read_initplan.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -4018,11 +4018,11 @@ grant execute on function public.reopen_call(text, text) to authenticated;
 grant execute on function public.close_reopened_call(text, text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0374_field_call_vigilance_answered.sql
+-- 0380_field_call_vigilance_answered.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0374 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
+-- 0380 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
 --        (second re-review D-033; the user's decision, 2026-10-05)
 --
 -- Public Health Threat?, Death? and Serious Incident? carried defaultValue 'NO'

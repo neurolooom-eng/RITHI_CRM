@@ -63,6 +63,8 @@ import { Workload } from './modules/Workload';
 import { ProductFailureAnalysis } from './modules/ProductFailureAnalysis';
 import { IndoorService } from './modules/IndoorService';
 import { SpareRecycling } from './modules/SpareRecycling';
+import { PreDeliveryQc } from './modules/PreDeliveryQc';
+import { PdqcPrint } from './modules/PdqcPrint';
 import { Tracker } from './modules/Tracker';
 // User Access folded into User Master; /users now redirects there.
 import { Settings } from './modules/Settings';
@@ -136,6 +138,15 @@ function Shell() {
         </div>
       );
     }
+    // THE PRE-DELIVERY QUALITY CHECK print (0377) answers to its register's
+    // key, or to the right to record one -- the same two its rows answer to.
+    if (location.pathname.startsWith('/indoor-pdqc/') && !can(actionForPath('/indoor/pdqc')) && !can('pdqc.record')) {
+      return (
+        <div style={{ padding: 32 }} className="muted">
+          🔒 You don’t have access to the Pre-Delivery Quality Check. Ask an administrator to grant it in <b>Roles &amp; Permissions</b>.
+        </div>
+      );
+    }
     // THE TWO STORES RECORDS (MTN R/SER/STR/003, MRN R/SER/STR/002) answer to
     // the key of the screen that prints them, as the indoor records do.
     if (location.pathname.startsWith('/mtn/') && !can(actionForPath('/stock-transfer'))) {
@@ -162,6 +173,7 @@ function Shell() {
               reader may not see is simply not found. */}
           <Route path="/ffr/:ffrNo" element={<FieldFailureReportPrint />} />
           <Route path="/indoor-pdt/:jobId" element={<IndoorPdtPrint />} />
+          <Route path="/indoor-pdqc/:id" element={<PdqcPrint />} />
           <Route path="/indoor-register/:sheet" element={<IndoorRegisterPrint />} />
           {/* Indoor_DC (0321), and the two stores records. */}
           <Route path="/indoor-dc/:dcNo" element={<IndoorDcPrint />} />
@@ -257,6 +269,7 @@ function Shell() {
         <Route path="/exports/:tab" element={<ReportsHub />} />
         <Route path="/indoor" element={<IndoorService />} />
         <Route path="/indoor/recycling" element={<SpareRecycling />} />
+        <Route path="/indoor/pdqc" element={<PreDeliveryQc />} />
         <Route path="/missing-visit-reports" element={<SolvedWithoutReport />} />
         <Route path="/device-cache" element={<DeviceCacheStatus />} />
         <Route path="/handstock-report" element={<HandStockReport />} />

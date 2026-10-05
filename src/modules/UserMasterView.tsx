@@ -299,7 +299,7 @@ export function UserMasterView() {
   const removeRow = async (r: DirectoryRow) => {
     if (r.id === 0) return;
     // D-059: an entry with a profile or R&R history is refused by the database
-    // (0372) -- the person is set inactive instead, and their history stays.
+    // (0379) -- the person is set inactive instead, and their history stays.
     if (!confirm(`Delete ${r.name || r.email || 'this user'} from the User Master?\n\nOnly an entry made by mistake can be deleted. An entry with a profile, Roles & Responsibilities or training history is refused — set Active to No instead. Their login (if any) is not affected — use 🔒 Disable login to lock out a leaver.`)) return;
     setBusy(true);
     const res = await deleteDirectoryRow(r.id);

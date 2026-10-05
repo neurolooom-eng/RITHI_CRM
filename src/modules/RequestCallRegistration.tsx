@@ -4,7 +4,7 @@ import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { addCallRequestBatch, listCallRequests, sbPartyInfo, sbProductBySerial, supabaseConfigured,
-         updateCallRequest, callRequestEditableKeys, sbKycByParties, kycKeyFor,
+         updateCallRequest, callRequestEditableKeys, unmapCallRequest, sbKycByParties, kycKeyFor,
          type CallRequestItem } from '../lib/supabase';
 import { csvExport, timeAgo, fmtDateTime, fmtLongDate } from '../lib/format';
 import { listPartyItems, uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
@@ -62,6 +62,26 @@ const STATUS_TONE: Record<string, string> = {
   Pending: 'badge-warning', Mapped: 'badge-info', Registered: 'badge-success', Cancelled: 'badge-neutral',
 };
 const STATUSES = ['', 'Pending', 'Registered', 'Mapped', 'Cancelled'];
+
+// THE TWO DOCUMENT FIELDS ARE LINKS, so they open (the user, 2026-10-05: "make
+// the reports and KYC clickable"). Each holds the Drive link the request form
+// stored; a cell may carry more than one, and anything that is not a link is
+// shown as written rather than dressed up as one.
+const DOC_KEYS = new Set(['installationReport', 'kyc']);
+const URL_RE = /https?:\/\/[^\s,;]+/g;
+function LinkCell({ value }: { value: unknown }) {
+  const text = String(value ?? '').trim();
+  const urls = text.match(URL_RE) ?? [];
+  if (!urls.length) return <>{text}</>;
+  return (
+    <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap' }}>
+      {urls.map((u, i) => (
+        <a key={u + i} href={u} target="_blank" rel="noreferrer" title={u}
+          onClick={(e) => e.stopPropagation()}>📎 Open{urls.length > 1 ? ` ${i + 1}` : ''}</a>
+      ))}
+    </span>
+  );
+}
 
 const COLUMNS: Column<Row>[] = [
   { key: 'submittedAt', header: 'Requested', width: 160, wrap: false, render: (r) => fmtDateTime(r.submittedAt) },
@@ -182,6 +202,17 @@ export function RequestCallRegistration() {
   // THE CUSTOMER'S KYC, ON THE ROW. Added here rather than in the module-level
   // list because it reads a map this screen loads; three answers, each with a
   // different next step.
+  // Every field of the loaded rows stays offered in the Columns picker, as the
+  // table derives it -- named as the drawer names them, with the two document
+  // fields rendered as links.
+  const extraFields = useMemo(() => {
+    const ks = new Set<string>();
+    rows.slice(0, 50).forEach((r) => Object.keys(r as Record<string, unknown>).forEach((k) => ks.add(k)));
+    return [...ks].map((k) => ({
+      key: k, header: LABELS[k],
+      render: DOC_KEYS.has(k) ? (r: Row) => <LinkCell value={(r as Record<string, unknown>)[k]} /> : undefined,
+    }));
+  }, [rows]);
   const columnsWithKyc = useMemo<Column<Row>[]>(() => {
     const kyc: Column<Row> = {
       key: '_kyc', header: 'KYC', width: 120, wrap: false,
@@ -213,6 +244,23 @@ export function RequestCallRegistration() {
   const isPending = (r: Row) => {
     const st = String(r.status ?? 'Pending').trim().toLowerCase();
     return st === '' || st === 'pending';
+  };
+
+  // Back to Pending: the UCN is cleared and the request returns to the Pending
+  // Registrations list. The call it was mapped to is not touched -- mapping
+  // never wrote to it.
+  const [unmapping, setUnmapping] = useState(false);
+  const unmap = async () => {
+    if (!detail) return;
+    const ucn = String(detail.ucn ?? '');
+    if (!confirm(`Unmap ${String(detail.reqid ?? 'this request')} from ${ucn || 'its call'} and put it back on the Pending list?\n\nThe call ${ucn} itself is not changed.`)) return;
+    setUnmapping(true);
+    const res = await unmapCallRequest(Number(detail.id));
+    setUnmapping(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not unmap the request.' }); return; }
+    setDetail(null);
+    setMsg({ tone: 'ok', text: `${String(detail.reqid ?? 'Request')} unmapped from ${ucn} — back on the Pending list.` });
+    await load();
   };
 
   const saveDetail = async () => {
@@ -266,6 +314,7 @@ export function RequestCallRegistration() {
         rowsBeforeScroll={16}
         dense
         columns={columnsWithKyc}
+        allFields={extraFields}
         onRowClick={(r) => setDetail(r)}
         onLoadMore={() => setLimit((l) => l + 2000)}
         moreAvailable={moreAvailable}
@@ -327,10 +376,22 @@ export function RequestCallRegistration() {
                   </button>
                 )
               ) : (
-                <span className="muted" style={{ fontSize: 12 }}>
-                  This request is <b>{String(detail.status ?? '')}</b>. The call carries these details now —
-                  correct them on the call, where the change is recorded.
-                </span>
+                <>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    This request is <b>{String(detail.status ?? '')}</b>. The call carries these details now —
+                    correct them on the call, where the change is recorded.
+                  </span>
+                  {/* UNMAP (the user, 2026-10-05: "I want to unmap this and put
+                      it back on pending list"). Only a MAPPED request: a
+                      Registered one created its call, a Cancelled one was closed
+                      on purpose. The same permission as mapping it. */}
+                  {String(detail.status ?? '').trim().toLowerCase() === 'mapped' && can('pending.register') && (
+                    <button className="btn btn-sm" disabled={unmapping} onClick={() => void unmap()}
+                      title="Clear the UCN and put this request back on the Pending list">
+                      {unmapping ? 'Unmapping…' : '↩ Unmap'}
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
@@ -351,7 +412,7 @@ export function RequestCallRegistration() {
               .map(([k, v]) => (
                 <div className="reg-detail-row" key={k}>
                   <div className="reg-detail-k">{LABELS[k] ?? k}</div>
-                  <div className="reg-detail-v">{String(v)}</div>
+                  <div className="reg-detail-v">{/^https?:\/\//.test(String(v).trim()) ? <LinkCell value={v} /> : String(v)}</div>
                 </div>
               )))}
             {/* THE SUBMITTED REQUEST, not just the form. This drawer was missed
