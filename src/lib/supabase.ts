@@ -2429,6 +2429,20 @@ export async function setCallRequestUcn(id: number, ucn: string, status: 'Regist
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+// UNMAP: a request mapped to the wrong call goes back to Pending (the user,
+// 2026-10-05). Only a MAPPED one -- the status test is in the UPDATE, so a
+// request registered or cancelled meanwhile is left alone -- and the rows are
+// COUNTED, because a refused or unmatched update raises no error (finding 48).
+// The call it was mapped to is not touched: mapping never wrote to it.
+export async function unmapCallRequest(id: number): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await must().from('call_requests')
+    .update({ ucn: '', status: 'Pending', actioned_by: '', actioned_at: null })
+    .eq('id', id).eq('status', 'Mapped').select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  return (data ?? []).length ? { ok: true }
+    : { ok: false, error: 'Nothing was changed — the request is no longer Mapped, or your role may not change it. Refresh and look again.' };
+}
+
 // Cancel a request — it stops being pending without ever becoming a call.
 export async function cancelCallRequest(id: number, reason: string, by = ''): Promise<{ ok: boolean; error?: string }> {
   const now = new Date().toISOString();

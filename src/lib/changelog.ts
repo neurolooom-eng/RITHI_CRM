@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.97',
+    version: '0.10.99',
     date: '2026-10-05',
     title: 'Pre-Delivery Quality Check — a register of its own under Indoor Service',
     changes: [
@@ -23,6 +23,14 @@ export const CHANGELOG: ChangeEntry[] = [
       'Every field is mandatory — Save stays off until all are filled. Whoever saves is recorded as the inspector, with their designation.',
       'A record only: a NOT OK is recorded and shown, billing is not blocked. A check is never deleted. Each one prints on the R/SER/QC/007 sheet.',
       'Recording needs the new permission “Record a Pre-Delivery Quality Check”, given to no role — tick it on Roles & Permissions → Indoor Service.',
+    ],
+  },
+  {
+    version: '0.10.98',
+    date: '2026-10-05',
+    title: 'Request Registration: Unmap a request mapped to the wrong call',
+    changes: [
+      'REQUEST REGISTRATION: a Mapped request now has ↩ Unmap in its details. It clears the UCN and puts the request back on the Pending list, to be registered or mapped again. The call it was mapped to is not changed. Only for those who can register calls.',
     ],
   },
   {

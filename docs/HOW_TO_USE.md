@@ -90,6 +90,8 @@ different totals. An empty register usually means access, not emptiness.
   > not have yet — so the form works on a weak signal.
   > **The Installation Report and KYC open with a click** — the columns (and a
   > request's details) show **📎 Open**, which opens the stored file in a new tab.
+  > **Mapped to the wrong call?** Open the request and press **↩ Unmap** — the UCN is
+  > cleared and it goes back on the Pending list. The call itself is not changed.
 - **Pending Registrations** `/pending-registrations` — the Hotline queue.
   Registering one issues the UCN and files the call. The chips at the top filter
   it by Call Type, each with its count.
