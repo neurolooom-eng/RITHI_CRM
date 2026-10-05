@@ -177,7 +177,8 @@ create table if not exists public.masters (
   value  text not null,
   extra  jsonb not null default '{}'
 );
-create index if not exists masters_name_idx on public.masters (name);
+-- masters_name_idx (name) was here; a leading prefix of masters_active_idx (name, active),
+-- which serves the same lookups. Removed 2026-10-05; 0382 drops it where it exists.
 
 -- ---------------------------------------------------------------------------
 -- calls — unified Field / Installation / PM register (call_type distinguishes).
@@ -524,7 +525,8 @@ alter table public.reports drop constraint if exists reports_ucn_key;
 -- 2) Add the visit UID and make it the natural key.
 alter table public.reports add column if not exists uid text;
 create unique index if not exists reports_uid_key on public.reports (uid) where uid is not null;
-create index if not exists reports_ucn_idx on public.reports (ucn);
+-- reports_ucn_idx (ucn) was here; a prefix of reports_ucn_entry_idx (ucn, updated_at desc, id desc).
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 -- 3) Clear the earlier de-duped load so the full visit history can be re-imported.
 truncate table public.reports;

@@ -35,4 +35,5 @@ begin
   end if;
 end $$;
 
-create index if not exists parts_item_detail_key_idx on public.parts (item_detail_key);
+-- parts_item_detail_key_idx (item_detail_key) was here; the same column as parts_item_detail_key_uniq.
+-- Removed 2026-10-05; 0382 drops it where it exists.

@@ -51,7 +51,8 @@ create table if not exists public.handstock_opening (
 -- wrong is how an opening balance silently doubles.
 create unique index if not exists handstock_opening_uniq
   on public.handstock_opening (engineer_key, part_code, source_key);
-create index if not exists handstock_opening_eng_idx on public.handstock_opening (engineer_key);
+-- handstock_opening_eng_idx (engineer_key) was here; a prefix of handstock_opening_uniq.
+-- Removed 2026-10-05; 0382 drops it where it exists.
 
 create or replace function public.handstock_opening_biu()
 returns trigger language plpgsql security definer set search_path = public as $$

@@ -78,6 +78,27 @@ up)_
 
 ---
 
+## 2026-10-05 — Indexing pass (0382, v0.10.113): eight redundant indexes dropped; probe for the rest
+
+- Audit of a database built from every migration: 469 indexes in `public`,
+  59 GIN, 256 unique. No exact duplicates. **Eight non-unique btrees were a
+  leading prefix of a wider index** on the same table — dropped by 0382 and
+  REMOVED from their creating migrations (0001, 0002, 0010, 0039, 0070, 0074,
+  0079, 0082), because `check:replay` compares policies, functions and views
+  and NOT indexes, so a bundle replay would have put each one back silently.
+  `_status.sql` row 315 asserts both halves.
+- **38 foreign-key columns have no index**, 35 of them `created_by →
+  auth.users`. Deliberately NOT indexed: they matter only for deleting a
+  login (rare) and the read policies test `created_by = auth.uid()` as one
+  OR-branch that no index serves anyway; 35 more indexes would be the
+  opposite of cost-efficient.
+- **The 33 trigram GIN indexes on the three call tables are the open
+  question.** They are the biggest indexes on the project; the global call
+  search ORs eleven of them per table. Whether a single stored search column
+  with one trigram index could replace most of them depends on live sizes and
+  scan counts the repository cannot see — `_which_indexes_earn_their_keep.sql`
+  prints them. Decide from that grid, not from here.
+
 ## 2026-10-05 — Bulk Uploads: counts on request (v0.10.112); search-index status row 314
 
 - **0381 is LIVE**: `0381_feedback_lookup_indexes.sql` applied on the first
