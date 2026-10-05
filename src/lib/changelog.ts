@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.108',
+    date: '2026-10-05',
+    title: 'Ownership Transfer: pick the machine and the new party',
+    changes: [
+      'RECORD A TRANSFER now starts by picking the MACHINE from the Product Database: type part of the serial and choose the line showing serial, model and current party. A serial shared by two models can no longer land on the wrong one.',
+      'Choosing it shows the machine\'s CURRENT DETAILS (party, address, city, state, Service Engineer), its SALE ENTRY (SA Number, Sold Through) and its WARRANTY (start date, end date, item status, contract number), as the Product Database has them. They are kept on the transfer as a record of what the machine carried when it changed hands.',
+      'TO PARTY is picked from the Party Master and shows that party\'s address, city, state, type and engineer. A party not on the Party Master has to be added there first.',
+    ],
+  },
+  {
     version: '0.10.107',
     date: '2026-10-05',
     title: 'Contract: pick the customer\'s machines, price them, add them',

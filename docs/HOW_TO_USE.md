@@ -757,8 +757,18 @@ set to zero.
     city, state and Service Engineer**, from their Party Master entry, and keeps
     them when the original sale is saved again. If the new owner's Party Master
     has no address, the machine keeps the one it had.
-  - **Leave "From Party" blank** and it fills from whoever holds the machine now,
-    which is what lets a historical list load in date order.
+  - **＋ Record a transfer picks the MACHINE from the Product Database** — type
+    part of the serial and choose the line showing serial, model and current
+    party (this device's copy first). Choosing it shows **From — the current
+    details** (party, address, city, state, Service Engineer), the **Sale
+    Entry** (SA Number, Sold Through) and the **Warranty** (start and end
+    date, item status, contract number), all as the Product Database has them,
+    and they are kept on the transfer as a record of what the machine carried
+    when it changed hands. **To party is picked from the Party Master** on this
+    device and shows that party's address, city, state, type and engineer; a
+    party that is not on the Party Master must be added there first.
+  - On a file load, **leave "From Party" blank** and it fills from whoever holds
+    the machine now, which is what lets a historical list load in date order.
   - If the previous owner cannot be worked out the hand-over is still recorded
     with that field blank, not dropped.
   - Matched on the OT number **and** the machine, so a corrected export updates
