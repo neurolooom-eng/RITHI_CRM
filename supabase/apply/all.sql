@@ -242,6 +242,7 @@
 --   0310_rename_passes_the_line_guard.sql
 --   0311_tick_box_rm_auto_approves.sql
 --   0333_spare_request_files_visit.sql
+--   0393_spare_line_people_from_session.sql
 --   0122_spare_requests_replay_tail.sql
 --   0020_stock_transfer.sql
 --   0123_stock_transfer_update_policy.sql
@@ -291,6 +292,7 @@
 --   0369_filed_under_own_name_unless_granted.sql
 --   0373_stock_movement_dates.sql
 --   0375_stock_transfer_own_or_team.sql
+--   0392_save_records_whole.sql
 --   0385_stores_dispatch_report.sql
 --   0384_handstock_balance_all.sql
 --   0036_sales_contracts.sql
@@ -30598,6 +30600,80 @@ comment on function public.file_visit_for_spare_request(text) is
   'Called by the Spare Request form after a call-based request and its lines are saved: when the call has no visit yet, files one -- Unsolved, the requesting engineer, the request date, pending reason "spare not available" from the master, Update Visit Work Details = No (0333).';
 
 -- ------------------------------------------------------------------------
+-- 0393_spare_line_people_from_session.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0393 — WHO APPROVED, DISPATCHED OR RECEIVED A SPARE IS THE SESSION, NOT
+--        WHATEVER THE SCREEN SENT (second re-review D-041)
+--
+-- buildPatch() (spareflow.ts) wrote rm_by / commercial_by / nsm_by from the
+-- screen's own actor string; decide_spare_lines() takes coalesce(p_actor, ...)
+-- preferring the caller's; receive_spare_shipments() writes received_by from
+-- p_actor; dispatch_spare_lines() writes dispatched_by from p_actor. No trigger
+-- stamped any of them -- the fault 0211 fixed for spare_dispatches.dispatched_by
+-- after the Delivery Challan named the wrong person, still standing on the
+-- five names the approval trail SHOWS (the login was recoverable from
+-- sys_updated_by, 0244; what the reader is shown was not attested).
+--
+-- Now, whenever a signed-in write sets or changes one of rm_by, commercial_by,
+-- nsm_by, dispatched_by or received_by on a spare line, the database writes the
+-- signed-in person's name (my_display_name(), the name 0211 stamps) instead of
+-- the value sent -- DISCARDED, not refused, the 0211 rule: refusing makes an
+-- honest client fail, discarding makes a buggy one harmless. Not changed:
+--   * a value cleared to blank (an approval taken back keeps that meaning);
+--   * a User Master rename carrying the name (engineer_rename_in_progress());
+--   * an import (bulk.upload / import.panel) and a connection with no session,
+--     which load history as it was;
+--   * "Auto-Approved", which writes no name and so is not touched.
+-- In the spare_requests module, before its replay tail.
+-- ===========================================================================
+
+create or replace function public.spare_line_people_from_session()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare me text := public.my_display_name();
+begin
+  if me is null then return new; end if;                                   -- no session
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+
+  if tg_op = 'INSERT' then
+    if nullif(btrim(coalesce(new.rm_by, '')), '') is not null then new.rm_by := me; end if;
+    if nullif(btrim(coalesce(new.commercial_by, '')), '') is not null then new.commercial_by := me; end if;
+    if nullif(btrim(coalesce(new.nsm_by, '')), '') is not null then new.nsm_by := me; end if;
+    if nullif(btrim(coalesce(new.dispatched_by, '')), '') is not null then new.dispatched_by := me; end if;
+    if nullif(btrim(coalesce(new.received_by, '')), '') is not null then new.received_by := me; end if;
+    return new;
+  end if;
+
+  if new.rm_by is distinct from old.rm_by and nullif(btrim(coalesce(new.rm_by, '')), '') is not null
+     and not public.engineer_rename_in_progress(old.rm_by, new.rm_by) then
+    new.rm_by := me;
+  end if;
+  if new.commercial_by is distinct from old.commercial_by and nullif(btrim(coalesce(new.commercial_by, '')), '') is not null
+     and not public.engineer_rename_in_progress(old.commercial_by, new.commercial_by) then
+    new.commercial_by := me;
+  end if;
+  if new.nsm_by is distinct from old.nsm_by and nullif(btrim(coalesce(new.nsm_by, '')), '') is not null
+     and not public.engineer_rename_in_progress(old.nsm_by, new.nsm_by) then
+    new.nsm_by := me;
+  end if;
+  if new.dispatched_by is distinct from old.dispatched_by and nullif(btrim(coalesce(new.dispatched_by, '')), '') is not null
+     and not public.engineer_rename_in_progress(old.dispatched_by, new.dispatched_by) then
+    new.dispatched_by := me;
+  end if;
+  if new.received_by is distinct from old.received_by and nullif(btrim(coalesce(new.received_by, '')), '') is not null
+     and not public.engineer_rename_in_progress(old.received_by, new.received_by) then
+    new.received_by := me;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.spare_line_people_from_session() from public, anon, authenticated;
+drop trigger if exists zzy_spare_line_people_from_session on public.spare_request_lines;
+create trigger zzy_spare_line_people_from_session
+  before insert or update on public.spare_request_lines
+  for each row execute function public.spare_line_people_from_session();
+
+-- ------------------------------------------------------------------------
 -- 0122_spare_requests_replay_tail.sql
 -- ------------------------------------------------------------------------
 
@@ -37352,6 +37428,120 @@ drop trigger if exists stock_transfer_own_or_team on public.stock_transfers;
 create trigger stock_transfer_own_or_team
   before insert on public.stock_transfers
   for each row execute function public.stock_transfer_own_or_team();
+
+-- ------------------------------------------------------------------------
+-- 0392_save_records_whole.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0392 — A SPARE REQUEST, A STOCK TRANSFER AND A MATERIAL RETURN ARE SAVED
+--        WHOLE OR NOT AT ALL (second re-review D-044)
+--
+-- addSpareRequest, addStockTransfer and addMaterialReturn (supabase.ts) wrote a
+-- header (or the first row), then the lines in a second request, and on a
+-- failed line DELETED what they had written without checking the result.
+-- Measured on a database:
+--   * the engineer's own spare request delete is refused by the retention
+--     guard (0049), so a request with no lines stayed, its OR number consumed;
+--   * mr_delete admits only an administrator, so for anybody else the first
+--     return row stayed -- and it had already taken the stock off the engineer;
+--   * stock_transfers has no delete policy, so an empty transfer header stayed;
+-- and each screen reported the line error as though nothing had been saved.
+--
+-- The cure is not a delete that works: it is one transaction. Each function
+-- below writes the header and every line in ONE call, so a refused line rolls
+-- the header back with it and nothing is left half-saved. They are SECURITY
+-- INVOKER: they run as the caller, so every row-level policy, guard and stamp
+-- that applied to the two requests applies unchanged -- they add no right.
+-- Only the keys the caller sends are written; every other column keeps its
+-- default, and the numbers (uid, OR number, row numbers) are still the
+-- database's. The screens call these instead of the two requests.
+-- In the handstock module, before 0385 / 0384 (which must stay last).
+-- ===========================================================================
+
+-- The columns of a public table that a jsonb row names, quoted, for an insert
+-- that writes exactly those and leaves the rest to their defaults.
+create or replace function public.jsonb_columns_of(p_table text, p_row jsonb)
+returns text language sql stable security invoker set search_path = public as $$
+  select string_agg(quote_ident(k), ', ' order by k)
+    from jsonb_object_keys(coalesce(p_row, '{}'::jsonb)) k
+   where exists (select 1 from information_schema.columns c
+                  where c.table_schema = 'public' and c.table_name = p_table
+                    and c.column_name = k and c.is_generated = 'NEVER'
+                    and coalesce(c.identity_generation, '') <> 'ALWAYS')
+$$;
+revoke execute on function public.jsonb_columns_of(text, jsonb) from public, anon;
+grant execute on function public.jsonb_columns_of(text, jsonb) to authenticated;
+
+-- ---- a spare request and its lines ---------------------------------------------
+create or replace function public.save_spare_request(p_req jsonb, p_lines jsonb)
+returns jsonb language plpgsql security invoker set search_path = public as $$
+declare v_cols text; v_uid text; v_or text;
+begin
+  if jsonb_typeof(p_lines) is distinct from 'array' or jsonb_array_length(p_lines) = 0 then
+    raise exception 'A spare request needs at least one part' using errcode = '23514';
+  end if;
+  v_cols := public.jsonb_columns_of('spare_requests', p_req);
+  if v_cols is null then
+    raise exception 'A spare request needs its details' using errcode = '23514';
+  end if;
+  execute format('insert into public.spare_requests (%1$s) select %1$s from jsonb_populate_record(null::public.spare_requests, $1) returning uid, or_no', v_cols)
+    into v_uid, v_or using p_req;
+  -- RowNo is sent explicitly, as the screen did: every row of one insert fires
+  -- the numbering trigger against the same snapshot.
+  insert into public.spare_request_lines (request_uid, row_no, part, qty)
+  select v_uid, t.n, r.part, coalesce(r.qty, 1)
+    from jsonb_array_elements(p_lines) with ordinality t(x, n),
+         jsonb_populate_record(null::public.spare_request_lines, t.x) r;
+  return jsonb_build_object('uid', v_uid, 'or_no', v_or);
+end $$;
+revoke execute on function public.save_spare_request(jsonb, jsonb) from public, anon;
+grant execute on function public.save_spare_request(jsonb, jsonb) to authenticated;
+
+-- ---- a stock transfer and its lines ---------------------------------------------
+create or replace function public.save_stock_transfer(p_header jsonb, p_lines jsonb)
+returns text language plpgsql security invoker set search_path = public as $$
+declare v_cols text; v_uid text;
+begin
+  if jsonb_typeof(p_lines) is distinct from 'array' or jsonb_array_length(p_lines) = 0 then
+    raise exception 'A stock transfer needs at least one part' using errcode = '23514';
+  end if;
+  v_cols := public.jsonb_columns_of('stock_transfers', p_header);
+  if v_cols is null then
+    raise exception 'A stock transfer needs its engineers' using errcode = '23514';
+  end if;
+  execute format('insert into public.stock_transfers (%1$s) select %1$s from jsonb_populate_record(null::public.stock_transfers, $1) returning uid', v_cols)
+    into v_uid using p_header;
+  insert into public.stock_transfer_lines (transfer_uid, row_no, part, qty, reason)
+  select v_uid, t.n, r.part, r.qty, btrim(coalesce(r.reason, ''))
+    from jsonb_array_elements(p_lines) with ordinality t(x, n),
+         jsonb_populate_record(null::public.stock_transfer_lines, t.x) r;
+  return v_uid;
+end $$;
+revoke execute on function public.save_stock_transfer(jsonb, jsonb) from public, anon;
+grant execute on function public.save_stock_transfer(jsonb, jsonb) to authenticated;
+
+-- ---- a material return: one row per part, sharing the first row's uid -----------
+create or replace function public.save_material_return(p_header jsonb, p_lines jsonb)
+returns text language plpgsql security invoker set search_path = public as $$
+declare v_row jsonb; v_cols text; v_uid text; t record;
+begin
+  if jsonb_typeof(p_lines) is distinct from 'array' or jsonb_array_length(p_lines) = 0 then
+    raise exception 'A material return needs at least one part' using errcode = '23514';
+  end if;
+  for t in select x, n from jsonb_array_elements(p_lines) with ordinality u(x, n) order by n loop
+    v_row := coalesce(p_header, '{}'::jsonb) || t.x || jsonb_build_object('source', 'app');
+    if t.n > 1 then
+      v_row := v_row || jsonb_build_object('uid', v_uid, 'row_no', t.n);
+    end if;
+    v_cols := public.jsonb_columns_of('material_returns', v_row);
+    execute format('insert into public.material_returns (%1$s) select %1$s from jsonb_populate_record(null::public.material_returns, $1) returning uid', v_cols)
+      into v_uid using v_row;
+  end loop;
+  return v_uid;
+end $$;
+revoke execute on function public.save_material_return(jsonb, jsonb) from public, anon;
+grant execute on function public.save_material_return(jsonb, jsonb) to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0385_stores_dispatch_report.sql

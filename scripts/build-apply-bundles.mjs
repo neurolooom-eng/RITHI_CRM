@@ -1083,6 +1083,10 @@ const MODULES = {
             // D-049: stock is transferred from your own or your team's hand
             // stock (else stock.transfer.others), to a User Master name (0375).
             '0375_stock_transfer_own_or_team.sql',
+            // D-044: a spare request, a stock transfer and a material return are
+            // saved whole -- header and lines in one transaction, as the caller
+            // (0392). Before 0385 / 0384, which must stay last.
+            '0392_save_records_whole.sql',
             // The Stores Dispatch Report (the AppSheet Stores view) and the part's
             // IND/IMP; reads the dispatch, request-line and parts tables (0385).
             '0385_stores_dispatch_report.sql',
@@ -1304,6 +1308,9 @@ const MODULES = {
       // LAST, and it must stay last: it re-asserts `dispatch_spare_lines()` and
       // `sd_read`, which handstock owns, so a replay of Spare_1.sql alone stops
       // reverting them. Guarded, so a fresh apply skips it.
+      // D-041: who approved, dispatched or received a spare is the session,
+      // not the screen's value (0393). Before the replay tail, which stays last.
+      '0393_spare_line_people_from_session.sql',
       '0122_spare_requests_replay_tail.sql'],
   },
   product_database_2: {

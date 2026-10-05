@@ -2152,7 +2152,15 @@ with checks(sort_order, bundle, provides, present) as (
          and (to_regclass('public.perm_parents') is not null
               and coalesce((xpath('/row/c/text()', query_to_xml(
                     'select count(*) as c from public.perm_parents where child = ''review.view'' and parent = ''review.edit''',
-                    false, true, '')))[1]::text::int > 0, false))))
+                    false, true, '')))[1]::text::int > 0, false)))),
+    (330, 'A spare request, a stock transfer and a material return are saved whole', 'save_spare_request(), save_stock_transfer() and save_material_return() write the header and every line in one transaction as the caller (SECURITY INVOKER), so a refused line leaves nothing half-saved; the screens call them (0392, D-044). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0392)',
+        (to_regprocedure('public.save_spare_request(jsonb,jsonb)') is not null
+         and to_regprocedure('public.save_stock_transfer(jsonb,jsonb)') is not null
+         and to_regprocedure('public.save_material_return(jsonb,jsonb)') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.save_spare_request(jsonb,jsonb)'), 'EXECUTE'))),
+    (331, 'Who approved, dispatched or received a spare is the session', 'zzy_spare_line_people_from_session writes the signed-in person into rm_by, commercial_by, nsm_by, dispatched_by and received_by whenever a signed-in write sets one, discarding the value sent; imports, renames and Auto-Approved are untouched (0393, D-041). NO means Spare_1.sql has not been re-run since. Restore: Spare_1.sql (0393)',
+        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_request_lines')
+                 and tgname = 'zzy_spare_line_people_from_session'))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
