@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.117',
+    date: '2026-10-05',
+    title: 'PM Bulk Upload reads the serial and engineer from the PM-to-DO sheet',
+    changes: [
+      'PM BULK UPLOAD now recognises the PM-to-DO sheet\'s own headings: “Product Serial Number” is the Serial and “Call Allocated To” is the Engineer — before, both were left blank on the call. “Complaint Reported” fills the reported problem.',
+    ],
+  },
+  {
     version: '0.10.116',
     date: '2026-10-05',
     title: 'Hand Stock loads in one request and searches on the device',
