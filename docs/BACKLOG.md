@@ -78,6 +78,31 @@ up)_
 
 ---
 
+## 2026-10-05 — Hand Stock: one aggregate per load (0384, v0.10.116); calls global-search column MEASURED and NOT built
+
+- **0382 is LIVE** — its own run lock-timed-out on `drop index` (the app was
+  reading the table); the next push to main (#572) applied it together with
+  0383. A dropped index needs the same ACCESS EXCLUSIVE lock a policy drop
+  does; expect the first attempt to lose to a busy table and the next push to
+  carry it.
+- **Hand Stock / Hand Stock Report** read `handstock_balance_all()` once per
+  load (jsonb, security invoker, `work_mem = 64MB` for the call) and search on
+  the device. FRS-159.3 / .6 and FRS-160.3 updated; `check:ui` pins the new
+  shape; row 317. `listHandstockBalance` (paged) stays for
+  `handstockForEngineer`.
+- **The "one search column" for the call registers was measured and is NOT
+  built.** On 50,000 field calls: the eleven per-column trigram indexes total
+  16 MB after vacuum (60 MB before — GIN pending lists; autovacuum matters more
+  than index count here); a stored `search_text` column + one trigram index is
+  12 MB of table + 11 MB of index, i.e. MORE storage, and the global search
+  ran in the same time either way (13 ms vs 14 ms; 3.9 vs 4.4 ms). So the
+  consolidation buys nothing on reads and costs on writes and disk. The
+  per-column indexes also serve the per-field searches and the report filters
+  (City, Engineer, Product, Customer, UC Number) that a concatenated column
+  cannot. Left as they are; the live grid from
+  `_which_indexes_earn_their_keep.sql` is still the thing to decide any
+  trigram drop from.
+
 ## 2026-10-05 — Indexing pass (0382, v0.10.113): eight redundant indexes dropped; probe for the rest
 
 - Audit of a database built from every migration: 469 indexes in `public`,
