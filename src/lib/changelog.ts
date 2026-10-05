@@ -14,6 +14,24 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.100',
+    date: '2026-10-05',
+    title: 'Pre-Delivery Quality Check numbers; an MRN import is a Defective Spare',
+    changes: [
+      'Every Pre-Delivery Quality Check now has a number, PDQC/26/0001, restarting each year. It is shown in the list, on the check and on the printed sheet; checks already recorded were numbered in the order they were saved.',
+    ],
+  },
+  {
+    version: '0.10.100',
+    date: '2026-10-05',
+    title: 'Spare Recycling: a spare imported from an MRN has the Source Defective Spare',
+    auditHidden: true,
+    changes: [
+      'A spare imported from an MRN is registered with the Source Defective Spare. The MRN No stays on the request and the engineer is written in its remarks.',
+      'Requests already imported from an MRN now read Defective Spare too.',
+    ],
+  },
+  {
     version: '0.10.99',
     date: '2026-10-05',
     title: 'Pre-Delivery Quality Check — a register of its own under Indoor Service',

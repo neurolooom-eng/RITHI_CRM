@@ -78,6 +78,18 @@ up)_
 
 ---
 
+## 2026-10-05 — PDQC numbers (0378); MRN import's Source is Defective Spare (0379), v0.10.100
+
+- The user's answers: a number for each check — "Yes"; a field-by-field
+  amendment log — "NO"; an MRN import's Source — "DEFECTIVE SPARE".
+- 0378: `pdqc_records.pdqc_no`, PDQC/YY/NNNN (year of recording, IST,
+  restarting yearly), given by `zy_pdqc_number` on insert and kept on update;
+  existing checks numbered oldest first. `_status.sql` row 310.
+- 0379: requests with an `mrn_ref` read `Defective Spare` (the closed-request
+  guard lifted by name for the one UPDATE and put back); the screen sends it,
+  and the engineer's name moves to the remarks.
+- FRS-255.8, URS-180, NAR-008.14 updated; `pdqc_test` extended.
+
 ## 2026-10-05 — Pre-Delivery Quality Check register (0377, v0.10.99)
 
 - The user: imported machines in the godown, checked before billing as per

@@ -2041,7 +2041,11 @@ with checks(sort_order, bundle, provides, present) as (
      and coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.pdqc_records')), false)
      and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.pdqc_records') and tgname = 'zz_pdqc_stamp')
      and coalesce((select a.attnotnull from pg_attribute a where a.attrelid = to_regclass('public.pdqc_records') and a.attname = 'pcmv_o2_100'), false)
-     and not coalesce((select has_table_privilege('authenticated', 'public.pdqc_records', 'DELETE') where to_regclass('public.pdqc_records') is not null), false)))
+     and not coalesce((select has_table_privilege('authenticated', 'public.pdqc_records', 'DELETE') where to_regclass('public.pdqc_records') is not null), false))),
+    (310, 'Pre-Delivery Quality Check: every check numbered PDQC/YY/NNNN', 'Asked for 2026-10-05. pdqc_records.pdqc_no (0378), NOT NULL and unique, given by zy_pdqc_number on insert and kept on every update. NO means indoor.sql has not been re-run since. Restore: indoor.sql (0378)',
+        (coalesce((select a.attnotnull from pg_attribute a where a.attrelid = to_regclass('public.pdqc_records') and a.attname = 'pdqc_no'), false)
+     and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.pdqc_records') and tgname = 'zy_pdqc_number')
+     and to_regclass('public.pdqc_records_pdqc_no') is not null))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
