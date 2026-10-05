@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.110',
+    date: '2026-10-05',
+    title: 'Faster masters and feedback: the database stops re-checking every row and re-reading every feedback',
+    changes: [
+      'THE PRODUCT DATABASE, PARTY MASTER, PART MASTER AND VALUE LISTS LOAD FASTER. The read rule on those four tables asked "is this a signed-in user?" once for EVERY ROW -- 20,000 times on a page of machines. It is asked once per request now. Who may read them is unchanged. On a test database one page of machines went from about 150 ms to under 30 ms; the live project\'s pages were taking several seconds each.',
+      'CUSTOMER FEEDBACK IS FOUND BY CALL NUMBER, SERIAL AND DATE WITHOUT READING THE WHOLE TABLE. Opening a call\'s feedback read every feedback row every time (about 2.6 million blocks over a thousand opens, the single heaviest reader on the project). Three indexes serve the three lookups as the screens make them.',
+      'Both are SQL only, applied by the migration workflow: 0381_master_reads_once_per_query.sql (rbac.sql) and 0381_feedback_lookup_indexes.sql (data_integrity.sql). _status.sql rows 312 and 313 confirm them.',
+    ],
+  },
+  {
     version: '0.10.109',
     date: '2026-10-05',
     title: 'Machine download is a snapshot; Party Master every 10 days; Contract Entry Date locked',

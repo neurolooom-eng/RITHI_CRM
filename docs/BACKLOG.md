@@ -78,6 +78,32 @@ up)_
 
 ---
 
+## 2026-10-05 — Root cause from pg_stat_statements: master reads paid per row, feedback with no lookup index (0381, v0.10.110)
+
+The user exported the project's heaviest statements ("Supabase - RootCause").
+Two causes in this tree, both fixed here and applied by the migration workflow
+on merge; `_status.sql` rows 312 and 313 confirm them:
+
+- **`products` / `parties` / `parts` / `masters` reads** — 0008's read policy
+  is a bare `auth.role() = 'authenticated'`, evaluated once per ROW, and on
+  Supabase `auth.role()` parses the JWT claims each time. `products` paged by
+  id: 3,800 calls at ~6.9 s; `parties`: 2,992 calls at ~3.9 s; almost no disk
+  reads, so CPU. Wrapped as a sub-select (`0381_master_reads_once_per_query.sql`,
+  rbac.sql) — measured 147 ms → 27 ms a page on 20,000 machines with a
+  Supabase-shaped `auth.role()`. **This is also the likely cause the entry below
+  could not reproduce**: `supabase/tests/_stub.sql` replaces `auth.role()` with
+  a constant, so the per-row cost is invisible on every local build. Not
+  certain until the live project is measured again after 0381 is applied.
+- **`feedback` by call number** — 1,087 calls reading 2.66 million blocks
+  (the whole table each time); no index on `call_number`, `serial` or
+  `created_at, id`. Three added (`0381_feedback_lookup_indexes.sql`,
+  data_integrity.sql).
+
+Still open from that export, not changed here: `handstock_balance` (a GROUP BY
+over every movement on each page, 4.6–7.3 s), the `spare_*_history` exact
+counts (`count: 'exact'` over 2,500+ ms tables), and
+`refresh_product_database_2_if_stale()` at ~680 ms every five minutes.
+
 ## 2026-10-05 — ⚠️ Machine download: "canceling statement due to statement timeout" — WORKED AROUND in 0.10.109 (cause still unmeasured)
 
 **0.10.109:** the device copy now reads the stored `products` table, not the

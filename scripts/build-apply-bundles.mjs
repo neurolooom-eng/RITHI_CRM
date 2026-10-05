@@ -291,6 +291,10 @@ const MODULES = {
             // parties, FFR and return customers, and indoor job parts (0350).
             // Redefines 0325's master_delete_guard(), so after it.
             '0350_delete_guard_counts_every_name.sql',
+            // The master read policies (0008's loop) asked once per query, not
+            // once per row (0381). Redefines 0008's, so after it; the tail
+            // does not touch them.
+            '0381_master_reads_once_per_query.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -641,7 +645,10 @@ const MODULES = {
             // and split keys; see 0286 for the parent rule.
             '0288_feedback_update_visit_key.sql',
             // D-132: fb_update asked once per query (0348). Redefines 0288's.
-            '0348_feedback_update_once_per_query.sql'],
+            '0348_feedback_update_once_per_query.sql',
+            // Indexes for the call-number, serial and newest-first lookups
+            // (0381). Indexes only; no policy or function.
+            '0381_feedback_lookup_indexes.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',

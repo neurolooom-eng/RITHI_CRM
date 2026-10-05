@@ -2051,7 +2051,15 @@ with checks(sort_order, bundle, provides, present) as (
                   where table_schema = 'public' and table_name = 'device_cache_status' and column_name = 'parts_at')
          and exists (select 1 from pg_proc p
                       where p.oid = to_regprocedure('public.device_cache_report()')
-                        and pg_get_function_result(p.oid) like '%parts_at%')))
+                        and pg_get_function_result(p.oid) like '%parts_at%'))),
+    (312, 'Master reads asked once per query', 'parties_read, products_read, parts_read and masters_read wrap auth.role() in a sub-select, so it is asked once per statement instead of once per row (0381). Who may read is unchanged. NO means rbac.sql has not been re-run since. Restore: rbac.sql (0381)',
+        (select count(*) = 4 from pg_policies
+          where schemaname = 'public' and policyname in ('parties_read', 'products_read', 'parts_read', 'masters_read')
+            and qual ilike '%SELECT auth.role()%')),
+    (313, 'Feedback found by call number, serial and date without reading the whole table', 'feedback_call_number_created_idx, feedback_serial_idx and feedback_created_id_idx (0381). NO means data_integrity.sql has not been re-run since. Restore: data_integrity.sql (0381)',
+        (to_regclass('public.feedback_call_number_created_idx') is not null
+     and to_regclass('public.feedback_serial_idx') is not null
+     and to_regclass('public.feedback_created_id_idx') is not null))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
