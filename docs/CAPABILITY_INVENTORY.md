@@ -1626,6 +1626,9 @@ Purpose: Sale Entries (warranty) and Contract Entries with the machines under ea
 | 44 | Party Name locked once the sale is saved | CoverRegister.tsx partyLocked | — | FRS-258 | |
 | 45 | Party details changed on the sale (incl. Country, Service Engineer) written back to the Party Master on Save entry; needs masters.parties.edit, else saved and said | CoverRegister.tsx saveEntry; partyRules.partyEdits; supabase.ts sbPartyIdByName, updateParty | masters.parties.edit; DB parties update policy (0325) | FRS-258 | |
 | 46 | A new party from a sale requires Party Type, Profile, Country, State, City, Address, Pincode, GST, Service Engineer | partyRules.SALE_NEW_PARTY_REQUIRED; CoverRegister.tsx saveEntry | — | FRS-258 | |
+| 47 | Contract Party Name picked from the Party Master (device copy first) | cover.ts CONTRACT party_name optionsFrom 'party'; supabase.ts sbSearchParties | — | FRS-259 | |
+| 48 | Contract + Add machine: third-column picker of the customer's Product Database machines (device copy first), tick, Rate + Tax, Total worked out, Add saves each line with SA / MC history; already-on-contract not tickable; unlisted machine by hand | CoverRegister.tsx ContractMachinePicker; coverspec.ts contractItemFromMachine, pickableMachine; supabase.ts sbListPartyItems | contract.edit.entries; DB contract_items_insert | FRS-259 | |
+| 49 | Contract machine card in four sections: Product Details, Price, From the entry, History; Total After Tax read-only | cover.ts CONTRACT.itemFields; CoverRegister.tsx ItemCard | — | FRS-259 | |
 
 ### Ownership Transfer (`/ownership-transfer`) — `src/modules/OwnershipTransfer.tsx`
 Purpose: Records a machine changing hands, and warranty/contract details recovered for machines whose sale paperwork was lost.

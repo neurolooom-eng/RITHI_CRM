@@ -633,6 +633,19 @@ opens on **2,000 rows** — two full requests of the 1,000 the database hands ov
 at once — and every **Load more** fetches twice as much as the one before.
 **Load more** sits at the top, beside the count, as on Field Calls; it loads
 more of the tab that is open (Entries or Register).
+**Adding machines to a contract is picking, not typing.** The contract's Party
+Name is searched in the Party Master kept on this device. Once the contract is
+saved, **+ Add machine** opens a third column listing every machine the Product
+Database shows with that customer — product, serial, code, and the SA Number and
+MC Number it carries now (the device's copy first, the server if the copy is not
+there). Tick the machines, type each one's **Rate** and **Tax** (the tax is
+offered at 18% of the rate and can be changed), and press **Add**; the **Total
+After Tax** is the rate plus the tax and is worked out. A machine already on the
+contract is shown but cannot be ticked again. **Add a machine that is not
+listed** opens a blank card as before. Each machine on the right reads, top to
+bottom: Product Details, Price, From the entry (everything it follows from the
+contract), and History (the SA Number and earlier MC Number from the Product
+Database).
 **"+ New entry" arrives with its number already in it** — offered, not reserved,
 so two people starting at once get the same number and the second is refused on
 saving.
