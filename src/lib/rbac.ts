@@ -713,7 +713,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/contracts', label: 'Contract Register', actions: ['masters.view', 'contract.edit', 'contract.edit.entries', 'contract.edit.delete', 'calls.create'] },
     { path: '/ownership-transfer', label: 'Ownership Transfer', actions: ['ownership.transfer', 'cover.edit.entries', 'install.create'] },
     // Moved from Master with the menu entry (2026-10-05); same key, so no grant changes.
-    { path: '/product-database', label: 'Product Database', actions: ['calls.create', 'install.create'] },
+    { path: '/product-database', label: 'Product Database', actions: ['calls.create', 'install.create', 'ownership.transfer'] },
   ] },
   // KNOWLEDGE BASE, WHICH THE MATRIX DID NOT HAVE AT ALL until 2026-09-14.
   // Service Manuals sat under Documents here while the MENU put it under
