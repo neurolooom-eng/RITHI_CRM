@@ -2722,6 +2722,30 @@ export async function globalSearchKind(kind: HitKind, raw: string): Promise<Sear
       return (await rows(c.from('kb_articles').select('id,title,category,product')
         .or(like(['title', 'product', 'tags', 'category']))
         .order('updated_at', { ascending: false }).order('id', { ascending: false }).limit(n))).map(hitFor.kb);
+    case 'warranty':
+    case 'contract': {
+      // The entry's own fields, and the serial / model of any machine on it --
+      // the same two-read shape as spare requests, merged by the entry number.
+      const w = kind === 'warranty';
+      const key = w ? 'sa_number' : 'mc_number';
+      const [entries, items] = await Promise.all([
+        rows(c.from(w ? 'sale_entries' : 'contract_entries')
+          .select(w ? 'id,sa_number,party_name,invoice_no,warranty_status' : 'id,mc_number,party_name,contract_type,status')
+          .or(like(w ? ['sa_number', 'party_name', 'invoice_no'] : ['mc_number', 'party_name']))
+          .order('entry_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(n)),
+        rows(c.from(w ? 'sale_items' : 'contract_items')
+          .select(w ? 'id,sa_number,product_name,serial_number,warranty_status' : 'id,mc_number,party_name,product_name,serial_number,contract_type,status')
+          .or(like(['serial_number', 'product_name']))
+          .order('id', { ascending: false }).limit(n)),
+      ]);
+      const out = new Map<string, SearchHit>();
+      entries.forEach((r) => { if (String(r[key] ?? '').trim()) out.set(String(r[key]), (w ? hitFor.warranty : hitFor.contract)(r)); });
+      items.forEach((r) => {
+        const no = String(r[key] ?? '').trim();
+        if (no && !out.has(no)) out.set(no, (w ? hitFor.warranty : hitFor.contract)(r));
+      });
+      return [...out.values()].slice(0, n);
+    }
     case 'ffr':
       return (await rows(c.from('field_failure_reports').select('ffr_no,customer_name,product_name,product_serial,ucn,ffr_status')
         .or(like(['ffr_no', 'ucn', 'customer_name', 'product_serial', 'product_name']))

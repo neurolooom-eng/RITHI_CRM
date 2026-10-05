@@ -10090,7 +10090,11 @@ console.log('\n-- the header search finds records and opens each on its own scre
     party: gs.hitFor.party({ id: 1 }), machine: gs.hitFor.machine({ item_name: 'P', serial_number: '1' }),
     part: gs.hitFor.part({ id: 1, code: 'C' }), document: gs.hitFor.document({ id: 1, kind: 'qms', url: 'https://x' }),
     kb: gs.hitFor.kb({ id: 1 }), ffr: gs.hitFor.ffr({ ffr_no: 'F1' }),
+    warranty: gs.hitFor.warranty({ sa_number: 'SA1' }), contract: gs.hitFor.contract({ mc_number: 'MC1' }),
   };
+  eq('a warranty or contract hit opens its register searched to the entry number',
+    [probe.warranty.to, probe.warranty.state, probe.contract.to, probe.contract.state],
+    ['/warranties', { search: 'SA1', tab: 'entries' }, '/contracts', { search: 'MC1', tab: 'entries' }]);
   eq('every kind of hit is gated on a page key that exists',
     Object.entries(probe).filter(([, h]) => h.route && !modulePaths.has(h.route)).map(([k]) => k), []);
   eq('...and only Field Solutions, open to everyone, has none',
@@ -10101,6 +10105,7 @@ console.log('\n-- the header search finds records and opens each on its own scre
     viewUcn: 'src/modules/FieldCalls.tsx', openReqId: 'src/modules/PendingRegistrations.tsx',
     openSpareUid: 'src/modules/SpareRequests.tsx', openConsumptionId: 'src/modules/SpareConsumption.tsx',
     openPartyId: 'src/modules/PartyMaster.tsx', openArticle: 'src/modules/KnowledgeBase.tsx',
+    'st.search': 'src/modules/CoverRegister.tsx',
   };
   eq('every state a hit carries is read by the screen it opens',
     Object.entries(screens).filter(([k, f]) => !readFileSync(f, 'utf8').includes(k)).map(([k]) => k), []);

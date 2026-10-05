@@ -20,7 +20,8 @@ import { callFamily } from './calltype';
 export type HitKind =
   | 'call' | 'request' | 'spare' | 'consumption'
   | 'party' | 'machine' | 'part'
-  | 'document' | 'kb' | 'ffr';
+  | 'document' | 'kb' | 'ffr'
+  | 'warranty' | 'contract';
 
 export interface SearchHit {
   kind: HitKind;
@@ -51,6 +52,11 @@ export const HIT_GROUPS: { kind: HitKind; label: string; icon: string }[] = [
   { kind: 'document', label: 'Documents', icon: '📄' },
   { kind: 'kb', label: 'Knowledge Base', icon: '📚' },
   { kind: 'ffr', label: 'Field Failure Reports', icon: '⚠️' },
+  // THE COVER REGISTERS (the user, 2026-10-05: "Global Search is not Searching
+  // the Contract or Warranty Registers"). Found by the entry's number, party or
+  // invoice, or by the serial / model of any machine on it.
+  { kind: 'warranty', label: 'Warranties', icon: '🛡️' },
+  { kind: 'contract', label: 'Contracts', icon: '📋' },
 ];
 
 /** How many of each kind are SHOWN. One more is fetched (`PER_KIND + 1`) so the
@@ -134,6 +140,20 @@ export const hitFor = {
     kind: 'kb', key: `kb:${s(r.id)}`, route: '',
     to: '/knowledge-base', state: { openArticle: Number(r.id) },
     title: s(r.title), sub: join(r.category, r.product),
+  }),
+  // A cover entry opens its register's Entries tab searched to the entry's own
+  // number -- the state Product Database 2.0's SA / MC links already use.
+  warranty: (r: Record<string, unknown>): SearchHit => ({
+    kind: 'warranty', key: `warranty:${s(r.sa_number)}`, route: '/warranties',
+    to: '/warranties', state: { search: s(r.sa_number), tab: 'entries' },
+    title: join(r.sa_number, r.party_name),
+    sub: join(r.product_name, r.serial_number, r.invoice_no, r.warranty_status),
+  }),
+  contract: (r: Record<string, unknown>): SearchHit => ({
+    kind: 'contract', key: `contract:${s(r.mc_number)}`, route: '/contracts',
+    to: '/contracts', state: { search: s(r.mc_number), tab: 'entries' },
+    title: join(r.mc_number, r.party_name),
+    sub: join(r.product_name, r.serial_number, r.contract_type, r.status),
   }),
   ffr: (r: Record<string, unknown>): SearchHit => ({
     kind: 'ffr', key: `ffr:${s(r.ffr_no)}`, route: '/failure-report',
