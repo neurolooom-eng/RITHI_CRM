@@ -985,6 +985,16 @@ console.log('\n-- who a new call is allotted to: the machine wins, the party ans
   eq('...Call Allocated To is the engineer', row.allocated_to, 'VICTORY MEDICAL SYSTEMS');
   eq('...Complaint Reported is the reported problem', row.complaint_reported, 'SCHEDULED PM VISIT 2 / 15');
 }
+// A PM CALL'S COMPLAINT AND BREAKDOWN DATES ARE ITS REGISTRATION DATE (2026-10-05),
+// whatever the sheet says.
+{
+  const [row] = shapePmRows([{ 'Party Name': 'P', 'Product Serial Number': '1', 'Complaint Date': '01-Sep-2026',
+    'Breakdown Date': '03-Oct-2026' }], '2026-10', '2026-10-01T00:30:00', 5);
+  eq('a PM call\u2019s Complaint Date is its registration date', row.complaint_date, '2026-10-01');
+  eq('...and so is its Breakdown Date', row.breakdown_date, '2026-10-01');
+  eq('...and the sheet\u2019s own dates are not kept in extra',
+    Object.keys((row.extra ?? {}) as Record<string, unknown>).filter((k) => /complaint date|breakdown date/i.test(k)), []);
+}
 
 // EXCEL'S SEMICOLON "CSV" (2026-10-05): a PM Reports file saved on a machine
 // whose decimal mark is a comma read as ONE column and came back "Nothing

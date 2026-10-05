@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.120',
+    date: '2026-10-05',
+    title: 'PM calls: Complaint Date and Breakdown Date are the registration date',
+    changes: [
+      'PM BULK UPLOAD sets every PM call\'s Complaint Date and Breakdown Date to its registration date — not the dates in the sheet. Only PM calls; no other call type changes.',
+      'The October 2026 PM calls already uploaded were corrected the same way, and the ones that went in without a serial were given the serial their upload carried. Their engineers were not changed, so nobody was sent 1,333 notifications.',
+    ],
+  },
+  {
     version: '0.10.119',
     date: '2026-10-05',
     title: 'Bulk Uploads read a CSV saved with semicolons',

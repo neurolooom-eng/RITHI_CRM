@@ -78,6 +78,17 @@ up)_
 
 ---
 
+## 2026-10-05 — PM calls dated by their registration (0386, v0.10.120)
+
+- The user: "Map, Complaint Date, Break Down Date to the Same Date as Call
+  Registration" / "this is only for PM" / "Not any other Call Types".
+- `shapePmRows()` writes `complaint_date` and `breakdown_date` = `reg_date` and
+  keeps the sheet's own two dates out of `extra`; `check:uploads` pins it.
+- 0386 (data only): PM calls with `reg_date >= 2026-10-01` get the same, and a
+  blank serial is filled from `extra->>'Product Serial Number'` (the batch went
+  in before v0.10.117). The engineer is NOT filled -- setting `allocated_to`
+  notifies. Older PM calls and every other call type untouched.
+
 ## 2026-10-05 — Hand Stock: one aggregate per load (0384, v0.10.116); calls global-search column MEASURED and NOT built
 
 - **0382 is LIVE** — its own run lock-timed-out on `drop index` (the app was
