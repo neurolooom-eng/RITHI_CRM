@@ -35,10 +35,13 @@ a list comes from a master you cannot type a value that is not on it.
 first; then, from three characters, calls (UCN, call number, party, serial,
 product), pending call requests (REQID), spare requests (UID, OR number, UCN,
 part), spares consumed, parties, machines, parts, documents (manuals, technical
-notes, QMS), Field Solutions articles and Field Failure Reports — up to five of
+notes, QMS), Field Solutions articles, Field Failure Reports, warranties (SA
+number, party, invoice, or the serial / model of a machine on it) and contracts
+(MC number, party, or a machine's serial / model) — up to five of
 each. Where there are more than five, the group says so: type more of the name
 or number, or open that register to see them all. **Click one and that record opens** on its own screen: a call opens in its
-view, a machine in Machine History, a document in Drive. ↑ ↓ and Enter work
+view, a machine in Machine History, a document in Drive, a warranty or contract in
+its register, searched to that entry. ↑ ↓ and Enter work
 too. It only ever shows records you could already open on that screen.
 
 **Quality records are never deleted.** A wrong spare line is **voided** — the

@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.103',
+    date: '2026-10-05',
+    title: 'The search box at the top finds warranties and contracts',
+    changes: [
+      'GLOBAL SEARCH now searches the Warranty Register (SA number, party, invoice number) and the Contract Register (MC number, party) — and finds an entry by the serial number or model of any machine on it. Click one and its register opens on that entry.',
+    ],
+  },
+  {
     version: '0.10.102',
     date: '2026-10-05',
     title: 'Warranty sale: Service Engineer picked from the User Master',
