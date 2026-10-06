@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.135',
+    date: '2026-10-06',
+    title: 'DCCR: PM calls with a Spare show SPARE',
+    changes: [
+      'The 28 PM calls of 2026 with a Spare booked were already in the Daily Complaint Review with an empty row; their Spare / Consumable / Correction / Calibration now reads SPARE. From now on, a Spare booked on a PM call whose review is still blank on that answer sets it too. An answer somebody gave is never changed.',
+    ],
+  },
+  {
     version: '0.10.134',
     date: '2026-10-06',
     title: 'DCCR: the 2026 PM calls with a Spare added, now that the Part Master is mapped',
