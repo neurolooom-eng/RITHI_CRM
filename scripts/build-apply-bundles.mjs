@@ -512,7 +512,10 @@ const MODULES = {
             // D-130: the summary view carries the five columns the register's
             // search names, so a search no longer zeroes the counts (0353).
             // Redefines 0111's view, appending only.
-            '0353_review_summary_carries_the_searched_columns.sql'],
+            '0353_review_summary_carries_the_searched_columns.sql',
+            // The old DCCR register WITH its calls (2026-10-06): a staging
+            // register whose trigger files the call, the review and one visit.
+            '0395_dccr_history_import.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -525,6 +528,9 @@ const MODULES = {
       // A rename is not an allotment (0259). After 0054, which owns the
       // previous body; before the replay tail, which must stay last.
       '0262_rename_is_not_an_allotment.sql',
+      // A historical call load notifies nobody (2026-10-06). Restates 0262's
+      // notify_call_allotted, so after it; before the replay tail.
+      '0394_notify_silent_import.sql',
       // LAST: 0064 (handstock) extends `notify_spare_dispatched()` with the
       // REFURBISHED line, and this module running after handstock had been
       // discarding it on every apply. Ends the module with 0064's version.
@@ -588,7 +594,11 @@ const MODULES = {
             // The failure rate from the DCCR by commissioning month, and the six
             // product failure rates moved onto it (2026-10-06). Restates 0359's
             // objective_value, so after it.
-            '0393_dccr_failure_cohorts.sql'],
+            '0393_dccr_failure_cohorts.sql',
+            // Re-calculate only Active objectives, and the DCCR rate counted
+            // once per month (2026-10-06). Restates 0349's recalc and 0393's
+            // two helpers, so after both.
+            '0396_objective_recalc_active_fast.sql'],
   },
   validation: {
     title: 'Software Validation',

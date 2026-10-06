@@ -159,6 +159,17 @@ on Roles & Permissions does not reach another team's calls.
   heading row even under a letterhead, reads tab-separated files, and lists what
   it kept and what it held back. Unrecognised columns are **kept on the row**
   where the register allows it.
+  > **DCCR Register — historical, with its calls** (Quality) loads an old DCCR
+  > register export as it is — for a year whose calls are not in RITHI (2025
+  > and before). Each row files **the call** (dated by CALL DATE, with the
+  > customer, place, product, serial and engineer; a P M VISIT row goes to PM
+  > Calls), **the review** (kept as imported, no Field Failure Report raised)
+  > and **one visit** from CURRENT CALL STATUS and the solved date, so a solved
+  > call reads Solved. Unattended calls stay Unattended; Canceled calls are
+  > filed cancelled. **Nobody is notified.** A call already in RITHI is left
+  > alone. Re-loading the file corrects the calls it filed.
+  > **Field Failure Register (any year)** (Quality) loads old FFR logs, a
+  > year's tab at a time.
   > **Installation Warranty Start (old installation calls)** loads past
   > installations — back to 2018 — one row per installation call, matched on the
   > UCN. Each row's *Warranty Start Date?* (Installation Call Solved Date or
@@ -1267,7 +1278,8 @@ typed into a form that reads it.
   month-by-month actual.
   - **Status**: each objective is Active, **Not Working** or **Do Not Use** (✏️ on
     the objective). The last two are hidden; tick **Show hidden** to see and
-    change them. Hidden objectives are still edited and re-calculated as usual.
+    change them. **Re-calculate works out Active objectives only** — a hidden
+    objective keeps its figures.
   - **Failure Rate (DCCR)** tab: the WRR workbook's table for each product
     failure rate. One row per **month of commissioning** (the machine's
     Warranty Start): **Parc** (machines installed that month) and the

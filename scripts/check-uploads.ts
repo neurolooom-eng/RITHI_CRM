@@ -584,7 +584,7 @@ console.log('\n-- a column the register was told it does not want --');
 // 32 since the Product Master (the catalogue of product LINES) joined the
 // Product Database (the machines) — the two are different registers and this
 // number is what catches one being added without a test beside it.
-eq('registers defined', UPLOADS.length, 35);  // + Installation Warranty Start (0332)  // + QMS Master List (0265), Technical / Service Notes (0272)
+eq('registers defined', UPLOADS.length, 36);  // + DCCR Register -- historical, with its calls (0395)  // + Installation Warranty Start (0332)  // + QMS Master List (0265), Technical / Service Notes (0272)
 
 console.log('\n-- the Part Master upload fills the HSN code (0309) --');
 {
@@ -1046,6 +1046,26 @@ console.log('\n-- who a new call is allotted to: the machine wins, the party ans
   const again = shapeUpload(pm, [v('v2_N1-4d2ac9b3', '26A01P0429', '06-January-2026'), v('v2_N1-4d2ac9b3', '26A01P0430', '06-January-2026')]);
   eq('a re-load gives the same ids, so it updates rather than adds', again.rows.map((r) => r.uid),
      ['v2_N1-4d2ac9b3|26A01P0429', 'v2_N1-4d2ac9b3|26A01P0430']);
+}
+
+// THE OLD DCCR REGISTER, WITH ITS CALLS (0395). The register export's own
+// headings, as the user's 2025 file carries them, reach the right fields --
+// above all CALL DATE (or every call would be dated the day of the load) and
+// CUSTOMER NAME as the PARTY (the Field Calls upload reads it as the contact).
+{
+  const def = UPLOADS.find((d) => d.key === 'dccr_history')!;
+  const res = shapeUpload(def, [{ 'UC Number': '25A02F0001', 'CALL DATE': '02-January-2025', 'COMPLAINT DATE': '02-Jan-2025',
+    'CUSTOMER NAME': 'DR.KAMAKSHI MEMORIAL HOSPITAL-17262', PLACE: 'CHENNAI', PRODUCT: 'MONNAL T75', 'SERIAL No.': '4694',
+    'CALL TYPE': 'FIELD', 'EQUIP. STATUS': 'CMC', ENGINEER: 'KARTHIK SUNDAR', 'CURRENT CALL STATUS': 'Solved - Report Completed',
+    'Call Solved Date & Time': '2/1/2025 00:00:00', 'WARRANTY START DATE': 'Nov-2015',
+    'SPARE / CONSUMABLE / CORRECTION / CALIBRATION': 'SPARE', 'DATE OF REVIEW 2': '18-Jan-2025' }]);
+  const row = (res.rows ?? [])[0] ?? {};
+  eq('a historical DCCR row is dated by its CALL DATE', row.call_date, '2025-01-02');
+  eq('...CUSTOMER NAME is the party', row.party_name, 'DR.KAMAKSHI MEMORIAL HOSPITAL-17262');
+  eq('...PLACE is the place, EQUIP. STATUS the cover', [row.place, row.item_status], ['CHENNAI', 'CMC']);
+  eq('...the solved date reads day-first', String(row.call_solved_at ?? '').slice(0, 10), '2025-01-02');
+  eq('...the month-only warranty start stays text', row.warranty_start_text, 'Nov-2015');
+  eq('...the spare category is carried', row.spare_category, 'SPARE');
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
