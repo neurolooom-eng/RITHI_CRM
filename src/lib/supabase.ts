@@ -831,9 +831,18 @@ export interface ObjectivePeriod {
 export async function saveObjectiveDef(
   id: number, patch: Partial<QualityObjective>,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('quality_objectives').update(patch).eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // ONLY WHAT THE DEFINITION EDITS (2026-10-06, "Unable to save it": the
+  // drawer sent the whole row, and `id` is GENERATED ALWAYS -- "column id can
+  // only be updated to DEFAULT"). The figures, totals, overrides and stamps
+  // are written by their own paths, never by this one.
+  const body = Object.fromEntries(Object.entries(patch).filter(([k]) => (OBJECTIVE_DEF_FIELDS as readonly string[]).includes(k)));
+  const { data, error } = await must().from('quality_objectives').update(body).eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not change objectives.' };
+  return { ok: true };
 }
+const OBJECTIVE_DEF_FIELDS = ['parameter', 'process', 'yearly_target', 'current_target', 'frequency',
+  'responsible', 'calc_key', 'calc_params', 'status', 'notes', 'sort_order', 'source'] as const;
 
 export async function addObjective(year: number, sort_order: number): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('quality_objectives')

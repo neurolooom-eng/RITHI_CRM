@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.131',
+    date: '2026-10-06',
+    title: 'Objective: editing an objective saves again',
+    changes: [
+      'OBJECTIVE: Save on an objective\'s definition (✏️) failed with “column id can only be updated to DEFAULT”. It now saves only what the window edits — the name, process, targets, frequency, responsible, status, calculation and parameters.',
+    ],
+  },
+  {
     version: '0.10.130',
     date: '2026-10-06',
     title: 'Objective: failure rate from the DCCR, by month of commissioning',
