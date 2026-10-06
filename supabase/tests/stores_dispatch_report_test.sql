@@ -100,9 +100,10 @@ select 'page key' as check,
   coalesce((select (permissions ? 'mod:/exports/stores-dispatch')::text from public.app_roles where role = 'stores_incharge'), 'no row') as stores_incharge_key;
 
 \echo ''
-\echo '--- 6. calendar 2025 from the historical stock outs (0387) ---'
+\echo '--- 6. the historical stock outs from 1 January 2025 (0387, 0388) ---'
 -- H1 has no issued_at: its day-first Timestamp and approval are read from data.
--- H2 is 2024, H3 is 2026 history, H4 has an unreadable date: none are shown.
+-- H3 is 2026 history and is shown too (0388). H2 is 2024 and H4 has an
+-- unreadable date: neither is shown.
 -- H5 repeats the LIVE stock out above by SO NO: left to the live arm.
 insert into public.spare_issue_history (engineer, part, qty, issued_at, so_no, line_uid, source, ref, remarks, data) values
  ('SDR HIST', 'SDR-P1|EXPIRATORY VALVE ASSEMBLY', 1, null, 'SDR-H1', 'OR-H|SDR-P1', 'Stock out', 'SDR-H1|1', 'HIST ADDR',
@@ -115,10 +116,11 @@ insert into public.spare_issue_history (engineer, part, qty, issued_at, so_no, l
      join public.spare_request_lines l on l.id = dl.line_id where l.request_uid = 'SDR-1' limit 1),
   '', 'Stock out', 'SDR-H5|', '', '{}');
 select 'history' as check,
-  (select count(*) from public.stores_dispatch_report where "TO" = 'SDR HIST')::text as hist_rows_should_be_1,
+  (select count(*) from public.stores_dispatch_report where "TO" = 'SDR HIST')::text as hist_rows_should_be_2,
   (select "Timestamp" = timestamptz '2025-02-03 09:00:00+05:30' and "Dispatched in (Days)" = 0.7
           and "Dispatched in (Days - Group)" = '00-03D' and "Source" = 'Historical' and "IND/IMP" = 'IMPORTED'
           and "Spare Request NO" = 'OR-H' and "Year" = 2025 and "Month" = 2 and "Dispatch Line ID" < 0
-     from public.stores_dispatch_report where "TO" = 'SDR HIST')::text as h1_should_be_true,
+     from public.stores_dispatch_report where "TO" = 'SDR HIST' and "SO NO" = 'SDR-H1')::text as h1_should_be_true,
+  (select string_agg("SO NO", ',' order by "SO NO") from public.stores_dispatch_report where "TO" = 'SDR HIST') as shown_should_be_h1_h3,
   (select count(*) from public.stores_dispatch_report where "Source" = 'RITHI'
       and "Spare Request NO" = (select or_no from public.spare_requests where uid = 'SDR-1'))::text as live_still_3;

@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.123',
+    date: '2026-10-06',
+    title: 'Stores Dispatch Report: 2026 historical stock outs added',
+    changes: [
+      'REPORTS → STORES DISPATCH REPORT now also lists the 2026 stock outs from the historical stock-out data, not only 2025. Spares that were dispatched before RITHI recorded the dispatch now appear.',
+      'A stock out that is both in the historical data and dispatched in RITHI is still shown once, as RITHI\'s. The Source column says which each row is.',
+    ],
+  },
+  {
     version: '0.10.122',
     date: '2026-10-06',
     title: 'Stores Dispatch Report covers the whole of 2025',
