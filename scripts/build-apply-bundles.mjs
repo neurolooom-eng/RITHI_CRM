@@ -1038,6 +1038,9 @@ const MODULES = {
             // The Stores Dispatch Report (the AppSheet Stores view) and the part's
             // IND/IMP; reads the dispatch, request-line and parts tables (0385).
             '0385_stores_dispatch_report.sql',
+            // Calendar 2025 from the historical stock outs (0387); redefines
+            // 0385's view, so it follows it.
+            '0387_stores_dispatch_2025_history.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.

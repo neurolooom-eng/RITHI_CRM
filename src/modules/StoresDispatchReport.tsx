@@ -44,6 +44,12 @@ export function StoresDispatchReport() {
       { key: 'itemStatus', label: 'Item Status', placeholder: 'e.g. CMC' },
     ],
     notes: [
+      { Item: '2025',
+        Value: 'Calendar 2025 (January to December, India time) comes from the historical stock outs loaded through '
+          + 'Bulk Uploads -> "Stock Out -- all years"; later dispatches are the ones made in RITHI. The optional Source '
+          + 'column says which. For 2025 the approval and OR dates are read from that file, the days are worked out '
+          + 'by the same rule as below, and Requested Qty is blank because the file does not carry it. A 2025 stock '
+          + 'out with no date in the file is not shown.' },
       { Item: 'Dispatched in (Days)',
         Value: 'Exact time from the Request Final Approval Date to the dispatch (Timestamp), in days to one '
           + 'decimal -- 0.7 is about 17 hours. Not date-minus-date: an approval at 17:00 and a dispatch at '

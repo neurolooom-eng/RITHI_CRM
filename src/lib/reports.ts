@@ -446,6 +446,7 @@ export const STORES_DISPATCH_OPTIONAL: string[] = [
   'Requested Qty',
   'Part (as dispatched)',
   'Dispatch Line ID',
+  'Source',
 ];
 
 export interface StoresDispatchFilter {

@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.122',
+    date: '2026-10-06',
+    title: 'Stores Dispatch Report covers the whole of 2025',
+    changes: [
+      'REPORTS → STORES DISPATCH REPORT now lists every stock out from January to December 2025, taken from the historical stock-out data loaded under Bulk Uploads → Stock Out — all years. Filter Dispatched from 01-Jan-2025 to 31-Dec-2025 to see just that year.',
+      'For 2025 the OR date and Request Final Approval Date are read from that file, and the days and band are worked out exactly as for this year\'s dispatches. A 2025 stock out with no approval date reads "No approval date". Requested Qty is blank for 2025 because the file does not have it.',
+      'A new optional column, Source, says whether a row is a dispatch made in RITHI or a historical one. A stock out that is in both is shown once.',
+    ],
+  },
+  {
     version: '0.10.121',
     date: '2026-10-05',
     title: 'Bulk call closures load one visit per call',
