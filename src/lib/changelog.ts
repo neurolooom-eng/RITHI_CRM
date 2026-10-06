@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.132',
+    date: '2026-10-06',
+    title: 'Old DCCR registers load with their calls; Re-calculate is quicker and Active-only',
+    changes: [
+      'BULK UPLOADS → QUALITY → “DCCR Register — historical, with its calls”: load an old DCCR register export as it is. Each row files the call (dated by its CALL DATE, with the customer, place, product, serial and engineer; P M VISIT rows go to PM Calls), the review (kept as imported — no Field Failure Report raised) and one visit from CURRENT CALL STATUS and the solved date, so a solved call reads Solved. Unattended stays Unattended; Canceled is filed cancelled. Nobody is notified. A call already in RITHI is left alone.',
+      'Why the 2025 DCCR did not show: its 6,051 reviews were loaded, but no 2025 call was in RITHI, and the DCCR View lists calls with their review. Loading the same file through the new upload brings them in.',
+      'Old FFR logs load through BULK UPLOADS → QUALITY → Field Failure Register (any year), a year’s tab at a time.',
+      'OBJECTIVE → Re-calculate works out Active objectives only (Not Working and Do Not Use keep their figures), and the DCCR failure rate is counted far faster — it was timing out.',
+    ],
+  },
+  {
     version: '0.10.131',
     date: '2026-10-06',
     title: 'Objective: editing an objective saves again',

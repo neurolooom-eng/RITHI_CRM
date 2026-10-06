@@ -78,6 +78,26 @@ up)_
 
 ---
 
+## 2026-10-06 — Old DCCR with its calls (0394/0395); Re-calculate Active-only and fast (0396), v0.10.132
+
+- Probe (live): 38,516 DCCR rows, 6,051 of them the 2025 upload (imported),
+  and ~28,000 on NO call -- the database had no Field call before 2026, so the
+  DCCR View could show none. ~10,000 more have UC Numbers beginning 41-53 that
+  look like no call's; `_dccr_reviews_on_no_call.sql` lists them (the user:
+  "Show me first" -- nothing changed).
+- 0395: `dccr_history_import` (staging, keyed on UCN) + `dccr_history_apply`
+  files the call, the imported review and one visit from CURRENT CALL STATUS
+  (none for Unattended or Canceled); a live call is left alone; re-load
+  corrects (needing the edit rights the guards ask). 0394: notify_call_allotted
+  is silent while `rithi.silent_import` is on. Proved on the user's 2025 file in
+  a scratch database: 6,051 Field + 14 PM calls, 0 notifications, ~1 s per 100.
+- 0396: Re-calculate only Active objectives ("Re-calculate only Active
+  Objectives" after a statement timeout); the DCCR cohort rows counted once per
+  month and the machine found through products_serial_key_idx.
+- Old FFR logs: the existing Field Failure Register (any year) upload.
+- FRS-267, OQ-265 (`dccr_history_import_test`), FRS-121.13, `_status.sql` rows 325-327.
+- Pending: the PM-to-DCCR trigger (the user's ask, same day) -- needs answers.
+
 ## 2026-10-06 — Objective: failure rate from the DCCR by commissioning month (0393, v0.10.130)
 
 - The user: failure within 3 months, rolling 12, run on DCCR rows filtered to

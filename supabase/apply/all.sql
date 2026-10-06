@@ -196,6 +196,7 @@
 --   0285_auto_review_by_role.sql
 --   0342_review_needs_a_call_you_can_see.sql
 --   0353_review_summary_carries_the_searched_columns.sql
+--   0395_dccr_history_import.sql
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
 --   0115_visit_date_sanity.sql
@@ -324,6 +325,7 @@
 --   0054_notify_uid_ambiguous.sql
 --   0123_clear_notifications_on_signout.sql
 --   0262_rename_is_not_an_allotment.sql
+--   0394_notify_silent_import.sql
 --   0122_notifications_replay_tail.sql
 --   0046_validation_results.sql
 --   0293_validation_manage_key.sql
@@ -348,6 +350,7 @@
 --   0359_failure_rate_one_join.sql
 --   0392_objective_status.sql
 --   0393_dccr_failure_cohorts.sql
+--   0396_objective_recalc_active_fast.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0103_record_audit_not_bulk.sql
@@ -25452,6 +25455,275 @@ alter view public.field_call_review_summary set (security_invoker = on);
 grant select on public.field_call_review_summary to authenticated;
 
 -- ------------------------------------------------------------------------
+-- 0395_dccr_history_import.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0395  THE OLD DCCR REGISTER, WITH ITS CALLS (2026-10-06).
+--
+-- The user: "I need provision to Upload old DCCR and Calls - Historical data"
+-- -- "I tried uploading 2025 DCCR Register, but it not showing up in DCCR
+-- View". Measured on the live project (_how_much_dccr_history.sql): 6,051 DCCR
+-- rows of 2025 were loaded and every one is on NO call -- the database holds no
+-- Field call before 2026 -- and the DCCR View lists Field calls with their
+-- review, so a review of a call the register does not hold cannot be shown.
+--
+-- The user's answers: the calls come FROM THE DCCR FILE ITSELF; each call's
+-- status FROM THE FILE (one visit); NO NOTIFICATIONS.
+--
+-- SO: a staging register, `dccr_history_import`, one row per UC Number, loaded
+-- by Bulk Uploads -> Quality -> "DCCR Register -- historical, with its calls".
+-- A BEFORE trigger files, for each row:
+--
+--   1. THE CALL -- into field_calls (FIELD, and "INSTALLATION CALL & FIELD",
+--      kept as the file says in extra) or pm_calls (P M VISIT), dated by the
+--      file's CALL DATE, with the party, place, product, serial, cover (EQUIP.
+--      STATUS), complaint, engineer, warranty number and Review 1 answers. A
+--      call ALREADY IN THE REGISTER is never overwritten -- only a call this
+--      load created (extra.imported_from) is corrected on a re-load. A
+--      Canceled call is filed cancelled, on its solved date or else its call
+--      date. CORRECTING a call this way is still an EDIT, and the call
+--      guards ask the uploader for the edit rights as they would on screen.
+--      The file's month-only Warranty Start ("Nov-2015") is kept as text
+--      in extra rather than turned into a date nobody recorded.
+--   2. THE REVIEW -- call_reviews, marked imported (0269: the file's reviewers
+--      and dates are kept and no Field Failure Report is raised).
+--   3. ONE VISIT -- the file's CURRENT CALL STATUS (else CALL STATUS) with its
+--      (none for Unattended: a call is Unattended because it has no visit;
+--      pending reason, engineer and Call Solved Date & Time, uid
+--      IMP-<ucn>[-<yyyymmddhhmmss>] (REPORT_COLS' own convention). Its entry
+--      time is the solved date, else the file's Updated Date, else the call
+--      date -- never the moment of the load, which would let the load decide
+--      the call's status (0032). No status in the file, no visit.
+--
+-- Notifications are switched off for the row (0394). What happened is written
+-- back on the staging row (`result`), so the register says, per UC Number,
+-- what was filed and what was left alone. Written as the definer: the review
+-- guards that ask the caller for bulk.upload are met by the table's own
+-- policy, which asks the same.
+-- ===========================================================================
+
+create table if not exists public.dccr_history_import (
+  ucn                   text primary key,
+  call_date             date,
+  complaint_date        date,
+  call_number           text not null default '',
+  party_name            text not null default '',
+  place                 text not null default '',
+  product_name          text not null default '',
+  serial                text not null default '',
+  call_type             text not null default '',
+  standard_complaint    text not null default '',
+  complaint_reported    text not null default '',
+  item_status           text not null default '',
+  engineer              text not null default '',
+  call_status           text not null default '',
+  pending_reason        text not null default '',
+  current_call_status   text not null default '',
+  call_solved_at        timestamptz,
+  warranty_number       text not null default '',
+  warranty_start_text   text not null default '',
+  public_health_threat  text not null default '',
+  death                 text not null default '',
+  serious_incident      text not null default '',
+  risk_to_patient       text not null default '',
+  warranty_failure      text not null default '',
+  frequent_failure      text not null default '',
+  review2_at            date,
+  service_observation   text not null default '',
+  complaint_grouping    text not null default '',
+  root_cause_keyword    text not null default '',
+  spare_category        text not null default '',
+  review3_at            date,
+  imported_updated_by   text not null default '',
+  imported_updated_date date,
+  extra                 jsonb not null default '{}'::jsonb,
+  result                text not null default '',
+  loaded_at             timestamptz not null default now(),
+  loaded_by             uuid
+);
+
+comment on table public.dccr_history_import is
+  'The old DCCR register as loaded (0395), one row per UC Number. Loading a row files its call, its review and one visit from the file; `result` says what was filed. Calls already in the register are never overwritten.';
+
+create or replace function public.dccr_history_apply()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_table   text;
+  v_type    text;
+  v_status  text;
+  v_exists  boolean;
+  v_ours    boolean;
+  v_uid     text;
+  v_note    text[] := '{}';
+  v_extra   jsonb;
+  v_cancel  timestamptz;
+begin
+  new.ucn := btrim(new.ucn);
+  -- A cell the file left empty can arrive as NULL; every text field reads it as blank.
+  new.call_number := coalesce(new.call_number, '');
+  new.party_name := coalesce(new.party_name, '');
+  new.place := coalesce(new.place, '');
+  new.product_name := coalesce(new.product_name, '');
+  new.serial := coalesce(new.serial, '');
+  new.call_type := coalesce(new.call_type, '');
+  new.standard_complaint := coalesce(new.standard_complaint, '');
+  new.complaint_reported := coalesce(new.complaint_reported, '');
+  new.item_status := coalesce(new.item_status, '');
+  new.engineer := coalesce(new.engineer, '');
+  new.call_status := coalesce(new.call_status, '');
+  new.pending_reason := coalesce(new.pending_reason, '');
+  new.current_call_status := coalesce(new.current_call_status, '');
+  new.warranty_number := coalesce(new.warranty_number, '');
+  new.warranty_start_text := coalesce(new.warranty_start_text, '');
+  new.public_health_threat := coalesce(new.public_health_threat, '');
+  new.death := coalesce(new.death, '');
+  new.serious_incident := coalesce(new.serious_incident, '');
+  new.risk_to_patient := coalesce(new.risk_to_patient, '');
+  new.warranty_failure := coalesce(new.warranty_failure, '');
+  new.frequent_failure := coalesce(new.frequent_failure, '');
+  new.service_observation := coalesce(new.service_observation, '');
+  new.complaint_grouping := coalesce(new.complaint_grouping, '');
+  new.root_cause_keyword := coalesce(new.root_cause_keyword, '');
+  new.spare_category := coalesce(new.spare_category, '');
+  new.imported_updated_by := coalesce(new.imported_updated_by, '');
+  new.extra := coalesce(new.extra, '{}'::jsonb);
+
+  if new.ucn = '' then raise exception 'UC Number is required.'; end if;
+  new.loaded_at := now();
+  new.loaded_by := auth.uid();
+  perform set_config('rithi.silent_import', 'on', true);
+
+  v_type  := upper(btrim(new.call_type));
+  v_table := case when v_type like 'P%M%VISIT%' then 'pm_calls' else 'field_calls' end;
+  v_extra := coalesce(new.extra, '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
+               'imported_from', 'DCCR register (historical)',
+               'call_type_in_file', nullif(btrim(new.call_type), ''),
+               'warranty_start_in_file', nullif(btrim(new.warranty_start_text), ''),
+               'call_status_at_review', nullif(btrim(new.call_status), '')));
+
+  -- 1. THE CALL
+  v_exists := exists (select 1 from public.field_calls where ucn = new.ucn)
+           or exists (select 1 from public.installation_calls where ucn = new.ucn)
+           or exists (select 1 from public.pm_calls where ucn = new.ucn);
+  v_ours := exists (select 1 from public.field_calls where ucn = new.ucn and extra->>'imported_from' = 'DCCR register (historical)')
+         or exists (select 1 from public.pm_calls where ucn = new.ucn and extra->>'imported_from' = 'DCCR register (historical)');
+  v_cancel := case when upper(btrim(new.current_call_status)) like 'CANCEL%'
+                   then coalesce(new.call_solved_at, new.call_date::timestamptz) end;
+
+  if v_exists and not v_ours then
+    v_note := array_append(v_note, ('call already in the register -- left as it is')::text);
+  else
+    if v_ours then
+      execute format($u$
+        update public.%I set
+          call_number = $2, reg_date = $3, reg_at = $3::timestamptz, complaint_date = $4,
+          party_name = $5, city = $6, product_name = $7, serial = $8, item_status = $9,
+          standard_complaint = $10, complaint_reported = $11, allocated_to = $12,
+          warranty_number = $13, public_health_threat = $14, death = $15, serious_incident = $16,
+          extra = $17, cancelled_at = $18
+         where ucn = $1$u$, v_table)
+      using new.ucn, nullif(new.call_number, ''), new.call_date, new.complaint_date,
+            new.party_name, new.place, new.product_name, new.serial, new.item_status,
+            new.standard_complaint, new.complaint_reported, new.engineer,
+            new.warranty_number, new.public_health_threat, new.death, new.serious_incident,
+            v_extra, v_cancel;
+      v_note := array_append(v_note, ('call corrected')::text);
+    else
+      execute format($i$
+        insert into public.%I (ucn, call_number, call_type, reg_date, reg_at, complaint_date,
+          party_name, city, product_name, serial, item_status, standard_complaint,
+          complaint_reported, allocated_to, warranty_number, public_health_threat, death,
+          serious_incident, extra, cancelled_at)
+        values ($1, $2, $3, $4, $4::timestamptz, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+                $15, $16, $17, $18, $19)$i$, v_table)
+      using new.ucn, nullif(new.call_number, ''),
+            case when v_table = 'pm_calls' then 'P M VISIT' else 'FIELD' end,
+            new.call_date, new.complaint_date, new.party_name, new.place, new.product_name,
+            new.serial, new.item_status, new.standard_complaint, new.complaint_reported,
+            new.engineer, new.warranty_number, new.public_health_threat, new.death,
+            new.serious_incident, v_extra, v_cancel;
+      v_note := array_append(v_note, (case when v_table = 'pm_calls' then 'PM call filed' else 'Field call filed' end)::text);
+    end if;
+    if v_cancel is not null then v_note := array_append(v_note, 'cancelled'::text); end if;
+  end if;
+
+  -- 2. THE REVIEW (imported: reviewers and dates as the file has them, no FFR).
+  -- A call already in the register keeps its own review if it has one: the
+  -- live review is the newer word, so the file's is only added where none is.
+  if v_exists and not v_ours then
+    insert into public.call_reviews (ucn, call_number, imported, imported_updated_by, imported_updated_date,
+           risk_to_patient, warranty_failure, frequent_failure, review2_at,
+           complaint_grouping, root_cause_keyword, spare_category, service_observation, review3_at)
+    values (new.ucn, new.call_number, true, new.imported_updated_by, new.imported_updated_date,
+            new.risk_to_patient, new.warranty_failure, new.frequent_failure, new.review2_at,
+            new.complaint_grouping, new.root_cause_keyword, new.spare_category, new.service_observation, new.review3_at)
+    on conflict (ucn) do nothing;
+  else
+  insert into public.call_reviews (ucn, call_number, imported, imported_updated_by, imported_updated_date,
+         risk_to_patient, warranty_failure, frequent_failure, review2_at,
+         complaint_grouping, root_cause_keyword, spare_category, service_observation, review3_at)
+  values (new.ucn, new.call_number, true, new.imported_updated_by, new.imported_updated_date,
+          new.risk_to_patient, new.warranty_failure, new.frequent_failure, new.review2_at,
+          new.complaint_grouping, new.root_cause_keyword, new.spare_category, new.service_observation, new.review3_at)
+  on conflict (ucn) do update set
+    call_number = excluded.call_number, imported = true,
+    imported_updated_by = excluded.imported_updated_by, imported_updated_date = excluded.imported_updated_date,
+    risk_to_patient = excluded.risk_to_patient, warranty_failure = excluded.warranty_failure,
+    frequent_failure = excluded.frequent_failure, review2_at = excluded.review2_at,
+    complaint_grouping = excluded.complaint_grouping, root_cause_keyword = excluded.root_cause_keyword,
+    spare_category = excluded.spare_category, service_observation = excluded.service_observation,
+    review3_at = excluded.review3_at;
+  end if;
+  v_note := array_append(v_note, ('review filed')::text);
+
+  -- 3. ONE VISIT, from the file's status -- only for a call this load files.
+  v_status := coalesce(nullif(btrim(new.current_call_status), ''), nullif(btrim(new.call_status), ''));
+  -- UNATTENDED IS THE ABSENCE OF A VISIT, so it files none (a visit reading
+  -- "Unattended" would make the call read Report pending).
+  if v_status is not null and upper(v_status) like 'UNATTENDED%' then v_status := null; end if;
+  if v_status is not null and v_cancel is null and (not v_exists or v_ours) then
+    v_uid := 'IMP-' || new.ucn || coalesce('-' || to_char(new.call_solved_at at time zone 'UTC', 'YYYYMMDDHH24MISS'), '');
+    insert into public.reports (uid, ucn, call_number, call_status, pending_reason, engineer, visit_at, updated_at, data)
+    values (v_uid, new.ucn, new.call_number, v_status, new.pending_reason, new.engineer, new.call_solved_at,
+            coalesce(new.call_solved_at, new.imported_updated_date::timestamptz, new.call_date::timestamptz, now()),
+            jsonb_build_object('imported_from', 'DCCR register (historical)'))
+    on conflict (uid) do update set
+      call_status = excluded.call_status, pending_reason = excluded.pending_reason,
+      engineer = excluded.engineer, visit_at = excluded.visit_at, updated_at = excluded.updated_at;
+    v_note := array_append(v_note, (('visit: ' || v_status))::text);
+  end if;
+
+  new.result := array_to_string(v_note, '; ');
+  perform set_config('rithi.silent_import', '', true);
+  return new;
+end $$;
+revoke execute on function public.dccr_history_apply() from public, anon, authenticated;
+
+drop trigger if exists dccr_history_apply on public.dccr_history_import;
+create trigger dccr_history_apply before insert or update on public.dccr_history_import
+  for each row execute function public.dccr_history_apply();
+
+alter table public.dccr_history_import enable row level security;
+drop policy if exists dhi_read on public.dccr_history_import;
+create policy dhi_read on public.dccr_history_import for select using ((select public.has_perm('bulk.upload')));
+drop policy if exists dhi_insert on public.dccr_history_import;
+create policy dhi_insert on public.dccr_history_import for insert with check ((select public.has_perm('bulk.upload')));
+drop policy if exists dhi_update on public.dccr_history_import;
+create policy dhi_update on public.dccr_history_import for update
+  using ((select public.has_perm('bulk.upload'))) with check ((select public.has_perm('bulk.upload')));
+revoke all on public.dccr_history_import from anon;
+revoke delete, truncate on public.dccr_history_import from authenticated;
+grant select, insert, update on public.dccr_history_import to authenticated;
+
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.dccr_history_import'::regclass);
+  end if;
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0010_reports_ordering.sql
 -- ------------------------------------------------------------------------
 
@@ -42232,6 +42504,47 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0394_notify_silent_import.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0394  A HISTORICAL CALL LOAD SENDS NO "CALL ALLOTTED" NOTIFICATION (2026-10-06).
+--
+-- The user, asked whether loading the old DCCR register's calls should notify
+-- each engineer of every call: "No notifications". notify_call_allotted() is
+-- restated from the database (0262's body) with one early return, taken only
+-- when the transaction-local setting rithi.silent_import is 'on' -- which
+-- dccr_history_apply() (0395) sets for the length of one row and nothing
+-- else does. Every live allotment notifies exactly as before.
+-- ===========================================================================
+CREATE OR REPLACE FUNCTION public.notify_call_allotted()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_uid uuid;
+begin
+  -- A HISTORICAL LOAD NOTIFIES NOBODY (0394, the user 2026-10-06: "No
+  -- notifications"). Set, transaction-local, by dccr_history_apply() alone.
+  if coalesce(current_setting('rithi.silent_import', true), '') = 'on' then return new; end if;
+  if coalesce(new.allocated_to, '') = '' then return new; end if;
+  if tg_op = 'UPDATE' and new.allocated_to is not distinct from old.allocated_to then return new; end if;
+  -- A USER MASTER RENAME (0259) is not an allotment: the call was already this
+  -- person's. Without this, correcting a name sent them one notice per call.
+  if tg_op = 'UPDATE' and public.engineer_rename_in_progress(old.allocated_to, new.allocated_to) then return new; end if;
+  v_uid := public.notify_resolve_uid(new.allocated_to_email, new.allocated_to);
+  if v_uid is null then return new; end if;
+  insert into public.notifications (recipient_id, recipient_email, kind, title, body, link)
+  values (v_uid, coalesce(new.allocated_to_email, ''), 'call_allotted',
+          'Call allotted to you',
+          concat_ws(' · ', nullif(coalesce(new.ucn, ''), ''), nullif(coalesce(new.party_name, ''), ''), nullif(coalesce(new.product_name, ''), '')),
+          '/' || case public.call_table_for(new.call_type)
+                   when 'installation' then 'installations' when 'pm' then 'pm-calls' else 'field-calls' end);
+  return new;
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0122_notifications_replay_tail.sql
 -- ------------------------------------------------------------------------
 
@@ -48669,6 +48982,153 @@ end $function$;
 update public.quality_objectives
    set calc_key = 'dccr_failure_cohort'
  where year = 2026 and calc_key = 'failure_rate_12m';
+
+-- ------------------------------------------------------------------------
+-- 0396_objective_recalc_active_fast.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0396  RE-CALCULATE: ACTIVE OBJECTIVES ONLY, AND THE DCCR RATE MADE CHEAP
+--       (2026-10-06).
+--
+-- The user: "Could not re-calculate: canceling statement due to statement
+-- timeout -- Re-calculate only Active Objectives."
+--
+--   1. recalc_quality_objectives(year, keep) is RESTATED FROM THE DATABASE
+--      (0349's body) with one condition added: only objectives whose status
+--      is Active. A Not Working or Do Not Use objective keeps its figures.
+--   2. The DCCR failure rate (0393) built every commissioning month back to the
+--      oldest machine (1982 -- over 500 months) and, for each, re-counted the
+--      machines and the calls with a sub-query; and it looked each call's
+--      machine up by upper(serial), which no index serves. Same rules, same
+--      answers: the machines and the calls are now each counted ONCE, grouped by
+--      month, and the machine is found by lower(btrim(serial)) -- the
+--      expression products_serial_key_idx already indexes.
+-- ===========================================================================
+
+create or replace function public._dccr_failure_calls(p_product text, p_serial text, p_asof date)
+returns table (ucn text, call_number text, reg_date date, product_name text, serial text,
+               party_name text, installed_on date, commissioning_month date,
+               days_to_failure integer, spare_category text, any_potential_effect text)
+language sql stable security definer set search_path = public as $$
+  select c.ucn, c.call_number, c.reg_date, c.product_name, c.serial, c.party_name,
+         m.warranty_start, date_trunc('month', m.warranty_start)::date,
+         (c.reg_date - m.warranty_start)::integer,
+         coalesce(r.spare_category, ''), coalesce(r.any_potential_effect, '')
+    from public.field_calls c
+    join public.call_reviews r on r.ucn = c.ucn
+    join lateral (
+      select pr.warranty_start
+        from public.products pr
+       where lower(btrim(pr.serial_number)) = lower(btrim(c.serial))
+         and pr.item_name ilike p_product
+         and pr.warranty_start is not null
+         and pr.warranty_start <= c.reg_date
+       order by pr.warranty_start desc, pr.id desc
+       limit 1) m on true
+   where c.cancelled_at is null
+     and btrim(coalesce(c.serial, '')) <> ''
+     and c.product_name ilike p_product
+     and coalesce(c.serial, '') ilike p_serial
+     and c.reg_date <= p_asof
+     and (upper(coalesce(r.spare_category, '')) like '%SPARE%'
+          or upper(btrim(coalesce(r.any_potential_effect, ''))) = 'YES')
+$$;
+revoke execute on function public._dccr_failure_calls(text, text, date) from public, anon, authenticated;
+
+create or replace function public._dccr_failure_cohort_rows(p_product text, p_serial text, p_asof date, p_window integer)
+returns table (month date, parc integer, failures integer, rate numeric)
+language sql stable security definer set search_path = public as $$
+  with mach as (
+    select date_trunc('month', pr.warranty_start)::date as cm, count(*)::integer as n
+      from public.products pr
+     where pr.item_name ilike p_product
+       and coalesce(pr.serial_number, '') ilike p_serial
+       and btrim(coalesce(pr.serial_number, '')) <> ''
+       and pr.warranty_start is not null
+       and pr.warranty_start <= p_asof
+     group by 1
+  ),
+  fails as (
+    select k.commissioning_month as cm, count(*)::integer as n
+      from public._dccr_failure_calls(p_product, p_serial, p_asof) k
+     where k.reg_date <= (k.installed_on + make_interval(months => p_window))::date
+     group by 1
+  ),
+  months as (
+    select generate_series((select min(cm) from mach), date_trunc('month', p_asof)::date,
+                           interval '1 month')::date as m
+  )
+  select ms.m,
+         coalesce(mc.n, 0),
+         case when (ms.m + make_interval(months => p_window))::date <= p_asof then coalesce(f.n, 0) end,
+         case when (ms.m + make_interval(months => p_window))::date <= p_asof and coalesce(mc.n, 0) > 0
+              then round(coalesce(f.n, 0)::numeric / mc.n, 6) end
+    from months ms
+    left join mach mc on mc.cm = ms.m
+    left join fails f on f.cm = ms.m
+$$;
+revoke execute on function public._dccr_failure_cohort_rows(text, text, date, integer) from public, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.recalc_quality_objectives(p_year integer, p_keep_overrides boolean)
+ RETURNS TABLE(objective text, months_written integer, months_kept integer)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  o   public.quality_objectives;
+  p   record;
+  m   integer;
+  k   text;
+  v   numeric;
+  n   integer;
+  kept integer;
+  ovr boolean;
+begin
+  if not coalesce(public.has_perm('objective.manage'), false) then
+    raise exception 'RBAC: only an administrator can re-calculate the objectives';
+  end if;
+  perform set_config('rithi.objective_recalc', 'on', true);
+
+  for o in select * from public.quality_objectives
+            where year = p_year and calc_key <> ''
+              -- ACTIVE ONLY (0396, the user 2026-10-06: "Re-calculate only Active
+              -- Objectives"): Not Working / Do Not Use are left as they are.
+              and coalesce(status, 'Active') = 'Active'
+            order by sort_order loop
+    n := 0; kept := 0;
+    for m in 1..12 loop
+      k := 'm' || lpad(m::text, 2, '0');
+      ovr := coalesce(o.overrides, '{}'::jsonb) ? k;
+      if ovr and coalesce(p_keep_overrides, true) then
+        kept := kept + 1;
+        continue;
+      end if;
+      select * into p from public.objective_period(o.id, m);
+      if found and p.applies then
+        v := public.objective_value(o.id, m);
+        -- A discarded override takes the calculated figure even when that is
+        -- "nothing to measure": leaving the typed number in place, unmarked,
+        -- would read as calculated when it is not.
+        if v is not null or ovr then
+          execute format('update public.quality_objectives set %I = $1 where id = $2', k)
+            using v, o.id;
+          if v is not null then n := n + 1; end if;
+        end if;
+      elsif found and public.objective_is_quarterly(o.frequency) then
+        execute format('update public.quality_objectives set %I = null where id = $1', k)
+          using o.id;
+      end if;
+      if ovr then
+        update public.quality_objectives set overrides = overrides - k where id = o.id;
+      end if;
+    end loop;
+    objective := o.parameter; months_written := n; months_kept := kept;
+    return next;
+  end loop;
+  perform set_config('rithi.objective_recalc', '', true);
+end $function$;
 
 -- ------------------------------------------------------------------------
 -- 0048_record_audit.sql

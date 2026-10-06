@@ -2115,7 +2115,15 @@ with checks(sort_order, bundle, provides, present) as (
                   and conname = 'quality_objectives_status_check')),
     (324, 'Objective: failure rate from the DCCR by commissioning month', 'dccr_failure_cohorts() / dccr_failure_calls() and objective_value''s dccr_failure_cohort branch (0393); the 2026 product failure rates on that key. NO means objective.sql has not been re-run since. Restore: objective.sql (0393)',
         (to_regprocedure('public.dccr_failure_cohorts(bigint,date)') is not null
-     and coalesce((select p.prosrc like '%dccr_failure_cohort%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)))
+     and coalesce((select p.prosrc like '%dccr_failure_cohort%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false))),
+    (325, 'A historical call load notifies nobody', 'notify_call_allotted() returns early while rithi.silent_import is on (0394). NO means notifications.sql has not been re-run since. Restore: notifications.sql (0394)',
+        coalesce((select p.prosrc like '%rithi.silent_import%' from pg_proc p where p.oid = to_regprocedure('public.notify_call_allotted()')), false)),
+    (326, 'The old DCCR register loads with its calls', 'dccr_history_import with its dccr_history_apply trigger, row-level security on and no DELETE grant (0395). NO means daily_review.sql has not been re-run since. Restore: daily_review.sql (0395)',
+        (to_regclass('public.dccr_history_import') is not null
+     and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.dccr_history_import') and tgname = 'dccr_history_apply')
+     and coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.dccr_history_import')), false))),
+    (327, 'Re-calculate works out Active objectives only', 'recalc_quality_objectives(year, keep) loops over objectives whose status is Active (0396). NO means objective.sql has not been re-run since. Restore: objective.sql (0396)',
+        coalesce((select p.prosrc like '%coalesce(status, ''Active'') = ''Active''%' from pg_proc p where p.oid = to_regprocedure('public.recalc_quality_objectives(integer,boolean)')), false))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
