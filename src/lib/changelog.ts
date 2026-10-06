@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.129',
+    date: '2026-10-06',
+    title: 'Objective: a Status for each objective, and the five deleted ones restored',
+    changes: [
+      'OBJECTIVE: every objective now has a Status — Active, Not Working or Do Not Use — set with ✏️ on the objective. Not Working and Do Not Use are hidden; tick “Show hidden” to see and change them. Hiding is all it does: they are still edited and re-calculated as before.',
+      'The five objectives that had been deleted — Recent Failure Rate of CPXcare, Extend (Indian), Orion-G, VEGA and Failure Rate of MT60 — are restored as Not Working, with the January–July figures they were first loaded with and the same calculation as MT75. Press Re-calculate to bring their computed months up to date.',
+    ],
+  },
+  {
     version: '0.10.128',
     date: '2026-10-06',
     title: 'Ownership Transfer: automatic OT number, invoice, and files',

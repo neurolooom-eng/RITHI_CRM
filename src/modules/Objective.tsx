@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, SectionCard, Modal } from '../components/ui/ui';
 import {
-  listQualityObjectives, saveObjectiveCell,
+  listQualityObjectives, saveObjectiveCell, OBJECTIVE_STATUSES, objectiveHidden,
   recalcObjectives, objectiveEvidence, objectiveNotes, objectivePeriod,
   objectiveCutoffLocked, setObjectiveCutoffLock, listObjectiveCutoffs, setObjectiveCutoff,
   saveObjectiveDef, addObjective, deleteObjective,
@@ -79,6 +79,10 @@ export function Objective() {
   const mayLock = can('objective.lock');
   const YEAR = new Date().getFullYear();
   const [objectives, setObjectives] = useState<QualityObjective[]>([]);
+  // STATUS (0392, the user 2026-10-06): an objective marked Not Working or Do
+  // Not Use is hidden unless this is on. It only hides -- the objective is still
+  // edited and re-calculated as before.
+  const [showHidden, setShowHidden] = useState(false);
   const [oMsg, setOMsg] = useState('');
   const [editing, setEditing] = useState<{ id: number; field: string } | null>(null);
   const [draft, setDraft] = useState('');
@@ -116,8 +120,8 @@ export function Objective() {
   // authority; this is its mirror for the page, and the same rule: anything not
   // recognisably quarterly is monthly.
   const isQuarterly = (f: string) => /quarter|3\s*month/i.test(f || '');
-  const monthlyNames = objectives.filter((o) => !isQuarterly(o.frequency)).map((o) => o.parameter);
-  const quarterlyNames = objectives.filter((o) => isQuarterly(o.frequency)).map((o) => o.parameter);
+  const monthlyNames = objectives.filter((o) => (showHidden || !objectiveHidden(o)) && !isQuarterly(o.frequency)).map((o) => o.parameter);
+  const quarterlyNames = objectives.filter((o) => (showHidden || !objectiveHidden(o)) && isQuarterly(o.frequency)).map((o) => o.parameter);
 
   // RE-CALC — explicit, at the moment of submission. Never on a page load: a
   // figure that moves because somebody opened a screen is not one anybody can
@@ -513,6 +517,12 @@ export function Objective() {
           quarter (Mar, Jun, Sep, Dec); the other months are NA, which is not zero.
           {' '}A row marked <b>ƒ</b> is worked out from the register; the rest are typed.
         </p>
+        {objectives.some(objectiveHidden) && (
+          <label className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 8 }}>
+            <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
+            Show hidden ({objectives.filter(objectiveHidden).length} marked Not Working or Do Not Use)
+          </label>
+        )}
         {mayEdit && (
           <div className="row" style={{ gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
             <button className="btn btn-primary" disabled={recalcing} onClick={() => { setKeepOverrides(true); setConfirmRecalc(true); }}>
@@ -560,13 +570,14 @@ export function Objective() {
               </tr>
             </thead>
             <tbody>
-              {objectives.map((o) => (
-                <tr key={o.id}>
+              {objectives.filter((o) => showHidden || !objectiveHidden(o)).map((o) => (
+                <tr key={o.id} className={objectiveHidden(o) ? 'obj-hidden-row' : undefined}>
                   <td>{o.sort_order}</td>
                   <td>{o.process}</td>
                   <td title={`Responsible: ${o.responsible}${o.calc_key ? ` · computed by ${o.calc_key} ${JSON.stringify(o.calc_params)}` : ' · typed'}`}>
                     {o.calc_key ? <b className="obj-calc" title={`Computed: ${o.calc_key}`}>ƒ</b> : null}
                     {o.parameter}
+                    {objectiveHidden(o) && <span className="badge badge-warning" style={{ marginLeft: 6 }}>{o.status}</span>}
                     {mayEdit && (
                       <button
                         className="btn btn-ghost btn-sm obj-defbtn"
@@ -746,6 +757,14 @@ export function Objective() {
                 />
               </div>
             ))}
+            <div>
+              <label className="field-label">Status</label>
+              <SelectPicker
+                value={String(defDraft.status ?? 'Active')}
+                onChange={(v) => setDefDraft((d) => ({ ...d, status: v || 'Active' }))}
+                options={[...OBJECTIVE_STATUSES]} />
+              <span className="muted" style={{ fontSize: 11 }}>Not Working and Do Not Use are hidden on this page unless Show hidden is on.</span>
+            </div>
             <div>
               <label className="field-label">Computed by</label>
               <SelectPicker

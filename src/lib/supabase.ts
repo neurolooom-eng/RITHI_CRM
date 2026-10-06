@@ -452,7 +452,12 @@ export interface QualityObjective {
   /** Months of a computed objective typed over by hand (0349), written by the
    *  database: who, when, and the calculated figure it replaced. */
   overrides?: Record<string, { by?: string; at?: string; calculated?: number | null }>;
+  /** Active / Not Working / Do Not Use (0392). The last two are hidden on the
+   *  page unless Show hidden is on; nothing else changes. */
+  status?: string;
 }
+export const OBJECTIVE_STATUSES = ['Active', 'Not Working', 'Do Not Use'] as const;
+export const objectiveHidden = (o: { status?: string }) => !!o.status && o.status !== 'Active';
 
 export async function listQualityObjectives(year: number): Promise<QualityObjective[]> {
   const { data, error } = await must().from('quality_objectives').select('*')

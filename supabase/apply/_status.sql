@@ -2109,7 +2109,10 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regprocedure('public.ot_next_no()') is not null
      and exists (select 1 from pg_trigger where tgname = 'ownership_transfer_number' and not tgisinternal)
      and coalesce((select p.prosrc like '%use_ti%' and p.prosrc like '%use_ft%' from pg_proc p
-                    where p.oid = to_regprocedure('public.sync_product_machine(text,text)')), false)))
+                    where p.oid = to_regprocedure('public.sync_product_machine(text,text)')), false))),
+    (323, 'Objective: each objective has a Status', 'quality_objectives.status (Active / Not Working / Do Not Use) with its check (0392); the five deleted 2026 objectives restored as Not Working. NO means objective.sql has not been re-run since. Restore: objective.sql (0392)',
+        exists (select 1 from pg_constraint where conrelid = to_regclass('public.quality_objectives')
+                  and conname = 'quality_objectives_status_check'))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

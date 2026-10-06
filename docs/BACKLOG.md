@@ -78,6 +78,19 @@ up)_
 
 ---
 
+## 2026-10-06 — Objective Status, five deleted objectives restored (0392, v0.10.129)
+
+- The user: "I deleted a Few Objectives, I want to Restore them, But Hide Them
+  or add a Field -- Not Working, Do Not Use". Answers: Status field + hidden by
+  default; restored as Not Working; original figures; hide only.
+- `_which_objectives_are_missing.sql` (probe, live): CPXcare, Extend (Indian),
+  Orion-G, VEGA and MT60 had no 2026 row. A delete keeps no copy, so 0392
+  restores them from 0130's list with 0132/0133's calc_key/calc_params; figures
+  added between 0130 and the delete are not recoverable (Re-calculate rebuilds
+  the computed months). FRS-121.11, `_status.sql` row 323.
+- Not done: the Delete button still deletes outright. A Do Not Use status is
+  now the way to retire an objective without losing it.
+
 ## 2026-10-06 — KPI Export (Field_INST) includes PM calls (0390, v0.10.125)
 
 - The user: "In KPI Export - KPI workbook — Field_INST ; Add PM Calls also."

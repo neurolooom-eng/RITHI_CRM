@@ -184,6 +184,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Type a month’s figure, or press Re-Calculate for the computed rows',
       'Set the per-month cut-off dates (locked by an administrator when the lock is on)',
       'Download the evidence workbook behind a computed month',
+      'Mark an objective Not Working or Do Not Use on its definition; tick Show hidden to see those',
     ],
     records: ['quality_objectives', 'objective_cutoffs', 'rpc:recalc_quality_objectives', 'rpc:objective_evidence', 'rpc:set_objective_cutoff', 'rpc:set_objective_cutoff_lock', 'audit_log'],
     rules: [

@@ -346,3 +346,6 @@
 .obj-ovr-box { border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin-top: 10px; }
 .obj-ovr-list { margin: 6px 0 8px 18px; font-size: 12.5px; line-height: 1.6; max-height: 180px; overflow: auto; }
 .obj-ovr-choice { display: block; margin-top: 4px; font-size: 13px; }
+
+/* An objective marked Not Working / Do Not Use, shown only with Show hidden (0392). */
+.obj-table tr.obj-hidden-row td { opacity: 0.6; }
