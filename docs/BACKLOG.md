@@ -78,6 +78,21 @@ up)_
 
 ---
 
+## 2026-10-06 — PM Spare -> DCCR (0397); Excel-date DCCR rows removed (0398), v0.10.133
+
+- The user: PM calls into the DCCR when a consumption is a Spare (Part Master
+  category), current mapping, old calls later. Answers: add to the review list
+  with SPARE pre-set; new + 2026 so far. And "Delete them" for the ~10,000
+  DCCR rows whose UC Number is an Excel date serial (42672 = 28-Oct-2016).
+- 0397: `dccr_calls` (Field + PM calls with a review), both review views read
+  it; `zz_pm_spare_to_dccr` on spare_consumption; `part_is_spare()`; 2026
+  backfill. **Pending:** re-run the backfill (or daily_review.sql) once the Part
+  Master mapping is complete, and decide whether older PM calls should go in.
+- 0398: deletes DCCR rows with a five-digit or "-" UC Number on no call.
+- PM spares are NOT in the DCCR failure rate (0393 reads Field calls) -- not
+  asked.
+- FRS-268, OQ-266 (`pm_spare_dccr_test`), `_status.sql` row 328.
+
 ## 2026-10-06 — Old DCCR with its calls (0394/0395); Re-calculate Active-only and fast (0396), v0.10.132
 
 - Probe (live): 38,516 DCCR rows, 6,051 of them the 2025 upload (imported),

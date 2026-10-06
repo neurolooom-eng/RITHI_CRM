@@ -515,7 +515,11 @@ const MODULES = {
             '0353_review_summary_carries_the_searched_columns.sql',
             // The old DCCR register WITH its calls (2026-10-06): a staging
             // register whose trigger files the call, the review and one visit.
-            '0395_dccr_history_import.sql'],
+            '0395_dccr_history_import.sql',
+            // A PM call whose consumption is a Spare joins the DCCR review
+            // (2026-10-06). Restates 0353's / 0344's two review views, so after
+            // both; and the DCCR rows whose UC Number was an Excel date, removed.
+            '0397_pm_spare_dccr.sql', '0398_dccr_junk_rows.sql'],
   },
   notifications: {
     title: 'Notifications',

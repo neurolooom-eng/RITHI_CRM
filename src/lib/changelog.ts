@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.133',
+    date: '2026-10-06',
+    title: 'PM calls with a Spare join the DCCR review; junk DCCR rows removed',
+    changes: [
+      'DAILY COMPLAINT REVIEW: a PM call now joins the review when a part booked on it is a SPARE in the Part Master. It appears in the register with Spare / Consumable / Correction / Calibration set to SPARE; the reviewer answers the rest. A review already started is not changed.',
+      'The 2026 PM calls that already carry a Spare were added now. A part the Part Master has not yet marked Spare adds nothing — once the Part Master mapping is complete, the older PM calls can be added the same way.',
+      'About 10,000 DCCR rows whose “UC Number” was an Excel date (41099, 42672 …, from an earlier load that read a date column as the UC Number) were removed. They matched no call and held no review answers.',
+    ],
+  },
+  {
     version: '0.10.132',
     date: '2026-10-06',
     title: 'Old DCCR registers load with their calls; Re-calculate is quicker and Active-only',
