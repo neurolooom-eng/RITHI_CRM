@@ -102,6 +102,7 @@
 --   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 --   0367_indoor_dc_approver_is_the_login.sql
 --   0394_indoor_record_visit_closed_and_comments.sql
+--   0399_indoor_reported_to_customer_stamp.sql
 --   0355_spare_recycling.sql
 --   0365_spare_recycling_start_sla_mrn.sql
 --   0376_spare_recycling_delete.sql
@@ -172,6 +173,7 @@
 --   0341_call_actions_need_sight_of_the_call.sql
 --   0386_pm_dates_are_registration.sql
 --   0389_field_call_vigilance_answered.sql
+--   0398_call_request_attended_not_future.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
@@ -205,6 +207,7 @@
 --   0342_review_needs_a_call_you_can_see.sql
 --   0353_review_summary_carries_the_searched_columns.sql
 --   0390_review_answers_read_key.sql
+--   0397_ffr_customer_and_problem_required.sql
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
 --   0115_visit_date_sanity.sql
@@ -368,6 +371,7 @@
 --   0225_record_audit_on.sql
 --   0246_record_audit_description.sql
 --   0314_record_audit_on_movements_and_training.sql
+--   0396_record_audit_on_configuration_objectives_indoor.sql
 --   0166_ffr_retention_guard.sql
 --   0174_ffr_history.sql
 --   0177_ffr_history_view_right.sql
@@ -11851,6 +11855,49 @@ comment on column public.indoor_jobs.visit_filed_at is
   'When the drafted visit was filed in full -- the visit, its spares and its feedback -- by the DC''s approval (0327). create_indoor_dc() does not ask for it; approve_indoor_dc() files it.';
 
 -- ------------------------------------------------------------------------
+-- 0399_indoor_reported_to_customer_stamp.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0399 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
+--        (second re-review D-039, FRS-143.9)
+--
+-- indoor_jobs.reported_to_customer_at / _by exist (FRS-057) and were on no
+-- screen. The screen now records when damage was reported to the owner; the
+-- person is the database's to write, the 0363 rule for the cleaning:
+--   * setting or changing the time stamps reported_to_customer_by from the
+--     session, discarding whatever was sent;
+--   * a time in the future is refused (five minutes' grace for a clock);
+--   * clearing the time clears the person.
+-- A connection with no session (a repair, an import) is left alone.
+-- In the indoor module, after 0394.
+-- ===========================================================================
+
+create or replace function public.indoor_reported_to_customer_stamp()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if new.reported_to_customer_at is distinct from (case when tg_op = 'UPDATE' then old.reported_to_customer_at end)
+     or new.reported_to_customer_by is distinct from (case when tg_op = 'UPDATE' then old.reported_to_customer_by end) then
+    if new.reported_to_customer_at is null then
+      new.reported_to_customer_by := null;
+    else
+      if new.reported_to_customer_at > now() + interval '5 minutes' then
+        raise exception 'A damage report to the customer cannot be recorded in the future (%)',
+          to_char(new.reported_to_customer_at at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI') using errcode = '23514';
+      end if;
+      new.reported_to_customer_by := auth.uid();
+    end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.indoor_reported_to_customer_stamp() from public, anon, authenticated;
+drop trigger if exists zzy_indoor_reported_to_customer on public.indoor_jobs;
+create trigger zzy_indoor_reported_to_customer
+  before insert or update on public.indoor_jobs
+  for each row execute function public.indoor_reported_to_customer_stamp();
+
+-- ------------------------------------------------------------------------
 -- 0355_spare_recycling.sql
 -- ------------------------------------------------------------------------
 
@@ -20296,6 +20343,47 @@ create trigger field_call_vigilance_answered
   for each row execute function public.field_call_vigilance_answered();
 
 -- ------------------------------------------------------------------------
+-- 0398_call_request_attended_not_future.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0398 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
+--        (second re-review D-030, part 3)
+--
+-- The Attended Date on Request Registration had no upper bound, and it becomes
+-- the complaint date of the call registered from the request -- so a call
+-- could be dated days ahead, and every age and SLA measured from it starts in
+-- the future. The form now stops at today; the database refuses the same for a
+-- signed-in write, measured in India time (the day the engineer is living in,
+-- not UTC's, which is still yesterday until 05:30).
+-- On UPDATE only when attended_date itself changes, so a request recorded
+-- before this is never refused for an unrelated edit.
+-- Not stopped: an import (bulk.upload / import.panel), a connection with no
+-- session, and a function running as its owner.
+-- In the call_requests module, before the cr_read tail (0164).
+-- ===========================================================================
+
+create or replace function public.call_request_attended_not_future()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if current_user <> 'authenticated' then return new; end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+  if new.attended_date is null then return new; end if;
+  if tg_op = 'UPDATE' and new.attended_date is not distinct from old.attended_date then return new; end if;
+  if new.attended_date > (now() at time zone 'Asia/Kolkata')::date then
+    raise exception 'The Attended Date cannot be in the future (%)', to_char(new.attended_date, 'DD-Mon-YYYY')
+      using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.call_request_attended_not_future() from public, anon, authenticated;
+drop trigger if exists call_request_attended_not_future on public.call_requests;
+create trigger call_request_attended_not_future
+  before insert or update of attended_date on public.call_requests
+  for each row execute function public.call_request_attended_not_future();
+
+-- ------------------------------------------------------------------------
 -- 0164_cr_read_initplan.sql
 -- ------------------------------------------------------------------------
 
@@ -26348,6 +26436,55 @@ begin
   values ('0390_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
   raise notice '0390: % role(s) holding review.edit given review.view', n;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0397_ffr_customer_and_problem_required.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0397 — A FIELD FAILURE REPORT NAMES ITS CUSTOMER AND ITS PROBLEM
+--        (second re-review D-027)
+--
+-- The Field Failure Report form refuses a report without Customer Name or
+-- Problem reported, but field_failure_reports defaults both to empty text, so
+-- an insert through the data interface without them succeeded. The rule is now
+-- the database's as well:
+--   * a signed-in INSERT needs both;
+--   * a signed-in UPDATE may not BLANK either -- a report recorded before this
+--     with one of them empty can still be edited (its weekly review recorded),
+--     it is only never emptied.
+-- Not stopped: an import (bulk.upload / import.panel), a connection with no
+-- session, and a function running as its owner (ffr_from_review raises a
+-- report from the Daily Complaint Review and fills both from the call).
+-- In the daily_review module, after 0390.
+-- ===========================================================================
+
+create or replace function public.ffr_customer_and_problem_required()
+returns trigger language plpgsql security invoker set search_path = public as $$
+declare v_missing text[] := '{}';
+begin
+  if auth.uid() is null then return new; end if;
+  if current_user <> 'authenticated' then return new; end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+  if btrim(coalesce(new.customer_name, '')) = ''
+     and (tg_op = 'INSERT' or btrim(coalesce(old.customer_name, '')) <> '') then
+    v_missing := v_missing || 'Customer Name'::text;
+  end if;
+  if btrim(coalesce(new.problem_reported, '')) = ''
+     and (tg_op = 'INSERT' or btrim(coalesce(old.problem_reported, '')) <> '') then
+    v_missing := v_missing || 'Problem Reported'::text;
+  end if;
+  if array_length(v_missing, 1) > 0 then
+    raise exception 'A Field Failure Report needs the Customer Name and the Problem Reported (missing: %)',
+      array_to_string(v_missing, ', ') using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.ffr_customer_and_problem_required() from public, anon, authenticated;
+drop trigger if exists ffr_customer_and_problem_required on public.field_failure_reports;
+create trigger ffr_customer_and_problem_required
+  before insert or update of customer_name, problem_reported on public.field_failure_reports
+  for each row execute function public.ffr_customer_and_problem_required();
 
 -- ------------------------------------------------------------------------
 -- 0010_reports_ordering.sql
@@ -50072,6 +50209,134 @@ begin
     end if;
   end loop;
   raise notice '0314: record_audit armed on % of 5 tables.', n;
+end $on$;
+
+-- ------------------------------------------------------------------------
+-- 0396_record_audit_on_configuration_objectives_indoor.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0396 — CONFIGURATION, QUALITY OBJECTIVES AND THE INDOOR WORKSHOP ARE IMAGED
+--        (second re-review D-067, D-021, D-039)
+--
+-- record_audit (0225, 0314) images fifteen tables. Three groups that decide
+-- or record a quality answer were outside it, so an edit or a delete there
+-- left no before-and-after anywhere:
+--
+--   D-067  app_roles       what a role may do -- Roles & Permissions recorded
+--                          rbac.save with the role KEYS only
+--          app_settings    the Hotline desk, Audit Mode, the frequent-failure
+--                          rules, the objective lock
+--          sla_rules       the service-level targets
+--   D-021  quality_objectives, objective_cutoffs, objective_settings
+--                          a typed figure, a re-calculation, a cut-off, and
+--                          deleting an objective with its twelve figures
+--                          (objective_settings had UPDATE only, from 0357)
+--   D-039  indoor_jobs, indoor_job_parts, indoor_job_accessories,
+--          indoor_job_checks, indoor_pdt, indoor_dcs, indoor_dc_lines
+--                          the workshop record, saved field by field on blur
+--
+-- THE SAME TRIGGERS AS 0225 / 0314 -- statement-level with transition tables,
+-- so a bulk load is one event. Counters and release tickets are not records
+-- and are left out.
+--
+-- THE KEY. record_audit_fn() writes each row under, and pairs an update's
+-- before and after on, the first of ucn / uid / line_uid / call_number / id.
+-- app_roles, app_settings, sla_rules and objective_settings have none of
+-- them, so every row would be written under a NULL key and, in a statement
+-- touching several rows, each "after" paired with the FIRST "before". The key
+-- list gains `role` and `key` (the natural keys of those tables) and then
+-- `sys_id`, unique on every table since 0244 -- AFTER the five it had, so no
+-- table already imaged changes the key it is recorded under.
+-- Otherwise the function is 0103's, unchanged.
+--
+-- In data_integrity, after 0314: every table named here is created by a module
+-- earlier in ALL_ORDER. A project missing one simply arms the rest.
+-- ===========================================================================
+
+create or replace function public.record_audit_key(j jsonb)
+returns text language sql immutable set search_path = public as $$
+  select coalesce(j->>'ucn', j->>'uid', j->>'line_uid', j->>'call_number', j->>'id',
+                  j->>'role', j->>'key', j->>'sys_id')
+$$;
+revoke execute on function public.record_audit_key(jsonb) from public, anon, authenticated;
+
+create or replace function public.record_audit_fn()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  n     bigint;
+  bulk  boolean;
+begin
+  -- How many rows this ONE statement touched.
+  if tg_op = 'DELETE' then
+    select count(*) into n from old_rows;
+  else
+    select count(*) into n from new_rows;
+  end if;
+  if n = 0 then return null; end if;
+
+  bulk := n > 150;
+
+  if bulk then
+    -- One row for the whole statement: who, what table, how many, when.
+    insert into public.record_audit (table_name, op, record_key, actor, actor_email, old_data, new_data)
+    values (tg_table_name, 'BULK ' || tg_op, null, auth.uid(), auth.email(), null,
+            jsonb_build_object('rows', n,
+                               'note', 'Bulk write — recorded as one event. The records are in ' || tg_table_name || '.'));
+    return null;
+  end if;
+
+  if tg_op = 'INSERT' then
+    insert into public.record_audit (table_name, op, record_key, actor, actor_email, old_data, new_data)
+    select tg_table_name, tg_op, public.record_audit_key(j), auth.uid(), auth.email(), null, j
+      from (select to_jsonb(r) as j from new_rows r) x;
+  elsif tg_op = 'DELETE' then
+    insert into public.record_audit (table_name, op, record_key, actor, actor_email, old_data, new_data)
+    select tg_table_name, tg_op, public.record_audit_key(j), auth.uid(), auth.email(), j, null
+      from (select to_jsonb(r) as j from old_rows r) x;
+  else
+    -- UPDATE: the before and after of the same record, paired on the key the
+    -- audit is written under.
+    insert into public.record_audit (table_name, op, record_key, actor, actor_email, old_data, new_data)
+    select tg_table_name, tg_op, public.record_audit_key(nj), auth.uid(), auth.email(), oj, nj
+      from (
+        select to_jsonb(nr) as nj,
+               (select to_jsonb(orow) from old_rows orow
+                 where public.record_audit_key(to_jsonb(orow)) is not distinct from public.record_audit_key(to_jsonb(nr))
+                 limit 1) as oj
+          from new_rows nr
+      ) x;
+  end if;
+  return null;
+end $$;
+
+do $on$
+declare t text; n int := 0;
+begin
+  foreach t in array array[
+    'app_roles', 'app_settings', 'sla_rules',
+    'quality_objectives', 'objective_cutoffs', 'objective_settings',
+    'indoor_jobs', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks',
+    'indoor_pdt', 'indoor_dcs', 'indoor_dc_lines'
+  ] loop
+    if to_regclass('public.' || t) is not null
+       and (select relkind from pg_class where oid = ('public.' || t)::regclass) = 'r' then
+      execute format('drop trigger if exists record_audit_i on public.%I', t);
+      execute format('drop trigger if exists record_audit_u on public.%I', t);
+      execute format('drop trigger if exists record_audit_d on public.%I', t);
+      execute format('create trigger record_audit_i after insert on public.%I '
+                     'referencing new table as new_rows for each statement '
+                     'execute function public.record_audit_fn()', t);
+      execute format('create trigger record_audit_u after update on public.%I '
+                     'referencing old table as old_rows new table as new_rows for each statement '
+                     'execute function public.record_audit_fn()', t);
+      execute format('create trigger record_audit_d after delete on public.%I '
+                     'referencing old table as old_rows for each statement '
+                     'execute function public.record_audit_fn()', t);
+      n := n + 1;
+    end if;
+  end loop;
+  raise notice '0396: record_audit armed on % of 13 tables.', n;
 end $on$;
 
 -- ------------------------------------------------------------------------

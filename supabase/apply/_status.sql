@@ -2161,6 +2161,20 @@ with checks(sort_order, bundle, provides, present) as (
     (331, 'Who approved, dispatched or received a spare is the session', 'zzy_spare_line_people_from_session writes the signed-in person into rm_by, commercial_by, nsm_by, dispatched_by and received_by whenever a signed-in write sets one, discarding the value sent; imports, renames and Auto-Approved are untouched (0393, D-041). NO means Spare_1.sql has not been re-run since. Restore: Spare_1.sql (0393)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_request_lines')
                  and tgname = 'zzy_spare_line_people_from_session')),
+    (332, 'Roles, settings, SLA targets, quality objectives and the indoor workshop are imaged in record_audit', 'record_audit_i / _u / _d on app_roles, app_settings, sla_rules, quality_objectives, objective_cutoffs, objective_settings and the seven indoor tables, and record_audit_key() adds role / key / sys_id after the five keys it had, so a role or a setting is recorded under its own name (0396, D-067, D-021, D-039). NO means data_integrity.sql has not been re-run since. Restore: data_integrity.sql (0396)',
+        (to_regprocedure('public.record_audit_key(jsonb)') is not null
+         and (select count(distinct tgrelid) from pg_trigger where tgname = 'record_audit_d' and not tgisinternal
+               and tgrelid in (to_regclass('public.app_roles'), to_regclass('public.app_settings'), to_regclass('public.sla_rules'),
+                               to_regclass('public.quality_objectives'), to_regclass('public.objective_cutoffs'), to_regclass('public.objective_settings'),
+                               to_regclass('public.indoor_jobs'), to_regclass('public.indoor_job_parts'), to_regclass('public.indoor_job_accessories'),
+                               to_regclass('public.indoor_job_checks'), to_regclass('public.indoor_pdt'), to_regclass('public.indoor_dcs'),
+                               to_regclass('public.indoor_dc_lines'))) = 13)),
+    (333, 'A Field Failure Report names its customer and its problem', 'ffr_customer_and_problem_required refuses a signed-in report without Customer Name or Problem Reported, and an edit that blanks either; imports and the report raised from the Daily Complaint Review are not stopped (0397, D-027). NO means daily_review.sql has not been re-run since. Restore: daily_review.sql (0397)',
+        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.field_failure_reports') and tgname = 'ffr_customer_and_problem_required')),
+    (334, 'A call request''s Attended Date is not in the future', 'call_request_attended_not_future refuses a signed-in request, or a change of its Attended Date, dated after today in India time; imports are not stopped (0398, D-030). NO means call_requests.sql has not been re-run since. Restore: call_requests.sql (0398)',
+        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.call_requests') and tgname = 'call_request_attended_not_future')),
+    (335, 'Who reported damage to the customer is the session', 'zzy_indoor_reported_to_customer writes reported_to_customer_by from the session whenever the time is set or changed, refuses a future time and clears the person with the time (0399, D-039). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0399)',
+        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.indoor_jobs') and tgname = 'zzy_indoor_reported_to_customer')),
     (319, 'Stores Dispatch Report: the historical stock outs from 2025', 'stores_dispatch_report also reads spare_issue_history for stock outs dated from 1 January 2025 (India time) not already dispatched in RITHI, with a Source column (RITHI / Historical); dmy_ts() reads the file''s day-first dates kept in data (0387, widened to 2026 by 0388). NO means HandStock_X.sql has not been re-run since, or the view lost security_invoker. Restore: HandStock_X.sql (0388)',
         (to_regprocedure('public.dmy_ts(text)') is not null
          and to_regprocedure('public.text_num(text)') is not null

@@ -380,6 +380,8 @@ const MODULES = {
       // D-033: a field call is registered with its three vigilance questions
       // answered (0389). Before the cr_read tail, which must stay last.
       '0389_field_call_vigilance_answered.sql',
+      // D-030: the Attended Date of a call request is not in the future (0398).
+      '0398_call_request_attended_not_future.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -516,7 +518,9 @@ const MODULES = {
             '0353_review_summary_carries_the_searched_columns.sql',
             // D-129: review answers are read by holders of review.view, given
             // once to the roles that held review.edit (0390).
-            '0390_review_answers_read_key.sql'],
+            '0390_review_answers_read_key.sql',
+            // D-027: a Field Failure Report names its customer and problem (0397).
+            '0397_ffr_customer_and_problem_required.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -618,6 +622,9 @@ const MODULES = {
             // training sessions, attendance and R&R periods. After 0225, whose
             // triggers it copies; here, after every module that creates them.
             '0314_record_audit_on_movements_and_training.sql',
+            // D-067/D-021/D-039: configuration, quality objectives and the indoor
+            // workshop imaged too; the audit key gains role / key / sys_id (0396).
+            '0396_record_audit_on_configuration_objectives_indoor.sql',
             // The FFR register's retention trigger. HERE, not beside the table
             // in 0165: block_hard_delete() is defined in this module, which runs
             // after daily_review — check:replay caught the fresh apply failing.
@@ -846,7 +853,9 @@ const MODULES = {
             '0367_indoor_dc_approver_is_the_login.sql',
             // D-108 / D-116: record_indoor_visit() is no signed-in user's, and
             // the visit columns say the visit is filed at approval (0394).
-            '0394_indoor_record_visit_closed_and_comments.sql'],
+            '0394_indoor_record_visit_closed_and_comments.sql',
+            // D-039: who reported damage to the customer is the session (0399).
+            '0399_indoor_reported_to_customer_stamp.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
