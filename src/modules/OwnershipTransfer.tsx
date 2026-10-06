@@ -16,6 +16,8 @@ import {
 import { installCallFromTransfer, transferCallNumber, transferDetailsFromMachine, transferExtra, freshWarranty, type TransferDetails } from '../lib/coverspec';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
+import { DocPreview } from '../components/doc/DocPreview';
+import { uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
 
 // ===========================================================================
 // OWNERSHIP TRANSFER — where a machine has been, and who has it now.
@@ -82,10 +84,29 @@ export function OwnershipTransfer() {
   // A FRESH WARRANTY FOR THE NEW OWNER (0383, the user, 2026-10-05): optional,
   // ticked per transfer; the start and months typed, the rest worked out.
   const [fresh, setFresh] = useState(false);
+  // FILES KEPT WITH THE TRANSFER (0391, the user, 2026-10-06): optional; each
+  // is uploaded to the "Ownership Transfers" Drive folder as it is chosen.
+  type TransferFile = { name: string; url: string; at?: string; by?: string };
+  const [files, setFiles] = useState<TransferFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
+  const attachFile = async (f: File | null) => {
+    if (!f) return;
+    if (f.size > MAX_UPLOAD_BYTES) {
+      setMsg({ tone: 'error', text: `${f.name} is larger than ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.` }); return;
+    }
+    setUploading(true);
+    setMsg({ tone: 'info', text: `Uploading ${f.name} to Drive…` });
+    const res = await uploadToDrive(f, `OT - ${machine?.serial ?? ''} - ${machine?.product ?? ''}`, 'transfer');
+    setUploading(false);
+    if (!res.ok || !res.url) { setMsg({ tone: 'error', text: res.error ?? 'Upload failed.' }); return; }
+    setFiles((fs) => [...fs, { name: f.name, url: res.url!, at: new Date().toISOString(), by: String(user?.fullName ?? user?.email ?? '') }]);
+    setMsg({ tone: 'ok', text: `${f.name} attached — it is saved with the transfer.` });
+  };
   const hits = useRef(new Map<string, MachineHit>());
   const machineLabel = (h: MachineHit) => `${h.serial} · ${h.product}${h.party ? ` · ${h.party}` : ''}`;
   const openMove = () => {
-    setMachine(null); setMachineRow(null); setMachineErr(''); setToInfo(null); setFresh(false);
+    setMachine(null); setMachineRow(null); setMachineErr(''); setToInfo(null); setFresh(false); setFiles([]);
     setMoveForm({ transfer_date: todayISO() });
   };
   const pickMachine = (label: string) => chooseMachine(hits.current.get(label) ?? null);
@@ -135,7 +156,6 @@ export function OwnershipTransfer() {
     if (fresh) {
       if (!moveForm.warranty_start) { setMsg({ tone: 'error', text: 'Give the fresh warranty its Warranty Start Date.' }); return; }
       if (!fw?.end) { setMsg({ tone: 'error', text: 'Give the fresh warranty its Warranty Period (Months), more than 0.' }); return; }
-      if (!moveForm.reference_no?.trim()) { setMsg({ tone: 'error', text: 'A fresh warranty needs the Reference no. (the OT number) — it becomes the machine\'s Warranty Number.' }); return; }
     }
     setBusy(true);
     // FROM is the machine's current holder as the Product Database shows it,
@@ -150,13 +170,18 @@ export function OwnershipTransfer() {
             warranty_years: Number(fw.years), warranty_end: fw.end }
         : { warranty_start: null, warranty_months: null, warranty_years: null, warranty_end: null }),
       ...(machineRow ? { extra: transferExtra(machineRow) } : {}),
+      // THE OT NUMBER IS GIVEN BY THE DATABASE (0391); none is sent.
+      reference_no: '',
+      invoice_no: (moveForm.invoice_no ?? '').trim(), invoice_date: moveForm.invoice_date || null,
+      attachments: files,
       recorded_by_name: user?.fullName || user?.email || '',
     } as Partial<OT>);
     setBusy(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not record the transfer.' }); return; }
     setMoveForm(null);
-    setMsg({ tone: 'ok', text: `${moveForm.serial_number} moved to ${moveForm.to_party}. Product Database now shows the new owner`
-      + (fresh && fw ? `, with a fresh warranty ${fmtLongDate(moveForm.warranty_start ?? '')} to ${fmtLongDate(fw.end)} (${moveForm.reference_no?.trim()}).` : '.') });
+    setMsg({ tone: 'ok', text: `${res.otNo || 'Transfer'} recorded: ${moveForm.serial_number} moved to ${moveForm.to_party}. Product Database now shows the new owner`
+      + (fresh && fw ? `, with a fresh warranty ${fmtLongDate(moveForm.warranty_start ?? '')} to ${fmtLongDate(fw.end)} numbered ${res.otNo}` : '')
+      + ((moveForm.invoice_no ?? '').trim() || moveForm.invoice_date ? ' and this invoice' : '') + '.' });
     await load();
   };
 
@@ -206,7 +231,18 @@ export function OwnershipTransfer() {
     // THE DEALER IT CAME FROM (0328): the From party when the Party Master
     // types it DEALER, stamped by the database.
     { key: 'sold_through', header: 'Sold Through', width: 170, render: (r) => (r.sold_through ? String(r.sold_through) : <span className="muted">—</span>) },
-    { key: 'reference_no', header: 'Reference', width: 130 },
+    { key: 'reference_no', header: 'OT Number', width: 130 },
+    { key: 'invoice_no', header: 'Invoice No', width: 130, render: (r) => (r.invoice_no ? String(r.invoice_no) : <span className="muted">—</span>) },
+    { key: 'invoice_date', header: 'Invoice Date', width: 120, wrap: false, render: (r) => (r.invoice_date ? fmtLongDate(r.invoice_date) : <span className="muted">—</span>) },
+    { key: 'attachments', header: 'Files', width: 170, sortable: false,
+      render: (r) => {
+        const fs = Array.isArray(r.attachments) ? r.attachments : [];
+        return fs.length
+          ? <div className="row" style={{ flexWrap: 'wrap', gap: 4 }} onClick={(e) => e.stopPropagation()}>
+              {fs.map((f) => <button key={f.url} className="btn btn-ghost btn-sm" onClick={() => setPreview({ url: f.url, title: `${r.reference_no} — ${f.name}` })}>📄 {f.name}</button>)}
+            </div>
+          : <span className="muted">—</span>;
+      } },
     { key: 'warranty_start', header: 'Fresh warranty', width: 210, wrap: false,
       render: (r) => (r.warranty_start
         ? `${fmtLongDate(r.warranty_start)} → ${fmtLongDate(r.warranty_end ?? '')}`
@@ -333,9 +369,18 @@ export function OwnershipTransfer() {
               ['Type', toInfo.party_type], ['Service Engineer', toInfo.service_engineer],
             ]} />}
             <F label="Transfer date"><LongDateInput value={moveForm.transfer_date ?? ''} onChange={(v) => setMoveForm({ ...moveForm, transfer_date: v })} /></F>
-            <F label={fresh ? 'Reference no (OT number) *' : 'Reference no'}
-               hint={fresh ? 'Becomes the machine\'s Warranty Number on the Product Database.' : "The customer's own paperwork for the hand-over."}>
-              <input className="input" value={moveForm.reference_no ?? ''} onChange={(e) => setMoveForm({ ...moveForm, reference_no: e.target.value })} />
+            {/* THE OT NUMBER IS GIVEN ON SAVE (0391, the user, 2026-10-06: "OT
+                Number should be Auto Generated"), continuing the OTnnnn series. */}
+            <F label="OT Number" hint="Given automatically when the transfer is saved — the next after the highest on file.">
+              <input className="input" value="" placeholder="Given on save" readOnly disabled />
+            </F>
+            {/* THE NEW OWNER'S INVOICE (0391): optional; shown on the Product
+                Database for the machine when dated on or after the sale's. */}
+            <F label="Invoice No" hint="The invoice for this hand-over. Shown on the Product Database for the machine.">
+              <input className="input" value={moveForm.invoice_no ?? ''} onChange={(e) => setMoveForm({ ...moveForm, invoice_no: e.target.value })} />
+            </F>
+            <F label="Invoice Date">
+              <LongDateInput value={moveForm.invoice_date ?? ''} onChange={(v) => setMoveForm({ ...moveForm, invoice_date: v || null })} />
             </F>
             {/* A FRESH WARRANTY FOR THE NEW OWNER (0383): optional, and worked out
                 as Warranty Entry does -- start and months typed, years and end
@@ -372,14 +417,33 @@ export function OwnershipTransfer() {
             })()}
             <F label="Reason"><input className="input" value={moveForm.reason ?? ''} onChange={(e) => setMoveForm({ ...moveForm, reason: e.target.value })} /></F>
             <F label="Document link"><input className="input" value={moveForm.document_url ?? ''} onChange={(e) => setMoveForm({ ...moveForm, document_url: e.target.value })} /></F>
+            <F label="Files (optional)" hint="Important papers for this transfer — the hand-over letter, invoice copy, NOC. Saved to the Ownership Transfers folder in Drive.">
+              <div>
+                {files.map((f) => (
+                  <div key={f.url} className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPreview({ url: f.url, title: f.name })}>📄 {f.name}</button>
+                    <button type="button" className="btn btn-sm" disabled={busy}
+                      onClick={() => setFiles((fs) => fs.filter((x) => x.url !== f.url))}>Remove</button>
+                  </div>
+                ))}
+                <label className="btn btn-sm" style={{ display: 'inline-block' }}>
+                  {uploading ? 'Uploading…' : '⤴ Attach a file'}
+                  <input type="file" style={{ display: 'none' }} disabled={uploading || busy || !machine}
+                    onChange={(e) => { void attachFile(e.target.files?.[0] ?? null); e.target.value = ''; }} />
+                </label>
+                {!machine && <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>Pick the machine first.</span>}
+              </div>
+            </F>
             <F label="Remarks"><textarea className="input" rows={2} value={moveForm.remarks ?? ''} onChange={(e) => setMoveForm({ ...moveForm, remarks: e.target.value })} /></F>
             <div className="rep-actions">
               <button className="btn" onClick={() => setMoveForm(null)}>Cancel</button>
-              <button className="btn btn-primary" disabled={busy} onClick={() => void saveMove()}>{busy ? 'Saving…' : 'Record the transfer'}</button>
+              <button className="btn btn-primary" disabled={busy || uploading} onClick={() => void saveMove()}>{busy ? 'Saving…' : 'Record the transfer'}</button>
             </div>
           </div>
         )}
       </Drawer>
+
+      {preview && <DocPreview url={preview.url} title={preview.title} onClose={() => setPreview(null)} />}
 
       <Drawer open={!!entryForm} onClose={() => setEntryForm(null)} title="Additional entry details">
         {entryForm && (

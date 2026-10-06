@@ -50,6 +50,7 @@
 --   0332_installation_warranty_starts.sql
 --   0351_dealer_guard_stands_aside_on_reload.sql
 --   0383_transfer_fresh_warranty.sql
+--   0391_transfer_ot_number_invoice_files.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -4901,5 +4902,275 @@ revoke execute on function public.sync_product_machine(text, text) from public, 
 
 comment on column public.ownership_transfers.warranty_start is
   'A fresh warranty given to the new owner on this transfer (0383); blank keeps the machine''s warranty. Months entered; years and end worked out.';
+
+-- ------------------------------------------------------------------------
+-- 0391_transfer_ot_number_invoice_files.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0391 — AN OWNERSHIP TRANSFER: ITS OT NUMBER, ITS INVOICE, ITS FILES
+--
+-- The user, 2026-10-06: "OT Number should be Auto Generated. Add Invoice No,
+-- Invoice Date Provision in Ownership Transfer also a File Upload Option to
+-- save important info regarding Ownership Transfer - Optional Field." Asked:
+--   * the number CONTINUES the OTnnnn series already on file (OT1432 -> OT1433);
+--   * an invoice on a transfer goes to the Product Database whether or not the
+--     transfer gives a fresh warranty;
+--   * the files go to an "Ownership Transfers" folder in Drive.
+--
+-- THE NUMBER IS THE DATABASE'S, given on insert where none is sent. A loaded
+-- historical transfer keeps the OT number its file carries; a blank one is
+-- numbered like a new one. An advisory lock serialises two saves at once, and
+-- the next number reads only `OT` + digits, so a customer's own reference
+-- typed into the column before today is never mistaken for one.
+--
+-- THE INVOICE (invoice_no, invoice_date) reaches the machine through
+-- sync_product_machine -- redefined from the database's current body (0383)
+-- with only the invoice lines added: the latest transfer naming an invoice
+-- gives the machine that invoice while it is dated on or after the sale's.
+--
+-- THE FILES (attachments) are a list of {name, url, at, by}, the shape of the
+-- Party Master's KYC records (kyc_docs): uploaded to Drive by the bridge, named here.
+-- ===========================================================================
+
+alter table public.ownership_transfers add column if not exists invoice_no   text not null default '';
+alter table public.ownership_transfers add column if not exists invoice_date date;
+alter table public.ownership_transfers add column if not exists attachments  jsonb not null default '[]'::jsonb;
+
+-- ---- the next OT number ------------------------------------------------------
+create or replace function public.ot_next_no()
+returns text language plpgsql security definer set search_path = public as $$
+declare n bigint;
+begin
+  perform pg_advisory_xact_lock(hashtext('ownership_transfer_ot_no'));
+  select coalesce(max(substring(btrim(x.reference_no) from '^[Oo][Tt]([0-9]+)$')::bigint), 0)
+    into n from public.ownership_transfers x
+   where btrim(x.reference_no) ~ '^[Oo][Tt][0-9]+$';
+  return 'OT' || (n + 1)::text;
+end $$;
+revoke execute on function public.ot_next_no() from public, anon, authenticated;
+
+-- Named to run BEFORE ownership_transfer_sold_through and _warranty (triggers
+-- of one timing run in name order): the fresh warranty needs the number.
+create or replace function public.ownership_transfer_number()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    if btrim(coalesce(new.reference_no, '')) = '' then
+      new.reference_no := public.ot_next_no();
+    end if;
+  elsif btrim(coalesce(new.reference_no, '')) = '' then
+    -- A number once given is not blanked by an edit.
+    new.reference_no := old.reference_no;
+  end if;
+  new.invoice_no := btrim(coalesce(new.invoice_no, ''));
+  if jsonb_typeof(coalesce(new.attachments, '[]'::jsonb)) <> 'array' then
+    raise exception 'attachments must be a list.';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.ownership_transfer_number() from public, anon, authenticated;
+drop trigger if exists ownership_transfer_number on public.ownership_transfers;
+create trigger ownership_transfer_number before insert or update on public.ownership_transfers
+  for each row execute function public.ownership_transfer_number();
+
+-- ---- the machine carries the transfer's invoice ------------------------------
+create or replace function public.sync_product_machine(p_item text, p_serial text)
+ returns void
+ language plpgsql
+ security definer
+ set search_path to 'public'
+as $function$
+declare
+  n text := lower(btrim(coalesce(p_item, '')));
+  s text := lower(btrim(coalesce(p_serial, '')));
+  k text;
+  w record; c record; a record; t record; cur record; pm record;
+  v_party text;
+  foreign_contract boolean := false;
+  foreign_warranty boolean := false;
+  v_inst date; v_months numeric; v_inst_end date;
+  ft record; use_ft boolean := false;
+  ti record; use_ti boolean := false;
+begin
+  if n = '' or s = '' then return; end if;
+  k := n || '|' || s;
+
+  select i.sa_number,
+         coalesce(i.warranty_start, h.warranty_start) as ws,
+         coalesce(i.warranty_end,   h.warranty_end)   as we,
+         coalesce(i.pm_visits,      h.pm_visits)      as pm,
+         coalesce(nullif(btrim(coalesce(i.invoice_no, '')), ''), nullif(btrim(coalesce(h.invoice_no, '')), '')) as inv,
+         coalesce(i.invoice_date,    h.invoice_date)    as invd,
+         coalesce(i.warranty_years,  h.warranty_years)  as wy,
+         coalesce(i.warranty_months, h.warranty_months) as wm,
+         i.accessories_included as acc
+    into w
+    from public.sale_items i left join public.sale_entries h on h.sa_number = i.sa_number
+   where lower(btrim(coalesce(i.product_name, ''))) = n
+     and lower(btrim(coalesce(i.serial_number, ''))) = s
+   order by coalesce(i.warranty_end, h.warranty_end) desc nulls last, i.id desc limit 1;
+
+  -- THE ENGINEER'S CHOICE AT INSTALLATION (0331, the user, 2026-10-03): where
+  -- the installation's customer feedback answers "Warranty Start Date?" with
+  -- "Installation Call Solved Date", the warranty starts on the day that call
+  -- was solved and ends a warranty period later; "Invoice Date" keeps the
+  -- documented start on the sale.
+  v_inst := public.machine_install_warranty_start(p_item, p_serial);
+  if v_inst is not null then
+    select coalesce(i.warranty_months, h.warranty_months, i.warranty_years * 12, h.warranty_years * 12)
+      into v_months
+      from public.sale_items i left join public.sale_entries h on h.sa_number = i.sa_number
+     where lower(btrim(coalesce(i.product_name, ''))) = n
+       and lower(btrim(coalesce(i.serial_number, ''))) = s
+     order by coalesce(i.warranty_end, h.warranty_end) desc nulls last, i.id desc limit 1;
+    -- cover_period_end() (0218) reproduces the application's own arithmetic;
+    -- asked by name because its module runs after this one on a fresh build.
+    if v_months is not null and v_months > 0 and to_regprocedure('public.cover_period_end(date,numeric)') is not null then
+      execute 'select public.cover_period_end($1, $2)' into v_inst_end using v_inst, v_months;
+    end if;
+  end if;
+
+  select i.mc_number, i.product_code,
+         coalesce(nullif(btrim(coalesce(i.contract_type, '')), ''), h.contract_type) as ct,
+         coalesce(i.contract_start, h.contract_start) as cs,
+         coalesce(i.contract_end,   h.contract_end)   as ce,
+         coalesce(i.pm_visits_total, h.pm_visits_total) as pm,
+         coalesce(nullif(btrim(coalesce(i.status, '')), ''), h.status) as st,
+         coalesce(nullif(btrim(coalesce(i.party_name, '')), ''), h.party_name) as party
+    into c
+    from public.contract_items i left join public.contract_entries h on h.mc_number = i.mc_number
+   where lower(btrim(coalesce(i.product_name, ''))) = n
+     and lower(btrim(coalesce(i.serial_number, ''))) = s
+   order by coalesce(i.contract_end, h.contract_end) desc nulls last, i.id desc limit 1;
+
+  -- The recovered detail, used only where the registers are silent.
+  select e.warranty_number, e.warranty_start, e.warranty_end,
+         e.contract_number, e.contract_type, e.contract_start, e.contract_end
+    into a
+    from public.product_additional_entries e where e.machine_key = k limit 1;
+
+  select x.reference_no as ref, x.transfer_date as d
+    into t
+    from public.ownership_transfers x
+   where lower(btrim(coalesce(x.item_name, ''))) = n
+     and lower(btrim(coalesce(x.serial_number, ''))) = s
+   order by coalesce(x.transferred_at, x.created_at, x.transfer_date::timestamptz) desc nulls last, x.id desc
+   limit 1;
+
+  -- A FRESH WARRANTY GIVEN ON A TRANSFER (0383, the user, 2026-10-05: "During
+  -- Transfer, the new Owner gets a Fresh warranty date"): the latest transfer
+  -- of this machine that carries one. It decides the machine's warranty when
+  -- it starts on or after the warranty the sale (or the installation) gives,
+  -- so a re-sale after the transfer takes the warranty back, and an old sale
+  -- saved again does not.
+  select x.reference_no as ref, x.warranty_start as ws, x.warranty_end as we,
+         x.warranty_months as wm, x.warranty_years as wy
+    into ft
+    from public.ownership_transfers x
+   where lower(btrim(coalesce(x.item_name, ''))) = n
+     and lower(btrim(coalesce(x.serial_number, ''))) = s
+     and x.warranty_start is not null
+   order by coalesce(x.transferred_at, x.created_at, x.transfer_date::timestamptz) desc nulls last, x.id desc
+   limit 1;
+
+  -- THE INVOICE A TRANSFER CARRIES (0391, the user, 2026-10-06: an invoice on
+  -- a transfer goes to the Product Database, with or without a fresh
+  -- warranty): the latest transfer of this machine that names one. It is the
+  -- machine's invoice when it is dated on or after the sale's (a transfer with
+  -- no invoice date is dated by the transfer), so a re-sale after it takes the
+  -- invoice back and the old sale saved again does not.
+  select nullif(btrim(coalesce(x.invoice_no, '')), '') as inv,
+         x.invoice_date as invd,
+         coalesce(x.invoice_date, x.transfer_date, (x.created_at at time zone 'Asia/Kolkata')::date) as on_day
+    into ti
+    from public.ownership_transfers x
+   where lower(btrim(coalesce(x.item_name, ''))) = n
+     and lower(btrim(coalesce(x.serial_number, ''))) = s
+     and (btrim(coalesce(x.invoice_no, '')) <> '' or x.invoice_date is not null)
+   order by coalesce(x.transferred_at, x.created_at, x.transfer_date::timestamptz) desc nulls last, x.id desc
+   limit 1;
+  use_ti := ti.on_day is not null and ti.on_day >= coalesce(w.invd, '-infinity'::date);
+
+  -- A CONTRACT FOR A MACHINE NOT YET HELD is inserted (the user's choice), for
+  -- the owner the registers name, with that owner's Party Master address.
+  if c.mc_number is not null and not exists (select 1 from public.products where machine_key = k) then
+    v_party := coalesce(nullif(btrim(coalesce(public.machine_current_party(p_item, p_serial), '')), ''),
+                        nullif(btrim(coalesce(c.party, '')), ''), '');
+    select nullif(btrim(x.address), '') as address, nullif(btrim(x.city), '') as city,
+           nullif(btrim(x.state), '') as state, nullif(btrim(x.service_engineer), '') as engineer
+      into pm from public.parties x where x.name_key = lower(v_party) limit 1;
+    insert into public.products (item_name, serial_number, party_name, item_code,
+                                 address, city, state, service_engineer)
+    values (btrim(p_item), btrim(p_serial), v_party, coalesce(c.product_code, ''),
+            coalesce(pm.address, ''), coalesce(pm.city, ''), coalesce(pm.state, ''), coalesce(pm.engineer, ''))
+    on conflict (machine_key) do nothing;
+  end if;
+
+  use_ft := ft.ws is not null
+    and ft.ws >= coalesce(case when v_inst is not null then v_inst end, w.ws, a.warranty_start, '-infinity'::date);
+
+  select p.contract_number, p.warranty_number into cur from public.products p where p.machine_key = k;
+  if not found then return; end if;
+
+  -- WHAT THE SERIAL-ONLY SYNC LEFT BEHIND: a number this machine carries that a
+  -- register line DOES hold, but for another model sharing the serial.
+  if c.mc_number is null and nullif(btrim(coalesce(a.contract_number, '')), '') is null
+     and btrim(coalesce(cur.contract_number, '')) <> '' then
+    foreign_contract := exists (select 1 from public.contract_items x where x.mc_number = cur.contract_number);
+  end if;
+  if w.sa_number is null and nullif(btrim(coalesce(a.warranty_number, '')), '') is null
+     and btrim(coalesce(cur.warranty_number, '')) <> '' then
+    foreign_warranty := exists (select 1 from public.sale_items x where x.sa_number = cur.warranty_number);
+  end if;
+
+  update public.products p set
+    warranty_number = case when use_ft then ft.ref
+                           when foreign_warranty then ''
+                           else coalesce(w.sa_number, nullif(a.warranty_number, ''), p.warranty_number) end,
+    warranty_start  = case when use_ft then ft.ws
+                           when v_inst is not null then v_inst
+                           when foreign_warranty then null else coalesce(w.ws, a.warranty_start, p.warranty_start) end,
+    warranty_end    = case when use_ft then ft.we
+                           when v_inst is not null and v_inst_end is not null then v_inst_end
+                           when foreign_warranty then null else coalesce(w.we, a.warranty_end,   p.warranty_end) end,
+    invoice_no      = case when use_ti then coalesce(ti.inv, '') else coalesce(w.inv,  p.invoice_no) end,
+    invoice_date    = case when use_ti then ti.invd else coalesce(w.invd, p.invoice_date) end,
+    warranty_years  = case when use_ft then ft.wy else coalesce(w.wy,   p.warranty_years) end,
+    warranty_months = case when use_ft then ft.wm::integer else coalesce(w.wm,   p.warranty_months) end,
+    accessories_included = coalesce(w.acc, p.accessories_included),
+    contract_number = case when foreign_contract then ''
+                           else coalesce(c.mc_number, nullif(a.contract_number, ''), p.contract_number) end,
+    contract_start  = case when foreign_contract then null else coalesce(c.cs, a.contract_start, p.contract_start) end,
+    contract_end    = case when foreign_contract then null else coalesce(c.ce, a.contract_end,   p.contract_end) end,
+    contract_type   = case when foreign_contract then ''
+                           else coalesce(nullif(c.ct, ''), nullif(a.contract_type, ''), p.contract_type) end,
+    contract_status_keyed = case when foreign_contract then ''
+                                 else coalesce(nullif(btrim(coalesce(c.st, '')), ''), p.contract_status_keyed) end,
+    -- THE CONTRACT'S PM VISITS OVERWRITE THE SALE'S (the user's choice), while
+    -- the machine has a contract line saying how many.
+    pm_visits       = case when c.mc_number is not null and c.pm is not null then c.pm
+                           else coalesce(w.pm, p.pm_visits) end,
+    transfer_ref    = coalesce(nullif(btrim(coalesce(t.ref, '')), ''), p.transfer_ref),
+    transfer_date   = coalesce(t.d, p.transfer_date),
+    -- machine_cover's rule (0036): a current contract is its type, a current
+    -- warranty WGP, and a machine the registers know with neither is OGP. One
+    -- no register mentions keeps the status it was imported with.
+    item_status     = case
+      when coalesce(c.ce, a.contract_end) >= current_date
+        then coalesce(nullif(c.ct, ''), nullif(a.contract_type, ''), 'CMC')
+      when case when use_ft then ft.we
+                else coalesce(case when v_inst is not null then v_inst_end end, w.we, a.warranty_end) end >= current_date then 'WGP'
+      when use_ft or w.sa_number is not null or c.mc_number is not null or a.warranty_number is not null
+        or a.contract_number is not null or foreign_contract or foreign_warranty then 'OGP'
+      else p.item_status end
+  where p.machine_key = k;
+end $function$;
+revoke execute on function public.sync_product_machine(text, text) from public, anon, authenticated;
+
+comment on column public.ownership_transfers.reference_no is
+  'The OT number: OT + the next number after the highest on file, given by the database on insert when none is sent (0391).';
+comment on column public.ownership_transfers.attachments is
+  'Files kept with the transfer: a list of {name, url, at, by}, uploaded to the "Ownership Transfers" Drive folder (0391).';
 
 commit;

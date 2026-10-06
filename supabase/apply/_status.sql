@@ -2102,7 +2102,14 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regclass('public.pm_calls_reg_at_desc_idx') is not null)),
     (321, 'KPI Export (Field_INST) includes PM calls', 'kpi_field_inst reads pm_calls as well as field_calls and installation_calls (0390), cancelled calls of each left out. NO means performance.sql has not been re-run since. Restore: performance.sql (0390)',
         coalesce((select pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%pm_calls%'
-                   where to_regclass('public.kpi_field_inst') is not null), false))
+                   where to_regclass('public.kpi_field_inst') is not null), false)),
+    (322, 'An ownership transfer: OT number given by the database, its invoice on the machine, its files', 'ownership_transfers carries invoice_no / invoice_date / attachments; ownership_transfer_number gives a transfer saved with no Reference no. the next OT number after the highest OTnnnn and keeps it on edit; sync_product_machine() gives the machine the latest transfer''s invoice when it is dated on or after the sale''s (0391). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0391)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'ownership_transfers' and column_name = 'attachments')
+     and to_regprocedure('public.ot_next_no()') is not null
+     and exists (select 1 from pg_trigger where tgname = 'ownership_transfer_number' and not tgisinternal)
+     and coalesce((select p.prosrc like '%use_ti%' and p.prosrc like '%use_ft%' from pg_proc p
+                    where p.oid = to_regprocedure('public.sync_product_machine(text,text)')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
