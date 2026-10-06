@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.136',
+    date: '2026-10-06',
+    title: 'Failure Rate (DCCR): 3 months first, and the month column frozen',
+    changes: [
+      'OBJECTIVE → FAILURE RATE (DCCR): the windows now run 3, 6, 12, 24, 36, 60 months from left to right, on screen and in the download.',
+      'The Month of commissioning column stays in place while you scroll sideways, and the headings stay in place while you scroll down.',
+    ],
+  },
+  {
     version: '0.10.135',
     date: '2026-10-06',
     title: 'DCCR: PM calls with a Spare show SPARE',

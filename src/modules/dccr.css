@@ -349,3 +349,12 @@
 
 /* An objective marked Not Working / Do Not Use, shown only with Show hidden (0392). */
 .obj-table tr.obj-hidden-row td { opacity: 0.6; }
+
+/* FAILURE RATE (DCCR): the month column stays put while the windows scroll
+   sideways, and the header stays put while the months scroll down (the user,
+   2026-10-06: "freeze month column in Failure rate"). */
+.cohort-scroll { overflow: auto; max-height: 70vh; }
+.cohort-table thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; }
+.cohort-table thead tr:nth-child(2) th { top: 31px; }
+.cohort-table .cohort-freeze { position: sticky; left: 0; background: var(--surface); z-index: 1; box-shadow: 1px 0 0 var(--border); }
+.cohort-table thead .cohort-freeze { z-index: 3; }
