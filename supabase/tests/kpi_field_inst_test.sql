@@ -15,7 +15,8 @@
 --     The workbook counted them as Close, which is why its 581 Close rows were
 --     563 completed calls plus 18 cancellations.
 --
--- And two the format depends on: PM calls are not on this tab, and the view
+-- And two the format depends on: PM calls ARE on this tab since 0390 (the user,
+-- 2026-10-06: "Add PM Calls also") -- a cancelled PM call is not -- and the view
 -- reads as the READER (an engineer's export is their own calls).
 --
 -- Run after _stub.sql + every migration.
@@ -48,7 +49,9 @@ values ('KP-INST','C-8','INSTALLATION CALL','MONNAL T75','8', date '2026-09-01',
 insert into public.pm_calls (ucn, call_number, call_type, product_name, serial, reg_date,
                                 complaint_date, party_name, city, state, item_status,
                                 complaint_reported, standard_complaint, allocated_to, breakdown_date)
-values ('KP-PM','C-9','PM VISIT','MONNAL T75','9', date '2026-09-01', date '2026-09-01','H','Chennai','TN','CMC','x','y','Eng A', date '2026-09-01');
+values ('KP-PM','C-9','PM VISIT','MONNAL T75','9', date '2026-09-01', date '2026-09-01','H','Chennai','TN','CMC','x','y','Eng A', date '2026-09-01'),
+       ('KP-PMCANC','C-10','PM VISIT','MONNAL T75','10', date '2026-09-01', date '2026-09-01','H','Chennai','TN','CMC','x','y','Eng A', date '2026-09-01');
+update public.pm_calls set cancelled_at = now() where ucn = 'KP-PMCANC';
 
 update public.field_calls set cancelled_at = now() where ucn = 'KP-CANC';
 
@@ -76,9 +79,9 @@ insert into public.spare_requests (uid, ucn, engineer, item_status, or_req_date)
  ('KPOR-1','KP-SPARE','Eng A','CMC', date '2026-09-04'),
  ('KPOR-2','KP-BOTH', 'Eng A','CMC', date '2026-09-03');
 
-\echo '--- 1. the tab is FIELD + INSTALLATION only, and never a cancelled call ---'
-\echo 'expect: KP-BOTH, KP-INST, KP-NEITHER, KP-PENDING, KP-REDONE, KP-SPARE, KP-VISIT'
-\echo 'expect: NOT KP-CANC (cancelled) and NOT KP-PM (its own tab)'
+\echo '--- 1. the tab is FIELD + INSTALLATION + PM (0390), and never a cancelled call ---'
+\echo 'expect: KP-BOTH, KP-INST, KP-NEITHER, KP-PENDING, KP-PM, KP-REDONE, KP-SPARE, KP-VISIT'
+\echo 'expect: NOT KP-CANC and NOT KP-PMCANC (cancelled)'
 select "UC Number" from public.kpi_field_inst where "UC Number" like 'KP-%' order by 1;
 
 \echo '--- 2. CALL ATTENDED ON — the earlier of first visit and first spare ---'
