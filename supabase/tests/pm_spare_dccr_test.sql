@@ -32,6 +32,15 @@ select 'V-' || u, u, 'Solved - Report Completed', '2026-03-02', '2026-03-02', '{
   from unnest(array['PMD-1','PMD-2','PMD-3','PMD-4']) u;
 alter table public.reports enable trigger user;
 insert into public.call_reviews (ucn, spare_category, complaint_grouping) values ('PMD-3', 'CORRECTION', 'KEPT');
+-- An EMPTY review row already there (0400): it takes SPARE.
+alter table public.pm_calls disable trigger user;
+insert into public.pm_calls (ucn, call_number, call_type, product_name, serial, reg_date, party_name)
+values ('PMD-5', 'PM-5', 'P M VISIT', 'VEGA', 'S5', date '2026-03-01', 'P');
+alter table public.pm_calls enable trigger user;
+alter table public.reports disable trigger user;
+insert into public.reports (uid, ucn, call_status, visit_at, updated_at, data) values ('V-PMD-5', 'PMD-5', 'Solved - Report Completed', '2026-03-02', '2026-03-02', '{}'::jsonb);
+alter table public.reports enable trigger user;
+insert into public.call_reviews (ucn) values ('PMD-5');
 
 -- The hand-stock cap (consumption_reconcile_guard) is not what this tests: lifted by name.
 alter table public.spare_consumption disable trigger consumption_reconcile_guard;
@@ -39,7 +48,8 @@ insert into public.spare_consumption (ucn, call_number, part, qty, engineer) val
  ('PMD-1', 'PM-1', 'PMSP-1|Flow sensor', 1, 'ENG'),
  ('PMD-2', 'PM-2', 'PMCO-1|Filter', 1, 'ENG'),
  ('PMD-3', 'PM-3', 'PMSP-1|Flow sensor', 1, 'ENG'),
- ('PMD-4', 'PM-4', 'PMSP-1|Flow sensor', 0, 'ENG');
+ ('PMD-4', 'PM-4', 'PMSP-1|Flow sensor', 0, 'ENG'),
+ ('PMD-5', 'PM-5', 'PMSP-1|Flow sensor', 1, 'ENG');
 alter table public.spare_consumption enable trigger consumption_reconcile_guard;
 
 select 'a Spare consumed on a PM call opens its review, SPARE pre-set' as t,
@@ -56,3 +66,5 @@ select 'a line of quantity 0 opens nothing' as t,
        not exists (select 1 from public.call_reviews where ucn = 'PMD-4') as ok;
 select 'the DCCR View still lists every Field call' as t,
        (select count(*) from public.field_call_review) >= (select count(*) from public.field_calls) as ok;
+select 'an EMPTY review row takes SPARE (0400)' as t,
+       (select spare_category from public.call_reviews where ucn = 'PMD-5') = 'SPARE' as ok;

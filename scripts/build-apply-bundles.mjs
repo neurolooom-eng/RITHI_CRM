@@ -521,7 +521,9 @@ const MODULES = {
             // both; and the DCCR rows whose UC Number was an Excel date, removed.
             '0397_pm_spare_dccr.sql', '0398_dccr_junk_rows.sql',
             // The 2026 PM catch-up re-run once the Part Master mapping grew (2026-10-06).
-            '0399_pm_spare_dccr_rerun.sql'],
+            '0399_pm_spare_dccr_rerun.sql',
+            // SPARE on a PM review row that is blank; restates 0397's trigger function.
+            '0400_pm_spare_blank_review.sql'],
   },
   notifications: {
     title: 'Notifications',

@@ -78,6 +78,12 @@ up)_
 
 ---
 
+## 2026-10-06 — SPARE on blank PM review rows (0400, v0.10.135)
+
+- 0399 added none: `_pm_spare_calls_in_dccr.sql` showed all 28 2026 PM calls with a
+  Spare already had EMPTY review rows (05-Sep-2026). 0400 sets SPARE where blank and
+  the trigger now does the same; given answers untouched. 2025 (25 calls) not added.
+
 ## 2026-10-06 — PM Spare catch-up re-run (0399, v0.10.134)
 
 - "re-run the PM consumption": the Part Master now has 280 Spare parts (was 31);
