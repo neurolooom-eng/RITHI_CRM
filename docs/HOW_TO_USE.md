@@ -1318,7 +1318,7 @@ typed into a form that reads it.
 - **Reports — Not Consumed Against this Call** `/exports/unused` — `NOT USED`
   where none was booked, `SHORT` where less was booked than sent. Refused and
   dropped lines are excluded.
-- **Reports — KPI Export** `/exports/kpi` — the workbook's Field_INST tab in its
+- **Reports — KPI Export** `/exports/kpi` — the workbook's Field_INST_PM tab in its
   own column order — Field, Installation and PM calls; cancelled calls excluded
   entirely.
 - **Hand Stock Report** `/handstock-report` — **Admin and Technical Support to begin with**;

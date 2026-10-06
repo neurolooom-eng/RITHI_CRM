@@ -45,7 +45,7 @@ const REPORTS: { key: Tab; label: string; icon: string; blurb: string }[] = [
   { key: 'consumption', label: 'Consumption Report', icon: '🔩',
     blurb: 'Every spare booked, with its call around it — filtered and with the columns you choose.' },
   { key: 'kpi', label: 'KPI Export', icon: '📈',
-    blurb: 'The KPI workbook’s Field_INST tab, in its own columns and order.' },
+    blurb: 'The KPI workbook’s Field_INST_PM tab — Field, Installation and PM calls — in its own columns and order.' },
   { key: 'unused', label: 'Not Consumed Against this Call', icon: '🚩',
     blurb: 'Spares that reached the engineer and were never booked against the call they were sent for.' },
   { key: 'calls', label: 'Call Report', icon: '📞',
