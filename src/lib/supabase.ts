@@ -849,8 +849,11 @@ export async function addObjective(year: number, sort_order: number): Promise<{ 
 }
 
 export async function deleteObjective(id: number): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('quality_objectives').delete().eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // Row-level security refuses a delete with ZERO rows and no error, so a
+  // refused delete is told apart from a done one by counting what went (D-021).
+  const { data, error } = await must().from('quality_objectives').delete().eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  return (data ?? []).length ? { ok: true } : { ok: false, error: 'Nothing was deleted — your role may not delete this objective, or it is already gone.' };
 }
 
 export async function objectiveYears(): Promise<number[]> {

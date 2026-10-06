@@ -1,11 +1,12 @@
 -- ===========================================================================
--- REVIEW BATCH 8, PROVED ON A DATABASE (0396-0399).
+-- REVIEW BATCH 8, PROVED ON A DATABASE (0396-0399, 0402).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works.
 --
 --   1. D-067  a change to a role, a setting or an SLA target is imaged, under
 --             the row's own key, before and after paired correctly (0396)
---   2. D-021  a quality objective edited or deleted is imaged (0396)
+--   2. D-021  a quality objective edited or deleted is imaged (0396), and one
+--             carrying a figure is not deleted (0402)
 --   3. D-039  an indoor job and its parts are imaged; who reported damage to
 --             the customer is the session (0396, 0399)
 --   4. D-027  a Field Failure Report names its customer and problem (0397)
@@ -95,16 +96,20 @@ delete from public.app_settings where key = 'rb8.test';
 
 -- ===========================================================================
 \echo ''
-\echo '--- 2. D-021: a quality objective edited or deleted is imaged ---'
+\echo '--- 2. D-021: a quality objective is imaged, and one with figures is kept ---'
 -- ===========================================================================
 call public.nobody();
 delete from public.quality_objectives where parameter like 'RB8 %';
 insert into public.quality_objectives (year, sort_order, process, parameter, yearly_target, frequency, responsible)
-values (2026, 801, 'RB8', 'RB8 objective', '<5%', 'Monthly', 'NSM');
+values (2026, 801, 'RB8', 'RB8 objective', '<5%', 'Monthly', 'NSM'),
+       (2026, 802, 'RB8', 'RB8 added in error', '<5%', 'Monthly', 'NSM');
 call public.be('rb8-config@x.com');
 set role authenticated;
 update public.quality_objectives set m01 = '3' where parameter = 'RB8 objective';
+\echo 'expect ERROR: RB8 objective (2026) carries recorded figures and is kept'
 delete from public.quality_objectives where parameter = 'RB8 objective';
+-- One with nothing recorded can still be deleted, and the delete is imaged.
+delete from public.quality_objectives where parameter = 'RB8 added in error';
 reset role;
 call public.nobody();
 do $$ begin
@@ -112,11 +117,18 @@ do $$ begin
                   and new_data->>'parameter' = 'RB8 objective' and new_data->>'m01' = '3') then
     raise exception 'D-021 FAILED: a typed figure was not imaged';
   end if;
+  if not exists (select 1 from public.quality_objectives where parameter = 'RB8 objective') then
+    raise exception 'D-021 FAILED: an objective carrying a figure was deleted';
+  end if;
+  if exists (select 1 from public.quality_objectives where parameter = 'RB8 added in error') then
+    raise exception 'D-021 FAILED: an objective with nothing recorded could not be deleted';
+  end if;
   if not exists (select 1 from public.record_audit where table_name = 'quality_objectives' and op = 'DELETE'
-                  and old_data->>'parameter' = 'RB8 objective') then
+                  and old_data->>'parameter' = 'RB8 added in error') then
     raise exception 'D-021 FAILED: a deleted objective left no image';
   end if;
 end $$;
+delete from public.quality_objectives where parameter like 'RB8 %';
 
 -- ===========================================================================
 \echo ''

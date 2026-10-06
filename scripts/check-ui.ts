@@ -1494,6 +1494,14 @@ console.log('\n-- the Objective page --');
   eq('...that a ✎ month was typed over the calculation, and every other row is typed',
     /marked <b>✎<\/b>, which\s+somebody typed over the calculation\. Every other row is <b>typed<\/b>/.test(obj), true);
   eq('...and that the Total is typed on every row', /The <b>Total<\/b> is\s+typed on every row/.test(obj), true);
+  // A delete row-level security refuses matches ZERO rows with no error, so
+  // deleteObjective counts what it deleted rather than trusting `error` (D-021).
+  {
+    const sbo = readFileSync(`${process.cwd()}/src/lib/supabase.ts`, 'utf8');
+    const del = /export async function deleteObjective[\s\S]*?\n\}/.exec(sbo)?.[0] ?? '';
+    eq('deleteObjective asks for the rows it deleted', /\.delete\(\)\.eq\('id', id\)\.select\('id'\)/.test(del), true);
+    eq('...and a delete of nothing is not reported as done', /\(data \?\? \[\]\)\.length \?/.test(del), true);
+  }
   // A target reads "<5%" / ">75%" / "To Monitor" — the last has no line, so it
   // must not be coloured as met or missed.
   eq('an unparseable target is neither met nor missed',

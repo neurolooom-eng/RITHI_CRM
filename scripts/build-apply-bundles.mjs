@@ -591,7 +591,9 @@ const MODULES = {
             // Re-Calculate timed out on 0357's failure rate (the user, same
             // day): one hashed join, EXECUTEd so it is never generic-planned.
             // Redefines 0357's objective_value / objective_evidence.
-            '0359_failure_rate_one_join.sql'],
+            '0359_failure_rate_one_join.sql',
+            // D-021: an objective carrying a recorded figure is not deleted (0402).
+            '0402_objective_with_figures_kept.sql'],
   },
   validation: {
     title: 'Software Validation',

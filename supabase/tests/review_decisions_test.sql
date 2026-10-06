@@ -1,5 +1,5 @@
 -- ===========================================================================
--- THE USER'S DECISIONS OF 2026-10-04, PROVED ON A DATABASE (0391-0363, 0369).
+-- THE USER'S DECISIONS OF 2026-10-04, PROVED ON A DATABASE (0361-0363, 0369, 0391).
 -- Each section proves BOTH halves: what the decision refuses is refused, AND
 -- the honest path beside it still works.
 --

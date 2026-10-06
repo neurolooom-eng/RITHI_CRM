@@ -1,5 +1,5 @@
 -- ===========================================================================
--- REVIEW BATCH 6, PROVED ON A DATABASE (0394-0373).
+-- REVIEW BATCH 6, PROVED ON A DATABASE (0371, 0373, 0394, 0395).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works.
 --

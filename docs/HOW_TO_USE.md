@@ -103,6 +103,11 @@ different totals. An empty register usually means access, not emptiness.
   > request's details) show **📎 Open**, which opens the stored file in a new tab.
   > **Mapped to the wrong call?** Open the request and press **↩ Unmap** — the UCN is
   > cleared and it goes back on the Pending list. The call itself is not changed.
+
+  **The Attended Date cannot be later than today.** A request is saved whole or
+  not at all, and **Correct this request** offers the same pickers as the form —
+  the Standard Complaint from the product's list, the serial through the machine
+  search — so a correction cannot write what the form would refuse.
 - **Pending Registrations** `/pending-registrations` — the Hotline queue.
   Registering one issues the UCN and files the call. Mapping a request to an
   existing call needs a UCN that a call really has; if marking the request
@@ -174,7 +179,8 @@ on Roles & Permissions does not reach another team's calls.
   written until you press OK**: where an upload needs other records first (a
   visit on each call of a consumption file, a request for each OR number of a
   spare-line file), the confirmation says how many it will create, and Cancel
-  leaves everything as it was. It finds the
+  leaves everything as it was. Every load — finished, stopped or cancelled — is
+  recorded in the Audit Log with the file and what was written. It finds the
   heading row even under a letterhead, reads tab-separated files, and lists what
   it kept and what it held back. Unrecognised columns are **kept on the row**
   where the register allows it.
@@ -524,6 +530,11 @@ against the call it was fitted to.
   - Every change is recorded — only the fields that differed, with who and when.
   > If the review later says *No*, the report still stands and shows as
   > **withdrawn**. The withdrawal is itself the thing worth seeing.
+
+  **The weekly review is recorded on the report** — its date, who reviewed it
+  and the attachment — and that takes the report out of *Due a review*. Only
+  somebody who may manage FFRs sees Edit / weekly review. A report needs its
+  Customer Name and Problem Reported.
 - **Customer Feedback** `/feedback` — what customers told us, kept with the calls.
   - **Date** is the feedback's own date — for a loaded row, the date the export
     gave it; for one taken here, when it was taken. **Loaded on** is a separate
@@ -1357,6 +1368,10 @@ typed into a form that reads it.
   - **A month with none reads 0, not blank.** Blank means nobody has measured
     it. That is the opposite of the rate objectives, where a rate over no
     machines is undefined and stays blank.
+
+  **An objective that has a figure recorded cannot be deleted**; one added in
+  error, with nothing recorded, can. Every figure typed, re-calculation and
+  cut-off is recorded with the value before and after.
 - **Reports — Consumption Report** `/exports/consumption` — one row per spare
   booked, with its call and that call's latest visit.
   > The first sixteen columns are the report's own format and are **locked**.
@@ -1637,6 +1652,12 @@ typed into a form that reads it.
   > check, a DEMO unit of an imported product without its Pre-Delivery Testing)
   > — the message says which. Units for two consignees cannot share a DC. A DC
   > is never deleted; **Indoor DCs** lists them all and prints any of them again.
+
+  **A harvested part** is entered with its code, description, quantity, grade
+  and destination, and can be corrected afterwards. **When damage is reported to
+  the customer**, record the time beside the damage note — RITHI records who.
+  Every change to a job, its parts, accessories and checks is recorded with the
+  value before and after.
 - **Spare Recycling** `/indoor/recycling` — a **separate track** for recycling
   defective spares, with its own stock. Nothing here touches calls, Spare
   Requests, Stock Out or the regular Hand Stock. **While Audit Mode is on the
@@ -1762,6 +1783,11 @@ typed into a form that reads it.
   > permission, and it is the one thing that shows no error at all. Tick the
   > page here for the role. The headings and their order match the menu exactly,
   > so look for it under the group it sits in on the left.
+
+  **View as** — an administrator previewing somebody else's screens — **writes
+  nothing**: saving, uploading and approving are all refused during a preview,
+  and its start and end are recorded in the Audit Log. Every change to a role is
+  recorded by the database with what the role could do before and after.
 - **Audit Log** `/audit` — what the application recorded: actions, sign-ins, errors
   and how long they took. It records all the time, whatever Audit Mode says. The
   history of Audit Mode being turned on and off, each with its reason, is on
@@ -1805,6 +1831,9 @@ typed into a form that reads it.
   > **How RITHI Functions → Data flows**.
 - **Settings** `/settings` — the database and CallReg sheet connections for this
   browser. Your theme and account are on My Profile.
+
+  Changing the database or the CallReg connection is recorded in the Audit Log —
+  in the database being left, before the switch.
 - **Your Profile** `/profile` — **one tab per section**: Account, Details &
   R&R, Training, **My Team** (only if people report to you — split into
   **Active / Current** and **Ex Employees** by the User Master's *Active*

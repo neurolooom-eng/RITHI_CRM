@@ -14,6 +14,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.132',
+    date: '2026-10-06',
+    title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
+    changes: [
+      'VIEW AS: a preview of somebody else\'s screens is now truly read-only — nothing can be saved, uploaded or approved while it is on, and its start and end are recorded in the Audit Log.',
+      'ROLES & PERMISSIONS, ADMIN CONFIG, SLA TARGETS: every change is recorded by the database with the value before and after, so what a role could do on any day can be read back. Bulk Uploads, the legacy importer, Normalise cover and a change of the database connection are recorded in the Audit Log too.',
+      'FIELD FAILURE REPORT: the weekly review — its date, who reviewed it and the attachment — is recorded on the report and takes it out of "Due a review"; only somebody who may manage FFRs sees Edit / weekly review. A report needs its Customer Name and Problem Reported.',
+      'QUALITY OBJECTIVES: an objective with a figure recorded cannot be deleted; every change is recorded. The page now says correctly which months are calculated and which are typed.',
+      'REQUEST REGISTRATION: the Attended Date cannot be later than today; a correction offers the same pickers as the form; a request is saved whole or not at all.',
+      'INDOOR SERVICE: a harvested part is entered with all its details and can be corrected; the time damage was reported to the customer is recorded, with who; every change to a job and its parts is recorded.',
+    ],
+  },
+  {
     version: '0.10.131',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
