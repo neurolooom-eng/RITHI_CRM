@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.127',
+    date: '2026-10-06',
+    title: 'KPI Export renamed Field_INST_PM',
+    changes: [
+      'REPORTS → KPI EXPORT: the workbook is now “KPI workbook — Field_INST_PM”, its sheet is Field_INST_PM and the file downloads as kpi-field-inst-pm-….xlsx / .csv, since it holds PM calls as well as Field and Installation calls.',
+    ],
+  },
+  {
     version: '0.10.126',
     date: '2026-10-06',
     title: 'Product Database: ⇄ Transfer no longer cut off',
