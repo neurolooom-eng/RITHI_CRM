@@ -78,6 +78,12 @@ up)_
 
 ---
 
+## 2026-10-06 — PM Spare catch-up re-run (0399, v0.10.134)
+
+- "re-run the PM consumption": the Part Master now has 280 Spare parts (was 31);
+  0399 repeats 0397's 2026 backfill. 2025 (24 PM calls) and 2024 (1) are NOT added
+  -- "older calls once the mapping is complete".
+
 ## 2026-10-06 — PM Spare -> DCCR (0397); Excel-date DCCR rows removed (0398), v0.10.133
 
 - The user: PM calls into the DCCR when a consumption is a Spare (Part Master
