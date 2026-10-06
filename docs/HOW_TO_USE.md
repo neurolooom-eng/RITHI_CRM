@@ -168,6 +168,8 @@ on Roles & Permissions does not reach another team's calls.
   > call reads Solved. Unattended calls stay Unattended; Canceled calls are
   > filed cancelled. **Nobody is notified.** A call already in RITHI is left
   > alone. Re-loading the file corrects the calls it filed.
+  > **PM calls in the DCCR:** a PM call joins the Daily Complaint Review when
+  > a part booked on it is a **Spare** in the Part Master (SPARE pre-set).
   > **Field Failure Register (any year)** (Quality) loads old FFR logs, a
   > year's tab at a time.
   > **Installation Warranty Start (old installation calls)** loads past

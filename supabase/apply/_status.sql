@@ -2123,7 +2123,12 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.dccr_history_import') and tgname = 'dccr_history_apply')
      and coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.dccr_history_import')), false))),
     (327, 'Re-calculate works out Active objectives only', 'recalc_quality_objectives(year, keep) loops over objectives whose status is Active (0396). NO means objective.sql has not been re-run since. Restore: objective.sql (0396)',
-        coalesce((select p.prosrc like '%coalesce(status, ''Active'') = ''Active''%' from pg_proc p where p.oid = to_regprocedure('public.recalc_quality_objectives(integer,boolean)')), false))
+        coalesce((select p.prosrc like '%coalesce(status, ''Active'') = ''Active''%' from pg_proc p where p.oid = to_regprocedure('public.recalc_quality_objectives(integer,boolean)')), false)),
+    (328, 'A PM call whose consumption is a Spare joins the DCCR review', 'dccr_calls (Field + reviewed PM calls, security_invoker), field_call_review and its summary reading it, and zz_pm_spare_to_dccr on spare_consumption (0397). NO means daily_review.sql has not been re-run since. Restore: daily_review.sql (0397)',
+        (to_regclass('public.dccr_calls') is not null
+     and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_consumption') and tgname = 'zz_pm_spare_to_dccr')
+     and coalesce((select pg_get_viewdef(to_regclass('public.field_call_review')) like '%dccr_calls%'
+                    where to_regclass('public.field_call_review') is not null), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
