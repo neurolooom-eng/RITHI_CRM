@@ -500,6 +500,10 @@ against the call it was fitted to.
 - **Call Review** `/call-review` — a second look at the **report** on a solved
   call. Book a spare the engineer did not record (a **Reconciliation** line,
   visibly a correction), re-open the call, or mark it Report Reviewed.
+
+  **Re-opening a call always asks for the reason**, here and on the registers;
+  the call's history lists every re-open with when, who and why. When the call is
+  solved again, the feedback it already has is kept — the visit form says so.
 - **Field Failure Register** `/failure-report` — failures that go back to
   manufacturing, on the controlled form `R-SER-03`, numbered `FFR - 001/26` and
   restarting each year.
@@ -1154,6 +1158,12 @@ typed into a form that reads it.
   > **One person, one row.** Where two rows share an email the role still
   > applies, but the name stops following, because there is no way to tell which
   > of the two is theirs.
+
+  **Reporting / Regional Manager** must be a name on the User Master — a name
+  that matches nobody is pointed out and saved only if you confirm, because the
+  reporting tree (who sees whose calls) is built from those names. **Active**
+  only says whether the person is listed as active; **only 🔒 Disable login
+  decides whether they can sign in**.
 - **All Masters** `/masters` — the value lists behind the dropdowns. Rights are
   **per list**.
   > Each list has its own **Add**, **Edit** and **Delete** permission. *Add /
@@ -1187,6 +1197,10 @@ typed into a form that reads it.
   > product is chosen, every complaint is offered. A call that already carries a
   > complaint keeps it even if it is not on the product's list. The list is kept
   > on the device, so a Call Request fills it with no signal.
+
+  **A value that records use cannot be deleted** — you are told how many
+  records use it and offered **Deactivate**, which keeps it on those records and
+  stops offering it. A value nothing uses, or one listed twice, can be deleted.
 - **How RITHI Functions** `/knowledge-base/how-it-works` — how the system works,
   in four parts:
   > **All modules** — every screen in the menu, in menu order: what it is for,

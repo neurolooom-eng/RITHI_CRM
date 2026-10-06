@@ -161,6 +161,15 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
+### 2026-10-06 — Review batch 9: four defects, one waiting on a decision (v0.10.142, 0409–0411)
+- **Your ask:** *"Next batch"*. First I merged main twice (#593–#597); main took 0394–0400, versions 0.10.129–0.10.135 and status rows 323–328, so my numbers moved above theirs, line by line, and the ranges that made wrong were rewritten as explicit lists.
+- **D-056 (0409):** a list value that records carry is not deleted -- deactivate it instead -- unless another row of the list holds the same word. The count runs as its owner, so row-level security cannot make it read low; `standardComplaint` and `complaint` are one list. Screens: Master Lists asks the count first and offers Deactivate.
+- **D-035 (0411):** `reopen_call()` refuses an empty reason and writes `call_reopens` (UCN, when, who, why). Screens: every Re-open asks for a reason; the call's history lists the re-opens; a call solved again keeps its feedback.
+- **D-053** (screens): an unknown manager name is pointed out and saved only on confirmation; Active says it does not decide sign-in.
+- **D-055 (0410), partly:** the six cover tables are imaged. Refusing deletion waits on your answer to FRS-187.4.
+- **Found while doing it:** the screen agent noticed that Standard Complaint rows can still carry the legacy list name, which 0409 first missed; and a test that "passed" was passing because row-level security hid the row, not because the guard fired -- given the right key, the guard now refuses it.
+- **Checked:** `review_batch_9_test` is clean on a fresh database; without 0409–0411 each section fails. Rows 346–348; OQ-273. Not run in a browser.
+
 ### 2026-10-06 — Review batch 8: six defects that needed no decision (v0.10.141, 0402, 0406–0408, 0412)
 - **Your ask:** *"Next batch"*. First I merged main three times (#582–#590); main took 0387–0391, versions 0.10.122–0.10.128, status rows 319–322 and OQ-262–263, so my numbers moved above theirs, line by line.
 - **D-067, D-021, D-039 (0406):** record_audit now images app_roles, app_settings, sla_rules, quality_objectives, objective_cutoffs, objective_settings and the seven indoor tables. The audit key gains `role`, `key` and `sys_id` after the five it had, so a role or a setting is recorded under its own name and a two-role save pairs each after with its own before.

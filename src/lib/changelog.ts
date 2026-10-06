@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.142',
+    date: '2026-10-06',
+    title: 'Review fixes: list values in use kept, re-open reasons kept, User Master manager names, warranty and contract changes recorded',
+    changes: [
+      'MASTER LISTS: a value that calls, requests, visits, reviews, feedback or the User Master use cannot be deleted — you are told how many records use it and offered Deactivate instead, which keeps it on those records and stops offering it.',
+      'RE-OPEN: every screen asks for the reason before a call is re-opened, and the call\'s history now lists each re-open — when, who and why. A call solved again keeps the feedback it already has; the visit form says so instead of asking again.',
+      'USER MASTER: a Reporting or Regional Manager name that matches nobody on the User Master is pointed out and saved only if you confirm. The Active field says what it is — whether the person is listed as active — and that only Disable login decides sign-in.',
+      'WARRANTY and CONTRACT registers, Ownership Transfer and Additional Entries: every change and deletion is now recorded by the database with the value before and after.',
+    ],
+  },
+  {
     version: '0.10.141',
     date: '2026-10-06',
     title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
