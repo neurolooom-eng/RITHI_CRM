@@ -519,7 +519,9 @@ const MODULES = {
             // A PM call whose consumption is a Spare joins the DCCR review
             // (2026-10-06). Restates 0353's / 0344's two review views, so after
             // both; and the DCCR rows whose UC Number was an Excel date, removed.
-            '0397_pm_spare_dccr.sql', '0398_dccr_junk_rows.sql'],
+            '0397_pm_spare_dccr.sql', '0398_dccr_junk_rows.sql',
+            // The 2026 PM catch-up re-run once the Part Master mapping grew (2026-10-06).
+            '0399_pm_spare_dccr_rerun.sql'],
   },
   notifications: {
     title: 'Notifications',
