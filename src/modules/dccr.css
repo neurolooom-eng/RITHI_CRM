@@ -358,3 +358,4 @@
 .cohort-table thead tr:nth-child(2) th { top: 31px; }
 .cohort-table .cohort-freeze { position: sticky; left: 0; background: var(--surface); z-index: 1; box-shadow: 1px 0 0 var(--border); }
 .cohort-table thead .cohort-freeze { z-index: 3; }
+.cohort-table .cohort-roll { font-weight: 700; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
