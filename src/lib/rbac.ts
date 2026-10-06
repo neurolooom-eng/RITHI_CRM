@@ -272,7 +272,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
   // D-129 (the user, 2026-10-05: "visible only to a selected few as set through
   // roles & permissions"): reading the review answers is its own key, given once
-  // to the roles that held review.edit (0390); review.edit grants it, since an
+  // to the roles that held review.edit (0401); review.edit grants it, since an
   // editor reads what they edit.
   { group: 'Calls', key: 'review.view', label: 'Read Daily Complaint Review answers' },
   // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269, 0285). Its answers carry the

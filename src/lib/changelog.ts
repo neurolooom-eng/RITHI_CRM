@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.128',
+    version: '0.10.131',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
     changes: [
@@ -24,7 +24,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.127',
+    version: '0.10.130',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -35,7 +35,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.126',
+    version: '0.10.129',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -49,7 +49,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.125',
+    version: '0.10.128',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -63,7 +63,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.124',
+    version: '0.10.127',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -74,6 +74,31 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.126',
+    date: '2026-10-06',
+    title: 'Product Database: ⇄ Transfer no longer cut off',
+    changes: [
+      'THE ⇄ TRANSFER BUTTON could be cut off at the edge of the Actions column. That column remembers the width each person and each role last gave it, and that width was set when it only held + Field and + Install. The column now starts fresh at a width that fits all three buttons, and the buttons move onto a second line if the column is narrowed, instead of being hidden.',
+    ],
+  },
+  {
+    version: '0.10.125',
+    date: '2026-10-06',
+    title: 'KPI Export (Field_INST) includes PM calls',
+    changes: [
+      'REPORTS → KPI EXPORT now includes PM calls as well as Field and Installation calls, with the same columns and the same rules. Cancelled calls of every type are still left out.',
+    ],
+  },
+  {
+    version: '0.10.124',
+    date: '2026-10-06',
+    title: 'PM calls: newest registration first',
+    changes: [
+      'PREVENTIVE (PM) CALLS now lists calls by Call Registration Date, newest first. Before, they came in the order they were uploaded, so a back-dated PM month could sit above newer calls.',
+      'The order holds on every page, with Load more, after a search and after an edit. Clicking a column heading still sorts by that column.',
     ],
   },
   {

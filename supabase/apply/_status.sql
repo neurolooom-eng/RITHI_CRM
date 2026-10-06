@@ -2135,16 +2135,16 @@ with checks(sort_order, bundle, provides, present) as (
     (329, 'Deleting a master list value needs that list''s delete key', 'masters_delete asks master.<list>.delete or masters.edit -- not "Add / edit master records" (masters.edit.records), which edits and adds but never deleted on any screen (0371, D-086). NO means masters.sql has not been re-run since. Restore: masters.sql (0371)',
         exists (select 1 from pg_policy where polrelid = to_regclass('public.masters') and polname = 'masters_delete'
                  and pg_get_expr(polqual, polrelid) not like '%masters.edit.records%')),
-    (320, 'A User Master entry with a profile or R&R history is not deleted', 'user_directory_keeps_history refuses a signed-in delete of an entry that has a profile or a Roles & Responsibilities period -- set Active to No instead; an entry with neither can still be deleted (0395, D-059). NO means training.sql has not been re-run since. Restore: training.sql (0395)',
+    (336, 'A User Master entry with a profile or R&R history is not deleted', 'user_directory_keeps_history refuses a signed-in delete of an entry that has a profile or a Roles & Responsibilities period -- set Active to No instead; an entry with neither can still be deleted (0395, D-059). NO means training.sql has not been re-run since. Restore: training.sql (0395)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.user_directory') and tgname = 'user_directory_keeps_history')),
-    (321, 'A stock transfer or return is not dated into a closed hand-stock period or the future', 'stock_movement_date_open on stock_transfers and material_returns refuses, for a signed-in non-importer, a date on or before the last closed day or after today (0373, D-050). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0373)',
+    (337, 'A stock transfer or return is not dated into a closed hand-stock period or the future', 'stock_movement_date_open on stock_transfers and material_returns refuses, for a signed-in non-importer, a date on or before the last closed day or after today (0373, D-050). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0373)',
         (select count(*) from pg_trigger where tgname = 'stock_movement_date_open' and not tgisinternal
           and tgrelid in (to_regclass('public.stock_transfers'), to_regclass('public.material_returns'))) = 2),
-    (322, 'A field call is registered with its three vigilance questions answered', 'field_call_vigilance_answered refuses a signed-in registration of a field call whose Public Health Threat?, Death? or Serious Incident? is not YES or NO; imports, installation and PM calls are not stopped (0389, D-033). NO means call_requests.sql has not been re-run since. Restore: call_requests.sql (0389)',
+    (322, 'A field call is registered with its three vigilance questions answered', 'field_call_vigilance_answered refuses a signed-in registration of a field call whose Public Health Threat?, Death? or Serious Incident? is not YES or NO; imports, installation and PM calls are not stopped (0400, D-033). NO means call_requests.sql has not been re-run since. Restore: call_requests.sql (0400)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.field_calls') and tgname = 'field_call_vigilance_answered')),
     (323, 'Stock is transferred from your own or your team''s hand stock, to a person on the User Master', 'stock_transfer_own_or_team refuses a signed-in transfer from an engineer who is not you or in your team (unless stock.transfer.others) or to a name the User Master does not carry; imports are not stopped (0375, D-049). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0375)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.stock_transfers') and tgname = 'stock_transfer_own_or_team')),
-    (324, 'Daily Complaint Review answers are read by holders of review.view', 'call_reviews_read asks has_perm(''review.view''); review.edit grants it (perm_parents), and the roles holding review.edit were given it once (0390, D-129). NO means daily_review.sql has not been re-run since. Restore: daily_review.sql (0390)',
+    (324, 'Daily Complaint Review answers are read by holders of review.view', 'call_reviews_read asks has_perm(''review.view''); review.edit grants it (perm_parents), and the roles holding review.edit were given it once (0401, D-129). NO means daily_review.sql has not been re-run since. Restore: daily_review.sql (0401)',
         (exists (select 1 from pg_policy where polrelid = to_regclass('public.call_reviews') and polname = 'call_reviews_read'
                   and pg_get_expr(polqual, polrelid) like '%review.view%')
          -- perm_parents READ THROUGH query_to_xml: named directly, a project
@@ -2179,7 +2179,12 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.dmy_ts(text)') is not null
          and to_regprocedure('public.text_num(text)') is not null
          and coalesce((select array_to_string(c.reloptions, ',') like '%security_invoker=on%' from pg_class c where c.oid = to_regclass('public.stores_dispatch_report')), false)
-         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stores_dispatch_report' and column_name = 'Source')))
+         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stores_dispatch_report' and column_name = 'Source'))),
+    (320, 'PM calls: read newest registration first', 'the index pm_calls_reg_at_desc_idx (reg_at desc, reg_date desc, id desc) that serves the PM register''s newest-registration-first read (0389). NO means call_requests.sql has not been re-run since; the register still sorts correctly without it, only slower. Restore: call_requests.sql (0389)',
+        (to_regclass('public.pm_calls_reg_at_desc_idx') is not null)),
+    (321, 'KPI Export (Field_INST) includes PM calls', 'kpi_field_inst reads pm_calls as well as field_calls and installation_calls (0390), cancelled calls of each left out. NO means performance.sql has not been re-run since. Restore: performance.sql (0390)',
+        coalesce((select pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%pm_calls%'
+                   where to_regclass('public.kpi_field_inst') is not null), false))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

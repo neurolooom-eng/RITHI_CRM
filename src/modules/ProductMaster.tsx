@@ -178,9 +178,17 @@ export function ProductMaster() {
     } } });
 
   const actionsColumn: Column<Row> = {
-    key: '_actions', header: 'Actions', width: 250, sortable: false, wrap: false,
+    // A NEW KEY, AND THE BUTTONS WRAP (reported 2026-10-06: "The Transfer
+    // button is not Visible for the Commercial Department user"). The column
+    // was `_actions`, 170px wide for + Field / + Install, and a table keeps
+    // each reader's -- and each role's -- saved width per key, which wins over
+    // the code's. ⇄ Transfer was added as a THIRD button to the same key, so
+    // a saved 170px cut it off at the cell's edge. The live database showed both
+    // Commercial users holding every key the button asks. A new key leaves the
+    // old saved widths behind; wrapping means no saved width can hide a button.
+    key: '_row_actions', header: 'Actions', width: 250, sortable: false, wrap: true,
     render: (row) => (
-      <div className="row" onClick={(e) => e.stopPropagation()}>
+      <div className="row" style={{ flexWrap: 'wrap', gap: 4 }} onClick={(e) => e.stopPropagation()}>
         {/* EACH BUTTON ASKS ITS OWN REGISTER'S KEY -- the column used to be shown
             only with install.create, so a role that may raise Field calls and
             not installations got neither button. */}

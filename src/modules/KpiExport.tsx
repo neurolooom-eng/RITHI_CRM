@@ -92,8 +92,8 @@ export function KpiExport() {
       <p className="muted" style={{ marginTop: 0 }}>
         The workbook&rsquo;s own tab, computed from the register: <b>columns A to AG</b>, the same
         fields in the same order under the same headings, so the file drops straight in — plus
-        <b> Pending Days</b>, which the workbook does not have. Field and Installation calls only
-        — PM keeps its own tab — and <b>cancelled calls are not included at all</b>.
+        <b> Pending Days</b>, which the workbook does not have. <b>Field, Installation and PM
+        calls</b>, and <b>cancelled calls are not included at all</b>.
       </p>
       <ul className="muted" style={{ marginTop: 0, fontSize: 12.5, lineHeight: 1.7 }}>
         <li><b>Call Attended On</b> — the earlier of the first visit and the first spare request.

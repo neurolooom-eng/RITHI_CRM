@@ -10036,7 +10036,10 @@ console.log('-- the machine register is searched on the device --');
     eq(`${m} says what the device holds`, /<MachineRegisterNote \/>/.test(rd(m)), true);
   // ⇄ TRANSFER FROM THE PRODUCT DATABASE (the user, 2026-10-05).
   { const pm = rd('src/modules/ProductMaster.tsx'), ot = rd('src/modules/OwnershipTransfer.tsx');
-    eq('a Product Database row offers ⇄ Transfer to whoever may record one',
+    eq('the Product Database actions wrap, under a key no stale saved width applies to',
+    /key: '_row_actions'[^\n]*wrap: true/.test(rd('src/modules/ProductMaster.tsx'))
+      && /style=\{\{ flexWrap: 'wrap', gap: 4 \}\}/.test(rd('src/modules/ProductMaster.tsx')), true);
+  eq('a Product Database row offers ⇄ Transfer to whoever may record one',
       /const mayTransfer = can\('ownership\.transfer'\)/.test(pm) && /navigate\('\/ownership-transfer', \{ state: \{ transfer:/.test(pm), true);
     eq('...and Ownership Transfer opens the drawer with that machine picked',
       /if \(st\.transfer && st\.transfer\.serial && mayMove\) \{\s*openMove\(\);\s*void chooseMachine\(st\.transfer\);/.test(ot), true); }

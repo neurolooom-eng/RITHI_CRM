@@ -133,6 +133,9 @@ different totals. An empty register usually means access, not emptiness.
   > later — or **Invoice Date**, which keeps the start on the PO / Warranty Sale
   > Entry. Nothing is pre-selected; the engineer must choose.
 - **Preventive (PM)** `/pm-calls` — planned maintenance.
+  > **Listed newest Call Registration Date first** — not in the order a PM
+  > month was uploaded, so a back-dated call sits where its date puts it.
+  > Click a column heading to sort by something else.
   > **Update Party Details / Update Product Details** (all three registers, on a
   > call of any status — in the Call View, or tick calls and use the bar):
   > **Party** sets City and State from the Party Master (a party the master
@@ -1394,7 +1397,8 @@ typed into a form that reads it.
   where none was booked, `SHORT` where less was booked than sent. Refused and
   dropped lines are excluded.
 - **Reports — KPI Export** `/exports/kpi` — the workbook's Field_INST tab in its
-  own column order; cancelled calls excluded entirely.
+  own column order — Field, Installation and PM calls; cancelled calls excluded
+  entirely.
 - **Hand Stock Report** `/handstock-report` — **Admin and Technical Support to begin with**;
   every other role is a tick on Roles & Permissions, and that tick gives the
   role the menu entry as well as the page. One line per engineer and part:

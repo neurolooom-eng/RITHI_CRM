@@ -13,7 +13,7 @@
 -- Not stopped: an import (bulk.upload / import.panel), a connection with no
 -- session, and a function running as its owner (ffr_from_review raises a
 -- report from the Daily Complaint Review and fills both from the call).
--- In the daily_review module, after 0390.
+-- In the daily_review module, after 0401.
 -- ===========================================================================
 
 create or replace function public.ffr_customer_and_problem_required()

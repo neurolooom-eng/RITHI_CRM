@@ -326,6 +326,8 @@ const MODULES = {
       '0041_call_split_hardening.sql',
       '0043_installation_create_gate.sql',
       '0050_pm_schedule_fields.sql',
+      // PM register read newest registration first; the index for that order (0389).
+      '0389_pm_calls_newest_registration_first.sql',
       '0053_call_requests_view_all.sql',
       '0057_call_reopen.sql',
       '0058_close_reopened_call.sql',
@@ -378,8 +380,8 @@ const MODULES = {
       // date, and the serial their upload carried (2026-10-05). Data only.
       '0386_pm_dates_are_registration.sql',
       // D-033: a field call is registered with its three vigilance questions
-      // answered (0389). Before the cr_read tail, which must stay last.
-      '0389_field_call_vigilance_answered.sql',
+      // answered (0400). Before the cr_read tail, which must stay last.
+      '0400_field_call_vigilance_answered.sql',
       // D-030: the Attended Date of a call request is not in the future (0398).
       '0398_call_request_attended_not_future.sql',
       '0164_cr_read_initplan.sql',
@@ -517,8 +519,8 @@ const MODULES = {
             // Redefines 0111's view, appending only.
             '0353_review_summary_carries_the_searched_columns.sql',
             // D-129: review answers are read by holders of review.view, given
-            // once to the roles that held review.edit (0390).
-            '0390_review_answers_read_key.sql',
+            // once to the roles that held review.edit (0401).
+            '0401_review_answers_read_key.sql',
             // D-027: a Field Failure Report names its customer and problem (0397).
             '0397_ffr_customer_and_problem_required.sql'],
   },
@@ -701,6 +703,9 @@ const MODULES = {
       // replayed on its own has to see them in that order or the whole-register
       // pre-aggregation comes back and the export times out again.
       '0159_kpi_export_lateral.sql',
+      // PM calls join the Field_INST export (2026-10-06): restates 0159's view
+      // with a third arm, so AFTER it.
+      '0390_kpi_field_inst_pm.sql',
       // The party list for every Party->Product->Serial cascade, distinct from
       // the PRODUCT register. Sits beside 0098, which does the same for product
       // names and for the same reason.

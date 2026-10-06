@@ -753,7 +753,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     ],
     records: ['kpi_field_inst', 'audit_log'],
     rules: [
-      'Field and installation calls only; cancelled calls are left out entirely',
+      'Field, installation and PM calls; cancelled calls are left out entirely',
     ],
   },
   {

@@ -1109,8 +1109,22 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       )),
     );
     // Newest first: cache already appends in load order; reverse for recency.
-    return [...r].reverse();
-  }, [cached, srch, scope, user?.id, onDb, openOnly, reopenedOnly, engineerFilter]);
+    const newest = [...r].reverse();
+    // PM: NEWEST REGISTRATION FIRST (the user, 2026-10-06), not load order -- a
+    // PM month is bulk-loaded and back-dated, so the order calls arrived in is
+    // not the order they were registered in. The server reads them in this
+    // order too (orderCalls); this keeps it after an edit or a Load more. A
+    // call not yet saved has no registration time here and stays on top.
+    if (config.tab !== 'PM') return newest;
+    const regTime = (row: Rec) => {
+      const t = Date.parse(String(row.regAt || row.regDate || ''));
+      return Number.isNaN(t) ? -Infinity : t;
+    };
+    return newest
+      .map((row, i) => ({ row, i, t: row._pending === true ? Infinity : regTime(row) }))
+      .sort((a, b) => (b.t - a.t) || (a.i - b.i))
+      .map((x) => x.row);
+  }, [cached, srch, scope, user?.id, onDb, openOnly, reopenedOnly, engineerFilter, config.tab]);
 
   const refreshFromMasters = async (what: 'party' | 'product', ucns: string[], clear?: () => void) => {
     const list = ucns.map((u) => u.trim()).filter(Boolean);
