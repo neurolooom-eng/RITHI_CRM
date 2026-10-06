@@ -688,6 +688,9 @@ const MODULES = {
       // replayed on its own has to see them in that order or the whole-register
       // pre-aggregation comes back and the export times out again.
       '0159_kpi_export_lateral.sql',
+      // PM calls join the Field_INST export (2026-10-06): restates 0159's view
+      // with a third arm, so AFTER it.
+      '0390_kpi_field_inst_pm.sql',
       // The party list for every Party->Product->Serial cascade, distinct from
       // the PRODUCT register. Sits beside 0098, which does the same for product
       // names and for the same reason.

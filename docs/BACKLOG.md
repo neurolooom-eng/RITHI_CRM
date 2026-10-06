@@ -78,6 +78,14 @@ up)_
 
 ---
 
+## 2026-10-06 — KPI Export (Field_INST) includes PM calls (0390, v0.10.124)
+
+- The user: "In KPI Export - KPI workbook — Field_INST ; Add PM Calls also."
+- 0390 restates 0159's `kpi_field_inst` word for word with a third arm,
+  `pm_calls where cancelled_at is null`; security_invoker re-asserted.
+  `kpi_field_inst_test` §1 now expects KP-PM and refuses a cancelled PM call.
+  FRS-195.2 / OQ-188 updated; `_status.sql` row 320.
+
 ## 2026-10-05 — PM calls dated by their registration (0386, v0.10.120)
 
 - The user: "Map, Complaint Date, Break Down Date to the Same Date as Call

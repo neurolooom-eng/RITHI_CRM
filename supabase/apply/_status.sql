@@ -2097,7 +2097,10 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.dmy_ts(text)') is not null
          and to_regprocedure('public.text_num(text)') is not null
          and coalesce((select array_to_string(c.reloptions, ',') like '%security_invoker=on%' from pg_class c where c.oid = to_regclass('public.stores_dispatch_report')), false)
-         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stores_dispatch_report' and column_name = 'Source')))
+         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stores_dispatch_report' and column_name = 'Source'))),
+    (320, 'KPI Export (Field_INST) includes PM calls', 'kpi_field_inst reads pm_calls as well as field_calls and installation_calls (0390), cancelled calls of each left out. NO means performance.sql has not been re-run since. Restore: performance.sql (0390)',
+        coalesce((select pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%pm_calls%'
+                   where to_regclass('public.kpi_field_inst') is not null), false))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

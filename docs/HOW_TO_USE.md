@@ -1316,7 +1316,8 @@ typed into a form that reads it.
   where none was booked, `SHORT` where less was booked than sent. Refused and
   dropped lines are excluded.
 - **Reports — KPI Export** `/exports/kpi` — the workbook's Field_INST tab in its
-  own column order; cancelled calls excluded entirely.
+  own column order — Field, Installation and PM calls; cancelled calls excluded
+  entirely.
 - **Hand Stock Report** `/handstock-report` — **Admin and Technical Support to begin with**;
   every other role is a tick on Roles & Permissions, and that tick gives the
   role the menu entry as well as the page. One line per engineer and part:
