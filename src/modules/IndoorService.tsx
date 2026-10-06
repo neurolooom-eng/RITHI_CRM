@@ -237,7 +237,7 @@ export function IndoorService() {
     setJobs((all) => all.map((j) => (j.id === id ? { ...j, ...p } as IndoorJob : j)));
     // What the database WORKS OUT from these -- whether the product is
     // imported, the verifier, the accessories -- comes back with a reload.
-    // reported_to_customer_at too: the database writes WHO recorded it (0399).
+    // reported_to_customer_at too: the database writes WHO recorded it (0412).
     if ('product_name' in p || 'serial' in p || 'kind' in p || 'status' in p || 'reported_to_customer_at' in p) load();
   };
 
@@ -1212,7 +1212,7 @@ function IndoorJobDrawer({
                 The columns existed (FRS-057) and were on no screen. The time
                 may be earlier than now — it is often recorded after the call —
                 never later; WHO is the database's, stamped from the session
-                when the time changes and cleared with it (0399). */}
+                when the time changes and cleared with it (0412). */}
             <Field label="Damage reported to the customer at"
               tip="When the owner was told about the damage. Leave blank until they have been; it cannot be later than now.">
               <input type="datetime-local" key={`rtc-${job.reported_to_customer_at ?? ''}`}

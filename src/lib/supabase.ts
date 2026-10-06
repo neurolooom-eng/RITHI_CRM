@@ -6055,7 +6055,7 @@ export interface IndoorJob {
   call_status?: string;
   call_pending_reason?: string;
   reported_to_customer_at: string | null;
-  /** Who recorded the damage report to the owner — the database's (0399). */
+  /** Who recorded the damage report to the owner — the database's (0412). */
   reported_to_customer_by: string | null;
   // Rework (§8.3.4)
   nc_reference: string;
@@ -6229,7 +6229,7 @@ export async function saveIndoorJob(
     'qc_result', 'qc_notes', 'dispatch_ref', 'damage_note',
     // When the damage was reported to the owner (D-039, FRS-143.9). WHO is not
     // here: the database stamps reported_to_customer_by from the session when
-    // this changes, and clears it when this is cleared (0399).
+    // this changes, and clears it when this is cleared (0412).
     'reported_to_customer_at',
     'nc_reference', 'rework_instruction', 'rework_instruction_rev',
     'rework_authorised_by', 'rework_authorised_at', 'adverse_effect_assessed',

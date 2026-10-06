@@ -34,7 +34,7 @@
 --   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 --   0367_indoor_dc_approver_is_the_login.sql
 --   0404_indoor_record_visit_closed_and_comments.sql
---   0399_indoor_reported_to_customer_stamp.sql
+--   0412_indoor_reported_to_customer_stamp.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -5014,11 +5014,11 @@ comment on column public.indoor_jobs.visit_filed_at is
   'When the drafted visit was filed in full -- the visit, its spares and its feedback -- by the DC''s approval (0327). create_indoor_dc() does not ask for it; approve_indoor_dc() files it.';
 
 -- ------------------------------------------------------------------------
--- 0399_indoor_reported_to_customer_stamp.sql
+-- 0412_indoor_reported_to_customer_stamp.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0399 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
+-- 0412 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
 --        (second re-review D-039, FRS-143.9)
 --
 -- indoor_jobs.reported_to_customer_at / _by exist (FRS-057) and were on no

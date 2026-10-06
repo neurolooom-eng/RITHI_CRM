@@ -380,8 +380,8 @@ const MODULES = {
       // date, and the serial their upload carried (2026-10-05). Data only.
       '0386_pm_dates_are_registration.sql',
       // D-033: a field call is registered with its three vigilance questions
-      // answered (0400). Before the cr_read tail, which must stay last.
-      '0400_field_call_vigilance_answered.sql',
+      // answered (0413). Before the cr_read tail, which must stay last.
+      '0413_field_call_vigilance_answered.sql',
       // D-030: the Attended Date of a call request is not in the future (0408).
       '0408_call_request_attended_not_future.sql',
       // D-035: a re-open records its reason, person and time (0411).
@@ -527,6 +527,10 @@ const MODULES = {
             // (2026-10-06). Restates 0353's / 0344's two review views, so after
             // both; and the DCCR rows whose UC Number was an Excel date, removed.
             '0397_pm_spare_dccr.sql', '0398_dccr_junk_rows.sql',
+            // The 2026 PM catch-up re-run once the Part Master mapping grew (2026-10-06).
+            '0399_pm_spare_dccr_rerun.sql',
+            // SPARE on a PM review row that is blank; restates 0397's trigger function.
+            '0400_pm_spare_blank_review.sql',
             // D-129: review answers are read by holders of review.view, given
             // once to the roles that held review.edit (0401).
             '0401_review_answers_read_key.sql',
@@ -886,8 +890,8 @@ const MODULES = {
             // D-108 / D-116: record_indoor_visit() is no signed-in user's, and
             // the visit columns say the visit is filed at approval (0404).
             '0404_indoor_record_visit_closed_and_comments.sql',
-            // D-039: who reported damage to the customer is the session (0399).
-            '0399_indoor_reported_to_customer_stamp.sql'],
+            // D-039: who reported damage to the customer is the session (0412).
+            '0412_indoor_reported_to_customer_stamp.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',

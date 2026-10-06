@@ -1,9 +1,9 @@
 -- ===========================================================================
--- THE USER'S DECISIONS OF 2026-10-05, PROVED ON A DATABASE (0400-0401).
+-- THE USER'S DECISIONS OF 2026-10-05, PROVED ON A DATABASE (0375, 0401, 0413).
 -- Each section proves BOTH halves: what the decision refuses is refused, AND
 -- the honest path beside it still works.
 --
---   1. D-033  a field call is registered with its vigilance questions answered (0400)
+--   1. D-033  a field call is registered with its vigilance questions answered (0413)
 --   2. D-049  stock moves from your own or your team's hand stock, to a User Master name (0375)
 --   3. D-129  review answers are read by holders of review.view (0401)
 --

@@ -47,7 +47,7 @@
 --   0311_cancel_needs_an_open_call.sql
 --   0341_call_actions_need_sight_of_the_call.sql
 --   0386_pm_dates_are_registration.sql
---   0400_field_call_vigilance_answered.sql
+--   0413_field_call_vigilance_answered.sql
 --   0408_call_request_attended_not_future.sql
 --   0411_call_reopen_reason_recorded.sql
 --   0164_cr_read_initplan.sql
@@ -4100,11 +4100,11 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0400_field_call_vigilance_answered.sql
+-- 0413_field_call_vigilance_answered.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0400 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
+-- 0413 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
 --        (second re-review D-033; the user's decision, 2026-10-05)
 --
 -- Public Health Threat?, Death? and Serious Incident? carried defaultValue 'NO'

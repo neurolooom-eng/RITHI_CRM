@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.139',
+    version: '0.10.141',
     date: '2026-10-06',
     title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
     changes: [
@@ -27,7 +27,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.138',
+    version: '0.10.140',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
     changes: [
@@ -37,7 +37,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.137',
+    version: '0.10.139',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -48,7 +48,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.136',
+    version: '0.10.138',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -62,7 +62,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.135',
+    version: '0.10.137',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -76,7 +76,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.134',
+    version: '0.10.136',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -87,6 +87,22 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.135',
+    date: '2026-10-06',
+    title: 'DCCR: PM calls with a Spare show SPARE',
+    changes: [
+      'The 28 PM calls of 2026 with a Spare booked were already in the Daily Complaint Review with an empty row; their Spare / Consumable / Correction / Calibration now reads SPARE. From now on, a Spare booked on a PM call whose review is still blank on that answer sets it too. An answer somebody gave is never changed.',
+    ],
+  },
+  {
+    version: '0.10.134',
+    date: '2026-10-06',
+    title: 'DCCR: the 2026 PM calls with a Spare added, now that the Part Master is mapped',
+    changes: [
+      'The 2026 PM calls whose consumption includes a part the Part Master now marks Spare (280 parts) were added to the Daily Complaint Review, Spare pre-set. Older PM calls are not added yet.',
     ],
   },
   {

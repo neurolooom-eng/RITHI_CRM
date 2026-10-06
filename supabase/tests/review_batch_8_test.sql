@@ -1,5 +1,5 @@
 -- ===========================================================================
--- REVIEW BATCH 8, PROVED ON A DATABASE (0406-0399, 0402).
+-- REVIEW BATCH 8, PROVED ON A DATABASE (0402, 0406-0408, 0412).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works.
 --
@@ -8,7 +8,7 @@
 --   2. D-021  a quality objective edited or deleted is imaged (0406), and one
 --             carrying a figure is not deleted (0402)
 --   3. D-039  an indoor job and its parts are imaged; who reported damage to
---             the customer is the session (0406, 0399)
+--             the customer is the session (0406, 0412)
 --   4. D-027  a Field Failure Report names its customer and problem (0407)
 --   5. D-030  a call request's Attended Date is not in the future (0408)
 --
