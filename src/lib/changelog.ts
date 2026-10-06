@@ -14,11 +14,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.124',
+    version: '0.10.125',
     date: '2026-10-06',
     title: 'KPI Export (Field_INST) includes PM calls',
     changes: [
       'REPORTS → KPI EXPORT now includes PM calls as well as Field and Installation calls, with the same columns and the same rules. Cancelled calls of every type are still left out.',
+    ],
+  },
+  {
+    version: '0.10.124',
+    date: '2026-10-06',
+    title: 'PM calls: newest registration first',
+    changes: [
+      'PREVENTIVE (PM) CALLS now lists calls by Call Registration Date, newest first. Before, they came in the order they were uploaded, so a back-dated PM month could sit above newer calls.',
+      'The order holds on every page, with Load more, after a search and after an edit. Clicking a column heading still sorts by that column.',
     ],
   },
   {
