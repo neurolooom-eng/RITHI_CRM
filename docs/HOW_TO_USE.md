@@ -1265,6 +1265,9 @@ typed into a form that reads it.
 
 - **Objective** `/objective` — the year's objectives with targets, owners and the
   month-by-month actual.
+  - **Status**: each objective is Active, **Not Working** or **Do Not Use** (✏️ on
+    the objective). The last two are hidden; tick **Show hidden** to see and
+    change them. Hidden objectives are still edited and re-calculated as usual.
   - **Re-Calculate is explicit**, never on opening the page. Only objectives with
     a formula, only up to this month, never a typed figure.
   - **You can type over a calculated (ƒ) month.** It becomes a **manual
