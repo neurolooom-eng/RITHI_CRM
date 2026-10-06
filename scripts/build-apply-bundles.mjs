@@ -384,6 +384,8 @@ const MODULES = {
       '0400_field_call_vigilance_answered.sql',
       // D-030: the Attended Date of a call request is not in the future (0408).
       '0408_call_request_attended_not_future.sql',
+      // D-035: a re-open records its reason, person and time (0411).
+      '0411_call_reopen_reason_recorded.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -650,6 +652,8 @@ const MODULES = {
             // D-067/D-021/D-039: configuration, quality objectives and the indoor
             // workshop imaged too; the audit key gains role / key / sys_id (0406).
             '0406_record_audit_on_configuration_objectives_indoor.sql',
+            // D-055 (FRS-187.3): the six cover tables imaged (0410).
+            '0410_cover_registers_imaged.sql',
             // The FFR register's retention trigger. HERE, not beside the table
             // in 0165: block_hard_delete() is defined in this module, which runs
             // after daily_review — check:replay caught the fresh apply failing.
@@ -990,7 +994,9 @@ const MODULES = {
             // D-086: deleting a list value needs that list's delete key or
             // masters.edit, not "Add / edit master records" (0371). 0121's tail
             // mirrors it.
-            '0371_master_list_delete_key.sql'],
+            '0371_master_list_delete_key.sql',
+            // D-056: a value records carry is deactivated, not deleted (0409).
+            '0409_master_value_in_use_kept.sql'],
   },
   reports: {
     title: 'Reports',

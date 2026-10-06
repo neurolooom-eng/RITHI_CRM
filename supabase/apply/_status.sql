@@ -2177,6 +2177,17 @@ with checks(sort_order, bundle, provides, present) as (
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.indoor_jobs') and tgname = 'zzy_indoor_reported_to_customer')),
     (338, 'A quality objective that carries a recorded figure is not deleted', 'quality_objective_keeps_figures refuses a signed-in delete of an objective with any month or Total recorded; one with nothing recorded can still be deleted, and 0406 images both (0402, D-021, FRS-121.7). NO means objective.sql has not been re-run since. Restore: objective.sql (0402)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.quality_objectives') and tgname = 'quality_objective_keeps_figures')),
+    (346, 'A master value that records carry is deactivated, not deleted', 'master_value_in_use_kept refuses a signed-in delete of a list value that calls, requests, visits, reviews, feedback or the User Master carry, unless another row of the list holds the same word; master_value_uses() counts them as its owner, past row-level security (0409, D-056, FRS-015). NO means masters.sql has not been re-run since. Restore: masters.sql (0409)',
+        (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.masters') and tgname = 'master_value_in_use_kept')
+         and to_regprocedure('public.master_value_uses(text,text)') is not null)),
+    (347, 'The cover registers are imaged in record_audit', 'record_audit_i / _u / _d on sale_entries, sale_items, contract_entries, contract_items, ownership_transfers and product_additional_entries: a corrected machine, warranty or contract, and a deleted entry, keep their before and after (0410, D-055, FRS-187.3). Refusing the delete waits on FRS-187.4. NO means data_integrity.sql has not been re-run since. Restore: data_integrity.sql (0410)',
+        (select count(distinct tgrelid) from pg_trigger where tgname = 'record_audit_d' and not tgisinternal
+          and tgrelid in (to_regclass('public.sale_entries'), to_regclass('public.sale_items'), to_regclass('public.contract_entries'),
+                          to_regclass('public.contract_items'), to_regclass('public.ownership_transfers'),
+                          to_regclass('public.product_additional_entries'))) = 6),
+    (348, 'A re-open records its reason, its person and its time', 'reopen_call() refuses an empty reason and writes public.call_reopens (UCN, when, who, why), one row per re-open, read by whoever may see the call (0411, D-035, FRS-133.4, FRS-120.9). NO means call_requests.sql has not been re-run since. Restore: call_requests.sql (0411)',
+        (to_regclass('public.call_reopens') is not null
+         and coalesce((select p.prosrc like '%call_reopens%' from pg_proc p where p.oid = to_regprocedure('public.reopen_call(text,text)')), false))),
     (319, 'Stores Dispatch Report: the historical stock outs from 2025', 'stores_dispatch_report also reads spare_issue_history for stock outs dated from 1 January 2025 (India time) not already dispatched in RITHI, with a Source column (RITHI / Historical); dmy_ts() reads the file''s day-first dates kept in data (0387, widened to 2026 by 0388). NO means HandStock_X.sql has not been re-run since, or the view lost security_invoker. Restore: HandStock_X.sql (0388)',
         (to_regprocedure('public.dmy_ts(text)') is not null
          and to_regprocedure('public.text_num(text)') is not null

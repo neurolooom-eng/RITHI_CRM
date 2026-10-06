@@ -127,6 +127,7 @@
 --   0326_party_country.sql
 --   0366_masters_required_kyc_and_line_names.sql
 --   0371_master_list_delete_key.sql
+--   0409_master_value_in_use_kept.sql
 --   0070_documents.sql
 --   0265_qms_document_key.sql
 --   0272_service_note_upload_key.sql
@@ -175,6 +176,7 @@
 --   0386_pm_dates_are_registration.sql
 --   0400_field_call_vigilance_answered.sql
 --   0408_call_request_attended_not_future.sql
+--   0411_call_reopen_reason_recorded.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
@@ -382,6 +384,7 @@
 --   0246_record_audit_description.sql
 --   0314_record_audit_on_movements_and_training.sql
 --   0406_record_audit_on_configuration_objectives_indoor.sql
+--   0410_cover_registers_imaged.sql
 --   0166_ffr_retention_guard.sql
 --   0174_ffr_history.sql
 --   0177_ffr_history_view_right.sql
@@ -15251,6 +15254,118 @@ create policy masters_delete on public.masters for delete
              or public.has_perm('master.' || coalesce(name, '') || '.delete'));
 
 -- ------------------------------------------------------------------------
+-- 0409_master_value_in_use_kept.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0409 — A VALUE THAT RECORDS CARRY IS DEACTIVATED, NOT DELETED
+--        (second re-review D-056, FRS-015, FRS-180.6)
+--
+-- Master Lists offered Delete to a holder of master.<list>.delete, and
+-- masters_delete checked only the permission: a Standard Complaint carried by
+-- thousands of calls could be erased, and every record kept a word no list
+-- holds -- every count, filter and frequent-failure match downstream runs on
+-- that word. FRS-015: a value in use SHALL be deactivated rather than deleted,
+-- and the database SHALL refuse the deletion of a value any record carries.
+-- Deactivate already exists on the screen (masters.active): the value stays on
+-- every record and stops being offered.
+--
+-- WHICH RECORDS CARRY WHICH LIST -- read from the columns that hold each one's
+-- values, compared trimmed and case-insensitive:
+--   calltype       call_requests, field/installation/pm calls, feedback,
+--                  field_failure_reports, pending_registrations  .call_type
+--   complaint      call_requests, field/installation/pm calls, indoor_jobs
+--                  .standard_complaint
+--   pendingreason  reports.pending_reason, indoor_jobs.call_pending_reason
+--   cancelreason   call_requests, field/installation/pm calls .cancel_reason
+--   dccrgrouping   call_reviews.complaint_grouping
+--   rootcause      call_reviews.root_cause_keyword
+--   department     user_directory.department
+--   feedbackrating the answers of feedback (a rating is an answer's value)
+--   orapproval     nothing reads it today, so nothing carries it
+-- A value is "carried" only where no OTHER row of the same list holds the same
+-- word: deleting one of two duplicates (a complaint listed for two products)
+-- leaves the word on the list, so nothing is orphaned and it is allowed.
+-- master_value_uses() COUNTS AS ITS OWNER: run as the caller, row-level
+-- security would hide the records the person deleting cannot see, the count
+-- would read low and a value in use elsewhere would be deleted. It returns a
+-- number and nothing else.
+-- Not stopped: a connection with no session and a function running as its
+-- owner. In the masters module, last.
+-- ===========================================================================
+
+create or replace function public.master_value_uses(p_name text, p_value text)
+returns bigint language plpgsql stable security definer set search_path = public as $$
+declare
+  v    text := lower(btrim(coalesce(p_value, '')));
+  n    bigint := 0;
+  c    bigint;
+  pair text[];
+  cols text[][];
+begin
+  if v = '' then return 0; end if;
+  cols := case lower(btrim(coalesce(p_name, '')))
+    when 'calltype' then array[['call_requests','call_type'], ['field_calls','call_type'], ['installation_calls','call_type'],
+                               ['pm_calls','call_type'], ['feedback','call_type'], ['field_failure_reports','call_type'],
+                               ['pending_registrations','call_type']]
+    when 'complaint' then array[['call_requests','standard_complaint'], ['field_calls','standard_complaint'],
+                                ['installation_calls','standard_complaint'], ['pm_calls','standard_complaint'],
+                                ['indoor_jobs','standard_complaint']]
+    when 'pendingreason' then array[['reports','pending_reason'], ['indoor_jobs','call_pending_reason']]
+    when 'cancelreason' then array[['call_requests','cancel_reason'], ['field_calls','cancel_reason'],
+                                   ['installation_calls','cancel_reason'], ['pm_calls','cancel_reason']]
+    when 'dccrgrouping' then array[['call_reviews','complaint_grouping']]
+    when 'rootcause' then array[['call_reviews','root_cause_keyword']]
+    when 'department' then array[['user_directory','department']]
+    else null end;
+  if cols is not null then
+    foreach pair slice 1 in array cols loop
+      if to_regclass('public.' || pair[1]) is not null
+         and exists (select 1 from information_schema.columns
+                      where table_schema = 'public' and table_name = pair[1] and column_name = pair[2]) then
+        execute format('select count(*) from public.%I where lower(btrim(%I)) = $1', pair[1], pair[2]) into c using v;
+        n := n + c;
+      end if;
+    end loop;
+  end if;
+  if lower(btrim(coalesce(p_name, ''))) = 'feedbackrating' and to_regclass('public.feedback') is not null then
+    select count(*) into c
+      from public.feedback f
+     where jsonb_typeof(f.answers) = 'object'
+       and exists (select 1 from jsonb_each_text(f.answers) a where lower(btrim(a.value)) = v);
+    n := n + c;
+  end if;
+  return n;
+end $$;
+revoke execute on function public.master_value_uses(text, text) from public, anon;
+grant execute on function public.master_value_uses(text, text) to authenticated;
+
+create or replace function public.master_value_in_use_kept()
+returns trigger language plpgsql security invoker set search_path = public as $$
+declare n bigint;
+begin
+  if auth.uid() is null then return old; end if;
+  if current_user <> 'authenticated' then return old; end if;
+  -- Another row of the same list still holds the word: nothing is orphaned.
+  if exists (select 1 from public.masters m
+              where m.name = old.name and m.id <> old.id
+                and lower(btrim(m.value)) = lower(btrim(coalesce(old.value, '')))) then
+    return old;
+  end if;
+  n := public.master_value_uses(old.name, old.value);
+  if n > 0 then
+    raise exception '"%" is on % record(s) and cannot be deleted -- deactivate it instead, so it stays on those records and is no longer offered',
+      old.value, n using errcode = '23514';
+  end if;
+  return old;
+end $$;
+revoke execute on function public.master_value_in_use_kept() from public, anon, authenticated;
+drop trigger if exists master_value_in_use_kept on public.masters;
+create trigger master_value_in_use_kept
+  before delete on public.masters
+  for each row execute function public.master_value_in_use_kept();
+
+-- ------------------------------------------------------------------------
 -- 0070_documents.sql
 -- ------------------------------------------------------------------------
 
@@ -20419,6 +20534,94 @@ drop trigger if exists call_request_attended_not_future on public.call_requests;
 create trigger call_request_attended_not_future
   before insert or update of attended_date on public.call_requests
   for each row execute function public.call_request_attended_not_future();
+
+-- ------------------------------------------------------------------------
+-- 0411_call_reopen_reason_recorded.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0411 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
+--        (second re-review D-035, FRS-133.4, FRS-120.9)
+--
+-- reopen_call(p_ucn, p_reason) accepted a reason and wrote only reopened_at and
+-- reopen_count: the reason was stored nowhere and no person was recorded,
+-- while the Call Review tells the reviewer "the reason goes on the call"
+-- (FRS-064). And it accepted an empty reason, which FRS-120.9 refuses.
+--
+-- public.call_reopens keeps one row per re-open -- the UCN, when, who (the
+-- session, by id and name) and why -- so a call re-opened twice keeps both.
+-- A history table rather than columns on the three call tables: a second
+-- re-open would overwrite the first reason in a column, and the calls view is
+-- a `t.*` view mirrored in 0245 that new columns would not reach.
+-- It is written only by reopen_call() (no insert, update or delete policy),
+-- and read by whoever may see the call.
+--
+-- reopen_call() is 0341's body unchanged, plus: an empty reason is refused,
+-- and the row above is written. In the call_requests module, after 0341 and
+-- before the cr_read tail.
+-- ===========================================================================
+
+create table if not exists public.call_reopens (
+  id               bigint generated always as identity primary key,
+  ucn              text not null,
+  reopened_at      timestamptz not null default now(),
+  reopened_by      uuid,
+  reopened_by_name text not null default '',
+  reason           text not null,
+  created_at       timestamptz not null default now(),
+  created_by       uuid
+);
+create index if not exists call_reopens_ucn_idx on public.call_reopens (ucn, reopened_at desc);
+alter table public.call_reopens enable row level security;
+revoke all on public.call_reopens from anon;
+grant select on public.call_reopens to authenticated;
+drop policy if exists call_reopens_read on public.call_reopens;
+-- "May this person see the call" is asked of the calls view itself: it is
+-- security_invoker, so the caller's own call policies decide, exactly as on
+-- every register (call_visible_to_me() is not executable by a signed-in user).
+create policy call_reopens_read on public.call_reopens for select
+  using (exists (select 1 from public.calls c where c.ucn = call_reopens.ucn));
+
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.call_reopens'::regclass);
+  end if;
+end $$;
+
+create or replace function public.reopen_call(p_ucn text, p_reason text default '')
+returns text language plpgsql security definer set search_path = public as $$
+declare v_solved boolean; v_reopened timestamptz;
+begin
+  if not public.call_perm(p_ucn, 'reopen') then
+    raise exception 'RBAC: your role cannot re-open a call';
+  end if;
+  -- 0333 (D-128): and only on a call the caller can see -- the read rule, so
+  -- every call a screen shows passes and a call outside it is refused.
+  if public.call_visible_to_me(p_ucn) is false then
+    raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
+  end if;
+  -- 0411 (D-035, FRS-120.9): a re-open says why.
+  if btrim(coalesce(p_reason, '')) = '' then
+    raise exception 'Give the reason for re-opening call %', p_ucn using errcode = '23514';
+  end if;
+
+  select open_state = 'Solved', reopened_at into v_solved, v_reopened
+    from public.calls where ucn = p_ucn;
+  if v_solved is null then raise exception 'No call with UCN %', p_ucn; end if;
+  if v_reopened is not null then raise exception 'Call % is already re-opened', p_ucn; end if;
+  if not v_solved then raise exception 'Call % is not closed, so there is nothing to re-open', p_ucn; end if;
+
+  update public.calls
+     set reopened_at = now(), reopen_count = coalesce(reopen_count, 0) + 1
+   where ucn = p_ucn;
+
+  -- 0411 (D-035, FRS-133.4): the reason, the person and the time, kept.
+  insert into public.call_reopens (ucn, reopened_at, reopened_by, reopened_by_name, reason, created_by)
+  values (p_ucn, now(), auth.uid(), coalesce(public.my_display_name(), auth.email(), ''), btrim(p_reason), auth.uid());
+
+  return p_ucn;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0164_cr_read_initplan.sql
@@ -51821,6 +52024,60 @@ begin
     end if;
   end loop;
   raise notice '0406: record_audit armed on % of 13 tables.', n;
+end $on$;
+
+-- ------------------------------------------------------------------------
+-- 0410_cover_registers_imaged.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0410 — THE COVER REGISTERS ARE IMAGED (second re-review D-055, FRS-187.3)
+--
+-- sale_entries, sale_items, contract_entries, contract_items,
+-- ownership_transfers and product_additional_entries were outside 0225's
+-- record_audit, so an edit to a machine's warranty or contract, a transfer
+-- corrected, or an entry deleted with every machine under it left no image of
+-- what was there. FRS-187.3: a correction shall be recorded with its before and
+-- after values by a trigger that cannot be bypassed. The same statement-level
+-- triggers as 0225 / 0314 / 0406, so a cover import is one event.
+--
+-- THIS IS PART OF D-055 ONLY. Refusing the deletion (FRS-187.1/.2) waits on
+-- FRS-187.4 -- how an entry raised in error is marked and what it does to the
+-- machine's cover -- which is the user's decision; until then a delete is at
+-- least recorded with everything it removed.
+-- In data_integrity, after 0406: every cover table is created earlier in
+-- ALL_ORDER.
+-- ===========================================================================
+
+do $on$
+declare t text; n int := 0;
+begin
+  if to_regproc('public.record_audit_fn') is null then
+    raise notice '0410: record_audit_fn() is missing -- run 0048_record_audit.sql first. Nothing armed.';
+    return;
+  end if;
+  foreach t in array array[
+    'sale_entries', 'sale_items', 'contract_entries', 'contract_items',
+    'ownership_transfers', 'product_additional_entries'
+  ] loop
+    if to_regclass('public.' || t) is not null
+       and (select relkind from pg_class where oid = ('public.' || t)::regclass) = 'r' then
+      execute format('drop trigger if exists record_audit_i on public.%I', t);
+      execute format('drop trigger if exists record_audit_u on public.%I', t);
+      execute format('drop trigger if exists record_audit_d on public.%I', t);
+      execute format('create trigger record_audit_i after insert on public.%I '
+                     'referencing new table as new_rows for each statement '
+                     'execute function public.record_audit_fn()', t);
+      execute format('create trigger record_audit_u after update on public.%I '
+                     'referencing old table as old_rows new table as new_rows for each statement '
+                     'execute function public.record_audit_fn()', t);
+      execute format('create trigger record_audit_d after delete on public.%I '
+                     'referencing old table as old_rows for each statement '
+                     'execute function public.record_audit_fn()', t);
+      n := n + 1;
+    end if;
+  end loop;
+  raise notice '0410: record_audit armed on % of 6 cover tables.', n;
 end $on$;
 
 -- ------------------------------------------------------------------------
