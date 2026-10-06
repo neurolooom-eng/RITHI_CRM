@@ -326,6 +326,8 @@ const MODULES = {
       '0041_call_split_hardening.sql',
       '0043_installation_create_gate.sql',
       '0050_pm_schedule_fields.sql',
+      // PM register read newest registration first; the index for that order (0389).
+      '0389_pm_calls_newest_registration_first.sql',
       '0053_call_requests_view_all.sql',
       '0057_call_reopen.sql',
       '0058_close_reopened_call.sql',

@@ -2097,7 +2097,9 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.dmy_ts(text)') is not null
          and to_regprocedure('public.text_num(text)') is not null
          and coalesce((select array_to_string(c.reloptions, ',') like '%security_invoker=on%' from pg_class c where c.oid = to_regclass('public.stores_dispatch_report')), false)
-         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stores_dispatch_report' and column_name = 'Source')))
+         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stores_dispatch_report' and column_name = 'Source'))),
+    (320, 'PM calls: read newest registration first', 'the index pm_calls_reg_at_desc_idx (reg_at desc, reg_date desc, id desc) that serves the PM register''s newest-registration-first read (0389). NO means call_requests.sql has not been re-run since; the register still sorts correctly without it, only slower. Restore: call_requests.sql (0389)',
+        (to_regclass('public.pm_calls_reg_at_desc_idx') is not null))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

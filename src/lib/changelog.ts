@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.124',
+    date: '2026-10-06',
+    title: 'PM calls: newest registration first',
+    changes: [
+      'PREVENTIVE (PM) CALLS now lists calls by Call Registration Date, newest first. Before, they came in the order they were uploaded, so a back-dated PM month could sit above newer calls.',
+      'The order holds on every page, with Load more, after a search and after an edit. Clicking a column heading still sorts by that column.',
+    ],
+  },
+  {
     version: '0.10.123',
     date: '2026-10-06',
     title: 'Stores Dispatch Report: 2026 historical stock outs added',

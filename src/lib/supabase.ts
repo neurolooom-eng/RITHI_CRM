@@ -16,7 +16,7 @@ export { machineKey } from './machine';
 import { machineKey } from './machine';
 export { callFamily, callTable, type CallFamily } from './calltype';
 import { byColumnSet, planConsumptionVisits } from './uploads';
-import { callTable } from './calltype';
+import { callFamily, callTable } from './calltype';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { manualMatchesCall } from './docmatch';
 import { masterValueApplies } from './dccr';
@@ -254,6 +254,24 @@ export function productRowToSheet(r: Record<string, unknown>): Record<string, un
 }
 
 // ---- calls ----------------------------------------------------------------
+// THE ORDER A REGISTER IS READ IN. PM calls are newest REGISTRATION first (the
+// user, 2026-10-06: "Sort the PM Calls in Newest to Oldest based on Call
+// Registration Date"): a PM month is bulk-loaded, often back-dated, so the
+// insertion order (`id`) is the order of the uploads, not of the calls. reg_at
+// is the registration date-time (0050 fills it from reg_date where absent);
+// reg_date and id break ties, so the paged read is total and a page can never
+// repeat or drop a call. Served by pm_calls_reg_at_desc_idx (0389). The other
+// registers keep `id`, which is their registration order already.
+type Orderable<Q> = { order: (column: string, opts?: { ascending?: boolean; nullsFirst?: boolean }) => Q };
+function orderCalls<Q extends Orderable<Q>>(q: Q, callType: string): Q {
+  if (callFamily(callType) === 'pm' && String(callType ?? '').trim()) {
+    return q.order('reg_at', { ascending: false, nullsFirst: false })
+      .order('reg_date', { ascending: false, nullsFirst: false })
+      .order('id', { ascending: false });
+  }
+  return q.order('id', { ascending: false });
+}
+
 // Supabase caps a single response at ~1000 rows, so page through with range()
 // until the register is fully loaded (or `limit` reached).
 export async function listCalls(callType = '', limit = 20000): Promise<Record<string, unknown>[]> {
@@ -261,7 +279,7 @@ export async function listCalls(callType = '', limit = 20000): Promise<Record<st
   const out: Record<string, unknown>[] = [];
   for (let from = 0; from < limit; from += PAGE) {
     // Read the type's own table (isolated); the union view only for "all".
-    const q = must().from(callTable(callType)).select('*').order('id', { ascending: false }).range(from, Math.min(from + PAGE, limit) - 1);
+    const q = orderCalls(must().from(callTable(callType)).select('*'), callType).range(from, Math.min(from + PAGE, limit) - 1);
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
@@ -277,7 +295,7 @@ export async function listCalls(callType = '', limit = 20000): Promise<Record<st
 export interface CallSearch { q?: string; ucn?: string; serial?: string; partyName?: string; productName?: string }
 const _san = (t: string) => t.replace(/[%,()]/g, ' ').trim();
 export async function searchCalls(callType: string, terms: CallSearch, limit = 1000): Promise<Record<string, unknown>[]> {
-  let q = must().from(callTable(callType)).select('*').order('id', { ascending: false }).limit(limit);
+  let q = orderCalls(must().from(callTable(callType)).select('*'), callType).limit(limit);
   if (terms.ucn) q = q.ilike('ucn', `%${_san(terms.ucn)}%`);
   if (terms.serial) q = q.ilike('serial', `%${_san(terms.serial)}%`);
   if (terms.partyName) q = q.ilike('party_name', `%${_san(terms.partyName)}%`);
