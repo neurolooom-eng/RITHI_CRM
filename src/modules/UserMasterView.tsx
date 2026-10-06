@@ -16,6 +16,7 @@ import './fieldcalls.css';
 import { COMPLETE, cappedAt } from '../lib/exportscope';
 import { useMaster } from '../lib/masters';
 import { PersonProfile } from '../components/people/PersonProfile';
+import { managerNameProblem, managerNameProblems } from '../lib/directorynames';
 
 // ===========================================================================
 // USER MASTER — the directory of everyone, whether or not they have ever
@@ -34,7 +35,23 @@ import { PersonProfile } from '../components/people/PersonProfile';
 type Row = Record<string, unknown> & { id: string };
 
 const VALIDITY_TONES = { TRUE: 'success', FALSE: 'neutral' } as const;
+// THE DIRECTORY FLAG, CALLED WHAT IT IS (D-053, FRS-171.5). `validity` decides
+// who is offered in pick lists, who is in a training audience and who counts in
+// a manager's current team. It governs NO sign-in after the first: it is copied
+// onto a login once, when the profile is made, and a later change is not
+// carried across. It used to read "Yes — may sign in", which told an
+// administrator a leaver set to No was locked out when they were not. Only the
+// login's own 🔒 Disable login decides sign-in.
+const DIRECTORY_ACTIVE = 'Active on the list';
+const DIRECTORY_ACTIVE_HINT = 'A User Master flag: it decides whether this person is offered in pick lists, '
+  + 'counted in training audiences and shown in a manager’s current team. It does not decide sign-in — '
+  + 'use 🔒 Disable login to stop someone signing in.';
+const DIRECTORY_ACTIVE_OPTIONS = [
+  { value: 'TRUE', label: 'Yes — listed as active' },
+  { value: 'FALSE', label: 'No — listed as inactive' },
+];
 const roleLabel = (key: string) => roleLabelFor(key) || (key || '—');
+const MANAGER_LIST_ID = 'um-manager-names';
 
 const emptyRow = (): DirectoryRow => ({
   id: 0, name: '', email: '', gmail: '', designation: '',
@@ -78,6 +95,15 @@ export function UserMasterView() {
     });
     return [...seen.values()].sort((a, b) => a.localeCompare(b));
   }, [dir]);
+
+  // EVERY NAME AS STORED, with what is being typed in the table applied, for the
+  // "matches no one" test (D-053, FRS-171.4) -- raw, because the reporting
+  // tree compares them untrimmed (src/lib/directorynames.ts).
+  const namesWith = (row?: DirectoryRow): string[] => {
+    const out = dir.map((d) => (row && d.id === row.id ? row.name : (drafts[d.id] ?? d).name));
+    if (row && row.id === 0) out.push(row.name);
+    return out;
+  };
 
   const dirRegions = useMemo(() => {
     const seen = new Map<string, string>();
@@ -266,6 +292,13 @@ export function UserMasterView() {
   const save = async (row: DirectoryRow) => {
     const rename = renameNote(row);
     if (rename && !confirm(`${rename}\n\nSave the new name?`)) return;
+    // A MANAGER NAME MATCHING NO ONE is said, and saved only on confirmation
+    // (D-053, FRS-171.4) -- never refused: a manager not on the list yet must
+    // still be typeable.
+    // Asked of both fields whether or not they changed: the form shows the
+    // statement under the field, and what it shows is what is asked.
+    const nobody = managerNameProblems(row, namesWith(row));
+    if (nobody.length && !confirm(`${nobody.join('\n\n')}\n\nSave it anyway?`)) return;
     setBusy(true);
     const isNew = row.id === 0;
     let loginNote = '';
@@ -298,7 +331,9 @@ export function UserMasterView() {
   // login and history are untouched; a leaver is handled with 🔒 Disable.
   const removeRow = async (r: DirectoryRow) => {
     if (r.id === 0) return;
-    if (!confirm(`Delete ${r.name || r.email || 'this user'} from the User Master?\n\nThis removes their directory entry only. Their login (if any) and all history are kept — use 🔒 Disable login to lock out a leaver.`)) return;
+    // D-059: an entry with a profile or R&R history is refused by the database
+    // (0405) -- the person is set inactive instead, and their history stays.
+    if (!confirm(`Delete ${r.name || r.email || 'this user'} from the User Master?\n\nOnly an entry made by mistake can be deleted. An entry with a profile, Roles & Responsibilities or training history is refused — set ${DIRECTORY_ACTIVE} to No instead, which takes them out of pick lists but does NOT stop a sign-in. Their login (if any) is not affected — use 🔒 Disable login to lock out a leaver.`)) return;
     setBusy(true);
     const res = await deleteDirectoryRow(r.id);
     logAudit({ action: 'user.directory.delete', target: r.name || r.email, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error });
@@ -314,7 +349,7 @@ export function UserMasterView() {
     const res = await updateProfile(u.id, { active: enable });
     logAudit({ action: enable ? 'user.login.enable' : 'user.login.disable', target: u.email, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error });
     setBusy(false);
-    if (res.ok) { setMsg({ tone: 'ok', text: `${u.fullName || u.email}'s login is now ${enable ? 'active' : 'disabled'}.` }); await reloadUsers(); }
+    if (res.ok) { setMsg({ tone: 'ok', text: `${u.fullName || u.email}'s login is now ${enable ? 'enabled — they may sign in' : 'disabled — they cannot sign in'}.` }); await reloadUsers(); }
     else setMsg({ tone: 'error', text: res.error ?? 'Could not change the login.' });
   };
 
@@ -343,6 +378,13 @@ export function UserMasterView() {
     if (nameless) { setMsg({ tone: 'error', text: `${nameless.name || 'A user'} needs a name — it is what calls are allotted to.` }); return; }
     const renames = changedRows.map((r) => renameNote(drafts[r.id])).filter(Boolean);
     if (renames.length && !confirm(`${renames.join('\n\n')}\n\nSave ${renames.length === 1 ? 'the new name' : 'the new names'}?`)) return;
+    // The same question as the drawer asks (FRS-171.4), for every changed row,
+    // each NAMED -- against the names as the whole edit leaves them, so a
+    // manager renamed in the same Save is found.
+    const allNames = namesWith();
+    const nobody = changedRows.flatMap((r) => managerNameProblems(drafts[r.id], allNames, r)
+      .map((p) => `${drafts[r.id].name.trim() || r.name}: ${p}`));
+    if (nobody.length && !confirm(`${nobody.join('\n\n')}\n\nSave ${nobody.length === 1 ? 'it' : 'them'} anyway?`)) return;
 
     setBusy(true);
     setMsg({ tone: 'info', text: `Saving ${changedRows.length} change${changedRows.length === 1 ? '' : 's'}…` });
@@ -378,6 +420,24 @@ export function UserMasterView() {
           value={String(draftOf(r)[k] ?? '')} onKeyDown={keys}
           onChange={(e) => setField(r, k, e.target.value as DirectoryRow[typeof k])} />
       : <>{String(r[k] ?? '')}</>);
+  // A MANAGER cell: the same input, SUGGESTING the names on the User Master
+  // (one shared datalist, rendered with the table), and saying under it when
+  // the name matches no one -- before Save, which then asks (FRS-171.4).
+  const managerCell = (k: 'reporting_manager' | 'regional_manager', label: string, placeholder: string) =>
+    (r: DirectoryRow) => {
+      if (!editing) return <>{String(r[k] ?? '')}</>;
+      const v = String(draftOf(r)[k] ?? '');
+      const changed = v.trim().toLowerCase() !== String(r[k] ?? '').trim().toLowerCase();
+      const problem = changed ? managerNameProblem(label, v, namesWith()) : '';
+      return (
+        <>
+          <input className="input" style={{ width: '100%' }} placeholder={placeholder} list={MANAGER_LIST_ID}
+            value={v} onKeyDown={keys} title={problem || undefined}
+            onChange={(e) => setField(r, k, e.target.value)} />
+          {problem && <span className="field-err" role="alert">⚠ Matches no one on the User Master</span>}
+        </>
+      );
+    };
 
   // ---- reset a forgotten password ------------------------------------------
   //
@@ -441,17 +501,19 @@ export function UserMasterView() {
     { key: 'gmail', header: 'Gmail', width: 180, wrap: false, render: cell('gmail', 'name@gmail.com') },
     { key: 'region', header: 'Region', width: 90, wrap: false, render: cell('region') },
     {
-      key: 'validity', header: 'Active', width: 90, wrap: false,
+      key: 'validity', header: DIRECTORY_ACTIVE, width: 120, wrap: false,
       render: (r) => (editing
         ? (
-          <SelectPicker value={draftOf(r).validity ? 'TRUE' : 'FALSE'}
-            onChange={(v) => setField(r, 'validity', v === 'TRUE')}
-            options={[{ value: 'TRUE', label: 'Yes' }, { value: 'FALSE', label: 'No' }]} />
+          <span title={DIRECTORY_ACTIVE_HINT}>
+            <SelectPicker value={draftOf(r).validity ? 'TRUE' : 'FALSE'}
+              onChange={(v) => setField(r, 'validity', v === 'TRUE')}
+              options={DIRECTORY_ACTIVE_OPTIONS} />
+          </span>
         )
-        : statusBadge(r.validity ? 'TRUE' : 'FALSE', VALIDITY_TONES)),
+        : <span title={DIRECTORY_ACTIVE_HINT}>{statusBadge(r.validity ? 'TRUE' : 'FALSE', VALIDITY_TONES)}</span>),
     },
-    { key: 'reporting_manager', header: 'Reporting Mgr', width: 150, render: cell('reporting_manager', 'RM name') },
-    { key: 'regional_manager', header: 'Regional Mgr', width: 150, render: cell('regional_manager', 'RGM name') },
+    { key: 'reporting_manager', header: 'Reporting Mgr', width: 170, render: managerCell('reporting_manager', 'Reporting Manager', 'RM name') },
+    { key: 'regional_manager', header: 'Regional Mgr', width: 170, render: managerCell('regional_manager', 'Regional Manager', 'RGM name') },
     { key: 'phone', header: 'Contact', width: 130, wrap: false, render: cell('phone') },
     { key: 'address', header: 'Address', width: 200, render: cell('address') },
     { key: 'city', header: 'City', width: 110, render: cell('city') },
@@ -597,6 +659,11 @@ export function UserMasterView() {
         </div>
       )}
 
+      {live && editing && (
+        <datalist id={MANAGER_LIST_ID}>
+          {dirNames.map((n) => <option key={n} value={n} />)}
+        </datalist>
+      )}
       {live ? (
         <DataTable<DirectoryRow & Record<string, unknown>>
           columns={liveColumns}
@@ -700,6 +767,7 @@ export function UserMasterView() {
             busy={busy}
             signedInRole={(profileByEmail.get(edit.email.trim().toLowerCase()) ?? profileByEmail.get(edit.gmail.trim().toLowerCase()))?.role}
             names={dirNames}
+            storedNames={namesWith(edit)}
             regions={dirRegions}
             departments={departments}
             roleOptions={roleOptions}
@@ -761,7 +829,8 @@ export function UserMasterView() {
           ['Air Liquide ID', r.email || '—'],
           ['Gmail', r.gmail || '—'],
           ['Region', r.region || '—'],
-          ['Active', r.validity ? 'Yes' : 'No'],
+          [DIRECTORY_ACTIVE, r.validity ? 'Yes — listed as active' : 'No — listed as inactive'],
+          ['Sign-in', !prof ? 'No login yet' : prof.active === false ? 'Disabled — cannot sign in' : 'Enabled — may sign in'],
           ['Reporting Manager', r.reporting_manager || '—'],
           ['Regional Manager', r.regional_manager || '—'],
           ['Contact', r.phone || '—'],
@@ -785,6 +854,7 @@ export function UserMasterView() {
                 {prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); setDataFor(prof); }}>📊 Data</button>}
                 {mayDisable && prof && (
                   <button className={`btn btn-sm ${prof.active === false ? '' : 'btn-danger'}`} disabled={busy}
+                    title={prof.active === false ? 'Let this login sign in again' : 'Stop this login signing in — the one control that decides sign-in; every record is kept'}
                     onClick={() => { setViewRow(null); void toggleActive(prof); }}>
                     {prof.active === false ? '🔓 Enable login' : '🔒 Disable login'}
                   </button>
@@ -947,8 +1017,11 @@ function DataViewDrawer({ user, onClose }: { user: User; onClose: () => void }) 
   );
 }
 
-function UserForm({ row, busy, signedInRole, names, regions, departments, roleOptions, renameNote, onChange, onCancel, onSave }: {
+function UserForm({ row, busy, signedInRole, names, storedNames, regions, departments, roleOptions, renameNote, onChange, onCancel, onSave }: {
   row: DirectoryRow; busy: boolean; signedInRole?: string;
+  /** Every User Master name AS STORED, this row's included as typed -- what a
+   *  manager name is tested against (FRS-171.4, src/lib/directorynames.ts). */
+  storedNames: string[];
   // What changing this person's name will and will not move (finding 23);
   // empty unless the name has changed.
   renameNote?: string;
@@ -973,8 +1046,15 @@ function UserForm({ row, busy, signedInRole, names, regions, departments, roleOp
   // A DATALIST, NOT A SELECT. A select would refuse anything not already in the
   // directory; this suggests and gets out of the way — the same shape the call
   // form uses for Party Name.
+  // A MANAGER NAME MATCHING NO ONE, said under its field before saving
+  // (FRS-171.4); save() then asks.
+  const problems: Partial<Record<keyof DirectoryRow, string>> = {
+    reporting_manager: managerNameProblem('Reporting Manager', row.reporting_manager, storedNames),
+    regional_manager: managerNameProblem('Regional Manager', row.regional_manager, storedNames),
+  };
   const field = (label: string, k: keyof DirectoryRow, placeholder = '', type = 'text', options?: string[]) => {
     const listId = options ? `dir-${String(k)}-list` : undefined;
+    const problem = problems[k] ?? '';
     return (
       <label className="rep-field">
         <span className="field-label">{label}</span>
@@ -985,7 +1065,9 @@ function UserForm({ row, busy, signedInRole, names, regions, departments, roleOp
             {options.map((o) => <option key={o} value={o} />)}
           </datalist>
         )}
-        {options && (
+        {problem
+          ? <span className="field-err" role="alert">⚠ {problem} You will be asked to confirm on Save.</span>
+          : options && (
           <span className="muted rep-hint">
             {options.length
               ? `${options.length.toLocaleString()} already in the directory — or type a new one.`
@@ -1021,10 +1103,11 @@ function UserForm({ row, busy, signedInRole, names, regions, departments, roleOp
             options={roleOptions} disabled={!mayAccess} />
         </label>
         <label className="rep-field">
-          <span className="field-label">Active</span>
+          <span className="field-label">{DIRECTORY_ACTIVE}</span>
           <SelectPicker value={row.validity ? 'TRUE' : 'FALSE'}
             onChange={(v) => set('validity', v === 'TRUE')}
-            options={[{ value: 'TRUE', label: 'Yes — may sign in' }, { value: 'FALSE', label: 'No' }]} />
+            options={DIRECTORY_ACTIVE_OPTIONS} />
+          <span className="muted rep-hint">{DIRECTORY_ACTIVE_HINT}</span>
         </label>
 
         {field('Reporting Manager (name)', 'reporting_manager', 'RM as named in this directory', 'text', names)}
@@ -1043,7 +1126,9 @@ function UserForm({ row, busy, signedInRole, names, regions, departments, roleOp
         The role decides what this person can open and do. Someone who has not signed in yet
         gets it the moment they do; if they have signed in already, saving applies it to their
         sign-in straight away. Reporting / Regional Manager are <b>names from this directory</b> —
-        they build the tree that decides whose calls each manager can see.
+        they build the tree that decides whose calls each manager can see, and who may approve an
+        Indoor DC; a name that matches no one is said before saving. <b>{DIRECTORY_ACTIVE}</b> is the
+        directory&rsquo;s flag and does not decide sign-in — only the login&rsquo;s 🔒 Disable login does.
         {signedInRole && row.role && signedInRole !== row.role && (
           <> Their sign-in currently carries <b>{roleLabel(signedInRole)}</b>.</>
         )}

@@ -64,6 +64,10 @@
 --   0339_stock_moves_only_within_what_is_held.sql
 --   0340_spare_request_fixed_once_decided.sql
 --   0335_master_key_changes_only_by_rename.sql
+--   0369_filed_under_own_name_unless_granted.sql
+--   0373_stock_movement_dates.sql
+--   0375_stock_transfer_own_or_team.sql
+--   0392_save_records_whole.sql
 --   0385_stores_dispatch_report.sql
 --   0387_stores_dispatch_2025_history.sql
 --   0388_stores_dispatch_2026_history.sql
@@ -6001,6 +6005,419 @@ begin
     end if;
   end loop;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0369_filed_under_own_name_unless_granted.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0369 — A VISIT, ITS SPARES AND A SPARE REQUEST ARE FILED UNDER YOUR OWN
+--        NAME, YOUR TEAM'S, OR ANYBODY'S ONLY WITH A KEY GIVEN FOR IT
+--        (second re-review D-125; the user's decision, 2026-10-04)
+--
+-- D-125: nothing compared the ENGINEER on a visit, a consumption line or a
+-- spare request with the person filing it. Measured: an engineer booked 2 off
+-- a third engineer's stock on a call allocated to somebody else (INSERT 1).
+-- And consumption_before_insert kept a created_by the caller sent, while
+-- created_by decides who may READ the line (cons_read) -- the same on
+-- material_returns and stock_transfers.
+--
+-- THE USER'S DECISION (2026-10-04):
+--   * A VISIT and its SPARES -- under your own name; an RM / RGM also for the
+--     engineers under them in the User Master ("Yes -- RM/RGM for their
+--     team"); anybody else only when given it per person in Extra Access
+--     ("Office Role Yes but not a generic one, i will add it for those Specific
+--     Ppl in the Extra Access. SAme for Consumption as well, reco is already
+--     controlled.") -> key visit.others, granted to NOBODY here.
+--   * A SPARE REQUEST -- "RM / RGM / NSM can add for their Subordinates +
+--     Admins + Technical Support" -> your own name, your team, or the key
+--     spare.request.others, given once to technical_support here (an
+--     administrator passes has_perm() for every key).
+--   "Your team" is visible_engineer_names(): the User Master tree below you
+--   by Reporting Manager and Regional Manager, yourself included. An NSM has
+--   a team where the directory names them as somebody's manager.
+--
+-- WHAT IS NOT STOPPED -- read from every writer first, not assumed:
+--   * RECONCILIATION consumption: already needs consumption.reconcile (cons_write).
+--   * IMPORTS: a holder of bulk.upload or import.panel loads history as filed.
+--   * FUNCTIONS THAT FILE FOR SOMEBODY BY DESIGN and check their own rights:
+--     approve_indoor_dc (the authoriser files the unit's drafted visit and
+--     spares), file_visit_for_spare_request (the request's visit), the rename
+--     carry and reassign_spare_request. They run as their owner, so
+--     current_user is not `authenticated` inside them -- measured on a built
+--     database: a direct INSERT sees `authenticated`, the same INSERT inside a
+--     SECURITY DEFINER function sees `postgres`. That is the test used here,
+--     which is why the guard function itself is SECURITY INVOKER.
+--   * An UPDATE that leaves the engineer as it was, and a blank engineer.
+--   * A connection with no session (the SQL editor, a restore).
+-- A spare request's engineer is checked on INSERT only: changing it is
+-- already Change engineer / a rename alone (0340).
+--
+-- created_by on spare_consumption, material_returns and stock_transfers is
+-- stamped from the session on INSERT -- the value sent is DISCARDED, the 0211
+-- rule -- except for an importer, whose history keeps what it says. No screen
+-- sends it today (read: supabase.ts, uploads.ts).
+--
+-- In the handstock module: every table it guards exists by then, and it sits
+-- beside stock_import_allowed()'s own rules (0339).
+-- ===========================================================================
+
+-- ---- 1. "is this name me?" ---------------------------------------------------
+-- The name as the profile carries it (what the screens default to) or as any
+-- User Master row with my email or gmail carries it (what the pickers list).
+create or replace function public.is_me(p_name text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce(btrim(p_name), '') <> ''
+     and (exists (select 1 from public.profiles p
+                   where p.id = auth.uid()
+                     and lower(btrim(p_name)) in (lower(btrim(coalesce(p.full_name, ''))),
+                                                  lower(btrim(coalesce(p.email, '')))))
+          or exists (select 1 from public.user_directory d
+                      where lower(btrim(d.name)) = lower(btrim(p_name))
+                        and (lower(coalesce(d.email, '')) = lower(coalesce(auth.email(), '-'))
+                             or lower(coalesce(d.gmail, '')) = lower(coalesce(auth.email(), '-')))))
+$$;
+revoke execute on function public.is_me(text) from public, anon;
+grant execute on function public.is_me(text) to authenticated;
+
+-- ---- 2. the guard -------------------------------------------------------------
+create or replace function public.filed_under_own_name()
+returns trigger language plpgsql security invoker set search_path = public as $$
+declare
+  v_key text;
+begin
+  if auth.uid() is null then return new; end if;                 -- no session
+  if current_user <> 'authenticated' then return new; end if;    -- a function filing by design
+  if btrim(coalesce(new.engineer, '')) = '' then return new; end if;
+  if tg_op = 'UPDATE' and lower(btrim(coalesce(new.engineer, '')))
+                          = lower(btrim(coalesce(old.engineer, ''))) then
+    return new;
+  end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+
+  if tg_table_name = 'spare_consumption' then
+    if coalesce(new.source, 'Report') = 'Reconciliation' then return new; end if;  -- cons_write's
+    v_key := 'visit.others';
+  elsif tg_table_name = 'reports' then
+    v_key := 'visit.others';
+  elsif tg_table_name = 'spare_requests' then
+    v_key := 'spare.request.others';
+  else
+    return new;
+  end if;
+
+  if public.is_me(new.engineer)
+     or lower(btrim(new.engineer)) in (select lower(btrim(v.n)) from public.visible_engineer_names() v(n))
+     or public.has_perm(v_key) then
+    return new;
+  end if;
+
+  raise exception '% is not you or an engineer in your team, so this % cannot be filed in their name (it needs "%", given per person in Extra Access)',
+    btrim(new.engineer),
+    case tg_table_name when 'spare_requests' then 'spare request'
+                       when 'reports' then 'visit' else 'spare consumption' end,
+    case v_key when 'visit.others' then 'Report a visit and its spares in another engineer''s name'
+               else 'Raise a spare request in any engineer''s name' end
+    using errcode = '42501';
+end $$;
+revoke execute on function public.filed_under_own_name() from public, anon, authenticated;
+
+drop trigger if exists filed_under_own_name on public.reports;
+create trigger filed_under_own_name
+  before insert or update of engineer on public.reports
+  for each row execute function public.filed_under_own_name();
+drop trigger if exists filed_under_own_name on public.spare_consumption;
+create trigger filed_under_own_name
+  before insert or update of engineer on public.spare_consumption
+  for each row execute function public.filed_under_own_name();
+drop trigger if exists filed_under_own_name on public.spare_requests;
+create trigger filed_under_own_name
+  before insert on public.spare_requests
+  for each row execute function public.filed_under_own_name();
+
+-- ---- 3. created_by is the session --------------------------------------------
+create or replace function public.created_by_is_the_session()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if current_user <> 'authenticated' then return new; end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+  new.created_by := auth.uid();
+  return new;
+end $$;
+revoke execute on function public.created_by_is_the_session() from public, anon, authenticated;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['spare_consumption', 'material_returns', 'stock_transfers'] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('drop trigger if exists a_created_by_is_the_session on public.%I', t);
+      execute format('create trigger a_created_by_is_the_session before insert on public.%I '
+                     'for each row execute function public.created_by_is_the_session()', t);
+    end if;
+  end loop;
+end $$;
+
+-- ---- 4. the keys --------------------------------------------------------------
+-- visit.others is given to nobody: the user ticks it per person. spare.request.
+-- others goes to Technical Support ONCE (the user named it); a re-run never
+-- hands it back to a role an administrator has taken it from.
+-- 0318's definition VERBATIM: on a fresh apply this bundle runs before
+-- sales_contracts, so whichever creates the table first must create the same one.
+create table if not exists public.one_time_fixes_done (
+  name       text primary key,
+  applied_at timestamptz not null default now(),
+  detail     text
+);
+alter table public.one_time_fixes_done enable row level security;
+revoke all on public.one_time_fixes_done from anon, authenticated;
+
+do $$
+begin
+  if not exists (select 1 from public.one_time_fixes_done where name = '0369_spare_request_others_to_technical_support') then
+    update public.app_roles
+       set permissions = coalesce(permissions, '[]'::jsonb) || '["spare.request.others"]'::jsonb
+     where role = 'technical_support'
+       and jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
+       and not (coalesce(permissions, '[]'::jsonb) ? 'spare.request.others');
+    insert into public.one_time_fixes_done (name, detail)
+    values ('0369_spare_request_others_to_technical_support', 'spare.request.others given to technical_support once');
+  end if;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0373_stock_movement_dates.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0373 — A STOCK TRANSFER OR RETURN IS NOT DATED INTO A CLOSED PERIOD OR THE
+--        FUTURE (second re-review D-050)
+--
+-- handstock_movements (0096) dates a transfer by transfer_date and a return by
+-- mrn_date, both typed on the form, and drops every movement dated before
+-- handstock_cutoff() -- right for a movement recorded BEFORE the period was
+-- closed, which the closing figure holds; but a movement recorded AFTER the
+-- close and dated before it is held by neither, so it moves stock that is then
+-- counted nowhere. Nothing refused such a date, nor one in the future.
+-- Now, for a signed-in caller who is not an importer (stock_import_allowed()'s
+-- rule, 0339): a transfer_date or mrn_date on or before the last closed day
+-- (handstock_period.closed_through, which handstock_cutoff() reads) or after
+-- today (India) is refused, on insert and on a change of the date. Imports
+-- load history as it was; with no period closed only the future is refused.
+-- In the handstock module, after 0369.
+-- ===========================================================================
+
+create or replace function public.stock_movement_date_open()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_date  date;
+  v_old   date;
+  v_closed date;
+  v_today date := (now() at time zone 'Asia/Kolkata')::date;
+  v_what  text;
+begin
+  if public.stock_import_allowed() then return new; end if;
+  -- The last closed day, as handstock_cutoff() reads it (its day after is the
+  -- first open one). No row, no period closed.
+  select hp.closed_through into v_closed from public.handstock_period hp limit 1;
+  if tg_table_name = 'stock_transfers' then
+    v_date := new.transfer_date; v_what := 'A stock transfer';
+    if tg_op = 'UPDATE' then v_old := old.transfer_date; end if;
+  else
+    v_date := new.mrn_date; v_what := 'A material return';
+    if tg_op = 'UPDATE' then v_old := old.mrn_date; end if;
+  end if;
+  if v_date is null or (tg_op = 'UPDATE' and v_date is not distinct from v_old) then return new; end if;
+  if v_date > v_today then
+    raise exception '% cannot be dated in the future (%)', v_what, to_char(v_date, 'DD-Mon-YYYY')
+      using errcode = '23514';
+  end if;
+  if v_closed is not null and v_date <= v_closed then
+    raise exception '% cannot be dated % -- hand stock is closed through %, so it would be counted nowhere',
+      v_what, to_char(v_date, 'DD-Mon-YYYY'), to_char(v_closed, 'DD-Mon-YYYY')
+      using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.stock_movement_date_open() from public, anon, authenticated;
+
+drop trigger if exists stock_movement_date_open on public.stock_transfers;
+create trigger stock_movement_date_open
+  before insert or update of transfer_date on public.stock_transfers
+  for each row execute function public.stock_movement_date_open();
+drop trigger if exists stock_movement_date_open on public.material_returns;
+create trigger stock_movement_date_open
+  before insert or update of mrn_date on public.material_returns
+  for each row execute function public.stock_movement_date_open();
+
+-- ------------------------------------------------------------------------
+-- 0375_stock_transfer_own_or_team.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0375 — STOCK IS TRANSFERRED FROM YOUR OWN HAND STOCK OR YOUR TEAM'S, TO A
+--        PERSON ON THE USER MASTER (second re-review D-049; the user, 2026-10-05)
+--
+-- st_insert (0020) is has_perm('stock.transfer') and nothing else, and From and
+-- To were free text: measured, an engineer holding the permission moved
+-- another engineer's stock to "NOBODY AT ALL" (INSERT 1); the stock guard
+-- checks only the From balance.
+-- THE USER'S DECISION: "Same rule as spares" (D-125, 0369) --
+--   * From: your own name, or an engineer below you in the User Master (by
+--     Reporting / Regional Manager, visible_engineer_names()); anybody else's
+--     only with the new key stock.transfer.others, given to NOBODY here (an
+--     administrator holds every key; tick it per role or per person);
+--   * To: a name on the User Master.
+-- Checked on INSERT; the header's engineers cannot change afterwards
+-- (stock_transfer_header_fixed). Not stopped: an import (bulk.upload /
+-- import.panel), a connection with no session, a function running as its
+-- owner (a User Master rename carries transfers by design).
+-- In the handstock module, after 0373 (is_me() is 0369's).
+-- ===========================================================================
+
+create or replace function public.stock_transfer_own_or_team()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if current_user <> 'authenticated' then return new; end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+
+  if not (public.is_me(new.from_engineer)
+          or lower(btrim(coalesce(new.from_engineer, ''))) in
+             (select lower(btrim(v.n)) from public.visible_engineer_names() v(n))
+          or public.has_perm('stock.transfer.others')) then
+    raise exception '% is not you or an engineer in your team, so their stock cannot be transferred by you (it needs "Transfer stock from any engineer")',
+      coalesce(nullif(btrim(new.from_engineer), ''), 'The From engineer') using errcode = '42501';
+  end if;
+
+  if not exists (select 1 from public.user_directory d
+                  where lower(btrim(d.name)) = lower(btrim(coalesce(new.to_engineer, '')))
+                    and btrim(coalesce(d.name, '')) <> '') then
+    raise exception '% is not a person on the User Master -- stock is transferred to somebody who is',
+      coalesce(nullif(btrim(new.to_engineer), ''), 'The To engineer') using errcode = '23503';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.stock_transfer_own_or_team() from public, anon, authenticated;
+drop trigger if exists stock_transfer_own_or_team on public.stock_transfers;
+create trigger stock_transfer_own_or_team
+  before insert on public.stock_transfers
+  for each row execute function public.stock_transfer_own_or_team();
+
+-- ------------------------------------------------------------------------
+-- 0392_save_records_whole.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0392 — A SPARE REQUEST, A STOCK TRANSFER AND A MATERIAL RETURN ARE SAVED
+--        WHOLE OR NOT AT ALL (second re-review D-044)
+--
+-- addSpareRequest, addStockTransfer and addMaterialReturn (supabase.ts) wrote a
+-- header (or the first row), then the lines in a second request, and on a
+-- failed line DELETED what they had written without checking the result.
+-- Measured on a database:
+--   * the engineer's own spare request delete is refused by the retention
+--     guard (0049), so a request with no lines stayed, its OR number consumed;
+--   * mr_delete admits only an administrator, so for anybody else the first
+--     return row stayed -- and it had already taken the stock off the engineer;
+--   * stock_transfers has no delete policy, so an empty transfer header stayed;
+-- and each screen reported the line error as though nothing had been saved.
+--
+-- The cure is not a delete that works: it is one transaction. Each function
+-- below writes the header and every line in ONE call, so a refused line rolls
+-- the header back with it and nothing is left half-saved. They are SECURITY
+-- INVOKER: they run as the caller, so every row-level policy, guard and stamp
+-- that applied to the two requests applies unchanged -- they add no right.
+-- Only the keys the caller sends are written; every other column keeps its
+-- default, and the numbers (uid, OR number, row numbers) are still the
+-- database's. The screens call these instead of the two requests.
+-- In the handstock module, before 0385 / 0384 (which must stay last).
+-- ===========================================================================
+
+-- The columns of a public table that a jsonb row names, quoted, for an insert
+-- that writes exactly those and leaves the rest to their defaults.
+create or replace function public.jsonb_columns_of(p_table text, p_row jsonb)
+returns text language sql stable security invoker set search_path = public as $$
+  select string_agg(quote_ident(k), ', ' order by k)
+    from jsonb_object_keys(coalesce(p_row, '{}'::jsonb)) k
+   where exists (select 1 from information_schema.columns c
+                  where c.table_schema = 'public' and c.table_name = p_table
+                    and c.column_name = k and c.is_generated = 'NEVER'
+                    and coalesce(c.identity_generation, '') <> 'ALWAYS')
+$$;
+revoke execute on function public.jsonb_columns_of(text, jsonb) from public, anon;
+grant execute on function public.jsonb_columns_of(text, jsonb) to authenticated;
+
+-- ---- a spare request and its lines ---------------------------------------------
+create or replace function public.save_spare_request(p_req jsonb, p_lines jsonb)
+returns jsonb language plpgsql security invoker set search_path = public as $$
+declare v_cols text; v_uid text; v_or text;
+begin
+  if jsonb_typeof(p_lines) is distinct from 'array' or jsonb_array_length(p_lines) = 0 then
+    raise exception 'A spare request needs at least one part' using errcode = '23514';
+  end if;
+  v_cols := public.jsonb_columns_of('spare_requests', p_req);
+  if v_cols is null then
+    raise exception 'A spare request needs its details' using errcode = '23514';
+  end if;
+  execute format('insert into public.spare_requests (%1$s) select %1$s from jsonb_populate_record(null::public.spare_requests, $1) returning uid, or_no', v_cols)
+    into v_uid, v_or using p_req;
+  -- RowNo is sent explicitly, as the screen did: every row of one insert fires
+  -- the numbering trigger against the same snapshot.
+  insert into public.spare_request_lines (request_uid, row_no, part, qty)
+  select v_uid, t.n, r.part, coalesce(r.qty, 1)
+    from jsonb_array_elements(p_lines) with ordinality t(x, n),
+         jsonb_populate_record(null::public.spare_request_lines, t.x) r;
+  return jsonb_build_object('uid', v_uid, 'or_no', v_or);
+end $$;
+revoke execute on function public.save_spare_request(jsonb, jsonb) from public, anon;
+grant execute on function public.save_spare_request(jsonb, jsonb) to authenticated;
+
+-- ---- a stock transfer and its lines ---------------------------------------------
+create or replace function public.save_stock_transfer(p_header jsonb, p_lines jsonb)
+returns text language plpgsql security invoker set search_path = public as $$
+declare v_cols text; v_uid text;
+begin
+  if jsonb_typeof(p_lines) is distinct from 'array' or jsonb_array_length(p_lines) = 0 then
+    raise exception 'A stock transfer needs at least one part' using errcode = '23514';
+  end if;
+  v_cols := public.jsonb_columns_of('stock_transfers', p_header);
+  if v_cols is null then
+    raise exception 'A stock transfer needs its engineers' using errcode = '23514';
+  end if;
+  execute format('insert into public.stock_transfers (%1$s) select %1$s from jsonb_populate_record(null::public.stock_transfers, $1) returning uid', v_cols)
+    into v_uid using p_header;
+  insert into public.stock_transfer_lines (transfer_uid, row_no, part, qty, reason)
+  select v_uid, t.n, r.part, r.qty, btrim(coalesce(r.reason, ''))
+    from jsonb_array_elements(p_lines) with ordinality t(x, n),
+         jsonb_populate_record(null::public.stock_transfer_lines, t.x) r;
+  return v_uid;
+end $$;
+revoke execute on function public.save_stock_transfer(jsonb, jsonb) from public, anon;
+grant execute on function public.save_stock_transfer(jsonb, jsonb) to authenticated;
+
+-- ---- a material return: one row per part, sharing the first row's uid -----------
+create or replace function public.save_material_return(p_header jsonb, p_lines jsonb)
+returns text language plpgsql security invoker set search_path = public as $$
+declare v_row jsonb; v_cols text; v_uid text; t record;
+begin
+  if jsonb_typeof(p_lines) is distinct from 'array' or jsonb_array_length(p_lines) = 0 then
+    raise exception 'A material return needs at least one part' using errcode = '23514';
+  end if;
+  for t in select x, n from jsonb_array_elements(p_lines) with ordinality u(x, n) order by n loop
+    v_row := coalesce(p_header, '{}'::jsonb) || t.x || jsonb_build_object('source', 'app');
+    if t.n > 1 then
+      v_row := v_row || jsonb_build_object('uid', v_uid, 'row_no', t.n);
+    end if;
+    v_cols := public.jsonb_columns_of('material_returns', v_row);
+    execute format('insert into public.material_returns (%1$s) select %1$s from jsonb_populate_record(null::public.material_returns, $1) returning uid', v_cols)
+      into v_uid using v_row;
+  end loop;
+  return v_uid;
+end $$;
+revoke execute on function public.save_material_return(jsonb, jsonb) from public, anon;
+grant execute on function public.save_material_return(jsonb, jsonb) to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0385_stores_dispatch_report.sql

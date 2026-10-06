@@ -15,14 +15,16 @@ import { ffrWritable } from './ffr';
 export { machineKey } from './machine';
 import { machineKey } from './machine';
 export { callFamily, callTable, type CallFamily } from './calltype';
-import { byColumnSet, planConsumptionVisits } from './uploads';
+import { byColumnSet, planConsumptionVisitUpload, planSpareLineParents, describeWrite, prepFailureMessage,
+  type UploadPlan } from './uploads';
 import { callFamily, callTable } from './calltype';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { manualMatchesCall } from './docmatch';
 import { masterValueApplies } from './dccr';
 import { callAging } from './aging';
-import { rankSerialHits } from './callrequest';
+import { rankSerialHits, reqidOrRefusal, NOTHING_SAVED } from './callrequest';
 import { manualReportLink } from './reports';
+import { guardFetch } from './previewGuard';
 
 const URL_KEY = 'rithi.supabase.url';
 const KEY_KEY = 'rithi.supabase.anon';
@@ -98,6 +100,12 @@ export function errMsg(e: { message?: string; code?: string } | null | undefined
   return m;
 }
 
+// "View as" writes nothing (D-069): EVERY client this module creates is given
+// this fetch, so every request it makes passes the preview guard, which refuses
+// anything not known to be a read. Late-bound, so it wraps whatever `fetch` is
+// at call time.
+const previewFetch = guardFetch((input, init) => fetch(input, init));
+
 let _client: SupabaseClient | null = null;
 export function getSupabase(): SupabaseClient | null {
   if (_client) return _client;
@@ -108,6 +116,7 @@ export function getSupabase(): SupabaseClient | null {
     // HashRouter, which would otherwise swallow the token fragment), so the
     // client is told not to race us for it.
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+    global: { fetch: previewFetch },
   });
   return _client;
 }
@@ -325,15 +334,18 @@ export async function pmLatestRegAt(month: string): Promise<string | null> {
   return v ? String(v) : null;
 }
 
-export interface AddResult { ok: boolean; ucn?: string; record?: Record<string, unknown>; error?: string }
+/** `offline` is true ONLY when the request never reached the database
+ *  (isNetworkFailure, D-032) — the one failure a screen may keep on the device
+ *  to send later. A refusal is an answer and is shown as one. */
+export interface AddResult { ok: boolean; ucn?: string; record?: Record<string, unknown>; error?: string; offline?: boolean }
 export async function addCall(rec: Record<string, unknown>): Promise<AddResult> {
   const c = must();
   const payload = callToDb(rec);
   delete payload.ucn; // server assigns via trigger
   // Insert without .single(): a genuine failure sets `error`; an RLS-hidden
   // returning just yields an empty array (the row was still inserted).
-  const { data, error } = await c.from('calls').insert(payload).select('*');
-  if (error) return { ok: false, error: error.message };
+  const { data, error, status } = await c.from('calls').insert(payload).select('*');
+  if (error) return { ok: false, error: errMsg(error), offline: isNetworkFailure(error, status) };
   const row = data?.[0];
   if (row) return { ok: true, ucn: String(row.ucn ?? ''), record: dbToCall(row) };
   // Returning hidden by RLS — read back the row we just created.
@@ -851,8 +863,11 @@ export async function addObjective(year: number, sort_order: number): Promise<{ 
 }
 
 export async function deleteObjective(id: number): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('quality_objectives').delete().eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // Row-level security refuses a delete with ZERO rows and no error, so a
+  // refused delete is told apart from a done one by counting what went (D-021).
+  const { data, error } = await must().from('quality_objectives').delete().eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  return (data ?? []).length ? { ok: true } : { ok: false, error: 'Nothing was deleted — your role may not delete this objective, or it is already gone.' };
 }
 
 export async function objectiveYears(): Promise<number[]> {
@@ -2073,34 +2088,23 @@ export async function addCallRequestBatch(base: Record<string, unknown>, items: 
   if (items.length === 0) return { ok: false, error: 'Add at least one call.' };
 
   // Mint the REQID first, then write every item in ONE insert — a request is
-  // never half-saved. `next_call_reqid` ships in migration 0007; without it we
-  // fall back to the older per-row path below.
+  // never half-saved (FRS-123.8). `next_call_reqid` ships in 0010.
+  //
+  // NO FALLBACK (D-030). There used to be one for a database without the
+  // function: insert call 1 alone, let a trigger mint its REQID, then insert the
+  // rest — two writes, so when the second failed call 1 stayed written and this
+  // returned ok: true with "Saved X (1 call)". The browser cannot make two
+  // inserts one, so when the number cannot be issued for the whole batch,
+  // nothing is written and the refusal says so (reqidOrRefusal, callrequest.ts).
   const { data: minted, error: mintErr } = await c.rpc('next_call_reqid');
-  if (!mintErr && minted) {
-    const reqid = String(minted);
-    const rows = items.map((it) => ({ ...base, reqid, ...itemCols(it) }));
-    const { error } = await c.from('call_requests').insert(rows);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, reqid, count: rows.length };
-  }
-
-  // Fallback: the first insert mints the REQID (DB trigger), the rest reuse it.
-  // This needs 0007's dropped `reqid` unique constraint for more than one item.
-  const first = { ...base, ...itemCols(items[0]) };
-  const { data, error } = await c.from('call_requests').insert(first).select('reqid').single();
-  if (error) return { ok: false, error: errMsg(error) };
-  const reqid = String(data.reqid ?? '');
-  if (items.length > 1) {
-    const rest = items.slice(1).map((it) => ({ ...base, reqid, ...itemCols(it) }));
-    const { error: e2 } = await c.from('call_requests').insert(rest);
-    if (e2) {
-      const hint = /call_requests_reqid_key/.test(e2.message ?? '')
-        ? ' Run migration 0010_call_request_items.sql — REQID must not be unique, a request has one row per call.'
-        : '';
-      return { ok: true, reqid, count: 1, error: `Saved ${reqid} (1 call); the other items failed: ${errMsg(e2)}.${hint}` };
-    }
-  }
-  return { ok: true, reqid, count: items.length };
+  const issued = reqidOrRefusal(minted, mintErr ? errMsg(mintErr) : null);
+  if (!issued.ok) return { ok: false, error: issued.error };
+  const reqid = issued.reqid;
+  const rows = items.map((it) => ({ ...base, reqid, ...itemCols(it) }));
+  // ONE statement: Postgres writes every row or none.
+  const { error } = await c.from('call_requests').insert(rows);
+  if (error) return { ok: false, error: `${errMsg(error)} — ${NOTHING_SAVED}; no call on this request was written.` };
+  return { ok: true, reqid, count: rows.length };
 }
 
 // Every call request, whatever its outcome — the Request Registration register.
@@ -2239,9 +2243,15 @@ export async function pendingInstallRequests(): Promise<PendingInstall[]> {
 // The database is what enforces the real rule: once a request has become a
 // call, 0232 freezes these sixteen columns, because the call carries them from
 // that moment and the call is what everything downstream reads.
+//
+// `email` IS NOT ON IT EITHER (D-030, FRS-124.4). It is the submitted-by
+// address -- who raised the request -- and `cr_read` grants visibility on it,
+// so correcting it could hand a request out of its raiser's sight or into
+// somebody else's. FRS-087.1 names the customer, the machine, the fault, the
+// engineer and the plan; the raiser is the database's to record (CR-028).
 // ---------------------------------------------------------------------------
 const CALL_REQUEST_EDITABLE: Record<string, string> = {
-  engineer: 'engineer', email: 'email', callType: 'call_type',
+  engineer: 'engineer', callType: 'call_type',
   partyName: 'party_name', state: 'state', city: 'city', address: 'address',
   product: 'product', serial: 'serial_no',
   standardComplaint: 'standard_complaint', reportedProblem: 'reported_problem',
@@ -2273,7 +2283,7 @@ export async function updateCallRequest(
   // never stored. Measured on a database built from every migration.
   //
   // COUNTED, NOT RETURNED. `.select()` would need the row to be readable AFTER
-  // the change, and `engineer`/`email` are correctable, so a manager moving a
+  // the change, and `engineer` is correctable, so a manager moving a
   // request to somebody outside his team would see a real save reported as a
   // failure. The count needs no read-back. A null count (the server sent none)
   // is left as success -- unknown is not the same as refused.
@@ -2377,7 +2387,7 @@ export async function listProductDatabaseV2(): Promise<Record<string, unknown>[]
 // the inequality runs the safe way: the screen can say "at least N of these
 // carry no model", never more than is true.
 // ---------------------------------------------------------------------------
-import type { RegisterCount } from './dberror';
+import { isNetworkFailure, type RegisterCount } from './dberror';
 import { todayLocal } from './dates';
 export type RegisterGap = RegisterCount & { register: string; table: string };
 
@@ -2475,10 +2485,19 @@ export async function listCallRequestsAsPending(): Promise<Record<string, unknow
 // Close a request out with a UCN: 'Registered' (a new call was created from it)
 // or 'Mapped' (it belongs to a call that already existed). Either way it leaves
 // the pending list, which only lists requests with no UCN.
+//
+// COUNTED, LIKE updateCallRequest (D-031). Row-level security refuses an
+// UPDATE by matching NO rows, which PostgREST reports as success — so a
+// request the reader may see but not write was reported "mapped" or
+// "cancelled" and stayed exactly as it was. Counted rather than read back for
+// updateCallRequest's reason; a null count (none sent) is left as success.
+export const CALL_REQUEST_NOT_SAVED = 'Nothing was saved — your role may not change this request, so it is still pending. '
+  + 'Hotline, or the person who raised it, can.';
 export async function setCallRequestUcn(id: number, ucn: string, status: 'Registered' | 'Mapped' = 'Registered', by = ''): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('call_requests')
-    .update({ ucn, status, actioned_by: by, actioned_at: new Date().toISOString() }).eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  const { error, count } = await must().from('call_requests')
+    .update({ ucn, status, actioned_by: by, actioned_at: new Date().toISOString() }, { count: 'exact' }).eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  return count === 0 ? { ok: false, error: CALL_REQUEST_NOT_SAVED } : { ok: true };
 }
 
 // UNMAP: a request mapped to the wrong call goes back to Pending (the user,
@@ -2498,9 +2517,20 @@ export async function unmapCallRequest(id: number): Promise<{ ok: boolean; error
 // Cancel a request — it stops being pending without ever becoming a call.
 export async function cancelCallRequest(id: number, reason: string, by = ''): Promise<{ ok: boolean; error?: string }> {
   const now = new Date().toISOString();
-  const { error } = await must().from('call_requests')
-    .update({ status: 'Cancelled', cancel_reason: reason, cancelled_at: now, actioned_by: by, actioned_at: now }).eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  const { error, count } = await must().from('call_requests')
+    .update({ status: 'Cancelled', cancel_reason: reason, cancelled_at: now, actioned_by: by, actioned_at: now }, { count: 'exact' }).eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  return count === 0 ? { ok: false, error: CALL_REQUEST_NOT_SAVED } : { ok: true };
+}
+
+/** Whether a call with this UCN exists AND the reader can see it — asked
+ *  before a request is mapped to a typed UCN (D-031). Throws on a failed read,
+ *  so "could not check" is never mistaken for "no such call". */
+export async function callExists(ucn: string): Promise<boolean> {
+  const { count, error } = await must().from('calls')
+    .select('ucn', { count: 'exact', head: true }).eq('ucn', ucn.trim());
+  if (error) throw new Error(errMsg(error));
+  return (count ?? 0) > 0;
 }
 
 // ---- call state / open calls ------------------------------------------------
@@ -2647,9 +2677,34 @@ export async function openCallsFor(machines: MachineRef[], parties: string[] = [
 
 // Re-open a closed call (Hotline). The DB checks the permission and that the
 // call really is closed, and counts the re-open on the call.
-export async function reopenCall(ucn: string, reason = ''): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().rpc('reopen_call', { p_ucn: ucn, p_reason: reason });
+// THE REASON IS REQUIRED (0411, D-035, FRS-133.4 / FRS-120.9): no default, and
+// a blank one is refused here in the database's own words before a round trip
+// -- reopen_call() refuses it too and records the reason, the person and the
+// time in public.call_reopens.
+export async function reopenCall(ucn: string, reason: string): Promise<{ ok: boolean; error?: string }> {
+  if (!String(reason ?? '').trim()) return { ok: false, error: `Give the reason for re-opening call ${ucn}` };
+  const { error } = await must().rpc('reopen_call', { p_ucn: ucn, p_reason: reason.trim() });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+/** One re-open of a call, as reopen_call() recorded it (0411). */
+export interface CallReopen { id: number; ucn: string; reopenedAt: string; reopenedBy: string; reopenedByName: string; reason: string }
+/** A call's re-opens, newest first (D-035, FRS-133.4). A failed read THROWS:
+ *  an empty list here reads as "never re-opened", which is a claim about the
+ *  call that an error must not make (the D-040 rule). */
+export async function listCallReopens(ucn: string): Promise<CallReopen[]> {
+  const key = String(ucn ?? '').trim();
+  if (!key) return [];
+  const { data, error } = await must().from('call_reopens')
+    .select('id,ucn,reopened_at,reopened_by,reopened_by_name,reason')
+    .eq('ucn', key)
+    .order('reopened_at', { ascending: false }).order('id', { ascending: false })
+    .limit(200);
+  if (error) throw new Error(errMsg(error));
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    id: Number(r.id), ucn: String(r.ucn ?? ''), reopenedAt: String(r.reopened_at ?? ''),
+    reopenedBy: String(r.reopened_by ?? ''), reopenedByName: String(r.reopened_by_name ?? ''), reason: String(r.reason ?? ''),
+  }));
 }
 
 // Withdraw a re-open (the call was re-opened only to correct it). The call
@@ -3578,9 +3633,24 @@ export async function updateMasterItem(id: number, patch: { value?: string; extr
   return { ok: true };
 }
 
+/** HOW MANY RECORDS CARRY ONE VALUE OF A LIST (0409, D-056, FRS-180.6) — asked
+ *  BEFORE a Delete is offered, so a value in use is deactivated instead. The
+ *  function counts as its owner, so the number is every record, not only the
+ *  ones the reader may see. A count that could not be read is an ERROR, never
+ *  0: 0 would offer the delete on exactly the value the count exists to stop
+ *  (the database still refuses it, 0409's trigger, and that refusal is shown). */
+export async function masterValueUses(name: string, value: string): Promise<{ ok: true; uses: number } | { ok: false; error: string }> {
+  const { data, error } = await must().rpc('master_value_uses', { p_name: name, p_value: value });
+  if (error) return { ok: false, error: errMsg(error) };
+  const n = Number(data);
+  return Number.isFinite(n) ? { ok: true, uses: n } : { ok: false, error: `master_value_uses returned ${JSON.stringify(data)}` };
+}
+
 export async function deleteMasterItem(id: number): Promise<{ ok: boolean; error?: string }> {
   // ROWS COUNTED: row-level security refuses a delete by matching nothing, and
-  // no error is not "removed" (finding 48).
+  // no error is not "removed" (finding 48). A value records carry is refused
+  // by the database (0409) in its own words, passed on VERBATIM -- it says how
+  // many records and to deactivate instead.
   const { data, error } = await must().from('masters').delete().eq('id', id).select('id');
   if (error) return { ok: false, error: errMsg(error) };
   if (!data || data.length === 0) return { ok: false, error: 'Nothing was removed — your role may not delete values from this list.' };
@@ -3787,28 +3857,36 @@ export async function refreshSpareRequestsFromCall(uids: string[]): Promise<{ ok
   return error ? { ok: false, error: errMsg(error) } : { ok: true, changed: Number(data ?? 0) };
 }
 
+/** THE MESSAGE FOR A FAILED ONE-TRANSACTION SAVE (0392, D-044). A refusal the
+ *  DATABASE answered (it carries a code -- a SQLSTATE or a PGRST code) rolled the
+ *  whole record back, so "nothing was saved" is true. A request that never got
+ *  an answer (no code: the network, a timeout) may or may not have committed,
+ *  and saying "nothing was saved" there would send somebody to save it twice. */
+function wholeSaveError(e: { message?: string; code?: string } | null | undefined): string {
+  return e?.code
+    ? `Nothing was saved: ${errMsg(e)}`
+    : `No answer from the database (${errMsg(e)}) — reload the register to see whether it was saved before trying again.`;
+}
+
 export async function addSpareRequest(
   req: Record<string, unknown>,
   lines: { part: string; qty: number }[],
 ): Promise<{ ok: boolean; uid?: string; orNo?: string; error?: string; visitError?: string }> {
   const c = must();
-  // or_no / or_req_date are assigned by the database (0011_spare_intake.sql).
-  const { data, error } = await c.from('spare_requests').insert(req).select('uid, or_no').single();
-  if (error) return { ok: false, error: errMsg(error) };
-  const uid = String(data.uid);
-  const orNo = String(data.or_no ?? '');
-  if (lines.length) {
-    // RowNo is sent explicitly: every row of one multi-row insert fires the
-    // trigger against the same snapshot, so a max()+1 default would hand the
-    // whole batch the same number. The trigger stays as the fallback.
-    const { error: le } = await c.from('spare_request_lines')
-      .insert(lines.map((l, i) => ({ request_uid: uid, row_no: i + 1, part: l.part, qty: l.qty })));
-    if (le) {
-      // The lines are the request; a header with none is not a usable record.
-      await c.from('spare_requests').delete().eq('uid', uid);
-      return { ok: false, error: errMsg(le) };
-    }
-  }
+  // THE REQUEST AND ITS LINES IN ONE TRANSACTION (0392, D-044). It used to be
+  // two requests with a clean-up DELETE of the header when the lines failed --
+  // a delete the retention guard (0049) refuses, unchecked, so a request with
+  // no lines stayed behind with its OR number consumed. save_spare_request()
+  // runs as the caller (RLS and triggers unchanged) and writes both or neither.
+  // or_no / or_req_date and the row numbers (1..n) are the database's.
+  const { data, error } = await c.rpc('save_spare_request', {
+    p_req: req, p_lines: lines.map((l) => ({ part: l.part, qty: l.qty })),
+  });
+  if (error) return { ok: false, error: wholeSaveError(error) };
+  const saved = (data ?? {}) as { uid?: unknown; or_no?: unknown };
+  const uid = String(saved.uid ?? '');
+  const orNo = String(saved.or_no ?? '');
+  if (!uid) return { ok: false, error: 'The database returned no request reference — reload the register to see whether it was saved.' };
   // A call with no visit yet gets one: Unsolved, "spare not available",
   // Update Visit Work Details = No (0333). Only now, once the lines are in, so
   // a request that failed to save never turns its call Unsolved. The database
@@ -3891,27 +3969,22 @@ export async function listAllStock(cap = 5000): Promise<StockRow[]> {
 export async function addStockTransfer(
   from: string, to: string, lines: { part: string; qty: number; reason?: string }[], remarks = '', on?: string,
 ): Promise<{ ok: boolean; uid?: string; error?: string }> {
-  const c = must();
-  // uid / row_no are assigned by the database.
-  const { data, error } = await c.from('stock_transfers')
-    .insert({ from_engineer: from.trim(), to_engineer: to.trim(), remarks, ...(on ? { transfer_date: on } : {}) })
-    .select('uid').single();
-  if (error) return { ok: false, error: errMsg(error) };
-  const uid = String(data.uid);
+  // THE HEADER AND ITS LINES IN ONE TRANSACTION (0392, D-044). The clean-up
+  // DELETE this replaced matched nothing -- stock_transfers has no delete
+  // policy -- so every refused transfer left an empty header. uid / row_no
+  // (1..n) are assigned by the database; it runs as the caller.
   // The per-line reason is OPTIONAL (0322). It is sent on EVERY line once ANY
-  // line has one (D-113): a bulk insert lists the union of the rows' keys, so a
-  // line without the key was written NULL into a NOT NULL column and the whole
-  // transfer was refused. A transfer with no reasons at all still sends none.
+  // line has one (D-113); the function also writes '' for a line without one,
+  // so a NULL can no longer reach the NOT NULL column either way.
   const anyReason = lines.some((l) => !!l.reason?.trim());
-  const { error: le } = await c.from('stock_transfer_lines')
-    .insert(lines.map((l, i) => ({ transfer_uid: uid, row_no: i + 1, part: l.part, qty: l.qty,
-                                   ...(anyReason ? { reason: (l.reason ?? '').trim() } : {}) })));
-  if (le) {
-    // The lines are the transfer; a header alone is not a usable record. The
-    // stock check rejects the whole insert, so nothing moved.
-    await c.from('stock_transfers').delete().eq('uid', uid);
-    return { ok: false, error: errMsg(le) };
-  }
+  const { data, error } = await must().rpc('save_stock_transfer', {
+    p_header: { from_engineer: from.trim(), to_engineer: to.trim(), remarks, ...(on ? { transfer_date: on } : {}) },
+    p_lines: lines.map((l) => ({ part: l.part, qty: l.qty,
+                                 ...(anyReason ? { reason: (l.reason ?? '').trim() } : {}) })),
+  });
+  if (error) return { ok: false, error: wholeSaveError(error) };
+  const uid = String(data ?? '');
+  if (!uid) return { ok: false, error: 'The database returned no transfer number — reload the register to see whether it was saved.' };
   return { ok: true, uid };
 }
 
@@ -4316,6 +4389,10 @@ export async function serviceReportForCall(ucn: string, callNumber = ''): Promis
   return (await pick('ucn', ucn)) ?? (callNumber && callNumber !== ucn ? await pick('call_number', callNumber) : null);
 }
 
+// A FAILED READ THROWS, in all three below as in reportsByCall (D-040). They
+// returned [] on an error, so CallAssociations' "could not be read" banner
+// could never fire and a refused read showed "no spares" / "no feedback" — a
+// claim about the call, made by an error. Every caller catches.
 export async function spareRequestsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
     // `or_no` IS THE OR NUMBER and it was not selected, so the call's spares
@@ -4325,7 +4402,7 @@ export async function spareRequestsByCall(callNumber: string): Promise<Record<st
     // so it is the one identifier on this row somebody can act on.
     .select('*, spare_requests!inner(uid, or_no, call_number, req_type, status, engineer, item_status, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, received_at, created_at)')
     .eq('spare_requests.call_number', callNumber).order('created_at', { ascending: false }).limit(200);
-  if (error) return [];
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => {
     const { spare_requests: req, ...line } = r as Record<string, unknown> & { spare_requests?: Record<string, unknown> };
     // Approvals / dispatch are PER LINE (0016), so the line's workflow columns
@@ -4340,12 +4417,12 @@ export async function spareRequestsByCall(callNumber: string): Promise<Record<st
 }
 export async function spareConsumptionByCall(callNumber: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_consumption').select('*').eq('call_number', callNumber).order('created_at', { ascending: false }).limit(200);
-  if (error) return [];
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 export async function feedbackByCall(callNumber: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('feedback').select('*').eq('call_number', callNumber).order('created_at', { ascending: false }).limit(50);
-  if (error) return [];
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 
@@ -4361,23 +4438,17 @@ export async function addMaterialReturn(
   header: { mrn_no: string; mrn_date?: string; engineer: string; engineer_email?: string; remarks?: string },
   lines: MrnLineInput[],
 ): Promise<{ ok: boolean; uid?: string; error?: string }> {
-  const c = must();
-  // The uid and row numbers are assigned by the database. Ask for the first
-  // row's uid so every line of one submission shares it.
-  const first = { ...header, ...lines[0], source: 'app' };
-  const { data, error } = await c.from('material_returns').insert(first).select('uid').single();
-  if (error) return { ok: false, error: errMsg(error) };
-  const uid = String(data.uid);
-  if (lines.length > 1) {
-    const { error: le } = await c.from('material_returns')
-      .insert(lines.slice(1).map((l, i) => ({ ...header, ...l, uid, row_no: i + 2, source: 'app' })));
-    if (le) {
-      // The stock check runs per row, so a rejected line leaves the rest
-      // standing — take the whole submission back out rather than half of it.
-      await c.from('material_returns').delete().eq('uid', uid);
-      return { ok: false, error: errMsg(le) };
-    }
-  }
+  // EVERY LINE IN ONE TRANSACTION (0392, D-044). The clean-up DELETE this
+  // replaced matched nothing for anybody but an administrator (mr_delete), so a
+  // refused second line left the first standing -- with the stock already off
+  // the engineer. save_material_return() writes each row as header ∪ line ∪
+  // {source:'app'}, lines 2..n sharing the first row's uid with row_no = their
+  // position; it runs as the caller, so the stock check (0039) applies per row
+  // and a refusal rolls the whole return back.
+  const { data, error } = await must().rpc('save_material_return', { p_header: header, p_lines: lines });
+  if (error) return { ok: false, error: wholeSaveError(error) };
+  const uid = String(data ?? '');
+  if (!uid) return { ok: false, error: 'The database returned no return reference — reload the register to see whether it was saved.' };
   return { ok: true, uid };
 }
 export async function listMaterialReturns(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
@@ -4539,9 +4610,28 @@ export async function addConsumptionRows(rows: Record<string, unknown>[]): Promi
   const { error } = await must().from('spare_consumption').insert(rows);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
-export async function addFeedback(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+/** `duplicate` — the call ALREADY carries its feedback: `feedback_ucn_key_uniq`
+ *  (0186/0188) keeps one per UCN, and a re-opened call solved again must keep
+ *  the first (FRS-133.6), so the caller reports that rather than a failure. */
+export async function addFeedback(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string; duplicate?: boolean }> {
   const { error } = await must().from('feedback').insert(row);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  if (!error) return { ok: true };
+  return { ok: false, error: errMsg(error), duplicate: error.code === '23505' };
+}
+
+/** THE FEEDBACK A CALL ALREADY CARRIES, or null (D-035, FRS-133.6). Matched on
+ *  `ucn_key` -- the generated lower(btrim(ucn)) the one-per-call index is built
+ *  on (0186/0188) -- so this answers exactly the question the index will. A
+ *  failed read THROWS: null would mean "no feedback yet" and the form would
+ *  ask for a second one. */
+export async function feedbackOnCall(ucn: string): Promise<{ id: number; createdAt: string; visitAt: string } | null> {
+  const key = String(ucn ?? '').trim().toLowerCase();
+  if (!key) return null;
+  const { data, error } = await must().from('feedback').select('id,created_at,visit_at')
+    .eq('ucn_key', key).order('id', { ascending: false }).limit(1);
+  if (error) throw new Error(errMsg(error));
+  const r = (data ?? [])[0] as Record<string, unknown> | undefined;
+  return r ? { id: Number(r.id), createdAt: String(r.created_at ?? ''), visitAt: String(r.visit_at ?? '') } : null;
 }
 
 // ---- auth (email + password) ----------------------------------------------
@@ -4583,6 +4673,9 @@ export async function sbAdminCreateUser(input: { email: string; fullName: string
   const { url, anon } = getSupabaseCreds();
   const tmp = createClient(url, anon, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'rithi-provision' },
+    // The guard refuses signup during a preview (D-069) — the profile write
+    // after it would be refused anyway, leaving a login with no profile.
+    global: { fetch: previewFetch },
   });
   const { data, error } = await tmp.auth.signUp({
     email, password, options: { data: { full_name: input.fullName.trim() } },
@@ -4975,11 +5068,26 @@ export async function listAdditionalEntries(serial = ''): Promise<AdditionalEntr
     return q.range(a, b);
   }, 20000);
 }
-// Upserts on the machine: a second entry for a serial is a CORRECTION of the
+// Upserts on the machine: a second entry for a machine is a CORRECTION of the
 // first, not another record.
+//
+// THE MACHINE IS ITS MODEL AND ITS SERIAL (D-054). This upserted on
+// `serial_number`, and 0185 dropped the serial-only key for `machine_key` --
+// lower(btrim(item_name)) || '|' || lower(btrim(serial_number)), GENERATED and
+// STORED, unique -- so every save from the screen was refused with "no unique
+// or exclusion constraint matching the ON CONFLICT specification". It now
+// names the key the bulk load uses. `machine_key` itself is never sent: a
+// generated column refuses a value, and Postgres works it out from the two
+// columns that are. Both are required, because a blank model is half a key --
+// it would make every machine sharing that serial the same row.
 export async function saveAdditionalEntry(e: Partial<AdditionalEntry>): Promise<{ ok: boolean; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
-  const { error } = await c.from('product_additional_entries').upsert(e, { onConflict: 'serial_number' });
+  const item_name = String(e.item_name ?? '').trim();
+  const serial_number = String(e.serial_number ?? '').trim();
+  if (!item_name) return { ok: false, error: 'Give the machine model — a serial alone does not name one machine.' };
+  if (!serial_number) return { ok: false, error: 'Give the machine serial number.' };
+  const { error } = await c.from('product_additional_entries')
+    .upsert({ ...e, item_name, serial_number }, { onConflict: 'machine_key' });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
@@ -5004,6 +5112,8 @@ export async function saveAdditionalEntry(e: Partial<AdditionalEntry>): Promise<
 //   2. of the rest, which are here under a DIFFERENT uid — matched on the OR
 //      number, which is what the line actually names — and point the line at it;
 //   3. create what is genuinely missing, marked as created from a line.
+// 1 and 2 are READS, done by planUpload before the confirmation; 3 is a WRITE,
+// done by applyUploadPlan only after the operator presses OK (D-075).
 //
 // Every one of those is a separate statement, so the parents are plainly there
 // by the time the lines go up. The upload then works whatever the database has
@@ -5011,12 +5121,21 @@ export async function saveAdditionalEntry(e: Partial<AdditionalEntry>): Promise<
 // ---------------------------------------------------------------------------
 const IN_CHUNK = 200;   // keeps the request URL well inside every gateway's limit
 
-export async function prepareUpload(
+// READS ONLY (D-075). Nothing here may write: the plan is what the confirmation
+// shows, and pressing Cancel there must leave the database exactly as it was.
+// What has to be written first is RETURNED as `plan.writes` and done by
+// `applyUploadPlan` below, after OK. `check:ui` refuses a write in this body.
+// The caller's rows are never modified: the plan's rows are new objects, so a
+// Cancel and a second Upload plan again from the file as it was read.
+export async function planUpload(
   kind: 'spare-line-parents' | 'stock-transfer-parents' | 'handstock-engineers'
     | 'consumption-visits' | 'complaint-keys',
-  rows: Record<string, unknown>[],
-): Promise<{ ok: boolean; note?: string; error?: string }> {
+  input: Record<string, unknown>[],
+): Promise<{ ok: boolean; plan?: UploadPlan; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  const rows = input.map((r) => ({ ...r }));
+  const plain = (keep: Record<string, unknown>[], note = ''): { ok: true; plan: UploadPlan } =>
+    ({ ok: true, plan: { rows: keep, writes: [], note } });
 
   // ---- A STANDARD COMPLAINT IS MATCHED BY ITS KEY, AND NEVER RENAMED -------
   // (the user, 2026-09-29). The whole list is read -- PAGED, since a complaint
@@ -5033,8 +5152,7 @@ export async function prepareUpload(
           extra: (r.extra ?? {}) as Record<string, unknown> }));
     } catch (e) { return { ok: false, error: `Could not read the Standard Complaint list: ${e instanceof Error ? e.message : String(e)}` }; }
     const plan = planComplaintKeys(rows, existing);
-    rows.splice(0, rows.length, ...plan.rows);
-    return { ok: true, note: plan.note };
+    return plain(plan.rows, plan.note);
   }
 
   // ---- A SPARE NEEDS A VISIT, AND THE FILE USUALLY SAYS WHAT IT WAS -------
@@ -5045,10 +5163,10 @@ export async function prepareUpload(
   // `Visit Date & Time` is mapped onto `created_at` by this upload already, and
   // `Visit Entry Date` falls into `data` with the other unmapped headings.
   //
-  // So the visit is FILED FIRST, from the file's own values. Nothing is
-  // invented -- a UCN the file gives no date for keeps no visit, and its rows
-  // are held back BY NAME so the rest of the file still loads. That is the
-  // whole gain over the database's refusal, which could only stop everything.
+  // So the visit is FILED FIRST, from the file's own values -- after the
+  // confirmation, by applyUploadPlan. Nothing is invented -- a UCN the file
+  // gives no date for keeps no visit, and its rows are held back BY NAME so the
+  // rest of the file still loads.
   //
   // THE UID CONVENTION IS `REPORT_COLS`' OWN, character for character:
   // `IMP-<ucn>-<yyyymmddhhmmss>`. Loading the same data through Bulk Uploads ->
@@ -5056,7 +5174,7 @@ export async function prepareUpload(
   // same call on the same day, and re-running either is idempotent.
   if (kind === 'consumption-visits') {
     const ucns = [...new Set(rows.map((r) => String(r.ucn ?? '').trim()).filter(Boolean))];
-    if (!ucns.length) return { ok: true };
+    if (!ucns.length) return plain(rows);
 
     // Which calls already have a visit. Chunked like every other `in` here.
     const have = new Set<string>();
@@ -5065,22 +5183,9 @@ export async function prepareUpload(
       if (error) return { ok: false, error: `Could not read the visits: ${errMsg(error)}` };
       (data ?? []).forEach((r) => have.add(String(r.ucn ?? '').trim()));
     }
-
     // WHAT to write and what to hold back is decided in `uploads.ts`, where a
-    // node script can import it and `check:uploads` can prove it. Only the two
-    // round trips are here.
-    const plan = planConsumptionVisits(rows, have);
-
-    for (let i = 0; i < plan.visits.length; i += 200) {
-      const { error } = await c.from('reports')
-        .upsert(plan.visits.slice(i, i + 200), { onConflict: 'uid' });
-      if (error) return { ok: false, error: `Could not file the visits these spares belong to: ${errMsg(error)}` };
-    }
-
-    for (let i = rows.length - 1; i >= 0; i -= 1) {
-      if (plan.holdBack.has(String(rows[i].ucn ?? '').trim())) rows.splice(i, 1);
-    }
-    return { ok: true, note: plan.note || undefined };
+    // node script can import it and `check:uploads` can prove it.
+    return { ok: true, plan: planConsumptionVisitUpload(rows, have) };
   }
 
   // ---- Hand stock belongs to an ACTIVE ENGINEER ---------------------------
@@ -5114,16 +5219,17 @@ export async function prepareUpload(
       return { ok: false, error: 'The User Master has no active users on this project, so every row would be held back. Load the User Master first.' };
     }
     const dropped = new Set<string>();
-    for (let i = rows.length - 1; i >= 0; i -= 1) {
-      const name = String(rows[i].engineer ?? '').trim();
-      if (!active.has(name.toLowerCase())) { dropped.add(name || '(blank)'); rows.splice(i, 1); }
-    }
-    if (!dropped.size) return { ok: true };
+    const keep = rows.filter((r) => {
+      const name = String(r.engineer ?? '').trim();
+      if (active.has(name.toLowerCase())) return true;
+      dropped.add(name || '(blank)'); return false;
+    });
+    if (!dropped.size) return plain(keep);
     const shown = [...dropped].sort().slice(0, 6).join(', ');
-    return { ok: true, note:
+    return plain(keep,
       `${dropped.size} name${dropped.size === 1 ? '' : 's'} held back — not an active user in the User Master`
       + ` (${shown}${dropped.size > 6 ? `, and ${dropped.size - 6} more` : ''}).`
-      + ' Hand stock is what an ENGINEER carries, so a dealer or a former user is left out.' };
+      + ' Hand stock is what an ENGINEER carries, so a dealer or a former user is left out.');
   }
 
   // A stock transfer cannot be invented from its lines — its from / to and date
@@ -5133,41 +5239,29 @@ export async function prepareUpload(
   // came with them and failed the first batch of 500.
   if (kind === 'stock-transfer-parents') {
     const wanted = [...new Set(rows.map((r) => String(r.transfer_uid ?? '').trim()).filter(Boolean))];
-    if (!wanted.length) return { ok: true };
+    if (!wanted.length) return plain(rows);
     const here = new Set<string>();
     for (let i = 0; i < wanted.length; i += IN_CHUNK) {
       const { data, error } = await c.from('stock_transfers').select('uid').in('uid', wanted.slice(i, i + IN_CHUNK));
       if (error) return { ok: false, error: `Could not read the stock transfers: ${errMsg(error)}` };
       (data ?? []).forEach((r) => here.add(String(r.uid)));
     }
-    let dropped = 0;
-    for (let i = rows.length - 1; i >= 0; i -= 1) {
-      if (!here.has(String(rows[i].transfer_uid ?? ''))) { rows.splice(i, 1); dropped += 1; }
-    }
-    return { ok: true, note: dropped
+    const keep = rows.filter((r) => here.has(String(r.transfer_uid ?? '')));
+    const dropped = rows.length - keep.length;
+    return plain(keep, dropped
       ? `${dropped} line${dropped === 1 ? '' : 's'} held back — their transfer is not in the register (load Stock Transfer Register first, or it was held back there).`
-      : undefined };
+      : '');
   }
 
-  if (kind !== 'spare-line-parents') return { ok: true };
+  if (kind !== 'spare-line-parents') return plain(rows);
 
-  // RowNo is the part's position within its request. The export does not carry
-  // one, and the database's own numbering asks `max(row_no) + 1` from a BEFORE
-  // trigger — which cannot see the rows the same insert is writing, so a whole
-  // batch would come out as row 1. Number them here, from the order the file
-  // itself puts them in, which is also the same on every re-run.
-  const seen = new Map<string, number>();
-  rows.forEach((r) => {
-    if (r.row_no !== undefined && r.row_no !== null && r.row_no !== '') return;
-    const key = String(r.request_uid ?? '');
-    const n = (seen.get(key) ?? 0) + 1;
-    seen.set(key, n);
-    r.row_no = n;
-  });
-
+  // The spare LINES export names its request by OR number and nothing else, and
+  // the header export does not go back as far as the lines do — 58 of the OR
+  // numbers on 8,675 lines are in neither file. Which requests are here, by uid
+  // and then by OR number, is READ here; numbering the lines, re-pointing them
+  // and which stub requests to create is decided by planSpareLineParents() in
+  // uploads.ts, and the stubs are written by applyUploadPlan after OK.
   const wanted = [...new Set(rows.map((r) => String(r.request_uid ?? '').trim()).filter(Boolean))];
-  if (!wanted.length) return { ok: true };
-
   const chunks = <T,>(a: T[]) => Array.from({ length: Math.ceil(a.length / IN_CHUNK) },
     (_, i) => a.slice(i * IN_CHUNK, i * IN_CHUNK + IN_CHUNK));
 
@@ -5178,46 +5272,45 @@ export async function prepareUpload(
     if (error) return { ok: false, error: `Could not read the spare requests: ${errMsg(error)}` };
     (data ?? []).forEach((r) => here.add(String(r.uid)));
   }
-  const missing = wanted.filter((u) => !here.has(u));
-  if (!missing.length) return { ok: true };
-
   // 2. Here under a different uid — the OR number is what the line names.
   const byOrNo = new Map<string, string>();
-  for (const part of chunks(missing)) {
+  for (const part of chunks(wanted.filter((u) => !here.has(u)))) {
     const { data, error } = await c.from('spare_requests').select('uid,or_no').in('or_no', part);
     if (error) return { ok: false, error: `Could not read the spare requests: ${errMsg(error)}` };
     (data ?? []).forEach((r) => { if (r.or_no) byOrNo.set(String(r.or_no), String(r.uid)); });
   }
-  let repointed = 0;
-  if (byOrNo.size) {
-    rows.forEach((r) => {
-      const held = byOrNo.get(String(r.request_uid ?? ''));
-      if (held) { r.request_uid = held; repointed += 1; }
-    });
-  }
+  return { ok: true, plan: planSpareLineParents(rows, here, byOrNo) };
+}
 
-  // 3. What is in neither file gets a request, MARKED as one — the gap stays
-  //    visible in the register instead of costing the whole load.
-  const orphans = missing.filter((u) => !byOrNo.has(u));
-  if (orphans.length) {
-    const stubs = orphans.map((uid) => ({
-      uid, or_no: uid, req_type: 'Call Based', status: 'Imported',
-      remarks: 'Created from an imported spare line — the request header was not in the export.',
-    }));
-    for (const part of chunks(stubs)) {
-      const { error } = await c.from('spare_requests').upsert(part, { onConflict: 'uid', ignoreDuplicates: true });
+// ---------------------------------------------------------------------------
+// THE PLAN'S WRITES, AFTER THE CONFIRMATION (D-075).
+//
+// Called only once the operator has pressed OK, immediately before the rows go
+// up. Each write is its own statement, so the parents are plainly there by the
+// time the rows that point at them are written -- a trigger's insert would be
+// INVISIBLE to the command inserting the line, which is why this is not a
+// trigger. If any of it fails the caller must NOT upload, and the message says,
+// write by write, what was written and what was not.
+// ---------------------------------------------------------------------------
+export async function applyUploadPlan(
+  plan: UploadPlan,
+): Promise<{ ok: boolean; done: string; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, done: '', error: 'Database not connected — nothing was written.' };
+  const writes = plan.writes.filter((w) => w.rows.length);
+  const sent = writes.map(() => 0);
+  for (const [wi, w] of writes.entries()) {
+    for (let i = 0; i < w.rows.length; i += IN_CHUNK) {
+      const part = w.rows.slice(i, i + IN_CHUNK);
+      const { error } = await c.from(w.table).upsert(part,
+        { onConflict: w.onConflict, ...(w.ignoreDuplicates ? { ignoreDuplicates: true } : {}) });
       if (error) {
-        return { ok: false,
-          error: `${errMsg(error)} — ${orphans.length} of these lines name a request that is not in the header export,`
-            + ' and creating it was refused. Load the Spare Request file first, or ask an administrator to run this one.' };
+        return { ok: false, done: '',
+          error: prepFailureMessage(writes, sent, `Could not write ${describeWrite(w, part.length)}: ${errMsg(error)}`, plan.rows.length) };
       }
+      sent[wi] += part.length;
     }
   }
-  const bits = [
-    orphans.length ? `${orphans.length} request${orphans.length === 1 ? '' : 's'} created for lines whose request was not in the header export` : '',
-    repointed ? `${repointed} line${repointed === 1 ? '' : 's'} pointed at the request already holding that OR number` : '',
-  ].filter(Boolean);
-  return { ok: true, note: bits.join('; ') };
+  return { ok: true, done: writes.map((w) => describeWrite(w)).join('; ') };
 }
 
 export async function uploadRows(
@@ -5962,6 +6055,8 @@ export interface IndoorJob {
   call_status?: string;
   call_pending_reason?: string;
   reported_to_customer_at: string | null;
+  /** Who recorded the damage report to the owner — the database's (0412). */
+  reported_to_customer_by: string | null;
   // Rework (§8.3.4)
   nc_reference: string;
   rework_instruction: string;
@@ -6132,6 +6227,10 @@ export async function saveIndoorJob(
     'condition_on_arrival', 'tag_no', 'status',
     'cleaning_wi', 'cleaning_wi_rev', 'work_done', 'findings',
     'qc_result', 'qc_notes', 'dispatch_ref', 'damage_note',
+    // When the damage was reported to the owner (D-039, FRS-143.9). WHO is not
+    // here: the database stamps reported_to_customer_by from the session when
+    // this changes, and clears it when this is cleared (0412).
+    'reported_to_customer_at',
     'nc_reference', 'rework_instruction', 'rework_instruction_rev',
     'rework_authorised_by', 'rework_authorised_at', 'adverse_effect_assessed',
     'adverse_effect_note', 'reverified_by', 'reverified_at',
@@ -6150,7 +6249,7 @@ export async function saveIndoorJob(
     'indoor_report_no', 'dc_date', 'remarks', 'cover',
     // The stages (0323). The report FILE and its stamps are not here: the
     // upload is saveIndoorReport(), and the database stamps who and when.
-    // visit_uid / visit_filed_at are recordIndoorVisit()'s.
+    // visit_uid / visit_filed_at are the DC approval's (0327, 0404).
     'standard_complaint',
   ] as const;
   const rest = Object.fromEntries(
@@ -6161,17 +6260,29 @@ export async function saveIndoorJob(
   return { ok: true };
 }
 
-/** Marking the unit cleaned (4.5.3). `cleaned_by` is sent because the trigger
- *  only stamps a time once somebody is named — the WI and its revision are what
- *  make the record mean anything. */
+/** Marking the unit cleaned (4.5.3) — the WI and its revision are what make the
+ *  record mean anything.
+ *
+ *  `cleaned_by` IS NOT SENT (D-039, FRS-143.6). The database writes who cleaned
+ *  it from the session whenever `cleaned_at` is set (0363), discarding whatever
+ *  the browser names; sending an id from here only made the record look as if
+ *  the browser decided it. */
 export async function markIndoorCleaned(
-  id: number, wi: string, rev: string, uid: string,
+  id: number, wi: string, rev: string, when?: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('indoor_jobs')
-    .update({ cleaned_by: uid, cleaned_at: new Date().toISOString(),
-              cleaning_wi: wi, cleaning_wi_rev: rev, status: 'Cleaned' })
+  // `when` is an EARLIER time for a cleaning recorded after it was done (D-114,
+  // the user's decision); the database refuses a future one.
+  const at = when ? new Date(when) : new Date();
+  if (Number.isNaN(at.getTime())) return { ok: false, error: 'That cleaning time is not a date and time.' };
+  // COUNTED: row-level security refuses an update by matching no row, which is
+  // not an error — and a cleaning reported as recorded when it was not is the
+  // gate the report upload is judged on.
+  const { error, count } = await must().from('indoor_jobs')
+    .update({ cleaned_at: at.toISOString(),
+              cleaning_wi: wi, cleaning_wi_rev: rev, status: 'Cleaned' }, { count: 'exact' })
     .eq('id', id);
   if (error) return { ok: false, error: errMsg(error) };
+  if (count === 0) return { ok: false, error: 'Nothing was saved — your role may not record the cleaning of this job.' };
   return { ok: true };
 }
 
@@ -6280,9 +6391,14 @@ export async function listIndoorDcAuthorisers(): Promise<{ name: string; basis: 
 /** APPROVE an Indoor DC (0323). Only its AUTHORISED BY or an administrator;
  *  the database refuses it until every job with a UCN has its visit filed.
  *  `checkOnly` asks who and state only, before any visit is filed. */
-export async function approveIndoorDc(dcNo: string, checkOnly = false): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().rpc('approve_indoor_dc', { p_dc_no: dcNo, p_check_only: checkOnly });
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+export async function approveIndoorDc(dcNo: string, checkOnly = false): Promise<{ ok: boolean; error?: string; skipped?: string }> {
+  const { data, error } = await must().rpc('approve_indoor_dc', { p_dc_no: dcNo, p_check_only: checkOnly });
+  if (error) return { ok: false, error: errMsg(error) };
+  // D-145 (0403): a unit whose call was SOLVED since its visit was drafted is
+  // not filed; the function names those calls after a " | ".
+  const out = String(data ?? '');
+  const i = out.indexOf(' | ');
+  return { ok: true, skipped: i >= 0 ? out.slice(i + 3) : undefined };
 }
 
 /** REJECT an Indoor DC with a reason (0323): the DC is kept and its units released. */
@@ -6291,13 +6407,6 @@ export async function rejectIndoorDc(dcNo: string, reason: string): Promise<{ ok
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
-/** Record on an Indoor job the visit filed from its draft at approval (0323):
- *  `complete` once the spares and feedback are in too. The database checks the
- *  visit is this call's and reads Unsolved / Return to Field / Yes. */
-export async function recordIndoorVisit(jobId: number, visitUid: string, complete: boolean): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().rpc('record_indoor_visit', { p_job_id: jobId, p_visit_uid: visitUid, p_complete: complete });
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
-}
 
 /** Delete an Indoor Service job PERMANENTLY with its accessories, parts,
  *  checks and PDT (0324). The database asks indoor.delete, needs the reason,
@@ -6392,6 +6501,14 @@ export async function signIndoorPdt(
   return { ok: true };
 }
 
+/** UN-SIGN a signed PDT (0363, D-111): a signed record is locked, and this is
+ *  the only way to withdraw the signature -- it needs indoor.pdt_unsign and a
+ *  reason, which the database writes to the audit log with who and when. */
+export async function unsignIndoorPdt(jobId: number, reason: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('unsign_indoor_pdt', { p_job_id: jobId, p_reason: reason });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 export async function listIndoorAccessories(jobId: number): Promise<IndoorAccessory[]> {
   const { data, error } = await must()
     .from('indoor_job_accessories').select('*').eq('job_id', jobId).order('id');
@@ -6433,6 +6550,22 @@ export async function addIndoorPart(
 ): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('indoor_job_parts').insert({ job_id: jobId, ...patch });
   if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}
+/** A harvested part corrected after it was added (D-039, FRS-143.7): its code,
+ *  description, quantity, grade or destination. Modelled on saveIndoorAccessory
+ *  / saveIndoorCheck — the row's id and job are never sent — and COUNTED, since
+ *  row-level security refuses an update by matching no row rather than by an
+ *  error. The decontamination guard (0158) applies to an update as to an insert. */
+export async function updateIndoorPart(
+  id: number, patch: Partial<IndoorPart>,
+): Promise<{ ok: boolean; error?: string }> {
+  const { id: _drop, job_id: _drop2, ...rest } = patch as Record<string, unknown>;
+  if (Object.keys(rest).length === 0) return { ok: true };
+  const { error, count } = await must().from('indoor_job_parts')
+    .update(rest, { count: 'exact' }).eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  if (count === 0) return { ok: false, error: 'Nothing was saved — your role may not change this harvested part.' };
   return { ok: true };
 }
 export async function deleteIndoorPart(id: number): Promise<{ ok: boolean; error?: string }> {

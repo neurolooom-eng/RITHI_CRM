@@ -20,6 +20,8 @@
 -- Every error printed is labelled `expect ERROR` — anything else is a failure.
 -- ===========================================================================
 \set ON_ERROR_STOP off
+-- The three vigilance answers are given: a field call is registered with them
+-- since 0413 (D-033).
 \pset pager off
 
 insert into auth.users (id,email) values
@@ -50,8 +52,8 @@ call public.be('cc_devika@x.com');
 begin;
   set local role authenticated;
   insert into public.field_calls (ucn, call_type, product_name, serial, reg_date, party_name,
-                                  complaint_reported, standard_complaint, allocated_to)
-  values ('CR-1', 'FIELD', 'CRPROD', '1', current_date, 'HOSP', 'x', 'y', 'Someone Else');
+                                  complaint_reported, standard_complaint, allocated_to, public_health_threat, death, serious_incident)
+  values ('CR-1', 'FIELD', 'CRPROD', '1', current_date, 'HOSP', 'x', 'y', 'Someone Else', 'NO', 'NO', 'NO');
 commit;
 select ucn,
        (select email from auth.users u where u.id = c.created_by)        as desk,
@@ -64,8 +66,8 @@ call public.be('cc_sivarani@x.com');
 begin;
   set local role authenticated;
   insert into public.field_calls (ucn, call_type, product_name, serial, reg_date, party_name,
-                                  complaint_reported, standard_complaint, allocated_to)
-  values ('CR-2', 'FIELD', 'CRPROD', '2', current_date, 'HOSP', 'x', 'y', 'Someone Else');
+                                  complaint_reported, standard_complaint, allocated_to, public_health_threat, death, serious_incident)
+  values ('CR-2', 'FIELD', 'CRPROD', '2', current_date, 'HOSP', 'x', 'y', 'Someone Else', 'NO', 'NO', 'NO');
 commit;
 select ucn,
        (select email from auth.users u where u.id = c.created_by)        as desk,
@@ -78,8 +80,8 @@ call public.be('cc_devika@x.com');
 begin;
   set local role authenticated;
   insert into public.field_calls (ucn, call_type, product_name, serial, reg_date, party_name,
-                                  complaint_reported, standard_complaint, allocated_to, created_by)
-  values ('CR-3', 'FIELD', 'CRPROD', '3', current_date, 'HOSP', 'x', 'y', 'Someone Else',
+                                  complaint_reported, standard_complaint, allocated_to, public_health_threat, death, serious_incident, created_by)
+  values ('CR-3', 'FIELD', 'CRPROD', '3', current_date, 'HOSP', 'x', 'y', 'Someone Else', 'NO', 'NO', 'NO',
           'c0c0c0c0-0000-0000-0000-000000000002');
 commit;
 select ucn,
@@ -93,8 +95,8 @@ call public.be('cc_devika@x.com');
 begin;
   set local role authenticated;
   insert into public.field_calls (ucn, call_type, product_name, serial, reg_date, party_name,
-                                  complaint_reported, standard_complaint, allocated_to, actual_created_by)
-  values ('CR-4', 'FIELD', 'CRPROD', '4', current_date, 'HOSP', 'x', 'y', 'Someone Else',
+                                  complaint_reported, standard_complaint, allocated_to, public_health_threat, death, serious_incident, actual_created_by)
+  values ('CR-4', 'FIELD', 'CRPROD', '4', current_date, 'HOSP', 'x', 'y', 'Someone Else', 'NO', 'NO', 'NO',
           'c0c0c0c0-0000-0000-0000-000000000001');
 commit;
 select ucn,
@@ -117,9 +119,9 @@ commit;
 \echo 'not rewrite either column'
 call public.be(null);
 insert into public.field_calls (ucn, call_type, product_name, serial, reg_date, party_name,
-                                complaint_reported, standard_complaint, allocated_to,
+                                complaint_reported, standard_complaint, allocated_to, public_health_threat, death, serious_incident,
                                 created_by, actual_created_by)
-values ('CR-5', 'FIELD', 'CRPROD', '5', current_date, 'HOSP', 'x', 'y', 'Someone Else',
+values ('CR-5', 'FIELD', 'CRPROD', '5', current_date, 'HOSP', 'x', 'y', 'Someone Else', 'NO', 'NO', 'NO',
         'c0c0c0c0-0000-0000-0000-000000000001', 'c0c0c0c0-0000-0000-0000-000000000002');
 select ucn,
        (select email from auth.users u where u.id = c.created_by)        as desk,
@@ -130,8 +132,8 @@ select ucn,
 \echo 'expect: both cc_sivarani@x.com -- this is the shape the 0114 backfill left'
 \echo 'the sheet-era history in'
 insert into public.field_calls (ucn, call_type, product_name, serial, reg_date, party_name,
-                                complaint_reported, standard_complaint, allocated_to, created_by)
-values ('CR-6', 'FIELD', 'CRPROD', '6', current_date, 'HOSP', 'x', 'y', 'Someone Else',
+                                complaint_reported, standard_complaint, allocated_to, public_health_threat, death, serious_incident, created_by)
+values ('CR-6', 'FIELD', 'CRPROD', '6', current_date, 'HOSP', 'x', 'y', 'Someone Else', 'NO', 'NO', 'NO',
         'c0c0c0c0-0000-0000-0000-000000000001');
 select ucn,
        (select email from auth.users u where u.id = c.created_by)        as desk,
@@ -194,8 +196,8 @@ call public.be('cc_devika@x.com');
 begin;
   set local role authenticated;
   insert into public.field_calls (ucn, call_type, product_name, serial, reg_date, party_name,
-                                  complaint_reported, standard_complaint, allocated_to)
-  values ('CR-7', 'FIELD', 'CRPROD', '9', current_date, 'HOSP', 'x', 'y', 'Someone Else');
+                                  complaint_reported, standard_complaint, allocated_to, public_health_threat, death, serious_incident)
+  values ('CR-7', 'FIELD', 'CRPROD', '9', current_date, 'HOSP', 'x', 'y', 'Someone Else', 'NO', 'NO', 'NO');
 commit;
 select ucn,
        (select email from auth.users u where u.id = c.created_by)        as desk,

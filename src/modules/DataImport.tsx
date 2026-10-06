@@ -5,6 +5,7 @@ import { bulkInsert, detectTable, parseCSV, shapeRows, tableCount, type ImportTa
 import { finishCoverImport } from '../lib/cover';
 import { supabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
+import { recordAudit } from '../lib/audit';
 
 // Only what Bulk Uploads does not do. See ImportTable.
 const TABLES: ImportTable[] = ['user_directory', 'material_returns',
@@ -23,6 +24,55 @@ interface FileState {
   status: 'ready' | 'running' | 'done' | 'error';
   error?: string;
   rows?: Record<string, unknown>[];
+  /** Rows the file carried before shaping, so the record can say how many
+   *  were held back rather than only how many were written. */
+  inFile?: number;
+}
+
+// ONE AUDIT ENTRY PER FILE LOADED AND PER NORMALISE RUN (D-067, FRS-201.8) —
+// the same shape as Bulk Uploads' `bulk.upload`, so the two importers read
+// alike in the Audit Log. A failure to record is SAID beside the result,
+// never allowed to stop a load that has already happened.
+const unrecordedNote = (err: string | null) => err ? ` ⚑ Not recorded in the audit log: ${err}` : '';
+
+async function recordImport(f: FileState, o: { outcome: 'completed' | 'stopped' | 'not loaded'; written: number; why?: string; started: number }) {
+  const inFile = f.inFile ?? f.total;
+  return recordAudit({
+    action: 'import.legacy', target: f.table ?? '',
+    status: o.outcome === 'completed' ? 'ok' : 'error',
+    error: o.why ?? '',
+    duration_ms: Math.round(performance.now() - o.started),
+    meta: {
+      register: f.table ?? '(unrecognised)', table: f.table ?? '', file: f.name,
+      rows_in_file: inFile, rows_ready: f.total, rows_held_back: Math.max(0, inFile - f.total),
+      rows_to_write: o.outcome === 'not loaded' ? 0 : f.total, rows_written: o.written,
+      rows_failed: o.outcome === 'stopped' ? Math.max(0, f.total - o.written) : 0,
+      outcome: o.outcome, completed: o.outcome === 'completed',
+    },
+  });
+}
+
+/** Normalise cover, recorded. `trigger` says whether it followed an import or
+ *  was pressed on its own. Returns the line to show. */
+async function normaliseRecorded(trigger: 'after import' | 'on demand', ok: (r: { unpinned: number; machines: number }) => string, failed: (m: string) => string): Promise<string> {
+  const started = performance.now();
+  try {
+    const r = await finishCoverImport();
+    const err = await recordAudit({
+      action: 'cover.normalise', target: 'sale_items, contract_items', status: 'ok',
+      duration_ms: Math.round(performance.now() - started),
+      meta: { trigger, item_rows_unpinned: r.unpinned, machines_refreshed: r.machines, outcome: 'completed', completed: true },
+    });
+    return ok(r) + unrecordedNote(err);
+  } catch (e) {
+    const m = e instanceof Error ? e.message : String(e);
+    const err = await recordAudit({
+      action: 'cover.normalise', target: 'sale_items, contract_items', status: 'error', error: m,
+      duration_ms: Math.round(performance.now() - started),
+      meta: { trigger, outcome: 'stopped', completed: false },
+    });
+    return failed(m) + unrecordedNote(err);
+  }
 }
 
 // Admin-only: one-time bulk load of the clean migration CSVs into Supabase,
@@ -67,7 +117,7 @@ export function DataImport() {
             ? 'No returned items in this file — this is the MRN form-data tab (one row per submission). Import the MRN register tab instead.'
             : empty ? 'Recognised as ' + table + ', but no usable rows.'
             : undefined;
-        next.push({ name: f.name, table, total: rows.length, done: 0, status: table && !empty ? 'ready' : 'error', error: why, rows });
+        next.push({ name: f.name, table, total: rows.length, done: 0, status: table && !empty ? 'ready' : 'error', error: why, rows, inFile: raw.length });
       } catch (e) {
         next.push({ name: f.name, table: null, total: 0, done: 0, status: 'error', error: e instanceof Error ? e.message : String(e) });
       }
@@ -79,24 +129,31 @@ export function DataImport() {
     setBusy(true);
     for (let i = 0; i < files.length; i++) {
       const fs = files[i];
-      if (!fs.table || !fs.rows || fs.status === 'done') continue;
+      if (fs.status === 'done') continue;
+      const started = performance.now();
+      if (!fs.table || !fs.rows || !fs.rows.length) {
+        // Picked, but not loadable: still part of this import, and recorded
+        // with the reason it was not loaded.
+        const err = await recordImport(fs, { outcome: 'not loaded', written: 0, why: fs.error ?? 'Not loadable.', started });
+        if (err) setFiles((cur) => cur.map((x, j) => (j === i ? { ...x, error: `${x.error ?? ''}${unrecordedNote(err)}` } : x)));
+        continue;
+      }
       setFiles((cur) => cur.map((x, j) => (j === i ? { ...x, status: 'running', done: 0 } : x)));
       const res = await bulkInsert(fs.table, fs.rows, (p) => {
         setFiles((cur) => cur.map((x, j) => (j === i ? { ...x, done: p.done } : x)));
       });
-      setFiles((cur) => cur.map((x, j) => (j === i ? { ...x, status: res.ok ? 'done' : 'error', error: res.error, done: res.inserted } : x)));
+      const err = await recordImport(fs, { outcome: res.ok ? 'completed' : 'stopped', written: res.inserted, why: res.error, started });
+      const shown = [res.error, err ? unrecordedNote(err).trim() : ''].filter(Boolean).join(' ');
+      setFiles((cur) => cur.map((x, j) => (j === i ? { ...x, status: res.ok ? 'done' : 'error', error: shown || undefined, done: res.inserted } : x)));
     }
     // The four AppSheet sale / contract exports land as exported; this then
     // hands every value that merely repeats its header back to inheritance,
     // and brings the machine master's cover up to date.
     if (files.some((f) => f.table && COVER_TABLES.includes(f.table))) {
       setAfter('Tidying up the imported cover…');
-      try {
-        const r = await finishCoverImport();
-        setAfter(`Normalised ${r.unpinned} item rows (values repeating their entry now follow it) and refreshed cover on ${r.machines} machines.`);
-      } catch (e) {
-        setAfter(`Import loaded, but the tidy-up step failed: ${e instanceof Error ? e.message : String(e)}. Re-run it with the button below.`);
-      }
+      setAfter(await normaliseRecorded('after import',
+        (r) => `Normalised ${r.unpinned} item rows (values repeating their entry now follow it) and refreshed cover on ${r.machines} machines.`,
+        (m) => `Import loaded, but the tidy-up step failed: ${m}. Re-run it with the button below.`));
     }
     setBusy(false);
     void refreshCounts();
@@ -165,9 +222,9 @@ export function DataImport() {
               {busy ? 'Importing…' : `Import ${files.filter((f) => f.table && f.status !== 'done').length} file(s)`}
             </button>
             <button className="btn" disabled={busy} title="Fold repeated header values back into inheritance and refresh machine cover"
-              onClick={() => { setAfter('Working…'); void finishCoverImport()
-                .then((r) => setAfter(`Normalised ${r.unpinned} item rows and refreshed cover on ${r.machines} machines.`))
-                .catch((e) => setAfter(`Failed: ${e instanceof Error ? e.message : String(e)}`)); }}>
+              onClick={() => { setAfter('Working…'); void normaliseRecorded('on demand',
+                (r) => `Normalised ${r.unpinned} item rows and refreshed cover on ${r.machines} machines.`,
+                (m) => `Failed: ${m}`).then(setAfter); }}>
               Normalise cover
             </button>
           </div>

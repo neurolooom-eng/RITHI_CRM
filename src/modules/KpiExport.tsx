@@ -59,8 +59,10 @@ export function KpiExport() {
       }
       const span = from || to ? `${from || 'start'}_${to || 'today'}` : todayLocal();
       const cols = kpiExportColumns();
+      // Announced and audited only once the file was WRITTEN (D-018).
+      let written: boolean;
       if (kind === 'csv') {
-        csvExport(`kpi-field-inst-pm-${span}.csv`, cols, all.map(toKpiExportRow),
+        written = await csvExport(`kpi-field-inst-pm-${span}.csv`, cols, all.map(toKpiExportRow),
           // `all` is every page, read in the loop above.
           COMPLETE);
       } else {
@@ -68,7 +70,7 @@ export function KpiExport() {
         // subtracts it — which a CSV cannot offer at all, whatever the dates
         // are spelled like in it. `xlsxCell` is handed the RAW value and
         // decides by VALUE, never by column name.
-        xlsxDownload(`kpi-field-inst-pm-${span}.xlsx`, [{
+        written = await xlsxDownload(`kpi-field-inst-pm-${span}.xlsx`, [{
           // FIELD_INST_PM since PM calls joined it (the user, 2026-10-06:
           // "KPI workbook — Field_INST - Rename this to Field_INST_PM").
           name: 'Field_INST_PM',
@@ -79,6 +81,7 @@ export function KpiExport() {
           }),
         }], COMPLETE);
       }
+      if (!written) { setMsg('Nothing was exported.'); return; }
       setMsg(`Exported ${all.length.toLocaleString()} call${all.length === 1 ? '' : 's'}.`);
       logAudit({ action: 'kpi.export', target: `${all.length} calls`, meta: { rows: all.length, from, to, kind } });
     } catch (e) {

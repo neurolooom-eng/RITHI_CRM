@@ -13,7 +13,7 @@ import { CallAssociations } from './CallAssociations';
 import { DocPreview } from '../components/doc/DocPreview';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
-import { PageHeader, Drawer, Toolbar, FacetChips } from '../components/ui/ui';
+import { PageHeader, Drawer, Toolbar, FacetChips, Modal } from '../components/ui/ui';
 import { csvExport, fmtDateTime, fmtLongDate, fmtLongSmart, timeAgo, todayISO } from '../lib/format';
 import { callAging, agingTone } from '../lib/aging';
 import { C } from './collections';
@@ -30,6 +30,7 @@ import {
   updateFieldCall,
 } from '../lib/sheets';
 import { formatDay } from '../lib/dates';
+import { isNetworkFailure } from '../lib/dberror';
 import { supabaseConfigured, searchCalls, callByUcn, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, refreshCallsParty, refreshCallsProduct, type CallServiceReport } from '../lib/supabase';
 import { useAuditMode } from '../lib/auditMode';
 import { useCallFieldMasters } from './callFields';
@@ -49,6 +50,10 @@ import {
   partyToCallPrefill,
   productToCallPrefill,
   toSheetDate,
+  withVigilanceRule,
+  vigilanceUnanswered,
+  vigilanceMustBeAnswered,
+  VIGILANCE_KEYS,
 } from '../lib/fieldcall';
 
 // Date fields render as Long Date (Reg. Date shows time when present). Others plain.
@@ -69,7 +74,10 @@ const CALL_ALL_FIELDS = [
 // Item Status comes from the machine, like its warranty and contract, so it is
 // filled from Product Database and locked rather than chosen on the call.
 export const FREEZE_KEYS = ['itemStatus', 'warrantyNumber', 'warrantyStart', 'warrantyEnd', 'contractNumber', 'contractStart', 'contractEnd', 'contractType'];
-export function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
+// D-033: `callType` decides the vigilance rule — on the FIELD register the three
+// answers start blank and must be given; Installation / PM keep NO. Required, so
+// no caller can build the form without saying which register it is for.
+export function buildCreateFields(prefill: FormValues | undefined, callType: string): FieldDef[] {
   // Call Number is never typed: a call registered from a request carries the
   // request's UniqueID (REQID-Product-Serial); a direct call is assigned
   // CLYY##### by the database on save.
@@ -78,7 +86,7 @@ export function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
       ? { ...f, readOnly: true, help: 'From the call request (UniqueID)' }
       : { ...f, readOnly: true, help: 'Assigned on save — CLYY##### for a direct customer call' };
 
-  return FIELD_CALL_FIELDS.map((f) => {
+  return withVigilanceRule(FIELD_CALL_FIELDS, callType, 'create').map((f) => {
     if (f.name === 'callNumber') return callNumberField(f);
     if (prefill && FREEZE_KEYS.includes(f.name) && String(prefill[f.name] ?? '') !== '')
       return { ...f, readOnly: true, help: 'From Product Database (locked)' };
@@ -108,7 +116,12 @@ export function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
 // They are removed from the VIEW, not from the record. The create form still
 // carries the complaint date, because that is where it is answered.
 const VIEW_HIDDEN = ['complaintDate', 'registeredBy', 'actuallyRegisteredBy'];
-const viewFields = () => FIELD_CALL_FIELDS.filter((f) => !VIEW_HIDDEN.includes(f.name));
+// D-033: on the FIELD register a blank vigilance answer is SHOWN blank and an
+// edit cannot fill it with a NO nobody chose (the default is dropped there).
+// A call still held on this device (⏳, not yet registered) is edited as a
+// REGISTRATION, so its answers are required there too and Sync can send it.
+const viewFields = (callType: string, mode: 'create' | 'edit' = 'edit') =>
+  withVigilanceRule(FIELD_CALL_FIELDS, callType, mode).filter((f) => !VIEW_HIDDEN.includes(f.name));
 
 // ===========================================================================
 // FIELD CALL REGISTER — operational.
@@ -492,11 +505,17 @@ export const callFieldRights = (P: string): Record<string, { perm: string; what:
   customerNumber:      { perm: `${P}.edit.contact`,   what: 'Edit customer contact details' },
   customerDesignation: { perm: `${P}.edit.contact`,   what: 'Edit customer contact details' },
 });
-export const lockCallFields = (fields: FieldDef[], P: string, can: (k: string) => boolean): FieldDef[] => {
+// `exempt` — fields NOT locked however the rights read. D-033: on the FIELD
+// register the three vigilance answers are REQUIRED at registration, and the
+// database's per-section guard (0127/0287) watches UPDATES only — answering at
+// registration is not editing. Locked there, a blank required answer would make
+// the call impossible to register for anybody without "Edit the vigilance
+// answers" (before D-033 it silently recorded the default NO for them).
+export const lockCallFields = (fields: FieldDef[], P: string, can: (k: string) => boolean, exempt: readonly string[] = []): FieldDef[] => {
   const rights = callFieldRights(P);
   return fields.map((f) => {
     const r = rights[f.name];
-    if (!r || f.readOnly || can(r.perm)) return f;
+    if (!r || f.readOnly || exempt.includes(f.name) || can(r.perm)) return f;
     return { ...f, readOnly: true, help: `Needs the "${r.what}" permission` };
   });
 };
@@ -590,7 +609,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // whether or not you may change it, and a field that quietly vanishes is how
   // "where has it gone?" starts. The database enforces the same rule (the form
   // is the courtesy), so the two cannot drift apart into a lie.
-  const lockByRight = (fields: FieldDef[]): FieldDef[] => lockCallFields(fields, P, can);
+  const lockByRight = (fields: FieldDef[], exempt: readonly string[] = []): FieldDef[] => lockCallFields(fields, P, can, exempt);
 
   const [srch, setSrch] = useState({ ucn: '', productName: '', serial: '', partyName: '', q: '' });
   // A SEARCH RETURNS AT MOST SEARCH_CAP CALLS -- the server's own cap on one
@@ -634,6 +653,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const allotBlocked = !can(`${P}.allot`) && allotTeam.canPick;
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
+  // Registering a call — a new one, or one still held on this device (⏳) —
+  // as against editing a registered one. D-033 makes the vigilance answers
+  // required while registering.
+  const answering = drawer?.mode === 'create' || (drawer?.mode === 'edit' && !!drawer.row?._pending);
+  // A refused registration, shown inside the drawer (D-032); gone with it.
+  const [createErr, setCreateErr] = useState('');
+  useEffect(() => { if (!drawer) setCreateErr(''); }, [drawer]);
   const [report, setReport] = useState<Rec | null>(null); // "Visit Entry" → a new visit row
 
   // ---- THE SERVICE REPORT ON A CLOSED CALL -------------------------------
@@ -875,12 +901,30 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       _pending: true,
       ownerId: user?.id,
     });
-    setBanner({ tone: 'info', text: `${note} Saved locally as ${ucn}.` });
+    // A PLACEHOLDER, AND IT SAYS SO (D-032). Sync strips this number and the
+    // database assigns the real UCN, so a message reading "Saved locally as
+    // F-…" was a number somebody could write on a job card and never see again.
+    setBanner({ tone: 'info', text: `${note} Kept on this device only — NOT registered yet. ${ucn} is a temporary placeholder, not the call's UCN: `
+      + 'press Sync once the connection is back and the database will give the call its real UCN.' });
+  };
+
+  // A REFUSAL IS AN ANSWER, NOT AN OUTAGE (D-032). Every failure of
+  // addFieldCall used to fall to saveLocal(): a call the insert policy refused
+  // was kept on the device under a placeholder UCN, announced as saved, and
+  // re-sent by Sync to be refused again. Only a request that never reached the
+  // database (`offline`, isNetworkFailure) may be kept to send later; anything
+  // else is shown, in the drawer the person is looking at, with the form left
+  // as they filled it.
+  const refuseCreate = (error: string) => {
+    const text = `Not registered — ${error}`;
+    setCreateErr(text);
+    setBanner({ tone: 'error', text });
   };
 
   const handleCreate = async (values: FormValues) => {
     const rec = buildPayload(values, config.callType);
     setBusy(true);
+    setCreateErr('');
     const t0 = performance.now();
     const dur = () => Math.round(performance.now() - t0);
     try {
@@ -905,22 +949,35 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
           }
           db.insert(config.collection, { ...res.record, id: String(res.ucn), _synced: true, ownerId: user?.id });
           // If this came from a pending CRN request, back-fill the UCN there.
+          // AWAITED AND READ (D-031): it was `void`, so a refused write left
+          // the request Pending beside the call made from it — and the banner
+          // said "pending request cleared" either way.
+          let backfill = '';
           if (pendingRow != null && res.ucn) {
-            void setPendingUcn(pendingRow, String(res.ucn));
+            try {
+              const b = await setPendingUcn(pendingRow, String(res.ucn));
+              if (!b.ok) backfill = b.error || 'the request could not be updated';
+            } catch (e) { backfill = e instanceof Error ? e.message : String(e); }
             setPendingRow(null);
           }
-          setBanner({ tone: 'ok', text: `${config.singular} registered as ${res.ucn}${pendingRow != null ? ' — pending request cleared' : ''}.` });
+          setBanner(backfill
+            ? { tone: 'error', text: `${config.singular} registered as ${res.ucn}, but its call request could NOT be marked Registered (${backfill}). `
+                + `It still shows on Pending Registrations — map it to ${res.ucn} there so it is not registered a second time.` }
+            : { tone: 'ok', text: `${config.singular} registered as ${res.ucn}${pendingRow != null ? ' — pending request cleared' : ''}.` });
         } else {
           logAudit({ action: 'call.create', status: 'error', error: res.error, duration_ms: dur(), meta: { callType: config.callType } });
-          saveLocal(rec, `Write failed (${res.error}).`);
+          if (!res.offline) { refuseCreate(res.error ?? 'the database refused it.'); return; }
+          saveLocal(rec, `Could not reach the database (${res.error}).`);
         }
       } else {
         saveLocal(rec, 'No database connected.');
       }
       setDrawer(null);
     } catch (e) {
-      logAudit({ action: 'call.create', status: 'error', error: e instanceof Error ? e.message : String(e), duration_ms: dur() });
-      saveLocal(rec, `Write failed (${e instanceof Error ? e.message : String(e)}).`);
+      const m = e instanceof Error ? e.message : String(e);
+      logAudit({ action: 'call.create', status: 'error', error: m, duration_ms: dur() });
+      if (!isNetworkFailure(e)) { refuseCreate(m); return; }
+      saveLocal(rec, `Could not reach the database (${m}).`);
       setDrawer(null);
     } finally {
       setBusy(false);
@@ -959,10 +1016,14 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     if (pend.length === 0) return;
     setBusy(true);
     let done = 0;
+    let unanswered = 0;
     for (const p of pend) {
       // Strip local-only fields; let the server assign a fresh UCN.
       const { id, ucn, _pending, _synced, regDate, ...rest } = p;
       void id; void ucn; void _pending; void _synced; void regDate;
+      // D-033: a Field call is not sent without its three vigilance answers —
+      // the database refuses it, and saying why here beats a bare count.
+      if (vigilanceUnanswered(rest, rest.callType || config.callType).length) { unanswered++; continue; }
       try {
         const res = await addFieldCall(rest, config.tab);
         if (res.ok && res.record) {
@@ -975,7 +1036,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       }
     }
     setBusy(false);
-    setBanner({ tone: done === pend.length ? 'ok' : 'error', text: `Synced ${done}/${pend.length} pending calls to the ${onDb ? 'database' : 'sheet'}.` });
+    setBanner({ tone: done === pend.length ? 'ok' : 'error', text: `Synced ${done}/${pend.length} pending calls to the ${onDb ? 'database' : 'sheet'}.`
+      + (unanswered ? ` ${unanswered} not sent: Public Health Threat?, Death? and Serious Incident? must each be answered YES or NO — open each ⏳ call, answer them, and Sync again.` : '') });
   };
 
   // Discard unsynced local calls (all, or one) without writing to the sheet.
@@ -1123,15 +1185,34 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
 
   // Re-open a closed call: the Hotline's way back in when the fault returns or
   // a visit was entered against the wrong call.
-  const reopen = async (row: Rec) => {
-    const ucn = String(row.ucn ?? '');
+  //
+  // A REASON, ALWAYS (D-035, FRS-133.4): this used to be a bare confirm while
+  // the Call Review asked for one, so the same act was explained on one screen
+  // and not the other. Now a dialog whose Re-open button stays disabled until a
+  // reason is typed, as the Call Review's does; reopen_call() refuses a blank
+  // one too (0411) and records the reason, the person and the time.
+  const [reopenFor, setReopenFor] = useState<Rec | null>(null);
+  const [reopenWhy, setReopenWhy] = useState('');
+  const [reopenBusy, setReopenBusy] = useState(false);
+  const [reopenErr, setReopenErr] = useState('');
+  const reopen = (row: Rec) => {
+    if (!String(row.ucn ?? '')) return;
+    setReopenWhy(''); setReopenErr(''); setReopenFor(row);
+  };
+  const doReopen = async () => {
+    const ucn = String(reopenFor?.ucn ?? '');
+    const why = reopenWhy.trim();
     if (!ucn) return;
-    if (!confirm(`Re-open call ${ucn}? It goes back on the open list and is counted as re-opened.`)) return;
+    if (!why) { setReopenErr('Say why the call is being re-opened — it is recorded on the call.'); return; }
+    setReopenBusy(true); setReopenErr('');
     const t0 = performance.now();
-    const res = await reopenCall(ucn);
-    logAudit({ action: 'calls.reopen', target: ucn, status: res.ok ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0) });
-    if (!res.ok) { setBanner({ tone: 'error', text: `Could not re-open ${ucn}: ${res.error}` }); return; }
-    setBanner({ tone: 'ok', text: `${ucn} re-opened.` });
+    const res = await reopenCall(ucn, why);
+    setReopenBusy(false);
+    logAudit({ action: 'calls.reopen', target: ucn, status: res.ok ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0), meta: { reason: why } });
+    // A refusal is said IN the dialog, which keeps what was typed.
+    if (!res.ok) { setReopenErr(`Could not re-open ${ucn}: ${res.error}`); return; }
+    setReopenFor(null);
+    setBanner({ tone: 'ok', text: `${ucn} re-opened — ${why}` });
     setDrawer(null);
     void refresh();
   };
@@ -1229,7 +1310,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       run: () => gotoReco(row) },
     { key: 'reopen', icon: '↻', label: 'Re-open call', title: 'Put this closed call back on the open list',
       show: canReopen(row),
-      run: () => void reopen(row) },
+      run: () => reopen(row) },
     { key: 'closeagain', icon: '🔒', label: 'Close again', title: 'The re-open was only to correct the call — put it back to closed without entering a visit',
       show: canCloseReopen(row),
       run: () => void closeReopen(row) },
@@ -1448,6 +1529,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       >
         {drawer && (
           <>
+            {/* A REFUSED REGISTRATION IS SAID HERE, where the person is
+                looking, and the form keeps what they typed (D-032). */}
+            {drawer.mode === 'create' && createErr && (
+              <div className="sheet-banner sheet-banner-error" role="alert"><span>{createErr}</span></div>
+            )}
             {drawer.row?._pending && (
               <div className="detail-hint" style={{ color: 'var(--warning, #b45309)' }}>
                 ⏳ Saved locally, not yet in the sheet. Use “Sync {pendingCount} pending” once a sheet is connected.
@@ -1531,11 +1617,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               // about a third of the rows without shrinking anything.
               columns={3}
               fields={lockByRight(injectMasters(
-                drawer.mode === 'create' ? buildCreateFields(prefill) : viewFields(),
+                drawer.mode === 'create' ? buildCreateFields(prefill, config.callType)
+                  : viewFields(config.callType, answering ? 'create' : 'edit'),
                 // Suggestions belong to the act of registering. See the note in
                 // `callFields.tsx`.
                 { suggest: drawer.mode === 'create' },
-              ))}
+              ), answering && vigilanceMustBeAnswered(config.callType) ? VIGILANCE_KEYS : [])}
               initial={drawer.mode === 'create'
                 ? { complaintDate: todayISO(), breakdownDate: todayISO(), ...(prefill ?? {}) }
                 : ({
@@ -1571,6 +1658,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             {drawer.mode === 'view' && !drawer.row?._pending && (drawer.row?.callNumber || drawer.row?.ucn) && (
               <CallAssociations
                 callNumber={String(drawer.row.callNumber || drawer.row.ucn)}
+                ucn={String(drawer.row.ucn ?? '')}
+                reopenCount={Number(drawer.row.reopenCount ?? 0)}
                 product={String(drawer.row.productName ?? '')}
                 complaint={String(drawer.row.standardComplaint ?? '')}
                 reported={String(drawer.row.complaintReported ?? '')}
@@ -1581,11 +1670,34 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         )}
       </Drawer>
 
+      <Modal open={!!reopenFor} onClose={() => { if (!reopenBusy) setReopenFor(null); }}
+        title={`Re-open call ${String(reopenFor?.ucn ?? '')}`} width={500}>
+        <form className="rep-form" onSubmit={(e) => { e.preventDefault(); void doReopen(); }}>
+          <p className="muted" style={{ marginTop: 0 }}>
+            It goes back on the open list and is counted as re-opened. No visit is invented. The reason, your
+            name and the time are recorded on the call and shown in its re-open history.
+          </p>
+          <label className="rep-field">
+            <span className="field-label">Why is it being re-opened? *</span>
+            <textarea className="input" rows={3} autoFocus value={reopenWhy}
+              onChange={(e) => setReopenWhy(e.target.value)} placeholder="Required" />
+          </label>
+          {reopenErr && <div className="field-err" role="alert">{reopenErr}</div>}
+          <div className="row" style={{ gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+            <button type="button" className="btn btn-ghost" onClick={() => setReopenFor(null)} disabled={reopenBusy}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={reopenBusy || !reopenWhy.trim()}
+              title={reopenWhy.trim() ? undefined : 'Give the reason first'}>
+              {reopenBusy ? 'Re-opening…' : '↻ Re-open'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       <CallReportDrawer
         call={report}
         open={!!report}
         onClose={() => setReport(null)}
-        onSaved={(mode, ucn) => setBanner({ tone: 'ok', text: `Call ${ucn} report ${mode === 'appended' ? 'added to' : 'updated in'} Reporting-N.` })}
+        onSaved={(mode, ucn, note) => setBanner({ tone: 'ok', text: `Call ${ucn} report ${mode === 'appended' ? 'added to' : 'updated in'} Reporting-N.${note ? ` ${note}` : ''}` })}
       />
 
       {preview && (

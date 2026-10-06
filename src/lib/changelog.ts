@@ -14,6 +14,93 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.144',
+    date: '2026-10-06',
+    title: 'Review fixes: list values in use kept, re-open reasons kept, User Master manager names, warranty and contract changes recorded',
+    changes: [
+      'MASTER LISTS: a value that calls, requests, visits, reviews, feedback or the User Master use cannot be deleted — you are told how many records use it and offered Deactivate instead, which keeps it on those records and stops offering it.',
+      'RE-OPEN: every screen asks for the reason before a call is re-opened, and the call\'s history now lists each re-open — when, who and why. A call solved again keeps the feedback it already has; the visit form says so instead of asking again.',
+      'USER MASTER: a Reporting or Regional Manager name that matches nobody on the User Master is pointed out and saved only if you confirm. The Active field says what it is — whether the person is listed as active — and that only Disable login decides sign-in.',
+      'WARRANTY and CONTRACT registers, Ownership Transfer and Additional Entries: every change and deletion is now recorded by the database with the value before and after.',
+    ],
+  },
+  {
+    version: '0.10.143',
+    date: '2026-10-06',
+    title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
+    changes: [
+      'VIEW AS: a preview of somebody else\'s screens is now truly read-only — nothing can be saved, uploaded or approved while it is on, and its start and end are recorded in the Audit Log.',
+      'ROLES & PERMISSIONS, ADMIN CONFIG, SLA TARGETS: every change is recorded by the database with the value before and after, so what a role could do on any day can be read back. Bulk Uploads, the legacy importer, Normalise cover and a change of the database connection are recorded in the Audit Log too.',
+      'FIELD FAILURE REPORT: the weekly review — its date, who reviewed it and the attachment — is recorded on the report and takes it out of "Due a review"; only somebody who may manage FFRs sees Edit / weekly review. A report needs its Customer Name and Problem Reported.',
+      'QUALITY OBJECTIVES: an objective with a figure recorded cannot be deleted; every change is recorded. The page now says correctly which months are calculated and which are typed.',
+      'REQUEST REGISTRATION: the Attended Date cannot be later than today; a correction offers the same pickers as the form; a request is saved whole or not at all.',
+      'INDOOR SERVICE: a harvested part is entered with all its details and can be corrected; the time damage was reported to the customer is recorded, with who; every change to a job and its parts is recorded.',
+    ],
+  },
+  {
+    version: '0.10.142',
+    date: '2026-10-05',
+    title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
+    changes: [
+      'SPARES: the name shown as having approved, dispatched or received a spare is now always the person who did it — the system writes it, whatever the screen sends.',
+      'SPARE REQUESTS, STOCK TRANSFERS and MATERIAL RETURNS: a record is saved whole or not at all. If one line is refused, nothing is left behind — no request without parts, no used-up OR number, no stock taken off for half a return.',
+      'BULK UPLOADS: nothing is written until you press OK. Where an upload needs other records first (visits, requests), the confirmation says how many, and Cancel leaves everything as it was.',
+    ],
+  },
+  {
+    version: '0.10.141',
+    date: '2026-10-05',
+    title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
+    changes: [
+      'FIELD CALL REGISTER: the three vigilance questions (Public Health Threat?, Death?, Serious Incident?) start blank and must be answered before a call is registered. Installation and PM calls are unchanged.',
+      'STOCK TRANSFER: you transfer from your own stock or your team\'s; anybody else\'s needs the new permission "Transfer stock from any engineer". The recipient is picked from the User Master — no typed names.',
+      'RENEW and CONVERT: a contract is not created until Period, PM Visits, Payment Schedule, Bill Generate At and Contract Type are filled; the panel asks for any that are blank.',
+      'DAILY COMPLAINT REVIEW: the answers are visible only to people given the new permission "Read Daily Complaint Review answers". Everyone who may complete the review has it; tick it in Roles & Permissions for anyone else who should see them.',
+    ],
+  },
+  {
+    version: '0.10.140',
+    date: '2026-10-04',
+    title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
+    changes: [
+      'EXPORTS: the export permission now covers Excel and every workbook button, not only CSV, and Data Export too. A download is recorded and announced only when a file was actually saved. Data Export reads each table in a fixed order and says when a table hit its row limit.',
+      'PENDING REGISTRATIONS: a request can be mapped only to a call that exists; a map or cancel your role cannot make says so; if a registered call\'s request could not be marked, the screen names the UCN.',
+      'FIELD CALL REGISTER: a call is kept on the device only when there is no connection; a call the system refuses shows the reason instead of a "saved locally" number.',
+      'A CALL\'S HISTORY: spares or feedback that could not be read now say so instead of showing nothing.',
+      'WARRANTY and CONTRACT: Renew and Convert tell machines apart by product and serial; a machine line added and not yet saved is no longer lost when the entry is saved.',
+      'USER MASTER: an entry with a profile or R&R history cannot be deleted — set it inactive. MASTER LISTS: "Add / edit master records" edits but does not delete list values.',
+      'STOCK TRANSFER and RETURNS: cannot be dated in the future or inside a closed hand-stock period.',
+    ],
+  },
+  {
+    version: '0.10.139',
+    date: '2026-10-04',
+    title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
+    changes: [
+      'PARTY, PART and PRODUCT MASTER: the required fields are now required by the system too (a party\'s name, city and state; a part\'s code and description; a line\'s code and name), and a code that differs from an existing one only in capitals or spaces is refused. Verifying KYC records who verified it; that can no longer be written by hand.',
+      'PRODUCT MASTER: a product line that Indoor Service jobs name cannot be deleted, and renaming it asks first, saying how many jobs it affects.',
+      'QMS DOCUMENTS: a new revision is a new document. Once recorded, the number, revision, effective date and file cannot be changed — retire the old one. A QMS document cannot be deleted.',
+      'INDOOR DC: only the person the User Master names as Authorised By can approve — another login with the same name cannot.',
+      'WARRANTY and CONTRACT entries: a machine just saved now shows as saved and is counted; Renew and Convert work from the saved entry only; saving writes only the fields you changed.',
+      'ADDITIONAL ENTRY (Ownership Transfer): it saves again — it now asks for the machine\'s model as well as its serial.',
+      'STOCK TRANSFER: the message for an engineer holding nothing now says stock comes from what was dispatched to them.',
+    ],
+  },
+  {
+    version: '0.10.138',
+    date: '2026-10-04',
+    title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
+    changes: [
+      'CALL REPORTING and SPARE REQUESTS: a visit, its spares and a spare request go under your own name or an engineer in your team (the User Master, by Reporting or Regional Manager). Anybody else needs a key: "Report a visit and its spares in another engineer\'s name" (visit.others), ticked per person in User Master → Extra Access; "Raise a spare request in any engineer\'s name" (spare.request.others), given to Technical Support. The engineer list offers only the names you may use.',
+      'INDOOR DC approval: a unit whose call has been Solved since the visit was drafted is approved without filing that visit, so the call is not put back to Unsolved; the message names the calls skipped.',
+      'INDOOR SERVICE: a signed Pre-Delivery Testing record is locked. To correct it, somebody given the new key "Un-sign a Pre-Delivery Testing record" (indoor.pdt_unsign) un-signs it with a reason, which is logged. The Dispatch Date is now the day the unit is marked Dispatched, not the day its DC was issued. Cleaning can be recorded with an earlier time (never a future one), and it records who marked it.',
+      'WARRANTY REGISTER: whether a party is a dealer is read from the Party Master, not from the Type on the sale.',
+      'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
+      'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
+      'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
     version: '0.10.137',
     date: '2026-10-06',
     title: 'Failure Rate (DCCR): the 12-month rolling average as a column',

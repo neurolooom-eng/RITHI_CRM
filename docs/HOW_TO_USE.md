@@ -92,6 +92,10 @@ different totals. An empty register usually means access, not emptiness.
 - **Request Registration** `/request-registration` — **the machine names the
   customer**: search the serial first and the customer follows. An installation is
   the exception, since the machine may not exist yet.
+  > **No installation request for a dealer.** A party that is a DEALER on the
+  > Party Master gets no installation call; the request is refused when it is
+  > raised. When the dealer sells the machine, the installation call is raised
+  > from the Ownership Transfer.
   > Product, serial and the customer's details all come from the copies kept on
   > your device first, and from the server only for something the device does
   > not have yet — so the form works on a weak signal.
@@ -99,8 +103,16 @@ different totals. An empty register usually means access, not emptiness.
   > request's details) show **📎 Open**, which opens the stored file in a new tab.
   > **Mapped to the wrong call?** Open the request and press **↩ Unmap** — the UCN is
   > cleared and it goes back on the Pending list. The call itself is not changed.
+
+  **The Attended Date cannot be later than today.** A request is saved whole or
+  not at all, and **Correct this request** offers the same pickers as the form —
+  the Standard Complaint from the product's list, the serial through the machine
+  search — so a correction cannot write what the form would refuse.
 - **Pending Registrations** `/pending-registrations` — the Hotline queue.
-  Registering one issues the UCN and files the call. The chips at the top filter
+  Registering one issues the UCN and files the call. Mapping a request to an
+  existing call needs a UCN that a call really has; if marking the request
+  with its new UCN fails after registering, the screen says so and names the
+  UCN — map the request to it, do not register it again. The chips at the top filter
   it by Call Type, each with its count.
   > The call is filed to the Hotline desk, but the system separately records *who
   > actually typed it in*. The two differing is a finding, not an error.
@@ -108,6 +120,14 @@ different totals. An empty register usually means access, not emptiness.
 ## The call registers
 
 - **Field Call Register** `/field-calls` — breakdown calls.
+  > **The three vigilance questions start blank and must be answered** —
+  > Public Health Threat?, Death? and Serious Incident? — before the call can be
+  > registered. Nothing is pre-filled, so a NO on record is an answer somebody
+  > gave. (Installation and PM calls are unchanged.)
+  > A call is kept on this device only when there is **no connection**, and the
+  > message says it is not registered yet and its number is temporary. If the
+  > system refuses the call (your role, a rule), the reason is shown and nothing
+  > is kept locally.
 - **Installation Calls** `/installations` — new machines going in.
   > Under the choice the report shows the machine's warranty **now** and where it
   > will **start and end after this report**. Every installation's choice, solved
@@ -155,10 +175,19 @@ on Roles & Permissions does not reach another team's calls.
 
 ## Getting data in
 
-- **Bulk Uploads** `/bulk-uploads` — **this is the importer.** It finds the
+- **Bulk Uploads** `/bulk-uploads` — **this is the importer.** **Nothing is
+  written until you press OK**: where an upload needs other records first (a
+  visit on each call of a consumption file, a request for each OR number of a
+  spare-line file), the confirmation says how many it will create, and Cancel
+  leaves everything as it was. Every load — finished, stopped or cancelled — is
+  recorded in the Audit Log with the file and what was written. It finds the
   heading row even under a letterhead, reads tab-separated files, and lists what
   it kept and what it held back. Unrecognised columns are **kept on the row**
   where the register allows it.
+  > **Product Database: a Sold Through that is not a dealer is flagged.** Before
+  > you confirm and after it is written, the upload names any Sold Through that
+  > is not a DEALER on the Party Master. It is still loaded — this is being
+  > observed before deciding whether to refuse it.
   > **DCCR Register — historical, with its calls** (Quality) loads an old DCCR
   > register export as it is — for a year whose calls are not in RITHI (2025
   > and before). Each row files **the call** (dated by CALL DATE, with the
@@ -317,6 +346,13 @@ against the call it was fitted to.
 
 1. **Spare Requests** `/spare-requests` — the engineer asks for a part against a
    call.
+   > **Whose name a request goes under.** Your own, or an engineer in your team
+   > (the User Master: the people whose Reporting or Regional Manager is you, and
+   > theirs below them). Anybody else's needs *Raise a spare request in any
+   > engineer's name* — Technical Support has it; an administrator ticks it for
+   > anybody else, per person in **User Master → Extra Access** or per role. The
+   > Engineer list offers only the names you may use, and the system refuses any
+   > other however the request is made.
    > **Complaint and Item Status follow the call.** Change either on the call and
    > every spare request on it changes too, at any stage. To bring an older
    > request in line, open it and press **↻ Update from call**, or tick several
@@ -354,6 +390,13 @@ against the call it was fitted to.
 5. The engineer **acknowledges receipt**.
 6. **Spare Consumption** `/spare-consumption` — the part is booked against the
    call.
+   > **A visit and its spares go under your own name or your team's.** Reporting
+   > a visit, or booking its spares, in another engineer's name needs *Report a
+   > visit and its spares in another engineer's name* — nobody has it until it is
+   > ticked for that person in **User Master → Extra Access**. A reconciliation,
+   > the bulk uploads and an Indoor DC approval are not affected: they already
+   > need their own rights. The system records who booked a line from your
+   > sign-in, whatever is sent.
    > **A spare needs a visit report on its call — except a reconciliation.**
    > Spares booked from Call Reporting or the bulk upload are refused on a call
    > with no visit report. **Add consumption (reconciliation)** is for a part
@@ -394,7 +437,12 @@ against the call it was fitted to.
   > **A return is your own stock.** Returning for another engineer needs *Return
   > stock for another engineer* (Stores and the approvers hold it).
 - **Stock Transfer** `/stock-transfer` — hand stock between engineers. A transfer
-  to the same person is held back and named. Each part can carry a **reason of
+  to the same person is held back and named. **From** offers your own name and
+  the engineers in your team (the User Master); anybody else's stock needs
+  *Transfer stock from any engineer*, ticked per role or per person. **To** is
+  somebody on the User Master. A transfer (or a return) cannot be
+  dated in the future, nor on or before the last day hand stock was closed —
+  it would then be counted nowhere. Each part can carry a **reason of
   its own** besides the common Remarks. **🖨 MTN** on a transfer prints the
   **Material Transfer Note R/SER/STR/003**: issuer and receiver with their
   places, the MTN No. (the transfer number) and date, each part with its own
@@ -411,6 +459,10 @@ against the call it was fitted to.
   taken at registration; **Review 2** asks what the failure was; **Review 3**
   classifies it. A review is saved only on a call you can see — so a Field
   Failure Report is never raised in your name on somebody else's call.
+  > **Who can read the answers:** only people given *Read Daily Complaint Review
+  > answers* (everybody who may complete the review has it). Anyone else sees a
+  > note saying so, here and on Product Failure Analysis and the Field Failure
+  > Register, instead of the answers.
   > **Frequent failure has two rules.** **Rule 1** — this machine failing again
   > (same product and serial) within the window. **Rule 2** — the same complaint
   > on **different serial numbers** of one product within 30 days, which is a
@@ -448,6 +500,10 @@ against the call it was fitted to.
 - **Call Review** `/call-review` — a second look at the **report** on a solved
   call. Book a spare the engineer did not record (a **Reconciliation** line,
   visibly a correction), re-open the call, or mark it Report Reviewed.
+
+  **Re-opening a call always asks for the reason**, here and on the registers;
+  the call's history lists every re-open with when, who and why. When the call is
+  solved again, the feedback it already has is kept — the visit form says so.
 - **Field Failure Register** `/failure-report` — failures that go back to
   manufacturing, on the controlled form `R-SER-03`, numbered `FFR - 001/26` and
   restarting each year.
@@ -491,6 +547,11 @@ against the call it was fitted to.
   - Every change is recorded — only the fields that differed, with who and when.
   > If the review later says *No*, the report still stands and shows as
   > **withdrawn**. The withdrawal is itself the thing worth seeing.
+
+  **The weekly review is recorded on the report** — its date, who reviewed it
+  and the attachment — and that takes the report out of *Due a review*. Only
+  somebody who may manage FFRs sees Edit / weekly review. A report needs its
+  Customer Name and Problem Reported.
 - **Customer Feedback** `/feedback` — what customers told us, kept with the calls.
   - **Date** is the feedback's own date — for a loaded row, the date the export
     gave it; for one taken here, when it was taken. **Loaded on** is a separate
@@ -550,8 +611,8 @@ against the call it was fitted to.
   >
   > ### Raising the installation calls
   >
-  > **A sale to a dealer gets no installation call.** If the sale's Type is
-  > **DEALER**, the button is not offered (on the entry or on its Register line)
+  > **A sale to a dealer gets no installation call.** If the party is a
+  > **DEALER on the Party Master** (not the Type typed on the sale), the button is not offered (on the entry or on its Register line)
   > and the machines are not counted as *pending*; the system refuses such a call
   > however it is raised. When the dealer sells the machine, record an
   > **Ownership Transfer** and raise the call from there (see below).
@@ -719,7 +780,13 @@ written as `dd-MMM-yyyy` text.
 
 **Renew this contract** and **⇢ Convert to Contract** open in a **third column**
 beside the details and the products, so the machines being carried over stay in
-view.
+view. Both work from the entry **as saved**: while it has unsaved changes they
+are not offered — save the entry first. Neither creates a contract until
+Period (Months), PM Visits, Payment Schedule, Bill Generate At and Contract
+Type are filled: the panel shows any that are blank and names them.
+> **Saving an entry writes only what you changed**, so a field a colleague
+> changed meanwhile is not put back. If you both changed the same field, the
+> later save wins.
 
 **⇢ Convert to Contract** (on a saved sale, in the Warranty Register) raises a
 contract from it. The **customer** and every **machine with a serial** carry
@@ -820,6 +887,15 @@ set to zero.
     the **transfer date**, and it carries the customer's city, state and
     engineer from the Party Master and the machine's cover from the Product
     Database. A machine that already has its OT- call is not given a second.
+    The button is shown **only on a transfer with a Sold Through** — a dealer
+    selling the machine on; between two customers the machine already had its
+    installation call. A machine has **one** installation call: a second with
+    the same call number, or for the same product and serial, is refused
+    however it is raised, unless the first was cancelled.
+  - **Correcting a transfer** (its From party, or its machine) re-reads the
+    machine: a Sold Through the transfer had set is cleared when no dealer
+    transfer is left, and one that came from the Product Database upload is
+    kept. Moving a transfer to another serial also re-reads the one it left.
 
 - **Product Database** `/product-database` (menu: Contracts & Warranty) — every machine by model and serial, with its
   warranty, contract and current owner. This is where a call reads cover from.
@@ -933,7 +1009,11 @@ typed into a form that reads it.
   code already there is refused rather than overwritten.
   **✎ Edit** on a row changes everything but the code — the code cannot be
   changed any other way either; **🗑 Delete** is refused while any machine, sale
-  or contract carries the code — mark it Inactive instead.
+  or contract carries the code, or any Indoor Service job names the line by its
+  name — mark it Inactive instead. **Renaming** a line that Indoor Service jobs
+  name asks first and says how many: those jobs find the line's code, and
+  whether it is imported, by its name. A code that differs from one already
+  there only in capitals or spaces is refused.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
   > **✎ Edit**, **⊘ Deactivate** and **🗑 Delete** are on every row, each with
@@ -941,7 +1021,9 @@ typed into a form that reads it.
   > stock, consumption record or Indoor Service job names the part — deactivate
   > it instead.
   > A part's **code and description change only with Rename part**, which moves
-  > every record that names it; they cannot be changed any other way.
+  > every record that names it; they cannot be changed any other way. A part
+  > needs both, and a code that differs from one already there only in capitals
+  > or spaces is refused.
   > **HSN Code** has its own column: set it on *＋ Add part* or the edit drawer
   > (digits only), or with an **HSN Code** column in the Part Master upload. The
   > 29 parts that used to carry "(HSN:…)" in their description had it moved
@@ -1028,6 +1110,9 @@ typed into a form that reads it.
   > regardless.
 - **User Master** `/user-master` — people, roles and the reporting line. A
   manager's team is worked out from here.
+  > **A leaver is set inactive, not deleted.** 🗑 Delete removes only an entry
+  > made by mistake: one with a profile, Roles & Responsibilities or training
+  > history is refused, so that history stays — set Active to No instead.
   > **Department** comes from its own list (**Masters → Department** — add the
   > departments there first), so it is spelled one way everywhere.
   > **Many at once:** tick people (the header box ticks everyone the search is
@@ -1073,9 +1158,17 @@ typed into a form that reads it.
   > **One person, one row.** Where two rows share an email the role still
   > applies, but the name stops following, because there is no way to tell which
   > of the two is theirs.
+
+  **Reporting / Regional Manager** must be a name on the User Master — a name
+  that matches nobody is pointed out and saved only if you confirm, because the
+  reporting tree (who sees whose calls) is built from those names. **Active**
+  only says whether the person is listed as active; **only 🔒 Disable login
+  decides whether they can sign in**.
 - **All Masters** `/masters` — the value lists behind the dropdowns. Rights are
   **per list**.
-  > Each list has its own **Add**, **Edit** and **Delete** permission. **✎ Edit**
+  > Each list has its own **Add**, **Edit** and **Delete** permission. *Add /
+  > edit master records* adds and edits values on every list but does not
+  > delete them — deleting needs the list's own Delete permission. **✎ Edit**
   > on a row can **rename** a value: calls and reports already saved keep the old
   > wording, so a count or filter on the new wording does not include them.
   > A value in use is **deactivated**, not deleted, so records that used it keep
@@ -1104,6 +1197,10 @@ typed into a form that reads it.
   > product is chosen, every complaint is offered. A call that already carries a
   > complaint keeps it even if it is not on the product's list. The list is kept
   > on the device, so a Call Request fills it with no signal.
+
+  **A value that records use cannot be deleted** — you are told how many
+  records use it and offered **Deactivate**, which keeps it on those records and
+  stops offering it. A value nothing uses, or one listed twice, can be deleted.
 - **How RITHI Functions** `/knowledge-base/how-it-works` — how the system works,
   in four parts:
   > **All modules** — every screen in the menu, in menu order: what it is for,
@@ -1154,6 +1251,12 @@ typed into a form that reads it.
   > Drive link, so loading the list again corrects those notes rather than
   > adding them twice.
 - **QMS Documents** `/qms` — with number and revision.
+  > **A new revision is a new document.** A QMS document is added with its
+  > Document No, Revision and Effective date. Once recorded, those and the file
+  > cannot be changed — add the new revision as a new document and **Retire** the
+  > old one, which stays on the shelf as the record of what was in force. A QMS
+  > document is never deleted. Title, tags and notes can still be edited, and a
+  > field left blank can be filled once.
   > **Adding a document asks who must be trained on it** — roles,
   > designations, departments, regions or named people (anyone matching any of
   > them, active on the User Master). Each gets it on their training list.
@@ -1314,6 +1417,10 @@ typed into a form that reads it.
   - **A month with none reads 0, not blank.** Blank means nobody has measured
     it. That is the opposite of the rate objectives, where a rate over no
     machines is undefined and stays blank.
+
+  **An objective that has a figure recorded cannot be deleted**; one added in
+  error, with nothing recorded, can. Every figure typed, re-calculation and
+  cut-off is recorded with the value before and after.
 - **Reports — Consumption Report** `/exports/consumption` — one row per spare
   booked, with its call and that call's latest visit.
   > The first sixteen columns are the report's own format and are **locked**.
@@ -1460,7 +1567,9 @@ typed into a form that reads it.
      List the **accessories received**: each item with its **quantity**
      (and serial / tag where it has one), **+ Add item** for more.
   2. **Cleaning** — **Mark cleaning done** against the work instruction
-     (WI/SER/01) and its revision.
+     (WI/SER/01) and its revision. Leave *Cleaned at* blank for now, or give
+     the time it was actually done if you are recording it later — never a
+     time in the future. The system records you as who marked it.
   3. **Repair — the service report** — once the unit is cleaned (never
      before). This page **is** the Indoor Service Report: enter the **report
      number**, pick the file (saved in Drive as **“<report no>_<file name>”** so
@@ -1483,7 +1592,9 @@ typed into a form that reads it.
      one). **⭱ Upload** in the register's *Indoor Service Report No* cell opens
      this page directly.
   4. **DC** — once the report is uploaded (see *Indoor DC* below), then
-     **Dispatched** once the DC is approved.
+     **Dispatched** once the DC is approved. The **Dispatch Date** is the day
+     the unit is marked Dispatched (and who did it), not the day its DC was
+     issued; a unit not yet Dispatched shows none.
 
   A job opens as a **window** in the middle of the screen (× or **Esc** closes
   it) on the stage it is at; the stepper at the top moves between the stages
@@ -1533,6 +1644,11 @@ typed into a form that reads it.
   **cannot be Dispatched or Closed** until every field is filled, it is signed,
   and every check reads OK. **Print R/SER/QC/007** prints the form; a test that
   is not finished still prints, with a band saying so.
+  > **Once signed it is locked.** Nothing on it can be changed, and nobody can
+  > sign over it. To correct it, somebody given *Un-sign a Pre-Delivery Testing
+  > record* (ticked per person, in Extra Access or on a role) presses
+  > **Un-sign** with a reason — the reason, who had signed and when are kept in
+  > the audit log — and it is signed again after the correction.
   > If the job says it is **not known** whether the product is imported, the
   > test is not demanded — set Imported on the Product Master for that line and
   > the job will ask for it.
@@ -1567,6 +1683,10 @@ typed into a form that reads it.
   filed against the call — Unsolved, pending Return to Field, with the work
   details and the uploaded report — exactly as if it had been entered on the
   call; then the DC is approved and its print shows the approver's name.
+  > **A call already Solved is left alone.** If a unit's call has been Solved
+  > since its visit was drafted (closed in the field, say), approving does not
+  > file that visit — it would put the call back to Unsolved. The DC is still
+  > approved; the message names the calls skipped, and the audit log records it.
   > Approving files every unit's visit and its spares **in one step**: if one is
   > refused (for example a spare the engineer does not hold), nothing is filed,
   > the DC stays pending and the message says why. Only approving the DC marks a
@@ -1581,6 +1701,12 @@ typed into a form that reads it.
   > check, a DEMO unit of an imported product without its Pre-Delivery Testing)
   > — the message says which. Units for two consignees cannot share a DC. A DC
   > is never deleted; **Indoor DCs** lists them all and prints any of them again.
+
+  **A harvested part** is entered with its code, description, quantity, grade
+  and destination, and can be corrected afterwards. **When damage is reported to
+  the customer**, record the time beside the damage note — RITHI records who.
+  Every change to a job, its parts, accessories and checks is recorded with the
+  value before and after.
 - **Spare Recycling** `/indoor/recycling` — a **separate track** for recycling
   defective spares, with its own stock. Nothing here touches calls, Spare
   Requests, Stock Out or the regular Hand Stock. **While Audit Mode is on the
@@ -1706,6 +1832,11 @@ typed into a form that reads it.
   > permission, and it is the one thing that shows no error at all. Tick the
   > page here for the role. The headings and their order match the menu exactly,
   > so look for it under the group it sits in on the left.
+
+  **View as** — an administrator previewing somebody else's screens — **writes
+  nothing**: saving, uploading and approving are all refused during a preview,
+  and its start and end are recorded in the Audit Log. Every change to a role is
+  recorded by the database with what the role could do before and after.
 - **Audit Log** `/audit` — what the application recorded: actions, sign-ins, errors
   and how long they took. It records all the time, whatever Audit Mode says. The
   history of Audit Mode being turned on and off, each with its reason, is on
@@ -1749,6 +1880,9 @@ typed into a form that reads it.
   > **How RITHI Functions → Data flows**.
 - **Settings** `/settings` — the database and CallReg sheet connections for this
   browser. Your theme and account are on My Profile.
+
+  Changing the database or the CallReg connection is recorded in the Audit Log —
+  in the database being left, before the switch.
 - **Your Profile** `/profile` — **one tab per section**: Account, Details &
   R&R, Training, **My Team** (only if people report to you — split into
   **Active / Current** and **Ex Employees** by the User Master's *Active*

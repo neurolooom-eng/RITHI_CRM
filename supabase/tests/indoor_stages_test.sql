@@ -209,8 +209,15 @@ begin;
   \echo 'expect ERROR: only Stage Manager (AUTHORISED BY) or an administrator approves Indoor DC'
   select public.approve_indoor_dc(:'dc1');
 commit;
+-- record_indoor_visit() is not callable by a signed-in user since 0404 (D-108):
+-- no screen calls it. It stays for a repair in the SQL editor, so its own checks
+-- are proved below as such a caller -- the session still names who is asking.
 begin;
   set local role authenticated;
+  \echo 'expect ERROR: permission denied for function record_indoor_visit'
+  select public.record_indoor_visit((select id from public.indoor_jobs where serial = 'G1'), 'VIS-STG-1', true);
+commit;
+begin;
   \echo 'expect ERROR: only Stage Manager (AUTHORISED BY on'
   select public.record_indoor_visit((select id from public.indoor_jobs where serial = 'G1'), 'VIS-STG-1', true);
 commit;
@@ -235,12 +242,10 @@ insert into public.reports (uid, ucn, call_status, pending_reason, engineer, dat
  ('VIS-STG-OTHER', 'UCN-STG-3', 'Unsolved',                  'Return to Field', 'Stage Ajay', '{"Update Visit Work Details?": "Yes"}'::jsonb);
 
 begin;
-  set local role authenticated;
   \echo 'expect ERROR: does not read Unsolved / Return to Field / Update Visit Work Details? = Yes'
   select public.record_indoor_visit((select id from public.indoor_jobs where serial = 'G1'), 'VIS-STG-WRONG', true);
 commit;
 begin;
-  set local role authenticated;
   \echo 'expect ERROR: is not a visit of call UCN-STG-1'
   select public.record_indoor_visit((select id from public.indoor_jobs where serial = 'G1'), 'VIS-STG-OTHER', true);
 commit;

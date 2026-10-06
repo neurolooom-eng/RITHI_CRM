@@ -3361,7 +3361,9 @@ insert into public.perm_parents (child, parent) values
   ('masters.product_master.add', 'masters.edit'),
   ('masters.product_master.edit', 'masters.edit.records'),
   ('masters.product_master.edit', 'masters.edit'),
-  ('masters.product_master.delete', 'masters.edit');
+  ('masters.product_master.delete', 'masters.edit'),
+  -- D-129 (0401, 2026-10-05): an editor of the review reads its answers.
+  ('review.view', 'review.edit');
 
 -- has_perm() keeps its shape and its NULL: with no signed-in user
 -- my_extra_perms() is NULL, and several callers rely on `if not has_perm()`
@@ -4348,8 +4350,10 @@ begin
     with check (public.has_perm('masters.edit.records')
              or public.has_perm('master.' || coalesce(name, '') || '.edit'));
 
+  -- masters_delete is 0371_master_list_delete_key's (a list's own delete key,
+  -- or masters.edit -- not "Add / edit master records", D-086).
   create policy masters_delete on public.masters for delete
-    using      (public.has_perm('masters.edit.records')
+    using      (public.has_perm('masters.edit')
              or public.has_perm('master.' || coalesce(name, '') || '.delete'));
 end $$;
 

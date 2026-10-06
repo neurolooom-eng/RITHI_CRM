@@ -16,7 +16,7 @@ import { isKycVerified } from '../lib/kyc';
 import { useTeamEngineers } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import { PickList } from '../components/ui/PickList';
-import { machineRowProblem, productPlaceholder } from '../lib/callrequest';
+import { machineRowProblem, productPlaceholder, attendedDateProblem, correctionProblem } from '../lib/callrequest';
 import { sbSearchPartiesForCall, sbSearchPartiesForInstall, partyOwnsNoMachine, sbSearchMachines, type MachineHit } from '../lib/supabase';
 import { SupportingDocs } from './CallAssociations';
 import { todayISO } from '../lib/format';
@@ -265,6 +265,19 @@ export function RequestCallRegistration() {
 
   const saveDetail = async () => {
     if (!editRow || !detail) return;
+    // THE FORM'S RULES, ON THE CORRECTION TOO (FRS-124, D-030): the pickers
+    // below hold each value to its master; this holds the row to the machine
+    // and to the other calls on the same REQID.
+    const asReq = (r: Row) => ({
+      product: String(r.product ?? ''), serial: String(r.serial ?? ''),
+      party: String(r.partyName ?? ''), reportedProblem: String(r.reportedProblem ?? ''),
+    });
+    if (!String(editRow.callType ?? '').trim()) { setMsg({ tone: 'error', text: 'Choose a Call Type.' }); return; }
+    const siblings = rows.filter((r) => r.id !== detail.id && String(r.reqid ?? '') !== ''
+      && String(r.reqid ?? '') === String(detail.reqid ?? ''));
+    const problem = correctionProblem(asReq(editRow), siblings.map(asReq),
+      /install/i.test(String(editRow.callType ?? '')));
+    if (problem) { setMsg({ tone: 'error', text: problem }); return; }
     setSavingEdit(true);
     const res = await updateCallRequest(Number(detail.id), editRow);
     setSavingEdit(false);
@@ -396,16 +409,10 @@ export function RequestCallRegistration() {
             </div>
 
             {editing && editRow ? (
-              callRequestEditableKeys().map((k) => (
-                <div className="reg-detail-row" key={k}>
-                  <div className="reg-detail-k">{LABELS[k] ?? k}</div>
-                  <div className="reg-detail-v">
-                    <input className="input" value={String(editRow[k] ?? '')}
-                      type={k === 'planDate' ? 'date' : 'text'}
-                      onChange={(e) => setEditRow((r) => r && ({ ...r, [k]: e.target.value }))} />
-                  </div>
-                </div>
-              ))
+              <RequestCorrection
+                draft={editRow}
+                onChange={(patch) => setEditRow((r) => r && ({ ...r, ...patch }))}
+              />
             ) : (
             Object.entries(detail)
               .filter(([k, v]) => k !== 'id' && !k.startsWith('_') && !isSysColumn(k) && v != null && String(v).trim() !== '')
@@ -431,6 +438,172 @@ export function RequestCallRegistration() {
         )}
       </Drawer>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// THE CORRECTION HOLDS THE CONTROLS THE REQUEST WAS RAISED UNDER (FRS-124,
+// D-030).
+//
+// It rendered every correctable key as a plain text box, so a Standard
+// Complaint no analysis matches, a serial on no register and a party the
+// machine does not name could each be written through the correction while the
+// form held them to pickers. Each key now gets the form's own control, fed by
+// the form's own sources: the call-type and product masters, the complaint
+// master for the product (no free text, CR-015 / FRS-053), the machine search
+// for the serial with the customer read off the machine chosen (CR-005,
+// CR-006) — except on an installation, whose customer is picked or typed
+// (CR-017) — and the team list for the engineer. The fields still come from
+// `callRequestEditableKeys()`, so the whitelist decides WHAT is correctable and
+// this decides only HOW.
+// ---------------------------------------------------------------------------
+function RequestCorrection({ draft, onChange }: {
+  draft: Row;
+  onChange: (patch: Record<string, unknown>) => void;
+}) {
+  const callTypeMaster = useMaster('calltype', ['FIELD', 'INSTALLATION CALL']);
+  const productMaster = useMaster('product');
+  const complaintMaster = useComplaints();
+  const s = (k: string) => String(draft[k] ?? '');
+  const team = useTeamEngineers(s('engineer'));
+  const isInstall = /install/i.test(s('callType'));
+  const [hits, setHits] = useState<MachineHit[]>([]);
+  const withCurrent = (list: string[], current: string) =>
+    current && !list.includes(current) ? [current, ...list] : list;
+  const hitFor = (serial: string) => hits.find((m) => m.serial === serial && (!s('product') || m.product === s('product')))
+    ?? hits.find((m) => m.serial === serial);
+
+  const control = (k: string): React.ReactNode => {
+    switch (k) {
+      case 'callType':
+        return (
+          <SelectPicker value={s('callType')} options={withCurrent(callTypeMaster.values, s('callType'))}
+            onChange={(v) => {
+              const nowInstall = /install/i.test(v);
+              // CROSSING THE INSTALLATION LINE CHANGES WHO NAMES THE CUSTOMER,
+              // so what the old type filled in cannot stand: an installation
+              // carries INSTALLATION CALL (FRS-123.6); a field or PM call takes
+              // its machine, and with it its customer, from the register again.
+              if (nowInstall === isInstall) { onChange({ callType: v }); return; }
+              onChange(nowInstall
+                ? { callType: v, standardComplaint: 'INSTALLATION CALL' }
+                : { callType: v, serial: '', partyName: '', standardComplaint: '' });
+            }} />
+        );
+      case 'engineer':
+        return team.canPick
+          ? <SelectPicker value={s('engineer')} onChange={(v) => onChange({ engineer: v })} options={team.names}
+                          emptyHint="Only engineers on your team are listed." />
+          : <input className="input" value={s('engineer')} readOnly title="Only engineers on your team can be chosen" />;
+      case 'product':
+        return (
+          <SelectPicker value={s('product')} options={withCurrent(productMaster.values, s('product'))}
+            loading={!productMaster.ready}
+            onChange={(v) => {
+              // A new model is a new machine: the serial, and on a field call
+              // the customer and site that came with it, go with the old one.
+              const keepComplaint = isInstall || complaintMaster.forProduct(v).includes(s('standardComplaint'));
+              onChange({
+                product: v, serial: '',
+                ...(isInstall ? {} : { partyName: '', city: '', state: '', address: '' }),
+                ...(keepComplaint ? {} : { standardComplaint: '' }),
+              });
+            }} />
+        );
+      case 'serial':
+        return isInstall
+          ? <input className="input" placeholder="Serial (new machine)" value={s('serial')}
+                   onChange={(e) => onChange({ serial: e.target.value })} />
+          : (
+            <PickList
+              value={s('serial')}
+              options={withCurrent(hits.map((m) => m.serial), s('serial'))}
+              onSearch={async (qq) => {
+                const found = await sbSearchMachines(s('product'), qq, 50, '');
+                setHits((h) => [...found, ...h].slice(0, 500));
+                return found.map((m) => m.serial);
+              }}
+              onPick={(v) => {
+                const m = hitFor(v);
+                // THE MACHINE NAMES THE CUSTOMER (CR-005). A machine of another
+                // customer brings its own site; the same customer's keeps any
+                // site correction already typed.
+                if (!m) { onChange({ serial: v, partyName: '' }); return; }
+                const same = m.party.trim() === s('partyName').trim();
+                onChange({
+                  serial: m.serial, product: m.product || s('product'), partyName: m.party,
+                  city: same && s('city').trim() ? s('city') : m.city,
+                  state: same && s('state').trim() ? s('state') : m.state,
+                  address: same && s('address').trim() ? s('address') : m.address,
+                });
+              }}
+              labelFor={(v: string) => {
+                const m = hitFor(v);
+                return m ? `${m.serial} · ${m.party}${m.city ? ` · ${m.city}` : ''}` : v;
+              }}
+              plainValue
+              placeholder="Type any part of the serial…"
+              emptyLabel="— type a serial to find the machine —"
+              emptyHint={s('product')
+                ? `Serials of ${s('product')}, across every customer. The customer is filled in from the machine.`
+                : 'Every machine on the register. Pick a product above to narrow it.'}
+            />
+          );
+      case 'partyName':
+        return isInstall
+          ? (
+            <PickList
+              value={s('partyName')}
+              options={s('partyName') ? [s('partyName')] : []}
+              onSearch={sbSearchPartiesForInstall}
+              onPick={(v) => onChange({ partyName: v })}
+              allowFreeText
+              placeholder="Type to search, or enter a new customer"
+              emptyLabel="— pick the customer —"
+              emptyHint="A new customer can be typed in — installations reach people who are not on the master yet."
+            />
+          )
+          : <input className="input" value={s('partyName')} readOnly
+                   title="Read off the machine — change the serial to change the customer" />;
+      case 'standardComplaint':
+        return isInstall
+          ? <input className="input" value={s('standardComplaint')} readOnly />
+          : (
+            <PickList
+              value={s('standardComplaint')}
+              options={withCurrent(complaintMaster.forProduct(s('product')), s('standardComplaint'))}
+              onPick={(v) => onChange({ standardComplaint: v })}
+              disabled={!complaintMaster.all.length && !s('standardComplaint')}
+              placeholder={complaintMaster.all.length ? '— pick the standard complaint —'
+                : complaintMaster.ready ? '— the Standard Complaint master is empty —'
+                : '— loading the complaints… —'}
+              emptyHint="If it is not here, it needs adding under Masters."
+            />
+          );
+      case 'callAttended':
+        return <SelectPicker value={s('callAttended')} onChange={(v) => onChange({ callAttended: v })}
+                             placeholder="—" options={withCurrent(['Yes', 'No'], s('callAttended'))} />;
+      case 'planDate':
+        return <input className="input" type="date" value={s('planDate').slice(0, 10)}
+                      onChange={(e) => onChange({ planDate: e.target.value })} />;
+      case 'reportedProblem':
+      case 'additionalComments':
+      case 'address':
+        return <textarea className="input" rows={2} value={s(k)} onChange={(e) => onChange({ [k]: e.target.value })} />;
+      default:
+        return <input className="input" value={s(k)} onChange={(e) => onChange({ [k]: e.target.value })} />;
+    }
+  };
+
+  return (
+    <>
+      {callRequestEditableKeys().map((k) => (
+        <div className="reg-detail-row" key={k}>
+          <div className="reg-detail-k">{LABELS[k] ?? k}</div>
+          <div className="reg-detail-v">{control(k)}</div>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -718,7 +891,10 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
       seen.add(key);
     }
     if (!f.callAttended) return 'Answer Call Attended?';
-    if (attended && !f.attendedDate) return 'Attended Date is required when Call Attended? = Yes.';
+    // Required on Yes, and NOT AFTER TODAY (FRS-123.4, D-030): it becomes the
+    // call's complaint date, and no visit may precede that.
+    const attendedProblem = attendedDateProblem(attended, f.attendedDate, todayISO());
+    if (attendedProblem) return attendedProblem;
     if (uploading > 0) return 'Wait for the document upload to finish.';
     return '';
   };
@@ -783,10 +959,13 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     const t0 = performance.now();
     try {
       const res = await addCallRequestBatch(base, rows);
-      logAudit({ action: 'request.create', target: res.reqid ?? '', status: res.ok && !res.error ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0), meta: { products: filled.length, callType: f.callType } });
+      logAudit({ action: 'request.create', target: res.reqid ?? '', status: res.ok ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0), meta: { products: filled.length, callType: f.callType } });
+      // ALL OR NOTHING (FRS-123.8): ok means every call was written; a refusal
+      // means none was, and its message says so. There is no third state now
+      // that the half-saving fallback is gone (D-030).
       if (res.ok) {
-        setMsg({ tone: res.error ? 'error' : 'ok', text: res.error ?? `Request ${res.reqid} submitted — ${res.count} call${res.count === 1 ? '' : 's'}. Now in Pending Registrations.` });
-        if (!res.error) { reset(); onSaved(); }
+        setMsg({ tone: 'ok', text: `Request ${res.reqid} submitted — ${res.count} call${res.count === 1 ? '' : 's'}. Now in Pending Registrations.` });
+        reset(); onSaved();
       } else setMsg({ tone: 'error', text: `Submit failed: ${res.error}` });
     } catch (e) {
       setMsg({ tone: 'error', text: `Submit failed: ${e instanceof Error ? e.message : String(e)}` });
@@ -1109,7 +1288,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
               <SelectPicker value={f.callAttended} onChange={(v) => set('callAttended', v)}
                             placeholder="—" options={['Yes', 'No']} />
             ))}
-            {attended && field('Attended Date *', <input type="date" className="input" value={f.attendedDate} onChange={(e) => set('attendedDate', e.target.value)} />)}
+            {attended && field('Attended Date *', <input type="date" className="input" max={todayISO()} value={f.attendedDate} onChange={(e) => set('attendedDate', e.target.value)} />)}
             {!attended && field('Planned Visit Date', <input type="date" className="input" value={f.planDate || todayISO()} onChange={(e) => set('planDate', e.target.value)} />)}
             {field('Additional Comments', <textarea className="input" rows={2} value={f.additionalComments} onChange={(e) => set('additionalComments', e.target.value)} />, true)}
           </div>

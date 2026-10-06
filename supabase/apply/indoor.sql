@@ -30,6 +30,11 @@
 --   0374_indoor_new_device_kind.sql
 --   0377_pre_delivery_qc.sql
 --   0378_pdqc_number.sql
+--   0403_indoor_approval_skips_a_solved_call.sql
+--   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
+--   0367_indoor_dc_approver_is_the_login.sql
+--   0404_indoor_record_visit_closed_and_comments.sql
+--   0412_indoor_reported_to_customer_stamp.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -4570,5 +4575,485 @@ create trigger zy_pdqc_number before insert or update on public.pdqc_records
   for each row execute function public.pdqc_number();
 
 alter table public.pdqc_records alter column pdqc_no set not null;
+
+-- ------------------------------------------------------------------------
+-- 0403_indoor_approval_skips_a_solved_call.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0403 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
+--        (second re-review D-145; the user's decision, 2026-10-04)
+--
+-- approve_indoor_dc files each unit's drafted visit as Unsolved / Return to
+-- Field without asking the call's state. Measured: a call solved by a field
+-- visit after the draft received the approval's Unsolved visit as its latest
+-- entry, so it read Unsolved, reopen_count 0, nothing saying why.
+--
+-- THE USER'S DECISION: "Approve, skip that visit" -- the DC is approved and
+-- its other units' visits are filed; for a unit whose call is already Solved
+-- the drafted visit (and its spares) is NOT filed, the skip is written to the
+-- audit log (indoor.visit_skipped) and the approver is told which calls: the
+-- function returns "<DC No> | visit not filed, call already Solved: <UCNs>",
+-- and the screen shows it. "Solved" is the call's last status beginning with
+-- Solved (Solved, Solved - Report Pending ...) -- NOT open_state's "Report
+-- pending", which also covers a visit with a blank status.
+--
+-- Built on 0372's definition (the workshop's Call Status / Pending Reason
+-- decide the visit's), VERBATIM, with those lines added -- so the skip applies
+-- only where the call is already Solved AND the visit this job would file is
+-- not: a visit the workshop records as Solved is still filed.
+-- (Written as 0360 against 0327; renumbered after main's 0372 re-stated the
+-- function without it, which would otherwise have dropped the skip.)
+-- In the indoor module, after 0372.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.approve_indoor_dc(p_dc_no text, p_check_only boolean DEFAULT false)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_vs     record;
+  v_skipped text[] := '{}';
+  v_dc    public.indoor_dcs%rowtype;
+  j       record;
+  v_call  record;
+  v_draft jsonb;
+  v_uid   text;
+  v_me    text;
+  v_sp    jsonb;
+begin
+  select * into v_dc from public.indoor_dcs where dc_no = btrim(p_dc_no) for update;
+  if not found then
+    raise exception 'Indoor DC % was not found', p_dc_no using errcode = '23503';
+  end if;
+  if not public.indoor_dc_may_approve(v_dc.authorised_by_name) then
+    raise exception 'only % (AUTHORISED BY) or an administrator approves Indoor DC %', coalesce(nullif(v_dc.authorised_by_name, ''), '(nobody named)'), v_dc.dc_no
+      using errcode = '42501';
+  end if;
+  if v_dc.created_by = auth.uid() and not public.is_admin() then
+    raise exception 'Indoor DC % was issued by you -- the Reporting Manager, Regional Manager or NSM the User Master names approves it', v_dc.dc_no
+      using errcode = '42501';
+  end if;
+  if v_dc.approval_status <> 'Pending approval' then
+    raise exception 'Indoor DC % is %, not pending approval', v_dc.dc_no, v_dc.approval_status
+      using errcode = '23514';
+  end if;
+
+  -- Every unit with a call must have its visit drafted before anything is
+  -- written -- including on a check-only call, so the screen says so first.
+  for j in select * from public.indoor_jobs
+            where btrim(dispatch_ref) = v_dc.dc_no
+              and coalesce(btrim(ucn), '') <> '' and visit_filed_at is null
+            order by id loop
+    if j.visit_draft is null or jsonb_typeof(j.visit_draft) <> 'object' then
+      raise exception '%: no visit was drafted with its Indoor Service Report -- the Indoor engineer completes it (Report stage) before Indoor DC % can be approved', j.job_no, v_dc.dc_no
+        using errcode = '23514';
+    end if;
+    if btrim(coalesce(j.call_status, '')) = 'Unsolved' and btrim(coalesce(j.call_pending_reason, '')) = '' then
+      raise exception '%: the Call Status is Unsolved with no Call Pending Reason -- choose one in the Workshop record before Indoor DC % can be approved', j.job_no, v_dc.dc_no
+        using errcode = '23514';
+    end if;
+    if not exists (select 1 from public.calls c where c.ucn = btrim(j.ucn)) then
+      raise exception '%: call % was not found -- its visit cannot be filed', j.job_no, btrim(j.ucn)
+        using errcode = '23503';
+    end if;
+  end loop;
+  if p_check_only then return 'OK'; end if;
+
+  v_me := coalesce((select nullif(btrim(p.email), '') from public.profiles p where p.id = auth.uid()), auth.email(), '');
+  perform set_config('rithi.indoor_visit', 'on', true);
+
+  for j in select * from public.indoor_jobs
+            where btrim(dispatch_ref) = v_dc.dc_no
+              and coalesce(btrim(ucn), '') <> '' and visit_filed_at is null
+            order by id loop
+    select c.ucn, c.call_number, c.call_type, c.last_status into v_call from public.calls c where c.ucn = btrim(j.ucn) limit 1;
+    v_draft := j.visit_draft;
+    -- 0372: the Call Status / Pending Reason chosen on the job's Workshop record.
+    select * into v_vs from public.indoor_visit_status(j.call_status, j.call_pending_reason);
+    -- D-145 (the user's decision, 2026-10-04: "Approve, skip that visit"): a
+    -- call SOLVED since the visit was drafted is not put back to an open
+    -- status. When the call's last status is Solved and the visit this job
+    -- would file is not, the visit and its spares are not filed, the job keeps
+    -- no visit, the skip goes to the audit log, and the approver is told which
+    -- calls. A visit the workshop records as Solved (0372) is still filed, and
+    -- a visit an earlier attempt already filed is still reused.
+    if lower(btrim(coalesce(v_call.last_status, ''))) like 'solved%'
+       and lower(btrim(coalesce(v_vs.call_status, ''))) not like 'solved%'
+       and not (j.visit_uid is not null and exists (select 1 from public.reports r where r.uid = j.visit_uid)) then
+      v_skipped := v_skipped || btrim(j.ucn);
+      insert into public.audit_log (actor, role, action, target, status, meta)
+      values (v_me, '', 'indoor.visit_skipped', j.job_no, 'ok',
+              jsonb_build_object('dc_no', v_dc.dc_no, 'job_no', j.job_no, 'ucn', btrim(j.ucn),
+                                 'call_status', coalesce(v_call.last_status, ''),
+                                 'reason', 'the call was Solved after the visit was drafted, so the visit was not filed'));
+      continue;
+    end if;
+    -- WHAT THE VISIT ENTRY'S SAVE PATH FILES (fileVisit, CallReporting.tsx),
+    -- with the user's fixed Indoor values whatever the draft says: Unsolved /
+    -- Return to Field / work details Yes; the report is the uploaded Indoor
+    -- Service Report and its number travels as Manual Report No.
+    -- A VISIT ALREADY FILED by an earlier attempt through the screen (0323's
+    -- path recorded its uid before finishing) is reused, never filed twice;
+    -- that path's retry then filed the spares, and so does this.
+    if j.visit_uid is not null and exists (select 1 from public.reports r where r.uid = j.visit_uid) then
+      v_uid := j.visit_uid;
+    else
+    v_uid := 'WEB-' || upper(to_hex((extract(epoch from clock_timestamp()) * 1000)::bigint))
+             || '-' || upper(substr(md5(random()::text || j.id::text), 1, 5));
+    insert into public.reports (uid, ucn, call_number, manual_report, call_status, pending_reason,
+                                engineer, engineer_email, visit_at, data, updated_at)
+    values (v_uid, btrim(j.ucn), coalesce(v_call.call_number, ''), coalesce(j.report_file_url, ''),
+            v_vs.call_status, v_vs.pending_reason,
+            coalesce(v_draft->>'engineer', ''), coalesce(v_draft->>'engineerEmail', ''),
+            case when coalesce(v_draft->>'visitDate', '') <> '' then ((v_draft->>'visitDate') || 'T00:00:00Z')::timestamptz end,
+            jsonb_build_object(
+              'Email-ID', v_me,
+              'Call Type', coalesce(v_call.call_type, ''),
+              'Visit Entry Date', to_char(now() at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI:SS'),
+              'Visit Date & Time', coalesce(v_draft->>'visitDate', ''))
+            || case when jsonb_typeof(v_draft->'work') = 'object' then v_draft->'work' else '{}'::jsonb end
+            -- the fixed values LAST, so nothing in the draft can override them
+            || jsonb_build_object('Update Visit Work Details?', 'Yes',
+                                  'Manual Report', coalesce(j.report_file_url, ''),
+                                  'Manual Report No.', coalesce(j.indoor_report_no, '')),
+            now());
+    end if;
+
+    -- The drafted spares, every part in ONE statement, as the screen did.
+    if jsonb_typeof(v_draft->'spares') = 'array' and jsonb_array_length(v_draft->'spares') > 0 then
+      insert into public.spare_consumption (ucn, call_number, part, qty, grir, engineer, engineer_email, data)
+      select btrim(j.ucn), coalesce(v_call.call_number, ''), coalesce(sp->>'part', ''),
+             coalesce(nullif(sp->>'qty', '')::numeric, 1), coalesce(sp->>'grir', ''),
+             coalesce(v_draft->>'engineer', ''), coalesce(v_draft->>'engineerEmail', ''), '{}'::jsonb
+        from jsonb_array_elements(v_draft->'spares') sp;
+    end if;
+
+    update public.indoor_jobs set visit_uid = v_uid, visit_filed_at = now() where id = j.id;
+  end loop;
+
+  update public.indoor_dcs
+     set approval_status  = 'Approved',
+         approved_by      = auth.uid(),
+         approved_at      = now(),
+         approved_by_name = coalesce((select coalesce(nullif(btrim(p.full_name), ''), p.email)
+                                        from public.profiles p where p.id = auth.uid()), '')
+   where id = v_dc.id;
+  if array_length(v_skipped, 1) > 0 then
+    return v_dc.dc_no || ' | visit not filed, call already Solved: ' || array_to_string(v_skipped, ', ');
+  end if;
+  return v_dc.dc_no;
+end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0363_indoor_pdt_lock_dispatch_and_cleaning.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0363 — A SIGNED PDT IS LOCKED; THE DISPATCH DATE IS WHEN THE UNIT LEAVES;
+--        A CLEANING TIME MAY BE EARLIER BUT NEVER LATER, AND NAMES WHO
+--        (second re-review D-111, D-112, D-114; the user's decisions, 2026-10-04)
+--
+-- D-111 -- indoor_pdt_stamp() stamps the inspector on signing and nothing
+-- refused a later change: measured, a second engineer changed the HV reading
+-- and a check from OK to NOT OK after the first had signed, and the row still
+-- named the first as the inspector -- after dispatch too.
+-- THE USER'S DECISION: "Lock once signed" -- a signed PDT cannot be changed;
+-- a correction needs it un-signed first, by "a new key, ticked per person":
+-- indoor.pdt_unsign (an administrator holds every key; nobody else is given
+-- it here). Un-signing is unsign_indoor_pdt(job, reason): the reason and who
+-- go to the audit log (indoor.pdt_unsign), and only that function's ticket
+-- lets a signature be withdrawn. Signing over somebody else's signature is
+-- refused too: that is a change of who vouched for the test.
+--
+-- D-112 -- the 0323 guard stamps dispatched_at / dispatched_by when the DC
+-- number is set, i.e. when the DC is ISSUED; moving the unit to Dispatched
+-- later did not re-stamp, so a unit still Ready showed a dispatch date.
+-- THE USER'S DECISION: the Dispatch Date is the date it is marked Dispatched.
+-- They are stamped on the move into Dispatched (or straight into Closed with
+-- none yet) from the session, and a unit not Dispatched or Closed carries
+-- none. ONCE, the stamps the DC issue left on units still not dispatched are
+-- cleared -- that one statement lifts zz_indoor_jobs_guard by name (the
+-- migration has no session, and the guard would read the clearing as an
+-- unauthorised dispatch) and puts it straight back.
+--
+-- D-114 -- the report may be uploaded only after cleaning, judged on
+-- cleaned_at, which the browser sent; measured, cleaned_at = 2020-01-01 with
+-- no cleaned_by was accepted. THE USER'S DECISION: "allow an earlier time"
+-- (cleaning is sometimes recorded after it happened), never a future one, and
+-- the database records WHO marked it -- cleaned_by is the session whatever was
+-- sent. Clearing the cleaning time clears who.
+--
+-- ONE TRIGGER OF ITS OWN for D-112 / D-114, not another edit of
+-- indoor_jobs_guard: that function is 269 lines and has been rebuilt before.
+-- It is named to run AFTER zz_indoor_jobs_guard and zz_indoor_jobs_stamp
+-- (zzy_ sorts between them and zzz_sys_stamp), so its stamps are the last word.
+-- A connection with no session (a repair, an import) is not stopped.
+-- In the indoor module, after 0403.
+-- ===========================================================================
+
+-- ---- D-111 ------------------------------------------------------------------
+create or replace function public.indoor_pdt_locked_once_signed()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_stamps text[] := array['id', 'job_id', 'inspected_by', 'inspector_name', 'inspector_designation',
+                           'inspected_at', 'created_by', 'created_at', 'updated_by', 'updated_at',
+                           'sys_id', 'sys_created_by', 'sys_created_on', 'sys_updated_by', 'sys_updated_on'];
+begin
+  if auth.uid() is null then return new; end if;                -- a repair
+  if old.inspected_by is null then return new; end if;           -- not signed: editable
+
+  if new.inspected_by is null then                               -- withdrawing the signature
+    if coalesce(current_setting('rithi.pdt_unsign', true), '') = 'on'
+       and public.has_perm('indoor.pdt_unsign') then
+      return new;
+    end if;
+    raise exception 'A signed Pre-Delivery Testing record is un-signed with "Un-sign", by somebody given indoor.pdt_unsign, with a reason'
+      using errcode = '42501';
+  end if;
+
+  if new.inspected_by is distinct from old.inspected_by then
+    raise exception 'This Pre-Delivery Testing record is already signed by % -- it is un-signed first, then signed again',
+      coalesce(nullif(old.inspector_name, ''), 'the inspector') using errcode = '42501';
+  end if;
+
+  if (to_jsonb(new) - v_stamps) is distinct from (to_jsonb(old) - v_stamps) then
+    raise exception 'This Pre-Delivery Testing record is signed by % and locked -- it is un-signed first (needs indoor.pdt_unsign and a reason) before anything on it changes',
+      coalesce(nullif(old.inspector_name, ''), 'the inspector') using errcode = '42501';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.indoor_pdt_locked_once_signed() from public, anon, authenticated;
+drop trigger if exists indoor_pdt_locked_once_signed on public.indoor_pdt;
+create trigger indoor_pdt_locked_once_signed
+  before update on public.indoor_pdt
+  for each row execute function public.indoor_pdt_locked_once_signed();
+
+create or replace function public.unsign_indoor_pdt(p_job_id bigint, p_reason text)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_pdt public.indoor_pdt%rowtype; v_job text; v_actor text;
+begin
+  if not public.has_perm('indoor.pdt_unsign') then
+    raise exception 'indoor.pdt_unsign is required to un-sign a Pre-Delivery Testing record' using errcode = '42501';
+  end if;
+  if btrim(coalesce(p_reason, '')) = '' then
+    raise exception 'Say why the Pre-Delivery Testing record is un-signed' using errcode = '23514';
+  end if;
+  select * into v_pdt from public.indoor_pdt where job_id = p_job_id for update;
+  if not found or v_pdt.inspected_by is null then
+    raise exception 'That Pre-Delivery Testing record is not signed' using errcode = '23514';
+  end if;
+  select job_no into v_job from public.indoor_jobs where id = p_job_id;
+  select coalesce(nullif(btrim(p.full_name), ''), p.email, '') into v_actor from public.profiles p where p.id = auth.uid();
+
+  perform set_config('rithi.pdt_unsign', 'on', true);
+  update public.indoor_pdt set inspected_by = null where job_id = p_job_id;
+  perform set_config('rithi.pdt_unsign', 'off', true);
+
+  insert into public.audit_log (actor, role, action, target, status, meta)
+  values (coalesce(v_actor, ''), '', 'indoor.pdt_unsign', coalesce(v_job, p_job_id::text), 'ok',
+          jsonb_build_object('job_id', p_job_id, 'reason', btrim(p_reason),
+                             'was_signed_by', v_pdt.inspector_name, 'was_signed_at', v_pdt.inspected_at));
+end $$;
+revoke execute on function public.unsign_indoor_pdt(bigint, text) from public, anon;
+grant execute on function public.unsign_indoor_pdt(bigint, text) to authenticated;
+
+-- ---- D-112 / D-114 ----------------------------------------------------------
+create or replace function public.indoor_dispatch_and_cleaning_stamps()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;                -- a repair, an import
+
+  -- D-112: dispatched when it is marked Dispatched, not when its DC was issued.
+  if new.status in ('Dispatched', 'Closed') then
+    if new.status = 'Dispatched'
+       and (tg_op = 'INSERT' or old.status is distinct from 'Dispatched')
+       and (tg_op = 'INSERT' or old.status is distinct from 'Closed') then
+      new.dispatched_at := now();
+      new.dispatched_by := auth.uid();
+    elsif new.status = 'Closed' and new.dispatched_at is null then
+      new.dispatched_at := now();
+      new.dispatched_by := auth.uid();
+    end if;
+  else
+    new.dispatched_at := null;
+    new.dispatched_by := null;
+  end if;
+
+  -- D-114: an earlier cleaning time is allowed, a later one is not; who is the session.
+  if new.cleaned_at is distinct from (case when tg_op = 'UPDATE' then old.cleaned_at end)
+     or new.cleaned_by is distinct from (case when tg_op = 'UPDATE' then old.cleaned_by end) then
+    if new.cleaned_at is null then
+      new.cleaned_by := null;
+    else
+      if new.cleaned_at > now() + interval '5 minutes' then
+        raise exception 'A cleaning cannot be recorded in the future (%) -- give the time it was done',
+          to_char(new.cleaned_at at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI') using errcode = '23514';
+      end if;
+      new.cleaned_by := auth.uid();
+    end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.indoor_dispatch_and_cleaning_stamps() from public, anon, authenticated;
+drop trigger if exists zzy_indoor_dispatch_and_cleaning on public.indoor_jobs;
+create trigger zzy_indoor_dispatch_and_cleaning
+  before insert or update on public.indoor_jobs
+  for each row execute function public.indoor_dispatch_and_cleaning_stamps();
+
+-- ---- once: the dispatch stamps the DC issue left on units not yet dispatched --
+create table if not exists public.one_time_fixes_done (
+  name       text primary key,
+  applied_at timestamptz not null default now(),
+  detail     text
+);
+alter table public.one_time_fixes_done enable row level security;
+revoke all on public.one_time_fixes_done from anon, authenticated;
+
+do $$
+declare n bigint;
+begin
+  if exists (select 1 from public.one_time_fixes_done where name = '0363_premature_dispatch_stamps_cleared') then return; end if;
+  -- Lifted for this ONE statement and put straight back (the 0210 rule).
+  alter table public.indoor_jobs disable trigger zz_indoor_jobs_guard;
+  update public.indoor_jobs
+     set dispatched_at = null, dispatched_by = null
+   where status not in ('Dispatched', 'Closed')
+     and (dispatched_at is not null or dispatched_by is not null);
+  get diagnostics n = row_count;
+  alter table public.indoor_jobs enable trigger zz_indoor_jobs_guard;
+  insert into public.one_time_fixes_done (name, detail)
+  values ('0363_premature_dispatch_stamps_cleared', n || ' unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared');
+  raise notice '0363: % unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0367_indoor_dc_approver_is_the_login.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0367 — AN INDOOR DC IS APPROVED BY THE LOGIN THE USER MASTER NAMES, NOT BY
+--        ANYBODY WHOSE PROFILE CARRIES THE SAME NAME
+--        (second re-review D-143)
+--
+-- indoor_dc_may_approve() (0323) compared authorised_by_name with
+-- my_dir_name() (limit 1, no order) OR the caller's profile full_name.
+-- Measured: a second login whose profile name equals the approver's, holding
+-- calls.view only and with no User Master row, saw both DCs (indoor_read reads
+-- it through indoor_job_on_my_dc()) and approved one; the DC then read
+-- approved_by_name as the right person.
+--
+-- The authoriser is chosen from the User Master (0327), so the person named is
+-- a User Master row, and that row says which login is theirs: its Mail ID or
+-- its Gmail. The caller is now the person named when a User Master row of that
+-- name carries the caller's sign-in address -- any such row, not the first.
+-- The profile's own name is still accepted ONLY where no User Master row of
+-- that name carries any address at all: then the directory cannot say who the
+-- person is, and refusing would leave the DC with no approver but an
+-- administrator. Where it does carry one, a different login with the same
+-- name is refused.
+-- Signature and every caller unchanged (approve, reject, record_indoor_visit,
+-- the DC list, indoor_job_on_my_dc). In the indoor module, after 0363.
+-- ===========================================================================
+
+create or replace function public.indoor_dc_may_approve(p_authorised_by text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.is_admin()
+      or (coalesce(btrim(p_authorised_by), '') <> ''
+          and (exists (select 1 from public.user_directory d
+                        where upper(btrim(d.name)) = upper(btrim(p_authorised_by))
+                          and coalesce(auth.email(), '') <> ''
+                          and (lower(btrim(coalesce(d.email, ''))) = lower(auth.email())
+                               or lower(btrim(coalesce(d.gmail, ''))) = lower(auth.email())))
+               or (not exists (select 1 from public.user_directory d
+                                where upper(btrim(d.name)) = upper(btrim(p_authorised_by))
+                                  and (btrim(coalesce(d.email, '')) <> '' or btrim(coalesce(d.gmail, '')) <> ''))
+                   and upper(btrim(p_authorised_by))
+                       = upper(btrim(coalesce((select p.full_name from public.profiles p where p.id = auth.uid()), ''))))));
+$$;
+comment on function public.indoor_dc_may_approve(text) is
+  'True for an administrator, or for the login a User Master row of that name carries (Mail ID or Gmail); by profile name only where no row of that name carries an address (0367, D-143).';
+revoke all on function public.indoor_dc_may_approve(text) from public;
+revoke execute on function public.indoor_dc_may_approve(text) from anon;
+grant execute on function public.indoor_dc_may_approve(text) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0404_indoor_record_visit_closed_and_comments.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0404 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
+--        COLUMNS SAY WHEN THE VISIT IS ACTUALLY FILED
+--        (second re-review D-108, D-116)
+--
+-- D-108 -- 0327 stopped the engineer marking a unit's visit filed, but
+-- record_indoor_visit() stayed executable by authenticated, and no screen calls
+-- it (read: src/ -- only an unused wrapper names it). Measured: the DC's named
+-- approver pointed a repair at a 200-day-old visit with it and approved; the DC
+-- read Approved and nothing of this repair was filed. The approval files the
+-- visit itself (approve_indoor_dc(), 0327), running as its owner, so it does
+-- not need the grant. The function is KEPT for a repair in the SQL editor,
+-- where its own checks still apply.
+--
+-- D-116 -- the column comments 0323 wrote say the visit is filed when the DC is
+-- ISSUED and that create_indoor_dc() requires it; since 0327 the visit is filed
+-- at APPROVAL and create_indoor_dc() asks neither. DATABASE_SCHEMA.md carries
+-- the comments, so it said the same.
+-- In the indoor module, after 0367.
+-- ===========================================================================
+
+revoke execute on function public.record_indoor_visit(bigint, text, boolean) from public, anon, authenticated;
+
+comment on column public.indoor_jobs.visit_draft is
+  'For a job with a UCN: the Visit Entry answers captured with the report upload, a DRAFT. Filed against the UCN when the Indoor DC is APPROVED -- by approve_indoor_dc(), as the approver (0327) -- not when it is issued.';
+comment on column public.indoor_jobs.visit_uid is
+  'The reports row (visit) filed against the UCN from this job''s draft, written by the DC''s approval (0327). Must name a visit of this job''s UCN; no signed-in write may change it.';
+comment on column public.indoor_jobs.visit_filed_at is
+  'When the drafted visit was filed in full -- the visit, its spares and its feedback -- by the DC''s approval (0327). create_indoor_dc() does not ask for it; approve_indoor_dc() files it.';
+
+-- ------------------------------------------------------------------------
+-- 0412_indoor_reported_to_customer_stamp.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0412 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
+--        (second re-review D-039, FRS-143.9)
+--
+-- indoor_jobs.reported_to_customer_at / _by exist (FRS-057) and were on no
+-- screen. The screen now records when damage was reported to the owner; the
+-- person is the database's to write, the 0363 rule for the cleaning:
+--   * setting or changing the time stamps reported_to_customer_by from the
+--     session, discarding whatever was sent;
+--   * a time in the future is refused (five minutes' grace for a clock);
+--   * clearing the time clears the person.
+-- A connection with no session (a repair, an import) is left alone.
+-- In the indoor module, after 0404.
+-- ===========================================================================
+
+create or replace function public.indoor_reported_to_customer_stamp()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if new.reported_to_customer_at is distinct from (case when tg_op = 'UPDATE' then old.reported_to_customer_at end)
+     or new.reported_to_customer_by is distinct from (case when tg_op = 'UPDATE' then old.reported_to_customer_by end) then
+    if new.reported_to_customer_at is null then
+      new.reported_to_customer_by := null;
+    else
+      if new.reported_to_customer_at > now() + interval '5 minutes' then
+        raise exception 'A damage report to the customer cannot be recorded in the future (%)',
+          to_char(new.reported_to_customer_at at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI') using errcode = '23514';
+      end if;
+      new.reported_to_customer_by := auth.uid();
+    end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.indoor_reported_to_customer_stamp() from public, anon, authenticated;
+drop trigger if exists zzy_indoor_reported_to_customer on public.indoor_jobs;
+create trigger zzy_indoor_reported_to_customer
+  before insert or update on public.indoor_jobs
+  for each row execute function public.indoor_reported_to_customer_stamp();
 
 commit;

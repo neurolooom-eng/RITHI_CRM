@@ -14,7 +14,7 @@ import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
 import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
-import { coverStatus, deriveHeader, deriveItem, TRANSFERRED_AWAY, isDealerType, DEALER_NO_INSTALL } from '../lib/coverspec';
+import { coverStatus, deriveHeader, deriveItem, TRANSFERRED_AWAY, DEALER_NO_INSTALL } from '../lib/coverspec';
 import { listProductLines, sellableNames, sellableCodes, retiredNames, type ProductLine } from '../lib/productLines';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtDate, statusBadge, timeAgo } from '../lib/format';
@@ -23,12 +23,12 @@ import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from 
 import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
-  configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit,
+  configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem, forceInherit, withSavedMachine, keepUnsavedMachines,
   raiseInstallCalls, missingRequired, yearsHint, getHeader, countPendingSales,
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   proposeConversion, conversionHeader, convertWarrantyToContract, contractsFromSale, suggestedContractPmVisits,
-  machinesWithAnotherCustomer,
-  CONTRACT, type ConversionDraft,
+  machinesWithAnotherCustomer, dealerParties, isDealerParty, coverMachineKey,
+  CONTRACT, type ConversionDraft, contractMissing, contractMissingText, renewalHeader,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
 // THE PRICING RULE COMES FROM ONE PLACE. GST and "total = rate + tax" are the
@@ -526,10 +526,32 @@ function ContractMachinePicker({ header, items, onAdded, onManual, onCancel }: {
 // its own old rate — visibly, and each one still editable. A machine with no
 // old rate stays empty rather than becoming 0.
 // ===========================================================================
-function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDone: (mc: string) => void }) {
+// The contract form's own options for a select field — one list, read by both
+// panels, so a renewal and a conversion offer what the form offers.
+const contractOptions = (name: string): string[] =>
+  CONTRACT.headerFields.find((f) => f.name === name)?.options?.filter(Boolean) ?? [];
+
+// D-104: what a panel's Create is waiting for, said beside the button.
+function MissingNote({ missing }: { missing: string[] }) {
+  if (!missing.length) return null;
+  return <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>{contractMissingText(missing)}</span>;
+}
+
+function RenewPanel({ header, items, onDone, blocked }: {
+  /** The contract AS SAVED, never the window's draft (D-100). */
+  header: Row; items: Row[]; onDone: (mc: string) => void;
+  /** Why Create may not be pressed now — the entry holds an unsaved change. */
+  blocked?: string;
+}) {
   const [d, setD] = useState<RenewalDraft>(() => proposeRenewal(header, items));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  // PM VISITS: the old contract's number is carried; where it had none, the
+  // contract form's suggestion follows the months until somebody types over it
+  // (FRS-090) — the same rule the conversion panel uses.
+  const [pmTyped, setPmTyped] = useState(() => proposeRenewal(header, items).pm_visits_total != null);
+  // D-104: the contract form's required fields, checked on what will be written.
+  const missing = contractMissing(renewalHeader(header, d));
 
   const set = <K extends keyof RenewalDraft>(k: K, v: RenewalDraft[K]) => setD((x) => ({ ...x, [k]: v }));
   // The end date follows the start and the period, so the three cannot disagree
@@ -549,24 +571,28 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
       contract_months: months,
       contract_years: months === null ? null : months / 12,
       contract_end: addPeriod(startIso, 0, months ?? 0) || x.contract_end,
+      pm_visits_total: pmTyped ? x.pm_visits_total : suggestedContractPmVisits(months),
     }));
 
-  const toggle = (sn: string) => setD((x) => ({
+  // TICKED, PRICED AND LISTED BY MACHINE — product AND serial (D-105, CW-001):
+  // keyed by the serial alone, two machines sharing a number on one contract
+  // ticked and priced as one. `k` is coverMachineKey throughout this panel.
+  const toggle = (k: string) => setD((x) => ({
     ...x,
-    serials: x.serials.includes(sn) ? x.serials.filter((s) => s !== sn) : [...x.serials, sn],
+    machines: x.machines.includes(k) ? x.machines.filter((m) => m !== k) : [...x.machines, k],
   }));
 
   // ---- the price revision ------------------------------------------------
   const [pct, setPct] = useState('');
 
-  // What each machine was on last time, by serial. CONTEXT for whoever is
+  // What each machine was on last time, by machine. CONTEXT for whoever is
   // pricing — it is never written anywhere.
   const oldRate = new Map<string, unknown>(
-    items.map((i) => [str(i.serial_number), i.rate]),
+    items.map((i) => [coverMachineKey(i), i.rate]),
   );
 
-  const setRate = (sn: string, v: string) =>
-    setD((x) => ({ ...x, rates: { ...x.rates, [sn]: v } }));
+  const setRate = (k: string, v: string) =>
+    setD((x) => ({ ...x, rates: { ...x.rates, [k]: v } }));
 
   // FILL THE TICKED MACHINES FROM THEIR OWN OLD RATES. Only the ticked ones:
   // an unticked machine is not being renewed, and pricing it would be writing
@@ -576,11 +602,11 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
     if (pct.trim() === '' || !Number.isFinite(p)) return;
     setD((x) => {
       const next = { ...x.rates };
-      for (const sn of x.serials) {
-        const up = upliftRate(oldRate.get(sn), p);
+      for (const k of x.machines) {
+        const up = upliftRate(oldRate.get(k), p);
         // A machine with no old rate is left alone rather than set to 0 — "we
         // do not know what this was on" is not "it was free".
-        if (up !== null) next[sn] = String(up);
+        if (up !== null) next[k] = String(up);
       }
       return { ...x, rates: next };
     });
@@ -590,17 +616,17 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
 
   // What the panel is about to write, through the SAME functions that will
   // write it — so the preview cannot disagree with the saved row.
-  const priced = d.serials
-    .map((sn) => {
-      const raw = (d.rates[sn] ?? '').trim();
+  const priced = d.machines
+    .map((k) => {
+      const raw = (d.rates[k] ?? '').trim();
       if (raw === '') return null;
       const n = Number(raw);
       return Number.isFinite(n) && n >= 0 ? n : null;
     })
     .filter((n): n is number => n !== null);
   const newTotal = priced.reduce((t, r) => t + (totalAfterTax(r) ?? 0), 0);
-  const badRate = d.serials.some((sn) => {
-    const raw = (d.rates[sn] ?? '').trim();
+  const badRate = d.machines.some((k) => {
+    const raw = (d.rates[k] ?? '').trim();
     if (raw === '') return false;
     const n = Number(raw);
     return !Number.isFinite(n) || n < 0;
@@ -617,7 +643,9 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
     } finally { setBusy(false); }
   };
 
-  const serials = items.map((i) => str(i.serial_number)).filter(Boolean);
+  // One row per MACHINE with a serial, in the contract's own order.
+  const lines = items.filter((i, n) => str(i.serial_number).trim()
+    && items.findIndex((j) => coverMachineKey(j) === coverMachineKey(i)) === n);
 
   return (
     <div className="rep-sec" style={{ marginTop: 14 }}>
@@ -626,7 +654,8 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
       </div>
       <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
         The new contract starts the day after this one ends, so cover has no gap and no overlap.
-        The machines, type, party, period and billing schedule carry over.
+        The machines, type, party, period, PM visits and billing schedule carry over — editable here,
+        and any the old contract left blank must be filled before the renewal can be created.
         <b> Rates do not</b> — a renewal is re-priced, and a figure carried over silently is a price
         nobody agreed. Set the new rates below, or leave them blank and price the contract later.
       </p>
@@ -638,9 +667,9 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
                  onChange={(e) => set('mc_number', e.target.value)} />
         </label>
         <label className="rep-field">
-          <span className="field-label">Contract Type</span>
+          <span className="field-label">Contract Type *</span>
           <SelectPicker value={d.contract_type} onChange={(v) => set('contract_type', v)}
-            placeholder="— none —" options={['CMC', 'AMC']} />
+            placeholder="— choose —" options={contractOptions('contract_type')} />
         </label>
         <label className="rep-field">
           <span className="field-label">Start</span>
@@ -664,10 +693,27 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
             <span className="muted rep-hint">{yearsHint(d as unknown as Row, 'contract_months')}</span>
           )}
         </label>
+        {/* D-104: required on the contract form, so carried AND editable — a
+            blank on the old contract is asked for here, never copied. */}
+        <label className="rep-field">
+          <span className="field-label">PM Visits (Total) *</span>
+          <input className="input" type="number" min={0} value={d.pm_visits_total ?? ''}
+                 onChange={(e) => { setPmTyped(true); set('pm_visits_total', e.target.value === '' ? null : Number(e.target.value)); }} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Payment Schedule *</span>
+          <SelectPicker value={d.payment_schedule} onChange={(v) => set('payment_schedule', v)}
+            placeholder="—" options={contractOptions('payment_schedule')} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Bill Generate At *</span>
+          <SelectPicker value={d.bill_generate_at} onChange={(v) => set('bill_generate_at', v)}
+            placeholder="—" options={contractOptions('bill_generate_at')} />
+        </label>
       </div>
 
       <div className="field-label" style={{ marginTop: 10 }}>
-        Machines and rates ({d.serials.length} of {serials.length} carrying over)
+        Machines and rates ({d.machines.length} of {lines.length} carrying over)
       </div>
       <div className="muted" style={{ fontSize: 12.5 }}>
         Untick a machine that is not being renewed. <b>Was</b> is what it was charged on{' '}
@@ -693,19 +739,20 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
       </div>
 
       <div style={{ maxHeight: 260, overflowY: 'auto', marginTop: 8 }}>
-        {serials.map((sn) => {
-          const it = items.find((x) => str(x.serial_number) === sn);
-          const on = d.serials.includes(sn);
-          const was = oldRate.get(sn);
+        {lines.map((it) => {
+          const k = coverMachineKey(it);
+          const sn = str(it.serial_number);
+          const on = d.machines.includes(k);
+          const was = oldRate.get(k);
           const wasN = was == null || was === '' ? null : Number(was);
-          const raw = (d.rates[sn] ?? '').trim();
+          const raw = (d.rates[k] ?? '').trim();
           const n = raw === '' ? null : Number(raw);
           const ok = n !== null && Number.isFinite(n) && n >= 0;
           return (
-            <div key={sn} className="renew-row" style={{ opacity: on ? 1 : 0.5 }}>
-              <input type="checkbox" checked={on} onChange={() => toggle(sn)} />
+            <div key={k} className="renew-row" style={{ opacity: on ? 1 : 0.5 }}>
+              <input type="checkbox" checked={on} onChange={() => toggle(k)} />
               <span className="renew-name">
-                <b>{sn}</b> <span className="muted">{str(it?.product_name)}</span>
+                <b>{sn}</b> <span className="muted">{str(it.product_name)}</span>
               </span>
               <span className="renew-money">
                 <span className="muted renew-was">
@@ -713,7 +760,7 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
                 </span>
                 <input className="input renew-rate" type="number" min={0} step="0.01"
                        placeholder="new rate" disabled={!on}
-                       value={d.rates[sn] ?? ''} onChange={(e) => setRate(sn, e.target.value)} />
+                       value={d.rates[k] ?? ''} onChange={(e) => setRate(k, e.target.value)} />
                 {/* WHAT WILL ACTUALLY BE WRITTEN, next to the number being
                     typed: the rate goes in, but the contract bills the total. */}
                 <span className="muted renew-tot">
@@ -724,7 +771,7 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
             </div>
           );
         })}
-        {!serials.length && <div className="muted" style={{ fontSize: 12.5 }}>This contract has no machines on it.</div>}
+        {!lines.length && <div className="muted" style={{ fontSize: 12.5 }}>This contract has no machines on it.</div>}
       </div>
 
       {/* The contract's own total, so a rate typed with a digit too many shows
@@ -732,7 +779,7 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
       {priced.length > 0 && (
         <div className="row" style={{ gap: 8, marginTop: 8, fontSize: 13 }}>
           <span className="muted">
-            {priced.length} of {d.serials.length} priced · rate {money(priced.reduce((t, r) => t + r, 0))}
+            {priced.length} of {d.machines.length} priced · rate {money(priced.reduce((t, r) => t + r, 0))}
             {' '}· tax {money(priced.reduce((t, r) => t + (itemTaxAmount(r) ?? 0), 0))}
           </span>
           <span><b>Total after tax {money(newTotal)}</b></span>
@@ -741,9 +788,12 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
 
       {msg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{msg}</span></div>}
       <div className="row" style={{ gap: 8, marginTop: 10 }}>
-        <button className="btn btn-primary" disabled={busy || badRate} onClick={() => void go()}>
+        <button className="btn btn-primary" disabled={busy || badRate || !!blocked || missing.length > 0} onClick={() => void go()}
+          title={blocked || (missing.length ? contractMissingText(missing) : undefined)}>
           {busy ? 'Creating…' : 'Create the renewal'}
         </button>
+        {blocked && <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>{blocked}</span>}
+        <MissingNote missing={missing} />
         {badRate && (
           <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>
             One of the rates is not a number — clear it or correct it.
@@ -761,8 +811,11 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
 // mapping itself is in cover.ts (proposeConversion / conversionHeader /
 // conversionItem), so this panel only collects and shows.
 // ===========================================================================
-function ConvertPanel({ sale, items, onDone, onCancel }: {
+function ConvertPanel({ sale, items, onDone, onCancel, blocked }: {
+  /** The sale AS SAVED, never the window's draft (D-100). */
   sale: Row; items: Row[]; onDone: (mc: string, machines: number) => void; onCancel: () => void;
+  /** Why Create may not be pressed now — the entry holds an unsaved change. */
+  blocked?: string;
 }) {
   const [d, setD] = useState<ConversionDraft>(() => proposeConversion(sale, items));
   const [pmTyped, setPmTyped] = useState(false);
@@ -790,7 +843,7 @@ function ConvertPanel({ sale, items, onDone, onCancel }: {
       .then((m) => {
         if (!live) return;
         setAway(m);
-        setD((x) => ({ ...x, serials: x.serials.filter((sn) => !m.has(sn)) }));
+        setD((x) => ({ ...x, machines: x.machines.filter((k) => !m.has(k)) }));
       })
       .catch((e) => { if (live) setAwayErr(e instanceof Error ? e.message : String(e)); });
     return () => { live = false; };
@@ -808,13 +861,17 @@ function ConvertPanel({ sale, items, onDone, onCancel }: {
   };
 
   const header = conversionHeader(sale, d);
-  const opt = (name: string) => CONTRACT.headerFields.find((f) => f.name === name)?.options?.filter(Boolean) ?? [];
+  const opt = contractOptions;
+  // D-104: the contract form's required fields, and a Contract Type.
+  const missing = contractMissing(header);
   const withSerial = items.filter((i) => str(i.serial_number));
-  const machines = withSerial.filter((i) => !away?.has(str(i.serial_number)));
-  const transferred = withSerial.filter((i) => away?.has(str(i.serial_number)));
+  // BY MACHINE, product AND serial (D-105): a transfer of one machine no
+  // longer hides every machine on the sale that shares its number.
+  const machines = withSerial.filter((i) => !away?.has(coverMachineKey(i)));
+  const transferred = withSerial.filter((i) => away?.has(coverMachineKey(i)));
   const checking = away === null && !awayErr;
-  const toggle = (sn: string) => setD((x) => ({
-    ...x, serials: x.serials.includes(sn) ? x.serials.filter((s) => s !== sn) : [...x.serials, sn],
+  const toggle = (k: string) => setD((x) => ({
+    ...x, machines: x.machines.includes(k) ? x.machines.filter((m) => m !== k) : [...x.machines, k],
   }));
 
   const go = async () => {
@@ -852,7 +909,7 @@ function ConvertPanel({ sale, items, onDone, onCancel }: {
           <input className="input" value={d.mc_number} onChange={(e) => set('mc_number', e.target.value)} />
         </label>
         <label className="rep-field">
-          <span className="field-label">Contract Type</span>
+          <span className="field-label">Contract Type *</span>
           <SelectPicker value={d.contract_type} onChange={(v) => set('contract_type', v)}
             placeholder="— choose —" options={opt('contract_type')} />
         </label>
@@ -888,27 +945,28 @@ function ConvertPanel({ sale, items, onDone, onCancel }: {
       </div>
 
       <div className="field-label" style={{ marginTop: 10 }}>
-        Products ({d.serials.length} of {machines.length} going onto the contract)
+        Products ({d.machines.length} of {machines.length} going onto the contract)
       </div>
       <div className="muted" style={{ fontSize: 12.5 }}>
         Untick a machine that is not being covered. A rate is optional — leave it blank to price the contract later.
       </div>
       <div style={{ maxHeight: 260, overflowY: 'auto', marginTop: 8 }}>
-        {machines.map((it) => {
+        {machines.map((it, n0) => {
+          const k = coverMachineKey(it);
           const sn = str(it.serial_number);
-          const on = d.serials.includes(sn);
-          const raw = (d.rates[sn] ?? '').trim();
+          const on = d.machines.includes(k);
+          const raw = (d.rates[k] ?? '').trim();
           const n = raw === '' ? null : Number(raw);
           return (
-            <div key={sn} className="renew-row" style={{ opacity: on ? 1 : 0.5 }}>
-              <input type="checkbox" checked={on} onChange={() => toggle(sn)} />
+            <div key={`${k}#${n0}`} className="renew-row" style={{ opacity: on ? 1 : 0.5 }}>
+              <input type="checkbox" checked={on} onChange={() => toggle(k)} />
               <span className="renew-name">
                 <b>{sn}</b> <span className="muted">{str(it.product_name)}{str(it.product_code) && ` · ${str(it.product_code)}`}</span>
               </span>
               <span className="renew-money">
                 <span className="muted renew-was">warranty to {fmtDate(it.warranty_end || sale.warranty_end) || '—'}</span>
                 <input className="input renew-rate" type="number" min={0} step="0.01" placeholder="rate" disabled={!on}
-                       value={d.rates[sn] ?? ''} onChange={(e) => setD((x) => ({ ...x, rates: { ...x.rates, [sn]: e.target.value } }))} />
+                       value={d.rates[k] ?? ''} onChange={(e) => setD((x) => ({ ...x, rates: { ...x.rates, [k]: e.target.value } }))} />
                 <span className="muted renew-tot">
                   {!on ? '' : n !== null && Number.isFinite(n) && n >= 0 ? `+GST = ${(totalAfterTax(n) ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
                     : raw === '' ? 'price later' : 'not a rate'}
@@ -929,12 +987,12 @@ function ConvertPanel({ sale, items, onDone, onCancel }: {
       {transferred.length > 0 && (
         <div className="sheet-banner sheet-banner-info" style={{ marginTop: 8, display: 'block' }}>
           <b>Not offered ({transferred.length}):</b>
-          {transferred.map((it) => {
-            const sn = str(it.serial_number);
+          {transferred.map((it, n0) => {
+            const k = coverMachineKey(it);
             return (
-              <div key={`away-${sn}`} style={{ fontSize: 12.5, marginTop: 4 }}>
-                <b>{sn}</b> <span className="muted">{str(it.product_name)}</span> — {TRANSFERRED_AWAY}
-                {away?.get(sn) ? <span className="muted"> (now with {away.get(sn)})</span> : null}.
+              <div key={`away-${k}#${n0}`} style={{ fontSize: 12.5, marginTop: 4 }}>
+                <b>{str(it.serial_number)}</b> <span className="muted">{str(it.product_name)}</span> — {TRANSFERRED_AWAY}
+                {away?.get(k) ? <span className="muted"> (now with {away.get(k)})</span> : null}.
               </div>
             );
           })}
@@ -948,10 +1006,13 @@ function ConvertPanel({ sale, items, onDone, onCancel }: {
 
       {msg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{msg}</span></div>}
       <div className="row" style={{ gap: 8, marginTop: 10 }}>
-        <button className="btn btn-primary" disabled={busy || checking || !!awayErr || !machines.length} onClick={() => void go()}>
+        <button className="btn btn-primary" disabled={busy || checking || !!awayErr || !machines.length || !!blocked || missing.length > 0}
+          onClick={() => void go()} title={blocked || (missing.length ? contractMissingText(missing) : undefined)}>
           {busy ? 'Creating…' : 'Create the contract'}
         </button>
         <button className="btn" disabled={busy} onClick={onCancel}>Cancel</button>
+        {blocked && <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>{blocked}</span>}
+        <MissingNote missing={missing} />
       </div>
     </div>
   );
@@ -960,6 +1021,16 @@ function ConvertPanel({ sale, items, onDone, onCancel }: {
 export function CoverRegister({ kind }: { kind: CoverKind }) {
   const cfg = configFor(kind);
   const { can } = useAuth();
+  // WHO IS A DEALER: the Party Master's answer (D-151, the user's decision of
+  // 2026-10-04), the one the database's party_is_dealer() gives -- never the
+  // sale's own Type, copied when it was entered and never updated.
+  const [dealers, setDealers] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (kind !== 'sale' || !supabaseConfigured()) return;
+    let live = true;
+    void dealerParties().then((d) => { if (live) setDealers(d); }).catch(() => { /* none known: nothing is treated as a dealer */ });
+    return () => { live = false; };
+  }, [kind]);
   const navigate = useNavigate();
   // EACH REGISTER ITS OWN KEYS (findings 63, 67; 0291): the Warranty Register
   // answers to cover.edit, the Contract Register to contract.edit, and each
@@ -1348,11 +1419,16 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       const toSave = (!draft.id && ((kind === 'sale' && !draft.entry_at) || kind === 'contract'))
         ? { ...draft, entry_at: new Date().toISOString() }
         : draft;
-      const saved = await saveHeader(kind, toSave);
+      // AGAINST THE ENTRY AS IT WAS READ (D-106): only what changed here is
+      // written, so a field somebody else changed meanwhile is not put back.
+      const saved = await saveHeader(kind, toSave, open ?? undefined);
       setOpen(saved); setDraft(saved);
       setFeed('entries', { rows: feeds.entries.rows.map((r) => (r.id === saved.id ? { ...r, ...saved } : r)) });
       // The header moved, so every machine that inherits from it moved too.
-      setItems(await listItems(kind, str(saved[cfg.key])));
+      // A machine added and not yet saved is KEPT (D-099): it is not in the
+      // database, so the re-read alone would drop it and what was typed into it.
+      const fresh = await listItems(kind, str(saved[cfg.key]));
+      setItems((cur) => keepUnsavedMachines(fresh, cur));
       // THE PARTY DETAILS CHANGED HERE GO BACK TO THE PARTY MASTER (the user,
       // 2026-10-05: "All Party Related Fields, if Updated - Should be Saved to
       // Party Master once the Entry is Saved", choosing "Save updates Party
@@ -1415,7 +1491,8 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     setSaving(true);
     try {
       const n = await forceInherit(kind, str(draft[cfg.key]));
-      setItems(await listItems(kind, str(draft[cfg.key])));
+      const fresh = await listItems(kind, str(draft[cfg.key]));
+      setItems((cur) => keepUnsavedMachines(fresh, cur));
       setMsg({ tone: 'ok', text: `${n} machine(s) now follow ${str(draft[cfg.key])} — ${p.total} pinned value(s) cleared.` });
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
     finally { setSaving(false); }
@@ -1437,11 +1514,14 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // no row id to write the UCN back to. Saying "every machine here has its
   // installation call" over that line would be flatly untrue, which is the
   // message this project keeps having to correct; it says what to do instead.
+  //
+  // EVERY LINE WITH NO ROW, whatever has been typed into it (D-099). What is
+  // typed lives in the card until Save machine, never in `items`, so testing
+  // `items` for a product and a serial counted nothing that was really
+  // unsaved; and a machine just saved is replaced by its saved row in `items`
+  // (onSaved below), so it stops counting the moment it is saved.
   const unsavedMachines = useMemo(
-    () => (kind === 'sale'
-      ? items.filter((i) => !isPinnedValue(i.id)
-          && isPinnedValue(i.product_name) && isPinnedValue(i.serial_number)).length
-      : 0), [kind, items]);
+    () => (kind === 'sale' ? items.filter((i) => !isPinnedValue(i.id)).length : 0), [kind, items]);
   const raiseCalls = async () => {
     const list = needCalls.map((i) => `  · ${str(i.product_name)} · ${str(i.serial_number)}`).join('\n');
     if (!window.confirm(
@@ -1452,7 +1532,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     try {
       const r = await raiseInstallCalls(draft, items, (d, t) => setMsg({ tone: 'info', text: `Raising ${d} of ${t}…` }));
       const fresh = await listItems(kind, str(draft[cfg.key]));
-      setItems(fresh);
+      setItems((cur) => keepUnsavedMachines(fresh, cur));
       // The sale's count on the Entries list moves with it, rather than
       // reading the old number until the next sync.
       const left = machinesNeedingInstallCall(fresh as never).length;
@@ -1603,7 +1683,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     } },
     // THE IDENTIFIER: one word a reader can scan down and the export can carry.
     ...(kind === 'sale' ? [{ key: 'install_pending', header: 'Installation call', width: 130, sortable: false, wrap: false,
-      render: (r: Row) => (installPending(r)
+      render: (r: Row) => (installPending(r, dealers)
         ? <span className="badge badge-warning" title="No installation call is mapped to this machine yet">Pending</span>
         : isCallNumber(r.inst_call)
           ? <span className="badge badge-success" title="Installation call mapped">{str(r.inst_call)}</span>
@@ -1615,10 +1695,10 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
             a contract already installed, so the button is not offered there --
             an action that makes no sense for the record in front of you is
             worse than a missing one, because somebody presses it to find out. */}
-        {kind === 'sale' && isDealerType(r.party_type) && !isCallNumber(r.inst_call) && (
+        {kind === 'sale' && isDealerParty(r.party_name, dealers) && !isCallNumber(r.inst_call) && (
           <span className="muted" style={{ fontSize: 12 }} title={DEALER_NO_INSTALL}>Dealer — raised from the transfer</span>
         )}
-        {kind === 'sale' && !(isDealerType(r.party_type) && !isCallNumber(r.inst_call)) && (
+        {kind === 'sale' && !(isDealerParty(r.party_name, dealers) && !isCallNumber(r.inst_call)) && (
           isCallNumber(r.inst_call)
             // ALREADY DONE, AND IT SAYS WHICH. The UCN is the evidence the
             // button disables itself by, so showing it is showing the reason.
@@ -1667,18 +1747,37 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // machine added and never saved counts too.
   const dirtyCards = useRef(new Set<string>());
   const entryDirty = !!open && JSON.stringify(draft) !== JSON.stringify(open);
-  const closeEntry = () => {
+  /** Close the window, asking first over unsaved work. Says whether it closed. */
+  const closeEntry = (): boolean => {
     const cards = dirtyCards.current.size + items.filter((i) => !isPinnedValue(i.id)).length;
     const what = [entryDirty ? 'the entry' : '', cards ? `${cards} machine(s)` : ''].filter(Boolean).join(' and ');
-    if (what && !window.confirm(`Unsaved changes to ${what} will be lost. Close anyway?`)) return;
+    if (what && !window.confirm(`Unsaved changes to ${what} will be lost. Close anyway?`)) return false;
     dirtyCards.current.clear();
     setRenewing(false); setConverting(false); setPicking(false); setFocusId(null);
     setOpen(null);
+    return true;
   };
+  // THE LATEST closeEntry, for a renewal or conversion finishing after an
+  // await: the one it captured when Create was pressed would judge "unsaved"
+  // by the window as it was then.
+  const closeRef = useRef(closeEntry);
+  closeRef.current = closeEntry;
   // A machine added from the TOP of the window lands at the BOTTOM of the
   // product list, so the list is scrolled to it -- otherwise the button
   // appears to do nothing on a contract with twenty machines.
   const productsRef = useRef<HTMLDivElement>(null);
+  // AN UNSAVED LINE'S CARD KEEPS ITS IDENTITY (D-099 follow-up). It was keyed
+  // by its POSITION (`new-<index>`), so a re-read that put one more or one
+  // fewer saved machine ahead of it handed its typed values to another card.
+  // Keyed by the line OBJECT instead, which keepUnsavedMachines preserves.
+  const newLineKeys = useRef(new WeakMap<Row, string>());
+  const newLineSeq = useRef(0);
+  const lineKey = (it: Row): string => {
+    if (str(it.id)) return str(it.id);
+    let k = newLineKeys.current.get(it);
+    if (!k) { k = `new-${++newLineSeq.current}`; newLineKeys.current.set(it, k); }
+    return k;
+  };
   const addMachine = () => {
     setItems((cur) => [...cur, { [cfg.key]: str(draft[cfg.key]) }]);
     window.requestAnimationFrame(() => {
@@ -1808,18 +1907,21 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       {/* A DEALER GETS NO INSTALLATION CALL (the user, 2026-10-03; 0328):
           the call is raised from the Ownership Transfer when the dealer sells
           the machine. Said in place of the button, so nobody hunts for it. */}
-      {kind === 'sale' && isDealerType(draft.party_type) && (
+      {kind === 'sale' && isDealerParty(draft.party_name, dealers) && (
         <span className="muted" style={{ fontSize: 12 }}>{DEALER_NO_INSTALL}</span>
       )}
-      {kind === 'sale' && !isDealerType(draft.party_type) && (
+      {kind === 'sale' && !isDealerParty(draft.party_name, dealers) && (
         needCalls.length > 0
           ? canRaiseInstall && <button className="btn btn-sm" disabled={saving} onClick={() => void raiseCalls()}
               title="Raise an installation call for each machine that has not got one">
               ＋ Installation calls ({needCalls.length})
             </button>
           : <span className="muted" style={{ fontSize: 12 }}>
+              {/* SAVE MACHINE, NOT SAVE ENTRY (D-099): a machine line is saved
+                  by its own button, and Save entry re-reads the machines --
+                  pressing it as this used to say would drop the unsaved line. */}
               {unsavedMachines
-                ? `Press Save entry first — ${unsavedMachines} machine${unsavedMachines === 1 ? ' is' : 's are'} not saved yet, and a call can only be mapped to a saved machine.`
+                ? `Press Save machine on the new line${unsavedMachines === 1 ? '' : 's'} first — ${unsavedMachines} machine${unsavedMachines === 1 ? ' is' : 's are'} not saved yet, and a call can only be mapped to a saved machine.`
                 : items.length ? 'Every machine here has its installation call.' : ''}
             </span>
       )}
@@ -1846,14 +1948,25 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
      contract rather than only an expiring one, because renewals are
      raised in advance and a register that hides the button until the
      cover has lapsed is asking people to work around it. */
+  // RENEW AND CONVERT WORK FROM THE SAVED ENTRY (D-100). They were handed the
+  // DRAFT, so a new contract took its party, type and billing from edits
+  // nobody had saved -- and then the window was closed directly, throwing
+  // those edits away without the question ✕ Close asks. Now: the panels are
+  // given `open` (the entry as saved), neither can be opened or create
+  // anything while the entry holds an unsaved change, and on success the
+  // window closes through closeEntry, so anything still unsaved (a machine
+  // card, or an edit made after Create was pressed) is asked about first.
+  const unsavedEntry = entryDirty
+    ? 'Save the entry first — this works from the entry as saved, and it has unsaved changes.'
+    : '';
   const canRenew = canEdit && kind === 'contract' && !!open?.id;
   const renewButton = canRenew ? (
     renewing
       ? <button className="btn" onClick={() => setRenewing(false)}
           title="Close the renewal without creating anything">✕ Cancel renewal</button>
-      : <button className="btn" disabled={loadingItems}
+      : <button className="btn" disabled={loadingItems || !!unsavedEntry}
           onClick={() => { setPicking(false); setRenewing(true); }}
-          title={loadingItems ? 'Waiting for this contract’s machines to load' : undefined}>
+          title={loadingItems ? 'Waiting for this contract’s machines to load' : unsavedEntry || undefined}>
           {loadingItems ? 'Loading machines…' : '↻ Renew this contract'}
         </button>
   ) : null;
@@ -1863,29 +1976,35 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     converting
       ? <button className="btn" onClick={() => setConverting(false)}
           title="Close without creating anything">✕ Cancel conversion</button>
-      : <button className="btn" disabled={loadingItems} onClick={() => setConverting(true)}
-          title={loadingItems ? 'Waiting for this sale’s machines to load' : 'Raise a contract from this warranty, carrying its customer and machines'}>
+      : <button className="btn" disabled={loadingItems || !!unsavedEntry} onClick={() => setConverting(true)}
+          title={loadingItems ? 'Waiting for this sale’s machines to load' : unsavedEntry || 'Raise a contract from this warranty, carrying its customer and machines'}>
           {loadingItems ? 'Loading machines…' : '⇢ Convert to Contract'}
         </button>
   ) : null;
   const convertPanel = canConvert && converting && open ? (
-    <ConvertPanel sale={draft} items={items}
+    <ConvertPanel sale={open} items={items} blocked={unsavedEntry}
       onCancel={() => setConverting(false)}
       onDone={(mc, n) => {
+        const sa = str(open.sa_number);
         setConverting(false);
-        setOpen(null);
-        setMsg({ tone: 'ok', text: `Contract ${mc} created with ${n} machine(s) from ${str(draft.sa_number)}. Opening the Contract Register…` });
+        if (!closeRef.current()) {
+          // KEPT OPEN AT THE READER'S WORD: the contract exists all the same.
+          setMsg({ tone: 'ok', text: `Contract ${mc} created with ${n} machine(s) from ${sa}. It is on the Contract Register; this entry stays open with its unsaved changes.` });
+          return;
+        }
+        setMsg({ tone: 'ok', text: `Contract ${mc} created with ${n} machine(s) from ${sa}. Opening the Contract Register…` });
         // TO THE NEW CONTRACT, already searched, so it is one click away.
         navigate('/contracts', { state: { search: mc, tab: 'entries' } });
       }} />
   ) : null;
-  const renewPanel = canRenew && renewing ? (
+  const renewPanel = canRenew && renewing && open ? (
     <RenewPanel
-      header={draft}
+      header={open}
       items={items}
+      blocked={unsavedEntry}
       onDone={(mc) => {
         setRenewing(false);
-        setOpen(null);
+        closeRef.current();
         setMsg({ tone: 'ok', text: `Contract ${mc} created, carrying its machines over. Open it to check the rates, or set any you left blank.` });
         void refresh();
       }}
@@ -1910,8 +2029,8 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       )}
       {!open.id && <div className="muted" style={{ marginBottom: 8 }}>Save the entry first, then add machines to it.</div>}
       {open.id && loadingItems && <div className="muted" style={{ marginBottom: 8 }}>Loading machines…</div>}
-      {items.map((it, i) => (
-        <ItemCard key={str(it.id) || `new-${i}`} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines} activeUsers={activeUsers}
+      {items.map((it) => (
+        <ItemCard key={lineKey(it)} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines} activeUsers={activeUsers}
           focus={focusId !== null && Number(it.id) === focusId}
           // A machine with no id is unsaved by definition and is counted
           // from `items`; only a SAVED machine's edit is tracked here.
@@ -1920,7 +2039,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
             if (!k) return;
             if (d) dirtyCards.current.add(k); else dirtyCards.current.delete(k);
           }}
-          onSaved={(r) => setItems((cur) => cur.map((x) => (x.id === r.id ? r : x)))}
+          // BY THE LINE, NOT THE ID (D-099): a machine just added has no id
+          // until this save, so it is replaced as the object the card was given.
+          onSaved={(r) => setItems((cur) => withSavedMachine(cur, it, r))}
           onDeleted={(id) => setItems((cur) => cur.filter((x) => x.id !== id))} />
       ))}
     </>
@@ -1958,7 +2079,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           {renewButton}
           {convertButton}
           {machineButtons}
-          <button className="btn btn-sm" onClick={closeEntry} title="Close this entry">✕ Close</button>
+          <button className="btn btn-sm" onClick={() => { closeEntry(); }} title="Close this entry">✕ Close</button>
         </div>
         {msg && (
           <div className={`sheet-banner sheet-banner-${msg.tone}`} style={{ margin: '8px 14px 0' }}>
@@ -2011,7 +2132,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const exportValue = (r: Row, key: string): unknown => {
     if (key === 'status_now') return stateOf(str(r[cfg.endColumn]));
     if (key === 'overridden') return Array.isArray(r.overridden) ? r.overridden.join(', ') : '';
-    if (key === 'install_pending') return installPending(r) ? 'Pending' : isCallNumber(r.inst_call) ? str(r.inst_call) : '';
+    if (key === 'install_pending') return installPending(r, dealers) ? 'Pending' : isCallNumber(r.inst_call) ? str(r.inst_call) : '';
     return r[key];
   };
   const exportCols = (cols: Column<Row>[]) =>
@@ -2178,11 +2299,11 @@ const stateOf = (end: string): string => coverStatus(end);
 
 // PENDING = machinesNeedingInstallCall's rule for one line: a product and a
 // serial, and no call number in INST Call. The server filter is the same rule.
-const installPending = (r: Row): boolean =>
+const installPending = (r: Row, dealers: Set<string>): boolean =>
   isPinnedValue(r.product_name) && isPinnedValue(r.serial_number) && !isCallNumber(r.inst_call)
   // A DEALER'S MACHINE waits for no call of its own (0328): the transfer
   // raises the customer's.
-  && !isDealerType(r.party_type);
+  && !isDealerParty(r.party_name, dealers);
 
 // A machine row, in the shape the call form's prefill reads.
 function prefillFrom(r: Row, kind: CoverKind): Record<string, unknown> {

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, SectionCard, SearchBox } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
-import { allRows } from '../lib/paging';
+import { readTableForExport, TABLE_EXPORT_CAP } from '../lib/tableexport';
+import { canExportData, EXPORT_REFUSED } from '../lib/exportscope';
+import { logAudit } from '../lib/audit';
 import {
   getSupabase, supabaseConfigured, exportableTables, exportSchedules, saveExportSchedule,
   deleteExportSchedule, exportRuns,
@@ -142,28 +144,59 @@ export default function DataExport() {
     if (!want.length) { setMsg({ tone: 'error', text: 'Pick at least one table.' }); return; }
     const c = getSupabase();
     if (!c) { setMsg({ tone: 'error', text: 'Database not connected.' }); return; }
+    // THE SAME GATE AS EVERY OTHER DOWNLOAD (D-018 / D-065). Whole tables
+    // went out through download() directly, so `export.data` — which refuses
+    // the CSV and the workbook on every other screen — was never asked here.
+    // `canExportData()` is that one flag; `export.tables` decides only that
+    // this page's button is offered at all.
+    if (!can('export.data') || !canExportData()) { setMsg({ tone: 'error', text: EXPORT_REFUSED }); return; }
 
     setMsg(null);
     const parts: { path: string; data: Uint8Array }[] = [];
     const counts: string[] = [];
+    const cut: string[] = [];
+    let total = 0;
     try {
       for (let i = 0; i < want.length; i++) {
         const name = want[i];
         setBusy(`Reading ${name} (${i + 1} of ${want.length})…`);
-        // PAGED. A register-sized table comes back capped at 1,000 rows
-        // otherwise, silently — the fault this project has had thirteen times.
-        const rows = await allRows<Record<string, unknown>>(
-          (a, b) => c.from(name).select('*').range(a, b), 200000);
+        // PAGED AND ORDERED (D-065). A register-sized table comes back capped
+        // at 1,000 rows otherwise, silently; and pages read with no order can
+        // overlap, doubling one row and dropping another. tableexport.ts says
+        // which key each table is read by and why.
+        const { rows, capped } = await readTableForExport<Record<string, unknown>>(
+          () => c.from(name).select('*').limit(1),
+          (order, a, b) => order.reduce((q, k) => q.order(k, { ascending: true, nullsFirst: false }),
+            c.from(name).select('*')).range(a, b));
         const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))];
         const csv = toCsv(cols, rows.map((r) => cols.map((k) => cell(r[k]))));
         parts.push({ path: `${name}.csv`, data: enc(csv) });
-        counts.push(`${name} ${rows.length}`);
+        counts.push(`${name} ${rows.length.toLocaleString()}${capped ? '+' : ''}`);
+        if (capped) cut.push(name);
+        total += rows.length;
+      }
+      // A TABLE CUT SHORT SAYS SO — on screen AND in the file. The pager used
+      // to stop at 200,000 rows without a word, so a CSV of the first 200,000
+      // read, a day later in Excel, as the whole table.
+      if (cut.length) {
+        parts.push({ path: 'INCOMPLETE-TABLES.txt', data: enc(
+          `These tables have more than ${TABLE_EXPORT_CAP.toLocaleString()} rows. `
+          + `Their CSV files hold the first ${TABLE_EXPORT_CAP.toLocaleString()} only, and the rest are NOT in this export:\r\n\r\n`
+          + cut.map((n) => `  ${n}\r\n`).join('')) });
       }
       setBusy('Building the file…');
       const day = todayLocal();
       download(`rithi-export-${day}.zip`, zipStore(parts), 'application/zip');
       setBusy('');
-      setMsg({ tone: 'ok', text: `${parts.length} table(s) exported — ${counts.join(' · ')}.` });
+      // RECORDED, like every other download (D-018): what left, how much, and
+      // whether any of it was cut short.
+      logAudit({ action: 'export.tables', target: `${want.length} table(s)`,
+        meta: { tables: want, rows: total, capped: cut } });
+      setMsg(cut.length
+        ? { tone: 'error', text: `${want.length} table(s) exported — ${counts.join(' · ')}. `
+            + `${cut.join(', ')} ${cut.length === 1 ? 'has' : 'have'} more than ${TABLE_EXPORT_CAP.toLocaleString()} rows: `
+            + `the file holds the first ${TABLE_EXPORT_CAP.toLocaleString()} of ${cut.length === 1 ? 'it' : 'each'} and says so in INCOMPLETE-TABLES.txt.` }
+        : { tone: 'ok', text: `${want.length} table(s) exported — ${counts.join(' · ')}.` });
     } catch (e) {
       setBusy('');
       setMsg({ tone: 'error', text: `Stopped: ${e instanceof Error ? e.message : String(e)}. Nothing was downloaded.` });

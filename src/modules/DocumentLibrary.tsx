@@ -226,6 +226,9 @@ function Library({ cfg }: { cfg: Cfg }) {
     if (!d.title.trim()) return 'Give the document a title.';
     if (!d.url.trim()) return 'Upload the file, or paste the link to it.';
     if (cfg.controlled && !d.doc_no.trim()) return 'A QMS document needs its document number.';
+    // D-061: a QMS document is recorded with its revision and effective date;
+    // a new revision is a NEW entry (the database holds both, 0368).
+    if (cfg.controlled && !editing && (!d.revision.trim() || !d.effective_date)) return 'A QMS document needs its revision and effective date.';
     return '';
   };
 
@@ -582,17 +585,29 @@ function Library({ cfg }: { cfg: Cfg }) {
 
             {cfg.controlled ? (
               <>
+                {/* D-061: once recorded, these are fixed -- a new revision is
+                    added as a new entry and this one retired (0368). A blank
+                    one may still be filled. */}
+                {editing && (
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    Document No, Revision, Effective date and the file are fixed once recorded. For a new
+                    revision, add it as a new document and Retire this one.
+                  </div>
+                )}
                 <label className="field">
                   <span className="field-label">Document No *</span>
-                  <input className="input" value={draft.doc_no} onChange={(e) => setDraft({ ...draft, doc_no: e.target.value })} placeholder="e.g. QMS-SOP-014" />
+                  <input className="input" value={draft.doc_no} disabled={!!editing && !!String(editing.doc_no ?? '').trim()}
+                    onChange={(e) => setDraft({ ...draft, doc_no: e.target.value })} placeholder="e.g. QMS-SOP-014" />
                 </label>
                 <label className="field">
-                  <span className="field-label">Revision</span>
-                  <input className="input" value={draft.revision} onChange={(e) => setDraft({ ...draft, revision: e.target.value })} placeholder="e.g. 03" />
+                  <span className="field-label">Revision *</span>
+                  <input className="input" value={draft.revision} disabled={!!editing && !!String(editing.revision ?? '').trim()}
+                    onChange={(e) => setDraft({ ...draft, revision: e.target.value })} placeholder="e.g. 03" />
                 </label>
                 <label className="field">
-                  <span className="field-label">Effective date</span>
-                  <input className="input" type="date" value={draft.effective_date} onChange={(e) => setDraft({ ...draft, effective_date: e.target.value })} />
+                  <span className="field-label">Effective date *</span>
+                  <input className="input" type="date" value={draft.effective_date} disabled={!!editing && !!editing.effective_date}
+                    onChange={(e) => setDraft({ ...draft, effective_date: e.target.value })} />
                 </label>
               </>
             ) : cfg.multiProduct ? (
@@ -651,7 +666,9 @@ function Library({ cfg }: { cfg: Cfg }) {
               {draft.url ? (
                 <div className="row" style={{ alignItems: 'center', gap: 8 }}>
                   <a href={draft.url} target="_blank" rel="noreferrer">{draft.file_name || 'Open the stored file'}</a>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setDraft({ ...draft, url: '', file_name: '' })}>✕ Replace</button>
+                  {!(cfg.controlled && editing && String(editing.url ?? '').trim()) && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => setDraft({ ...draft, url: '', file_name: '' })}>✕ Replace</button>
+                  )}
                 </div>
               ) : (
                 <>

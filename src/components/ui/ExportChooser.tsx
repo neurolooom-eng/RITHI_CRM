@@ -5,7 +5,7 @@
 // through `deliverExport` (exportscope.ts), so no screen carries a button of
 // its own for it.
 // ===========================================================================
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal } from './ui';
 import { useAuth } from '../../lib/auth';
 import { setExportChooser, type ExportJob } from '../../lib/exportscope';
@@ -19,13 +19,29 @@ export function ExportChooser() {
   const [job, setJob] = useState<ExportJob | null>(null);
   const [phase, setPhase] = useState<Phase>({ k: 'choose' });
 
+  // EVERY JOB IS SETTLED EXACTLY ONCE (D-018): true when the file left —
+  // downloaded or saved as a Sheet — false when the chooser closed with
+  // nothing taken, or a newer export replaced it. The screen that asked waits
+  // on that answer before it audits or says "Downloaded".
+  const pending = useRef<ExportJob | null>(null);
   useEffect(() => {
-    setExportChooser((j) => { setJob(j); setPhase({ k: 'choose' }); });
-    return () => setExportChooser(null);
+    setExportChooser((j) => {
+      pending.current?.settle?.(false);
+      pending.current = j;
+      setJob(j); setPhase({ k: 'choose' });
+    });
+    return () => { setExportChooser(null); pending.current?.settle?.(false); pending.current = null; };
   }, []);
 
   if (!job) return null;
-  const close = () => { if (phase.k !== 'saving') setJob(null); };
+  const finish = (written: boolean) => {
+    job.settle?.(written);
+    if (pending.current === job) pending.current = null;
+    setJob(null);
+  };
+  const saveFile = () => { job.saveFile(); finish(true); };
+  // Closing after a Sheet was SAVED is not "nothing taken": `phase` says which.
+  const close = () => { if (phase.k !== 'saving') finish(phase.k === 'done'); };
   const bridge = sheetsConfigured();
 
   const toSheet = async () => {
@@ -40,6 +56,9 @@ export function ExportChooser() {
     logAudit({ action: 'export.google_sheet', target: job.filename, status: r.ok ? 'ok' : 'error',
       error: r.ok ? undefined : r.error, meta: { rows, url: r.url } });
     setPhase(r.ok && r.url ? { k: 'done', url: r.url } : { k: 'failed', error: r.error ?? 'Not saved.' });
+    // The export LEFT the moment the Sheet was written; the screen need not
+    // wait for this window to be closed to say so. (settle answers once.)
+    if (r.ok && r.url) job.settle?.(true);
   };
 
   return (
@@ -47,7 +66,7 @@ export function ExportChooser() {
       <p className="muted" style={{ marginTop: 0 }}>{job.filename}</p>
       {phase.k === 'choose' && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" onClick={() => { job.saveFile(); setJob(null); }}>⭳ Download {job.kind}</button>
+          <button className="btn btn-primary" onClick={saveFile}>⭳ Download {job.kind}</button>
           <button className="btn" disabled={!bridge} onClick={() => void toSheet()}
             title={bridge ? 'Saved in your own folder in the RITHI export folder on Google Drive' : 'No Google Apps Script URL is configured'}>
             Save as Google Sheet
@@ -66,7 +85,7 @@ export function ExportChooser() {
       {phase.k === 'failed' && (
         <>
           <div className="sheet-banner sheet-banner-error">Not saved as a Google Sheet: {phase.error}</div>
-          <button className="btn btn-sm" onClick={() => { job.saveFile(); setJob(null); }}>⭳ Download {job.kind} instead</button>
+          <button className="btn btn-sm" onClick={saveFile}>⭳ Download {job.kind} instead</button>
         </>
       )}
     </Modal>

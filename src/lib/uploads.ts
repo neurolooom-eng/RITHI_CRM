@@ -594,8 +594,9 @@ export const REPORT_COLS: Col[] = [
 //
 // IT LIVES HERE, NOT IN `supabase.ts`, FOR THE `paging.ts` REASON: that module
 // reads `import.meta.env`, so no node script can import it and nothing in it
-// can be tested as behaviour. `prepareUpload` keeps the two round trips and
-// this decides what they should say — `check:uploads` proves it.
+// can be tested as behaviour. `planUpload` keeps the reads, `applyUploadPlan`
+// the writes (after the confirmation, D-075), and this decides what they
+// should say — `check:uploads` proves it.
 // ---------------------------------------------------------------------------
 export interface ConsumptionVisitPlan {
   /** One row per UCN to upsert into `reports`, keyed on `uid`. */
@@ -604,6 +605,10 @@ export interface ConsumptionVisitPlan {
   holdBack: Set<string>;
   /** What to tell the reader — both halves, in their words. */
   note: string;
+  /** The held-back half alone. The visits themselves are described by the
+   *  PrepWrite the upload plan carries, read in the confirmation as what WILL
+   *  be written and afterwards as what WAS (D-075). */
+  heldNote: string;
 }
 
 const squashKey = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -671,7 +676,137 @@ export function planConsumptionVisits(
       + `${holdBack.size > 6 ? `, and ${holdBack.size - 6} more` : ''}).`
       + ' Add that column, or file those visits, and load them again.');
   }
-  return { visits: [...wanted.values()], holdBack, note: bits.join(' ') };
+  return { visits: [...wanted.values()], holdBack, note: bits.join(' '),
+           heldNote: dropped ? bits[bits.length - 1] : '' };
+}
+
+// ---------------------------------------------------------------------------
+// PLAN FIRST, WRITE ONLY AFTER THE OPERATOR SAYS YES (D-075).
+//
+// Two preparations WRITE: `spare-line-parents` creates stub spare requests for
+// OR numbers in neither file, and `consumption-visits` files visits into
+// `reports` -- and a visit MOVES ITS CALL'S STATUS. Both used to be written
+// before the confirmation, deliberately, so the count approved was the count
+// written; pressing Cancel then left them in the register.
+//
+// So a preparation is now TWO steps. The PLAN reads and decides -- which rows
+// go, which are held back, and which rows other tables must be given first --
+// and returns those writes as DATA (`PrepWrite`), so the confirmation can name
+// them with exact counts. `applyUploadPlan` (supabase.ts) performs them only
+// after OK, immediately before the upload, and a failure there stops the
+// upload. The planners never touch their input: they return new rows, so a
+// Cancel followed by another Upload plans again from the file as read.
+// ---------------------------------------------------------------------------
+export interface PrepWrite {
+  table: string;
+  rows: Record<string, unknown>[];
+  onConflict: string;
+  ignoreDuplicates?: boolean;
+  /** The rows' noun, singular and plural: ['visit', 'visits']. */
+  noun: [string, string];
+  /** Why they are written, in the reader's words. */
+  why: string;
+}
+export interface UploadPlan {
+  /** What will be uploaded into the register, after the plan. */
+  rows: Record<string, unknown>[];
+  /** Written first -- AFTER the confirmation, BEFORE the rows. */
+  writes: PrepWrite[];
+  /** Everything else the reader should know: held back, re-pointed. */
+  note: string;
+}
+
+/** "58 spare requests (status Imported) — ..." for n of a write's rows. */
+export function describeWrite(w: PrepWrite, n = w.rows.length): string {
+  return `${n.toLocaleString('en-IN')} ${n === 1 ? w.noun[0] : w.noun[1]}${w.why ? ` (${w.why})` : ''}`;
+}
+
+/** What the confirmation says the upload will write before its rows. */
+export function prepWritesQuestion(writes: PrepWrite[]): string {
+  const ws = writes.filter((w) => w.rows.length);
+  if (!ws.length) return '';
+  return `Before the rows, this upload will FIRST write — only if you press OK:\n`
+    + ws.map((w) => `• ${describeWrite(w)}`).join('\n');
+}
+
+/** What a failed preparation wrote and did not, write by write. `sent[i]` is
+ *  how many rows of writes[i] were accepted before the failure; the upload
+ *  itself never started, so none of its rows were written. */
+export function prepFailureMessage(writes: PrepWrite[], sent: number[], error: string, uploadRows: number): string {
+  const ws = writes.filter((w) => w.rows.length);
+  const done = ws.map((w, i) => (sent[i] ?? 0) ? describeWrite(w, sent[i]) : '').filter(Boolean);
+  const notDone = ws.map((w, i) => {
+    const left = w.rows.length - (sent[i] ?? 0);
+    return left > 0 ? describeWrite(w, left) : '';
+  }).filter(Boolean);
+  return `${error} — the upload was stopped before any of its ${uploadRows.toLocaleString('en-IN')} rows were written.`
+    + ` Written: ${done.length ? done.join('; ') : 'nothing'}.`
+    + ` Not written: ${notDone.join('; ')}.`
+    + (done.length ? ' Re-running the upload is safe: what was written is matched, not duplicated.' : '');
+}
+
+/** The consumption upload's plan: the visits to file first, and the rows that
+ *  are left once the calls the file cannot date are held back. */
+export function planConsumptionVisitUpload(rows: Record<string, unknown>[], haveVisit: Set<string>): UploadPlan {
+  const p = planConsumptionVisits(rows, haveVisit);
+  return {
+    rows: rows.filter((r) => !p.holdBack.has(String(r.ucn ?? '').trim())),
+    writes: p.visits.length ? [{
+      table: 'reports', rows: p.visits, onConflict: 'uid', noun: ['visit report', 'visit reports'],
+      why: 'one per call that has none yet, from this file\u2019s Visit Date & Time, so the spares have a visit'
+        + ' behind them; a call whose status the file does not give will read Report pending',
+    }] : [],
+    note: p.heldNote,
+  };
+}
+
+/** The spare-line upload's plan. `here` is the request uids already in the
+ *  register; `byOrNo` maps an OR number the lines name to the uid of the
+ *  request already holding it. Numbers the lines, re-points them, and returns
+ *  the stub requests for what is in neither -- as a write, not a write done. */
+export function planSpareLineParents(
+  rows: Record<string, unknown>[], here: Set<string>, byOrNo: Map<string, string>,
+): UploadPlan {
+  const out = rows.map((r) => ({ ...r }));
+  // RowNo is the part's position within its request. The export does not carry
+  // one, and the database's own numbering asks `max(row_no) + 1` from a BEFORE
+  // trigger -- which cannot see the rows the same insert is writing, so a whole
+  // batch would come out as row 1. Numbered from the order the file itself puts
+  // them in, which is also the same on every re-run.
+  const seen = new Map<string, number>();
+  out.forEach((r) => {
+    if (r.row_no !== undefined && r.row_no !== null && r.row_no !== '') return;
+    const key = String(r.request_uid ?? '');
+    const n = (seen.get(key) ?? 0) + 1;
+    seen.set(key, n);
+    r.row_no = n;
+  });
+  const wanted = [...new Set(out.map((r) => String(r.request_uid ?? '').trim()).filter(Boolean))];
+  const missing = wanted.filter((u) => !here.has(u));
+  if (!missing.length) return { rows: out, writes: [], note: '' };
+
+  // Here under a different uid -- the OR number is what the line names.
+  let repointed = 0;
+  out.forEach((r) => {
+    const held = byOrNo.get(String(r.request_uid ?? ''));
+    if (held) { r.request_uid = held; repointed += 1; }
+  });
+  // What is in neither file gets a request, MARKED as one -- the gap stays
+  // visible in the register instead of costing the whole load.
+  const orphans = missing.filter((u) => !byOrNo.has(u));
+  return {
+    rows: out,
+    writes: orphans.length ? [{
+      table: 'spare_requests', onConflict: 'uid', ignoreDuplicates: true,
+      rows: orphans.map((uid) => ({
+        uid, or_no: uid, req_type: 'Call Based', status: 'Imported',
+        remarks: 'Created from an imported spare line — the request header was not in the export.',
+      })),
+      noun: ['spare request', 'spare requests'],
+      why: 'status Imported, for lines whose OR number is in neither the header export nor the register',
+    }] : [],
+    note: repointed ? `${repointed} line${repointed === 1 ? '' : 's'} pointed at the request already holding that OR number.` : '',
+  };
 }
 
 export const UPLOADS: UploadDef[] = [
@@ -1662,3 +1797,21 @@ export const uploadGroups = (defs: UploadDef[]): { title: string; items: UploadD
   defs.forEach((d) => { by.set(d.group, [...(by.get(d.group) ?? []), d]); });
   return order.filter((g) => by.has(g)).map((title) => ({ title, items: by.get(title)! }));
 };
+
+// ---------------------------------------------------------------------------
+// D-152 (the user's decision, 2026-10-04: "Just flag it for now, Lets Observe
+// and then decide"): a Sold Through that is not a DEALER on the Party Master
+// is FLAGGED on upload and written all the same. The distinct values, as the
+// file spells them, whose name is not among `dealers` (lower-cased, trimmed --
+// the Party Master's dealers as party_is_dealer() reads them).
+// ---------------------------------------------------------------------------
+export function soldThroughNotDealers(rows: Record<string, unknown>[], dealers: Set<string>): string[] {
+  const out = new Map<string, string>();
+  rows.forEach((r) => {
+    const v = String(r.sold_through ?? '').trim();
+    if (!v) return;
+    const k = v.toLowerCase();
+    if (!dealers.has(k) && !out.has(k)) out.set(k, v);
+  });
+  return [...out.values()].sort((a, b) => a.localeCompare(b));
+}

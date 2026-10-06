@@ -222,8 +222,9 @@ end $$;
 
 \echo ''
 \echo '--- 5. masters: records, KYC, the Serviceman swap and a part rename are separate ---'
-insert into public.parties (party_name, kyc_status, service_engineer) values
-  ('PS Party One', 'Pending', 'PS OLD'), ('PS Party Two', 'Pending', 'PS OLD');
+-- With a city and state: a party needs them since 0366.
+insert into public.parties (party_name, kyc_status, service_engineer, city, state) values
+  ('PS Party One', 'Pending', 'PS OLD', 'Madurai', 'Tamil Nadu'), ('PS Party Two', 'Pending', 'PS OLD', 'Madurai', 'Tamil Nadu');
 call public.be('ps_records@x.com');
 set role authenticated;
 update public.parties set city = 'Chennai' where party_name = 'PS Party One';

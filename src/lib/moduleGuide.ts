@@ -417,9 +417,10 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Update Party Details / Update Product Details on one call or many',
       'Re-open, close again, cancel or restore a call',
     ],
-    records: ['calls', 'reports', 'feedback', 'spare_consumption', 'spare_requests', 'parties', 'products', 'complaint_suggestions', 'rpc:cancel_call', 'rpc:restore_call', 'rpc:reopen_call', 'rpc:close_reopened_call', 'rpc:refresh_calls_party', 'rpc:refresh_calls_product', 'audit_log'],
+    records: ['calls', 'reports', 'feedback', 'spare_consumption', 'spare_requests', 'parties', 'products', 'complaint_suggestions', 'rpc:cancel_call', 'rpc:restore_call', 'rpc:reopen_call', 'call_reopens', 'rpc:close_reopened_call', 'rpc:refresh_calls_party', 'rpc:refresh_calls_product', 'audit_log'],
     rules: [
       'A Solved call is read-only; a cancel is not a delete and needs a reason',
+      'A re-open needs a reason; when, who and why are kept in the call’s re-open history, and a call solved again keeps the customer feedback it already has',
       'What you may change is four separate rights — complaint, customer and machine, vigilance answers, contact details',
       'Update Party / Product Details are hidden and refused while Audit Mode is ON',
     ],
@@ -492,7 +493,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Book a spare the engineer did not record (a Reconciliation line, visibly a correction)',
       'Re-open the call with a reason',
     ],
-    records: ['calls', 'reports', 'spare_consumption', 'call_report_reviews', 'handstock_balance', 'rpc:reopen_call', 'audit_log'],
+    records: ['calls', 'reports', 'spare_consumption', 'call_report_reviews', 'handstock_balance', 'rpc:reopen_call', 'call_reopens', 'audit_log'],
     rules: [
       'A missed spare can only come from the attending engineer’s hand stock, up to their balance, with a reason',
       'A solved call with no visit is itself the finding',
@@ -663,7 +664,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Arrange the R/SER/07 register\'s columns — order, width, wrap, which are shown — as on every register',
       'Delete a job received in error, permanently, with a reason (needs the Delete an Indoor Service job right)',
     ],
-    records: ['indoor_jobs', 'indoor_job_list', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_pdt', 'product_master', 'indoor_dcs', 'indoor_dc_lines', 'indoor_dc_list', 'parties', 'calls', 'pending_calls', 'reports', 'spare_consumption', 'spare_requests', 'rpc:indoor_dc_authorisers', 'rpc:create_indoor_dc', 'rpc:approve_indoor_dc', 'rpc:reject_indoor_dc', 'rpc:record_indoor_visit', 'rpc:delete_indoor_job', 'user_directory', 'audit_log'],
+    records: ['indoor_jobs', 'indoor_job_list', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_pdt', 'product_master', 'indoor_dcs', 'indoor_dc_lines', 'indoor_dc_list', 'parties', 'calls', 'pending_calls', 'reports', 'spare_consumption', 'spare_requests', 'rpc:indoor_dc_authorisers', 'rpc:create_indoor_dc', 'rpc:approve_indoor_dc', 'rpc:reject_indoor_dc', 'rpc:delete_indoor_job', 'user_directory', 'audit_log'],
     rules: [
       'A harvested part cannot go back into stock until decontamination is recorded',
       'A job cannot be Dispatched or Closed without a quality check',
@@ -930,6 +931,8 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Designation is the job; the role (Permission) is what the app lets them do — they often differ',
       'You cannot change your own role; a role not on Roles & Permissions grants nothing',
       'Correcting a name moves everything filed under the old name; only an administrator can change a name',
+      'A Reporting or Regional Manager name that matches no one on the list is said before saving and saved only if you confirm',
+      'Active on the list is the directory’s flag — pick lists, training audiences, a manager’s current team; only 🔒 Disable login stops someone signing in',
     ],
   },
   {
@@ -958,10 +961,10 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Map Standard Complaints to products, one at a time or in bulk',
       'Export a list to CSV',
     ],
-    records: ['master_lists', 'masters', 'parties', 'products', 'parts', 'user_directory'],
+    records: ['master_lists', 'masters', 'rpc:master_value_uses', 'parties', 'products', 'parts', 'user_directory'],
     rules: [
       'Rights are per list',
-      'Deactivate a value to stop it being offered; 🗑 deletes it outright and does not check whether records use it',
+      'Deactivate a value to stop it being offered; 🗑 deletes only a value no record carries — for one in use the screen says how many records carry it and offers Deactivate, and the database refuses the delete',
     ],
   },
   {

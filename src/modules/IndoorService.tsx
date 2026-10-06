@@ -7,9 +7,9 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import {
   supabaseConfigured, listIndoorJobs, saveIndoorJob, markIndoorCleaned,
   listIndoorAccessories, addIndoorAccessory, saveIndoorAccessory, deleteIndoorAccessory,
-  listIndoorParts, addIndoorPart, deleteIndoorPart,
+  listIndoorParts, addIndoorPart, updateIndoorPart, deleteIndoorPart,
   listIndoorChecks, addIndoorCheck, saveIndoorCheck, deleteIndoorCheck,
-  getIndoorPdt, saveIndoorPdt, signIndoorPdt, verifyIndoorJob, sbProductBySerial, callByUcn,
+  getIndoorPdt, saveIndoorPdt, signIndoorPdt, unsignIndoorPdt, verifyIndoorJob, sbProductBySerial, callByUcn,
   listIndoorDcs, saveIndoorReport, deleteIndoorJob,
   INDOOR_KINDS, INDOOR_ACTIVITIES, INDOOR_STATUSES,
   type IndoorJob, type IndoorAccessory, type IndoorPart, type IndoorCheck, type IndoorPdt,
@@ -24,7 +24,9 @@ import {
 } from '../lib/indoorforms';
 import { useAuth } from '../lib/auth';
 import { IndoorDcForm, IndoorDcList } from './IndoorDcPanel';
-import { consigneeKey, jobConsignee, jobStage, INDOOR_STAGES, STAGES_DONE, indoorReportFileName, tagOptions, type StageState } from '../lib/indoorforms';
+import { consigneeKey, jobConsignee, jobStage, INDOOR_STAGES, STAGES_DONE, indoorReportFileName, tagOptions, type StageState,
+  PART_GRADES, harvestedPartProblem, type HarvestedPartDraft } from '../lib/indoorforms';
+import { useUserNames } from '../lib/userNames';
 import { IndoorIntake } from './IndoorIntake';
 import { CallReportDrawer, STATUS_OPTIONS, type IndoorDraftMode, type VisitDraft } from './CallReporting';
 import { useMaster } from '../lib/masters';
@@ -32,7 +34,7 @@ import { SpareRequestDrawer } from './SpareRequests';
 import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { logAudit } from '../lib/audit';
 import './indoor.css';
-import { formatDay, formatDayTime } from '../lib/dates';
+import { formatDay, formatDayTime, nowLocalDateTimeInput, localDateTimeInput } from '../lib/dates';
 
 /** R/SER/07's "Status" is the machine's COVER, in the one vocabulary (0208). */
 const COVERS = ['WGP', 'OGP', 'CMC', 'AMC'];
@@ -133,6 +135,8 @@ export function IndoorService() {
   const mayDispatch = can('indoor.dispatch');
   const mayCondemn  = can('indoor.condemn');
   const mayVerify   = can('indoor.verify');
+  // D-111 (0363): withdrawing a PDT signature is its own key.
+  const mayUnsign   = can('indoor.pdt_unsign');
   // DELETING A JOB (0324): its own key, granted to no role by migration; the
   // database asks it again and refuses a job a DC or a filed visit names.
   const mayDelete   = can('indoor.delete');
@@ -233,7 +237,8 @@ export function IndoorService() {
     setJobs((all) => all.map((j) => (j.id === id ? { ...j, ...p } as IndoorJob : j)));
     // What the database WORKS OUT from these -- whether the product is
     // imported, the verifier, the accessories -- comes back with a reload.
-    if ('product_name' in p || 'serial' in p || 'kind' in p || 'status' in p) load();
+    // reported_to_customer_at too: the database writes WHO recorded it (0412).
+    if ('product_name' in p || 'serial' in p || 'kind' in p || 'status' in p || 'reported_to_customer_at' in p) load();
   };
 
   // ---- R/SER/07 -----------------------------------------------------------
@@ -324,8 +329,9 @@ export function IndoorService() {
   ], [mayWork, dcStatus]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const downloadRegister = () => {
-    // REFUSED HERE AS csvExport REFUSES: xlsxDownload does not test the export
-    // permission itself (D-018), so the screen must.
+    // REFUSED HERE AS WELL AS IN THE WRITER: xlsxDownload asks `export.data`
+    // itself now (D-018), and this keeps the refusal on the page as a message
+    // rather than only an alert. The audit waits for the file to be written.
     if (!mayExport || !canExportData()) { setMsg('Exporting / downloading data is not permitted for your role.'); return; }
     const sheets = (['customer', 'demo', 'newdevice'] as RegisterSheet[]).map((k) => ({
       name: REGISTER_SHEETS[k].xlsxName,
@@ -339,7 +345,7 @@ export function IndoorService() {
     }));
     const range = from || to ? `${from || '…'}_to_${to || '…'}` : 'all';
     // EXACT: listIndoorJobs reads every job, a page at a time (D-040).
-    xlsxDownload(`R-SER-07-indoor-register-${range}.xlsx`, [
+    void xlsxDownload(`R-SER-07-indoor-register-${range}.xlsx`, [
       ...sheets,
       { name: 'About', columns: ['Item', 'Value'], rows: [
         { Item: 'Record', Value: 'R/SER/07 INDOOR SERVICE EQUIPMENT FAILURE REGISTER' },
@@ -349,9 +355,10 @@ export function IndoorService() {
         { Item: 'Rows', Value: String(sheets.reduce((n, x) => n + x.rows.length, 0)) },
         { Item: 'Taken', Value: formatDayTime(new Date().toISOString()) },
       ] },
-    ], COMPLETE);
-    logAudit({ action: 'indoor.register_download', status: 'ok',
-      meta: { rows: sheets.map((x) => x.rows.length), from, to, format: 'xlsx' } });
+    ], COMPLETE).then((ok) => {
+      if (ok) logAudit({ action: 'indoor.register_download', status: 'ok',
+        meta: { rows: sheets.map((x) => x.rows.length), from, to, format: 'xlsx' } });
+    });
   };
   const printRegister = () => {
     if (!mayExport || !canExportData()) { setMsg('Exporting / downloading data is not permitted for your role.'); return; }
@@ -538,7 +545,7 @@ export function IndoorService() {
             reload={load}
             patch={patch}
             uid={user?.id ?? ''}
-            rights={{ mayReceive, mayWork, mayQc, mayDispatch, mayCondemn, mayVerify }}
+            rights={{ mayReceive, mayWork, mayQc, mayDispatch, mayCondemn, mayVerify, mayUnsign }}
             setMsg={setMsg}
             stage={stageOf(job)}
             dcStatus={dcStatus[(job.dispatch_ref ?? '').trim()]}
@@ -823,7 +830,7 @@ function IndoorJobDrawer({
   patch: (id: number, p: Partial<IndoorJob>) => Promise<void>;
   uid: string;
   rights: { mayReceive: boolean; mayWork: boolean; mayQc: boolean;
-            mayDispatch: boolean; mayCondemn: boolean; mayVerify: boolean };
+            mayDispatch: boolean; mayCondemn: boolean; mayVerify: boolean; mayUnsign: boolean };
   msg: string;
   setMsg: (s: string) => void;
   stage: StageState;
@@ -835,8 +842,16 @@ function IndoorJobDrawer({
   /** The DC form is open beside the job. */
   dcOpen?: boolean;
 }) {
-  const { mayWork, mayQc, mayDispatch, mayCondemn, mayVerify } = rights;
+  const { mayWork, mayQc, mayDispatch, mayCondemn, mayVerify, mayUnsign } = rights;
   const navigate = useNavigate();
+  // A SIGNED PDT IS LOCKED (D-111, the user's decision, 2026-10-04): nothing on
+  // it changes until somebody holding indoor.pdt_unsign un-signs it with a reason.
+  const pdtSigned = !!pdt?.inspected_by;
+  const pdtEditable = mayWork && !pdtSigned;
+  const [unsignWhy, setUnsignWhy] = useState('');
+  // An EARLIER cleaning time, when it is recorded after it was done (D-114);
+  // blank means now. The database refuses a future one and records who.
+  const [cleanedWhen, setCleanedWhen] = useState('');
   const cleaned = !!job.cleaned_at;
   const reported = !!(job.report_file_url ?? '').trim();
   const verifiable = ['Dispatched', 'Closed', 'Condemned'].includes(job.status);
@@ -918,8 +933,26 @@ function IndoorJobDrawer({
     if (!r.ok) setMsg(r.error ?? 'Could not save'); else { setMsg(''); reloadChildren(); }
   };
 
+  // A HARVESTED PART, ENTERED WHOLE BEFORE IT IS ADDED (FRS-143.7, D-039).
+  const BLANK_PART: HarvestedPartDraft = { part_code: '', description: '', qty: '1', condition_grade: 'Serviceable', destination: '' };
+  const [newPart, setNewPart] = useState<HarvestedPartDraft>(BLANK_PART);
+  const addPart = async () => {
+    const problem = harvestedPartProblem(newPart);
+    if (problem) { setMsg(problem); return; }
+    const r = await addIndoorPart(job.id, {
+      part_code: newPart.part_code.trim(), description: newPart.description.trim(),
+      qty: Number(newPart.qty), condition_grade: newPart.condition_grade,
+      destination: newPart.destination.trim(),
+    });
+    if (!r.ok) { setMsg(r.error ?? 'Could not add the part'); return; }
+    setMsg(''); setNewPart(BLANK_PART); reloadChildren();
+  };
+  // Who recorded the damage report to the owner is an id the database wrote.
+  const userNames = useUserNames();
+
   const markCleaned = async () => {
-    const r = await markIndoorCleaned(job.id, job.cleaning_wi || 'WI/SER/01', wiRevision(job.cleaning_wi_rev), uid);
+    // WHO is not sent: the database stamps it from the session (0363, D-039).
+    const r = await markIndoorCleaned(job.id, job.cleaning_wi || 'WI/SER/01', wiRevision(job.cleaning_wi_rev), cleanedWhen || undefined);
     if (!r.ok) setMsg(r.error ?? 'Could not record the cleaning');
     else { setMsg(''); void patch(job.id, { status: 'Cleaned' }); }
   };
@@ -1105,7 +1138,16 @@ function IndoorJobDrawer({
           </div>
           {job.cleaned_at
             ? <p className="ind-meta">Cleaned by <b>{job.cleaned_by_name || '—'}</b> · {formatDayTime(job.cleaned_at)}</p>
-            : <p className="ind-meta">Not yet cleaned.</p>}
+            : <>
+                <p className="ind-meta">Not yet cleaned.</p>
+                {mayWork ? (
+                  <Field label="Cleaned at (leave blank for now)"
+                    tip="Only when the cleaning is recorded after it was done. It cannot be later than now; whoever marks it is recorded as who cleaned it.">
+                    <input type="datetime-local" value={cleanedWhen} max={nowLocalDateTimeInput()}
+                      onChange={(e) => setCleanedWhen(e.target.value)} />
+                  </Field>
+                ) : null}
+              </>}
           {SHOWS.salvage(a) ? (
             <label className="ind-check">
               <input type="checkbox" checked={job.decontaminated} disabled={!mayWork}
@@ -1166,6 +1208,34 @@ function IndoorJobDrawer({
               tip="§7.5.10 — damage to somebody's machine is theirs to be told about, and this is where that is recorded.">
               <textarea defaultValue={job.damage_note} disabled={!mayWork} rows={2}
                 onBlur={(e) => set({ damage_note: e.target.value })} /></Field>
+            {/* WHEN THE OWNER WAS TOLD, AND BY WHOM (FRS-143.9, D-039).
+                The columns existed (FRS-057) and were on no screen. The time
+                may be earlier than now — it is often recorded after the call —
+                never later; WHO is the database's, stamped from the session
+                when the time changes and cleared with it (0412). */}
+            <Field label="Damage reported to the customer at"
+              tip="When the owner was told about the damage. Leave blank until they have been; it cannot be later than now.">
+              <input type="datetime-local" key={`rtc-${job.reported_to_customer_at ?? ''}`}
+                defaultValue={localDateTimeInput(job.reported_to_customer_at)} max={nowLocalDateTimeInput()}
+                disabled={!mayWork}
+                onBlur={(e) => {
+                  const v = e.target.value;
+                  if (v === localDateTimeInput(job.reported_to_customer_at)) return;
+                  if (!v) { set({ reported_to_customer_at: null }); return; }
+                  const at = new Date(v);
+                  if (Number.isNaN(at.getTime()) || at.getTime() > Date.now()) {
+                    setMsg('A damage report to the customer cannot be recorded in the future.');
+                    e.target.value = localDateTimeInput(job.reported_to_customer_at);
+                    return;
+                  }
+                  set({ reported_to_customer_at: at.toISOString() });
+                }} />
+            </Field>
+            <Value label="Recorded by">
+              {job.reported_to_customer_at
+                ? (userNames[job.reported_to_customer_by ?? ''] || (job.reported_to_customer_by ? 'a user not on the User Master' : '—'))
+                : <span className="ind-muted">Not reported yet</span>}
+            </Value>
           </div>
         </Group>
 
@@ -1277,26 +1347,73 @@ function IndoorJobDrawer({
             <h5 className="ind-subhead">Parts harvested</h5>
             <p className="ind-hint" title="A harvested part entering stock under its normal code is indistinguishable from a new one, and the condition grade would be decoration.">
               Recorded here and <b>not credited to hand stock</b>.</p>
+            {/* ENTERED ON SCREEN AND EDITABLE (FRS-143.7, D-039). A part used
+                to be added with a blank code and could not be edited, so the
+                record said a part was taken and not which. Each field is saved
+                when the operator leaves it; the code is typed, because this
+                module has no Part Master picker. */}
             <div className="ind-lines-wrap">
-              <table className="ind-lines">
+              <table className={`ind-lines${mayWork ? ' is-edit' : ''}`}>
                 <thead><tr><th>Code</th><th>Description</th><th>Qty</th><th>Grade</th><th>Destination</th><th /></tr></thead>
                 <tbody>
-                  {parts.map((p) => (
+                  {parts.map((p) => mayWork ? (
+                    <tr key={`${p.id}-${p.part_code}-${p.description}-${p.qty}-${p.destination}`}>
+                      <td><input aria-label="Part code" className="mono" defaultValue={p.part_code}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          if (v === p.part_code) return;
+                          if (!v) { setMsg('A harvested part needs its part code.'); e.target.value = p.part_code; return; }
+                          void child(() => updateIndoorPart(p.id, { part_code: v }));
+                        }} /></td>
+                      <td><input aria-label="Description" defaultValue={p.description}
+                        onBlur={(e) => { const v = e.target.value.trim(); if (v !== p.description) void child(() => updateIndoorPart(p.id, { description: v })); }} /></td>
+                      <td><input aria-label="Quantity" type="number" min={0} step="any" defaultValue={p.qty}
+                        onBlur={(e) => {
+                          const q = Number(e.target.value);
+                          if (q === Number(p.qty)) return;
+                          if (!(q > 0)) { setMsg('The quantity harvested must be more than 0.'); e.target.value = String(p.qty); return; }
+                          void child(() => updateIndoorPart(p.id, { qty: q }));
+                        }} /></td>
+                      <td className="ind-lines-pick">
+                        <SelectPicker value={p.condition_grade} placeholder="Grade…"
+                          options={p.condition_grade && !PART_GRADES.includes(p.condition_grade) ? [p.condition_grade, ...PART_GRADES] : PART_GRADES}
+                          onChange={(v) => child(() => updateIndoorPart(p.id, { condition_grade: v }))} /></td>
+                      <td><input aria-label="Destination" defaultValue={p.destination}
+                        onBlur={(e) => { const v = e.target.value.trim(); if (v !== p.destination) void child(() => updateIndoorPart(p.id, { destination: v })); }} /></td>
+                      <td><button type="button" className="ind-x" aria-label="Remove part" title="Remove"
+                        onClick={() => child(() => deleteIndoorPart(p.id))}>×</button></td>
+                    </tr>
+                  ) : (
                     <tr key={p.id}>
                       <td className="mono">{p.part_code}</td><td>{p.description}</td>
                       <td>{p.qty}</td><td>{p.condition_grade}</td><td>{p.destination}</td>
-                      <td>{mayWork ? <button type="button" className="ind-x" aria-label="Remove part" title="Remove"
-                        onClick={() => child(() => deleteIndoorPart(p.id))}>×</button> : null}</td>
+                      <td />
                     </tr>
                   ))}
                   {parts.length === 0 ? <tr><td colSpan={6} className="ind-rows-empty">Nothing harvested yet.</td></tr> : null}
+                  {mayWork && job.decontaminated ? (
+                    <tr>
+                      <td><input aria-label="New part code" className="mono" placeholder="Part code *" value={newPart.part_code}
+                        onChange={(e) => setNewPart((n) => ({ ...n, part_code: e.target.value }))} /></td>
+                      <td><input aria-label="New part description" placeholder="Description *" value={newPart.description}
+                        onChange={(e) => setNewPart((n) => ({ ...n, description: e.target.value }))} /></td>
+                      <td><input aria-label="New part quantity" type="number" min={0} step="any" value={newPart.qty}
+                        onChange={(e) => setNewPart((n) => ({ ...n, qty: e.target.value }))} /></td>
+                      <td className="ind-lines-pick">
+                        <SelectPicker value={newPart.condition_grade} placeholder="Grade…" options={PART_GRADES}
+                          onChange={(v) => setNewPart((n) => ({ ...n, condition_grade: v }))} /></td>
+                      <td><input aria-label="New part destination" placeholder="Destination *" value={newPart.destination}
+                        onChange={(e) => setNewPart((n) => ({ ...n, destination: e.target.value }))} /></td>
+                      <td />
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
             </div>
             {mayWork ? (
               <button type="button" className="ind-add" disabled={!job.decontaminated}
-                title={job.decontaminated ? '' : 'The unit has to be decontaminated first (4.5.3)'}
-                onClick={() => child(() => addIndoorPart(job.id, { part_code: '', qty: 1, condition_grade: 'Serviceable' }))}>
+                title={job.decontaminated ? 'Code, description, quantity, grade and destination are all asked for' : 'The unit has to be decontaminated first (4.5.3)'}
+                onClick={() => void addPart()}>
                 + Add a harvested part
               </button>
             ) : null}
@@ -1399,15 +1516,15 @@ function IndoorJobDrawer({
             <div className="ind-grid">
               <Value label="Product Name">{job.product_name || '—'}</Value>
               <Value label="SL. No"><span className="mono">{job.serial || '—'}</span></Value>
-              <Field label="Date"><input type="date" key={`d-${pdt?.test_date}`} defaultValue={pdt?.test_date ?? ''} disabled={!mayWork}
+              <Field label="Date"><input type="date" key={`d-${pdt?.test_date}`} defaultValue={pdt?.test_date ?? ''} disabled={!pdtEditable}
                 onBlur={(e) => void pdtSet({ test_date: e.target.value || null })} /></Field>
-              <Field label="Measuring Equipment ID No"><input key={`m-${pdt?.measuring_equipment_id}`} defaultValue={pdt?.measuring_equipment_id ?? ''} disabled={!mayWork}
+              <Field label="Measuring Equipment ID No"><input key={`m-${pdt?.measuring_equipment_id}`} defaultValue={pdt?.measuring_equipment_id ?? ''} disabled={!pdtEditable}
                 onBlur={(e) => void pdtSet({ measuring_equipment_id: e.target.value })} /></Field>
-              <Field label="Software Version"><input key={`s-${pdt?.software_version}`} defaultValue={pdt?.software_version ?? ''} disabled={!mayWork}
+              <Field label="Software Version"><input key={`s-${pdt?.software_version}`} defaultValue={pdt?.software_version ?? ''} disabled={!pdtEditable}
                 onBlur={(e) => void pdtSet({ software_version: e.target.value })} /></Field>
-              <Field label="HV"><input key={`hv-${pdt?.hv}`} defaultValue={pdt?.hv ?? ''} disabled={!mayWork}
+              <Field label="HV"><input key={`hv-${pdt?.hv}`} defaultValue={pdt?.hv ?? ''} disabled={!pdtEditable}
                 onBlur={(e) => void pdtSet({ hv: e.target.value })} /></Field>
-              <Field label="HT"><input key={`ht-${pdt?.ht}`} defaultValue={pdt?.ht ?? ''} disabled={!mayWork}
+              <Field label="HT"><input key={`ht-${pdt?.ht}`} defaultValue={pdt?.ht ?? ''} disabled={!pdtEditable}
                 onBlur={(e) => void pdtSet({ ht: e.target.value })} /></Field>
             </div>
             <div className="ind-lines-wrap">
@@ -1419,7 +1536,7 @@ function IndoorJobDrawer({
                       <td>{c.no}.</td>
                       <td>{c.text}</td>
                       <td className="ind-lines-pick">{c.key
-                        ? <SelectPicker value={pdt?.[c.key] ?? ''} options={['OK', 'NOT OK']} disabled={!mayWork}
+                        ? <SelectPicker value={pdt?.[c.key] ?? ''} options={['OK', 'NOT OK']} disabled={!pdtEditable}
                             onChange={(v) => void pdtSet({ [c.key!]: v || null } as Partial<IndoorPdt>)} />
                         : <span className="ind-hint">instruction — not judged</span>}</td>
                     </tr>
@@ -1439,7 +1556,7 @@ function IndoorJobDrawer({
                       <tr key={r.label}>
                         <td><b>{r.label}</b></td>
                         {r.keys.map((k) => (
-                          <td key={k}><input aria-label={`${r.label} ${k}`} type="number" step="any" key={`${k}-${pdt?.[k]}`} defaultValue={pdt?.[k] ?? ''} disabled={!mayWork}
+                          <td key={k}><input aria-label={`${r.label} ${k}`} type="number" step="any" key={`${k}-${pdt?.[k]}`} defaultValue={pdt?.[k] ?? ''} disabled={!pdtEditable}
                             onBlur={(e) => void pdtSet({ [k]: numOrNull(e.target.value) } as Partial<IndoorPdt>)} /></td>
                         ))}
                       </tr>
@@ -1453,11 +1570,24 @@ function IndoorJobDrawer({
                 {pdt?.inspected_by
                   ? <>{pdt.inspector_name || '—'}{pdt.inspector_designation ? `, ${pdt.inspector_designation}` : ''} · {formatDayTime(pdt.inspected_at)}</>
                   : 'not signed yet'}</span>
-              {mayWork ? (
+              {mayWork && !pdtSigned ? (
                 <button type="button" className="btn btn-sm" onClick={async () => {
-                  const r = await signIndoorPdt(job.id, uid, !pdt?.inspected_by);
+                  const r = await signIndoorPdt(job.id, uid, true);
                   if (!r.ok) setMsg(r.error ?? 'Could not sign'); else { setMsg(''); reloadChildren(); }
-                }}>{pdt?.inspected_by ? 'Withdraw the signature' : 'Sign as the inspector'}</button>
+                }}>Sign as the inspector</button>
+              ) : null}
+              {pdtSigned && mayUnsign ? (
+                <span className="row" style={{ gap: 6 }}>
+                  <input value={unsignWhy} onChange={(e) => setUnsignWhy(e.target.value)}
+                    placeholder="Why it is un-signed" aria-label="Why the PDT is un-signed" />
+                  <button type="button" className="btn btn-sm" disabled={!unsignWhy.trim()} onClick={async () => {
+                    const r = await unsignIndoorPdt(job.id, unsignWhy.trim());
+                    if (!r.ok) setMsg(r.error ?? 'Could not un-sign'); else { setMsg(''); setUnsignWhy(''); reloadChildren(); }
+                  }}>Un-sign</button>
+                </span>
+              ) : null}
+              {pdtSigned && !mayUnsign ? (
+                <span className="ind-hint">Signed — locked. Un-signing it needs “Indoor: un-sign a Pre-Delivery Testing record”.</span>
               ) : null}
             </div>
             {gaps.notOk.length ? (

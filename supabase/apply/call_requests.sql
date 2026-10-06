@@ -47,6 +47,9 @@
 --   0311_cancel_needs_an_open_call.sql
 --   0341_call_actions_need_sight_of_the_call.sql
 --   0386_pm_dates_are_registration.sql
+--   0413_field_call_vigilance_answered.sql
+--   0408_call_request_attended_not_future.sql
+--   0411_call_reopen_reason_recorded.sql
 --   0164_cr_read_initplan.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -4094,6 +4097,191 @@ begin
   get diagnostics n_serial = row_count;
 
   raise notice '0386: % PM call(s) now dated by their registration; % given the serial their upload carried', n_dates, n_serial;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0413_field_call_vigilance_answered.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0413 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
+--        (second re-review D-033; the user's decision, 2026-10-05)
+--
+-- Public Health Threat?, Death? and Serious Incident? carried defaultValue 'NO'
+-- on the call form, so a call saved without anybody reading that section
+-- recorded three answers nobody gave -- and Review 1 of the Daily Complaint
+-- Review reads as done the moment the three are filled (review1Done, dccr.ts).
+-- THE USER'S DECISION: "Blank, must be answered" -- the form has no default
+-- and will not save until all three are YES or NO, and the database refuses a
+-- signed-in registration of a FIELD call without them, however it is sent.
+--
+-- Scope, read from every writer: the Field Call register and Pending
+-- Registrations both insert through the `calls` view, whose INSTEAD OF trigger
+-- (calls_view_insert) runs as the caller and routes a field call into
+-- field_calls -- so this trigger on field_calls sees them as `authenticated`.
+-- Installation and PM calls are other tables and keep their default; calls
+-- raised from a Sale Entry or a transfer are installation calls and record NO
+-- by design (FRS-085.5). Not stopped: an import (bulk.upload / import.panel),
+-- a connection with no session, a function running as its owner, and an
+-- UPDATE (a call registered before this keeps what it has).
+-- In the call_requests module, after 0341.
+-- ===========================================================================
+
+create or replace function public.field_call_vigilance_answered()
+returns trigger language plpgsql security invoker set search_path = public as $$
+declare v_missing text[] := '{}';
+begin
+  if auth.uid() is null then return new; end if;
+  if current_user <> 'authenticated' then return new; end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+  if upper(btrim(coalesce(new.public_health_threat, ''))) not in ('YES', 'NO') then
+    v_missing := v_missing || 'Public Health Threat?'::text;
+  end if;
+  if upper(btrim(coalesce(new.death, ''))) not in ('YES', 'NO') then
+    v_missing := v_missing || 'Death?'::text;
+  end if;
+  if upper(btrim(coalesce(new.serious_incident, ''))) not in ('YES', 'NO') then
+    v_missing := v_missing || 'Serious Incident?'::text;
+  end if;
+  if array_length(v_missing, 1) > 0 then
+    raise exception 'Answer the vigilance questions before registering the call: %', array_to_string(v_missing, ', ')
+      using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.field_call_vigilance_answered() from public, anon, authenticated;
+drop trigger if exists field_call_vigilance_answered on public.field_calls;
+create trigger field_call_vigilance_answered
+  before insert on public.field_calls
+  for each row execute function public.field_call_vigilance_answered();
+
+-- ------------------------------------------------------------------------
+-- 0408_call_request_attended_not_future.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0408 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
+--        (second re-review D-030, part 3)
+--
+-- The Attended Date on Request Registration had no upper bound, and it becomes
+-- the complaint date of the call registered from the request -- so a call
+-- could be dated days ahead, and every age and SLA measured from it starts in
+-- the future. The form now stops at today; the database refuses the same for a
+-- signed-in write, measured in India time (the day the engineer is living in,
+-- not UTC's, which is still yesterday until 05:30).
+-- On UPDATE only when attended_date itself changes, so a request recorded
+-- before this is never refused for an unrelated edit.
+-- Not stopped: an import (bulk.upload / import.panel), a connection with no
+-- session, and a function running as its owner.
+-- In the call_requests module, before the cr_read tail (0164).
+-- ===========================================================================
+
+create or replace function public.call_request_attended_not_future()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if current_user <> 'authenticated' then return new; end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+  if new.attended_date is null then return new; end if;
+  if tg_op = 'UPDATE' and new.attended_date is not distinct from old.attended_date then return new; end if;
+  if new.attended_date > (now() at time zone 'Asia/Kolkata')::date then
+    raise exception 'The Attended Date cannot be in the future (%)', to_char(new.attended_date, 'DD-Mon-YYYY')
+      using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.call_request_attended_not_future() from public, anon, authenticated;
+drop trigger if exists call_request_attended_not_future on public.call_requests;
+create trigger call_request_attended_not_future
+  before insert or update of attended_date on public.call_requests
+  for each row execute function public.call_request_attended_not_future();
+
+-- ------------------------------------------------------------------------
+-- 0411_call_reopen_reason_recorded.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0411 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
+--        (second re-review D-035, FRS-133.4, FRS-120.9)
+--
+-- reopen_call(p_ucn, p_reason) accepted a reason and wrote only reopened_at and
+-- reopen_count: the reason was stored nowhere and no person was recorded,
+-- while the Call Review tells the reviewer "the reason goes on the call"
+-- (FRS-064). And it accepted an empty reason, which FRS-120.9 refuses.
+--
+-- public.call_reopens keeps one row per re-open -- the UCN, when, who (the
+-- session, by id and name) and why -- so a call re-opened twice keeps both.
+-- A history table rather than columns on the three call tables: a second
+-- re-open would overwrite the first reason in a column, and the calls view is
+-- a `t.*` view mirrored in 0245 that new columns would not reach.
+-- It is written only by reopen_call() (no insert, update or delete policy),
+-- and read by whoever may see the call.
+--
+-- reopen_call() is 0341's body unchanged, plus: an empty reason is refused,
+-- and the row above is written. In the call_requests module, after 0341 and
+-- before the cr_read tail.
+-- ===========================================================================
+
+create table if not exists public.call_reopens (
+  id               bigint generated always as identity primary key,
+  ucn              text not null,
+  reopened_at      timestamptz not null default now(),
+  reopened_by      uuid,
+  reopened_by_name text not null default '',
+  reason           text not null,
+  created_at       timestamptz not null default now(),
+  created_by       uuid
+);
+create index if not exists call_reopens_ucn_idx on public.call_reopens (ucn, reopened_at desc);
+alter table public.call_reopens enable row level security;
+revoke all on public.call_reopens from anon;
+grant select on public.call_reopens to authenticated;
+drop policy if exists call_reopens_read on public.call_reopens;
+-- "May this person see the call" is asked of the calls view itself: it is
+-- security_invoker, so the caller's own call policies decide, exactly as on
+-- every register (call_visible_to_me() is not executable by a signed-in user).
+create policy call_reopens_read on public.call_reopens for select
+  using (exists (select 1 from public.calls c where c.ucn = call_reopens.ucn));
+
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.call_reopens'::regclass);
+  end if;
+end $$;
+
+create or replace function public.reopen_call(p_ucn text, p_reason text default '')
+returns text language plpgsql security definer set search_path = public as $$
+declare v_solved boolean; v_reopened timestamptz;
+begin
+  if not public.call_perm(p_ucn, 'reopen') then
+    raise exception 'RBAC: your role cannot re-open a call';
+  end if;
+  -- 0333 (D-128): and only on a call the caller can see -- the read rule, so
+  -- every call a screen shows passes and a call outside it is refused.
+  if public.call_visible_to_me(p_ucn) is false then
+    raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
+  end if;
+  -- 0411 (D-035, FRS-120.9): a re-open says why.
+  if btrim(coalesce(p_reason, '')) = '' then
+    raise exception 'Give the reason for re-opening call %', p_ucn using errcode = '23514';
+  end if;
+
+  select open_state = 'Solved', reopened_at into v_solved, v_reopened
+    from public.calls where ucn = p_ucn;
+  if v_solved is null then raise exception 'No call with UCN %', p_ucn; end if;
+  if v_reopened is not null then raise exception 'Call % is already re-opened', p_ucn; end if;
+  if not v_solved then raise exception 'Call % is not closed, so there is nothing to re-open', p_ucn; end if;
+
+  update public.calls
+     set reopened_at = now(), reopen_count = coalesce(reopen_count, 0) + 1
+   where ucn = p_ucn;
+
+  -- 0411 (D-035, FRS-133.4): the reason, the person and the time, kept.
+  insert into public.call_reopens (ucn, reopened_at, reopened_by, reopened_by_name, reason, created_by)
+  values (p_ucn, now(), auth.uid(), coalesce(public.my_display_name(), auth.email(), ''), btrim(p_reason), auth.uid());
+
+  return p_ucn;
 end $$;
 
 -- ------------------------------------------------------------------------

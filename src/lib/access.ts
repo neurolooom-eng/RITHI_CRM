@@ -51,6 +51,57 @@ function loadUserMaster(): Promise<Record<string, unknown>[]> {
   return umPromise;
 }
 
+// WHO IS BELOW THIS PERSON in the User Master: their own row's name (found by
+// their login email, else their profile name) and every row reaching them
+// through the RM / RGM columns, transitively. ONE walk, used by the call scope
+// and by the filing pickers below, so the two cannot disagree about a team.
+export function teamBelow(
+  rows: Record<string, unknown>[],
+  identity: { email?: string; username?: string; fullName?: string },
+): { selfDisplay: string; allowed: Set<string>; reports: string[] } {
+  const emailNorm = norm(identity.email);
+  const usernameNorm = norm(identity.username);
+  // 1) Map the logged-in mail id → this user's canonical User Master name.
+  const myRow = rows.find((r) => {
+    const e = norm(pick(r, H_EMAIL)); const g = norm(pick(r, H_GMAIL));
+    return (e && (e === emailNorm || e === usernameNorm)) || (g && (g === emailNorm || g === usernameNorm));
+  });
+  const selfDisplay = myRow ? pick(myRow, H_NAME) : String(identity.fullName ?? '');
+  const selfName = norm(selfDisplay) || norm(identity.fullName);
+
+  // 2) Build manager → reports adjacency from the RM / RGM columns.
+  const children = new Map<string, { name: string; norm: string }[]>();
+  rows.forEach((r) => {
+    const name = pick(r, H_NAME);
+    const nn = norm(name);
+    if (!nn) return;
+    [norm(pick(r, H_RM)), norm(pick(r, H_RGM))].forEach((mgr) => {
+      if (!mgr || mgr === nn) return;
+      if (!children.has(mgr)) children.set(mgr, []);
+      children.get(mgr)!.push({ name, norm: nn });
+    });
+  });
+
+  // 3) Breadth-first walk of the sub-tree rooted at this user. A blank name
+  //    roots nothing (0212's rule: a blank is not a manager).
+  const allowed = new Set<string>();
+  const reports: string[] = [];
+  if (!selfName) return { selfDisplay, allowed, reports };
+  const seen = new Set<string>([selfName]);
+  const queue = [selfName];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    (children.get(cur) ?? []).forEach((c) => {
+      if (seen.has(c.norm)) return;
+      seen.add(c.norm);
+      allowed.add(c.norm);
+      reports.push(c.name);
+      queue.push(c.norm);
+    });
+  }
+  return { selfDisplay, allowed, reports };
+}
+
 export function useAccessScope(): AccessScope {
   const { user, can, viewAs, managerViewMode } = useAuth();
   const [scope, setScope] = useState<AccessScope>(EMPTY);
@@ -78,8 +129,6 @@ export function useAccessScope(): AccessScope {
     }
 
     const selfName0 = norm(identity.fullName);
-    const emailNorm = norm(identity.email);
-    const usernameNorm = norm(identity.username);
 
     // Offline / no data source: fall back to the user's own name only.
     if (!dataConfigured()) {
@@ -90,42 +139,8 @@ export function useAccessScope(): AccessScope {
     void loadUserMaster().then((rows) => {
       if (cancelled) return;
 
-      // 1) Map the logged-in mail id → this user's canonical User Master name.
-      const myRow = rows.find((r) => {
-        const e = norm(pick(r, H_EMAIL)); const g = norm(pick(r, H_GMAIL));
-        return (e && (e === emailNorm || e === usernameNorm)) || (g && (g === emailNorm || g === usernameNorm));
-      });
-      const selfDisplay = myRow ? pick(myRow, H_NAME) : identity.fullName;
+      const { selfDisplay, allowed, reports } = teamBelow(rows, identity);
       const selfName = norm(selfDisplay) || selfName0;
-
-      // 2) Build manager → reports adjacency from the RM / RGM columns.
-      const children = new Map<string, { name: string; norm: string }[]>();
-      rows.forEach((r) => {
-        const name = pick(r, H_NAME);
-        const nn = norm(name);
-        if (!nn) return;
-        [norm(pick(r, H_RM)), norm(pick(r, H_RGM))].forEach((mgr) => {
-          if (!mgr || mgr === nn) return;
-          if (!children.has(mgr)) children.set(mgr, []);
-          children.get(mgr)!.push({ name, norm: nn });
-        });
-      });
-
-      // 3) Breadth-first walk of the sub-tree rooted at this user.
-      const allowed = new Set<string>();
-      const reports: string[] = [];
-      const seen = new Set<string>([selfName]);
-      const queue = [selfName];
-      while (queue.length) {
-        const cur = queue.shift()!;
-        (children.get(cur) ?? []).forEach((c) => {
-          if (seen.has(c.norm)) return;
-          seen.add(c.norm);
-          allowed.add(c.norm);
-          reports.push(c.name);
-          queue.push(c.norm);
-        });
-      }
       const isManager = allowed.size > 0;
       // A manager viewing "My calls" is scoped to just themselves; "Team"
       // (default) keeps the whole reporting sub-tree.
@@ -226,6 +241,42 @@ export function useActivePeople(current?: Person): { people: Person[]; ready: bo
   const list = [...(rows ?? [])];
   if (current?.name.trim() && !list.some((p) => norm(p.name) === norm(current.name))) list.push(current);
   return { people: list.sort((a, b) => a.name.localeCompare(b.name)), ready: rows !== null };
+}
+
+// ---------------------------------------------------------------------------
+// WHOSE NAME MAY I FILE THIS UNDER? -- exactly what the database accepts (0369,
+// D-125, the user's decision of 2026-10-04):
+//   • with `key` (visit.others for a visit and its spares, spare.request.others
+//     for a spare request; an administrator holds every key) -- every ACTIVE
+//     person on the User Master;
+//   • without it -- yourself and your team below you in the User Master, for
+//     EVERY role. An office desk is not offered the whole directory any more:
+//     the user gives that per person in Extra Access.
+// `current` is kept: a value already on the record is never silently dropped.
+// ---------------------------------------------------------------------------
+export function useFilingNames(key: string, current?: string): { names: string[]; canPick: boolean; ready: boolean } {
+  const { user, can, viewAs } = useAuth();
+  const identity = viewAs ?? user;
+  const anyone = can(key);
+  const [rows, setRows] = useState<Record<string, unknown>[] | null>(null);
+  useEffect(() => {
+    if (!dataConfigured()) { setRows([]); return; }
+    let cancelled = false;
+    void loadUserMaster().then((all) => { if (!cancelled) setRows(all); });
+    return () => { cancelled = true; };
+  }, []);
+  const all = rows ?? [];
+  let base: string[];
+  if (anyone) {
+    base = all.filter((r) => !/^(false|no|0|inactive)$/i.test(String(r['Validity'] ?? '').trim()))
+      .map((r) => pick(r, H_NAME)).filter(Boolean);
+  } else {
+    const t = teamBelow(all, { email: identity?.email, username: identity?.username, fullName: identity?.fullName });
+    base = [t.selfDisplay || String(identity?.fullName ?? ''), ...t.reports];
+  }
+  const names = [...new Set([...base, current ?? ''].map((n) => String(n ?? '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  return { names, canPick: names.length > 1, ready: rows !== null };
 }
 
 const H_REGION = ['REGION', 'Region', 'Zone'];

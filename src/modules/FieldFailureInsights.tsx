@@ -181,7 +181,17 @@ const PARETO_LEVELS = [
 ] as const;
 type ParetoKey = (typeof PARETO_LEVELS)[number]['key'];
 
-export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Row[]; more?: boolean }) {
+export function FieldFailureInsights({ rows: allRows, more = false, mayReadReview = true }: {
+  rows: Row[]; more?: boolean;
+  /** D-129: does the reader hold `review.view`? Without it the live Root
+   *  Cause, Grouping and Any Potential Effect come back EMPTY from the
+   *  database, so the charts and the KPI built on them are not drawn — every
+   *  report would read "(not stated)" and no effect would ever read withdrawn. */
+  mayReadReview?: boolean;
+}) {
+  // The levels this reader can rank by: the machine always; grouping and root
+  // cause only with the review answers behind them.
+  const levels = mayReadReview ? PARETO_LEVELS : PARETO_LEVELS.filter((l) => l.key === 'live_product_name');
   const [picked, setPicked] = useState<Picked>({});
   const [period, setPeriod] = useState<Period>('month');
   const [trendLabels, setTrendLabels] = useState(false);
@@ -264,7 +274,7 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
     const scope = DIMS.filter((d) => picked[d.key]).map((d) => `${d.label}: ${picked[d.key]}`)
       .join(' · ') || 'the whole register';
     const per = PERIODS.find((x) => x.key === period)!.label;
-    xlsxDownload(`ffr-trend-${period}-${when}.xlsx`, [
+    void xlsxDownload(`ffr-trend-${period}-${when}.xlsx`, [
       {
         name: 'Reports by period',
         columns: [per, 'Reports', 'Change on the one before', 'Share', 'Share worked out',
@@ -307,24 +317,27 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
           { Item: 'Downloaded', Value: new Date().toISOString() },
         ],
       },
-    ], partial(more));
-    logAudit({ action: 'ffr.trend.download', target: `${period} ${when}`,
-               meta: { rows: trendRows.length, total: trendTotal, scope } });
+    ], partial(more)).then((ok) => {
+      // Audited only once the file was WRITTEN (D-018).
+      if (!ok) return;
+      logAudit({ action: 'ffr.trend.download', target: `${period} ${when}`,
+                 meta: { rows: trendRows.length, total: trendTotal, scope } });
+    });
   };
 
   // WHAT IS STILL OPEN TO RANK: every level whose dimension has not been chosen.
   // With nothing chosen that is all three; choose a machine and it is grouping
   // and root cause, in either order or neither.
-  const paretoOpen = PARETO_LEVELS.filter((l) => !picked[l.key]);
+  const paretoOpen = levels.filter((l) => !picked[l.key]);
   // WHICH ONE IS ON SCREEN. The reader's pick if it is still open, else the
   // first open level — so drilling advances on its own, and a step back that
   // re-opens a level does not leave the chart pointing at a closed one.
   const [paretoWant, setParetoWant] = useState<ParetoKey | ''>('');
   const paretoBy: ParetoKey =
     (paretoWant && paretoOpen.some((l) => l.key === paretoWant) ? paretoWant : paretoOpen[0]?.key)
-    ?? PARETO_LEVELS[PARETO_LEVELS.length - 1].key;
+    ?? levels[levels.length - 1].key;
   const paretoAt = PARETO_LEVELS.find((l) => l.key === paretoBy)!;
-  const paretoDone = PARETO_LEVELS.filter((l) => picked[l.key]);
+  const paretoDone = levels.filter((l) => picked[l.key]);
   // A cross-filtered tally like the rest — so it ranks groupings WITHIN the
   // chosen machine without this file doing any filtering of its own.
   // NAMED ONCE AND USED TWICE — by the tally that draws the chart and by the
@@ -374,7 +387,11 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
    */
   const rawSheet = (src: Row[], bucketKey: string, bucketLabel: string) => ({
     name: 'The reports behind it',
-    columns: [bucketLabel, 'FFR No', 'FFR date', 'UCN', 'Machine', 'Serial', 'Customer',
+    // EVERY KEY THE ROWS CARRY IS A COLUMN (D-018): the workbook writer reads
+    // a cell only through this list, so 'Machine the call named' — built below
+    // for exactly the reader comparing it with Machine — was left out of the
+    // file on every download.
+    columns: [bucketLabel, 'FFR No', 'FFR date', 'UCN', 'Machine', 'Machine the call named', 'Serial', 'Customer',
               'Cover', 'Complaint grouping', 'Root cause', 'Problem reported',
               'FFR status', 'Call status', 'CAPA status', 'Raised by', 'Origin'],
     rows: src.map((r) => ({
@@ -410,7 +427,7 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
     const when = todayLocal();
     const scope = PARETO_LEVELS.filter((l) => picked[l.key])
       .map((l) => `${l.label}: ${picked[l.key]}`).join(' · ') || 'the whole register';
-    xlsxDownload(`ffr-pareto-${paretoBy}-${when}.xlsx`, [
+    void xlsxDownload(`ffr-pareto-${paretoBy}-${when}.xlsx`, [
       {
         name: 'Pareto',
         columns: ['#', paretoAt.label, 'Reports', 'Share', 'Share worked out',
@@ -468,9 +485,12 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
           { Item: 'Downloaded', Value: new Date().toISOString() },
         ],
       },
-    ], partial(more));
-    logAudit({ action: 'ffr.pareto.download', target: `${paretoBy} ${when}`,
-               meta: { rows: paretoRows.length, total: paretoTotal, scope } });
+    ], partial(more)).then((ok) => {
+      // Audited only once the file was WRITTEN (D-018).
+      if (!ok) return;
+      logAudit({ action: 'ffr.pareto.download', target: `${paretoBy} ${when}`,
+                 meta: { rows: paretoRows.length, total: paretoTotal, scope } });
+    });
   };
   /** Drop ONE level's choice. Not "and everything under it": with the order
    *  free there is no "under" — dropping the grouping while keeping the machine
@@ -539,8 +559,10 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
         {/* An FFR raised on Any Potential Effect = YES whose review now reads NO.
             The record stands (0049) — this is how somebody SEES that happened,
             which is the whole reason the live columns are on the register. */}
+        {mayReadReview && (
         <KpiCard label="Effect withdrawn" value={stats.withdrawn} icon="↩" tone={stats.withdrawn ? 'warning' : 'neutral'}
                  sub="raised on YES, review now says otherwise" />
+        )}
         <KpiCard label="Closed" value={stats.closed} icon="✅" tone="success" sub="" />
         <KpiCard label="Cancelled" value={stats.cancelled} icon="✕" tone="neutral" sub="marked, never deleted" />
         <KpiCard label="Migrated" value={stats.migrated} icon="⤵" tone="neutral"
@@ -766,6 +788,14 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
 
       <div style={{ height: 12 }} />
 
+      {!mayReadReview ? (
+        <SectionCard title="Root cause and complaint grouping">
+          <div className="muted">
+            Not drawn: both are Daily Complaint Review answers, which are visible only to people
+            given 'Read Daily Complaint Review answers'.
+          </div>
+        </SectionCard>
+      ) : (<>
       <SectionCard title="Root cause, from the Daily Complaint Review Register">
         <div className="muted" style={{ marginBottom: 10 }}>
           Taken from the review as it stands now, not as it stood when the report was raised —
@@ -789,6 +819,7 @@ export function FieldFailureInsights({ rows: allRows, more = false }: { rows: Ro
         <BarChart data={byGrouping.slice(0, 12)} widthKey="ffr.grouping"
                   onPick={pick('live_complaint_grouping')} active={picked.live_complaint_grouping ?? null} />
       </SectionCard>
+      </>)}
 
       <div style={{ height: 12 }} />
 

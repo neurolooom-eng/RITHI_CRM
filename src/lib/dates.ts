@@ -150,6 +150,26 @@ export function todayLocal(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** NOW on this device's clock, as a `datetime-local` input's value
+ *  (yyyy-MM-ddTHH:mm) -- for the `max` of a time that may be earlier but not
+ *  later, such as an Indoor cleaning recorded after it was done (D-114). */
+export function nowLocalDateTimeInput(): string {
+  const d = new Date();
+  return `${todayLocal()}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** A STORED TIMESTAMP as a `datetime-local` input's value (yyyy-MM-ddTHH:mm)
+ *  on this device's clock — the inverse of `new Date(input.value)`. The
+ *  database holds UTC, so slicing the stored string would show the wrong
+ *  time and, before 05:30 IST, the wrong day. '' for nothing or nonsense. */
+export function localDateTimeInput(v: unknown): string {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function localIsoDate(v: unknown): string | null {
   const s = String(v ?? '').trim();
   if (/[T ]\d{1,2}:\d{2}/.test(s) && /(Z|[+-]\d{2}:?\d{2})$/.test(s)) {

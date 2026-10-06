@@ -10,15 +10,16 @@ import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod, todayLocal } from '../src/lib/dates';
-import { configFor, contractStatusText, yearsHint, proposeConversion, conversionHeader, conversionItem } from '../src/lib/cover';
-import { localIsoDate, formatDayTime, excelSerial, hasClockTime } from '../src/lib/dates';
+import { configFor, contractStatusText, yearsHint, proposeConversion, conversionHeader, conversionItem, headerChanges, withSavedMachine } from '../src/lib/cover';
+import { localIsoDate, formatDayTime, excelSerial, hasClockTime, localDateTimeInput } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
          splitProductDetails, itemDetailsLong, itemDetails, addCallPrefix, coverStatus,
          ABOUT_TO_EXPIRE_DAYS, SERIES, nextInSeries, deriveHeader, deriveItem,
          upliftRate, itemTaxAmount, totalAfterTax, periodToMonths } from '../src/lib/coverspec';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
-import { machineRowProblem, productPlaceholder, rankSerialHits, PICK_A_PRODUCT } from '../src/lib/callrequest';
+import { machineRowProblem, productPlaceholder, rankSerialHits, PICK_A_PRODUCT, reqidOrRefusal, attendedDateProblem, correctionProblem, NOTHING_SAVED } from '../src/lib/callrequest';
+import { harvestedPartProblem, PART_GRADES } from '../src/lib/indoorforms';
 import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS , FFR_WRITABLE, ffrWritable } from '../src/lib/ffr';
 import { buildFfrDocx, ffrDocName } from '../src/lib/ffrdoc';
 import { localIsoDate } from '../src/lib/dates';
@@ -312,7 +313,11 @@ console.log('\n-- every screen rendering the call form injects its lists --');
         && !/return FIELD_CALL_FIELDS/.test(line)
         && !/inject/i.test(line)
         // a derivation, not a render
-        && !/^\s*const \w+ = \(\) => FIELD_CALL_FIELDS/.test(line))
+        && !/^\s*const \w+ = \(\) => FIELD_CALL_FIELDS/.test(line)
+        // D-033: the vigilance rule applied to the schema is a derivation too,
+        // and both callers (buildCreateFields, viewFields) reach the render
+        // through `inject` above.
+        && !/withVigilanceRule\(FIELD_CALL_FIELDS, callType, '?\w+'?\)/.test(line))
       .map(({ i }) => `${f}:${i + 1}`);
     strays.push(...stray);
   });
@@ -1476,9 +1481,27 @@ console.log('\n-- the Objective page --');
   // between "we did not measure" and "it was perfect".
   eq('a blank month is stored as null, not zero', /value: number \| null = null;/.test(obj), true);
   eq('...and the screen says so', /NOT MEASURED, which is not the same as zero/.test(obj), true);
-  // Every figure is typed today, and the page says it rather than letting a
-  // number look computed.
-  eq('the page admits the figures are typed', /Every figure here is <b>typed<\/b> today/.test(obj), true);
+  // WHICH FIGURES ARE TYPED AND WHICH ARE CALCULATED, said truthfully (D-021,
+  // FRS-121.9). This assertion used to REQUIRE "Every figure here is typed
+  // today" — written before Re-calculate existed, and false beside rows marked
+  // ƒ that it writes from the register. It now requires the opposite: the
+  // claim is gone, and the page says the ƒ rows are calculated, a ✎ month was
+  // typed over the calculation, the other rows are typed, and the Total is
+  // typed on every row (Re-calculate does not write it — 0130).
+  eq('the page no longer says every figure is typed', /Every figure here is <b>typed<\/b>/.test(obj), false);
+  eq('...it says the ƒ rows are calculated by Re-calculate',
+    /The months of a row marked <b>ƒ<\/b> are <b>calculated<\/b> from the register by\s+Re-calculate/.test(obj), true);
+  eq('...that a ✎ month was typed over the calculation, and every other row is typed',
+    /marked <b>✎<\/b>, which\s+somebody typed over the calculation\. Every other row is <b>typed<\/b>/.test(obj), true);
+  eq('...and that the Total is typed on every row', /The <b>Total<\/b> is\s+typed on every row/.test(obj), true);
+  // A delete row-level security refuses matches ZERO rows with no error, so
+  // deleteObjective counts what it deleted rather than trusting `error` (D-021).
+  {
+    const sbo = readFileSync(`${process.cwd()}/src/lib/supabase.ts`, 'utf8');
+    const del = /export async function deleteObjective[\s\S]*?\n\}/.exec(sbo)?.[0] ?? '';
+    eq('deleteObjective asks for the rows it deleted', /\.delete\(\)\.eq\('id', id\)\.select\('id'\)/.test(del), true);
+    eq('...and a delete of nothing is not reported as done', /\(data \?\? \[\]\)\.length \?/.test(del), true);
+  }
   // A target reads "<5%" / ">75%" / "To Monitor" — the last has no line, so it
   // must not be coloured as met or missed.
   eq('an unparseable target is neither met nor missed',
@@ -1668,7 +1691,9 @@ console.log('\n-- the evidence workbook --');
     eq('...says the user\'s sentence beside a machine it leaves out',
       /\{TRANSFERRED_AWAY\}/.test(cov), true);
     eq('...and cannot create the contract until the check has answered',
-      /disabled=\{busy \|\| checking \|\| !!awayErr \|\| !machines\.length\}/.test(cov), true);
+      // `|| !!blocked` since D-100: nor while the entry holds an unsaved change.
+      // `|| missing.length > 0` since D-104: nor while a required field is blank.
+      /disabled=\{busy \|\| checking \|\| !!awayErr \|\| !machines\.length \|\| !!blocked \|\| missing\.length > 0\}/.test(cov), true);
     {
       const cl = readFileSync(`${process.cwd()}/src/lib/cover.ts`, 'utf8');
       eq('...and the write asks again, so a draft cannot carry one past it',
@@ -2465,7 +2490,7 @@ console.log('\n-- Reports: access one report at a time --');
     {
       const sb = readFileSync('src/lib/supabase.ts', 'utf8');
       eq('the consumption upload files its visits through the tested planner',
-        /planConsumptionVisits\(rows, have\)/.test(sb), true);
+        /planConsumptionVisitUpload\(rows, have\)/.test(sb), true);
       eq('...and supabase.ts does not decide any of it itself',
         /IMP-\$\{ucn\}/.test(sb), false);
       eq('...the register asks for the step',
@@ -2734,7 +2759,11 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
 
   // ...and the link back must be written, or "what was this machine on before?"
   // has no answer.
-  eq('the new contract points back at the old one', /prev_mc_number:/.test(renew), true);
+  // Since D-104 the header is built by renewalHeader() — what the panel checks
+  // and what renewContract() saves — so the link back is asserted there.
+  const renewHead = cov.slice(cov.indexOf('export function renewalHeader'), cov.indexOf('export async function contractNumberExists'));
+  eq('the new contract points back at the old one',
+    /prev_mc_number: str\(from\.mc_number\) \|\| null/.test(renewHead) && /await saveHeader\('contract', header\)/.test(renew), true);
   // HIDDEN ON THE FORM, NOT DROPPED (the user, 2026-10-02): the header field
   // list is also the save's whitelist, so removing the field would make the
   // renewal's write of it disappear.
@@ -2776,7 +2805,8 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
                      { product_code: 'V1', product_name: 'VEGA', serial_number: '' }];
       const d = proposeConversion(sale, items);
       eq('a conversion starts the day after the warranty ends', d.contract_start, '2026-04-01');
-      eq('...ticks every machine with a serial', d.serials, ['S1']);
+      // By MACHINE — product and serial, the database's machine_key (D-105).
+      eq('...ticks every machine with a serial', d.machines, ['vega|s1']);
       eq('...and guesses no contract type', d.contract_type, '');
       const h = conversionHeader(sale, { ...d, contract_months: 12 });
       eq('the party is carried', h.party_name, 'APOLLO');
@@ -2902,10 +2932,11 @@ console.log('\n-- Zoho Migration is a clone, and stays one --');
   // app-side fallback; this compares the two lists it builds.
   // ...but for the Auto Review switch, which the user gave Technical Support
   // and not this role (0285): a clone that inherited a WRITE would stop being
-  // read-only without anybody deciding it.
-  const a = [...(DEFAULT_PERMS.technical_support ?? [])].filter((k) => k !== 'review.auto').sort();
+  // read-only without anybody deciding it. The same holds for
+  // spare.request.others (0369, D-125: "Admins + Technical Support").
+  const a = [...(DEFAULT_PERMS.technical_support ?? [])].filter((k) => k !== 'review.auto' && k !== 'spare.request.others').sort();
   const b = [...(DEFAULT_PERMS.zoho_migration ?? [])].sort();
-  eq('the two roles default to the same rights, but for the Auto Review switch', b, a);
+  eq('the two roles default to the same rights, but for the Auto Review switch and spare requests for anyone', b, a);
 
   // READ ONLY, by what it does not hold. Nothing here is hidden from it; the
   // refusal on a write is Postgres's.
@@ -5100,7 +5131,9 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   const rbac = readFileSync('src/lib/rbac.ts', 'utf8');
   eq('ffr.view is on the action list', /key: 'ffr\.view'/.test(rbac), true);
   eq('and on the Field Failure page in the matrix',
-    /'\/failure-report', label: 'Field Failure Register', actions: \['ffr\.view', 'ffr\.manage'\]/.test(rbac), true);
+    // ffr.view on the row, wherever it sits among the row's keys (review.view
+    // joined it for D-129).
+    /'\/failure-report', label: 'Field Failure Register', actions: \[[^\]]*'ffr\.view'/.test(rbac), true);
 
   // AN EMPTY REGISTER MUST SAY WHY. "There are no reports" and "you cannot see
   // the reports" look identical and mean opposite things.
@@ -5803,6 +5836,105 @@ console.log('\n-- a call request can be corrected until it becomes a call --');
     /col === 'plan_date' \? \(v === '' \? null : v\) : v/.test(sb), true);
 }
 
+console.log('\n-- review batch: D-027, D-030, D-039 (the screen half) --');
+{
+  // ---- D-030 (c): A REQUEST IS WRITTEN WHOLE OR NOT AT ALL -----------------
+  // Run as behaviour: no REQID means no write, and the refusal says nothing
+  // was saved; a REQID means the one insert goes ahead.
+  const okMint = reqidOrRefusal('R00042', null);
+  eq('D-030: a minted REQID lets the batch be written', okMint.ok && okMint.reqid, 'R00042');
+  const noFn = reqidOrRefusal(null, 'function public.next_call_reqid() does not exist');
+  eq('D-030: no REQID is a refusal, not a fallback write', noFn.ok, false);
+  eq('D-030: ...and the refusal says NOTHING was saved',
+    !noFn.ok && noFn.error.includes(NOTHING_SAVED) && /no call on this request was written/.test(noFn.error), true);
+  eq('D-030: ...and keeps the database\'s reason', !noFn.ok && /next_call_reqid\(\) does not exist/.test(noFn.error), true);
+  eq('D-030: an empty answer with no error is refused too', reqidOrRefusal('', null).ok, false);
+  eq('D-030: ...as is a blank one', reqidOrRefusal('   ', null).ok, false);
+  const sbSrc = readFileSync('src/lib/supabase.ts', 'utf8');
+  const batch = sbSrc.slice(sbSrc.indexOf('export async function addCallRequestBatch'),
+    sbSrc.indexOf('\n}\n', sbSrc.indexOf('export async function addCallRequestBatch')));
+  eq('D-030: the batch asks reqidOrRefusal before writing anything',
+    batch.indexOf('reqidOrRefusal(') > 0 && batch.indexOf('reqidOrRefusal(') < batch.indexOf(".from('call_requests')"), true);
+  eq('D-030: ...writes ONE insert and nothing else', (batch.match(/\.insert\(/g) ?? []).length, 1);
+  eq('D-030: ...and never reports a partial save as ok', /ok: true[^}]*error/.test(code(batch)), false);
+
+  // ---- D-030 (d): THE ATTENDED DATE IS NOT AFTER TODAY ---------------------
+  eq('D-030: an attended date after today is refused',
+    attendedDateProblem(true, '2026-10-07', '2026-10-06'), 'The Attended Date cannot be in the future.');
+  eq('D-030: ...today is accepted', attendedDateProblem(true, '2026-10-06', '2026-10-06'), null);
+  eq('D-030: ...an earlier day is accepted', attendedDateProblem(true, '2026-09-30', '2026-10-06'), null);
+  eq('D-030: ...a missing one on Yes is still refused',
+    attendedDateProblem(true, '', '2026-10-06'), 'Attended Date is required when Call Attended? = Yes.');
+  eq('D-030: ...and on No nothing is asked', attendedDateProblem(false, '2099-01-01', '2026-10-06'), null);
+  const rq2 = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  eq('D-030: the Attended Date input stops at today', /field\('Attended Date \*', <input type="date" className="input" max=\{todayISO\(\)\}/.test(rq2), true);
+  eq('D-030: ...and the form asks the rule', /attendedDateProblem\(attended, f\.attendedDate, todayISO\(\)\)/.test(rq2), true);
+
+  // ---- D-030 (a)(b): THE CORRECTION HOLDS THE FORM'S CONTROLS --------------
+  const wl2 = /const CALL_REQUEST_EDITABLE: Record<string, string> = \{([\s\S]*?)\};/.exec(sbSrc)?.[1] ?? '';
+  eq('D-030: the submitted-by address is not correctable', /\bemail\b/.test(wl2), false);
+  const corr = rq2.slice(rq2.indexOf('function RequestCorrection('), rq2.indexOf('const LABELS: Record<string, string>'));
+  eq('D-030: the correction no longer renders every key as a text box',
+    /callRequestEditableKeys\(\)\.map\(\(k\) => \([\s\S]{0,300}<input className="input" value=\{String\(editRow\[k\]/.test(rq2), false);
+  eq('D-030: ...the complaint is the product\'s master, picked', /complaintMaster\.forProduct\(s\('product'\)\)/.test(corr), true);
+  eq('D-030: ...with no free text on a field call', /case 'standardComplaint':[\s\S]{0,700}allowFreeText/.test(corr), false);
+  eq('D-030: ...the serial is the form\'s machine search', /sbSearchMachines\(s\('product'\), qq, 50, ''\)/.test(corr), true);
+  eq('D-030: ...the call type and product are their masters',
+    /useMaster\('calltype', \['FIELD', 'INSTALLATION CALL'\]\)/.test(corr) && /useMaster\('product'\)/.test(corr), true);
+  eq('D-030: ...and the party is read off the machine on a field call',
+    /case 'partyName':[\s\S]{0,900}readOnly/.test(corr), true);
+  const row = (product: string, serial: string, party: string) => ({ product, serial, party, reportedProblem: 'x' });
+  eq('D-030: a corrected serial with no customer is refused',
+    /not on the register/.test(correctionProblem(row('ORION-G', '999', ''), [], false) ?? ''), true);
+  eq('D-030: ...a machine of another customer than the rest of the request is refused',
+    /one visit to one customer/.test(correctionProblem(row('ORION-G', '105', 'B HOSPITAL'), [row('ORION-G', '106', 'A HOSPITAL')], false) ?? ''), true);
+  eq('D-030: ...the same machine twice is refused',
+    /already on this request/.test(correctionProblem(row('ORION-G', '105', 'A'), [row('ORION-G', ' 105 ', 'A')], false) ?? ''), true);
+  eq('D-030: ...a sound correction passes', correctionProblem(row('ORION-G', '105', 'A HOSPITAL'), [row('ORION-G', '106', ' a  hospital ')], false), null);
+  eq('D-030: ...an installation names its customer by hand', correctionProblem(row('ORION-G', 'NEW1', 'NEW CUSTOMER'), [], true), null);
+  eq('D-030: ...and must name one', correctionProblem(row('ORION-G', 'NEW1', ''), [], true), 'Enter the Party Name.');
+  eq('D-030: the correction is checked before it is sent',
+    /correctionProblem\([\s\S]{0,200}\);\s*\n\s*if \(problem\) \{[^\n]*return; \}\s*\n\s*setSavingEdit\(true\);/.test(rq2), true);
+
+  // ---- D-027: THE WEEKLY REVIEW, AND WHO MAY OPEN IT -----------------------
+  const ffrR = readFileSync('src/modules/FieldFailureReport.tsx', 'utf8');
+  const ffrD = readFileSync('src/modules/FieldFailureDesk.tsx', 'utf8');
+  eq('D-027: the edit form carries the weekly review date', /value=\{String\(form\.reviewed_at \?\? ''\)\.slice\(0, 10\)\}/.test(ffrR), true);
+  eq('D-027: ...the reviewer and the attachment', /field\('Reviewed by', 'reviewed_by_name'\)/.test(ffrR)
+    && /field\('Attachment link', 'attachment_url'\)/.test(ffrR) && /uploadToDrive\(/.test(ffrR), true);
+  eq('D-027: the desk is handed no edit action without ffr.manage', /onEdit=\{mayRaise \? /.test(ffrR), true);
+  eq('D-027: ...and shows no Edit / weekly review button then', /\{onEdit && \(\s*<button[\s\S]{0,160}✎ Edit \/ weekly review/.test(ffrD), true);
+  eq('D-027: the form refuses a blank problem and customer before the database does',
+    /if \(!problem\) \{ setMsg[\s\S]{0,200}if \(!String\(form\.customer_name \?\? ''\)\.trim\(\)\) \{ setMsg/.test(ffrR), true);
+
+  // ---- D-039: WORKSHOP RECORDS ---------------------------------------------
+  const clean = sbSrc.slice(sbSrc.indexOf('export async function markIndoorCleaned'),
+    sbSrc.indexOf('export async function indoorJobById'));
+  eq('D-039: marking the unit cleaned does not send who cleaned it', /cleaned_by\s*:/.test(clean), false);
+  eq('D-039: ...but still sends the time the operator chose', /cleaned_at: at\.toISOString\(\)/.test(clean), true);
+  eq('D-039: a harvested part can be corrected after it is added', /export async function updateIndoorPart\(/.test(sbSrc), true);
+  eq('D-039: a part with no code is refused', harvestedPartProblem({ part_code: ' ', description: 'Valve', qty: '1', condition_grade: 'Serviceable', destination: 'Stores' }),
+    'Enter the part code of the harvested part.');
+  eq('D-039: ...as is one with no quantity', /quantity/.test(harvestedPartProblem({ part_code: 'P1', description: 'Valve', qty: '0', condition_grade: 'Serviceable', destination: 'Stores' }) ?? ''), true);
+  eq('D-039: ...a grade the table refuses', /condition grade/.test(harvestedPartProblem({ part_code: 'P1', description: 'Valve', qty: 1, condition_grade: 'Good', destination: 'Stores' }) ?? ''), true);
+  eq('D-039: ...and one with no destination', /Destination/.test(harvestedPartProblem({ part_code: 'P1', description: 'Valve', qty: 2, condition_grade: 'Scrap', destination: '' }) ?? ''), true);
+  eq('D-039: a whole part passes', harvestedPartProblem({ part_code: 'P1', description: 'Valve', qty: '2', condition_grade: 'Repairable', destination: 'Stores' }), null);
+  eq('D-039: the grades are the table\'s CHECK, less the blank', PART_GRADES.join('|'), 'Serviceable|Repairable|Scrap');
+  const ind = readFileSync('src/modules/IndoorService.tsx', 'utf8');
+  eq('D-039: a part is no longer added with a blank code', /addIndoorPart\(job\.id, \{ part_code: ''/.test(ind), false);
+  eq('D-039: the damage report time is on the screen, and not later than now',
+    /defaultValue=\{localDateTimeInput\(job\.reported_to_customer_at\)\} max=\{nowLocalDateTimeInput\(\)\}/.test(ind), true);
+  eq('D-039: ...and who recorded it is shown, never sent', /reported_to_customer_by\s*:/.test(ind), false);
+  eq('D-039: ...the time is writable, the person is not',
+    /'reported_to_customer_at',/.test(sbSrc) && !/'reported_to_customer_by',/.test(sbSrc), true);
+  // A stored time shown in a datetime-local box on THIS device's clock, never
+  // the UTC string sliced. Built from local parts, so it holds in any zone.
+  const localT = new Date(2026, 0, 2, 3, 4, 0);
+  eq('a stored timestamp reads back as the local time it was', localDateTimeInput(localT.toISOString()), '2026-01-02T03:04');
+  eq('...nothing is blank', localDateTimeInput(null), '');
+  eq('...and nonsense is blank', localDateTimeInput('not a date'), '');
+}
+
 console.log('\n-- the cover registers open an entry in a pop-up --');
 {
   const reg2 = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
@@ -5840,7 +5972,7 @@ console.log('\n-- the cover registers open an entry in a pop-up --');
   // PENDING INSTALLATION CALL is filtered ON THE SERVER, with the same rule.
   {
     const cov = readFileSync('src/lib/cover.ts', 'utf8');
-    eq('the pending-install filter runs on the server', /pendingInstall && cfg\.kind === 'sale' \? PENDING_INSTALL/.test(cov), true);
+    eq('the pending-install filter runs on the server', /pendingInstall && cfg\.kind === 'sale' \? pendingInstall\(dealers\)/.test(cov), true);
     eq('...and is offered as a tile on the Warranty Register', /INSTALL CALL PENDING/.test(reg2), true);
     // ...AND PER SALE ON THE ENTRIES TAB (the user, 2026-10-02), counted by
     // the database as a filtered embed, and filterable the same way.
@@ -6341,7 +6473,10 @@ console.log('\n-- the Insights tab can be interrogated --');
   // another — and it is also what lets picking a machine on the bar chart ABOVE
   // advance this chart, which is the same question asked from the other end.
   eq('the level follows the filters',
-    /const paretoOpen = PARETO_LEVELS\.filter\(\(l\) => !picked\[l\.key\]\)/.test(ins), true);
+    // `levels` is PARETO_LEVELS, narrowed to the machine for a reader without
+    // the review answers (D-129).
+    /const paretoOpen = levels\.filter\(\(l\) => !picked\[l\.key\]\)/.test(ins)
+      && /const levels = mayReadReview \? PARETO_LEVELS :/.test(ins), true);
   // "The 2nd and the 3rd are interchangeable or can be skipped": the open
   // levels are OFFERED, so the reader picks the next question rather than being
   // marched through a fixed order.
@@ -8829,15 +8964,22 @@ console.log('\n-- an installation call is raised the same way from either place 
   // sense for the record in front of somebody is worse than a missing one,
   // because they press it to find out what it does.
   eq('it is offered on the sale register only',
-    /kind === 'sale' && !\(isDealerType\(r\.party_type\) && !isCallNumber\(r\.inst_call\)\) && \(\s*isCallNumber\(r\.inst_call\)/.test(cr), true);
+    /kind === 'sale' && !\(isDealerParty\(r\.party_name, dealers\) && !isCallNumber\(r\.inst_call\)\) && \(\s*isCallNumber\(r\.inst_call\)/.test(cr), true);
   // A DEALER GETS NO INSTALLATION CALL (the user, 2026-10-03; 0328): not on
   // the entry, not on a Register line, not counted as pending, and the shared
   // raiser refuses it before the database has to.
+  // D-151 (the user's decision, 2026-10-04): "dealer" is the PARTY MASTER's
+  // answer (dealerParties / isDealerParty), never the sale's own Type.
   eq('...and never for a dealer: the entry, the line, the pending rule and the raiser',
-    /isDealerType\(draft\.party_type\) && \(\s*<span className="muted" style=\{\{ fontSize: 12 \}\}>\{DEALER_NO_INSTALL\}/.test(cr)
-    && /kind === 'sale' && isDealerType\(r\.party_type\) && !isCallNumber\(r\.inst_call\)/.test(cr)
-    && /&& !isDealerType\(r\.party_type\);/.test(cr)
-    && /if \(isDealerType\(header\.party_type\)\) return \{ created: \[\], error: DEALER_NO_INSTALL \};/.test(code(readFileSync('src/lib/cover.ts', 'utf8'))), true);
+    /isDealerParty\(draft\.party_name, dealers\) && \(\s*<span className="muted" style=\{\{ fontSize: 12 \}\}>\{DEALER_NO_INSTALL\}/.test(cr)
+    && /kind === 'sale' && isDealerParty\(r\.party_name, dealers\) && !isCallNumber\(r\.inst_call\)/.test(cr)
+    && /&& !isDealerParty\(r\.party_name, dealers\);/.test(cr)
+    && /if \(isDealerParty\(header\.party_name, await dealerParties\(\)\)\) return \{ created: \[\], error: DEALER_NO_INSTALL \};/.test(code(readFileSync('src/lib/cover.ts', 'utf8'))), true);
+  eq('D-052: Stock Transfer says stock comes from DISPATCH, not an acknowledged receipt',
+    /acknowledged receiving/.test(code(readFileSync('src/modules/StockTransfer.tsx', 'utf8'))) === false
+    && /DISPATCHED to them/.test(readFileSync('src/modules/StockTransfer.tsx', 'utf8')), true);
+  eq('D-151: no dealer test reads the sale\'s own Type any more',
+    /isDealerType\(/.test(cr + code(readFileSync('src/lib/cover.ts', 'utf8'))), false);
   {
     const ot = code(readFileSync('src/modules/OwnershipTransfer.tsx', 'utf8'));
     eq('the transfer raises the customer\'s OT- call through the one builder, once per machine',
@@ -9168,14 +9310,16 @@ console.log('\n-- a download from a half-loaded table says so --');
   // needle is -1, and -1 is less than everything. The first version of this
   // line said exactly that, and deleting the guard from csvExport left it
   // green — caught by mutating it, which is the only way that shape ever is.
+  // The question is asked through `exportAllowed` now (D-018), which asks
+  // the permission first and then `mayExport`; the same test, one name over.
   eq('csvExport asks before it builds the file',
-    fmt.includes('mayExport(scope') && fmt.indexOf('mayExport(scope') < fmt.indexOf('new Blob('), true);
+    fmt.includes('exportAllowed(scope') && fmt.indexOf('exportAllowed(scope') < fmt.indexOf('new Blob('), true);
   const xl = readFileSync('src/lib/xlsx.ts', 'utf8');
   eq('xlsxDownload asks before it builds the workbook',
-    /if \(!mayExport\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return;/.test(xl), true);
+    /if \(!exportAllowed\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return Promise\.resolve\(false\);/.test(xl), true);
   const x3 = readFileSync('src/lib/xls.ts', 'utf8');
   eq('...and so does the .xls writer',
-    /if \(!mayExport\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return;/.test(x3), true);
+    /if \(!exportAllowed\(scope, sheets\[0\]\?\.rows\.length \?\? 0\)\) return Promise\.resolve\(false\);/.test(x3), true);
 }
 
 console.log('\n-- the DCCR mirror is the same register, not a second opinion --');
@@ -10084,7 +10228,7 @@ console.log('\n-- the Daily Complaint Review: auto review is a role’s switch (
     /Auto review: <b>\{auto\.enabled \? 'On' : 'Off'\}<\/b>/.test(dccr), true);
   eq('...and only review.auto may switch it', /auto && can\('review\.auto'\) && \(/.test(dccr), true);
   eq('review.auto is on Roles & Permissions, on the Daily Review row',
-    /key: 'review\.auto'/.test(r('src/lib/rbac.ts')) && /'\/daily-review'[^\n]*actions: \['review\.edit', 'review\.auto'/.test(r('src/lib/rbac.ts')), true);
+    /key: 'review\.auto'/.test(r('src/lib/rbac.ts')) && /'\/daily-review'[^\n]*actions: \[[^\]]*'review\.edit', 'review\.auto'/.test(r('src/lib/rbac.ts')), true);
   const up = r('src/lib/uploads.ts');
   const dccrUpload = up.slice(up.indexOf("key: 'call_reviews'"), up.indexOf("key: 'parties'"));
   eq('the DCCR Register upload marks every row imported', /\{ to: 'imported', from: \[\], derive: \(\) => true, always: true \}/.test(dccrUpload), true);
@@ -10303,6 +10447,45 @@ console.log('\n-- High batch 1: what a screen could not read, and what it leaves
     // D-113: a transfer sends the reason on every line once any line has one.
     eq('D-113: a stock transfer sends the reason on every line or none',
       /anyReason \? \{ reason:/.test(fnBody(sb, 'addStockTransfer')), true);
+    // D-044: a header and its lines are ONE call -- the save_* functions
+    // (0392) -- and the compensating DELETE that could not run is gone.
+    for (const [f, rpc] of [['addSpareRequest', 'save_spare_request'], ['addStockTransfer', 'save_stock_transfer'],
+                            ['addMaterialReturn', 'save_material_return']] as const) {
+      const body = fnBody(sb, f);
+      eq(`D-044: ${f} saves the record whole through ${rpc}()`, body.includes(`.rpc('${rpc}'`), true);
+      eq(`D-044: ${f} issues no clean-up .delete()`, body !== '' && !/\.delete\(/.test(body), true);
+      eq(`D-044: ${f} writes no table directly`, /\.from\('(spare_request|stock_transfer|material_return)/.test(body), false);
+    }
+    // ...and the spare request still files its visit only AFTER a save that worked.
+    {
+      const body = fnBody(sb, 'addSpareRequest');
+      const save = body.indexOf(".rpc('save_spare_request'"), visit = body.indexOf(".rpc('file_visit_for_spare_request'");
+      eq('D-044: addSpareRequest files the visit after the save, never before', save >= 0 && visit > save, true);
+    }
+    // D-075: nothing is written before the operator confirms. The PLAN reads
+    // and returns its writes as data; applyUploadPlan writes them after OK.
+    {
+      const plan = fnBody(sb, 'planUpload');
+      eq('D-075: planUpload exists', plan !== '', true);
+      eq('D-075: planUpload performs no write (no insert / upsert / update / delete / rpc)',
+        /\.(insert|upsert|update|delete|rpc)\(/.test(plan), false);
+      eq('D-075: planUpload never modifies the caller\'s rows (no splice)', /\.splice\(/.test(plan), false);
+      eq('D-075: the old write-before-confirm prepareUpload is gone', /function prepareUpload\b/.test(sb), false);
+      const apply = fnBody(sb, 'applyUploadPlan');
+      eq('D-075: applyUploadPlan writes the plan and reports what was and was not written',
+        /\.upsert\(/.test(apply) && /prepFailureMessage\(/.test(apply), true);
+      const bu = code(readFileSync('src/modules/BulkUploads.tsx', 'utf8'));
+      const w = bu.slice(bu.indexOf('const write = async'), bu.indexOf('const s = pending?.shaped;'));
+      const iPlan = w.indexOf('planUpload('), iConfirm = w.indexOf('confirm('),
+        iApply = w.indexOf('applyUploadPlan('), iUpload = w.indexOf('uploadRows(');
+      eq('D-075: Bulk Uploads plans BEFORE the confirmation', iPlan >= 0 && iPlan < iConfirm, true);
+      eq('D-075: ...applies the plan only AFTER it, and before the rows', iConfirm >= 0 && iApply > iConfirm && iUpload > iApply, true);
+      eq('D-075: ...the confirmation names what will be written first', /prepWritesQuestion\(plan\.writes\)/.test(w), true);
+      eq('D-075: ...a failed preparation returns before the upload',
+        /if \(!pre\.ok\) \{[^\n]*return; \}/.test(w.slice(iApply, iUpload)), true);
+      eq('D-075: ...and uploads the PLANNED rows, which are the rows the confirmation counted',
+        /uploadRows\(def\.table, rows,/.test(w) && /const n = rows\.length;/.test(w), true);
+    }
     // D-117: one hit more than is shown is fetched, and the panel says so.
     eq('D-117: global search fetches one more than it shows', /const n = PER_KIND \+ 1;/.test(sb), true);
     eq('...and the panel shows only PER_KIND and says there are more',
@@ -10367,6 +10550,353 @@ console.log('\n-- a big register draws what can be seen (D-118, 2026-10-04) --')
   eq('...and the sort compares with one collator', /new Intl\.Collator\(/.test(dt) && !/localeCompare\(String\(bv\)/.test(dt), true);
 }
 
+console.log('\n-- the cover pop-up and the additional entry (D-099, D-100, D-106, D-054, 2026-10-04) --');
+{
+  const cr = code(readFileSync('src/modules/CoverRegister.tsx', 'utf8'));
+  // D-099: a machine added with + Add machine has no id until it is saved, so
+  // replacing it BY ID never found it and the card stayed "unsaved".
+  const fresh = { sa_number: 'SA1' };
+  const kept = { id: 1, sa_number: 'SA1', serial_number: 'A' };
+  eq('D-099: a machine just added is replaced by its saved row, not left beside it',
+    withSavedMachine([kept, fresh], fresh, { id: 2, serial_number: 'B' }).map((r) => r.id), [1, 2]);
+  eq('...a saved machine is still found by its id after the list was re-read',
+    withSavedMachine([{ id: 1, rate: 1 }], { id: 1 }, { id: 1, rate: 2 }), [{ id: 1, rate: 2 }]);
+  eq('...and the card hands back its own line, and the bar says Save machine',
+    /onSaved=\{\(r\) => setItems\(\(cur\) => withSavedMachine\(cur, it, r\)\)\}/.test(cr)
+      && !/Press Save entry first/.test(cr) && /Press Save machine on the new line/.test(cr), true);
+  // D-100: Renew and Convert work from the SAVED entry and close through the
+  // unsaved-changes check, never by setOpen(null) directly.
+  const panels = cr.slice(cr.indexOf('const unsavedEntry = entryDirty'), cr.indexOf('const machineList = open'));
+  eq('D-100: Renew and Convert are given the entry as saved, not the draft',
+    /<ConvertPanel sale=\{open\}/.test(panels) && /header=\{open\}/.test(panels) && !/=\{draft\}/.test(panels), true);
+  eq('...cannot be opened, or create anything, over unsaved changes',
+    (panels.match(/disabled=\{loadingItems \|\| !!unsavedEntry\}/g) ?? []).length === 2
+      && (panels.match(/blocked=\{unsavedEntry\}/g) ?? []).length === 2, true);
+  eq('...and on success close through closeEntry, which asks first',
+    (panels.match(/closeRef\.current\(\)/g) ?? []).length === 2 && !/setOpen\(null\)/.test(panels), true);
+  // D-106: an UPDATE of an entry sends only what this screen changed.
+  const loaded = { id: 7, sa_number: 'SA7', party_name: 'APOLLO', invoice_no: 'INV-1', item_count: 3 };
+  eq('D-106: only the fields that differ from what was loaded are written',
+    headerChanges('sale', { ...loaded, invoice_no: 'INV-2', item_count: 4 }, loaded), { invoice_no: 'INV-2' });
+  eq('...a cleared box is a change, and null is the same as absent',
+    headerChanges('sale', { ...loaded, party_name: null, remarks: null }, loaded), { party_name: null });
+  eq('...and the Save entry button passes the entry as loaded',
+    /saveHeader\(kind, toSave, open \?\? undefined\)/.test(cr), true);
+  // D-054: 0185 keyed the table on machine_key (model + serial); the screen
+  // upserted on the serial alone and every save was refused.
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+  const sae = sb.slice(sb.indexOf('export async function saveAdditionalEntry'), sb.indexOf('\nexport ', sb.indexOf('export async function saveAdditionalEntry') + 10));
+  eq('D-054: an additional entry upserts on machine_key, never the serial alone',
+    /onConflict: 'machine_key'/.test(sae) && !/onConflict: 'serial_number'/.test(sae), true);
+  eq('...never sends the generated machine_key, and refuses a blank model',
+    !/machine_key:/.test(code(sae)) && /if \(!item_name\) return \{ ok: false/.test(sae), true);
+  const ot = code(readFileSync('src/modules/OwnershipTransfer.tsx', 'utf8'));
+  eq('...and the form asks for the model, from the Product Database, before the serial',
+    /label="Machine model \*"/.test(ot) && /sbListProductNames\(\)/.test(ot) && /sbListProductSerials\(entryModel\)/.test(ot), true);
+}
+
+console.log('\n-- six recorded defects: D-018/D-065, D-031, D-032, D-040, D-105, D-099 (2026-10-04) --');
+{
+  // ---- D-018 / D-065: ONE export gate, in every writer, and an honest answer
+  // AS BEHAVIOUR: the three writers are run with the permission off and on,
+  // and a stand-in chooser records what reached it.
+  const xs = await import('../src/lib/exportscope');
+  const { xlsxDownload: xlsxW } = await import('../src/lib/xlsx');
+  const { xlsDownload: xlsW } = await import('../src/lib/xls');
+  const fmtM = await import('../src/lib/format');
+  const sheet = [{ name: 'S', columns: ['A'], rows: [{ A: 1 }] }];
+  const reached: string[] = [];
+  xs.setExportChooser((job) => { reached.push(job.filename); job.settle?.(true); });
+  fmtM.setCanExport(false);   // set through format.tsx, as auth.tsx does
+  eq('D-018: one flag — format.tsx sets the one the writers read', xs.canExportData(), false);
+  eq('D-018: a role refused export.data is refused the .xlsx', await xlsxW('a.xlsx', sheet, COMPLETE), false);
+  eq('...and the .xls', await xlsW('a.xls', sheet, COMPLETE), false);
+  eq('...and the CSV, as before', await fmtM.csvExport('a.csv', [{ key: 'A', header: 'A' }], [{ A: 1 }], COMPLETE), false);
+  eq('...and nothing reached the chooser', reached, []);
+  eq('...refused BEFORE the partial-load question is put',
+    xs.exportAllowed(partial(true), 5, () => { throw new Error('asked'); }), false);
+  fmtM.setCanExport(true);
+  eq('a permitted export is handed over and reports it was written',
+    await xlsxW('b.xlsx', sheet, COMPLETE), true);
+  eq('...a Cancel on the partial-load question writes nothing', xs.exportAllowed(partial(true), 5, () => false), false);
+  xs.setExportChooser((job) => { job.settle?.(false); });
+  eq('...and a chooser closed with nothing taken reports false',
+    await fmtM.csvExport('c.csv', [{ key: 'A', header: 'A' }], [{ A: 1 }], COMPLETE), false);
+  xs.setExportChooser(null);
+  eq('...the chooser settles every job (download, close, replaced, unmounted)',
+    (() => { const c = code(readFileSync('src/components/ui/ExportChooser.tsx', 'utf8'));
+      return /const saveFile = \(\) => \{ job\.saveFile\(\); finish\(true\); \}/.test(c)
+        && /finish\(phase\.k === 'done'\)/.test(c) && /pending\.current\?\.settle\?\.\(false\)/.test(c); })(), true);
+  // THE AUDIT WAITS FOR THE FILE. For each screen that audits a download, the
+  // audit call must sit behind the writer's answer.
+  const gated: [string, string][] = [
+    ['ReportBuilder', 'action: `report.${spec.key}`'],
+    ['SolvedWithoutReport', "action: 'report.solved_without_report'"],
+    ['FeedbackWithoutReport', "action: 'report.feedback_without_report'"],
+    ['InstallCallsUnmapped', "action: 'report.install_calls_unmapped'"],
+    ['HandStockReport', "action: 'report.handstock'"],
+    ['KpiExport', "action: 'kpi.export'"],
+    ['UnusedSpareReport', "action: 'report.unused_spares'"],
+    ['Objective', "action: 'objective.evidence'"],
+    ['IndoorService', "action: 'indoor.register_download'"],
+    ['RolePermissions', "action: 'rbac.export'"],
+    ['ProductFailureAnalysis', "action: 'productfailure.download'"],
+    ['ProductFailureAnalysis', "action: 'productfailure.trend.download'"],
+    ['FieldFailureInsights', "action: 'ffr.trend.download'"],
+    ['FieldFailureInsights', "action: 'ffr.pareto.download'"],
+  ];
+  const ungated = gated.filter(([f, a]) => {
+    const src = code(readFileSync(`src/modules/${f}.tsx`, 'utf8'));
+    const at = src.indexOf(a);
+    // From the LAST writer call before the audit to the audit itself: the
+    // writer's answer must be tested in between.
+    const calls = [...src.slice(0, Math.max(0, at)).matchAll(/(csvExport|xlsxDownload|xlsDownload)\(/g)];
+    const from = calls.length ? calls[calls.length - 1].index! : -1;
+    return at < 0 || from < 0 || !/if \(!?ok\)|if \(!written\)/.test(src.slice(from, at));
+  }).map(([f, a]) => `${f}: ${a}`);
+  eq('D-018: every download audit waits for the file to be written', ungated, []);
+  // DATA EXPORT: the gate, the audit, the order and the cap.
+  const de = code(readFileSync('src/modules/DataExport.tsx', 'utf8'));
+  eq('D-065: Data Export asks export.data through the one flag, and audits what left',
+    /if \(!can\('export\.data'\) \|\| !canExportData\(\)\)/.test(de) && /logAudit\(\{ action: 'export\.tables'/.test(de)
+      && !/allRows</.test(de) && /readTableForExport</.test(de), true);
+  const te = await import('../src/lib/tableexport');
+  eq('D-065: a table is read by sys_id, the rest of its plain columns breaking ties',
+    te.exportOrderKeys({ name: 'x', id: 1, sys_id: 'u', data: { a: 1 }, 'Part (code|description)': 'p' }), ['sys_id', 'name', 'id']);
+  eq('...by id where there is no sys_id', te.exportOrderKeys({ name: 'x', id: 1 }), ['id', 'name']);
+  eq('...and by every orderable column where there is neither (the report views)',
+    te.exportOrderKeys({ 'Line ID': 1, 'UC Number': 'u', 'Part (code|description)': 'p' }), ['Line ID', 'UC Number']);
+  const table = Array.from({ length: 2500 }, (_, i) => ({ id: i, v: `r${i}` }));
+  const orders: string[][] = [];
+  const fake = (cap: number) => te.readTableForExport<Record<string, unknown>>(
+    () => Promise.resolve({ data: table.slice(0, 1), error: null }),
+    (order, a, b) => { orders.push(order); return Promise.resolve({ data: table.slice(a, b + 1), error: null }); }, cap);
+  const cut = await fake(2000);
+  eq('D-065: a table past the cap is SAID to be cut, holding exactly the cap',
+    [cut.capped, cut.rows.length], [true, 2000]);
+  const whole = await fake(2500);
+  eq('...a table of exactly the cap is not', [whole.capped, whole.rows.length], [false, 2500]);
+  eq('...and every page names its order', orders.every((o) => o[0] === 'id'), true);
+  eq('...and a failed page throws rather than handing back part of a table',
+    await te.readTableForExport(() => Promise.resolve({ data: [{ id: 1 }], error: null }),
+      () => Promise.resolve({ data: null, error: { message: 'refused' } })).then(() => 'returned', (e) => String(e.message)), 'refused');
+  // THE PARETO RAW SHEET: every key a row is built with is one of its columns.
+  const ffi = code(readFileSync('src/modules/FieldFailureInsights.tsx', 'utf8'));
+  const rs = ffi.slice(ffi.indexOf('const rawSheet = '), ffi.indexOf('const downloadPareto'));
+  const cols = [...(rs.match(/columns: \[([\s\S]*?)\]/)?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  const keys = [...rs.slice(rs.indexOf('rows: src.map')).matchAll(/^\s+(?:'([^']+)'|([A-Za-z]+)):/gm)].map((m) => m[1] ?? m[2]);
+  eq('D-018: the Pareto raw sheet lists every column its rows carry',
+    keys.length > 10 && keys.filter((k) => !cols.includes(k)), []);
+
+  // ---- D-031: a request is mapped only to a real call, and a refusal is said
+  const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+  const fn = (name: string) => { const i = sb.indexOf(`export async function ${name}(`); return sb.slice(i, sb.indexOf('\nexport ', i + 10)); };
+  eq('D-031: mapping and cancelling a request count the rows they changed',
+    ['setCallRequestUcn', 'cancelCallRequest'].map((n) => /\{ count: 'exact' \}/.test(fn(n)) && /count === 0 \? \{ ok: false/.test(fn(n))), [true, true]);
+  const pr = code(readFileSync('src/modules/PendingRegistrations.tsx', 'utf8'));
+  eq('...a UCN no call has is refused, not offered',
+    !/Map the request to it anyway/.test(pr) && /found = await callExists\(ucn\)/.test(pr) && /if \(!found\) \{/.test(pr), true);
+  eq('...and a failed back-fill is handed up and said, with the UCN',
+    !/best-effort/.test(pr) && /onDone\(String\(res\.ucn\), backfill \|\| undefined\)/.test(pr)
+      && /could NOT be marked Registered/.test(pr), true);
+  const fc = code(readFileSync('src/modules/FieldCalls.tsx', 'utf8'));
+  eq('...on the Field Call Register too', !/void setPendingUcn\(/.test(fc) && /await setPendingUcn\(pendingRow/.test(fc), true);
+
+  // ---- D-032: only an outage is kept on the device
+  const { isNetworkFailure } = await import('../src/lib/dberror');
+  eq('D-032: a fetch that never reached the server is an outage',
+    [isNetworkFailure({ message: 'TypeError: Failed to fetch', code: '' }, 0),
+     isNetworkFailure({ message: 'TypeError: NetworkError when attempting to fetch resource.', code: '' }, 0),
+     isNetworkFailure(new TypeError('Load failed')),
+     isNetworkFailure(new Error('Could not load from the sheet (network or deployment access).'))], [true, true, true, true]);
+  eq('...a refusal, a constraint, a trigger or an abort is not',
+    [isNetworkFailure({ message: 'new row violates row-level security policy for table "field_calls"', code: '42501' }, 403),
+     isNetworkFailure({ message: 'duplicate key value violates unique constraint', code: '23505' }, 409),
+     isNetworkFailure({ message: 'This customer is blocked', code: 'P0001' }, 400),
+     isNetworkFailure({ message: 'AbortError: signal is aborted without reason', code: '' }, 0),
+     isNetworkFailure(new Error('Your role does not have permission for this action.'))], [false, false, false, false, false]);
+  eq('...addCall says which it was, and the screen keeps only an outage',
+    /offline: isNetworkFailure\(error, status\)/.test(fn('addCall'))
+      && /if \(!res\.offline\) \{ refuseCreate\(/.test(fc) && /if \(!isNetworkFailure\(e\)\) \{ refuseCreate\(m\); return; \}/.test(fc), true);
+  eq('...and a call kept locally is said to be NOT registered, under a placeholder',
+    /NOT registered yet\. \$\{ucn\} is a temporary placeholder/.test(fc) && !/Saved locally as \$\{ucn\}/.test(fc), true);
+
+  // ---- D-040 (4): a failed read of a call's history throws, so the banner fires
+  eq('D-040: spares, consumption and feedback by call throw on a failed read',
+    ['spareRequestsByCall', 'spareConsumptionByCall', 'feedbackByCall', 'reportsByCall']
+      .map((n) => /if \(error\) throw new Error\(errMsg\(error\)\)/.test(fn(n)) && !/if \(error\) return \[\]/.test(fn(n))),
+    [true, true, true, true]);
+
+  // ---- D-105: a machine on a cover entry is its product AND its serial
+  const cv = await import('../src/lib/cover');
+  const two = [{ product_name: 'VEGA', serial_number: '219', rate: 100 },
+               { product_name: 'ORION-G', serial_number: '219', rate: 200 },
+               { product_name: 'VEGA', serial_number: '' }];
+  eq('D-105: two machines sharing a serial are two keys, the database\'s machine_key',
+    [cv.coverMachineKey(two[0]), cv.coverMachineKey({ product_name: ' Orion-G ', serial_number: ' 219 ' })], ['vega|219', 'orion-g|219']);
+  eq('...a renewal ticks them separately', cv.proposeRenewal({ contract_end: '2026-03-31', contract_months: 12 }, two).machines, ['vega|219', 'orion-g|219']);
+  eq('...and so does a conversion', cv.proposeConversion({ warranty_end: '2026-03-31' }, two).machines, ['vega|219', 'orion-g|219']);
+  const cvs = code(readFileSync('src/lib/cover.ts', 'utf8'));
+  const mwac = cvs.slice(cvs.indexOf('export async function machinesWithAnotherCustomer'), cvs.indexOf('export async function convertWarrantyToContract'));
+  eq('...the transferred-machine check keys by machine and asks with the product',
+    /away\.set\(coverMachineKey\(it\)/.test(mwac) && /p_item_name: str\(it\.product_name\)/.test(mwac), true);
+  const crx = code(readFileSync('src/modules/CoverRegister.tsx', 'utf8'));
+  eq('...and neither panel keys a tick, a rate or a transfer by the serial alone',
+    !/\.serials\b/.test(crx) && !/away\?\.has\(str\(i\.serial_number\)\)/.test(crx)
+      && !/rates\[sn\]/.test(crx) && /oldRate = new Map<string, unknown>\(\s*items\.map\(\(i\) => \[coverMachineKey\(i\), i\.rate\]\)/.test(crx), true);
+
+  // ---- D-099 follow-up: Save entry keeps a machine line not yet saved
+  const added = { sa_number: 'SA1' };
+  const kept2 = cv.keepUnsavedMachines([{ id: 1 }, { id: 2 }], [{ id: 1 }, added]);
+  eq('D-099: a re-read keeps an unsaved line, after the saved ones',
+    [kept2.length, kept2[2] === added], [3, true]);
+  eq('...and with none unsaved is the re-read itself', cv.keepUnsavedMachines([{ id: 1 }], [{ id: 1 }]), [{ id: 1 }]);
+  eq('...Save entry, Force update and Raise calls all keep them, and a card is keyed by its line',
+    (crx.match(/setItems\(\(cur\) => keepUnsavedMachines\(fresh, cur\)\)/g) ?? []).length === 3
+      && /<ItemCard key=\{lineKey\(it\)\}/.test(crx) && !/`new-\$\{i\}`/.test(crx), true);
+}
+
+console.log('\n-- the owner\'s four decisions of 2026-10-05: D-033, D-049, D-104, D-129 --');
+{
+  const rd = (f: string) => code(readFileSync(f, 'utf8'));
+
+  // ---- D-033: a FIELD call's three vigilance answers start blank and must be given
+  const fcl = await import('../src/lib/fieldcall');
+  eq('D-033: the FIELD register demands the answers; Installation and PM do not',
+    ['FIELD', 'Field', '', 'INSTALLATION CALL', 'INSTALLATION', 'P M VISIT', 'PM'].map(fcl.vigilanceMustBeAnswered),
+    [true, true, true, false, false, false, false]);
+  const schema = [
+    { name: 'partyName', required: true },
+    { name: 'publicHealthThreat', defaultValue: 'NO' },
+    { name: 'death', defaultValue: 'NO' },
+    { name: 'seriousIncident', defaultValue: 'NO' },
+  ];
+  const vig = (fs: { name: string; required?: boolean; defaultValue?: unknown }[]) =>
+    fs.filter((f) => f.name !== 'partyName').map((f) => [f.name, 'defaultValue' in f, !!f.required]);
+  eq('...registering a FIELD call: no default, required',
+    vig(fcl.withVigilanceRule(schema, 'FIELD', 'create')),
+    [['publicHealthThreat', false, true], ['death', false, true], ['seriousIncident', false, true]]);
+  eq('...editing or viewing one: no default (a blank shows blank, an edit writes no NO nobody chose), not required',
+    vig(fcl.withVigilanceRule(schema, 'FIELD', 'edit')),
+    [['publicHealthThreat', false, false], ['death', false, false], ['seriousIncident', false, false]]);
+  eq('...Installation and PM keep today\'s form exactly (the same list, default NO)',
+    [fcl.withVigilanceRule(schema, 'INSTALLATION CALL', 'create') === schema, fcl.withVigilanceRule(schema, 'P M VISIT', 'create') === schema],
+    [true, true]);
+  eq('...and the other fields are untouched', fcl.withVigilanceRule(schema, 'FIELD', 'create')[0], schema[0]);
+  eq('...a FIELD call is unanswered until each reads YES or NO',
+    [fcl.vigilanceUnanswered({ callType: 'FIELD' }),
+     fcl.vigilanceUnanswered({ callType: 'FIELD', publicHealthThreat: 'yes', death: 'No', seriousIncident: ' NO ' }),
+     fcl.vigilanceUnanswered({ callType: 'FIELD', publicHealthThreat: 'NO', death: '', seriousIncident: 'maybe' })],
+    [['publicHealthThreat', 'death', 'seriousIncident'], [], ['death', 'seriousIncident']]);
+  eq('...an Installation or PM call is never held for them',
+    [fcl.vigilanceUnanswered({ callType: 'INSTALLATION CALL' }), fcl.vigilanceUnanswered({}, 'P M VISIT')], [[], []]);
+  const fcx = rd('src/modules/FieldCalls.tsx');
+  eq('...the schema itself still carries NO (for Installation and PM)',
+    (fcx.match(/name: '(publicHealthThreat|death|seriousIncident)'[^\n]*defaultValue: 'NO'/g) ?? []).length, 3);
+  eq('...both create forms say which register they are for',
+    /buildCreateFields\(prefill, config\.callType\)/.test(fcx)
+      && /buildCreateFields\(pf, config\.callType\)/.test(rd('src/modules/PendingRegistrations.tsx'))
+      && /export function buildCreateFields\(prefill: FormValues \| undefined, callType: string\)/.test(fcx), true);
+  eq('...the registers\' edit/view and Pending Registrations\' editor drop the default on a FIELD call',
+    /withVigilanceRule\(FIELD_CALL_FIELDS, callType, mode\)/.test(fcx)
+      && /withVigilanceRule\(FIELD_CALL_FIELDS,\s*editing\?\.values\.callType, 'edit'\)/.test(rd('src/modules/PendingRegistrations.tsx')), true);
+  eq('...answering at registration is not locked by "Edit the vigilance answers" (it is required there)',
+    /answering && vigilanceMustBeAnswered\(config\.callType\) \? VIGILANCE_KEYS : \[\]/.test(fcx)
+      && /exempt\.includes\(f\.name\)/.test(fcx), true);
+  const sh = rd('src/lib/sheets.ts');
+  const afc = sh.slice(sh.indexOf('export async function addFieldCall'), sh.indexOf('export async function listParties'));
+  eq('...and the one door every registration goes through refuses an unanswered FIELD call, as a refusal not an outage',
+    /const missing = vigilanceUnanswered\(record,/.test(afc) && afc.indexOf('vigilanceUnanswered') < afc.indexOf('sb.addCall')
+      && !/offline: true/.test(afc), true);
+  eq('...Sync does not send an unanswered held call, and says why',
+    /if \(vigilanceUnanswered\(rest, rest\.callType \|\| config\.callType\)\.length\) \{ unanswered\+\+; continue; \}/.test(fcx)
+      && /must each be answered YES or NO/.test(fcx), true);
+  eq('...calls raised from a Sale Entry or a transfer still record NO (FRS-085.5)',
+    (rd('src/lib/coverspec.ts').match(/(publicHealthThreat|death|seriousIncident): 'NO'/g) ?? []).length >= 3, true);
+
+  // ---- D-049: Stock Transfer — From is yours or your team's, To is on the User Master
+  const stx = rd('src/modules/StockTransfer.tsx');
+  eq('D-049: From is the filing list (self + team, everyone with stock.transfer.others)',
+    /const fromList = useFilingNames\('stock\.transfer\.others'\)/.test(stx)
+      && /<SelectPicker value=\{from\} onChange=\{setFrom\}\s*options=\{fromList\.names\}/.test(stx), true);
+  eq('...To is a picker of active User Master people',
+    /const toList = useActivePeople\(\)/.test(stx)
+      && /<SelectPicker value=\{to\} onChange=\{setTo\}\s*options=\{toList\.people\.map/.test(stx), true);
+  eq('...neither takes free text, and the old typed boxes are gone',
+    !/allowFreeText/.test(stx) && !/dl-stock-engineers/.test(stx) && !/listUsers\(/.test(stx), true);
+  eq('...a stale value is refused before the database has to',
+    /if \(!fromList\.names\.some\(\(n\) => sameName\(n, from\)\)\)/.test(stx)
+      && /if \(!toList\.people\.some\(\(p\) => sameName\(p\.name, to\)\)\)/.test(stx), true);
+
+  // ---- D-104: Renew and Convert make only contracts the contract form would accept
+  const cvr = await import('../src/lib/cover');
+  const ALL5 = ['Contract Type', 'Contract Period (Months)', 'PM Visits (Total)', 'Payment Schedule', 'Bill Generate At'];
+  eq('D-104: a blank contract misses the form\'s four and a Contract Type, in the form\'s order and words',
+    cvr.contractMissing({}), ALL5);
+  eq('...the four are the FORM\'s own required list, not a restatement',
+    cvr.missingRequired(cvr.CONTRACT.headerFields, {}), ALL5.slice(1));
+  const full = { contract_type: 'CMC', contract_months: 12, pm_visits_total: 4, payment_schedule: 'Yearly', bill_generate_at: 'End Of Period' };
+  eq('...and a filled one misses nothing', cvr.contractMissing(full), []);
+  const oldBlank = { mc_number: 'MC1', contract_type: 'AMC', contract_end: '2026-03-31', contract_months: 12, pm_visits_total: 2 };
+  const rd1 = cvr.proposeRenewal(oldBlank, []);
+  eq('...a renewal of a contract with blank billing is asked for it, not handed the blank',
+    cvr.contractMissing(cvr.renewalHeader(oldBlank, { ...rd1, mc_number: 'MC2' })), ['Payment Schedule', 'Bill Generate At']);
+  const rd2 = cvr.proposeRenewal({ ...oldBlank, payment_schedule: 'Yearly', bill_generate_at: 'End Of Period' }, []);
+  eq('...a renewal carries what the old contract had, editable',
+    [rd2.pm_visits_total, rd2.payment_schedule, rd2.bill_generate_at, cvr.contractMissing(cvr.renewalHeader(oldBlank, rd2))],
+    [2, 'Yearly', 'End Of Period', []]);
+  eq('...a conversion starts missing all five (Contract Type is never guessed)',
+    cvr.contractMissing(cvr.conversionHeader({ warranty_end: '2026-03-31' }, cvr.proposeConversion({ warranty_end: '2026-03-31' }, []))), ALL5);
+  const cvl = rd('src/lib/cover.ts');
+  eq('...both writers refuse by the same helper',
+    /const missing = contractMissing\(header\);\s*if \(missing\.length\) throw new Error\(contractMissingText\(missing\)\)/.test(
+      cvl.slice(cvl.indexOf('export async function renewContract'), cvl.indexOf('export interface ConversionDraft')))
+    && /const missing = contractMissing\(header\);\s*if \(missing\.length\) throw new Error\(contractMissingText\(missing\)\)/.test(
+      cvl.slice(cvl.indexOf('export async function convertWarrantyToContract'))), true);
+  const crg = rd('src/modules/CoverRegister.tsx');
+  const renewP = crg.slice(crg.indexOf('function RenewPanel('), crg.indexOf('function ConvertPanel('));
+  const convP = crg.slice(crg.indexOf('function ConvertPanel('), crg.indexOf('export function CoverRegister('));
+  eq('...and each panel shows the fields, disables Create while one is blank, and says which',
+    [renewP, convP].map((p) => /const missing = contractMissing\(/.test(p) && /missing\.length > 0\}/.test(p)
+      && /<MissingNote missing=\{missing\} \/>/.test(p)
+      && ['contract_type', 'payment_schedule', 'bill_generate_at'].every((k) => new RegExp(`set\\('${k}', v\\)`).test(p))
+      && /set\('pm_visits_total',/.test(p)), [true, true]);
+
+  // ---- D-129: review answers are read only by holders of review.view
+  const dc = await import('../src/lib/dccr');
+  eq('D-129: past Review 1 a stage is not shown to a reader without the key',
+    ['Review 1 Pending', 'Review 2 Pending', 'Review 3 Pending', 'Review Completed', ''].map((x) => dc.reviewStatusAsSeen(x, false)),
+    ['Review 1 Pending', dc.REVIEW_STAGE_HIDDEN, dc.REVIEW_STAGE_HIDDEN, dc.REVIEW_STAGE_HIDDEN, '']);
+  eq('...and is, to a reader with it', dc.reviewStatusAsSeen('Review 3 Pending', true), 'Review 3 Pending');
+  eq('...the stages offered as a filter follow the same rule',
+    [dc.reviewStatusesSeen(false), dc.reviewStatusesSeen(true).length], [['Review 1 Pending'], 4]);
+  eq('...the note is the decision\'s words',
+    dc.REVIEW_ANSWERS_HIDDEN, "Review answers are visible only to people given 'Read Daily Complaint Review answers'.");
+  const dcr = rd('src/modules/DailyCallReview.tsx');
+  eq('...the register says so, hides the worklists and their counts, and does not filter on a hidden answer',
+    /const mayReadReview = can\('review\.view'\)/.test(dcr)
+      && /const tabs = mayReadReview \? TABS : TABS\.filter/.test(dcr) && /\{tabs\.map\(\(t\) =>/.test(dcr)
+      && (dcr.match(/\{mayReadReview && t\.key === '(todo|r2|r3)'/g) ?? []).length === 3
+      && /<ReviewAnswersNote extra=/.test(dcr) && /rows=\{shownRows\}/.test(dcr)
+      && /reviewStatusesSeen\(mayReadReview\)/.test(dcr) && /setEffectOnly\(mayReadReview && !!v\)/.test(dcr), true);
+  eq('...and so does its review drawer',
+    /title=\{`Daily Review — \$\{ucn\}`\} width=\{760\}>\s*<ReviewAnswersNote \/>/.test(dcr), true);
+  const pfa = rd('src/modules/ProductFailureAnalysis.tsx');
+  eq('...Product Failure Analysis is not drawn over answers it cannot see',
+    /if \(!supabaseConfigured\(\) \|\| !mayReadReview\) return;/.test(pfa)
+      && /\{mayReadReview && rows\.length > 0 && <ProductFailureCharts/.test(pfa) && /<ReviewAnswersNote/.test(pfa), true);
+  const ffrR = rd('src/modules/FieldFailureReport.tsx');
+  const ffrI = rd('src/modules/FieldFailureInsights.tsx');
+  eq('...the Field Failure Register says so, and its Insights draw neither root cause, grouping nor withdrawn effects',
+    /<ReviewAnswersNote/.test(ffrR) && /mayReadReview=\{can\('review\.view'\)\}/.test(ffrR)
+      && /\{mayReadReview && \(\s*<KpiCard label="Effect withdrawn"/.test(ffrI)
+      && /\{!mayReadReview \? \(/.test(ffrI), true);
+  const wl = rd('src/lib/workload.ts');
+  eq('...and My Workload counts only the review cards that need no answer',
+    /run: \(\) => reviewSection\(can\('review\.view'\)\)/.test(rd('src/modules/Workload.tsx'))
+      && /\.filter\(\(card\) => mayRead \|\| REVIEW_CARDS_WITHOUT_ANSWERS\.includes\(card\.label\)\)/.test(wl), true);
+}
+
 console.log('\n-- every requirement carries a version and a date (Rev 3.2, 2026-10-03) --');
 {
   // The user: "Add a version no n date to every requirement." A requirement
@@ -10386,6 +10916,301 @@ console.log('\n-- every requirement carries a version and a date (Rev 3.2, 2026-
     }
     eq(`every ${pre} requirement in ${f} has a version and a date`, missing, []);
   }
+}
+
+console.log('\n-- "View as" writes nothing, and its allowlist stays read-only (D-069, FRS-212.2/.3) --');
+{
+  const G = await import('../src/lib/previewGuard');
+  const src = (f: string) => code(readFileSync(f, 'utf8'));
+
+  // THE ALLOWLIST IS ONLY AS GOOD AS EACH FUNCTION'S LATEST DEFINITION. Postgres
+  // refuses an INSERT / UPDATE / DELETE inside a `stable` or `immutable`
+  // function, which is what makes "on the list" mean "cannot write". So the
+  // volatility is read from the LAST migration that defines each name (file
+  // names in order — the order every apply uses), never from the first: a
+  // later redefinition that drops `stable` (the default is VOLATILE) fails here
+  // instead of silently re-opening the preview to writes through that function.
+  const files = readdirSync('supabase/migrations').filter((f) => f.endsWith('.sql')).sort();
+  const sqlOf = new Map(files.map((f) => [f, readFileSync(`supabase/migrations/${f}`, 'utf8').replace(/--[^\n]*/g, '')]));
+  const latest = (name: string): { file: string; vols: string[] } | null => {
+    let found: { file: string; vols: string[] } | null = null;
+    for (const f of files) {
+      const sql = sqlOf.get(f)!;
+      const re = new RegExp(`create\\s+(?:or\\s+replace\\s+)?function\\s+(?:public\\.)?"?${name}"?\\s*\\(`, 'gi');
+      const vols: string[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(sql))) {
+        const rest = sql.slice(m.index);
+        const dq = /\$([A-Za-z_]*)\$/.exec(rest);
+        if (!dq) { vols.push('unparsed'); continue; }
+        const close = rest.indexOf(dq[0], dq.index + dq[0].length);
+        const semi = rest.indexOf(';', close + dq[0].length);
+        const header = rest.slice(0, dq.index) + ' ' + rest.slice(close + dq[0].length, semi);
+        vols.push((/\b(immutable|stable|volatile)\b/i.exec(header)?.[1] ?? 'volatile').toLowerCase());
+      }
+      if (vols.length) found = { file: f, vols };
+      const alt = new RegExp(`alter\\s+function\\s+(?:public\\.)?${name}\\s*\\([^)]*\\)\\s+(immutable|stable|volatile)`, 'gi');
+      let a: RegExpExecArray | null;
+      while ((a = alt.exec(sql))) found = { file: f, vols: [a[1].toLowerCase()] };
+    }
+    return found;
+  };
+  const notRead = Object.keys(G.PREVIEW_READ_RPCS).flatMap((n) => {
+    const d = latest(n);
+    if (!d) return [`${n}: defined by no migration`];
+    return d.vols.every((v) => v === 'stable' || v === 'immutable') ? [] : [`${n}: ${d.vols.join('/')} in ${d.file}`];
+  });
+  eq('every allowlisted RPC is stable or immutable in its LATEST definition', notRead, []);
+  // The reason beside each names the migration that file is — kept honest too.
+  const staleReason = Object.entries(G.PREVIEW_READ_RPCS).flatMap(([n, why]) => {
+    const d = latest(n);
+    const num = /\((\d{4})\)/.exec(why)?.[1];
+    return d && num && d.file.startsWith(num) ? [] : [`${n}: reason says ${num ?? 'nothing'}, latest is ${d?.file ?? 'none'}`];
+  });
+  eq('...and each reason names the migration that holds that definition', staleReason, []);
+  // A volatile function never gets on, however read-like its name.
+  for (const n of ['next_call_reqid', 'ensure_my_profile', 'auto_answer_review2', 'refresh_product_cover', 'clear_my_notifications'])
+    eq(`${n} (volatile) is not allowlisted`, n in G.PREVIEW_READ_RPCS, false);
+
+  // An allowlisted Edge Function must not touch the project at all.
+  const edgeBad = Object.keys(G.PREVIEW_READ_EDGE).flatMap((n) => {
+    const p = `supabase/functions/${n}/index.ts`;
+    if (!existsSync(p)) return [`${n}: no ${p}`];
+    const s = code(readFileSync(p, 'utf8'));
+    return /\.from\(|\.rpc\(|\.storage\b|\/rest\/v1|\/storage\/v1|createClient\(/.test(s) ? [`${n}: touches the database`] : [];
+  });
+  eq('every allowlisted Edge Function reads and writes nothing in the database', edgeBad, []);
+
+  // What the guard refuses — the rule itself, as behaviour.
+  const B = 'https://p.supabase.co';
+  const cases: [string, string, boolean][] = [
+    [`${B}/rest/v1/calls?select=*`, 'GET', false],
+    [`${B}/rest/v1/calls?select=*`, 'HEAD', false],
+    [`${B}/rest/v1/calls`, 'POST', true],
+    [`${B}/rest/v1/calls?ucn=eq.X`, 'PATCH', true],
+    [`${B}/rest/v1/calls?ucn=eq.X`, 'DELETE', true],
+    [`${B}/rest/v1/calls?on_conflict=ucn`, 'POST', true],
+    [`${B}/rest/v1/rpc/spare_insights`, 'POST', false],
+    [`${B}/rest/v1/rpc/decide_spare_lines`, 'POST', true],
+    [`${B}/rest/v1/rpc/next_call_reqid`, 'POST', true],
+    [`${B}/rest/v1/rpc/no_such_function`, 'POST', true],
+    [`${B}/rest/v1/rpc/spare_insights`, 'GET', false],
+    [`${B}/auth/v1/token?grant_type=refresh_token`, 'POST', false],
+    [`${B}/auth/v1/logout`, 'POST', false],
+    [`${B}/auth/v1/user`, 'GET', false],
+    [`${B}/auth/v1/signup`, 'POST', true],
+    [`${B}/storage/v1/object/docs/a.pdf`, 'POST', true],
+    [`${B}/storage/v1/object/docs/a.pdf`, 'PUT', true],
+    [`${B}/functions/v1/suggest-complaint`, 'POST', false],
+    [`${B}/functions/v1/daily-digest`, 'POST', true],
+    [`${B}/graphql/v1`, 'POST', true],
+  ];
+  eq('the guard refuses every write and lets reads and session upkeep through',
+    cases.filter(([u, m, want]) => G.previewRefuses(u, m) !== want).map(([u, m]) => `${m} ${u}`), []);
+
+  // And the wrapper: refused requests never reach the network, and arrive as a
+  // PostgREST-shaped error carrying the message, so every screen's own error
+  // path shows it. Not code 42501 — errMsg() would rewrite that into "your role
+  // does not have permission", blaming the previewed role.
+  const sent: string[] = [];
+  const inner = (async (i: RequestInfo | URL, n?: RequestInit) => { sent.push(`${n?.method ?? 'GET'} ${String(i)}`); return new Response('[]', { status: 200 }); }) as typeof fetch;
+  const f = G.guardFetch(inner);
+  const was = G.isPreviewing();
+  G.setPreviewGuard(true);
+  const refused = await f(`${B}/rest/v1/calls`, { method: 'POST', body: '{}' });
+  const body = await refused.json() as { message?: string; code?: string };
+  await f(`${B}/rest/v1/calls?select=*`, { method: 'GET' });
+  await f(`${B}/auth/v1/token?grant_type=refresh_token`, { method: 'POST' });
+  G.setPreviewGuard(false);
+  await f(`${B}/rest/v1/calls`, { method: 'POST', body: '{}' });
+  G.setPreviewGuard(was);
+  eq('a refused write is a 403 carrying the preview message, never sent', [refused.status, body.message, body.code !== '42501'], [403, G.PREVIEW_REFUSAL, true]);
+  eq('...reads and session upkeep are sent; with no preview everything is', sent,
+    [`GET ${B}/rest/v1/calls?select=*`, `POST ${B}/auth/v1/token?grant_type=refresh_token`, `POST ${B}/rest/v1/calls`]);
+
+  // ONE choke point: every Supabase client the app creates carries the guard.
+  const sb = src('src/lib/supabase.ts');
+  eq('every createClient() in supabase.ts is given the guarded fetch',
+    (sb.match(/createClient\(/g) ?? []).length, (sb.match(/global:\s*\{\s*fetch:\s*previewFetch\s*\}/g) ?? []).length);
+  eq('...and that fetch is guardFetch', /const previewFetch = guardFetch\(/.test(sb), true);
+  const elsewhere = readdirSync('src', { recursive: true }).map(String)
+    .filter((p) => /\.(ts|tsx)$/.test(p) && p !== 'lib/supabase.ts' && /createClient\(/.test(code(readFileSync(`src/${p}`, 'utf8'))));
+  eq('no other file creates a Supabase client around the guard', elsewhere, []);
+
+  // The bridge writes over GET too, so it has its own allowlist of actions.
+  const sh = src('src/lib/sheets.ts');
+  eq('the CallReg bridge checks every action before it is sent',
+    /async function getJson\([^)]*\)[^{]*\{\s*assertBridgeMayRun\(params\.action\)/.test(sh), true);
+  eq('...and every POST to it (uploads, sheet exports) is refused in a preview',
+    (sh.match(/method: 'POST'/g) ?? []).length, (sh.match(/assertBridgeMayRun\(.*'POST'\);/g) ?? []).length);
+  {
+    const was2 = G.isPreviewing();
+    G.setPreviewGuard(true);
+    const t = (a: string, m?: 'GET' | 'POST') => { try { G.assertBridgeMayRun(a, m); return 'sent'; } catch (e) { return (e as Error).message; } };
+    const got = [t('ping'), t('update'), t('setmasters'), t('driveupload', 'POST')];
+    G.setPreviewGuard(was2);
+    eq('...a bridge read is sent and a bridge write refused', got, ['sent', G.PREVIEW_REFUSAL, G.PREVIEW_REFUSAL, G.PREVIEW_REFUSAL]);
+  }
+
+  // Start recorded BEFORE the guard goes up; end recorded AFTER it comes down —
+  // the other way round, the guard refuses the record of its own preview.
+  const au = src('src/lib/auth.tsx');
+  const sv = au.slice(au.indexOf('const setViewAs'), au.indexOf('const setViewAs') + 1500);
+  eq('viewas.start is written before the guard is raised',
+    sv.indexOf("action: 'viewas.start'") > 0 && sv.indexOf("action: 'viewas.start'") < sv.indexOf('setPreviewGuard(true)'), true);
+  const ep = au.slice(au.indexOf('const endPreview'), au.indexOf('const endPreview') + 600);
+  eq('viewas.end is written after the guard is lowered',
+    ep.indexOf('forgetPreview()') > 0 && ep.indexOf('forgetPreview()') < ep.indexOf("action: 'viewas.end'"), true);
+  eq('...and forgetting a preview lowers the guard',
+    /const forgetPreview = \(\) => \{\s*setPreviewGuard\(false\)/.test(au), true);
+  eq('a start that cannot be recorded does not start',
+    /if \(err\) return \{ ok: false, error: `The preview was not started/.test(sv), true);
+  eq('the guard comes up at boot when a preview is stored (fail-closed)',
+    /let previewing = \(\(\) => \{\s*try \{ return !!globalThis\.localStorage\?\.getItem\(VIEWAS_KEY\)/.test(code(readFileSync('src/lib/previewGuard.ts', 'utf8'))), true);
+}
+
+console.log('\n-- changes that decide what happens next are recorded (D-067) --');
+{
+  const src = (f: string) => code(readFileSync(f, 'utf8'));
+  const bu = src('src/modules/BulkUploads.tsx');
+  eq('Bulk Uploads records each load as bulk.upload', /action: 'bulk\.upload'/.test(bu) && /import \{ recordAudit \}/.test(bu), true);
+  // Every way a load can end once Upload is pressed: plan failed, nothing left,
+  // cancelled, prep write failed, rows failed, completed.
+  eq('...on every way a load can end, including the ones that wrote nothing',
+    (bu.match(/await record\(p, \{ outcome: '(stopped|cancelled|completed)'/g) ?? []).length, 6);
+  eq('...naming the register, the file and the counts',
+    ['register: def.label', 'file: p.file', 'rows_written', 'rows_held_back', 'rows_failed', 'completed:'].every((k) => bu.includes(k)), true);
+  eq('...and a failure to record is shown, not swallowed',
+    /return err \? ` ⚑ This load could not be recorded in the audit log: \$\{err\}` : ''/.test(bu), true);
+
+  const di = src('src/modules/DataImport.tsx');
+  eq('the legacy importer records each file as import.legacy', /action: 'import\.legacy'/.test(di), true);
+  eq('...including a file picked but not loadable',
+    /recordImport\(fs, \{ outcome: 'not loaded'/.test(di) && /recordImport\(fs, \{ outcome: res\.ok \? 'completed' : 'stopped'/.test(di), true);
+  eq('Normalise cover runs ONLY through the recorded wrapper',
+    [(di.match(/finishCoverImport\(\)/g) ?? []).length, /action: 'cover\.normalise'/.test(di), (di.match(/normaliseRecorded\('(after import|on demand)'/g) ?? []).length],
+    [1, true, 2]);
+
+  // Settings: recorded in the database being LEFT, so before the switch.
+  const db = src('src/modules/DbConnection.tsx');
+  const sw = db.slice(db.indexOf('const switchTo'));
+  eq('a change of database is recorded before it takes effect',
+    sw.indexOf("action: 'settings.database'") > 0 && sw.indexOf("action: 'settings.database'") < sw.lastIndexOf('setSupabaseCreds(url, anon)'), true);
+  eq('...and only switchTo switches it', (db.match(/setSupabaseCreds\(/g) ?? []).length, 2);
+  eq('...recording the address, never the key',
+    /old_url: was\.url, new_url: next\.url, key_changed: was\.anon !== next\.anon/.test(db) && !/(old|new)_key|anon: (was|next)\.anon/.test(db), true);
+  const sc = src('src/modules/SheetConnection.tsx');
+  const sw2 = sc.slice(sc.indexOf('const switchTo'));
+  eq('a change of CallReg bridge is recorded before it takes effect',
+    sw2.indexOf("action: 'settings.callreg_bridge'") > 0 && sw2.indexOf("action: 'settings.callreg_bridge'") < sw2.indexOf('setSheetsUrl(url)'), true);
+  eq('...and only switchTo changes it', (sc.match(/setSheetsUrl\(/g) ?? []).length, 2);
+  eq('recordAudit answers whether the entry was written (awaited, not fire-and-forget)',
+    /export async function recordAudit\(entry: AuditEntry\): Promise<string \| null>/.test(readFileSync('src/lib/audit.ts', 'utf8')), true);
+}
+
+console.log('\n-- D-053 / D-035 / D-056: a manager name, a re-open and a value in use (2026-10-06) --');
+{
+  const src = (f: string) => code(readFileSync(f, 'utf8'));
+
+  // D-053, FRS-171.4: A MANAGER NAME THAT MATCHES NO ONE IS SAID, compared
+  // trimmed and case-insensitive -- and a matched row whose own name carries
+  // spaces is said differently, because the reporting tree compares untrimmed.
+  const { managerNameProblem, managerNameProblems } = await import('../src/lib/directorynames');
+  const names = ['Anil Kumar', ' Ravi Shah ', 'MEERA'];
+  eq('a blank manager name raises nothing', managerNameProblem('Reporting Manager', '  ', names), '');
+  eq('a name on the list, in another case and with spaces round it, raises nothing',
+    managerNameProblem('Reporting Manager', '  anil KUMAR ', names), '');
+  eq('a name on no row is said to match no one',
+    /matches no one on the User Master/.test(managerNameProblem('Regional Manager', 'Anil Kumarr', names)), true);
+  eq('...naming the field and the value',
+    /^Regional Manager “Anil Kumarr”/.test(managerNameProblem('Regional Manager', 'Anil Kumarr', names)), true);
+  eq('a row whose own name carries spaces is NOT called "no one" -- it says the tree will not find it',
+    (() => { const p = managerNameProblem('Reporting Manager', 'Ravi Shah', names); return /spaces before or after/.test(p) && !/matches no one/.test(p); })(), true);
+  eq('only a CHANGED field is asked about when the row as loaded is given',
+    managerNameProblems({ reporting_manager: 'Nobody', regional_manager: 'Nobody Else' }, names, { reporting_manager: 'nobody ', regional_manager: '' }).length, 1);
+  eq('...and a new row is asked about both',
+    managerNameProblems({ reporting_manager: 'Nobody', regional_manager: 'Nobody Else' }, names).length, 2);
+  const um = src('src/modules/UserMasterView.tsx');
+  eq('the drawer and the whole-table Save both ask before saving a name that matches no one',
+    /const nobody = managerNameProblems\(row, namesWith\(row\)\);\s*if \(nobody\.length && !confirm\(/.test(um)
+    && /const nobody = changedRows\.flatMap\(\(r\) => managerNameProblems\(drafts\[r\.id\], allNames, r\)/.test(um)
+    && /if \(nobody\.length && !confirm\(/.test(um.slice(um.indexOf('const saveAll'))), true);
+  eq('...and the table\'s manager cells suggest the User Master\'s names',
+    /list=\{MANAGER_LIST_ID\}/.test(um) && /<datalist id=\{MANAGER_LIST_ID\}>/.test(um), true);
+  // D-053, FRS-171.5: THE DIRECTORY FLAG IS NOT A SIGN-IN SWITCH.
+  eq('the directory Active field no longer claims to decide sign-in',
+    /'Yes — may sign in'/.test(um) || /DIRECTORY_ACTIVE_OPTIONS = \[[^\]]*sign/.test(um)
+    || /\['Active', r\.validity/.test(um), false);
+  eq('...it is labelled as the directory flag, and says Disable login is what decides sign-in',
+    /const DIRECTORY_ACTIVE = 'Active on the list'/.test(um)
+    && /It does not decide sign-in — '\s*\+ 'use 🔒 Disable login/.test(readFileSync('src/modules/UserMasterView.tsx', 'utf8')), true);
+
+  // D-035, FRS-133.4 / FRS-120.9: A RE-OPEN ALWAYS HAS A REASON, on every screen.
+  const sb = src('src/lib/supabase.ts');
+  eq('reopenCall takes a reason with no default, and refuses a blank one before the round trip',
+    /export async function reopenCall\(ucn: string, reason: string\)/.test(sb)
+    && /if \(!String\(reason \?\? ''\)\.trim\(\)\) return \{ ok: false, error: `Give the reason for re-opening call \$\{ucn\}` \}/.test(sb), true);
+  const fc = src('src/modules/FieldCalls.tsx');
+  eq('the call registers (Field, Installation, PM) re-open through a dialog that cannot be submitted empty',
+    /await reopenCall\(ucn, why\)/.test(fc) && /disabled=\{reopenBusy \|\| !reopenWhy\.trim\(\)\}/.test(fc)
+    && !/confirm\(`Re-open call/.test(fc), true);
+  const crv = src('src/modules/CallReview.tsx');
+  eq('...and so does the Call Review',
+    /reopenCall\(sel, reopenWhy\.trim\(\)\)/.test(crv) && /disabled=\{busy \|\| !reopenWhy\.trim\(\)\}/.test(crv), true);
+  eq('every caller of reopenCall passes a reason',
+    readdirSync('src/modules').filter((f) => f.endsWith('.tsx'))
+      .flatMap((f) => [...src(`src/modules/${f}`).matchAll(/reopenCall\(([^)]*)\)/g)].map((m) => [f, m[1]]))
+      .filter(([, args]) => !/,/.test(args)), []);
+  // The history: newest first, and a failed read is not "never re-opened".
+  const lr = sb.slice(sb.indexOf('export async function listCallReopens'), sb.indexOf('export async function closeReopenedCall'));
+  eq('listCallReopens reads call_reopens newest first, with a tiebreaker, and throws on a failed read',
+    /from\('call_reopens'\)/.test(lr) && /\.order\('reopened_at', \{ ascending: false \}\)\.order\('id', \{ ascending: false \}\)/.test(lr)
+    && /if \(error\) throw new Error/.test(lr), true);
+  const ca = src('src/modules/CallAssociations.tsx');
+  eq('the call\'s view shows the re-open history, and says so when it could not be read',
+    /listCallReopens\(ucn\)/.test(ca) && /\.catch\(\(e\) => \{ if \(alive\) setReopenErr\(/.test(ca) && /title="Re-open history"/.test(ca)
+    && /formatDayTime\(r\.reopenedAt\)/.test(ca), true);
+  eq('...and the register passes it the UCN',
+    /<CallAssociations[\s\S]{0,200}ucn=\{String\(drawer\.row\.ucn \?\? ''\)\}/.test(fc), true);
+  // FRS-133.6: ONE FEEDBACK PER CALL, THE FIRST KEPT.
+  const rep = src('src/modules/CallReporting.tsx');
+  eq('the visit asks whether the call already carries feedback before inserting one',
+    rep.indexOf('await feedbackOnCall(ucn)') > 0 && rep.indexOf('await feedbackOnCall(ucn)') < rep.indexOf('await addFeedback('), true);
+  eq('...and the one-per-call refusal is read as kept, not as a failure',
+    /if \(!fb\.ok && fb\.duplicate\) \{[^}]*feedbackKept = \{ at: '' \};/.test(rep), true);
+  eq('...and the form states it instead of asking again',
+    /feedbackAlready && \(/.test(rep) && /const missFb = feedbackAlready \? \[\] :/.test(rep), true);
+  eq('feedbackOnCall matches on ucn_key, the key the one-per-call index is built on, and throws on a failed read',
+    /\.eq\('ucn_key', key\)/.test(sb.slice(sb.indexOf('export async function feedbackOnCall')))
+    && /if \(error\) throw new Error/.test(sb.slice(sb.indexOf('export async function feedbackOnCall'), sb.indexOf('export async function feedbackOnCall') + 900)), true);
+  eq('addFeedback flags the one-per-call refusal by its code', /duplicate: error\.code === '23505'/.test(sb), true);
+  const { feedbackKeptNote } = await import('../src/modules/CallReporting');
+  eq('the kept-feedback note gives the date, through the one formatter',
+    /^This call already carries its customer feedback, recorded on \d{2}-[A-Z][a-z]{2}-\d{4} \d{2}:\d{2}:\d{2} — it is kept unchanged\.$/.test(feedbackKeptNote('2026-09-18T08:51:02.55+00:00')), true);
+  eq('...and says nothing of a date it does not have', feedbackKeptNote(''), 'This call already carries its customer feedback — it is kept unchanged.');
+
+  // D-056, FRS-015 / FRS-180.6: A VALUE IN USE IS DEACTIVATED, NOT DELETED.
+  const { masterDeleteDecision } = await import('../src/lib/masterdelete');
+  const lst = [{ id: 1, value: 'Leak' }, { id: 2, value: ' leak ' }, { id: 3, value: 'Noise' }];
+  eq('a value records carry, with no twin, is not offered for delete',
+    masterDeleteDecision(lst[2], lst, 12), { kind: 'deactivate', uses: 12 });
+  eq('a value no record carries may be deleted', masterDeleteDecision(lst[2], lst, 0), { kind: 'unused' });
+  eq('a value another row holds (trimmed, any case) may be deleted, as the database allows',
+    masterDeleteDecision(lst[0], lst, 40), { kind: 'duplicate' });
+  eq('a count that could not be read falls back to asking', masterDeleteDecision(lst[2], lst, null), { kind: 'unknown' });
+  const ml = src('src/modules/MasterListTable.tsx');
+  const rm = ml.slice(ml.indexOf('const remove = async'));
+  eq('Master Lists counts the records before it offers a Delete',
+    rm.indexOf('await masterValueUses(list.key') > 0 && rm.indexOf('await masterValueUses(list.key') < rm.indexOf('await deleteMasterItem('), true);
+  eq('...offers Deactivate instead when the value is in use',
+    /if \(decision\.kind === 'deactivate'\) \{ setBlocked\(/.test(rm) && /void setActive\(it, false, true\)/.test(ml), true);
+  eq('...and shows a refusal word for word',
+    /setMsg\(\{ tone: 'error', text: r\.error \?\? 'Could not remove that entry\.' \}\)/.test(rm), true);
+  eq('masterValueUses calls master_value_uses and never turns a failed count into 0',
+    /rpc\('master_value_uses', \{ p_name: name, p_value: value \}\)/.test(sb)
+    && /if \(error\) return \{ ok: false, error: errMsg\(error\) \}/.test(sb.slice(sb.indexOf('export async function masterValueUses'), sb.indexOf('export async function deleteMasterItem'))), true);
+  const G2 = await import('../src/lib/previewGuard');
+  eq('master_value_uses (stable) may be called during View as', 'master_value_uses' in G2.PREVIEW_READ_RPCS, true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

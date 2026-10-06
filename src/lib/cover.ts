@@ -17,7 +17,7 @@ import { dayAfter, addPeriod, todayLocal } from './dates';
 import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears,
          inheritAllPatch, isPinnedValue, installCallFromSale, machinesNeedingInstallCall,
          coverStatus, contractPmVisits, periodEnd, withAnotherCustomer, TRANSFERRED_AWAY,
-         isDealerType, DEALER_NO_INSTALL,
+         DEALER_NO_INSTALL,
          type SaleForCall, type SaleItemForCall } from './coverspec';
 
 export type CoverKind = 'sale' | 'contract';
@@ -104,6 +104,37 @@ export function missingRequired(fields: CoverField[], row: Row): string[] {
     .filter((f) => { const v = row[f.name]; return v == null || String(v).trim() === ''; })
     .map((f) => f.label);
 }
+
+// ---------------------------------------------------------------------------
+// D-104 (the system owner, 2026-10-05: "Same rules as the form") — a contract
+// made by RENEW THIS CONTRACT or CONVERT TO CONTRACT is refused for exactly the
+// blanks the contract form refuses, and the panels say which before Create can
+// be pressed.
+//
+// THE LIST IS THE FORM'S OWN — `required` on CONTRACT.headerFields, read through
+// missingRequired() — never restated here. ONE ADDITION, named rather than
+// hidden: Contract Type. The contract FORM does not mark it required (an entry
+// loaded from the old system often has none, and editing one must stay
+// possible), but a contract CREATED from these panels is a new contract whose
+// promise is CMC or AMC, and a blank one reads "CONTRACT (TYPE NOT RECORDED)"
+// where the handbook says a type is given (D-104). If the form ever marks it
+// required, this addition becomes a no-op rather than a second copy.
+// ---------------------------------------------------------------------------
+export const NEW_CONTRACT_ALSO_REQUIRES = ['contract_type'] as const;
+
+/** The labels of the contract fields `row` leaves blank that a new contract
+ *  may not — the form's required list plus NEW_CONTRACT_ALSO_REQUIRES — in the
+ *  form's own order and words. Empty when the contract may be created. */
+export function contractMissing(row: Row): string[] {
+  return missingRequired(
+    CONTRACT.headerFields.map((f) => ((NEW_CONTRACT_ALSO_REQUIRES as readonly string[]).includes(f.name) ? { ...f, required: true } : f)),
+    row,
+  );
+}
+
+/** "Fill in A, B — they are required on a contract." */
+export const contractMissingText = (missing: string[]): string =>
+  `Fill in ${missing.join(', ')} — ${missing.length === 1 ? 'it is' : 'they are'} required on a contract.`;
 
 export interface CoverConfig {
   kind: CoverKind;
@@ -347,7 +378,7 @@ export interface HeaderFilter { q?: string; party?: string; number?: string; sta
 
 // PENDING INSTALLATION CALLS PER SALE (the user, 2026-10-02: "Add the pending
 // count to the Entries tab as well"). The Register tab's rule
-// (PENDING_INSTALL) applied to a sale's own lines, as a FILTERED EMBEDDED
+// (pendingInstall) applied to a sale's own lines, as a FILTERED EMBEDDED
 // COUNT -- PostgREST counts only the lines the filters on that alias pass --
 // and, for the filter, an inner-joined embed of the same lines limited to one,
 // which drops a sale with none. Both shapes were run against PostgREST 12
@@ -366,6 +397,7 @@ function pendingLines<T>(q: T, alias: string): T {
 export async function listHeaders(kind: CoverKind, f: HeaderFilter, offset = 0, limit = 200): Promise<Row[]> {
   const cfg = configFor(kind);
   const sale = kind === 'sale';
+  const dealers = sale ? await dealerParties() : new Set<string>();
   const embeds = [`items:${cfg.itemTable}(count)`,
     ...(sale ? [`pending:${cfg.itemTable}(count)`] : []),
     ...(sale && f.pendingInstall ? [`has_pending:${cfg.itemTable}!inner(id)`] : [])];
@@ -381,7 +413,7 @@ export async function listHeaders(kind: CoverKind, f: HeaderFilter, offset = 0, 
   // (0328) as one logic tree -- two separate `or`s are not a combination
   // PostgREST documents.
   const ors = [f.q ? `or(${cfg.key}.ilike.${like(f.q)},party_name.ilike.${like(f.q)})` : '',
-               sale && f.pendingInstall ? NOT_DEALER : ''].filter(Boolean);
+               sale && f.pendingInstall ? notDealer(dealers) : ''].filter(Boolean);
   if (ors.length) q = q.or(`and(${ors.join(',')})`);
   const { data, error } = await q;
   if (error) throw err(error);
@@ -389,7 +421,7 @@ export async function listHeaders(kind: CoverKind, f: HeaderFilter, offset = 0, 
     const { items, pending, has_pending: _hp, ...rest } = r as unknown as Row & { items?: { count: number }[]; pending?: { count: number }[]; has_pending?: unknown };
     return { ...rest, item_count: items?.[0]?.count ?? 0,
              // A dealer's sale waits for no call of its own (0328).
-             ...(sale ? { pending_install: isDealerType(rest.party_type) ? 0 : pending?.[0]?.count ?? 0 } : {}) };
+             ...(sale ? { pending_install: isDealerParty(rest.party_name, dealers) ? 0 : pending?.[0]?.count ?? 0 } : {}) };
   });
 }
 
@@ -400,7 +432,8 @@ export async function countPendingSales(f: { q?: string }): Promise<number> {
     .select(`id, has_pending:${cfg.itemTable}!inner(id)`, { count: 'exact', head: true });
   q = pendingLines(q, 'has_pending');
   // One `or`: the search and "not a dealer" (0328), as listHeaders does.
-  const ors = [f.q ? `or(${cfg.key}.ilike.${like(f.q)},party_name.ilike.${like(f.q)})` : '', NOT_DEALER].filter(Boolean);
+  const dealers = await dealerParties();
+  const ors = [f.q ? `or(${cfg.key}.ilike.${like(f.q)},party_name.ilike.${like(f.q)})` : '', notDealer(dealers)].filter(Boolean);
   q = q.or(`and(${ors.join(',')})`);
   const { count, error } = await q;
   if (error) throw err(error);
@@ -464,8 +497,38 @@ export async function listItems(kind: CoverKind, key: string): Promise<Row[]> {
 const UCN_PATTERN = '^[0-9]{2}[A-La-l][0-9]{2}[A-Za-z][0-9]{4}$';
 // A DEALER'S MACHINE IS NEVER "PENDING" (0328): it gets no installation call
 // of its own -- the transfer raises the customer's.
-const NOT_DEALER = 'or(party_type.is.null,party_type.not.ilike.dealer)';
-const PENDING_INSTALL = `and(product_name.neq.,serial_number.neq.,or(inst_call.is.null,inst_call.not.imatch."${UCN_PATTERN}"),${NOT_DEALER})`;
+//
+// WHO IS A DEALER IS THE PARTY MASTER'S ANSWER (D-151, the user's decision of
+// 2026-10-04: "Party Master decides"), the one party_is_dealer() gives the
+// database -- NOT the sale's own Type, which is copied when the sale is entered
+// and never updated. The dealers are read once per page load (a few names)
+// and the pending filters exclude them by party name, ignoring case.
+let dealerCache: Promise<Set<string>> | null = null;
+export function dealerParties(): Promise<Set<string>> {
+  if (!dealerCache) {
+    dealerCache = (async () => {
+      const { data, error } = await client().from('parties').select('party_name, party_type')
+        .ilike('party_type', '%dealer%').order('party_name').limit(1000);
+      if (error) { dealerCache = null; throw err(error); }
+      return new Set((data ?? [])
+        .filter((r) => String((r as Row).party_type ?? '').trim().toUpperCase() === 'DEALER')
+        .map((r) => String((r as Row).party_name ?? '').trim().toLowerCase()).filter(Boolean));
+    })();
+  }
+  return dealerCache;
+}
+export const isDealerParty = (name: unknown, dealers: Set<string>): boolean =>
+  dealers.has(String(name ?? '').trim().toLowerCase());
+// "Not a dealer" for a PostgREST filter: no party, or none of the dealers'
+// names (ilike with no wildcard is an equality that ignores case; %, _ and \
+// in a name are escaped, and the value quoted).
+const notDealer = (dealers: Set<string>): string => {
+  if (!dealers.size) return '';
+  const q = (n: string) => `"${n.replace(/[\\%_]/g, (m) => `\\${m}`).replace(/["\\]/g, (m) => `\\${m}`)}"`;
+  return `or(party_name.is.null,and(${[...dealers].map((n) => `party_name.not.ilike.${q(n)}`).join(',')}))`;
+};
+const pendingInstall = (dealers: Set<string>): string =>
+  `and(product_name.neq.,serial_number.neq.,or(inst_call.is.null,inst_call.not.imatch."${UCN_PATTERN}")${notDealer(dealers) ? `,${notDealer(dealers)}` : ''})`;
 const searchExpr = (cfg: CoverConfig, text: string) => {
   const t = like(text);
   return `serial_number.ilike.${t},product_name.ilike.${t},party_name.ilike.${t},${cfg.key}.ilike.${t}`;
@@ -473,8 +536,8 @@ const searchExpr = (cfg: CoverConfig, text: string) => {
 /** The search box and the pending filter as ONE logic tree: two separate
  *  `or` parameters are not a combination PostgREST documents, a nested
  *  and(or(...), ...) is. */
-const machineFilter = (cfg: CoverConfig, f: { q?: string; pendingInstall?: boolean }): string | null => {
-  const parts = [f.q ? `or(${searchExpr(cfg, f.q)})` : '', f.pendingInstall && cfg.kind === 'sale' ? PENDING_INSTALL : '']
+const machineFilter = (cfg: CoverConfig, f: { q?: string; pendingInstall?: boolean }, dealers: Set<string>): string | null => {
+  const parts = [f.q ? `or(${searchExpr(cfg, f.q)})` : '', f.pendingInstall && cfg.kind === 'sale' ? pendingInstall(dealers) : '']
     .filter(Boolean);
   return parts.length ? `and(${parts.join(',')})` : null;
 };
@@ -490,7 +553,7 @@ export async function listMachines(
     // and another on none while the count looks complete.
     .order('id', { ascending: false })
     .range(offset, offset + limit - 1);
-  const tree = machineFilter(cfg, f);
+  const tree = machineFilter(cfg, f, f.pendingInstall && cfg.kind === 'sale' ? await dealerParties() : new Set<string>());
   if (tree) q = q.or(tree);
   if (f.state) q = q.eq(cfg.stateColumn, f.state);
   const { data, error } = await q;
@@ -504,21 +567,52 @@ export async function countMachines(
   const cfg = configFor(kind);
   let q = client().from(cfg.detailsView).select('id', { count: 'exact', head: true });
   if (state) q = q.eq(cfg.stateColumn, state);
-  const tree = machineFilter(cfg, f);
+  const tree = machineFilter(cfg, f, f.pendingInstall && cfg.kind === 'sale' ? await dealerParties() : new Set<string>());
   if (tree) q = q.or(tree);
   const { count, error } = await q;
   if (error) throw err(error);
   return count ?? 0;
 }
 
-export async function saveHeader(kind: CoverKind, row: Row): Promise<Row> {
+/** The writable fields of `row` whose value differs from `loaded` — what an
+ *  UPDATE of an entry sends (D-106).
+ *
+ *  ONLY WHAT THIS SCREEN CHANGED. Sending the whole draft put back every field
+ *  somebody else had changed since this screen loaded the entry — a colleague's
+ *  corrected invoice number reverted by a typo fix to the address, with no
+ *  warning to either of them. Nothing else has to travel: the row is addressed
+ *  by `id`, the database stamps its own columns, and a BEFORE trigger sees the
+ *  whole merged row whichever columns the statement named. A value derived on
+ *  the screen (an end date from a period) differs from the loaded one exactly
+ *  when its driver changed, so it goes with the field that moved it.
+ *
+ *  null, undefined and absent are the same value here: the form writes null
+ *  for a cleared box, and the loaded row may simply not carry the key. */
+export function headerChanges(kind: CoverKind, row: Row, loaded: Row): Row {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const writable = onlyWritable(row, writableFor(configFor(kind), 'header'));
+  return Object.fromEntries(Object.entries(writable).filter(([k, v]) => !same(v, loaded[k])));
+}
+
+/** Save an entry. `loaded` is the entry as this screen READ it: given on an
+ *  update, only the fields that differ from it are written (headerChanges,
+ *  D-106). Without it — the renewal and the conversion, which only ever
+ *  INSERT — the whole whitelisted row is sent, as before. */
+export async function saveHeader(kind: CoverKind, row: Row, loaded?: Row): Promise<Row> {
   const cfg = configFor(kind);
   // The same whitelist as saveItem. It used to name the two fields to DROP
   // (item_count, items) — which worked until a third arrived, and a derived
   // value with no column behind it loses the whole save rather than itself.
   const { id, ...all } = row as Row & { id?: number };
-  const rest = onlyWritable(all, writableFor(cfg, 'header'));
+  const rest = id && loaded ? headerChanges(kind, all, loaded) : onlyWritable(all, writableFor(cfg, 'header'));
   const c = client();
+  // NOTHING CHANGED IS NOT AN EMPTY UPDATE: the entry is read back instead, so
+  // the caller still gets the row as the database holds it.
+  if (id && !Object.keys(rest).length) {
+    const { data, error } = await c.from(cfg.headerTable).select().eq('id', id).single();
+    if (error) throw err(error);
+    return data as Row;
+  }
   const { data, error } = id
     ? await c.from(cfg.headerTable).update(rest).eq('id', id).select().single()
     : await c.from(cfg.headerTable).insert(rest).select().single();
@@ -556,6 +650,35 @@ export async function saveItem(kind: CoverKind, key: string, row: Row): Promise<
     : await c.from(cfg.itemTable).insert({ ...rest, [cfg.key]: key }).select().single();
   if (error) throw err(error);
   return data as Row;
+}
+
+/** The entry's machine list once `before` has been saved as `saved` (D-099).
+ *
+ *  BY THE LINE, NOT BY ITS ID. A machine added with + Add machine has no id
+ *  until it is saved, so matching on the id never found it: the saved row
+ *  never replaced the line, the card went on offering Save machine (a second
+ *  press failed on sale_items_uid_key), ✕ Close warned of an unsaved machine
+ *  and the installation-call count left it out. The line is the object the
+ *  card was given; the id is the fallback for a list re-read meanwhile, and a
+ *  machine found by neither is added rather than lost. */
+export function withSavedMachine(cur: Row[], before: Row, saved: Row): Row[] {
+  const hasId = (r: Row) => r.id != null && r.id !== '';
+  let i = cur.indexOf(before);
+  if (i < 0 && hasId(before)) i = cur.findIndex((x) => x.id === before.id);
+  if (i < 0 && hasId(saved)) i = cur.findIndex((x) => x.id === saved.id);
+  return i < 0 ? [...cur, saved] : cur.map((x, j) => (j === i ? saved : x));
+}
+
+/** The entry's machines after a RE-READ, keeping every line not yet saved
+ *  (D-099 follow-up). Save entry re-reads the machines because every one
+ *  that inherits from the header moved — but a line added with + Add machine
+ *  is not in the database until its own Save machine, so the re-read dropped
+ *  it, and with it whatever had been typed into its card, without a word.
+ *  The re-read rows, then each unsaved line still on screen, in its order and
+ *  as the SAME object, so its card keeps what was typed. */
+export function keepUnsavedMachines(fresh: Row[], cur: Row[]): Row[] {
+  const unsaved = cur.filter((r) => r.id == null || r.id === '');
+  return unsaved.length ? [...fresh, ...unsaved] : fresh;
 }
 
 export async function deleteItem(kind: CoverKind, id: number): Promise<void> {
@@ -629,7 +752,7 @@ export async function raiseInstallCalls(
   // A DEALER GETS NO INSTALLATION CALL (the user, 2026-10-03; 0328 refuses it
   // in the database too): the call is raised from the Ownership Transfer when
   // the dealer sells the machine.
-  if (isDealerType(header.party_type)) return { created: [], error: DEALER_NO_INSTALL };
+  if (isDealerParty(header.party_name, await dealerParties())) return { created: [], error: DEALER_NO_INSTALL };
   const todo = machinesNeedingInstallCall(items as SaleItemForCall[]) as Row[];
   const created: { serial: string; ucn: string }[] = [];
   for (const it of todo) {
@@ -703,6 +826,33 @@ const str = (v: unknown) => (v == null ? '' : String(v));
 
 export { dayAfter, addPeriod };
 
+// ---------------------------------------------------------------------------
+// A MACHINE ON AN ENTRY IS ITS PRODUCT AND ITS SERIAL (CW-001, D-105).
+//
+// Renew and Convert keyed their ticks, their rates and the transferred-machine
+// check by the SERIAL alone, so two machines of different products sharing a
+// number on one entry ticked together, priced together, and a transfer of one
+// hid both. This is the database's own key — `machine_key`, generated as
+// lower(btrim(product)) || '|' || lower(btrim(serial)) on the cover tables —
+// written once here so the picker and the write agree with it and each other.
+// (machine.ts's machineKey squashes punctuation too, which is right for
+// MATCHING a typed model and would be wrong here: it is not the key the
+// database stores, and two lines it merged would still write as two.)
+// ---------------------------------------------------------------------------
+export const coverMachineKey = (it: Row): string =>
+  `${str(it.product_name).trim().toLowerCase()}|${str(it.serial_number).trim().toLowerCase()}`;
+/** How a machine line is named in a message: its serial, then its product. */
+export const coverMachineLabel = (it: Row): string =>
+  [str(it.serial_number).trim(), str(it.product_name).trim()].filter(Boolean).join(' ');
+/** The key of every machine on an entry that has a serial, once each. */
+const machineKeysOf = (items: Row[]): string[] =>
+  [...new Set(items.filter((i) => str(i.serial_number).trim()).map(coverMachineKey))];
+/** The label for a key, from the entry's own lines (the key itself if none). */
+const labelFor = (items: Row[], key: string): string => {
+  const it = items.find((i) => coverMachineKey(i) === key);
+  return it ? coverMachineLabel(it) : key;
+};
+
 export interface RenewalDraft {
   mc_number: string;
   contract_type: string;
@@ -710,8 +860,14 @@ export interface RenewalDraft {
   contract_end: string;
   contract_years: number | null;
   contract_months: number | null;
-  serials: string[];          // which machines carry over
-  // THE NEW RATE PER MACHINE, keyed by serial. A missing or empty entry means
+  // CARRIED FROM THE OLD CONTRACT AND EDITABLE (D-104): the contract form
+  // requires all three, so a renewal of a contract that has them blank asks
+  // for them rather than copying the blank.
+  pm_visits_total: number | null;
+  payment_schedule: string;
+  bill_generate_at: string;
+  machines: string[];         // which machines carry over, by coverMachineKey (D-105)
+  // THE NEW RATE PER MACHINE, keyed by coverMachineKey — product AND serial. A missing or empty entry means
   // "leave it blank", which is what every machine starts as and what the whole
   // renewal used to do — filling these in is the revision, and it is optional.
   // Held as the TYPED STRING rather than a number so a half-typed "12" is not
@@ -738,14 +894,39 @@ export function proposeRenewal(header: Row, items: Row[]): RenewalDraft {
     contract_end: addPeriod(start, 0, months ?? 0),
     contract_years: years,
     contract_months: months,
+    pm_visits_total: header.pm_visits_total == null || str(header.pm_visits_total).trim() === ''
+      ? null : Number(header.pm_visits_total),
+    payment_schedule: str(header.payment_schedule),
+    bill_generate_at: str(header.bill_generate_at),
     // Every machine on the old contract, and the caller unticks what is not
     // being renewed — dropping one is the common case, adding one is not.
-    serials: items.map((i) => str(i.serial_number)).filter(Boolean),
+    machines: machineKeysOf(items),
     // EMPTY, and that is the default the renewal has always had: no price is
     // proposed. The old rate is shown beside the box as context, because that
     // is what anybody pricing a renewal is working from — but it is not put IN
     // the box, since a figure sitting in a field reads as one somebody agreed.
     rates: {},
+  };
+}
+
+/** The contract header a renewal would write — what the panel checks with
+ *  contractMissing() and what renewContract() saves, so the two cannot differ. */
+export function renewalHeader(from: Row, d: RenewalDraft): Row {
+  return {
+    mc_number: d.mc_number.trim(),
+    entry_at: todayLocal(),
+    party_name: from.party_name ?? null,
+    contract_type: d.contract_type || null,
+    // THE LINK BACK. Without it a renewal is just another contract that happens
+    // to follow, and "what did this machine used to be on?" has no answer.
+    prev_mc_number: str(from.mc_number) || null,
+    contract_start: d.contract_start,
+    contract_end: d.contract_end || null,
+    contract_years: d.contract_years,
+    contract_months: d.contract_months,
+    pm_visits_total: d.pm_visits_total,
+    payment_schedule: d.payment_schedule || null,
+    bill_generate_at: d.bill_generate_at || null,
   };
 }
 
@@ -779,7 +960,12 @@ export async function renewContract(
   if (d.contract_months == null || !(d.contract_months > 0)) {
     throw new Error('Give the new contract its Period (Months) — the end date is worked out from it.');
   }
-  if (!d.serials.length) throw new Error('Tick at least one machine to carry over.');
+  // THE CONTRACT FORM'S RULES (D-104): a blank Payment Schedule or Bill
+  // Generate At on the old contract is asked for, not copied.
+  const header = renewalHeader(from, d);
+  const missing = contractMissing(header);
+  if (missing.length) throw new Error(contractMissingText(missing));
+  if (!d.machines.length) throw new Error('Tick at least one machine to carry over.');
 
   // EVERY RATE IS CHECKED BEFORE ANYTHING IS WRITTEN. The header goes in first
   // (see the note above), so a rate that turns out to be unreadable halfway
@@ -787,35 +973,20 @@ export async function renewContract(
   // and not others — and a contract that exists is much harder to walk back
   // than one that was refused. A blank is fine and means "price it later"; a
   // value that is not a number is not.
-  const rateFor = (serial: string): number | null => {
-    const raw = (d.rates ?? {})[serial];
+  const rateFor = (key: string): number | null => {
+    const raw = (d.rates ?? {})[key];
     if (raw == null || String(raw).trim() === '') return null;
     const n = Number(String(raw).trim());
-    if (!Number.isFinite(n)) throw new Error(`Rate for ${serial} is not a number: "${raw}"`);
-    if (n < 0) throw new Error(`Rate for ${serial} cannot be negative.`);
+    if (!Number.isFinite(n)) throw new Error(`Rate for ${labelFor(items, key)} is not a number: "${raw}"`);
+    if (n < 0) throw new Error(`Rate for ${labelFor(items, key)} cannot be negative.`);
     return n;
   };
-  for (const sn of d.serials) rateFor(sn);
+  for (const k of d.machines) rateFor(k);
 
-  await saveHeader('contract', {
-    mc_number: mc,
-    entry_at: todayLocal(),
-    party_name: from.party_name ?? null,
-    contract_type: d.contract_type || null,
-    // THE LINK BACK. Without it a renewal is just another contract that happens
-    // to follow, and "what did this machine used to be on?" has no answer.
-    prev_mc_number: str(from.mc_number) || null,
-    contract_start: d.contract_start,
-    contract_end: d.contract_end || null,
-    contract_years: d.contract_years,
-    contract_months: d.contract_months,
-    pm_visits_total: from.pm_visits_total ?? null,
-    payment_schedule: from.payment_schedule ?? null,
-    bill_generate_at: from.bill_generate_at ?? null,
-  });
+  await saveHeader('contract', header);
 
-  const keep = new Set(d.serials);
-  const carried = items.filter((i) => keep.has(str(i.serial_number)));
+  const keep = new Set(d.machines);
+  const carried = items.filter((i) => str(i.serial_number).trim() && keep.has(coverMachineKey(i)));
   let machines = 0;
   for (const it of carried) {
     await saveItem('contract', mc, {
@@ -842,7 +1013,7 @@ export async function renewContract(
       // form uses. Restating "18%" here would be a second copy of the pricing
       // rule, and the two would part company the first time the rate changed.
       ...(() => {
-        const rate = rateFor(str(it.serial_number));
+        const rate = rateFor(coverMachineKey(it));
         return rate === null
           ? { rate: null, item_tax_amount: null, total_after_tax: null }
           : { rate, item_tax_amount: itemTaxAmount(rate), total_after_tax: totalAfterTax(rate) };
@@ -885,7 +1056,8 @@ export interface ConversionDraft {
   pm_visits_total: number | null;
   payment_schedule: string;
   bill_generate_at: string;
-  serials: string[];
+  /** Ticked machines and their rates, by coverMachineKey (D-105). */
+  machines: string[];
   rates: Record<string, string>;
 }
 
@@ -907,7 +1079,7 @@ export function proposeConversion(sale: Row, items: Row[]): ConversionDraft {
     bill_generate_at: '',
     // Every machine with a serial, ticked to start with; one without a serial
     // is not a machine a contract can cover.
-    serials: items.map((i) => str(i.serial_number)).filter(Boolean),
+    machines: machineKeysOf(items),
     rates: {},
   };
 }
@@ -959,7 +1131,9 @@ export async function contractsFromSale(sa: string): Promise<string[]> {
   return [...new Set((data ?? []).map((r) => str((r as Row).mc_number)).filter(Boolean))];
 }
 
-/** The machines of a sale that are now with a DIFFERENT customer, by serial,
+/** The machines of a sale that are now with a DIFFERENT customer, by
+ *  coverMachineKey — product AND serial (D-105): keyed by the serial alone, a
+ *  transfer of one machine hid every machine on the sale sharing its number —
  *  each with the customer who has it. Asked of machine_current_party() — the
  *  database's own rule (latest dated sale or transfer) — a few machines at a
  *  time. A failed read THROWS: a list that could not be checked must not be
@@ -972,8 +1146,8 @@ export async function machinesWithAnotherCustomer(sale: Row, items: Row[]): Prom
       const { data, error } = await client().rpc('machine_current_party', {
         p_item_name: str(it.product_name), p_serial: str(it.serial_number),
       });
-      if (error) throw new Error(`Could not check who has ${str(it.serial_number)}: ${error.message}`);
-      if (withAnotherCustomer(sale.party_name, data)) away.set(str(it.serial_number), str(data).trim());
+      if (error) throw new Error(`Could not check who has ${coverMachineLabel(it)}: ${error.message}`);
+      if (withAnotherCustomer(sale.party_name, data)) away.set(coverMachineKey(it), str(data).trim());
     }));
   }
   return away;
@@ -986,39 +1160,39 @@ export async function convertWarrantyToContract(
   if (!mc) throw new Error('Give the MC Number for the new contract.');
   if (!d.contract_start) throw new Error('The new contract needs a start date.');
   // THE CONTRACT FORM'S REQUIRED FIELDS, refused by the same rule and named
-  // together (FRS-220.4).
+  // together (FRS-220.4), and a Contract Type (D-104).
   const header = conversionHeader(sale, d);
-  const missing = missingRequired(CONTRACT.headerFields, header);
-  if (missing.length) throw new Error(`Fill in ${missing.join(', ')} — ${missing.length === 1 ? 'it is' : 'they are'} required on a contract.`);
-  if (!d.serials.length) throw new Error('Tick at least one machine to put on the contract.');
+  const missing = contractMissing(header);
+  if (missing.length) throw new Error(contractMissingText(missing));
+  if (!d.machines.length) throw new Error('Tick at least one machine to put on the contract.');
   // ASKED AGAIN AT THE WRITE, not only when the panel opened: a transfer
   // recorded meanwhile, or a draft that never went through the panel, must not
   // put another customer's machine on this customer's contract.
-  const ticked = new Set(d.serials);
-  const away = await machinesWithAnotherCustomer(sale, items.filter((i) => ticked.has(str(i.serial_number))));
+  const ticked = new Set(d.machines);
+  const away = await machinesWithAnotherCustomer(sale, items.filter((i) => ticked.has(coverMachineKey(i))));
   if (away.size) {
-    throw new Error(`${[...away.keys()].join(', ')}: ${TRANSFERRED_AWAY} — untick ${away.size === 1 ? 'it' : 'them'}; `
+    throw new Error(`${[...away.keys()].map((k) => labelFor(items, k)).join(', ')}: ${TRANSFERRED_AWAY} — untick ${away.size === 1 ? 'it' : 'them'}; `
       + `${away.size === 1 ? 'it is' : 'they are'} not ${str(sale.party_name) || 'this customer'}'s to put on a contract.`);
   }
   if (await contractNumberExists(mc)) {
     throw new Error(`MC Number ${mc} already exists. Converting into it would merge two contracts.`);
   }
   // Every rate checked before anything is written, as on a renewal.
-  const rateFor = (serial: string): number | null => {
-    const raw = (d.rates ?? {})[serial];
+  const rateFor = (key: string): number | null => {
+    const raw = (d.rates ?? {})[key];
     if (raw == null || String(raw).trim() === '') return null;
     const n = Number(String(raw).trim());
-    if (!Number.isFinite(n)) throw new Error(`Rate for ${serial} is not a number: "${raw}"`);
-    if (n < 0) throw new Error(`Rate for ${serial} cannot be negative.`);
+    if (!Number.isFinite(n)) throw new Error(`Rate for ${labelFor(items, key)} is not a number: "${raw}"`);
+    if (n < 0) throw new Error(`Rate for ${labelFor(items, key)} cannot be negative.`);
     return n;
   };
-  for (const sn of d.serials) rateFor(sn);
+  for (const k of d.machines) rateFor(k);
 
   await saveHeader('contract', header);
-  const keep = new Set(d.serials);
+  const keep = new Set(d.machines);
   let machines = 0;
-  for (const it of items.filter((i) => keep.has(str(i.serial_number)))) {
-    const rate = rateFor(str(it.serial_number));
+  for (const it of items.filter((i) => str(i.serial_number).trim() && keep.has(coverMachineKey(i)))) {
+    const rate = rateFor(coverMachineKey(it));
     await saveItem('contract', mc, {
       ...conversionItem(sale, it),
       ...(rate === null

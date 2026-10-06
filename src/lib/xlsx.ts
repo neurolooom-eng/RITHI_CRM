@@ -21,7 +21,7 @@ import { excelSerial, formatDayTime, hasClockTime } from './dates';
 // ===========================================================================
 
 import { enc, xmlText, zipStore, download } from './zip';
-import { mayExport, deliverExport, type ExportScope, type GCell, type GSheet } from './exportscope';
+import { exportAllowed, deliverExport, type ExportScope, type GCell, type GSheet } from './exportscope';
 
 export interface Sheet {
   name: string;
@@ -218,9 +218,13 @@ export function buildXlsx(sheets: Sheet[]): Uint8Array {
 // register is exactly as silent about what it is missing. `sheets[0]` is the
 // data sheet everywhere this is called; the row count in the warning comes from
 // it, and an About sheet beside it does not change the answer.
-export function xlsxDownload(filename: string, sheets: Sheet[], scope: ExportScope): void {
-  if (!mayExport(scope, sheets[0]?.rows.length ?? 0)) return;
-  deliverExport({
+//
+// AND THE SAME PERMISSION (D-018 / D-065): it never asked `export.data`, so
+// every workbook button was open to a role refused the CSV. `exportAllowed`
+// is csvExport's own gate. Resolves to whether the file was written.
+export function xlsxDownload(filename: string, sheets: Sheet[], scope: ExportScope): Promise<boolean> {
+  if (!exportAllowed(scope, sheets[0]?.rows.length ?? 0)) return Promise.resolve(false);
+  return deliverExport({
     filename, kind: 'Excel',
     sheets: () => sheets.map((s) => gsheetFrom(s.name, s.columns, s.rows)),
     saveFile: () => download(filename, buildXlsx(sheets),

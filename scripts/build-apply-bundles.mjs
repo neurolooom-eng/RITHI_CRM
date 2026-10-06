@@ -379,6 +379,13 @@ const MODULES = {
       // PM calls already uploaded: complaint / breakdown date = registration
       // date, and the serial their upload carried (2026-10-05). Data only.
       '0386_pm_dates_are_registration.sql',
+      // D-033: a field call is registered with its three vigilance questions
+      // answered (0413). Before the cr_read tail, which must stay last.
+      '0413_field_call_vigilance_answered.sql',
+      // D-030: the Attended Date of a call request is not in the future (0408).
+      '0408_call_request_attended_not_future.sql',
+      // D-035: a re-open records its reason, person and time (0411).
+      '0411_call_reopen_reason_recorded.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -523,7 +530,12 @@ const MODULES = {
             // The 2026 PM catch-up re-run once the Part Master mapping grew (2026-10-06).
             '0399_pm_spare_dccr_rerun.sql',
             // SPARE on a PM review row that is blank; restates 0397's trigger function.
-            '0400_pm_spare_blank_review.sql'],
+            '0400_pm_spare_blank_review.sql',
+            // D-129: review answers are read by holders of review.view, given
+            // once to the roles that held review.edit (0401).
+            '0401_review_answers_read_key.sql',
+            // D-027: a Field Failure Report names its customer and problem (0407).
+            '0407_ffr_customer_and_problem_required.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -606,7 +618,9 @@ const MODULES = {
             // Re-calculate only Active objectives, and the DCCR rate counted
             // once per month (2026-10-06). Restates 0349's recalc and 0393's
             // two helpers, so after both.
-            '0396_objective_recalc_active_fast.sql'],
+            '0396_objective_recalc_active_fast.sql',
+            // D-021: an objective carrying a recorded figure is not deleted (0402).
+            '0402_objective_with_figures_kept.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -639,6 +653,11 @@ const MODULES = {
             // training sessions, attendance and R&R periods. After 0225, whose
             // triggers it copies; here, after every module that creates them.
             '0314_record_audit_on_movements_and_training.sql',
+            // D-067/D-021/D-039: configuration, quality objectives and the indoor
+            // workshop imaged too; the audit key gains role / key / sys_id (0406).
+            '0406_record_audit_on_configuration_objectives_indoor.sql',
+            // D-055 (FRS-187.3): the six cover tables imaged (0410).
+            '0410_cover_registers_imaged.sql',
             // The FFR register's retention trigger. HERE, not beside the table
             // in 0165: block_hard_delete() is defined in this module, which runs
             // after daily_review — check:replay caught the fresh apply failing.
@@ -854,7 +873,25 @@ const MODULES = {
             // R/SER/QC/007 columns with the product and serial on the row.
             '0377_pre_delivery_qc.sql',
             // Its number, PDQC/YY/NNNN (2026-10-05).
-            '0378_pdqc_number.sql'],
+            '0378_pdqc_number.sql',
+            // D-145 (the user's decision): approving a DC skips filing the visit
+            // of a unit whose call is already Solved, and says so (0403).
+            // Redefines 0327's approve_indoor_dc(), so after it.
+            '0403_indoor_approval_skips_a_solved_call.sql',
+            // D-111 / D-112 / D-114 (the user's decisions): a signed PDT is locked
+            // and un-signed only with indoor.pdt_unsign and a reason; the dispatch
+            // date is when the unit is marked Dispatched; a cleaning time may be
+            // earlier, never later, and names who (0363).
+            '0363_indoor_pdt_lock_dispatch_and_cleaning.sql',
+            // D-143: an Indoor DC is approved by the login its User Master row
+            // carries, not a profile with the same name (0367). Redefines
+            // 0323's indoor_dc_may_approve(), so after it.
+            '0367_indoor_dc_approver_is_the_login.sql',
+            // D-108 / D-116: record_indoor_visit() is no signed-in user's, and
+            // the visit columns say the visit is filed at approval (0404).
+            '0404_indoor_record_visit_closed_and_comments.sql',
+            // D-039: who reported damage to the customer is the session (0412).
+            '0412_indoor_reported_to_customer_stamp.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -879,7 +916,11 @@ const MODULES = {
             // product marked (stored, recalculated, and by a button).
             '0354_service_note_dated_latest.sql',
             // Beta Edit: many notes edited, one save, all or nothing (0356).
-            '0356_service_notes_batch_save.sql'],
+            '0356_service_notes_batch_save.sql',
+            // D-061: a QMS document's number, revision, effective date and file
+            // are fixed once recorded, and a QMS document is retired, never
+            // deleted (0368).
+            '0368_qms_revision_is_a_new_entry.sql'],
   },
   training: {
     title: 'People: profile, Roles & Responsibilities, Training',
@@ -895,7 +936,10 @@ const MODULES = {
     files: ['0264_people_and_training.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
             // and split keys; see 0286 for the parent rule.
-            '0295_user_profile_details_key.sql'],
+            '0295_user_profile_details_key.sql',
+            // D-059: a User Master entry with a profile or R&R history is not
+            // deleted -- set Active to No instead (0405).
+            '0405_user_master_keeps_history.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -946,7 +990,17 @@ const MODULES = {
             // it; reads master_delete_guard() from 0325 in rbac, which runs first.
             '0325_product_line_and_list_add_edit_delete.sql',
             // A party's Country (2026-10-03), a plain column, blank by default.
-            '0326_party_country.sql'],
+            '0326_party_country.sql',
+            // D-140 / D-058 / D-138: required fields and case-variant codes on
+            // the three masters, the KYC verifier kept, a product line named by
+            // indoor jobs not deleted (0366). Triggers of its own.
+            '0366_masters_required_kyc_and_line_names.sql',
+            // D-086: deleting a list value needs that list's delete key or
+            // masters.edit, not "Add / edit master records" (0371). 0121's tail
+            // mirrors it.
+            '0371_master_list_delete_key.sql',
+            // D-056: a value records carry is deactivated, not deleted (0409).
+            '0409_master_value_in_use_kept.sql'],
   },
   reports: {
     title: 'Reports',
@@ -1065,6 +1119,21 @@ const MODULES = {
             // D-136: a master key changes only through a rename. Reads
             // part_rename_ticket (0196) and stock_import_allowed() (0339).
             '0335_master_key_changes_only_by_rename.sql',
+            // D-125 (the user's decision, 2026-10-04): a visit, its spares and a
+            // spare request are filed under your own name, your team's, or
+            // anybody's with visit.others / spare.request.others; created_by
+            // stamped from the session (0369).
+            '0369_filed_under_own_name_unless_granted.sql',
+            // D-050: a transfer or return is not dated into a closed hand-stock
+            // period or the future (0373).
+            '0373_stock_movement_dates.sql',
+            // D-049: stock is transferred from your own or your team's hand
+            // stock (else stock.transfer.others), to a User Master name (0375).
+            '0375_stock_transfer_own_or_team.sql',
+            // D-044: a spare request, a stock transfer and a material return are
+            // saved whole -- header and lines in one transaction, as the caller
+            // (0392). Before 0385 / 0384, which must stay last.
+            '0392_save_records_whole.sql',
             // The Stores Dispatch Report (the AppSheet Stores view) and the part's
             // IND/IMP; reads the dispatch, request-line and parts tables (0385).
             '0385_stores_dispatch_report.sql',
@@ -1181,6 +1250,14 @@ const MODULES = {
             // D-148: the dealer guard stands aside for a re-load of a call that
             // is already there, party unchanged (0351). Redefines 0328's.
             '0351_dealer_guard_stands_aside_on_reload.sql',
+            // D-149 (the user's decision): Sold Through is cleared only where a
+            // transfer set it; a corrected transfer's old machine is re-read (0361).
+            // Redefines transfer_to_product() (0329), so after it.
+            '0361_sold_through_cleared_only_if_a_transfer_set_it.sql',
+            // D-150 / D-154 (the user's decisions): one installation call per
+            // machine and per call number; no installation call request for a
+            // dealer (0362).
+            '0362_installation_once_and_no_dealer_request.sql',
             // A transfer can give the new owner a fresh warranty, worn by the
             // machine (the user, 2026-10-05); redefines 0331's sync_product_machine.
             '0383_transfer_fresh_warranty.sql',
@@ -1287,6 +1364,9 @@ const MODULES = {
       // LAST, and it must stay last: it re-asserts `dispatch_spare_lines()` and
       // `sd_read`, which handstock owns, so a replay of Spare_1.sql alone stops
       // reverting them. Guarded, so a fresh apply skips it.
+      // D-041: who approved, dispatched or received a spare is the session,
+      // not the screen's value (0393). Before the replay tail, which stays last.
+      '0393_spare_line_people_from_session.sql',
       '0122_spare_requests_replay_tail.sql'],
   },
   product_database_2: {

@@ -191,12 +191,12 @@ export function CallReview() {
 
   const doReopen = async () => {
     if (!sel) return;
-    if (!reopenWhy.trim()) { setErr('Say why the call is being re-opened — it goes on the call.'); return; }
+    if (!reopenWhy.trim()) { setErr('Say why the call is being re-opened — it is recorded on the call.'); return; }
     setBusy(true); setErr(''); setNote('');
     const res = await reopenCall(sel, reopenWhy.trim());
     setBusy(false);
     if (!res.ok) { setErr(res.error ?? 'Could not re-open the call.'); return; }
-    logAudit({ action: 'callreview.reopen', target: sel, status: 'ok' });
+    logAudit({ action: 'callreview.reopen', target: sel, status: 'ok', meta: { reason: reopenWhy.trim() } });
     setNote(`${sel} re-opened. It leaves this list — it is an open call again.`);
     setReopenOpen(false); setSel('');
     await refreshOne();
@@ -395,11 +395,15 @@ export function CallReview() {
                   <div className="cr-box">
                     <div className="cr-box-h">Re-open this call</div>
                     <p className="muted cr-note">
-                      The call becomes open again and leaves this list. No visit is invented; the reason goes on the call.
+                      The call becomes open again and leaves this list. No visit is invented; the reason, your name and
+                      the time are recorded on the call and shown in its re-open history.
                     </p>
                     <textarea className="input" rows={2} value={reopenWhy} onChange={(e) => setReopenWhy(e.target.value)} placeholder="Why is it being re-opened? (required)" />
                     <div className="cr-btns">
-                      <button className="btn btn-primary btn-sm" onClick={() => void doReopen()} disabled={busy}>Re-open</button>
+                      {/* Cannot be submitted empty -- the same rule as the
+                          register's Re-open dialog (D-035, FRS-133.4). */}
+                      <button className="btn btn-primary btn-sm" onClick={() => void doReopen()} disabled={busy || !reopenWhy.trim()}
+                        title={reopenWhy.trim() ? undefined : 'Give the reason first'}>Re-open</button>
                       <button className="btn btn-ghost btn-sm" onClick={() => setReopenOpen(false)}>Cancel</button>
                     </div>
                   </div>

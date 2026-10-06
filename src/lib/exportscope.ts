@@ -124,6 +124,34 @@ function defaultAsk(message: string): boolean {
 }
 
 // ===========================================================================
+// THE EXPORT PERMISSION — ONE FLAG, ASKED BY EVERY WRITER (D-018 / D-065).
+//
+// Set from auth (`can('export.data')`, auth.tsx) and read by all three
+// writers. It lived in format.tsx, where only `csvExport` could see it, so
+// `xlsxDownload` and `xlsDownload` never asked: a role refused the CSV took
+// the same rows as Excel from every workbook button in the application. It is
+// HERE now because this module is the one all three writers already import
+// and it imports nothing — format.tsx re-exports the same two functions, so
+// there is still exactly one flag.
+// ===========================================================================
+let _canExport = true;
+export function setCanExport(v: boolean): void { _canExport = v; }
+export function canExportData(): boolean { return _canExport; }
+export const EXPORT_REFUSED = 'Exporting / downloading data is not permitted for your role.';
+
+/** The writers' one gate: the permission FIRST (no question is asked of
+ *  somebody who may not have the file at all), then the partial-load question.
+ *  False = write nothing. */
+export function exportAllowed(scope: ExportScope, rows: number,
+                              ask: (message: string) => boolean = defaultAsk): boolean {
+  if (!_canExport) {
+    try { alert(EXPORT_REFUSED); } catch { /* no window: a node check */ }
+    return false;
+  }
+  return mayExport(scope, rows, ask);
+}
+
+// ===========================================================================
 // WHERE THE FILE GOES: THIS DEVICE, OR A GOOGLE SHEET (the user, 2026-10-04:
 // "In all downloads - Add a provision for the user to save it as a google
 // sheet along with existing csv / excel" ... "In this folder, Create a folder
@@ -154,11 +182,25 @@ export interface ExportJob {
   sheets: () => GSheet[];
   /** The download that used to happen straight away. */
   saveFile: () => void;
+  /** Set by `deliverExport`: the chooser calls it ONCE with whether the
+   *  export left — downloaded, or saved as a Google Sheet (true) — or the
+   *  chooser was closed with nothing taken (false). */
+  settle?: (written: boolean) => void;
 }
 
 let chooser: ((job: ExportJob) => void) | null = null;
 export function setExportChooser(fn: ((job: ExportJob) => void) | null): void { chooser = fn; }
-export function deliverExport(job: ExportJob): void {
-  if (chooser) chooser(job);
-  else job.saveFile();
+
+// RESOLVES TO WHETHER THE FILE WAS WRITTEN (D-018). A screen that audits a
+// download or says "Downloaded N rows" must do it on `true` only: a refused
+// export, a Cancel on the partial-load question, or a chooser closed with
+// nothing picked wrote no file, and the audit trail is the record of what
+// left. With no chooser (a node check) the file is saved at once.
+export function deliverExport(job: ExportJob): Promise<boolean> {
+  if (!chooser) { job.saveFile(); return Promise.resolve(true); }
+  const show = chooser;
+  return new Promise<boolean>((resolve) => {
+    let done = false;
+    show({ ...job, settle: (w) => { if (!done) { done = true; resolve(w); } } });
+  });
 }

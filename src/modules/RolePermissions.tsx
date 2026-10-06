@@ -252,7 +252,7 @@ export function RolePermissions() {
 
     const columns = ['Group', 'Page', 'Route', 'Grants', 'Permission key', ...roles.map((r) => r.label)];
 
-    xlsxDownload(`permission-matrix-${stamp}.xlsx`, [
+    void xlsxDownload(`permission-matrix-${stamp}.xlsx`, [
       { name: 'Matrix', columns, rows: matrix },
       {
         name: 'Roles',
@@ -289,16 +289,19 @@ export function RolePermissions() {
             Detail: 'Each list is grantable on its own and also comes free with the global "Edit masters" right, so a role can reach a list without a Yes against it here.' },
         ],
       },
-    ], COMPLETE);
-    logAudit({
-      action: 'rbac.export', status: 'ok',
-      meta: { roles: roles.length, rows: matrix.length, unsaved: edited },
-    });
-    setMsg({
-      tone: edited ? 'info' : 'ok',
-      text: edited
-        ? `Exported ${matrix.length} permissions across ${roles.length} roles — including your UNSAVED changes. The file says so on its "How to read this" sheet.`
-        : `Exported ${matrix.length} permissions across ${roles.length} roles.`,
+    ], COMPLETE).then((ok) => {
+      // Audited and announced only once the file was WRITTEN (D-018).
+      if (!ok) return;
+      logAudit({
+        action: 'rbac.export', status: 'ok',
+        meta: { roles: roles.length, rows: matrix.length, unsaved: edited },
+      });
+      setMsg({
+        tone: edited ? 'info' : 'ok',
+        text: edited
+          ? `Exported ${matrix.length} permissions across ${roles.length} roles — including your UNSAVED changes. The file says so on its "How to read this" sheet.`
+          : `Exported ${matrix.length} permissions across ${roles.length} roles.`,
+      });
     });
   };
 
