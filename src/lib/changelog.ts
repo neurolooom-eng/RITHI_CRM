@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.126',
+    date: '2026-10-06',
+    title: 'Product Database: ⇄ Transfer no longer cut off',
+    changes: [
+      'THE ⇄ TRANSFER BUTTON could be cut off at the edge of the Actions column. That column remembers the width each person and each role last gave it, and that width was set when it only held + Field and + Install. The column now starts fresh at a width that fits all three buttons, and the buttons move onto a second line if the column is narrowed, instead of being hidden.',
+    ],
+  },
+  {
     version: '0.10.125',
     date: '2026-10-06',
     title: 'KPI Export (Field_INST) includes PM calls',
