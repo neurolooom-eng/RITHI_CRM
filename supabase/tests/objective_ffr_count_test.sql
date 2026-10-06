@@ -132,7 +132,8 @@ select count(distinct calc_key) = 4 as "all four calc_keys are in use"
   from public.quality_objectives where year = 2026 and calc_key <> '';
 select count(*) = 10 as "the ten rate objectives are untouched"
   from public.quality_objectives
- where year = 2026 and calc_key in ('failure_rate_12m','open_rate_monthly','attended_within_days');
+ where year = 2026 and calc_key in ('failure_rate_12m','dccr_failure_cohort','open_rate_monthly','attended_within_days');
+-- (0393 moved the six product rates from failure_rate_12m to dccr_failure_cohort.)
 
 -- THE RE-STATEMENT IS THE RISK IN THIS FILE, not the new branch: 0142 copies
 -- objective_value, objective_evidence and objective_notes out of three earlier
@@ -142,6 +143,10 @@ values ('ORION-G', 'BASE1', 'APOLLO'), ('ORION-G', 'BASE2', 'APOLLO');
 insert into public.field_calls (ucn, call_number, call_type, party_name, product_name, serial, reg_date)
 values ('O-1','CN-O-1','Field Call','APOLLO','ORION-G','BASE1','2026-01-10');
 
+-- 0393 moves the 2026 product rates onto the DCCR rule; this checks the OLD
+-- rule's shape, so it puts Orion-G back on it inside this rolled-back test.
+update public.quality_objectives set calc_key = 'failure_rate_12m'
+ where year = 2026 and calc_params->>'product' = '%ORION%';
 select id as rid from public.quality_objectives
  where year = 2026 and calc_key = 'failure_rate_12m'
    and calc_params->>'product' = '%ORION%' \gset

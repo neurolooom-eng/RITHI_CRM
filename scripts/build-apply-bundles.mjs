@@ -584,7 +584,11 @@ const MODULES = {
             '0359_failure_rate_one_join.sql',
             // An objective's Status (Active / Not Working / Do Not Use), and the
             // five deleted 2026 objectives restored as Not Working (2026-10-06).
-            '0392_objective_status.sql'],
+            '0392_objective_status.sql',
+            // The failure rate from the DCCR by commissioning month, and the six
+            // product failure rates moved onto it (2026-10-06). Restates 0359's
+            // objective_value, so after it.
+            '0393_dccr_failure_cohorts.sql'],
   },
   validation: {
     title: 'Software Validation',
