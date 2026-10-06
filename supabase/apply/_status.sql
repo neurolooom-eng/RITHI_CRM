@@ -2093,7 +2093,7 @@ with checks(sort_order, bundle, provides, present) as (
          and coalesce((select array_to_string(c.reloptions, ',') like '%security_invoker=on%' from pg_class c where c.oid = to_regclass('public.stores_dispatch_report')), false)
          and has_table_privilege('authenticated', to_regclass('public.stores_dispatch_report'), 'SELECT')
          and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stores_dispatch_report' and column_name = 'Dispatched in (Days - Group)'))),
-    (319, 'Stores Dispatch Report: calendar 2025 from the historical stock outs', 'stores_dispatch_report also reads spare_issue_history for dispatches dated in 2025 (India time), with a Source column (RITHI / Historical); dmy_ts() reads the file''s day-first dates kept in data (0387). NO means HandStock_X.sql has not been re-run since, or the view lost security_invoker. Restore: HandStock_X.sql (0387)',
+    (319, 'Stores Dispatch Report: the historical stock outs from 2025', 'stores_dispatch_report also reads spare_issue_history for stock outs dated from 1 January 2025 (India time) not already dispatched in RITHI, with a Source column (RITHI / Historical); dmy_ts() reads the file''s day-first dates kept in data (0387, widened to 2026 by 0388). NO means HandStock_X.sql has not been re-run since, or the view lost security_invoker. Restore: HandStock_X.sql (0388)',
         (to_regprocedure('public.dmy_ts(text)') is not null
          and to_regprocedure('public.text_num(text)') is not null
          and coalesce((select array_to_string(c.reloptions, ',') like '%security_invoker=on%' from pg_class c where c.oid = to_regclass('public.stores_dispatch_report')), false)
