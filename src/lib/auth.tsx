@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { db, type BaseRecord } from './db';
 import { sbSignIn, sbSignOut, clearMyNotifications, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, getRoleLabels, supabaseConfigured, hasPendingRecovery, sbConsumeRecovery, sbUpdatePassword, type Profile } from './supabase';
 import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac, parentActions, ROLES , roleLabelFor, setRoleLabels } from './rbac';
-import { setAuditUser, logAudit } from './audit';
+import { setAuditUser, logAudit, recordAudit } from './audit';
+import { VIEWAS_KEY, setPreviewGuard, isPreviewing } from './previewGuard';
 import { setCanExport } from './format';
 import { forgetCachedRegisters } from './cache';
 import { clearModuleCounts } from './counts';
@@ -140,7 +141,8 @@ export function roleLabel(u: { rbacRole?: string; role: Role; unresolved?: boole
   return roleLabelFor(rb) || rb;
 }
 
-const VIEWAS_KEY = 'rithi.viewAs'; // admin "View as engineer" preview identity
+// The admin "View as" preview identity is stored under VIEWAS_KEY, which
+// previewGuard.ts owns so the guard can come up read-only at boot.
 
 // What the local sign-in left in this browser: the seeded accounts (with the
 // hashes) and the id of the one signed in. Nothing reads them any more; they
@@ -181,7 +183,9 @@ interface AuthContextValue {
   // Admin preview: act as another (engineer) identity so every page shows what
   // that user would see. null when not previewing.
   viewAs: User | null;
-  setViewAs: (u: User | null) => void;
+  /** Start, switch or end a preview. Each start and end is RECORDED (D-069,
+   *  FRS-212.3); a start that cannot be recorded does not start, and says why. */
+  setViewAs: (u: User | null) => Promise<{ ok: boolean; error?: string }>;
   // Managers (RM/RGM) switch between their own calls and their team's.
   managerViewMode: 'team' | 'mine';
   setManagerViewMode: (m: 'team' | 'mine') => void;
@@ -341,11 +345,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem('rithi.mgrView', m); } catch { /* ignore */ }
   };
 
-  const setViewAs = (u: User | null) => {
-    if (u && !isAdmin) return; // only real admins may preview as someone else
-    setViewAsRaw(u);
-    try { u ? localStorage.setItem(VIEWAS_KEY, JSON.stringify(u)) : localStorage.removeItem(VIEWAS_KEY); } catch { /* ignore */ }
+  // ===========================================================================
+  // "VIEW AS" IS READ-ONLY AND RECORDED (D-069, FRS-212.2/.3).
+  //
+  // The guard in previewGuard.ts refuses every write while a preview is up, at
+  // the one place every request passes. That includes the audit log — so the
+  // ORDER here is the whole point:
+  //   START: write `viewas.start`, THEN raise the guard, THEN show the preview.
+  //   END:   lower the guard and drop the preview, THEN write `viewas.end`.
+  // A switch from one person to another is an end and a start, with the screen
+  // back on the administrator's own identity between them — so nothing done in
+  // that moment is shown as somebody else's while being written as theirs.
+  //
+  // A START THAT CANNOT BE RECORDED DOES NOT START. FRS-212.3 requires every
+  // preview on record; one that is not is the gap this closes.
+  // ===========================================================================
+  const previewMeta = (v: User) => ({
+    previewed_id: v.id, previewed_email: v.email, previewed_name: v.fullName,
+    previewed_role: v.rbacRole || legacyToRbac(v.role),
+  });
+  const forgetPreview = () => {
+    setPreviewGuard(false);
+    setViewAsRaw(null);
+    try { localStorage.removeItem(VIEWAS_KEY); } catch { /* ignore */ }
   };
+  const endPreview = async (reason: string): Promise<string | null> => {
+    const was = viewAs;
+    forgetPreview(); // guard DOWN first, or it refuses the record of its own end
+    if (!was) return null;
+    return recordAudit({ action: 'viewas.end', target: was.email, meta: { ...previewMeta(was), reason } });
+  };
+
+  const setViewAs: AuthContextValue['setViewAs'] = async (u) => {
+    if (!u) {
+      const err = await endPreview('exit');
+      return err ? { ok: true, error: `The preview has ended, but its end could not be recorded: ${err}` } : { ok: true };
+    }
+    if (!isAdmin) return { ok: false, error: 'Only an administrator may preview the application as somebody else.' };
+    if (viewAs && viewAs.id === u.id) return { ok: true };
+    if (viewAs) await endPreview('switched to another person');
+    const err = await recordAudit({ action: 'viewas.start', target: u.email, meta: previewMeta(u) });
+    if (err) return { ok: false, error: `The preview was not started, because its start could not be recorded: ${err}` };
+    setPreviewGuard(true); // only now — the start is already on record
+    setViewAsRaw(u);
+    try { localStorage.setItem(VIEWAS_KEY, JSON.stringify(u)); } catch { /* ignore */ }
+    return { ok: true };
+  };
+
+  // A PREVIEW STORED IN THIS BROWSER IS HONOURED ONLY FOR AN ADMINISTRATOR. The
+  // guard comes up at boot whenever one is stored (previewGuard.ts), because a
+  // screen can write before the session is read; once it is read, a preview
+  // nobody is entitled to — a non-administrator signed in, or nobody — is
+  // dropped and the guard lowered. Nothing is recorded for it: there is no
+  // administrator's session to record it in. An honoured one keeps the guard up.
+  useEffect(() => {
+    if (supaBooting) return;
+    if (viewAsRaw && !(user && isAdmin)) { forgetPreview(); return; }
+    if (viewAs && !isPreviewing()) setPreviewGuard(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supaBooting, user, isAdmin, viewAsRaw, viewAs]);
 
   const login: AuthContextValue['login'] = async (id, password) => {
     const idNorm = id.trim();
@@ -388,7 +446,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    setViewAs(null);
+    // The end of a preview is recorded while the session still exists; the row
+    // is built and the request queued before the sign-out below starts.
+    void endPreview('signed out');
     // ONE PERSON'S DATA DOES NOT OUTLIVE THEIR SESSION ON THE DEVICE (D-070):
     // the cached registers and the menu counts were left for whoever signed in
     // next. The offline machine and party copy is removed by sbSignOut().

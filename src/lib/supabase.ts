@@ -22,8 +22,9 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { manualMatchesCall } from './docmatch';
 import { masterValueApplies } from './dccr';
 import { callAging } from './aging';
-import { rankSerialHits } from './callrequest';
+import { rankSerialHits, reqidOrRefusal, NOTHING_SAVED } from './callrequest';
 import { manualReportLink } from './reports';
+import { guardFetch } from './previewGuard';
 
 const URL_KEY = 'rithi.supabase.url';
 const KEY_KEY = 'rithi.supabase.anon';
@@ -99,6 +100,12 @@ export function errMsg(e: { message?: string; code?: string } | null | undefined
   return m;
 }
 
+// "View as" writes nothing (D-069): EVERY client this module creates is given
+// this fetch, so every request it makes passes the preview guard, which refuses
+// anything not known to be a read. Late-bound, so it wraps whatever `fetch` is
+// at call time.
+const previewFetch = guardFetch((input, init) => fetch(input, init));
+
 let _client: SupabaseClient | null = null;
 export function getSupabase(): SupabaseClient | null {
   if (_client) return _client;
@@ -109,6 +116,7 @@ export function getSupabase(): SupabaseClient | null {
     // HashRouter, which would otherwise swallow the token fragment), so the
     // client is told not to race us for it.
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+    global: { fetch: previewFetch },
   });
   return _client;
 }
@@ -2045,34 +2053,23 @@ export async function addCallRequestBatch(base: Record<string, unknown>, items: 
   if (items.length === 0) return { ok: false, error: 'Add at least one call.' };
 
   // Mint the REQID first, then write every item in ONE insert — a request is
-  // never half-saved. `next_call_reqid` ships in migration 0007; without it we
-  // fall back to the older per-row path below.
+  // never half-saved (FRS-123.8). `next_call_reqid` ships in 0010.
+  //
+  // NO FALLBACK (D-030). There used to be one for a database without the
+  // function: insert call 1 alone, let a trigger mint its REQID, then insert the
+  // rest — two writes, so when the second failed call 1 stayed written and this
+  // returned ok: true with "Saved X (1 call)". The browser cannot make two
+  // inserts one, so when the number cannot be issued for the whole batch,
+  // nothing is written and the refusal says so (reqidOrRefusal, callrequest.ts).
   const { data: minted, error: mintErr } = await c.rpc('next_call_reqid');
-  if (!mintErr && minted) {
-    const reqid = String(minted);
-    const rows = items.map((it) => ({ ...base, reqid, ...itemCols(it) }));
-    const { error } = await c.from('call_requests').insert(rows);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, reqid, count: rows.length };
-  }
-
-  // Fallback: the first insert mints the REQID (DB trigger), the rest reuse it.
-  // This needs 0007's dropped `reqid` unique constraint for more than one item.
-  const first = { ...base, ...itemCols(items[0]) };
-  const { data, error } = await c.from('call_requests').insert(first).select('reqid').single();
-  if (error) return { ok: false, error: errMsg(error) };
-  const reqid = String(data.reqid ?? '');
-  if (items.length > 1) {
-    const rest = items.slice(1).map((it) => ({ ...base, reqid, ...itemCols(it) }));
-    const { error: e2 } = await c.from('call_requests').insert(rest);
-    if (e2) {
-      const hint = /call_requests_reqid_key/.test(e2.message ?? '')
-        ? ' Run migration 0010_call_request_items.sql — REQID must not be unique, a request has one row per call.'
-        : '';
-      return { ok: true, reqid, count: 1, error: `Saved ${reqid} (1 call); the other items failed: ${errMsg(e2)}.${hint}` };
-    }
-  }
-  return { ok: true, reqid, count: items.length };
+  const issued = reqidOrRefusal(minted, mintErr ? errMsg(mintErr) : null);
+  if (!issued.ok) return { ok: false, error: issued.error };
+  const reqid = issued.reqid;
+  const rows = items.map((it) => ({ ...base, reqid, ...itemCols(it) }));
+  // ONE statement: Postgres writes every row or none.
+  const { error } = await c.from('call_requests').insert(rows);
+  if (error) return { ok: false, error: `${errMsg(error)} — ${NOTHING_SAVED}; no call on this request was written.` };
+  return { ok: true, reqid, count: rows.length };
 }
 
 // Every call request, whatever its outcome — the Request Registration register.
@@ -2211,9 +2208,15 @@ export async function pendingInstallRequests(): Promise<PendingInstall[]> {
 // The database is what enforces the real rule: once a request has become a
 // call, 0232 freezes these sixteen columns, because the call carries them from
 // that moment and the call is what everything downstream reads.
+//
+// `email` IS NOT ON IT EITHER (D-030, FRS-124.4). It is the submitted-by
+// address -- who raised the request -- and `cr_read` grants visibility on it,
+// so correcting it could hand a request out of its raiser's sight or into
+// somebody else's. FRS-087.1 names the customer, the machine, the fault, the
+// engineer and the plan; the raiser is the database's to record (CR-028).
 // ---------------------------------------------------------------------------
 const CALL_REQUEST_EDITABLE: Record<string, string> = {
-  engineer: 'engineer', email: 'email', callType: 'call_type',
+  engineer: 'engineer', callType: 'call_type',
   partyName: 'party_name', state: 'state', city: 'city', address: 'address',
   product: 'product', serial: 'serial_no',
   standardComplaint: 'standard_complaint', reportedProblem: 'reported_problem',
@@ -2245,7 +2248,7 @@ export async function updateCallRequest(
   // never stored. Measured on a database built from every migration.
   //
   // COUNTED, NOT RETURNED. `.select()` would need the row to be readable AFTER
-  // the change, and `engineer`/`email` are correctable, so a manager moving a
+  // the change, and `engineer` is correctable, so a manager moving a
   // request to somebody outside his team would see a real save reported as a
   // failure. The count needs no read-back. A null count (the server sent none)
   // is left as success -- unknown is not the same as refused.
@@ -4576,6 +4579,9 @@ export async function sbAdminCreateUser(input: { email: string; fullName: string
   const { url, anon } = getSupabaseCreds();
   const tmp = createClient(url, anon, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'rithi-provision' },
+    // The guard refuses signup during a preview (D-069) — the profile write
+    // after it would be refused anyway, leaving a login with no profile.
+    global: { fetch: previewFetch },
   });
   const { data, error } = await tmp.auth.signUp({
     email, password, options: { data: { full_name: input.fullName.trim() } },
@@ -5947,6 +5953,8 @@ export interface IndoorJob {
   call_status?: string;
   call_pending_reason?: string;
   reported_to_customer_at: string | null;
+  /** Who recorded the damage report to the owner — the database's (0399). */
+  reported_to_customer_by: string | null;
   // Rework (§8.3.4)
   nc_reference: string;
   rework_instruction: string;
@@ -6117,6 +6125,10 @@ export async function saveIndoorJob(
     'condition_on_arrival', 'tag_no', 'status',
     'cleaning_wi', 'cleaning_wi_rev', 'work_done', 'findings',
     'qc_result', 'qc_notes', 'dispatch_ref', 'damage_note',
+    // When the damage was reported to the owner (D-039, FRS-143.9). WHO is not
+    // here: the database stamps reported_to_customer_by from the session when
+    // this changes, and clears it when this is cleared (0399).
+    'reported_to_customer_at',
     'nc_reference', 'rework_instruction', 'rework_instruction_rev',
     'rework_authorised_by', 'rework_authorised_at', 'adverse_effect_assessed',
     'adverse_effect_note', 'reverified_by', 'reverified_at',
@@ -6146,22 +6158,29 @@ export async function saveIndoorJob(
   return { ok: true };
 }
 
-/** Marking the unit cleaned (4.5.3). `cleaned_by` is sent because the trigger
- *  only stamps a time once somebody is named — the WI and its revision are what
- *  make the record mean anything. */
+/** Marking the unit cleaned (4.5.3) — the WI and its revision are what make the
+ *  record mean anything.
+ *
+ *  `cleaned_by` IS NOT SENT (D-039, FRS-143.6). The database writes who cleaned
+ *  it from the session whenever `cleaned_at` is set (0363), discarding whatever
+ *  the browser names; sending an id from here only made the record look as if
+ *  the browser decided it. */
 export async function markIndoorCleaned(
-  id: number, wi: string, rev: string, uid: string, when?: string,
+  id: number, wi: string, rev: string, when?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   // `when` is an EARLIER time for a cleaning recorded after it was done (D-114,
-  // the user's decision); the database refuses a future one and writes WHO
-  // from the session whatever `cleaned_by` says (0363).
+  // the user's decision); the database refuses a future one.
   const at = when ? new Date(when) : new Date();
   if (Number.isNaN(at.getTime())) return { ok: false, error: 'That cleaning time is not a date and time.' };
-  const { error } = await must().from('indoor_jobs')
-    .update({ cleaned_by: uid, cleaned_at: at.toISOString(),
-              cleaning_wi: wi, cleaning_wi_rev: rev, status: 'Cleaned' })
+  // COUNTED: row-level security refuses an update by matching no row, which is
+  // not an error — and a cleaning reported as recorded when it was not is the
+  // gate the report upload is judged on.
+  const { error, count } = await must().from('indoor_jobs')
+    .update({ cleaned_at: at.toISOString(),
+              cleaning_wi: wi, cleaning_wi_rev: rev, status: 'Cleaned' }, { count: 'exact' })
     .eq('id', id);
   if (error) return { ok: false, error: errMsg(error) };
+  if (count === 0) return { ok: false, error: 'Nothing was saved — your role may not record the cleaning of this job.' };
   return { ok: true };
 }
 
@@ -6429,6 +6448,22 @@ export async function addIndoorPart(
 ): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('indoor_job_parts').insert({ job_id: jobId, ...patch });
   if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}
+/** A harvested part corrected after it was added (D-039, FRS-143.7): its code,
+ *  description, quantity, grade or destination. Modelled on saveIndoorAccessory
+ *  / saveIndoorCheck — the row's id and job are never sent — and COUNTED, since
+ *  row-level security refuses an update by matching no row rather than by an
+ *  error. The decontamination guard (0158) applies to an update as to an insert. */
+export async function updateIndoorPart(
+  id: number, patch: Partial<IndoorPart>,
+): Promise<{ ok: boolean; error?: string }> {
+  const { id: _drop, job_id: _drop2, ...rest } = patch as Record<string, unknown>;
+  if (Object.keys(rest).length === 0) return { ok: true };
+  const { error, count } = await must().from('indoor_job_parts')
+    .update(rest, { count: 'exact' }).eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  if (count === 0) return { ok: false, error: 'Nothing was saved — your role may not change this harvested part.' };
   return { ok: true };
 }
 export async function deleteIndoorPart(id: number): Promise<{ ok: boolean; error?: string }> {

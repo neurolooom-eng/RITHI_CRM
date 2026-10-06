@@ -631,10 +631,14 @@ export function Objective() {
         {/* Said on the screen because it is the difference between a figure you
             can rely on and one somebody typed. */}
         <p className="muted" style={{ fontSize: 12.5 }}>
-          Every figure here is <b>typed</b> today, the Total included — in the workbook that column is
-          a sum on the count rows and an average on the rate rows, and which it is cannot be told
-          from the row. As each objective is automated it will be read from the register instead,
-          and this line will say which.
+          {/* D-021 / FRS-121.9: this used to say every figure was typed, beside
+              rows marked ƒ that Re-calculate writes from the register. */}
+          The months of a row marked <b>ƒ</b> are <b>calculated</b> from the register by
+          Re-calculate, up to each month&rsquo;s cut-off — except a month marked <b>✎</b>, which
+          somebody typed over the calculation. Every other row is <b>typed</b>. The <b>Total</b> is
+          typed on every row, ƒ rows included: in the workbook that column is a sum on the count
+          rows and an average on the rate rows, and which it is cannot be told from the row, so
+          Re-calculate does not write it.
         </p>
       </SectionCard>
 
@@ -810,7 +814,14 @@ export function Objective() {
           <div className="row" style={{ gap: 8, justifyContent: 'space-between', marginTop: 14 }}>
             <button className="btn btn-danger" onClick={() => {
               if (confirm(`Delete "${defOpen.parameter}" and its twelve figures?`)) {
-                void deleteObjective(defOpen.id).then(() => { setDefOpen(null); loadObjectives(); });
+                // A REFUSAL IS SHOWN, not swallowed: the database may refuse
+                // to delete an objective carrying figures (FRS-121.7), and
+                // closing the dialogue as if it had worked hid that.
+                void deleteObjective(defOpen.id).then((r) => {
+                  setDefOpen(null);
+                  if (!r.ok) { setOMsg(`"${defOpen.parameter}" was not deleted: ${r.error}`); return; }
+                  loadObjectives();
+                });
               }
             }}>Delete</button>
             <span className="row" style={{ gap: 8 }}>

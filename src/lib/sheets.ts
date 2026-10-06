@@ -12,6 +12,7 @@ import { recordToRow, rowToRecord, vigilanceUnanswered } from './fieldcall';
 import type { DriveFolder } from './drivefolders';
 import type { GSheet } from './exportscope';
 import * as sb from './supabase';
+import { assertBridgeMayRun } from './previewGuard';
 
 const URL_KEY = 'rithi.sheets.url';
 const VER_KEY = 'rithi.sheets.urlVersion';
@@ -91,6 +92,9 @@ export interface PingResult {
 }
 
 async function getJson(params: Record<string, string>): Promise<Record<string, unknown>> {
+  // The bridge writes over GET as well as POST; a "View as" preview lets only
+  // the actions known to read through (D-069).
+  assertBridgeMayRun(params.action);
   const base = getSheetsUrl();
   if (!base) throw new Error('No Google Sheet URL configured (Settings → Google Sheet Connection).');
   const tab = getSheetsTab();
@@ -147,6 +151,7 @@ async function postJson(body: Record<string, unknown>): Promise<Record<string, u
   const tab = getSheetsTab();
   if (tab && body.tab === undefined) body = { ...body, tab };
   // Note: no custom Content-Type header -> browser sends text/plain -> no pre-flight.
+  assertBridgeMayRun(String(body.action ?? ''), 'POST');
   const res = await fetch(base, { method: 'POST', body: JSON.stringify(body), redirect: 'follow' });
   if (!res.ok) throw new Error(`Sheet responded ${res.status}`);
   return res.json();
@@ -488,6 +493,7 @@ export async function uploadManualReport(ucn: string, column: string, file: File
   const base = getSheetsUrl();
   if (!base) return { ok: false, error: 'No Google Sheet URL configured.' };
   try {
+    assertBridgeMayRun('upload', 'POST'); // an upload writes: refused in a preview (D-069)
     const dataBase64 = await fileToBase64(file);
     await fetch(base, {
       method: 'POST',
@@ -522,6 +528,7 @@ export async function uploadToDrive(file: File, prefix = '', folder?: DriveFolde
   if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: `${file.name} is larger than ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.` };
   const ref = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   try {
+    assertBridgeMayRun('driveupload', 'POST'); // an upload writes: refused in a preview (D-069)
     const dataBase64 = await fileToBase64(file);
     await fetch(base, {
       method: 'POST',
@@ -766,6 +773,7 @@ export async function saveAsGoogleSheet(
   const ref = `gs-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   const started = Date.now();
   try {
+    assertBridgeMayRun('sheetexport', 'POST'); // creates a sheet in Drive: refused in a preview (D-069)
     await fetch(base, {
       method: 'POST',
       mode: 'no-cors',

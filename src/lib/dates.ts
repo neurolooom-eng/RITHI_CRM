@@ -158,6 +158,18 @@ export function nowLocalDateTimeInput(): string {
   return `${todayLocal()}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** A STORED TIMESTAMP as a `datetime-local` input's value (yyyy-MM-ddTHH:mm)
+ *  on this device's clock — the inverse of `new Date(input.value)`. The
+ *  database holds UTC, so slicing the stored string would show the wrong
+ *  time and, before 05:30 IST, the wrong day. '' for nothing or nonsense. */
+export function localDateTimeInput(v: unknown): string {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function localIsoDate(v: unknown): string | null {
   const s = String(v ?? '').trim();
   if (/[T ]\d{1,2}:\d{2}/.test(s) && /(Z|[+-]\d{2}:?\d{2})$/.test(s)) {

@@ -24,6 +24,8 @@ import { useMySignature, signatureBelongsTo } from '../lib/signature';
 import { companyLogoBytes, COMPANY_LOGO_TYPE } from '../lib/brand';
 import './fieldcalls.css';
 import { cappedAt } from '../lib/exportscope';
+import { todayLocal } from '../lib/dates';
+import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 
 // ===========================================================================
 // FIELD FAILURE REGISTER — the register, and the report it produces.
@@ -224,9 +226,20 @@ export function FieldFailureReport() {
 
   const save = async () => {
     if (!form) return;
+    // THE FORM REFUSES FIRST, IN THE DATABASE'S OWN TERMS (FRS-109.4, D-027).
+    // The database refuses a signed-in save without either too ("A Field
+    // Failure Report needs the Customer Name and the Problem Reported"), so a
+    // user should never meet that message first — it is the backstop for a
+    // write that did not come through this form.
     const problem = String(form.problem_reported ?? '').trim();
     if (!problem) { setMsg({ tone: 'error', text: 'Problem reported by customer is required — it is what the report is about.' }); return; }
     if (!String(form.customer_name ?? '').trim()) { setMsg({ tone: 'error', text: 'Customer Name is required.' }); return; }
+    // A WEEKLY REVIEW DATED AFTER TODAY would keep the report off "Due a
+    // review" for weeks it was never looked at (FRS-110.2).
+    const reviewedAt = String(form.reviewed_at ?? '').slice(0, 10);
+    if (reviewedAt && reviewedAt > todayLocal()) {
+      setMsg({ tone: 'error', text: 'The weekly review date cannot be later than today.' }); return;
+    }
     setBusy(true);
     // RAISED BY IS SET ONCE, WHEN THE REPORT IS RAISED — never on an edit.
     //
@@ -250,6 +263,19 @@ export function FieldFailureReport() {
     await load();
   };
 
+  // THE REVIEW'S ATTACHMENT. The file goes to Drive through the bridge every
+  // upload uses; the report keeps the link and the name (0168). No folder of
+  // its own exists for FFRs, so it lands where the Document Library's do.
+  const [attaching, setAttaching] = useState(false);
+  const attach = async (f: File) => {
+    setAttaching(true);
+    const res = await uploadToDrive(f, `FFR - ${String(form?.ffr_no ?? '')}`.trim());
+    setAttaching(false);
+    if (!res.ok || !res.url) { setMsg({ tone: 'error', text: res.error ?? 'Upload failed.' }); return; }
+    setForm((x) => ({ ...(x ?? {}), attachment_url: res.url, attachment_name: f.name }));
+    setMsg({ tone: 'info', text: `${f.name} uploaded — press Save to keep it on the report.` });
+  };
+
   const field = (label: string, key: string, kind: 'text' | 'long' | 'date' | 'pick' = 'text', options?: string[]) => (
     <label className={`rep-field ${kind === 'long' ? 'rep-span2' : ''}`} key={key}>
       <span className="field-label">{label}</span>
@@ -262,7 +288,10 @@ export function FieldFailureReport() {
       ) : (
         <input className="input" type={kind === 'date' ? 'date' : 'text'}
                value={String(form?.[key] ?? '').slice(0, kind === 'date' ? 10 : undefined)}
-               onChange={(e) => setForm((f) => ({ ...(f ?? {}), [key]: e.target.value || null }))} />
+               // A cleared DATE is NULL; a cleared TEXT is '' — every text
+               // column here is `not null default ''` (0165, 0168), so sending
+               // null for one refused the whole save.
+               onChange={(e) => setForm((f) => ({ ...(f ?? {}), [key]: kind === 'date' ? (e.target.value || null) : e.target.value }))} />
       )}
     </label>
   );
@@ -386,7 +415,10 @@ export function FieldFailureReport() {
           rows={visible}
           busy={busy}
           // The desk SHOWS and the drawer WRITES — one save path, not two.
-          onEdit={(r) => { if (mayRaise) { setEditing(Number(r.id)); setForm({ ...r }); } }}
+          // OFFERED ONLY TO ffr.manage (FRS-110.1, D-027) — the same rule as
+          // the table's row click and the Raise button. Without it the desk
+          // showed "Edit / weekly review" to everyone and the click did nothing.
+          onEdit={mayRaise ? (r) => { setEditing(Number(r.id)); setForm({ ...r }); } : undefined}
         />
       ) : (
         <>
@@ -466,6 +498,56 @@ export function FieldFailureReport() {
               </div>
             </section>
 
+            {/* THE WEEKLY REVIEW (FRS-110.2, D-027). ffr.ts has always sent
+                these four columns and the desk's "Due a review" chip reads
+                `reviewed_at` — but nothing on this form set it, so a report
+                could never leave that chip from this screen. Only on an
+                existing report: a report being raised has not been reviewed. */}
+            {editing != null && (
+              <section className="rep-sec">
+                <div className="rep-sec-title">
+                  Weekly review <span className="muted">— setting the date takes the report off “Due a review”</span>
+                </div>
+                <div className="rep-grid">
+                  <label className="rep-field">
+                    <span className="field-label">Weekly review date</span>
+                    <input className="input" type="date" max={todayLocal()}
+                           value={String(form.reviewed_at ?? '').slice(0, 10)}
+                           onChange={(e) => {
+                             const v = e.target.value || null;
+                             // The reviewer is whoever sets the date unless a
+                             // name is already there — the database keeps the
+                             // name it is sent (0168), it does not stamp one.
+                             setForm((f) => ({
+                               ...(f ?? {}), reviewed_at: v,
+                               ...(v && !String(f?.reviewed_by_name ?? '').trim()
+                                 ? { reviewed_by_name: user?.fullName || user?.email || '' } : {}),
+                             }));
+                           }} />
+                  </label>
+                  {field('Reviewed by', 'reviewed_by_name')}
+                  {field('Attachment link', 'attachment_url')}
+                  {field('Attachment name', 'attachment_name')}
+                  <div className="rep-field rep-span2">
+                    <span className="field-label">Attachment</span>
+                    <div className="row">
+                      {String(form.attachment_url ?? '').trim()
+                        ? <a href={String(form.attachment_url)} target="_blank" rel="noreferrer">
+                            {String(form.attachment_name ?? '').trim() || 'Open the attachment'}
+                          </a>
+                        : <span className="muted">None attached.</span>}
+                      <label className="btn btn-sm" aria-disabled={attaching}>
+                        {attaching ? 'Uploading…' : '⬆ Upload a file'}
+                        <input type="file" hidden disabled={attaching}
+                               onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void attach(f); }} />
+                      </label>
+                      <span className="muted">Up to {Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB; it is filed in Drive and the link is kept here.</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
             {/* THE CHANGE LOG. Only on an existing report — a report being
                 raised has no history, and an empty panel on the new-report form
                 would read as one that failed to load. */}
@@ -480,7 +562,7 @@ export function FieldFailureReport() {
                 </>
               )}
               <button className="btn btn-ghost" onClick={() => { setForm(null); setEditing(null); }}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>
+              <button className="btn btn-primary" onClick={() => void save()} disabled={busy || attaching}>
                 {editing == null ? 'Raise FFR' : 'Save'}
               </button>
             </div>

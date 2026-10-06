@@ -310,3 +310,29 @@ export function indoorReportFileName(reportNo: string, original: string): string
   const clean = (v: string) => v.trim().replace(/[\\/:*?"<>|]/g, '-');
   return `${clean(reportNo)}_${clean(original) || 'report'}`;
 }
+
+// ---------------------------------------------------------------------------
+// A HARVESTED PART IS RECORDED WHOLE (FRS-143.7, D-039).
+//
+// It used to be added with a blank code and could not be edited, so the record
+// said a part was taken from a customer's device and not which. The grades are
+// the table's own CHECK (0158); a blank grade is allowed there and is not
+// offered here.
+// ---------------------------------------------------------------------------
+export const PART_GRADES = ['Serviceable', 'Repairable', 'Scrap'];
+
+export interface HarvestedPartDraft {
+  part_code: string; description: string; qty: string | number;
+  condition_grade: string; destination: string;
+}
+
+/** Why a new harvested part cannot be added yet, or null. */
+export function harvestedPartProblem(p: HarvestedPartDraft): string | null {
+  if (!String(p.part_code ?? '').trim()) return 'Enter the part code of the harvested part.';
+  if (!String(p.description ?? '').trim()) return 'Enter what the harvested part is (Description).';
+  const q = Number(String(p.qty ?? '').trim() || NaN);
+  if (!(q > 0)) return 'Enter the quantity harvested — more than 0.';
+  if (!PART_GRADES.includes(String(p.condition_grade ?? ''))) return 'Choose the condition grade (Serviceable, Repairable or Scrap).';
+  if (!String(p.destination ?? '').trim()) return 'Enter where the harvested part is going (Destination).';
+  return null;
+}

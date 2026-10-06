@@ -6,6 +6,7 @@ import { uploadRows, planUpload, applyUploadPlan, countTable, listMasterLists, s
 import { UPLOADS, masterUpload, shapeUpload, uploadGroups, soldThroughNotDealers, prepWritesQuestion,
   type UploadDef, type ShapeResult, type UploadPlan } from '../lib/uploads';
 import { dealerParties } from '../lib/cover';
+import { recordAudit } from '../lib/audit';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -57,8 +58,40 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
     }
   };
 
+  // ONE AUDIT ENTRY PER LOAD (D-067, FRS-196.14) — every way `write` can end
+  // once Upload is pressed, including the ones that wrote nothing, because "it
+  // was attempted and stopped here" is the record somebody needs when a
+  // register looks short. Awaited so a failure to record is SAID, beside the
+  // load's own result, the way a Party Master that could not be read is (the ⚑
+  // note below) — never by stopping a load that has already happened.
+  const record = async (p: Pending, o: {
+    outcome: 'completed' | 'stopped' | 'cancelled'; ready: number; toWrite: number;
+    written: number; why?: string; wroteFirst?: string; started: number;
+  }): Promise<string> => {
+    const heldBack = p.shaped.skipped.length + Math.max(0, p.shaped.rows.length - o.ready);
+    const err = await recordAudit({
+      action: 'bulk.upload', target: def.table,
+      status: o.outcome === 'completed' ? 'ok' : 'error',
+      error: o.why ?? '',
+      duration_ms: Math.round(performance.now() - o.started),
+      meta: {
+        register: def.label, register_key: def.key, table: def.table, file: p.file,
+        rows_in_file: p.shaped.rows.length + p.shaped.skipped.length,
+        rows_ready: o.ready, rows_held_back: heldBack,
+        rows_to_write: o.toWrite, rows_written: o.written,
+        rows_failed: o.outcome === 'stopped' ? Math.max(0, o.toWrite - o.written) : 0,
+        written_first: o.wroteFirst ?? '',
+        outcome: o.outcome, completed: o.outcome === 'completed',
+        conflict: def.conflict ?? '',
+      },
+    });
+    return err ? ` ⚑ This load could not be recorded in the audit log: ${err}` : '';
+  };
+
   const write = async () => {
     if (!pending) return;
+    const p = pending;
+    const started = performance.now();
     // Some registers point at rows that have to be there first, or accept only
     // some of the names in the file (see `prepare`). PLANNED before the
     // confirmation -- reads only -- so the number you are asked to approve is
@@ -73,10 +106,17 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
       setBusy('Checking what these rows point at…');
       const pre = await planUpload(def.prepare, pending.shaped.rows);
       setBusy('');
-      if (!pre.ok || !pre.plan) { setMsg({ tone: 'error', text: pre.error ?? 'Could not prepare the upload.' }); return; }
+      if (!pre.ok || !pre.plan) {
+        const why = pre.error ?? 'Could not prepare the upload.';
+        const unrecorded = await record(p, { outcome: 'stopped', ready: p.shaped.rows.length, toWrite: 0, written: 0, why, started });
+        setMsg({ tone: 'error', text: why + unrecorded });
+        return;
+      }
       plan = pre.plan;
       if (!plan.rows.length) {
-        setMsg({ tone: 'error', text: `Nothing left to load — nothing was written.${plan.note ? ` ${plan.note}` : ''}` });
+        const why = `Nothing left to load — nothing was written.${plan.note ? ` ${plan.note}` : ''}`;
+        const unrecorded = await record(p, { outcome: 'stopped', ready: 0, toWrite: 0, written: 0, why, started });
+        setMsg({ tone: 'error', text: why + unrecorded });
         return;
       }
     }
@@ -98,7 +138,11 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
       ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
       : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
     const first = prepWritesQuestion(plan.writes);
-    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${first ? `${first}\n\n` : ''}${note ? `${note}\n\n` : ''}${flag ? `${flag}\n\n` : ''}${warn}`)) return;
+    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${first ? `${first}\n\n` : ''}${note ? `${note}\n\n` : ''}${flag ? `${flag}\n\n` : ''}${warn}`)) {
+      const unrecorded = await record(p, { outcome: 'cancelled', ready: n, toWrite: n, written: 0, why: 'Cancelled at the confirmation — nothing was written.', started });
+      if (unrecorded) setMsg({ tone: 'error', text: `Cancelled — nothing was written.${unrecorded}` });
+      return;
+    }
     // Only now, with OK pressed: what the rows point at, then the rows. A
     // failure here stops the upload, and says what was and was not written.
     let wroteFirst = '';
@@ -106,15 +150,20 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
       setBusy('Writing what these rows point at…');
       const pre = await applyUploadPlan(plan);
       setBusy('');
-      if (!pre.ok) { setMsg({ tone: 'error', text: pre.error ?? 'Could not prepare the upload — the upload was not started.' }); onDone(); return; }
+      const why = pre.error ?? 'Could not prepare the upload — the upload was not started.';
+      if (!pre.ok) { setMsg({ tone: 'error', text: why + await record(p, { outcome: 'stopped', ready: n, toWrite: n, written: 0, why, wroteFirst: pre.done, started }) }); onDone(); return; }
       wroteFirst = pre.done;
     }
     setBusy(`Writing 0 / ${n}…`);
     const res = await uploadRows(def.table, rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
     setBusy('');
     const firstNote = wroteFirst ? ` Written first: ${wroteFirst}.` : '';
-    if (!res.ok) { setMsg({ tone: 'error', text: `${res.error} (${res.written} written before it stopped.)${firstNote}` }); onDone(); return; }
-    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${firstNote}${note ? ` ${note}` : ''}${flag ? ` ${flag}` : ''}` });
+    if (!res.ok) {
+      const unrecorded = await record(p, { outcome: 'stopped', ready: n, toWrite: n, written: res.written, why: res.error ?? 'The upload stopped.', wroteFirst, started });
+      setMsg({ tone: 'error', text: `${res.error} (${res.written} written before it stopped.)${firstNote}${unrecorded}` }); onDone(); return;
+    }
+    const unrecorded = await record(p, { outcome: 'completed', ready: n, toWrite: n, written: res.written, wroteFirst, started });
+    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${firstNote}${note ? ` ${note}` : ''}${flag ? ` ${flag}` : ''}${unrecorded}` });
     setPending(null);
     onDone();
   };

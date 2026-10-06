@@ -11,14 +11,15 @@ import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod, todayLocal } from '../src/lib/dates';
 import { configFor, contractStatusText, yearsHint, proposeConversion, conversionHeader, conversionItem, headerChanges, withSavedMachine } from '../src/lib/cover';
-import { localIsoDate, formatDayTime, excelSerial, hasClockTime } from '../src/lib/dates';
+import { localIsoDate, formatDayTime, excelSerial, hasClockTime, localDateTimeInput } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
          splitProductDetails, itemDetailsLong, itemDetails, addCallPrefix, coverStatus,
          ABOUT_TO_EXPIRE_DAYS, SERIES, nextInSeries, deriveHeader, deriveItem,
          upliftRate, itemTaxAmount, totalAfterTax, periodToMonths } from '../src/lib/coverspec';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
-import { machineRowProblem, productPlaceholder, rankSerialHits, PICK_A_PRODUCT } from '../src/lib/callrequest';
+import { machineRowProblem, productPlaceholder, rankSerialHits, PICK_A_PRODUCT, reqidOrRefusal, attendedDateProblem, correctionProblem, NOTHING_SAVED } from '../src/lib/callrequest';
+import { harvestedPartProblem, PART_GRADES } from '../src/lib/indoorforms';
 import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS , FFR_WRITABLE, ffrWritable } from '../src/lib/ffr';
 import { buildFfrDocx, ffrDocName } from '../src/lib/ffrdoc';
 import { localIsoDate } from '../src/lib/dates';
@@ -1480,9 +1481,19 @@ console.log('\n-- the Objective page --');
   // between "we did not measure" and "it was perfect".
   eq('a blank month is stored as null, not zero', /value: number \| null = null;/.test(obj), true);
   eq('...and the screen says so', /NOT MEASURED, which is not the same as zero/.test(obj), true);
-  // Every figure is typed today, and the page says it rather than letting a
-  // number look computed.
-  eq('the page admits the figures are typed', /Every figure here is <b>typed<\/b> today/.test(obj), true);
+  // WHICH FIGURES ARE TYPED AND WHICH ARE CALCULATED, said truthfully (D-021,
+  // FRS-121.9). This assertion used to REQUIRE "Every figure here is typed
+  // today" — written before Re-calculate existed, and false beside rows marked
+  // ƒ that it writes from the register. It now requires the opposite: the
+  // claim is gone, and the page says the ƒ rows are calculated, a ✎ month was
+  // typed over the calculation, the other rows are typed, and the Total is
+  // typed on every row (Re-calculate does not write it — 0130).
+  eq('the page no longer says every figure is typed', /Every figure here is <b>typed<\/b>/.test(obj), false);
+  eq('...it says the ƒ rows are calculated by Re-calculate',
+    /The months of a row marked <b>ƒ<\/b> are <b>calculated<\/b> from the register by\s+Re-calculate/.test(obj), true);
+  eq('...that a ✎ month was typed over the calculation, and every other row is typed',
+    /marked <b>✎<\/b>, which\s+somebody typed over the calculation\. Every other row is <b>typed<\/b>/.test(obj), true);
+  eq('...and that the Total is typed on every row', /The <b>Total<\/b> is\s+typed on every row/.test(obj), true);
   // A target reads "<5%" / ">75%" / "To Monitor" — the last has no line, so it
   // must not be coloured as met or missed.
   eq('an unparseable target is neither met nor missed',
@@ -5807,6 +5818,105 @@ console.log('\n-- a call request can be corrected until it becomes a call --');
   // A date column takes null for "not set", never ''.
   eq('a cleared plan date is sent as null, not an empty string',
     /col === 'plan_date' \? \(v === '' \? null : v\) : v/.test(sb), true);
+}
+
+console.log('\n-- review batch: D-027, D-030, D-039 (the screen half) --');
+{
+  // ---- D-030 (c): A REQUEST IS WRITTEN WHOLE OR NOT AT ALL -----------------
+  // Run as behaviour: no REQID means no write, and the refusal says nothing
+  // was saved; a REQID means the one insert goes ahead.
+  const okMint = reqidOrRefusal('R00042', null);
+  eq('D-030: a minted REQID lets the batch be written', okMint.ok && okMint.reqid, 'R00042');
+  const noFn = reqidOrRefusal(null, 'function public.next_call_reqid() does not exist');
+  eq('D-030: no REQID is a refusal, not a fallback write', noFn.ok, false);
+  eq('D-030: ...and the refusal says NOTHING was saved',
+    !noFn.ok && noFn.error.includes(NOTHING_SAVED) && /no call on this request was written/.test(noFn.error), true);
+  eq('D-030: ...and keeps the database\'s reason', !noFn.ok && /next_call_reqid\(\) does not exist/.test(noFn.error), true);
+  eq('D-030: an empty answer with no error is refused too', reqidOrRefusal('', null).ok, false);
+  eq('D-030: ...as is a blank one', reqidOrRefusal('   ', null).ok, false);
+  const sbSrc = readFileSync('src/lib/supabase.ts', 'utf8');
+  const batch = sbSrc.slice(sbSrc.indexOf('export async function addCallRequestBatch'),
+    sbSrc.indexOf('\n}\n', sbSrc.indexOf('export async function addCallRequestBatch')));
+  eq('D-030: the batch asks reqidOrRefusal before writing anything',
+    batch.indexOf('reqidOrRefusal(') > 0 && batch.indexOf('reqidOrRefusal(') < batch.indexOf(".from('call_requests')"), true);
+  eq('D-030: ...writes ONE insert and nothing else', (batch.match(/\.insert\(/g) ?? []).length, 1);
+  eq('D-030: ...and never reports a partial save as ok', /ok: true[^}]*error/.test(code(batch)), false);
+
+  // ---- D-030 (d): THE ATTENDED DATE IS NOT AFTER TODAY ---------------------
+  eq('D-030: an attended date after today is refused',
+    attendedDateProblem(true, '2026-10-07', '2026-10-06'), 'The Attended Date cannot be in the future.');
+  eq('D-030: ...today is accepted', attendedDateProblem(true, '2026-10-06', '2026-10-06'), null);
+  eq('D-030: ...an earlier day is accepted', attendedDateProblem(true, '2026-09-30', '2026-10-06'), null);
+  eq('D-030: ...a missing one on Yes is still refused',
+    attendedDateProblem(true, '', '2026-10-06'), 'Attended Date is required when Call Attended? = Yes.');
+  eq('D-030: ...and on No nothing is asked', attendedDateProblem(false, '2099-01-01', '2026-10-06'), null);
+  const rq2 = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  eq('D-030: the Attended Date input stops at today', /field\('Attended Date \*', <input type="date" className="input" max=\{todayISO\(\)\}/.test(rq2), true);
+  eq('D-030: ...and the form asks the rule', /attendedDateProblem\(attended, f\.attendedDate, todayISO\(\)\)/.test(rq2), true);
+
+  // ---- D-030 (a)(b): THE CORRECTION HOLDS THE FORM'S CONTROLS --------------
+  const wl2 = /const CALL_REQUEST_EDITABLE: Record<string, string> = \{([\s\S]*?)\};/.exec(sbSrc)?.[1] ?? '';
+  eq('D-030: the submitted-by address is not correctable', /\bemail\b/.test(wl2), false);
+  const corr = rq2.slice(rq2.indexOf('function RequestCorrection('), rq2.indexOf('const LABELS: Record<string, string>'));
+  eq('D-030: the correction no longer renders every key as a text box',
+    /callRequestEditableKeys\(\)\.map\(\(k\) => \([\s\S]{0,300}<input className="input" value=\{String\(editRow\[k\]/.test(rq2), false);
+  eq('D-030: ...the complaint is the product\'s master, picked', /complaintMaster\.forProduct\(s\('product'\)\)/.test(corr), true);
+  eq('D-030: ...with no free text on a field call', /case 'standardComplaint':[\s\S]{0,700}allowFreeText/.test(corr), false);
+  eq('D-030: ...the serial is the form\'s machine search', /sbSearchMachines\(s\('product'\), qq, 50, ''\)/.test(corr), true);
+  eq('D-030: ...the call type and product are their masters',
+    /useMaster\('calltype', \['FIELD', 'INSTALLATION CALL'\]\)/.test(corr) && /useMaster\('product'\)/.test(corr), true);
+  eq('D-030: ...and the party is read off the machine on a field call',
+    /case 'partyName':[\s\S]{0,900}readOnly/.test(corr), true);
+  const row = (product: string, serial: string, party: string) => ({ product, serial, party, reportedProblem: 'x' });
+  eq('D-030: a corrected serial with no customer is refused',
+    /not on the register/.test(correctionProblem(row('ORION-G', '999', ''), [], false) ?? ''), true);
+  eq('D-030: ...a machine of another customer than the rest of the request is refused',
+    /one visit to one customer/.test(correctionProblem(row('ORION-G', '105', 'B HOSPITAL'), [row('ORION-G', '106', 'A HOSPITAL')], false) ?? ''), true);
+  eq('D-030: ...the same machine twice is refused',
+    /already on this request/.test(correctionProblem(row('ORION-G', '105', 'A'), [row('ORION-G', ' 105 ', 'A')], false) ?? ''), true);
+  eq('D-030: ...a sound correction passes', correctionProblem(row('ORION-G', '105', 'A HOSPITAL'), [row('ORION-G', '106', ' a  hospital ')], false), null);
+  eq('D-030: ...an installation names its customer by hand', correctionProblem(row('ORION-G', 'NEW1', 'NEW CUSTOMER'), [], true), null);
+  eq('D-030: ...and must name one', correctionProblem(row('ORION-G', 'NEW1', ''), [], true), 'Enter the Party Name.');
+  eq('D-030: the correction is checked before it is sent',
+    /correctionProblem\([\s\S]{0,200}\);\s*\n\s*if \(problem\) \{[^\n]*return; \}\s*\n\s*setSavingEdit\(true\);/.test(rq2), true);
+
+  // ---- D-027: THE WEEKLY REVIEW, AND WHO MAY OPEN IT -----------------------
+  const ffrR = readFileSync('src/modules/FieldFailureReport.tsx', 'utf8');
+  const ffrD = readFileSync('src/modules/FieldFailureDesk.tsx', 'utf8');
+  eq('D-027: the edit form carries the weekly review date', /value=\{String\(form\.reviewed_at \?\? ''\)\.slice\(0, 10\)\}/.test(ffrR), true);
+  eq('D-027: ...the reviewer and the attachment', /field\('Reviewed by', 'reviewed_by_name'\)/.test(ffrR)
+    && /field\('Attachment link', 'attachment_url'\)/.test(ffrR) && /uploadToDrive\(/.test(ffrR), true);
+  eq('D-027: the desk is handed no edit action without ffr.manage', /onEdit=\{mayRaise \? /.test(ffrR), true);
+  eq('D-027: ...and shows no Edit / weekly review button then', /\{onEdit && \(\s*<button[\s\S]{0,160}✎ Edit \/ weekly review/.test(ffrD), true);
+  eq('D-027: the form refuses a blank problem and customer before the database does',
+    /if \(!problem\) \{ setMsg[\s\S]{0,200}if \(!String\(form\.customer_name \?\? ''\)\.trim\(\)\) \{ setMsg/.test(ffrR), true);
+
+  // ---- D-039: WORKSHOP RECORDS ---------------------------------------------
+  const clean = sbSrc.slice(sbSrc.indexOf('export async function markIndoorCleaned'),
+    sbSrc.indexOf('export async function indoorJobById'));
+  eq('D-039: marking the unit cleaned does not send who cleaned it', /cleaned_by\s*:/.test(clean), false);
+  eq('D-039: ...but still sends the time the operator chose', /cleaned_at: at\.toISOString\(\)/.test(clean), true);
+  eq('D-039: a harvested part can be corrected after it is added', /export async function updateIndoorPart\(/.test(sbSrc), true);
+  eq('D-039: a part with no code is refused', harvestedPartProblem({ part_code: ' ', description: 'Valve', qty: '1', condition_grade: 'Serviceable', destination: 'Stores' }),
+    'Enter the part code of the harvested part.');
+  eq('D-039: ...as is one with no quantity', /quantity/.test(harvestedPartProblem({ part_code: 'P1', description: 'Valve', qty: '0', condition_grade: 'Serviceable', destination: 'Stores' }) ?? ''), true);
+  eq('D-039: ...a grade the table refuses', /condition grade/.test(harvestedPartProblem({ part_code: 'P1', description: 'Valve', qty: 1, condition_grade: 'Good', destination: 'Stores' }) ?? ''), true);
+  eq('D-039: ...and one with no destination', /Destination/.test(harvestedPartProblem({ part_code: 'P1', description: 'Valve', qty: 2, condition_grade: 'Scrap', destination: '' }) ?? ''), true);
+  eq('D-039: a whole part passes', harvestedPartProblem({ part_code: 'P1', description: 'Valve', qty: '2', condition_grade: 'Repairable', destination: 'Stores' }), null);
+  eq('D-039: the grades are the table\'s CHECK, less the blank', PART_GRADES.join('|'), 'Serviceable|Repairable|Scrap');
+  const ind = readFileSync('src/modules/IndoorService.tsx', 'utf8');
+  eq('D-039: a part is no longer added with a blank code', /addIndoorPart\(job\.id, \{ part_code: ''/.test(ind), false);
+  eq('D-039: the damage report time is on the screen, and not later than now',
+    /defaultValue=\{localDateTimeInput\(job\.reported_to_customer_at\)\} max=\{nowLocalDateTimeInput\(\)\}/.test(ind), true);
+  eq('D-039: ...and who recorded it is shown, never sent', /reported_to_customer_by\s*:/.test(ind), false);
+  eq('D-039: ...the time is writable, the person is not',
+    /'reported_to_customer_at',/.test(sbSrc) && !/'reported_to_customer_by',/.test(sbSrc), true);
+  // A stored time shown in a datetime-local box on THIS device's clock, never
+  // the UTC string sliced. Built from local parts, so it holds in any zone.
+  const localT = new Date(2026, 0, 2, 3, 4, 0);
+  eq('a stored timestamp reads back as the local time it was', localDateTimeInput(localT.toISOString()), '2026-01-02T03:04');
+  eq('...nothing is blank', localDateTimeInput(null), '');
+  eq('...and nonsense is blank', localDateTimeInput('not a date'), '');
 }
 
 console.log('\n-- the cover registers open an entry in a pop-up --');
@@ -10787,6 +10897,196 @@ console.log('\n-- every requirement carries a version and a date (Rev 3.2, 2026-
     }
     eq(`every ${pre} requirement in ${f} has a version and a date`, missing, []);
   }
+}
+
+console.log('\n-- "View as" writes nothing, and its allowlist stays read-only (D-069, FRS-212.2/.3) --');
+{
+  const G = await import('../src/lib/previewGuard');
+  const src = (f: string) => code(readFileSync(f, 'utf8'));
+
+  // THE ALLOWLIST IS ONLY AS GOOD AS EACH FUNCTION'S LATEST DEFINITION. Postgres
+  // refuses an INSERT / UPDATE / DELETE inside a `stable` or `immutable`
+  // function, which is what makes "on the list" mean "cannot write". So the
+  // volatility is read from the LAST migration that defines each name (file
+  // names in order — the order every apply uses), never from the first: a
+  // later redefinition that drops `stable` (the default is VOLATILE) fails here
+  // instead of silently re-opening the preview to writes through that function.
+  const files = readdirSync('supabase/migrations').filter((f) => f.endsWith('.sql')).sort();
+  const sqlOf = new Map(files.map((f) => [f, readFileSync(`supabase/migrations/${f}`, 'utf8').replace(/--[^\n]*/g, '')]));
+  const latest = (name: string): { file: string; vols: string[] } | null => {
+    let found: { file: string; vols: string[] } | null = null;
+    for (const f of files) {
+      const sql = sqlOf.get(f)!;
+      const re = new RegExp(`create\\s+(?:or\\s+replace\\s+)?function\\s+(?:public\\.)?"?${name}"?\\s*\\(`, 'gi');
+      const vols: string[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(sql))) {
+        const rest = sql.slice(m.index);
+        const dq = /\$([A-Za-z_]*)\$/.exec(rest);
+        if (!dq) { vols.push('unparsed'); continue; }
+        const close = rest.indexOf(dq[0], dq.index + dq[0].length);
+        const semi = rest.indexOf(';', close + dq[0].length);
+        const header = rest.slice(0, dq.index) + ' ' + rest.slice(close + dq[0].length, semi);
+        vols.push((/\b(immutable|stable|volatile)\b/i.exec(header)?.[1] ?? 'volatile').toLowerCase());
+      }
+      if (vols.length) found = { file: f, vols };
+      const alt = new RegExp(`alter\\s+function\\s+(?:public\\.)?${name}\\s*\\([^)]*\\)\\s+(immutable|stable|volatile)`, 'gi');
+      let a: RegExpExecArray | null;
+      while ((a = alt.exec(sql))) found = { file: f, vols: [a[1].toLowerCase()] };
+    }
+    return found;
+  };
+  const notRead = Object.keys(G.PREVIEW_READ_RPCS).flatMap((n) => {
+    const d = latest(n);
+    if (!d) return [`${n}: defined by no migration`];
+    return d.vols.every((v) => v === 'stable' || v === 'immutable') ? [] : [`${n}: ${d.vols.join('/')} in ${d.file}`];
+  });
+  eq('every allowlisted RPC is stable or immutable in its LATEST definition', notRead, []);
+  // The reason beside each names the migration that file is — kept honest too.
+  const staleReason = Object.entries(G.PREVIEW_READ_RPCS).flatMap(([n, why]) => {
+    const d = latest(n);
+    const num = /\((\d{4})\)/.exec(why)?.[1];
+    return d && num && d.file.startsWith(num) ? [] : [`${n}: reason says ${num ?? 'nothing'}, latest is ${d?.file ?? 'none'}`];
+  });
+  eq('...and each reason names the migration that holds that definition', staleReason, []);
+  // A volatile function never gets on, however read-like its name.
+  for (const n of ['next_call_reqid', 'ensure_my_profile', 'auto_answer_review2', 'refresh_product_cover', 'clear_my_notifications'])
+    eq(`${n} (volatile) is not allowlisted`, n in G.PREVIEW_READ_RPCS, false);
+
+  // An allowlisted Edge Function must not touch the project at all.
+  const edgeBad = Object.keys(G.PREVIEW_READ_EDGE).flatMap((n) => {
+    const p = `supabase/functions/${n}/index.ts`;
+    if (!existsSync(p)) return [`${n}: no ${p}`];
+    const s = code(readFileSync(p, 'utf8'));
+    return /\.from\(|\.rpc\(|\.storage\b|\/rest\/v1|\/storage\/v1|createClient\(/.test(s) ? [`${n}: touches the database`] : [];
+  });
+  eq('every allowlisted Edge Function reads and writes nothing in the database', edgeBad, []);
+
+  // What the guard refuses — the rule itself, as behaviour.
+  const B = 'https://p.supabase.co';
+  const cases: [string, string, boolean][] = [
+    [`${B}/rest/v1/calls?select=*`, 'GET', false],
+    [`${B}/rest/v1/calls?select=*`, 'HEAD', false],
+    [`${B}/rest/v1/calls`, 'POST', true],
+    [`${B}/rest/v1/calls?ucn=eq.X`, 'PATCH', true],
+    [`${B}/rest/v1/calls?ucn=eq.X`, 'DELETE', true],
+    [`${B}/rest/v1/calls?on_conflict=ucn`, 'POST', true],
+    [`${B}/rest/v1/rpc/spare_insights`, 'POST', false],
+    [`${B}/rest/v1/rpc/decide_spare_lines`, 'POST', true],
+    [`${B}/rest/v1/rpc/next_call_reqid`, 'POST', true],
+    [`${B}/rest/v1/rpc/no_such_function`, 'POST', true],
+    [`${B}/rest/v1/rpc/spare_insights`, 'GET', false],
+    [`${B}/auth/v1/token?grant_type=refresh_token`, 'POST', false],
+    [`${B}/auth/v1/logout`, 'POST', false],
+    [`${B}/auth/v1/user`, 'GET', false],
+    [`${B}/auth/v1/signup`, 'POST', true],
+    [`${B}/storage/v1/object/docs/a.pdf`, 'POST', true],
+    [`${B}/storage/v1/object/docs/a.pdf`, 'PUT', true],
+    [`${B}/functions/v1/suggest-complaint`, 'POST', false],
+    [`${B}/functions/v1/daily-digest`, 'POST', true],
+    [`${B}/graphql/v1`, 'POST', true],
+  ];
+  eq('the guard refuses every write and lets reads and session upkeep through',
+    cases.filter(([u, m, want]) => G.previewRefuses(u, m) !== want).map(([u, m]) => `${m} ${u}`), []);
+
+  // And the wrapper: refused requests never reach the network, and arrive as a
+  // PostgREST-shaped error carrying the message, so every screen's own error
+  // path shows it. Not code 42501 — errMsg() would rewrite that into "your role
+  // does not have permission", blaming the previewed role.
+  const sent: string[] = [];
+  const inner = (async (i: RequestInfo | URL, n?: RequestInit) => { sent.push(`${n?.method ?? 'GET'} ${String(i)}`); return new Response('[]', { status: 200 }); }) as typeof fetch;
+  const f = G.guardFetch(inner);
+  const was = G.isPreviewing();
+  G.setPreviewGuard(true);
+  const refused = await f(`${B}/rest/v1/calls`, { method: 'POST', body: '{}' });
+  const body = await refused.json() as { message?: string; code?: string };
+  await f(`${B}/rest/v1/calls?select=*`, { method: 'GET' });
+  await f(`${B}/auth/v1/token?grant_type=refresh_token`, { method: 'POST' });
+  G.setPreviewGuard(false);
+  await f(`${B}/rest/v1/calls`, { method: 'POST', body: '{}' });
+  G.setPreviewGuard(was);
+  eq('a refused write is a 403 carrying the preview message, never sent', [refused.status, body.message, body.code !== '42501'], [403, G.PREVIEW_REFUSAL, true]);
+  eq('...reads and session upkeep are sent; with no preview everything is', sent,
+    [`GET ${B}/rest/v1/calls?select=*`, `POST ${B}/auth/v1/token?grant_type=refresh_token`, `POST ${B}/rest/v1/calls`]);
+
+  // ONE choke point: every Supabase client the app creates carries the guard.
+  const sb = src('src/lib/supabase.ts');
+  eq('every createClient() in supabase.ts is given the guarded fetch',
+    (sb.match(/createClient\(/g) ?? []).length, (sb.match(/global:\s*\{\s*fetch:\s*previewFetch\s*\}/g) ?? []).length);
+  eq('...and that fetch is guardFetch', /const previewFetch = guardFetch\(/.test(sb), true);
+  const elsewhere = readdirSync('src', { recursive: true }).map(String)
+    .filter((p) => /\.(ts|tsx)$/.test(p) && p !== 'lib/supabase.ts' && /createClient\(/.test(code(readFileSync(`src/${p}`, 'utf8'))));
+  eq('no other file creates a Supabase client around the guard', elsewhere, []);
+
+  // The bridge writes over GET too, so it has its own allowlist of actions.
+  const sh = src('src/lib/sheets.ts');
+  eq('the CallReg bridge checks every action before it is sent',
+    /async function getJson\([^)]*\)[^{]*\{\s*assertBridgeMayRun\(params\.action\)/.test(sh), true);
+  eq('...and every POST to it (uploads, sheet exports) is refused in a preview',
+    (sh.match(/method: 'POST'/g) ?? []).length, (sh.match(/assertBridgeMayRun\(.*'POST'\);/g) ?? []).length);
+  {
+    const was2 = G.isPreviewing();
+    G.setPreviewGuard(true);
+    const t = (a: string, m?: 'GET' | 'POST') => { try { G.assertBridgeMayRun(a, m); return 'sent'; } catch (e) { return (e as Error).message; } };
+    const got = [t('ping'), t('update'), t('setmasters'), t('driveupload', 'POST')];
+    G.setPreviewGuard(was2);
+    eq('...a bridge read is sent and a bridge write refused', got, ['sent', G.PREVIEW_REFUSAL, G.PREVIEW_REFUSAL, G.PREVIEW_REFUSAL]);
+  }
+
+  // Start recorded BEFORE the guard goes up; end recorded AFTER it comes down —
+  // the other way round, the guard refuses the record of its own preview.
+  const au = src('src/lib/auth.tsx');
+  const sv = au.slice(au.indexOf('const setViewAs'), au.indexOf('const setViewAs') + 1500);
+  eq('viewas.start is written before the guard is raised',
+    sv.indexOf("action: 'viewas.start'") > 0 && sv.indexOf("action: 'viewas.start'") < sv.indexOf('setPreviewGuard(true)'), true);
+  const ep = au.slice(au.indexOf('const endPreview'), au.indexOf('const endPreview') + 600);
+  eq('viewas.end is written after the guard is lowered',
+    ep.indexOf('forgetPreview()') > 0 && ep.indexOf('forgetPreview()') < ep.indexOf("action: 'viewas.end'"), true);
+  eq('...and forgetting a preview lowers the guard',
+    /const forgetPreview = \(\) => \{\s*setPreviewGuard\(false\)/.test(au), true);
+  eq('a start that cannot be recorded does not start',
+    /if \(err\) return \{ ok: false, error: `The preview was not started/.test(sv), true);
+  eq('the guard comes up at boot when a preview is stored (fail-closed)',
+    /let previewing = \(\(\) => \{\s*try \{ return !!globalThis\.localStorage\?\.getItem\(VIEWAS_KEY\)/.test(code(readFileSync('src/lib/previewGuard.ts', 'utf8'))), true);
+}
+
+console.log('\n-- changes that decide what happens next are recorded (D-067) --');
+{
+  const src = (f: string) => code(readFileSync(f, 'utf8'));
+  const bu = src('src/modules/BulkUploads.tsx');
+  eq('Bulk Uploads records each load as bulk.upload', /action: 'bulk\.upload'/.test(bu) && /import \{ recordAudit \}/.test(bu), true);
+  // Every way a load can end once Upload is pressed: plan failed, nothing left,
+  // cancelled, prep write failed, rows failed, completed.
+  eq('...on every way a load can end, including the ones that wrote nothing',
+    (bu.match(/await record\(p, \{ outcome: '(stopped|cancelled|completed)'/g) ?? []).length, 6);
+  eq('...naming the register, the file and the counts',
+    ['register: def.label', 'file: p.file', 'rows_written', 'rows_held_back', 'rows_failed', 'completed:'].every((k) => bu.includes(k)), true);
+  eq('...and a failure to record is shown, not swallowed',
+    /return err \? ` ⚑ This load could not be recorded in the audit log: \$\{err\}` : ''/.test(bu), true);
+
+  const di = src('src/modules/DataImport.tsx');
+  eq('the legacy importer records each file as import.legacy', /action: 'import\.legacy'/.test(di), true);
+  eq('...including a file picked but not loadable',
+    /recordImport\(fs, \{ outcome: 'not loaded'/.test(di) && /recordImport\(fs, \{ outcome: res\.ok \? 'completed' : 'stopped'/.test(di), true);
+  eq('Normalise cover runs ONLY through the recorded wrapper',
+    [(di.match(/finishCoverImport\(\)/g) ?? []).length, /action: 'cover\.normalise'/.test(di), (di.match(/normaliseRecorded\('(after import|on demand)'/g) ?? []).length],
+    [1, true, 2]);
+
+  // Settings: recorded in the database being LEFT, so before the switch.
+  const db = src('src/modules/DbConnection.tsx');
+  const sw = db.slice(db.indexOf('const switchTo'));
+  eq('a change of database is recorded before it takes effect',
+    sw.indexOf("action: 'settings.database'") > 0 && sw.indexOf("action: 'settings.database'") < sw.lastIndexOf('setSupabaseCreds(url, anon)'), true);
+  eq('...and only switchTo switches it', (db.match(/setSupabaseCreds\(/g) ?? []).length, 2);
+  eq('...recording the address, never the key',
+    /old_url: was\.url, new_url: next\.url, key_changed: was\.anon !== next\.anon/.test(db) && !/(old|new)_key|anon: (was|next)\.anon/.test(db), true);
+  const sc = src('src/modules/SheetConnection.tsx');
+  const sw2 = sc.slice(sc.indexOf('const switchTo'));
+  eq('a change of CallReg bridge is recorded before it takes effect',
+    sw2.indexOf("action: 'settings.callreg_bridge'") > 0 && sw2.indexOf("action: 'settings.callreg_bridge'") < sw2.indexOf('setSheetsUrl(url)'), true);
+  eq('...and only switchTo changes it', (sc.match(/setSheetsUrl\(/g) ?? []).length, 2);
+  eq('recordAudit answers whether the entry was written (awaited, not fire-and-forget)',
+    /export async function recordAudit\(entry: AuditEntry\): Promise<string \| null>/.test(readFileSync('src/lib/audit.ts', 'utf8')), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
