@@ -272,6 +272,14 @@ function orderCalls<Q extends Orderable<Q>>(q: Q, callType: string): Q {
   return q.order('id', { ascending: false });
 }
 
+// THE OLD DCCR REGISTER'S CALLS ARE KEPT, NOT LISTED (0395; the user,
+// 2026-10-06: "Keep, but hide from registers"). They exist so the DCCR View and
+// the failure rate can read 2025; the Field / PM registers, the Dashboard, the
+// SLA flags and My Workload leave them out. Marked by the import itself.
+// Only that import writes `imported_from` into a call's extra, so a call
+// without it is a live call.
+export const HISTORICAL_MARK = 'extra->>imported_from';
+
 // Supabase caps a single response at ~1000 rows, so page through with range()
 // until the register is fully loaded (or `limit` reached).
 export async function listCalls(callType = '', limit = 20000): Promise<Record<string, unknown>[]> {
@@ -279,7 +287,7 @@ export async function listCalls(callType = '', limit = 20000): Promise<Record<st
   const out: Record<string, unknown>[] = [];
   for (let from = 0; from < limit; from += PAGE) {
     // Read the type's own table (isolated); the union view only for "all".
-    const q = orderCalls(must().from(callTable(callType)).select('*'), callType).range(from, Math.min(from + PAGE, limit) - 1);
+    const q = orderCalls(must().from(callTable(callType)).select('*').is(HISTORICAL_MARK, null), callType).range(from, Math.min(from + PAGE, limit) - 1);
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
@@ -295,7 +303,7 @@ export async function listCalls(callType = '', limit = 20000): Promise<Record<st
 export interface CallSearch { q?: string; ucn?: string; serial?: string; partyName?: string; productName?: string }
 const _san = (t: string) => t.replace(/[%,()]/g, ' ').trim();
 export async function searchCalls(callType: string, terms: CallSearch, limit = 1000): Promise<Record<string, unknown>[]> {
-  let q = orderCalls(must().from(callTable(callType)).select('*'), callType).limit(limit);
+  let q = orderCalls(must().from(callTable(callType)).select('*').is(HISTORICAL_MARK, null), callType).limit(limit);
   if (terms.ucn) q = q.ilike('ucn', `%${_san(terms.ucn)}%`);
   if (terms.serial) q = q.ilike('serial', `%${_san(terms.serial)}%`);
   if (terms.partyName) q = q.ilike('party_name', `%${_san(terms.partyName)}%`);
@@ -2528,7 +2536,7 @@ export async function listPendingCalls(callType = '', limit = 20000): Promise<Re
   const PAGE = 1000;
   const out: Record<string, unknown>[] = [];
   for (let from = 0; from < limit; from += PAGE) {
-    let q = must().from('pending_calls').select('*').order('id', { ascending: false }).range(from, Math.min(from + PAGE, limit) - 1);
+    let q = must().from('pending_calls').select('*').is(HISTORICAL_MARK, null).order('id', { ascending: false }).range(from, Math.min(from + PAGE, limit) - 1);
     if (callType) q = q.eq('call_type', callType);
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error));

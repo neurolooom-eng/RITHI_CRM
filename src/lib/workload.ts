@@ -25,6 +25,7 @@
 // shows `+` — the rule this project applies everywhere else and would be
 // easiest to drop on a screen made of counts.
 // ===========================================================================
+import { yearStartISO } from './dccr';
 import type { KpiTone } from '../components/kpi/Kpi';
 
 export interface WorkloadCard {
@@ -292,7 +293,9 @@ export async function commercialInstallSection(): Promise<WorkloadSection> {
 }
 
 export async function reviewSection(): Promise<WorkloadSection> {
-  const c = await countCallReviews({});
+  // From the start of the year, as the register itself opens -- so the old
+  // DCCR register's loaded reviews (0395) do not count as work waiting.
+  const c = await countCallReviews({ from: yearStartISO() });
   const at = (s: string) => c.byStatus[s] ?? 0;
   // `effectOnly` travels with every card, so arriving from one card clears what
   // another set. The Any Potential Effect card used to send an empty stage and
