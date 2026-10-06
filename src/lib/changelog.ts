@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.138',
+    date: '2026-10-06',
+    title: 'Old DCCR calls are kept but not listed in the call registers',
+    changes: [
+      'The calls loaded from the old DCCR register (2025) no longer appear in the Field Calls and PM Calls registers, their searches, the Dashboard, Pending Calls or the SLA flags. They stay in RITHI for the Daily Complaint Review and the failure rate, and still show in a machine\'s history.',
+      'MY WORKLOAD counts the review stages from the start of this year, as the register opens, so the old register\'s loaded reviews are not counted as work waiting.',
+    ],
+  },
+  {
     version: '0.10.137',
     date: '2026-10-06',
     title: 'Failure Rate (DCCR): the 12-month rolling average as a column',

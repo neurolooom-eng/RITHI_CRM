@@ -78,6 +78,14 @@ up)_
 
 ---
 
+## 2026-10-06 — Historical DCCR calls hidden from the registers (v0.10.138)
+
+- The user: "Did DCCR add calls to field register?" -> "Keep, but hide from registers".
+  listCalls / searchCalls / listPendingCalls skip calls whose extra carries
+  imported_from (only 0395 sets it); the Workload review counts start at the year,
+  as the register does. Machine History, the DCCR View, the failure rate and the
+  KPI export still read them.
+
 ## 2026-10-06 — SPARE on blank PM review rows (0400, v0.10.135)
 
 - 0399 added none: `_pm_spare_calls_in_dccr.sql` showed all 28 2026 PM calls with a
