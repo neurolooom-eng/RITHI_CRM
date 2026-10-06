@@ -33,7 +33,7 @@
 --   0391_indoor_approval_skips_a_solved_call.sql
 --   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 --   0367_indoor_dc_approver_is_the_login.sql
---   0387_indoor_record_visit_closed_and_comments.sql
+--   0394_indoor_record_visit_closed_and_comments.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -4979,11 +4979,11 @@ revoke execute on function public.indoor_dc_may_approve(text) from anon;
 grant execute on function public.indoor_dc_may_approve(text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0387_indoor_record_visit_closed_and_comments.sql
+-- 0394_indoor_record_visit_closed_and_comments.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0387 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
+-- 0394 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
 --        COLUMNS SAY WHEN THE VISIT IS ACTUALLY FILED
 --        (second re-review D-108, D-116)
 --

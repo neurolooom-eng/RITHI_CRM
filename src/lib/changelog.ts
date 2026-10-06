@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.126',
+    version: '0.10.128',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
     changes: [
@@ -24,7 +24,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.125',
+    version: '0.10.127',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -35,7 +35,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.124',
+    version: '0.10.126',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -49,7 +49,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.123',
+    version: '0.10.125',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -63,7 +63,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.122',
+    version: '0.10.124',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -74,6 +74,25 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.123',
+    date: '2026-10-06',
+    title: 'Stores Dispatch Report: 2026 historical stock outs added',
+    changes: [
+      'REPORTS → STORES DISPATCH REPORT now also lists the 2026 stock outs from the historical stock-out data, not only 2025. Spares that were dispatched before RITHI recorded the dispatch now appear.',
+      'A stock out that is both in the historical data and dispatched in RITHI is still shown once, as RITHI\'s. The Source column says which each row is.',
+    ],
+  },
+  {
+    version: '0.10.122',
+    date: '2026-10-06',
+    title: 'Stores Dispatch Report covers the whole of 2025',
+    changes: [
+      'REPORTS → STORES DISPATCH REPORT now lists every stock out from January to December 2025, taken from the historical stock-out data loaded under Bulk Uploads → Stock Out — all years. Filter Dispatched from 01-Jan-2025 to 31-Dec-2025 to see just that year.',
+      'For 2025 the OR date and Request Final Approval Date are read from that file, and the days and band are worked out exactly as for this year\'s dispatches. A 2025 stock out with no approval date reads "No approval date". Requested Qty is blank for 2025 because the file does not have it.',
+      'A new optional column, Source, says whether a row is a dispatch made in RITHI or a historical one. A stock out that is in both is shown once.',
     ],
   },
   {

@@ -845,8 +845,8 @@ const MODULES = {
             // 0323's indoor_dc_may_approve(), so after it.
             '0367_indoor_dc_approver_is_the_login.sql',
             // D-108 / D-116: record_indoor_visit() is no signed-in user's, and
-            // the visit columns say the visit is filed at approval (0387).
-            '0387_indoor_record_visit_closed_and_comments.sql'],
+            // the visit columns say the visit is filed at approval (0394).
+            '0394_indoor_record_visit_closed_and_comments.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -893,8 +893,8 @@ const MODULES = {
             // and split keys; see 0286 for the parent rule.
             '0295_user_profile_details_key.sql',
             // D-059: a User Master entry with a profile or R&R history is not
-            // deleted -- set Active to No instead (0388).
-            '0388_user_master_keeps_history.sql'],
+            // deleted -- set Active to No instead (0395).
+            '0395_user_master_keeps_history.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -1090,6 +1090,11 @@ const MODULES = {
             // The Stores Dispatch Report (the AppSheet Stores view) and the part's
             // IND/IMP; reads the dispatch, request-line and parts tables (0385).
             '0385_stores_dispatch_report.sql',
+            // Calendar 2025 from the historical stock outs (0387); redefines
+            // 0385's view, so it follows it.
+            '0387_stores_dispatch_2025_history.sql',
+            // And the 2026 historical stock outs (0388); replaces 0387's view.
+            '0388_stores_dispatch_2026_history.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.

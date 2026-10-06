@@ -161,14 +161,14 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-10-05 — Review batch 7: the three larger defects (v0.10.126, 0392–0393)
-- **Your ask:** *"Continue work"*. First I merged main again (#579–#581); my 0378–0382 became 0387–0391.
+### 2026-10-05 — Review batch 7: the three larger defects (v0.10.128, 0392–0393)
+- **Your ask:** *"Continue work"*. First I merged main again (#579–#581); my 0378–0382 became 0394–0391.
 - **D-041 (0393):** the five names on a spare line (approved at each stage, dispatched, received) are written from the session, and the value sent is discarded. Imports, renames and Auto-Approved are untouched.
 - **D-044 (0392):** three `SECURITY INVOKER` functions save the header and the lines in one transaction. The screens call them, and the clean-up deletes that could never run are gone.
 - **D-075** (screens, done by a helper agent and reviewed): Bulk Uploads plans with reads only. The confirmation states the preparation writes, which happen only after OK. A failed preparation stops the upload and says what was written.
 - **Checked:** `review_batch_7_test` is clean. On a database built without 0392–0393 every section fails. `check:uploads` has 18 new assertions; rows 330–331; OQ-266. Not run in a browser.
 
-### 2026-10-05 — Your decisions of 2026-10-05 built (v0.10.125, 0375, 0389, 0390)
+### 2026-10-05 — Your decisions of 2026-10-05 built (v0.10.127, 0375, 0389, 0390)
 - **Your answers:**
   - **D-033:** blank, must be answered.
   - **D-049:** same rule as spares.
@@ -186,12 +186,12 @@ checked.
 - **Found while merging main:** main's 0372 re-stated `approve_indoor_dc` without my D-145 skip. My 0360 is now 0391, built on 0372. It skips the visit only when the call is already Solved and the workshop's visit would not be Solved, so both changes stand.
 - **Checked:** `review_decisions_2_test`, and the three older fixtures the new rules broke, updated (`call_creator`, `call_registrant`, `review_batch_6`).
 
-### 2026-10-04 — Review batch 6: eleven defects fixed (v0.10.124, 0387–0373)
+### 2026-10-04 — Review batch 6: eleven defects fixed (v0.10.126, 0394–0373)
 - **Your ask:** *"D107, I don't have clarity. Park it. Move to the next batch"*. D-107 is recorded as parked. D-102 waits on your reading of `_d102_calls_mapped_by_call_number.sql`.
 - **Database:**
-  - **D-108, D-116 (0387):** `record_indoor_visit()` is revoked from signed-in users; the visit column comments are corrected.
+  - **D-108, D-116 (0394):** `record_indoor_visit()` is revoked from signed-in users; the visit column comments are corrected.
   - **D-086 (0371):** a list value is deleted only with the list's delete key or `masters.edit`. 0121's mirror is updated with it.
-  - **D-059 (0388):** a User Master entry with a profile or R&R history is not deleted.
+  - **D-059 (0395):** a User Master entry with a profile or R&R history is not deleted.
   - **D-050 (0373):** a transfer or return is not dated into a closed period or the future.
 - **Screens** (a helper agent did these; I reviewed them):
   - **D-018, D-065:** one export permission for CSV, .xlsx and .xls; audits only when a file left; Data Export gated, ordered and honest about its cap.
@@ -200,9 +200,9 @@ checked.
   - **D-040 (4):** the call history reads say when they failed.
   - **D-105:** Renew and Convert are keyed by product + serial.
   - **D-099 follow-up:** unsaved machine lines survive a re-read.
-- **Checked:** `review_batch_6_test` is clean with 0387–0373. On a database built without them, every section fails. `indoor_stages_test` and `indoor_delete_job_test` were updated for the revoke. `_status.sql` rows 328–321; OQ-264. Not run in a browser.
+- **Checked:** `review_batch_6_test` is clean with 0394–0373. On a database built without them, every section fails. `indoor_stages_test` and `indoor_delete_job_test` were updated for the revoke. `_status.sql` rows 328–321; OQ-264. Not run in a browser.
 
-### 2026-10-04 — Review batch 5: ten defects fixed (v0.10.123, 0366–0368)
+### 2026-10-04 — Review batch 5: ten defects fixed (v0.10.125, 0366–0368)
 - **Your ask:** *"Next batch"*. I took the open defects that need no decision.
 - **Database:**
   - **D-140, D-058, D-138 (0366):** the masters' required fields and case-variant codes; the KYC verifier kept when the status is unchanged (the rename half was already closed by 0335); a product line that Indoor jobs name is not deleted, and `product_line_name_uses()` backs the rename warning. These are triggers, not a unique index, so the migration cannot fail on a pair the live data already holds.
@@ -218,7 +218,7 @@ checked.
   - **D-107:** a real fix means only an issued Indoor DC can send a unit out.
 - **Checked:** `review_batch_5_test` is clean with the migrations. On a database built without 0366–0368, every section fails. `_status.sql` rows 300–302; OQ-263.
 
-### 2026-10-04 — Your decisions built: ten defects (v0.10.122, 0391–0363 and 0369)
+### 2026-10-04 — Your decisions built: ten defects (v0.10.124, 0391–0363 and 0369)
 - **Your answers**, one question at a time: D-125 (own name, team for RM/RGM, anybody else by a key ticked per person; spare requests also Technical Support), D-145 (approve, skip that visit), D-149 (blank only if a transfer set it), D-150 (button only on dealer transfers; the database refuses a duplicate call number and a second installation call), D-151 (Party Master decides), D-152 (just flag it for now), D-154 (at the Call Request), D-111 (lock once signed; a new key to un-sign), D-112 (the date it is marked Dispatched), D-114 (allow an earlier time).
 - **Database:**
   - **D-125 (0369):** `filed_under_own_name` on visits, consumption and spare requests; `created_by` stamped from the session. Before writing it I read every path that files in somebody else's name: imports, Reconciliation and the functions that do it by design are exempt.

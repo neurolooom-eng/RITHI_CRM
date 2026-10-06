@@ -6135,7 +6135,7 @@ export async function saveIndoorJob(
     'indoor_report_no', 'dc_date', 'remarks', 'cover',
     // The stages (0323). The report FILE and its stamps are not here: the
     // upload is saveIndoorReport(), and the database stamps who and when.
-    // visit_uid / visit_filed_at are the DC approval's (0327, 0387).
+    // visit_uid / visit_filed_at are the DC approval's (0327, 0394).
     'standard_complaint',
   ] as const;
   const rest = Object.fromEntries(

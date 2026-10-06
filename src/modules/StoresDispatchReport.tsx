@@ -44,6 +44,12 @@ export function StoresDispatchReport() {
       { key: 'itemStatus', label: 'Item Status', placeholder: 'e.g. CMC' },
     ],
     notes: [
+      { Item: 'Historical stock outs',
+        Value: 'From 1 January 2025 the report also lists the stock outs loaded through Bulk Uploads -> "Stock Out -- '
+          + 'all years", beside the dispatches made in RITHI; the optional Source column says which. A stock out that '
+          + 'is also a RITHI dispatch is shown once, as RITHI\'s. For a historical row the approval and OR dates are '
+          + 'read from that file, the days are worked out by the same rule as below, and Requested Qty is blank because '
+          + 'the file does not carry it. A historical stock out with no date in the file is not shown.' },
       { Item: 'Dispatched in (Days)',
         Value: 'Exact time from the Request Final Approval Date to the dispatch (Timestamp), in days to one '
           + 'decimal -- 0.7 is about 17 hours. Not date-minus-date: an approval at 17:00 and a dispatch at '

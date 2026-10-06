@@ -2129,13 +2129,13 @@ with checks(sort_order, bundle, provides, present) as (
         coalesce((select p.prosrc like '%d.gmail%' from pg_proc p where p.oid = to_regprocedure('public.indoor_dc_may_approve(text)')), false)),
     (302, 'A QMS document''s revision is a new entry, and a QMS document is retired, never deleted', 'qms_document_controlled on documents: a new QMS document needs its number, revision and effective date; once recorded, number, revision, effective date and file are fixed; a QMS document is not deleted or moved off the QMS shelf. Service manuals and notes, and imports, are untouched (0368, D-061). NO means documents.sql has not been re-run since. Restore: documents.sql (0368)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.documents') and tgname = 'qms_document_controlled')),
-    (328, 'record_indoor_visit() is not a signed-in user''s, and the indoor visit columns say the visit is filed at approval', 'No screen calls record_indoor_visit(); it is kept for a repair in the SQL editor and the DC approval files the visit itself. The comments on indoor_jobs.visit_draft / visit_uid / visit_filed_at say the visit is filed when the DC is approved (0387, D-108, D-116). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0387)',
+    (328, 'record_indoor_visit() is not a signed-in user''s, and the indoor visit columns say the visit is filed at approval', 'No screen calls record_indoor_visit(); it is kept for a repair in the SQL editor and the DC approval files the visit itself. The comments on indoor_jobs.visit_draft / visit_uid / visit_filed_at say the visit is filed when the DC is approved (0394, D-108, D-116). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0394)',
         (to_regprocedure('public.record_indoor_visit(bigint,text,boolean)') is null
          or not has_function_privilege('authenticated', to_regprocedure('public.record_indoor_visit(bigint,text,boolean)'), 'EXECUTE'))),
     (329, 'Deleting a master list value needs that list''s delete key', 'masters_delete asks master.<list>.delete or masters.edit -- not "Add / edit master records" (masters.edit.records), which edits and adds but never deleted on any screen (0371, D-086). NO means masters.sql has not been re-run since. Restore: masters.sql (0371)',
         exists (select 1 from pg_policy where polrelid = to_regclass('public.masters') and polname = 'masters_delete'
                  and pg_get_expr(polqual, polrelid) not like '%masters.edit.records%')),
-    (320, 'A User Master entry with a profile or R&R history is not deleted', 'user_directory_keeps_history refuses a signed-in delete of an entry that has a profile or a Roles & Responsibilities period -- set Active to No instead; an entry with neither can still be deleted (0388, D-059). NO means training.sql has not been re-run since. Restore: training.sql (0388)',
+    (320, 'A User Master entry with a profile or R&R history is not deleted', 'user_directory_keeps_history refuses a signed-in delete of an entry that has a profile or a Roles & Responsibilities period -- set Active to No instead; an entry with neither can still be deleted (0395, D-059). NO means training.sql has not been re-run since. Restore: training.sql (0395)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.user_directory') and tgname = 'user_directory_keeps_history')),
     (321, 'A stock transfer or return is not dated into a closed hand-stock period or the future', 'stock_movement_date_open on stock_transfers and material_returns refuses, for a signed-in non-importer, a date on or before the last closed day or after today (0373, D-050). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0373)',
         (select count(*) from pg_trigger where tgname = 'stock_movement_date_open' and not tgisinternal
@@ -2160,7 +2160,12 @@ with checks(sort_order, bundle, provides, present) as (
          and not has_function_privilege('anon', to_regprocedure('public.save_spare_request(jsonb,jsonb)'), 'EXECUTE'))),
     (331, 'Who approved, dispatched or received a spare is the session', 'zzy_spare_line_people_from_session writes the signed-in person into rm_by, commercial_by, nsm_by, dispatched_by and received_by whenever a signed-in write sets one, discarding the value sent; imports, renames and Auto-Approved are untouched (0393, D-041). NO means Spare_1.sql has not been re-run since. Restore: Spare_1.sql (0393)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_request_lines')
-                 and tgname = 'zzy_spare_line_people_from_session'))
+                 and tgname = 'zzy_spare_line_people_from_session')),
+    (319, 'Stores Dispatch Report: the historical stock outs from 2025', 'stores_dispatch_report also reads spare_issue_history for stock outs dated from 1 January 2025 (India time) not already dispatched in RITHI, with a Source column (RITHI / Historical); dmy_ts() reads the file''s day-first dates kept in data (0387, widened to 2026 by 0388). NO means HandStock_X.sql has not been re-run since, or the view lost security_invoker. Restore: HandStock_X.sql (0388)',
+        (to_regprocedure('public.dmy_ts(text)') is not null
+         and to_regprocedure('public.text_num(text)') is not null
+         and coalesce((select array_to_string(c.reloptions, ',') like '%security_invoker=on%' from pg_class c where c.oid = to_regclass('public.stores_dispatch_report')), false)
+         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stores_dispatch_report' and column_name = 'Source')))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

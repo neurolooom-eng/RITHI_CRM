@@ -149,7 +149,7 @@ insert into public.reports (uid, ucn, call_status, pending_reason, engineer, eng
 
 \echo '--- 5. THE VISIT MAY NAME AN ENGINEER WHO IS NOT THE SESSION ---'
 -- Recorded as a repair in the SQL editor would (no signed-in caller may run
--- record_indoor_visit() since 0387, D-108); the approval is the approver's.
+-- record_indoor_visit() since 0394, D-108); the approval is the approver's.
 begin;
   select public.record_indoor_visit((select id from public.indoor_jobs where serial = 'D4'), 'VIS-DEL-4', true);
   set local role authenticated;

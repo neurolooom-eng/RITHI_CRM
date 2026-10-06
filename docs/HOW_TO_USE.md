@@ -1384,6 +1384,12 @@ typed into a form that reads it.
   > number: AppSheet called those ">5 yrs", which was an empty date, not 5 years.
   > **IND/IMP comes from the Part Master** — set it there, or load it with the
   > Part Master upload's IND/IMP column. Blank until you do.
+  > **From 1 January 2025 it also lists the historical stock outs** you loaded
+  > with Bulk Uploads → *Stock Out — all years*, beside the dispatches made in
+  > RITHI. Tick the **Source** column to see which is which; a stock out that is
+  > in both is shown once. For a historical row the approval date is the one in
+  > that file, the days are worked out the same way, and Requested Qty is blank
+  > because the file does not have it.
 - **Reports — Not Consumed Against this Call** `/exports/unused` — `NOT USED`
   where none was booked, `SHORT` where less was booked than sent. Refused and
   dropped lines are excluded.
