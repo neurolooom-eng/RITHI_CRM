@@ -39,14 +39,27 @@ export function rollingAverage(rows: DccrCohortRow[], endMonth: string, months =
   return { avg: used.length ? used.reduce((s, r) => s + Number(r.r3), 0) / used.length : null, used, from };
 }
 
+/** THE ROLLING AVERAGE AS A COLUMN (the user, 2026-10-06: "Add rolling month
+ *  average also in column"): for each month, the average of the 3-month rates
+ *  of the 12 commissioning months ending in it, blanks left out -- the
+ *  Objective's own rule, read off this table (as at the table's date). */
+export function rollingByMonth(rows: DccrCohortRow[], months = 12): Map<string, number | null> {
+  const out = new Map<string, number | null>();
+  rows.forEach((r) => out.set(r.month, rollingAverage(rows, r.month, months).avg));
+  return out;
+}
+
 /** The workbook: the table, the failing calls, and how the month's figure is made. */
 export async function downloadCohortWorkbook(o: QualityObjective, asof?: string, objectiveMonth?: number, year?: number) {
   const [rows, calls] = await Promise.all([dccrFailureCohorts(o.id, asof), dccrFailureCalls(o.id, asof)]);
-  const tableCols = ['Month of commissioning', 'Parc', ...COHORT_WINDOWS.flatMap((w) => [`Number of failures before ${w} months`, `${w}-month failure rate`])];
+  const ROLL = '12-month rolling average (3-month rate)';
+  const tableCols = ['Month of commissioning', 'Parc', ...COHORT_WINDOWS.flatMap((w) => [`Number of failures before ${w} months`, `${w}-month failure rate`, ...(w === 3 ? [ROLL] : [])])];
+  const rollMap = rollingByMonth(rows);
   const table = rows.map((r) => ({
     'Month of commissioning': monthLabel(r.month), Parc: r.parc,
     ...Object.fromEntries(COHORT_WINDOWS.flatMap((w) => [
-      [`Number of failures before ${w} months`, f(r, w) ?? ''], [`${w}-month failure rate`, rt(r, w) == null ? '' : Number(rt(r, w))]])),
+      [`Number of failures before ${w} months`, f(r, w) ?? ''], [`${w}-month failure rate`, rt(r, w) == null ? '' : Number(rt(r, w))],
+      ...(w === 3 ? [[ROLL, rollMap.get(r.month) == null ? '' : Number((rollMap.get(r.month) as number).toFixed(6))]] : [])])),
   }));
   const callCols = ['UCN', 'Call Number', 'Registered', 'Product', 'Serial', 'Party', 'Installed (Warranty Start)', 'Month of commissioning', 'Days after installation', 'Spare / Consumable / Correction / Calibration', 'Any Potential Effect'];
   const callRows = calls.map((c: DccrFailureCall) => ({
@@ -105,6 +118,7 @@ export function FailureCohorts({ objectives }: { objectives: QualityObjective[] 
   const roll = rollingAverage(rows, thisMonth);
   // 3, 6, 12, 24, 36, 60 -- the shortest window first (the user, 2026-10-06).
   const wins = COHORT_WINDOWS;
+  const rollMap = rollingByMonth(rows);
 
   return (
     <div>
@@ -131,9 +145,11 @@ export function FailureCohorts({ objectives }: { objectives: QualityObjective[] 
           <table className="obj-table cohort-table">
             <thead>
               <tr><th rowSpan={2} className="cohort-freeze">Month of commissioning</th><th rowSpan={2} className="obj-num">Parc</th>
-                {wins.map((w) => <th key={w} colSpan={2}>{w}-month failure rate</th>)}</tr>
+                {wins.map((w) => <th key={w} colSpan={w === 3 ? 3 : 2}>{w}-month failure rate</th>)}</tr>
               <tr>{wins.map((w) => [<th key={`f${w}`} className="obj-num">Number of failures before {w} months</th>,
-                                    <th key={`r${w}`} className="obj-num">{w}-month failure rate</th>])}</tr>
+                                    <th key={`r${w}`} className="obj-num">{w}-month failure rate</th>,
+                                    ...(w === 3 ? [<th key="roll" className="obj-num cohort-roll"
+                                      title="The average of the 3-month rates of the 12 months of commissioning ending in this month, blank months left out — what the Objective takes for the month">12-month rolling average</th>] : [])])}</tr>
             </thead>
             <tbody>
               {rows.slice().reverse().map((r) => (
@@ -141,7 +157,8 @@ export function FailureCohorts({ objectives }: { objectives: QualityObjective[] 
                   <td className="cohort-freeze">{monthLabel(r.month)}</td>
                   <td className="obj-num">{r.parc}</td>
                   {wins.map((w) => [<td key={`f${w}`} className="obj-num">{f(r, w) ?? ''}</td>,
-                                    <td key={`r${w}`} className="obj-num">{pct(rt(r, w))}</td>])}
+                                    <td key={`r${w}`} className="obj-num">{pct(rt(r, w))}</td>,
+                                    ...(w === 3 ? [<td key="roll" className="obj-num cohort-roll">{rollMap.get(r.month) == null ? '' : `${((rollMap.get(r.month) as number) * 100).toFixed(2)}%`}</td>] : [])])}
                 </tr>
               ))}
             </tbody>

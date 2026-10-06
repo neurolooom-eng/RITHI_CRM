@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.137',
+    date: '2026-10-06',
+    title: 'Failure Rate (DCCR): the 12-month rolling average as a column',
+    changes: [
+      'OBJECTIVE → FAILURE RATE (DCCR): a new column beside the 3-month rate gives, for every month, the 12-month rolling average — the average of the 3-month rates of the 12 months of commissioning ending in that month, blank months left out (the Objective’s own rule). It is in the download too.',
+    ],
+  },
+  {
     version: '0.10.136',
     date: '2026-10-06',
     title: 'Failure Rate (DCCR): 3 months first, and the month column frozen',
