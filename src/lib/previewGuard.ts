@@ -73,6 +73,7 @@ export const PREVIEW_READ_RPCS: Readonly<Record<string, string>> = {
   install_calls_unmapped:     'stable (0319) — lists installation calls with no sale',
   machine_current_party:      'stable (0240) — reads which customer holds a machine',
   machine_warranty_preview:   'stable (0332) — previews a machine\'s warranty dates',
+  master_value_uses:          'stable (0409) — counts the records carrying a value-list entry',
   my_table_view:              'stable (0120) — reads a saved table layout',
   objective_cutoff_locked:    'stable (0138) — reads whether a month is locked',
   objective_evidence:         'stable (0359) — reads the evidence behind an objective',

@@ -3,7 +3,7 @@ import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { Drawer } from '../components/ui/ui';
-import { reportsByCall, saveReport, updateCall, addConsumptionRows, addFeedback, sbListPartyItems, handstockForEngineer, supabaseConfigured, sbWarrantyPreview, type WarrantyPreview } from '../lib/supabase';
+import { reportsByCall, saveReport, updateCall, addConsumptionRows, addFeedback, feedbackOnCall, sbListPartyItems, handstockForEngineer, supabaseConfigured, sbWarrantyPreview, type WarrantyPreview } from '../lib/supabase';
 import { num, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
 import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { driveFolderForCall } from '../lib/drivefolders';
@@ -17,7 +17,7 @@ import { todayISO, fmtLongDateTime, fmtLongDate } from '../lib/format';
 import { visitDateProblem } from '../lib/visitdate';
 import { manualReportLink } from '../lib/reports';
 import { DocPreview } from '../components/doc/DocPreview';
-import { localIsoDate, toIsoDate, formatDay } from '../lib/dates';
+import { localIsoDate, toIsoDate, formatDay, formatDayTime } from '../lib/dates';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -152,11 +152,20 @@ export interface VisitProgress { uid?: string; sparesSaved?: boolean }
 
 const isSolvedStatus = (s: string) => /solved/i.test(s) && /complet/i.test(s);
 
+/** What the visit form says of a call that already carries its feedback
+ *  (FRS-133.6) -- in the form before saving and in the banner after. */
+export function feedbackKeptNote(at: string): string {
+  // formatDayTime, not formatDay: created_at is an INSTANT in UTC, and the
+  // front of that string is the wrong day before 05:30 IST.
+  const when = formatDayTime(at);
+  return `This call already carries its customer feedback${when ? `, recorded on ${when}` : ''} — it is kept unchanged.`;
+}
+
 export async function fileVisit(
   call: CallLike, d: VisitDraft,
   opts: { filerEmail: string; visitEntry?: string; extraData?: Record<string, unknown>; progress?: VisitProgress;
           onProgress?: (p: VisitProgress) => void },
-): Promise<{ ok: true; uid: string } | { ok: false; error: string; progress: VisitProgress }> {
+): Promise<{ ok: true; uid: string; feedbackKept?: { at: string } } | { ok: false; error: string; progress: VisitProgress }> {
   const ucn = String(call.ucn ?? '');
   const callType = String(call.callType ?? call['call_type'] ?? '');
   const callNumber = String(call.callNumber ?? '');
@@ -216,7 +225,21 @@ export async function fileVisit(
     // The warranty start date is asked in the Service Report but belongs on
     // the feedback row.
     const fbQuestions = FEEDBACK_QUESTIONS.filter((q) => fbApplies(q.rule, callType));
+    // ONE FEEDBACK PER CALL, AND THE FIRST IS KEPT (D-035, FRS-133.6).
+    // `feedback_ucn_key_uniq` holds one per UCN, so a call re-opened and solved
+    // again used to insert a second, fail, and report "the customer feedback
+    // was not saved" AFTER its visit and spares were written. The feedback
+    // already on the call is the customer's verdict and stays; this visit
+    // records none, and says so. Asked of the database here even when the form
+    // already knew, because a read that failed there is not an answer.
+    let feedbackKept: { at: string } | undefined;
     if (solved && fbQuestions.length) {
+      try {
+        const had = await feedbackOnCall(ucn);
+        if (had) feedbackKept = { at: had.createdAt || had.visitAt };
+      } catch { /* not known: the insert below is still refused by the index, and that is read as kept */ }
+    }
+    if (solved && fbQuestions.length && !feedbackKept) {
       const answers: Record<string, unknown> = {};
       fbQuestions.forEach((q) => { const val = d.feedback[q.col]; if (val != null && String(val).trim() !== '') answers[q.col] = val; });
       if (isInstall && String(d.work[WARRANTY_Q] ?? '').trim()) answers[WARRANTY_Q] = d.work[WARRANTY_Q];
@@ -226,13 +249,18 @@ export async function fileVisit(
         serial: String(call.serial ?? ''), complaint: String(call.complaintReported ?? ''),
         answers, visit_at: d.visitDate ? `${d.visitDate}T00:00:00Z` : null,
       });
-      if (!fb.ok) {
+      if (!fb.ok && fb.duplicate) {
+        // The one-per-call index refused it: the call ALREADY carries feedback
+        // (written between the form opening and this save, or not readable
+        // above). That is the kept state, not a failure.
+        feedbackKept = { at: '' };
+      } else if (!fb.ok) {
         logAudit({ action: 'call.report.feedback', target: ucn, status: 'error', error: fb.error });
         return { ok: false, progress, error: `The visit and the spares were saved, but the customer feedback was not: ${fb.error}` };
       }
     }
-    logAudit({ action: 'call.report', target: ucn, status: 'ok', duration_ms: Math.round(performance.now() - t0), meta: { call_status: d.status, spares: d.spares.length } });
-    return { ok: true, uid: progress.uid! };
+    logAudit({ action: 'call.report', target: ucn, status: 'ok', duration_ms: Math.round(performance.now() - t0), meta: { call_status: d.status, spares: d.spares.length, ...(feedbackKept ? { feedback: 'kept' } : {}) } });
+    return { ok: true, uid: progress.uid!, ...(feedbackKept ? { feedbackKept } : {}) };
   } catch (e) {
     logAudit({ action: 'call.report', target: ucn, status: 'error', error: e instanceof Error ? e.message : String(e), duration_ms: Math.round(performance.now() - t0) });
     return { ok: false, progress, error: `Save failed: ${e instanceof Error ? e.message : String(e)}` };
@@ -272,7 +300,9 @@ export function CallReportDrawer({
   call: CallLike | null;
   open: boolean;
   onClose: () => void;
-  onSaved?: (mode: string, ucn: string) => void;
+  /** `note` — anything the save wants said beside "saved", e.g. that the call
+   *  already carried its feedback and kept it (FRS-133.6). */
+  onSaved?: (mode: string, ucn: string, note?: string) => void;
   /** Present = the Indoor Service Report stage: a draft, not a visit. */
   indoor?: IndoorDraftMode;
 }) {
@@ -383,6 +413,22 @@ export function CallReportDrawer({
   // Reports are a HISTORY (one row per visit). Each Visit Entry starts a fresh
   // visit; prior visits are context (and the last manual report).
   const [priorVisits, setPriorVisits] = useState<Record<string, unknown>[]>([]);
+  // THE FEEDBACK THE CALL ALREADY CARRIES (D-035, FRS-133.6): one per call, so a
+  // call re-opened and solved again keeps the first and the form says so instead
+  // of asking again. `undefined` = not read (yet, or the read failed -- then the
+  // questions are asked and the save re-checks); `null` = read, there is none.
+  const [fbExisting, setFbExisting] = useState<{ at: string } | null | undefined>(undefined);
+  const [fbExistingErr, setFbExistingErr] = useState('');
+  useEffect(() => {
+    setFbExisting(undefined); setFbExistingErr('');
+    if (!open || !ucn || !supabaseConfigured()) return;
+    let alive = true;
+    feedbackOnCall(ucn)
+      .then((r) => { if (alive) setFbExisting(r ? { at: r.createdAt || r.visitAt } : null); })
+      .catch((e) => { if (alive) setFbExistingErr(e instanceof Error ? e.message : String(e)); });
+    return () => { alive = false; };
+  }, [open, ucn]);
+  const feedbackAlready = !!fbExisting;
   useEffect(() => {
     if (!open || !ucn) return;
     if (!supabaseConfigured()) { setErr('Connect the database in Settings to report calls.'); return; }
@@ -632,9 +678,10 @@ export function CallReportDrawer({
     }
     if (solved) {
       if (!manualLink.trim()) return 'Manual Report is mandatory when the call is Solved - Report Completed — upload the signed report.';
-      const missFb = fbQuestions.filter((q) => (q.answer === 'rating' || q.answer === 'yesno') && !String(feedback[q.col] ?? '').trim());
+      // Not asked again of a call that already carries its feedback (FRS-133.6).
+      const missFb = feedbackAlready ? [] : fbQuestions.filter((q) => (q.answer === 'rating' || q.answer === 'yesno') && !String(feedback[q.col] ?? '').trim());
       if (missFb.length) return `Customer feedback is mandatory for a solved call. Answer: ${missFb.map((q) => q.col).join(', ')}.`;
-      if (fbQuestions.length && !can('visit.feedback'))
+      if (fbQuestions.length && !feedbackAlready && !can('visit.feedback'))
         return 'A solved call records the customer’s feedback, which needs “Record customer feedback on a visit” — ask an administrator for it.';
     }
     return '';
@@ -670,7 +717,7 @@ export function CallReportDrawer({
     const r = await fileVisit(call ?? {}, draft, { filerEmail: user?.email ?? '', visitEntry, progress, onProgress: setProgress });
     setBusy(false);
     if (!r.ok) { setErr(r.error); return; }
-    onSaved?.('saved', ucn);
+    onSaved?.('saved', ucn, r.feedbackKept ? feedbackKeptNote(r.feedbackKept.at) : undefined);
     onClose();
   };
 
@@ -1071,8 +1118,23 @@ export function CallReportDrawer({
             </section>
           )}
 
-          {/* Customer feedback (solved) */}
-          {solved && fbQuestions.length > 0 && (
+          {/* Customer feedback (solved) -- or, on a call that already carries
+              it (re-opened and solved again), the statement that it is kept. */}
+          {solved && fbQuestions.length > 0 && feedbackAlready && (
+            <section className="rep-sec">
+              <div className="rep-sec-title">Customer feedback <span className="muted">→ already on this call</span></div>
+              <div className="sheet-banner sheet-banner-info" role="status">
+                <span>{feedbackKeptNote(fbExisting?.at ?? '')} One feedback is kept per call, so this visit records none.</span>
+              </div>
+            </section>
+          )}
+          {solved && fbQuestions.length > 0 && !feedbackAlready && fbExistingErr && (
+            <div className="muted rep-hint">
+              Whether this call already carries customer feedback could not be read ({fbExistingErr}). Answer below; if it
+              does, the feedback already recorded is kept and the save says so.
+            </div>
+          )}
+          {solved && fbQuestions.length > 0 && !feedbackAlready && (
             <section className="rep-sec">
               <div className="rep-sec-title">Customer feedback * <span className="muted">→ feedback · {callType || 'call'} · required</span></div>
               <div className="rep-grid">

@@ -2677,9 +2677,34 @@ export async function openCallsFor(machines: MachineRef[], parties: string[] = [
 
 // Re-open a closed call (Hotline). The DB checks the permission and that the
 // call really is closed, and counts the re-open on the call.
-export async function reopenCall(ucn: string, reason = ''): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().rpc('reopen_call', { p_ucn: ucn, p_reason: reason });
+// THE REASON IS REQUIRED (0411, D-035, FRS-133.4 / FRS-120.9): no default, and
+// a blank one is refused here in the database's own words before a round trip
+// -- reopen_call() refuses it too and records the reason, the person and the
+// time in public.call_reopens.
+export async function reopenCall(ucn: string, reason: string): Promise<{ ok: boolean; error?: string }> {
+  if (!String(reason ?? '').trim()) return { ok: false, error: `Give the reason for re-opening call ${ucn}` };
+  const { error } = await must().rpc('reopen_call', { p_ucn: ucn, p_reason: reason.trim() });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+/** One re-open of a call, as reopen_call() recorded it (0411). */
+export interface CallReopen { id: number; ucn: string; reopenedAt: string; reopenedBy: string; reopenedByName: string; reason: string }
+/** A call's re-opens, newest first (D-035, FRS-133.4). A failed read THROWS:
+ *  an empty list here reads as "never re-opened", which is a claim about the
+ *  call that an error must not make (the D-040 rule). */
+export async function listCallReopens(ucn: string): Promise<CallReopen[]> {
+  const key = String(ucn ?? '').trim();
+  if (!key) return [];
+  const { data, error } = await must().from('call_reopens')
+    .select('id,ucn,reopened_at,reopened_by,reopened_by_name,reason')
+    .eq('ucn', key)
+    .order('reopened_at', { ascending: false }).order('id', { ascending: false })
+    .limit(200);
+  if (error) throw new Error(errMsg(error));
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    id: Number(r.id), ucn: String(r.ucn ?? ''), reopenedAt: String(r.reopened_at ?? ''),
+    reopenedBy: String(r.reopened_by ?? ''), reopenedByName: String(r.reopened_by_name ?? ''), reason: String(r.reason ?? ''),
+  }));
 }
 
 // Withdraw a re-open (the call was re-opened only to correct it). The call
@@ -3608,9 +3633,24 @@ export async function updateMasterItem(id: number, patch: { value?: string; extr
   return { ok: true };
 }
 
+/** HOW MANY RECORDS CARRY ONE VALUE OF A LIST (0409, D-056, FRS-180.6) — asked
+ *  BEFORE a Delete is offered, so a value in use is deactivated instead. The
+ *  function counts as its owner, so the number is every record, not only the
+ *  ones the reader may see. A count that could not be read is an ERROR, never
+ *  0: 0 would offer the delete on exactly the value the count exists to stop
+ *  (the database still refuses it, 0409's trigger, and that refusal is shown). */
+export async function masterValueUses(name: string, value: string): Promise<{ ok: true; uses: number } | { ok: false; error: string }> {
+  const { data, error } = await must().rpc('master_value_uses', { p_name: name, p_value: value });
+  if (error) return { ok: false, error: errMsg(error) };
+  const n = Number(data);
+  return Number.isFinite(n) ? { ok: true, uses: n } : { ok: false, error: `master_value_uses returned ${JSON.stringify(data)}` };
+}
+
 export async function deleteMasterItem(id: number): Promise<{ ok: boolean; error?: string }> {
   // ROWS COUNTED: row-level security refuses a delete by matching nothing, and
-  // no error is not "removed" (finding 48).
+  // no error is not "removed" (finding 48). A value records carry is refused
+  // by the database (0409) in its own words, passed on VERBATIM -- it says how
+  // many records and to deactivate instead.
   const { data, error } = await must().from('masters').delete().eq('id', id).select('id');
   if (error) return { ok: false, error: errMsg(error) };
   if (!data || data.length === 0) return { ok: false, error: 'Nothing was removed — your role may not delete values from this list.' };
@@ -4570,9 +4610,28 @@ export async function addConsumptionRows(rows: Record<string, unknown>[]): Promi
   const { error } = await must().from('spare_consumption').insert(rows);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
-export async function addFeedback(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+/** `duplicate` — the call ALREADY carries its feedback: `feedback_ucn_key_uniq`
+ *  (0186/0188) keeps one per UCN, and a re-opened call solved again must keep
+ *  the first (FRS-133.6), so the caller reports that rather than a failure. */
+export async function addFeedback(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string; duplicate?: boolean }> {
   const { error } = await must().from('feedback').insert(row);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  if (!error) return { ok: true };
+  return { ok: false, error: errMsg(error), duplicate: error.code === '23505' };
+}
+
+/** THE FEEDBACK A CALL ALREADY CARRIES, or null (D-035, FRS-133.6). Matched on
+ *  `ucn_key` -- the generated lower(btrim(ucn)) the one-per-call index is built
+ *  on (0186/0188) -- so this answers exactly the question the index will. A
+ *  failed read THROWS: null would mean "no feedback yet" and the form would
+ *  ask for a second one. */
+export async function feedbackOnCall(ucn: string): Promise<{ id: number; createdAt: string; visitAt: string } | null> {
+  const key = String(ucn ?? '').trim().toLowerCase();
+  if (!key) return null;
+  const { data, error } = await must().from('feedback').select('id,created_at,visit_at')
+    .eq('ucn_key', key).order('id', { ascending: false }).limit(1);
+  if (error) throw new Error(errMsg(error));
+  const r = (data ?? [])[0] as Record<string, unknown> | undefined;
+  return r ? { id: Number(r.id), createdAt: String(r.created_at ?? ''), visitAt: String(r.visit_at ?? '') } : null;
 }
 
 // ---- auth (email + password) ----------------------------------------------

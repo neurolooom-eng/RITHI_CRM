@@ -35,6 +35,18 @@
 -- owner. In the masters module, last.
 -- ===========================================================================
 
+-- One list under two names: Standard Complaint rows are named `complaint`
+-- since 0021 and may still be named `standardComplaint` (0233 can write it),
+-- and the screen reads both as one list -- so does this.
+create or replace function public.master_list_family(p_name text)
+returns text language sql immutable set search_path = public as $$
+  select case lower(btrim(coalesce(p_name, '')))
+           when 'standardcomplaint' then 'complaint'
+           else lower(btrim(coalesce(p_name, ''))) end
+$$;
+revoke execute on function public.master_list_family(text) from public, anon;
+grant execute on function public.master_list_family(text) to authenticated;
+
 create or replace function public.master_value_uses(p_name text, p_value text)
 returns bigint language plpgsql stable security definer set search_path = public as $$
 declare
@@ -45,7 +57,7 @@ declare
   cols text[][];
 begin
   if v = '' then return 0; end if;
-  cols := case lower(btrim(coalesce(p_name, '')))
+  cols := case public.master_list_family(p_name)
     when 'calltype' then array[['call_requests','call_type'], ['field_calls','call_type'], ['installation_calls','call_type'],
                                ['pm_calls','call_type'], ['feedback','call_type'], ['field_failure_reports','call_type'],
                                ['pending_registrations','call_type']]
@@ -69,7 +81,7 @@ begin
       end if;
     end loop;
   end if;
-  if lower(btrim(coalesce(p_name, ''))) = 'feedbackrating' and to_regclass('public.feedback') is not null then
+  if public.master_list_family(p_name) = 'feedbackrating' and to_regclass('public.feedback') is not null then
     select count(*) into c
       from public.feedback f
      where jsonb_typeof(f.answers) = 'object'
@@ -89,7 +101,7 @@ begin
   if current_user <> 'authenticated' then return old; end if;
   -- Another row of the same list still holds the word: nothing is orphaned.
   if exists (select 1 from public.masters m
-              where m.name = old.name and m.id <> old.id
+              where public.master_list_family(m.name) = public.master_list_family(old.name) and m.id <> old.id
                 and lower(btrim(m.value)) = lower(btrim(coalesce(old.value, '')))) then
     return old;
   end if;

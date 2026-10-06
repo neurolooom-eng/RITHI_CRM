@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   reportsByCall, spareRequestsByCall, spareConsumptionByCall, feedbackByCall, supabaseConfigured,
-  serviceManualsForProduct, kbForCall, type DocRow, type KbLite,
+  serviceManualsForProduct, kbForCall, listCallReopens, type DocRow, type KbLite, type CallReopen,
 } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { deriveStage, type SpareReq } from '../lib/spareflow';
 import { manualReportLink } from '../lib/reports';
 import { fmtLongDate } from '../lib/format';
+import { formatDayTime } from '../lib/dates';
+import { loadFailure } from '../lib/dberror';
 import { DocPreview } from '../components/doc/DocPreview';
 import { ReportDetail } from './ReportDetail';
 import './fieldcalls.css';
@@ -215,8 +217,8 @@ export function SupportingDocs({ product, complaint, reported }: { product: stri
   );
 }
 
-export function CallAssociations({ callNumber, product = '', complaint = '', reported = '', solved = false }:
-  { callNumber: string; product?: string; complaint?: string; reported?: string; solved?: boolean }) {
+export function CallAssociations({ callNumber, ucn = '', reopenCount = 0, product = '', complaint = '', reported = '', solved = false }:
+  { callNumber: string; ucn?: string; reopenCount?: number; product?: string; complaint?: string; reported?: string; solved?: boolean }) {
   const [visits, setVisits] = useState<Row[]>([]);
   const [requested, setRequested] = useState<Row[]>([]);
   const [consumed, setConsumed] = useState<Row[]>([]);
@@ -231,6 +233,23 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
   // The report of ONE visit, shown in the app. The row is kept rather than the
   // link, so the viewer's heading can say which visit it belongs to.
   const [docFor, setDocFor] = useState<Row | null>(null);
+
+  // THE RE-OPEN HISTORY — when, who and why (0411, D-035, FRS-133.4). Read on
+  // its own rather than in the Promise.all above, so a project that has not yet
+  // run 0411 loses this section and not the visits; and a read that FAILED says
+  // so, because an empty list here reads as "never re-opened".
+  const [reopens, setReopens] = useState<CallReopen[]>([]);
+  const [reopenErr, setReopenErr] = useState('');
+  useEffect(() => {
+    setReopens([]); setReopenErr('');
+    if (!ucn || !supabaseConfigured()) return;
+    let alive = true;
+    listCallReopens(ucn)
+      .then((r) => { if (alive) setReopens(r); })
+      .catch((e) => { if (alive) setReopenErr(loadFailure(e, { tables: ['call_reopens'],
+        hint: 'The re-open history is kept by migration 0411 (public.call_reopens), which this database does not have yet — apply the call_requests bundle.' })); });
+    return () => { alive = false; };
+  }, [ucn]);
 
   useEffect(() => {
     if (!callNumber || !supabaseConfigured()) return;
@@ -318,6 +337,36 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
       )}
 
       <SupportingDocs product={product} complaint={complaint} reported={reported} />
+
+      {reopenErr ? (
+        <section className="rep-sec">
+          <div className="rep-sec-title">↻ Re-open history</div>
+          <div className="sheet-banner sheet-banner-error">
+            <span><b>The re-open history of this call could not be read</b>, so it is not shown — this does not mean
+              the call was never re-opened. {reopenErr}</span>
+          </div>
+        </section>
+      ) : (reopens.length > 0 || reopenCount > 0) && (
+        <>
+          <MiniTable
+            title="Re-open history" icon="↻" rows={reopens as unknown as Row[]}
+            empty="No re-open is on record with its reason."
+            cols={[
+              { key: 'reopenedAt', label: 'When', fmt: (r) => formatDayTime(r.reopenedAt) },
+              { key: 'reopenedByName', label: 'Who', fmt: (r) => s(r.reopenedByName) || <span className="muted">— not recorded —</span> },
+              { key: 'reason', label: 'Why' },
+            ]}
+          />
+          {/* A re-open before reasons were recorded (0411) has no row here --
+              said, rather than letting the table read as the whole story. */}
+          {reopenCount > reopens.length && (
+            <div className="muted" style={{ fontSize: 12.5, marginTop: -4 }}>
+              The call counts {reopenCount} re-open{reopenCount === 1 ? '' : 's'}; {reopenCount - reopens.length === 1 ? 'one was' : `${reopenCount - reopens.length} were`} made
+              before the reason and the person were recorded, so {reopenCount - reopens.length === 1 ? 'it has' : 'they have'} no row here.
+            </div>
+          )}
+        </>
+      )}
 
       <MiniTable
         title="Visit history" icon="🕓" rows={visits}

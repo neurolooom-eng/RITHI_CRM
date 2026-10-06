@@ -13,7 +13,7 @@ import { CallAssociations } from './CallAssociations';
 import { DocPreview } from '../components/doc/DocPreview';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
-import { PageHeader, Drawer, Toolbar, FacetChips } from '../components/ui/ui';
+import { PageHeader, Drawer, Toolbar, FacetChips, Modal } from '../components/ui/ui';
 import { csvExport, fmtDateTime, fmtLongDate, fmtLongSmart, timeAgo, todayISO } from '../lib/format';
 import { callAging, agingTone } from '../lib/aging';
 import { C } from './collections';
@@ -1185,15 +1185,34 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
 
   // Re-open a closed call: the Hotline's way back in when the fault returns or
   // a visit was entered against the wrong call.
-  const reopen = async (row: Rec) => {
-    const ucn = String(row.ucn ?? '');
+  //
+  // A REASON, ALWAYS (D-035, FRS-133.4): this used to be a bare confirm while
+  // the Call Review asked for one, so the same act was explained on one screen
+  // and not the other. Now a dialog whose Re-open button stays disabled until a
+  // reason is typed, as the Call Review's does; reopen_call() refuses a blank
+  // one too (0411) and records the reason, the person and the time.
+  const [reopenFor, setReopenFor] = useState<Rec | null>(null);
+  const [reopenWhy, setReopenWhy] = useState('');
+  const [reopenBusy, setReopenBusy] = useState(false);
+  const [reopenErr, setReopenErr] = useState('');
+  const reopen = (row: Rec) => {
+    if (!String(row.ucn ?? '')) return;
+    setReopenWhy(''); setReopenErr(''); setReopenFor(row);
+  };
+  const doReopen = async () => {
+    const ucn = String(reopenFor?.ucn ?? '');
+    const why = reopenWhy.trim();
     if (!ucn) return;
-    if (!confirm(`Re-open call ${ucn}? It goes back on the open list and is counted as re-opened.`)) return;
+    if (!why) { setReopenErr('Say why the call is being re-opened — it is recorded on the call.'); return; }
+    setReopenBusy(true); setReopenErr('');
     const t0 = performance.now();
-    const res = await reopenCall(ucn);
-    logAudit({ action: 'calls.reopen', target: ucn, status: res.ok ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0) });
-    if (!res.ok) { setBanner({ tone: 'error', text: `Could not re-open ${ucn}: ${res.error}` }); return; }
-    setBanner({ tone: 'ok', text: `${ucn} re-opened.` });
+    const res = await reopenCall(ucn, why);
+    setReopenBusy(false);
+    logAudit({ action: 'calls.reopen', target: ucn, status: res.ok ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0), meta: { reason: why } });
+    // A refusal is said IN the dialog, which keeps what was typed.
+    if (!res.ok) { setReopenErr(`Could not re-open ${ucn}: ${res.error}`); return; }
+    setReopenFor(null);
+    setBanner({ tone: 'ok', text: `${ucn} re-opened — ${why}` });
     setDrawer(null);
     void refresh();
   };
@@ -1291,7 +1310,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       run: () => gotoReco(row) },
     { key: 'reopen', icon: '↻', label: 'Re-open call', title: 'Put this closed call back on the open list',
       show: canReopen(row),
-      run: () => void reopen(row) },
+      run: () => reopen(row) },
     { key: 'closeagain', icon: '🔒', label: 'Close again', title: 'The re-open was only to correct the call — put it back to closed without entering a visit',
       show: canCloseReopen(row),
       run: () => void closeReopen(row) },
@@ -1639,6 +1658,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             {drawer.mode === 'view' && !drawer.row?._pending && (drawer.row?.callNumber || drawer.row?.ucn) && (
               <CallAssociations
                 callNumber={String(drawer.row.callNumber || drawer.row.ucn)}
+                ucn={String(drawer.row.ucn ?? '')}
+                reopenCount={Number(drawer.row.reopenCount ?? 0)}
                 product={String(drawer.row.productName ?? '')}
                 complaint={String(drawer.row.standardComplaint ?? '')}
                 reported={String(drawer.row.complaintReported ?? '')}
@@ -1649,11 +1670,34 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         )}
       </Drawer>
 
+      <Modal open={!!reopenFor} onClose={() => { if (!reopenBusy) setReopenFor(null); }}
+        title={`Re-open call ${String(reopenFor?.ucn ?? '')}`} width={500}>
+        <form className="rep-form" onSubmit={(e) => { e.preventDefault(); void doReopen(); }}>
+          <p className="muted" style={{ marginTop: 0 }}>
+            It goes back on the open list and is counted as re-opened. No visit is invented. The reason, your
+            name and the time are recorded on the call and shown in its re-open history.
+          </p>
+          <label className="rep-field">
+            <span className="field-label">Why is it being re-opened? *</span>
+            <textarea className="input" rows={3} autoFocus value={reopenWhy}
+              onChange={(e) => setReopenWhy(e.target.value)} placeholder="Required" />
+          </label>
+          {reopenErr && <div className="field-err" role="alert">{reopenErr}</div>}
+          <div className="row" style={{ gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+            <button type="button" className="btn btn-ghost" onClick={() => setReopenFor(null)} disabled={reopenBusy}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={reopenBusy || !reopenWhy.trim()}
+              title={reopenWhy.trim() ? undefined : 'Give the reason first'}>
+              {reopenBusy ? 'Re-opening…' : '↻ Re-open'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       <CallReportDrawer
         call={report}
         open={!!report}
         onClose={() => setReport(null)}
-        onSaved={(mode, ucn) => setBanner({ tone: 'ok', text: `Call ${ucn} report ${mode === 'appended' ? 'added to' : 'updated in'} Reporting-N.` })}
+        onSaved={(mode, ucn, note) => setBanner({ tone: 'ok', text: `Call ${ucn} report ${mode === 'appended' ? 'added to' : 'updated in'} Reporting-N.${note ? ` ${note}` : ''}` })}
       />
 
       {preview && (

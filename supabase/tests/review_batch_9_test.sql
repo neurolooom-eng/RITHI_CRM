@@ -16,7 +16,7 @@
 \pset pager off
 
 insert into public.app_roles (role, label, permissions) values
- ('rb9_lists',  'RB9 Lists',  '["masters.view", "master.complaint.delete", "master.complaint.edit"]'::jsonb),
+ ('rb9_lists',  'RB9 Lists',  '["masters.view", "master.complaint.delete", "master.complaint.edit", "master.standardComplaint.delete"]'::jsonb),
  ('rb9_hot',    'RB9 Hotline','["calls.view", "calls.create", "calls.reopen", "data.view_all"]'::jsonb),
  ('rb9_eng',    'RB9 Engineer','["calls.view"]'::jsonb)
 on conflict (role) do update set permissions = excluded.permissions;
@@ -43,7 +43,7 @@ grant select on public.harness to authenticated;
 \echo '--- 1. D-056: a value records carry is deactivated, not deleted ---'
 -- ===========================================================================
 call public.nobody();
-delete from public.masters where name = 'complaint' and value like 'RB9 %';
+delete from public.masters where name in ('complaint', 'standardComplaint') and value like 'RB9 %';
 delete from public.field_calls where party_name = 'RB9 HOSP';
 insert into public.masters (name, value, extra) values
   ('complaint', 'RB9 NO POWER', '{"product": "RB9 VENT"}'),
@@ -62,16 +62,26 @@ delete from public.masters where name = 'complaint' and value = 'RB9 NO POWER';
 delete from public.masters where name = 'complaint' and value = 'RB9 ALARM' and product_key = 'RB9 OTHER';
 -- Nothing carries it.
 delete from public.masters where name = 'complaint' and value = 'RB9 UNUSED';
+-- The legacy list name is the same list (0233 can still write it).
+reset role;
+call public.nobody();
+insert into public.masters (name, value, extra) values ('standardComplaint', 'RB9 LEGACY', '{"product": "RB9 VENT"}');
+insert into public.calls (ucn, call_type, party_name, product_name, serial, standard_complaint, allocated_to)
+values ('RB9-C4', 'FIELD', 'RB9 HOSP', 'RB9 VENT', 'RB9-S4', 'RB9 LEGACY', 'Somebody Else');
+call public.be('rb9-lists@x.com');
+set role authenticated;
+\echo 'expect ERROR: "RB9 LEGACY" is on 1 record(s) and cannot be deleted -- deactivate it instead'
+delete from public.masters where name = 'standardComplaint' and value = 'RB9 LEGACY';
 -- Deactivating is the way out, and it is allowed.
 update public.masters set active = false where name = 'complaint' and value = 'RB9 NO POWER';
 reset role;
 call public.nobody();
 do $$ begin
   if (select string_agg(value || '/' || product_key || '/' || coalesce(active::text, 'null'), ',' order by value, product_key)
-        from public.masters where name = 'complaint' and value like 'RB9 %')
-     is distinct from 'RB9 ALARM/RB9 VENT/true,RB9 NO POWER/RB9 VENT/false' then
+        from public.masters where name in ('complaint', 'standardComplaint') and value like 'RB9 %')
+     is distinct from 'RB9 ALARM/RB9 VENT/true,RB9 LEGACY/RB9 VENT/true,RB9 NO POWER/RB9 VENT/false' then
     raise exception 'D-056 FAILED: got %', (select string_agg(value || '/' || product_key || '/' || coalesce(active::text, 'null'), ',' order by value, product_key)
-        from public.masters where name = 'complaint' and value like 'RB9 %');
+        from public.masters where name in ('complaint', 'standardComplaint') and value like 'RB9 %');
   end if;
   if public.master_value_uses('complaint', 'rb9 alarm') <> 1 then
     raise exception 'D-056 FAILED: master_value_uses counted % for RB9 ALARM', public.master_value_uses('complaint', 'rb9 alarm');

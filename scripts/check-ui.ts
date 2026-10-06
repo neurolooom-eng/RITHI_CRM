@@ -11108,5 +11108,110 @@ console.log('\n-- changes that decide what happens next are recorded (D-067) --'
     /export async function recordAudit\(entry: AuditEntry\): Promise<string \| null>/.test(readFileSync('src/lib/audit.ts', 'utf8')), true);
 }
 
+console.log('\n-- D-053 / D-035 / D-056: a manager name, a re-open and a value in use (2026-10-06) --');
+{
+  const src = (f: string) => code(readFileSync(f, 'utf8'));
+
+  // D-053, FRS-171.4: A MANAGER NAME THAT MATCHES NO ONE IS SAID, compared
+  // trimmed and case-insensitive -- and a matched row whose own name carries
+  // spaces is said differently, because the reporting tree compares untrimmed.
+  const { managerNameProblem, managerNameProblems } = await import('../src/lib/directorynames');
+  const names = ['Anil Kumar', ' Ravi Shah ', 'MEERA'];
+  eq('a blank manager name raises nothing', managerNameProblem('Reporting Manager', '  ', names), '');
+  eq('a name on the list, in another case and with spaces round it, raises nothing',
+    managerNameProblem('Reporting Manager', '  anil KUMAR ', names), '');
+  eq('a name on no row is said to match no one',
+    /matches no one on the User Master/.test(managerNameProblem('Regional Manager', 'Anil Kumarr', names)), true);
+  eq('...naming the field and the value',
+    /^Regional Manager “Anil Kumarr”/.test(managerNameProblem('Regional Manager', 'Anil Kumarr', names)), true);
+  eq('a row whose own name carries spaces is NOT called "no one" -- it says the tree will not find it',
+    (() => { const p = managerNameProblem('Reporting Manager', 'Ravi Shah', names); return /spaces before or after/.test(p) && !/matches no one/.test(p); })(), true);
+  eq('only a CHANGED field is asked about when the row as loaded is given',
+    managerNameProblems({ reporting_manager: 'Nobody', regional_manager: 'Nobody Else' }, names, { reporting_manager: 'nobody ', regional_manager: '' }).length, 1);
+  eq('...and a new row is asked about both',
+    managerNameProblems({ reporting_manager: 'Nobody', regional_manager: 'Nobody Else' }, names).length, 2);
+  const um = src('src/modules/UserMasterView.tsx');
+  eq('the drawer and the whole-table Save both ask before saving a name that matches no one',
+    /const nobody = managerNameProblems\(row, namesWith\(row\)\);\s*if \(nobody\.length && !confirm\(/.test(um)
+    && /const nobody = changedRows\.flatMap\(\(r\) => managerNameProblems\(drafts\[r\.id\], allNames, r\)/.test(um)
+    && /if \(nobody\.length && !confirm\(/.test(um.slice(um.indexOf('const saveAll'))), true);
+  eq('...and the table\'s manager cells suggest the User Master\'s names',
+    /list=\{MANAGER_LIST_ID\}/.test(um) && /<datalist id=\{MANAGER_LIST_ID\}>/.test(um), true);
+  // D-053, FRS-171.5: THE DIRECTORY FLAG IS NOT A SIGN-IN SWITCH.
+  eq('the directory Active field no longer claims to decide sign-in',
+    /'Yes — may sign in'/.test(um) || /DIRECTORY_ACTIVE_OPTIONS = \[[^\]]*sign/.test(um)
+    || /\['Active', r\.validity/.test(um), false);
+  eq('...it is labelled as the directory flag, and says Disable login is what decides sign-in',
+    /const DIRECTORY_ACTIVE = 'Active on the list'/.test(um)
+    && /It does not decide sign-in — '\s*\+ 'use 🔒 Disable login/.test(readFileSync('src/modules/UserMasterView.tsx', 'utf8')), true);
+
+  // D-035, FRS-133.4 / FRS-120.9: A RE-OPEN ALWAYS HAS A REASON, on every screen.
+  const sb = src('src/lib/supabase.ts');
+  eq('reopenCall takes a reason with no default, and refuses a blank one before the round trip',
+    /export async function reopenCall\(ucn: string, reason: string\)/.test(sb)
+    && /if \(!String\(reason \?\? ''\)\.trim\(\)\) return \{ ok: false, error: `Give the reason for re-opening call \$\{ucn\}` \}/.test(sb), true);
+  const fc = src('src/modules/FieldCalls.tsx');
+  eq('the call registers (Field, Installation, PM) re-open through a dialog that cannot be submitted empty',
+    /await reopenCall\(ucn, why\)/.test(fc) && /disabled=\{reopenBusy \|\| !reopenWhy\.trim\(\)\}/.test(fc)
+    && !/confirm\(`Re-open call/.test(fc), true);
+  const crv = src('src/modules/CallReview.tsx');
+  eq('...and so does the Call Review',
+    /reopenCall\(sel, reopenWhy\.trim\(\)\)/.test(crv) && /disabled=\{busy \|\| !reopenWhy\.trim\(\)\}/.test(crv), true);
+  eq('every caller of reopenCall passes a reason',
+    readdirSync('src/modules').filter((f) => f.endsWith('.tsx'))
+      .flatMap((f) => [...src(`src/modules/${f}`).matchAll(/reopenCall\(([^)]*)\)/g)].map((m) => [f, m[1]]))
+      .filter(([, args]) => !/,/.test(args)), []);
+  // The history: newest first, and a failed read is not "never re-opened".
+  const lr = sb.slice(sb.indexOf('export async function listCallReopens'), sb.indexOf('export async function closeReopenedCall'));
+  eq('listCallReopens reads call_reopens newest first, with a tiebreaker, and throws on a failed read',
+    /from\('call_reopens'\)/.test(lr) && /\.order\('reopened_at', \{ ascending: false \}\)\.order\('id', \{ ascending: false \}\)/.test(lr)
+    && /if \(error\) throw new Error/.test(lr), true);
+  const ca = src('src/modules/CallAssociations.tsx');
+  eq('the call\'s view shows the re-open history, and says so when it could not be read',
+    /listCallReopens\(ucn\)/.test(ca) && /\.catch\(\(e\) => \{ if \(alive\) setReopenErr\(/.test(ca) && /title="Re-open history"/.test(ca)
+    && /formatDayTime\(r\.reopenedAt\)/.test(ca), true);
+  eq('...and the register passes it the UCN',
+    /<CallAssociations[\s\S]{0,200}ucn=\{String\(drawer\.row\.ucn \?\? ''\)\}/.test(fc), true);
+  // FRS-133.6: ONE FEEDBACK PER CALL, THE FIRST KEPT.
+  const rep = src('src/modules/CallReporting.tsx');
+  eq('the visit asks whether the call already carries feedback before inserting one',
+    rep.indexOf('await feedbackOnCall(ucn)') > 0 && rep.indexOf('await feedbackOnCall(ucn)') < rep.indexOf('await addFeedback('), true);
+  eq('...and the one-per-call refusal is read as kept, not as a failure',
+    /if \(!fb\.ok && fb\.duplicate\) \{[^}]*feedbackKept = \{ at: '' \};/.test(rep), true);
+  eq('...and the form states it instead of asking again',
+    /feedbackAlready && \(/.test(rep) && /const missFb = feedbackAlready \? \[\] :/.test(rep), true);
+  eq('feedbackOnCall matches on ucn_key, the key the one-per-call index is built on, and throws on a failed read',
+    /\.eq\('ucn_key', key\)/.test(sb.slice(sb.indexOf('export async function feedbackOnCall')))
+    && /if \(error\) throw new Error/.test(sb.slice(sb.indexOf('export async function feedbackOnCall'), sb.indexOf('export async function feedbackOnCall') + 900)), true);
+  eq('addFeedback flags the one-per-call refusal by its code', /duplicate: error\.code === '23505'/.test(sb), true);
+  const { feedbackKeptNote } = await import('../src/modules/CallReporting');
+  eq('the kept-feedback note gives the date, through the one formatter',
+    /^This call already carries its customer feedback, recorded on \d{2}-[A-Z][a-z]{2}-\d{4} \d{2}:\d{2}:\d{2} — it is kept unchanged\.$/.test(feedbackKeptNote('2026-09-18T08:51:02.55+00:00')), true);
+  eq('...and says nothing of a date it does not have', feedbackKeptNote(''), 'This call already carries its customer feedback — it is kept unchanged.');
+
+  // D-056, FRS-015 / FRS-180.6: A VALUE IN USE IS DEACTIVATED, NOT DELETED.
+  const { masterDeleteDecision } = await import('../src/lib/masterdelete');
+  const lst = [{ id: 1, value: 'Leak' }, { id: 2, value: ' leak ' }, { id: 3, value: 'Noise' }];
+  eq('a value records carry, with no twin, is not offered for delete',
+    masterDeleteDecision(lst[2], lst, 12), { kind: 'deactivate', uses: 12 });
+  eq('a value no record carries may be deleted', masterDeleteDecision(lst[2], lst, 0), { kind: 'unused' });
+  eq('a value another row holds (trimmed, any case) may be deleted, as the database allows',
+    masterDeleteDecision(lst[0], lst, 40), { kind: 'duplicate' });
+  eq('a count that could not be read falls back to asking', masterDeleteDecision(lst[2], lst, null), { kind: 'unknown' });
+  const ml = src('src/modules/MasterListTable.tsx');
+  const rm = ml.slice(ml.indexOf('const remove = async'));
+  eq('Master Lists counts the records before it offers a Delete',
+    rm.indexOf('await masterValueUses(list.key') > 0 && rm.indexOf('await masterValueUses(list.key') < rm.indexOf('await deleteMasterItem('), true);
+  eq('...offers Deactivate instead when the value is in use',
+    /if \(decision\.kind === 'deactivate'\) \{ setBlocked\(/.test(rm) && /void setActive\(it, false, true\)/.test(ml), true);
+  eq('...and shows a refusal word for word',
+    /setMsg\(\{ tone: 'error', text: r\.error \?\? 'Could not remove that entry\.' \}\)/.test(rm), true);
+  eq('masterValueUses calls master_value_uses and never turns a failed count into 0',
+    /rpc\('master_value_uses', \{ p_name: name, p_value: value \}\)/.test(sb)
+    && /if \(error\) return \{ ok: false, error: errMsg\(error\) \}/.test(sb.slice(sb.indexOf('export async function masterValueUses'), sb.indexOf('export async function deleteMasterItem'))), true);
+  const G2 = await import('../src/lib/previewGuard');
+  eq('master_value_uses (stable) may be called during View as', 'master_value_uses' in G2.PREVIEW_READ_RPCS, true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

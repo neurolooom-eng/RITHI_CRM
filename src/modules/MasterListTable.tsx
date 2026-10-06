@@ -4,7 +4,8 @@ import { Toolbar, Modal } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
 import { csvExport, fmtDate } from '../lib/format';
 import { listMaster, dataConfigured } from '../lib/sheets';
-import { addMasterItem, deleteMasterItem, setMasterItemActive, listMasterItems, supabaseConfigured, type MasterItem, type MasterList } from '../lib/supabase';
+import { addMasterItem, deleteMasterItem, setMasterItemActive, listMasterItems, masterValueUses, supabaseConfigured, type MasterItem, type MasterList } from '../lib/supabase';
+import { masterDeleteDecision } from '../lib/masterdelete';
 import { clearMasterCache } from '../lib/masters';
 import { masterAddAction, masterEditAction, masterDeleteAction } from '../lib/rbac';
 import { usedBy } from './masterLists';
@@ -131,17 +132,37 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
   // A value already used on calls, reports and spare requests is deactivated,
   // not deleted — those records must keep making sense. Delete stays for a
   // value added by mistake and never used.
-  const setActive = async (item: MasterItem, active: boolean) => {
+  const setActive = async (item: MasterItem, active: boolean, confirmed = false) => {
     const label = String(item.value ?? '');
-    if (!active && !confirm(`Deactivate "${label}"? It stays on every record that already uses it, but stops being offered.`)) return;
+    if (!active && !confirmed && !confirm(`Deactivate "${label}"? It stays on every record that already uses it, but stops being offered.`)) return;
     setBusy(true);
     const r = await setMasterItemActive(item.id, active);
     if (r.ok) { setMsg({ tone: 'ok', text: `"${label}" ${active ? 'reactivated' : 'deactivated'}.` }); await load(); }
     else { setMsg({ tone: 'error', text: r.error ?? 'Could not update that entry.' }); setBusy(false); }
   };
 
+  // A VALUE RECORDS CARRY IS DEACTIVATED, NOT DELETED (D-056, FRS-015,
+  // FRS-180.6). Before the Delete is confirmed, the database is asked how many
+  // records carry the value (master_value_uses, 0409 -- counted as its owner,
+  // so every record and not only the reader's). In use, and no other row of
+  // this list holds the same word: the delete is NOT offered -- the screen says
+  // how many records and offers Deactivate, which keeps it on them and stops
+  // offering it. A count that cannot be read falls back to asking, and the
+  // database decides (0409's trigger refuses a value in use); its refusal is
+  // shown word for word.
+  const [blocked, setBlocked] = useState<{ item: MasterItem; uses: number } | null>(null);
   const remove = async (item: MasterItem) => {
-    if (!confirm(`Remove “${item.value}” from ${list.label}?`)) return;
+    setBusy(true);
+    const count = await masterValueUses(list.key, String(item.value ?? ''));
+    setBusy(false);
+    const decision = masterDeleteDecision(item, items, count.ok ? count.uses : null);
+    if (decision.kind === 'deactivate') { setBlocked({ item, uses: decision.uses }); return; }
+    const ask = decision.kind === 'duplicate'
+      ? `Remove “${item.value}” from ${list.label}? Another entry of this list holds the same word, so the records carrying it keep a word the list still offers.`
+      : decision.kind === 'unknown'
+        ? `Remove “${item.value}” from ${list.label}?\n\nHow many records carry it could not be read (${count.ok ? '' : count.error}). If any do, the database refuses the delete and says so — deactivate it instead.`
+        : `Remove “${item.value}” from ${list.label}? No record carries it.`;
+    if (!confirm(ask)) return;
     setBusy(true);
     const r = await deleteMasterItem(item.id);
     if (r.ok) { await reload(); setMsg({ tone: 'ok', text: `Removed “${item.value}”.` }); }
@@ -272,7 +293,7 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
               </button>
             )}
             {removable && (
-              <button className="btn btn-ghost btn-sm" title="Remove from this list" disabled={busy}
+              <button className="btn btn-ghost btn-sm" title="Delete from this list — only an entry no record carries; one in use is deactivated instead" disabled={busy}
                 onClick={() => void remove(r)}>🗑</button>
             )}
           </div>
@@ -295,7 +316,8 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
       )}
       {where && (
         <p className="muted" style={{ marginTop: 0 }}>
-          Used by: {where}. Removing an entry only takes it out of the dropdown — calls already reported with it keep their value.
+          Used by: {where}. An entry that records already carry is deactivated, not deleted — it stays on those records
+          and is no longer offered. Only an entry no record carries can be deleted.
         </p>
       )}
 
@@ -354,6 +376,32 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
             <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : editItem ? 'Save' : 'Add entry'}</button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={!!blocked} onClose={() => setBlocked(null)} title={`“${String(blocked?.item.value ?? '')}” is in use`} width={500}>
+        {blocked && (
+          <div className="ml-form">
+            <p style={{ marginTop: 0 }}>
+              <b>{blocked.uses.toLocaleString()}</b> record{blocked.uses === 1 ? '' : 's'} carr{blocked.uses === 1 ? 'ies' : 'y'} “{blocked.item.value}”,
+              so it cannot be deleted — every count, filter and match on those records runs on that word.
+            </p>
+            <p className="muted">
+              {blocked.item.active === false
+                ? 'It is already deactivated: it stays on those records and is no longer offered. Nothing more is needed.'
+                : 'Deactivate it instead: it stays on those records and is no longer offered in any form.'}
+            </p>
+            <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setBlocked(null)}>Close</button>
+              {editable && blocked.item.active !== false && (
+                <button type="button" className="btn btn-primary" disabled={busy}
+                  onClick={() => { const it = blocked.item; setBlocked(null); void setActive(it, false, true); }}>⊘ Deactivate</button>
+              )}
+            </div>
+            {!editable && blocked.item.active !== false && (
+              <p className="muted ml-hint">Deactivating needs the edit permission for {list.label}.</p>
+            )}
+          </div>
+        )}
       </Modal>
 
       <DataTable<MasterItem & Record<string, unknown>>
