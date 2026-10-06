@@ -7154,3 +7154,30 @@ export async function savePdqcRecord(id: number | null, row: Partial<PdqcRecord>
   if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not record a Pre-Delivery Quality Check.' };
   return { ok: true, data: data[0] as PdqcRecord };
 }
+
+// ---------------------------------------------------------------------------
+// FAILURE RATE FROM THE DCCR, BY COMMISSIONING MONTH (0393). The sheet's
+// table for one failure-rate objective, and the calls behind it.
+// ---------------------------------------------------------------------------
+export const COHORT_WINDOWS = [3, 6, 12, 24, 36, 60] as const;
+export interface DccrCohortRow {
+  month: string; parc: number;
+  f3: number | null; r3: number | null; f6: number | null; r6: number | null;
+  f12: number | null; r12: number | null; f24: number | null; r24: number | null;
+  f36: number | null; r36: number | null; f60: number | null; r60: number | null;
+}
+export interface DccrFailureCall {
+  ucn: string; call_number: string; reg_date: string; product_name: string; serial: string;
+  party_name: string; installed_on: string; commissioning_month: string;
+  days_to_failure: number; spare_category: string; any_potential_effect: string;
+}
+export async function dccrFailureCohorts(objectiveId: number, asof?: string): Promise<DccrCohortRow[]> {
+  const { data, error } = await must().rpc('dccr_failure_cohorts', { p_objective: objectiveId, p_asof: asof ?? null });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as DccrCohortRow[];
+}
+export async function dccrFailureCalls(objectiveId: number, asof?: string): Promise<DccrFailureCall[]> {
+  const c = must();
+  return allRows<DccrFailureCall>((a, b) => c.rpc('dccr_failure_calls', { p_objective: objectiveId, p_asof: asof ?? null })
+    .order('reg_date', { ascending: false }).order('ucn').range(a, b));
+}

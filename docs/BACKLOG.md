@@ -78,6 +78,26 @@ up)_
 
 ---
 
+## 2026-10-06 — Objective: failure rate from the DCCR by commissioning month (0393, v0.10.130)
+
+- The user: failure within 3 months, rolling 12, run on DCCR rows filtered to
+  SPARE (their WRR QUERY also takes Any Potential Effect = YES), mimicking the
+  WRR tabs; "add a Separate Tab ... then map the 12 Months rolling average to
+  Objective". Answers: SPARE OR potential YES; each call counts (as the
+  sheet, rates can pass 100%); average of the 12 monthly rates; every call
+  counts (no Add? field); the 12 months ending in the objective month, blanks out.
+- `_dccr_failure_calls` / `_dccr_failure_cohort_rows` (internal), the page's
+  `dccr_failure_cohorts` / `dccr_failure_calls` (calls.view or reports.view),
+  objective_value restated from 0359 with a `dccr_failure_cohort` branch; the six
+  2026 `failure_rate_12m` objectives moved to it. Objective → Failure Rate
+  (DCCR) tab; ⭳ evidence for these objectives is the cohort workbook.
+- The machine for a call is the Product Database row of that serial + product
+  with the latest Warranty Start on or before the call; a call with none has no
+  commissioning month and is not counted.
+- Re-running objective.sql moves any 2026 objective set back to
+  failure_rate_12m onto the DCCR rule again.
+- FRS-121.12, OQ-264 (`dccr_failure_cohort_test`), `_status.sql` row 324.
+
 ## 2026-10-06 — Objective Status, five deleted objectives restored (0392, v0.10.129)
 
 - The user: "I deleted a Few Objectives, I want to Restore them, But Hide Them

@@ -1268,6 +1268,16 @@ typed into a form that reads it.
   - **Status**: each objective is Active, **Not Working** or **Do Not Use** (✏️ on
     the objective). The last two are hidden; tick **Show hidden** to see and
     change them. Hidden objectives are still edited and re-calculated as usual.
+  - **Failure Rate (DCCR)** tab: the WRR workbook's table for each product
+    failure rate. One row per **month of commissioning** (the machine's
+    Warranty Start): **Parc** (machines installed that month) and the
+    **failures before 3, 6, 12, 24, 36 and 60 months** with their rates. A
+    failure is a Field call whose DCCR **Spare / Consumable / Correction /
+    Calibration** is **SPARE**, or whose **Any Potential Effect** is **YES**;
+    every call counts, so a rate can pass 100%. A month younger than the window
+    is blank. The objective's figure for a month is the **average of the 3-month
+    rates of the 12 months ending in it** (blanks left out). ⭳ Download gives the
+    table, the failing calls and the months averaged.
   - **Re-Calculate is explicit**, never on opening the page. Only objectives with
     a formula, only up to this month, never a typed figure.
   - **You can type over a calculated (ƒ) month.** It becomes a **manual

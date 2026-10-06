@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.130',
+    date: '2026-10-06',
+    title: 'Objective: failure rate from the DCCR, by month of commissioning',
+    changes: [
+      'OBJECTIVE → FAILURE RATE (DCCR): a new tab with your WRR table for each product — one row per month of commissioning, its Parc, and the failures before 3, 6, 12, 24, 36 and 60 months with their rates. ⭳ Download gives the table, the failing calls and the months averaged.',
+      'A failure is a Field call whose DCCR Spare / Consumable / Correction / Calibration is SPARE, or whose Any Potential Effect is YES. Every call counts, as in the sheet, so a rate can pass 100%. A month younger than the window is blank.',
+      'The six product failure rates (CPXcare, Extend (Indian), Orion-G, VEGA, MT75, MT60) now take this rule: each month is the average of the 3-month rates of the 12 months of commissioning ending in it. Press Re-calculate to update them.',
+    ],
+  },
+  {
     version: '0.10.129',
     date: '2026-10-06',
     title: 'Objective: a Status for each objective, and the five deleted ones restored',

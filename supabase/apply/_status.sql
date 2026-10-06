@@ -469,7 +469,7 @@ with checks(sort_order, bundle, provides, present) as (
                     and column_name='calc_key'))),
     (96, 'Objective: a rate can be narrowed by SERIAL, not only product', 'failure_rate_12m takes an optional `serial` in calc_params -- how the Indian Extend is told from the rest ("Extend XT with serial numbers starting from INXT"), since no column says Indian. It narrows the FAILURES AND THE MACHINES they are counted against: narrowing only the failures would read LOWER than the truth, and a rate that flatters itself is the one nobody questions (0133). Restore: objective.sql',
         coalesce((select calc_params ? 'serial' from public.quality_objectives
-                   where year = 2026 and calc_key = 'failure_rate_12m'
+                   where year = 2026 and calc_key in ('failure_rate_12m', 'dccr_failure_cohort')
                      and parameter ilike '%extend%' limit 1), false)),
     (97, 'Objective: the evidence lists the MACHINES, not just a count', 'objective_evidence returns the installed base one row per machine (role = machine), so the denominator can be COUNTED rather than taken on trust -- a denominator of 47 nobody can list is as good as none. The page puts the calls, the machines and the arithmetic on three tabs of one workbook, and Sheet 3 is counted from Sheets 1 and 2 so the file adds up to itself (0134). Restore: objective.sql',
         -- The word "machine" alone does NOT discriminate: 0133's version says
@@ -2112,7 +2112,10 @@ with checks(sort_order, bundle, provides, present) as (
                     where p.oid = to_regprocedure('public.sync_product_machine(text,text)')), false))),
     (323, 'Objective: each objective has a Status', 'quality_objectives.status (Active / Not Working / Do Not Use) with its check (0392); the five deleted 2026 objectives restored as Not Working. NO means objective.sql has not been re-run since. Restore: objective.sql (0392)',
         exists (select 1 from pg_constraint where conrelid = to_regclass('public.quality_objectives')
-                  and conname = 'quality_objectives_status_check'))
+                  and conname = 'quality_objectives_status_check')),
+    (324, 'Objective: failure rate from the DCCR by commissioning month', 'dccr_failure_cohorts() / dccr_failure_calls() and objective_value''s dccr_failure_cohort branch (0393); the 2026 product failure rates on that key. NO means objective.sql has not been re-run since. Restore: objective.sql (0393)',
+        (to_regprocedure('public.dccr_failure_cohorts(bigint,date)') is not null
+     and coalesce((select p.prosrc like '%dccr_failure_cohort%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
