@@ -52141,10 +52141,10 @@ end $on$;
 -- after values by a trigger that cannot be bypassed. The same statement-level
 -- triggers as 0225 / 0314 / 0406, so a cover import is one event.
 --
--- THIS IS PART OF D-055 ONLY. Refusing the deletion (FRS-187.1/.2) waits on
--- FRS-187.4 -- how an entry raised in error is marked and what it does to the
--- machine's cover -- which is the user's decision; until then a delete is at
--- least recorded with everything it removed.
+-- DELETION ITSELF STAYS -- the user's decision of 2026-10-06 ("Keep deleting,
+-- recorded"): an entry, a machine, a transfer or an additional entry may still
+-- be deleted by the holder of that register's delete authority, and what it
+-- removed is read back from record_audit. FRS-187 was rewritten to match.
 -- In data_integrity, after 0406: every cover table is created earlier in
 -- ALL_ORDER.
 -- ===========================================================================

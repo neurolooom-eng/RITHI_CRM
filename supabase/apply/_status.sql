@@ -2181,7 +2181,7 @@ with checks(sort_order, bundle, provides, present) as (
         (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.masters') and tgname = 'master_value_in_use_kept')
          and to_regprocedure('public.master_value_uses(text,text)') is not null
          and to_regprocedure('public.master_list_family(text)') is not null)),
-    (347, 'The cover registers are imaged in record_audit', 'record_audit_i / _u / _d on sale_entries, sale_items, contract_entries, contract_items, ownership_transfers and product_additional_entries: a corrected machine, warranty or contract, and a deleted entry, keep their before and after (0410, D-055, FRS-187.3). Refusing the delete waits on FRS-187.4. NO means data_integrity.sql has not been re-run since. Restore: data_integrity.sql (0410)',
+    (347, 'The cover registers are imaged in record_audit', 'record_audit_i / _u / _d on sale_entries, sale_items, contract_entries, contract_items, ownership_transfers and product_additional_entries: a corrected machine, warranty or contract, and a deleted entry, keep their before and after (0410, D-055, FRS-187.3). Deletion itself stays at each register''s delete authority -- the user''s decision of 2026-10-06. NO means data_integrity.sql has not been re-run since. Restore: data_integrity.sql (0410)',
         (select count(distinct tgrelid) from pg_trigger where tgname = 'record_audit_d' and not tgisinternal
           and tgrelid in (to_regclass('public.sale_entries'), to_regclass('public.sale_items'), to_regclass('public.contract_entries'),
                           to_regclass('public.contract_items'), to_regclass('public.ownership_transfers'),
