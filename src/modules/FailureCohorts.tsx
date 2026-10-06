@@ -42,10 +42,10 @@ export function rollingAverage(rows: DccrCohortRow[], endMonth: string, months =
 /** The workbook: the table, the failing calls, and how the month's figure is made. */
 export async function downloadCohortWorkbook(o: QualityObjective, asof?: string, objectiveMonth?: number, year?: number) {
   const [rows, calls] = await Promise.all([dccrFailureCohorts(o.id, asof), dccrFailureCalls(o.id, asof)]);
-  const tableCols = ['Month of commissioning', 'Parc', ...COHORT_WINDOWS.slice().reverse().flatMap((w) => [`Number of failures before ${w} months`, `${w}-month failure rate`])];
+  const tableCols = ['Month of commissioning', 'Parc', ...COHORT_WINDOWS.flatMap((w) => [`Number of failures before ${w} months`, `${w}-month failure rate`])];
   const table = rows.map((r) => ({
     'Month of commissioning': monthLabel(r.month), Parc: r.parc,
-    ...Object.fromEntries(COHORT_WINDOWS.slice().reverse().flatMap((w) => [
+    ...Object.fromEntries(COHORT_WINDOWS.flatMap((w) => [
       [`Number of failures before ${w} months`, f(r, w) ?? ''], [`${w}-month failure rate`, rt(r, w) == null ? '' : Number(rt(r, w))]])),
   }));
   const callCols = ['UCN', 'Call Number', 'Registered', 'Product', 'Serial', 'Party', 'Installed (Warranty Start)', 'Month of commissioning', 'Days after installation', 'Spare / Consumable / Correction / Calibration', 'Any Potential Effect'];
@@ -103,7 +103,8 @@ export function FailureCohorts({ objectives }: { objectives: QualityObjective[] 
   if (!choices.length) return <p className="muted">No objective is worked out by the DCCR failure rate yet.</p>;
   const thisMonth = todayLocal().slice(0, 7) + '-01';
   const roll = rollingAverage(rows, thisMonth);
-  const wins = COHORT_WINDOWS.slice().reverse();
+  // 3, 6, 12, 24, 36, 60 -- the shortest window first (the user, 2026-10-06).
+  const wins = COHORT_WINDOWS;
 
   return (
     <div>
@@ -126,10 +127,10 @@ export function FailureCohorts({ objectives }: { objectives: QualityObjective[] 
       </p>
       {msg && <div className="sheet-banner sheet-banner-info"><span>{msg}</span></div>}
       {busy ? <p className="muted">Loading…</p> : (
-        <div style={{ overflowX: 'auto' }}>
-          <table className="obj-table">
+        <div className="cohort-scroll">
+          <table className="obj-table cohort-table">
             <thead>
-              <tr><th rowSpan={2}>Month of commissioning</th><th rowSpan={2} className="obj-num">Parc</th>
+              <tr><th rowSpan={2} className="cohort-freeze">Month of commissioning</th><th rowSpan={2} className="obj-num">Parc</th>
                 {wins.map((w) => <th key={w} colSpan={2}>{w}-month failure rate</th>)}</tr>
               <tr>{wins.map((w) => [<th key={`f${w}`} className="obj-num">Number of failures before {w} months</th>,
                                     <th key={`r${w}`} className="obj-num">{w}-month failure rate</th>])}</tr>
@@ -137,7 +138,7 @@ export function FailureCohorts({ objectives }: { objectives: QualityObjective[] 
             <tbody>
               {rows.slice().reverse().map((r) => (
                 <tr key={r.month}>
-                  <td>{monthLabel(r.month)}</td>
+                  <td className="cohort-freeze">{monthLabel(r.month)}</td>
                   <td className="obj-num">{r.parc}</td>
                   {wins.map((w) => [<td key={`f${w}`} className="obj-num">{f(r, w) ?? ''}</td>,
                                     <td key={`r${w}`} className="obj-num">{pct(rt(r, w))}</td>])}
