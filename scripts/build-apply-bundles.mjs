@@ -382,8 +382,8 @@ const MODULES = {
       // D-033: a field call is registered with its three vigilance questions
       // answered (0400). Before the cr_read tail, which must stay last.
       '0400_field_call_vigilance_answered.sql',
-      // D-030: the Attended Date of a call request is not in the future (0398).
-      '0398_call_request_attended_not_future.sql',
+      // D-030: the Attended Date of a call request is not in the future (0408).
+      '0408_call_request_attended_not_future.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -518,11 +518,18 @@ const MODULES = {
             // search names, so a search no longer zeroes the counts (0353).
             // Redefines 0111's view, appending only.
             '0353_review_summary_carries_the_searched_columns.sql',
+            // The old DCCR register WITH its calls (2026-10-06): a staging
+            // register whose trigger files the call, the review and one visit.
+            '0395_dccr_history_import.sql',
+            // A PM call whose consumption is a Spare joins the DCCR review
+            // (2026-10-06). Restates 0353's / 0344's two review views, so after
+            // both; and the DCCR rows whose UC Number was an Excel date, removed.
+            '0397_pm_spare_dccr.sql', '0398_dccr_junk_rows.sql',
             // D-129: review answers are read by holders of review.view, given
             // once to the roles that held review.edit (0401).
             '0401_review_answers_read_key.sql',
-            // D-027: a Field Failure Report names its customer and problem (0397).
-            '0397_ffr_customer_and_problem_required.sql'],
+            // D-027: a Field Failure Report names its customer and problem (0407).
+            '0407_ffr_customer_and_problem_required.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -535,6 +542,9 @@ const MODULES = {
       // A rename is not an allotment (0259). After 0054, which owns the
       // previous body; before the replay tail, which must stay last.
       '0262_rename_is_not_an_allotment.sql',
+      // A historical call load notifies nobody (2026-10-06). Restates 0262's
+      // notify_call_allotted, so after it; before the replay tail.
+      '0394_notify_silent_import.sql',
       // LAST: 0064 (handstock) extends `notify_spare_dispatched()` with the
       // REFURBISHED line, and this module running after handstock had been
       // discarding it on every apply. Ends the module with 0064's version.
@@ -592,6 +602,17 @@ const MODULES = {
             // day): one hashed join, EXECUTEd so it is never generic-planned.
             // Redefines 0357's objective_value / objective_evidence.
             '0359_failure_rate_one_join.sql',
+            // An objective's Status (Active / Not Working / Do Not Use), and the
+            // five deleted 2026 objectives restored as Not Working (2026-10-06).
+            '0392_objective_status.sql',
+            // The failure rate from the DCCR by commissioning month, and the six
+            // product failure rates moved onto it (2026-10-06). Restates 0359's
+            // objective_value, so after it.
+            '0393_dccr_failure_cohorts.sql',
+            // Re-calculate only Active objectives, and the DCCR rate counted
+            // once per month (2026-10-06). Restates 0349's recalc and 0393's
+            // two helpers, so after both.
+            '0396_objective_recalc_active_fast.sql',
             // D-021: an objective carrying a recorded figure is not deleted (0402).
             '0402_objective_with_figures_kept.sql'],
   },
@@ -627,8 +648,8 @@ const MODULES = {
             // triggers it copies; here, after every module that creates them.
             '0314_record_audit_on_movements_and_training.sql',
             // D-067/D-021/D-039: configuration, quality objectives and the indoor
-            // workshop imaged too; the audit key gains role / key / sys_id (0396).
-            '0396_record_audit_on_configuration_objectives_indoor.sql',
+            // workshop imaged too; the audit key gains role / key / sys_id (0406).
+            '0406_record_audit_on_configuration_objectives_indoor.sql',
             // The FFR register's retention trigger. HERE, not beside the table
             // in 0165: block_hard_delete() is defined in this module, which runs
             // after daily_review — check:replay caught the fresh apply failing.
@@ -859,8 +880,8 @@ const MODULES = {
             // 0323's indoor_dc_may_approve(), so after it.
             '0367_indoor_dc_approver_is_the_login.sql',
             // D-108 / D-116: record_indoor_visit() is no signed-in user's, and
-            // the visit columns say the visit is filed at approval (0394).
-            '0394_indoor_record_visit_closed_and_comments.sql',
+            // the visit columns say the visit is filed at approval (0404).
+            '0404_indoor_record_visit_closed_and_comments.sql',
             // D-039: who reported damage to the customer is the session (0399).
             '0399_indoor_reported_to_customer_stamp.sql'],
   },
@@ -909,8 +930,8 @@ const MODULES = {
             // and split keys; see 0286 for the parent rule.
             '0295_user_profile_details_key.sql',
             // D-059: a User Master entry with a profile or R&R history is not
-            // deleted -- set Active to No instead (0395).
-            '0395_user_master_keeps_history.sql'],
+            // deleted -- set Active to No instead (0405).
+            '0405_user_master_keeps_history.sql'],
   },
   masters: {
     title: 'Master Value Lists',

@@ -1,16 +1,16 @@
 -- ===========================================================================
--- REVIEW BATCH 8, PROVED ON A DATABASE (0396-0399, 0402).
+-- REVIEW BATCH 8, PROVED ON A DATABASE (0406-0399, 0402).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works.
 --
 --   1. D-067  a change to a role, a setting or an SLA target is imaged, under
---             the row's own key, before and after paired correctly (0396)
---   2. D-021  a quality objective edited or deleted is imaged (0396), and one
+--             the row's own key, before and after paired correctly (0406)
+--   2. D-021  a quality objective edited or deleted is imaged (0406), and one
 --             carrying a figure is not deleted (0402)
 --   3. D-039  an indoor job and its parts are imaged; who reported damage to
---             the customer is the session (0396, 0399)
---   4. D-027  a Field Failure Report names its customer and problem (0397)
---   5. D-030  a call request's Attended Date is not in the future (0398)
+--             the customer is the session (0406, 0399)
+--   4. D-027  a Field Failure Report names its customer and problem (0407)
+--   5. D-030  a call request's Attended Date is not in the future (0408)
 --
 -- Checks raise an unlabelled error when they are wrong, so the harness counts
 -- a failure; an error that is meant to happen is labelled `expect ERROR`.

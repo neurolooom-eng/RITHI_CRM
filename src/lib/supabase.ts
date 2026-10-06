@@ -464,7 +464,12 @@ export interface QualityObjective {
   /** Months of a computed objective typed over by hand (0349), written by the
    *  database: who, when, and the calculated figure it replaced. */
   overrides?: Record<string, { by?: string; at?: string; calculated?: number | null }>;
+  /** Active / Not Working / Do Not Use (0392). The last two are hidden on the
+   *  page unless Show hidden is on; nothing else changes. */
+  status?: string;
 }
+export const OBJECTIVE_STATUSES = ['Active', 'Not Working', 'Do Not Use'] as const;
+export const objectiveHidden = (o: { status?: string }) => !!o.status && o.status !== 'Active';
 
 export async function listQualityObjectives(year: number): Promise<QualityObjective[]> {
   const { data, error } = await must().from('quality_objectives').select('*')
@@ -838,9 +843,18 @@ export interface ObjectivePeriod {
 export async function saveObjectiveDef(
   id: number, patch: Partial<QualityObjective>,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('quality_objectives').update(patch).eq('id', id);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // ONLY WHAT THE DEFINITION EDITS (2026-10-06, "Unable to save it": the
+  // drawer sent the whole row, and `id` is GENERATED ALWAYS -- "column id can
+  // only be updated to DEFAULT"). The figures, totals, overrides and stamps
+  // are written by their own paths, never by this one.
+  const body = Object.fromEntries(Object.entries(patch).filter(([k]) => (OBJECTIVE_DEF_FIELDS as readonly string[]).includes(k)));
+  const { data, error } = await must().from('quality_objectives').update(body).eq('id', id).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not change objectives.' };
+  return { ok: true };
 }
+const OBJECTIVE_DEF_FIELDS = ['parameter', 'process', 'yearly_target', 'current_target', 'frequency',
+  'responsible', 'calc_key', 'calc_params', 'status', 'notes', 'sort_order', 'source'] as const;
 
 export async function addObjective(year: number, sort_order: number): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('quality_objectives')
@@ -5254,7 +5268,9 @@ export async function uploadRows(
   // machine it names, so those stay small. The history tables have no per-row
   // trigger at all, so they go up in larger batches — 44,000 rows is 22
   // requests rather than 88.
-  const SIZE = /reports|_items$/.test(table) ? 300 : /_history$|_opening$/.test(table) ? 2000 : 500;
+  // An _import table files a call, a review and a visit per row in its
+  // trigger (0395), so its batches are the smallest.
+  const SIZE = /_import$/.test(table) ? 100 : /reports|_items$/.test(table) ? 300 : /_history$|_opening$/.test(table) ? 2000 : 500;
   let written = 0;
   // ONE SHAPE PER REQUEST. PostgREST writes a batch as a single insert whose
   // column list is the union of the objects' keys, and a row missing one of
@@ -6174,7 +6190,7 @@ export async function saveIndoorJob(
     'indoor_report_no', 'dc_date', 'remarks', 'cover',
     // The stages (0323). The report FILE and its stamps are not here: the
     // upload is saveIndoorReport(), and the database stamps who and when.
-    // visit_uid / visit_filed_at are the DC approval's (0327, 0394).
+    // visit_uid / visit_filed_at are the DC approval's (0327, 0404).
     'standard_complaint',
   ] as const;
   const rest = Object.fromEntries(
@@ -7222,4 +7238,31 @@ export async function savePdqcRecord(id: number | null, row: Partial<PdqcRecord>
   if (error) return { ok: false, error: errMsg(error) };
   if (!data || data.length === 0) return { ok: false, error: 'Nothing was saved — your role may not record a Pre-Delivery Quality Check.' };
   return { ok: true, data: data[0] as PdqcRecord };
+}
+
+// ---------------------------------------------------------------------------
+// FAILURE RATE FROM THE DCCR, BY COMMISSIONING MONTH (0393). The sheet's
+// table for one failure-rate objective, and the calls behind it.
+// ---------------------------------------------------------------------------
+export const COHORT_WINDOWS = [3, 6, 12, 24, 36, 60] as const;
+export interface DccrCohortRow {
+  month: string; parc: number;
+  f3: number | null; r3: number | null; f6: number | null; r6: number | null;
+  f12: number | null; r12: number | null; f24: number | null; r24: number | null;
+  f36: number | null; r36: number | null; f60: number | null; r60: number | null;
+}
+export interface DccrFailureCall {
+  ucn: string; call_number: string; reg_date: string; product_name: string; serial: string;
+  party_name: string; installed_on: string; commissioning_month: string;
+  days_to_failure: number; spare_category: string; any_potential_effect: string;
+}
+export async function dccrFailureCohorts(objectiveId: number, asof?: string): Promise<DccrCohortRow[]> {
+  const { data, error } = await must().rpc('dccr_failure_cohorts', { p_objective: objectiveId, p_asof: asof ?? null });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as DccrCohortRow[];
+}
+export async function dccrFailureCalls(objectiveId: number, asof?: string): Promise<DccrFailureCall[]> {
+  const c = must();
+  return allRows<DccrFailureCall>((a, b) => c.rpc('dccr_failure_calls', { p_objective: objectiveId, p_asof: asof ?? null })
+    .order('reg_date', { ascending: false }).order('ucn').range(a, b));
 }

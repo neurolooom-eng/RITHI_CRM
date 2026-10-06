@@ -16,7 +16,7 @@
 -- Carries, in order:
 --   0264_people_and_training.sql
 --   0295_user_profile_details_key.sql
---   0395_user_master_keeps_history.sql
+--   0405_user_master_keeps_history.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -490,11 +490,11 @@ AS $function$
 $function$;
 
 -- ------------------------------------------------------------------------
--- 0395_user_master_keeps_history.sql
+-- 0405_user_master_keeps_history.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0395 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
+-- 0405 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
 --        (second re-review D-059)
 --
 -- 0264 declares user_profile.dir_id and user_rr.dir_id ON DELETE CASCADE, so

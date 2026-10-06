@@ -209,7 +209,7 @@ begin;
   \echo 'expect ERROR: only Stage Manager (AUTHORISED BY) or an administrator approves Indoor DC'
   select public.approve_indoor_dc(:'dc1');
 commit;
--- record_indoor_visit() is not callable by a signed-in user since 0394 (D-108):
+-- record_indoor_visit() is not callable by a signed-in user since 0404 (D-108):
 -- no screen calls it. It stays for a repair in the SQL editor, so its own checks
 -- are proved below as such a caller -- the session still names who is asking.
 begin;

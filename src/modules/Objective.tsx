@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, SectionCard, Modal } from '../components/ui/ui';
 import {
-  listQualityObjectives, saveObjectiveCell,
+  listQualityObjectives, saveObjectiveCell, OBJECTIVE_STATUSES, objectiveHidden,
   recalcObjectives, objectiveEvidence, objectiveNotes, objectivePeriod,
   objectiveCutoffLocked, setObjectiveCutoffLock, listObjectiveCutoffs, setObjectiveCutoff,
   saveObjectiveDef, addObjective, deleteObjective,
@@ -10,8 +10,9 @@ import {
 } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { xlsxDownload } from '../lib/xlsx';
+import { FailureCohorts, downloadCohortWorkbook } from './FailureCohorts';
 import { logAudit } from '../lib/audit';
-import { formatDayTime } from '../lib/dates';
+import { formatDayTime, todayLocal } from '../lib/dates';
 import { useAccessScope, scopeLabel } from '../lib/access';
 import './dccr.css';
 import './fieldcalls.css';
@@ -79,6 +80,11 @@ export function Objective() {
   const mayLock = can('objective.lock');
   const YEAR = new Date().getFullYear();
   const [objectives, setObjectives] = useState<QualityObjective[]>([]);
+  // STATUS (0392, the user 2026-10-06): an objective marked Not Working or Do
+  // Not Use is hidden unless this is on. It only hides -- the objective is still
+  // edited and re-calculated as before.
+  const [showHidden, setShowHidden] = useState(false);
+  const [objTab, setObjTab] = useState<'table' | 'cohorts'>('table');
   const [oMsg, setOMsg] = useState('');
   const [editing, setEditing] = useState<{ id: number; field: string } | null>(null);
   const [draft, setDraft] = useState('');
@@ -116,8 +122,8 @@ export function Objective() {
   // authority; this is its mirror for the page, and the same rule: anything not
   // recognisably quarterly is monthly.
   const isQuarterly = (f: string) => /quarter|3\s*month/i.test(f || '');
-  const monthlyNames = objectives.filter((o) => !isQuarterly(o.frequency)).map((o) => o.parameter);
-  const quarterlyNames = objectives.filter((o) => isQuarterly(o.frequency)).map((o) => o.parameter);
+  const monthlyNames = objectives.filter((o) => (showHidden || !objectiveHidden(o)) && !isQuarterly(o.frequency)).map((o) => o.parameter);
+  const quarterlyNames = objectives.filter((o) => (showHidden || !objectiveHidden(o)) && isQuarterly(o.frequency)).map((o) => o.parameter);
 
   // RE-CALC — explicit, at the moment of submission. Never on a page load: a
   // figure that moves because somebody opened a screen is not one anybody can
@@ -243,6 +249,18 @@ export function Objective() {
     'Problem reported', 'Service observation', 'Problem status',
     'CAPA No.', 'CAPA status', 'Item code', 'Place', 'Source'];
   const downloadEvidence = async (o: QualityObjective, monthIndex: number) => {
+    // THE DCCR FAILURE RATE (0393) has its own workbook: the commissioning-month
+    // table, the failing calls and the months averaged, as at that month's end.
+    if (o.calc_key === 'dccr_failure_cohort') {
+      try {
+        // The month's last day, as text (no Date round trip, so no time zone).
+        const end = `${YEAR}-${String(monthIndex + 1).padStart(2, '0')}-${String(new Date(YEAR, monthIndex + 1, 0).getDate()).padStart(2, '0')}`;
+        const today = todayLocal();
+        const r = await downloadCohortWorkbook(o, end < today ? end : today, monthIndex, YEAR);
+        setOMsg(`Downloaded the evidence for ${o.parameter} — ${MONTHS[monthIndex]}: ${r.rows} commissioning months and ${r.calls} failing calls.`);
+      } catch (e) { setOMsg(e instanceof Error ? e.message : String(e)); }
+      return;
+    }
     try {
       const [rows, notes, period] = await Promise.all([
         objectiveEvidence(o.id, monthIndex + 1),
@@ -495,6 +513,18 @@ export function Objective() {
       )}
       {oMsg && <div className="sheet-banner sheet-banner-error"><span>{oMsg}</span></div>}
 
+      {/* THE FAILURE RATE TAB (0393, the user 2026-10-06): the WRR workbook's
+          commissioning-month table, from which the product failure rates come. */}
+      <div className="row" style={{ gap: 6, marginBottom: 10 }}>
+        <button className={`btn btn-sm${objTab === 'table' ? ' btn-primary' : ''}`} onClick={() => setObjTab('table')}>Objectives</button>
+        <button className={`btn btn-sm${objTab === 'cohorts' ? ' btn-primary' : ''}`} onClick={() => setObjTab('cohorts')}>Failure Rate (DCCR)</button>
+      </div>
+      {objTab === 'cohorts' && (
+        <SectionCard title="Failure rate by month of commissioning — from the DCCR">
+          <FailureCohorts objectives={objectives} />
+        </SectionCard>
+      )}
+      {objTab === 'table' && <>
       <SectionCard title={`ALMS-INDIA Quality & Business Objectives — ${YEAR}`}>
         <p className="muted" style={{ marginTop: 0 }}>
           Every objective, its yearly target, how often it is measured and who is responsible.
@@ -515,6 +545,12 @@ export function Objective() {
           quarter (Mar, Jun, Sep, Dec); the other months are NA, which is not zero.
           {' '}A row marked <b>ƒ</b> is worked out from the register; the rest are typed.
         </p>
+        {objectives.some(objectiveHidden) && (
+          <label className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 8 }}>
+            <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
+            Show hidden ({objectives.filter(objectiveHidden).length} marked Not Working or Do Not Use)
+          </label>
+        )}
         {mayEdit && (
           <div className="row" style={{ gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
             <button className="btn btn-primary" disabled={recalcing} onClick={() => { setKeepOverrides(true); setConfirmRecalc(true); }}>
@@ -562,13 +598,14 @@ export function Objective() {
               </tr>
             </thead>
             <tbody>
-              {objectives.map((o) => (
-                <tr key={o.id}>
+              {objectives.filter((o) => showHidden || !objectiveHidden(o)).map((o) => (
+                <tr key={o.id} className={objectiveHidden(o) ? 'obj-hidden-row' : undefined}>
                   <td>{o.sort_order}</td>
                   <td>{o.process}</td>
                   <td title={`Responsible: ${o.responsible}${o.calc_key ? ` · computed by ${o.calc_key} ${JSON.stringify(o.calc_params)}` : ' · typed'}`}>
                     {o.calc_key ? <b className="obj-calc" title={`Computed: ${o.calc_key}`}>ƒ</b> : null}
                     {o.parameter}
+                    {objectiveHidden(o) && <span className="badge badge-warning" style={{ marginLeft: 6 }}>{o.status}</span>}
                     {mayEdit && (
                       <button
                         className="btn btn-ghost btn-sm obj-defbtn"
@@ -641,6 +678,7 @@ export function Objective() {
           Re-calculate does not write it.
         </p>
       </SectionCard>
+      </>}
 
       {confirmRecalc && (
         <Modal
@@ -753,12 +791,21 @@ export function Objective() {
               </div>
             ))}
             <div>
+              <label className="field-label">Status</label>
+              <SelectPicker
+                value={String(defDraft.status ?? 'Active')}
+                onChange={(v) => setDefDraft((d) => ({ ...d, status: v || 'Active' }))}
+                options={[...OBJECTIVE_STATUSES]} />
+              <span className="muted" style={{ fontSize: 11 }}>Not Working and Do Not Use are hidden on this page unless Show hidden is on.</span>
+            </div>
+            <div>
               <label className="field-label">Computed by</label>
               <SelectPicker
                 value={String(defDraft.calc_key ?? '')}
                 onChange={(v) => setDefDraft((d) => ({ ...d, calc_key: v }))}
                 placeholder="— typed, not computed —"
                 options={[
+                  { value: 'dccr_failure_cohort', label: 'dccr_failure_cohort — DCCR SPARE or potential-effect calls within 3 months of installation, by commissioning month; the average of the 12 monthly rates (the Failure Rate tab)' },
                   { value: 'failure_rate_12m', label: 'failure_rate_12m — machines failed within 3 months of installation ÷ installed in a rolling 12 months (set on SLA / Objective Configuration)' },
                   { value: 'open_rate_monthly', label: "open_rate_monthly — still open at the cut-off ÷ that period's calls" },
                   { value: 'attended_within_days', label: "attended_within_days — attended inside the limit ÷ that period's calls" },

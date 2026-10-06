@@ -188,6 +188,19 @@ on Roles & Permissions does not reach another team's calls.
   > you confirm and after it is written, the upload names any Sold Through that
   > is not a DEALER on the Party Master. It is still loaded — this is being
   > observed before deciding whether to refuse it.
+  > **DCCR Register — historical, with its calls** (Quality) loads an old DCCR
+  > register export as it is — for a year whose calls are not in RITHI (2025
+  > and before). Each row files **the call** (dated by CALL DATE, with the
+  > customer, place, product, serial and engineer; a P M VISIT row goes to PM
+  > Calls), **the review** (kept as imported, no Field Failure Report raised)
+  > and **one visit** from CURRENT CALL STATUS and the solved date, so a solved
+  > call reads Solved. Unattended calls stay Unattended; Canceled calls are
+  > filed cancelled. **Nobody is notified.** A call already in RITHI is left
+  > alone. Re-loading the file corrects the calls it filed.
+  > **PM calls in the DCCR:** a PM call joins the Daily Complaint Review when
+  > a part booked on it is a **Spare** in the Part Master (SPARE pre-set).
+  > **Field Failure Register (any year)** (Quality) loads old FFR logs, a
+  > year's tab at a time.
   > **Installation Warranty Start (old installation calls)** loads past
   > installations — back to 2018 — one row per installation call, matched on the
   > UCN. Each row's *Warranty Start Date?* (Installation Call Solved Date or
@@ -1354,6 +1367,20 @@ typed into a form that reads it.
 
 - **Objective** `/objective` — the year's objectives with targets, owners and the
   month-by-month actual.
+  - **Status**: each objective is Active, **Not Working** or **Do Not Use** (✏️ on
+    the objective). The last two are hidden; tick **Show hidden** to see and
+    change them. **Re-calculate works out Active objectives only** — a hidden
+    objective keeps its figures.
+  - **Failure Rate (DCCR)** tab: the WRR workbook's table for each product
+    failure rate. One row per **month of commissioning** (the machine's
+    Warranty Start): **Parc** (machines installed that month) and the
+    **failures before 3, 6, 12, 24, 36 and 60 months** with their rates. A
+    failure is a Field call whose DCCR **Spare / Consumable / Correction /
+    Calibration** is **SPARE**, or whose **Any Potential Effect** is **YES**;
+    every call counts, so a rate can pass 100%. A month younger than the window
+    is blank. The objective's figure for a month is the **average of the 3-month
+    rates of the 12 months ending in it** (blanks left out). ⭳ Download gives the
+    table, the failing calls and the months averaged.
   - **Re-Calculate is explicit**, never on opening the page. Only objectives with
     a formula, only up to this month, never a typed figure.
   - **You can type over a calculated (ƒ) month.** It becomes a **manual

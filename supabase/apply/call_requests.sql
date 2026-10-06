@@ -48,7 +48,7 @@
 --   0341_call_actions_need_sight_of_the_call.sql
 --   0386_pm_dates_are_registration.sql
 --   0400_field_call_vigilance_answered.sql
---   0398_call_request_attended_not_future.sql
+--   0408_call_request_attended_not_future.sql
 --   0164_cr_read_initplan.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -4155,11 +4155,11 @@ create trigger field_call_vigilance_answered
   for each row execute function public.field_call_vigilance_answered();
 
 -- ------------------------------------------------------------------------
--- 0398_call_request_attended_not_future.sql
+-- 0408_call_request_attended_not_future.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0398 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
+-- 0408 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
 --        (second re-review D-030, part 3)
 --
 -- The Attended Date on Request Registration had no upper bound, and it becomes

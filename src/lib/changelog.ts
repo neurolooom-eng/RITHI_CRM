@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.134',
+    version: '0.10.139',
     date: '2026-10-06',
     title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
     changes: [
@@ -27,7 +27,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.133',
+    version: '0.10.138',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
     changes: [
@@ -37,7 +37,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.132',
+    version: '0.10.137',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -48,7 +48,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.131',
+    version: '0.10.136',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -62,7 +62,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.130',
+    version: '0.10.135',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -76,7 +76,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.129',
+    version: '0.10.134',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -87,6 +87,54 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.133',
+    date: '2026-10-06',
+    title: 'PM calls with a Spare join the DCCR review; junk DCCR rows removed',
+    changes: [
+      'DAILY COMPLAINT REVIEW: a PM call now joins the review when a part booked on it is a SPARE in the Part Master. It appears in the register with Spare / Consumable / Correction / Calibration set to SPARE; the reviewer answers the rest. A review already started is not changed.',
+      'The 2026 PM calls that already carry a Spare were added now. A part the Part Master has not yet marked Spare adds nothing — once the Part Master mapping is complete, the older PM calls can be added the same way.',
+      'About 10,000 DCCR rows whose “UC Number” was an Excel date (41099, 42672 …, from an earlier load that read a date column as the UC Number) were removed. They matched no call and held no review answers.',
+    ],
+  },
+  {
+    version: '0.10.132',
+    date: '2026-10-06',
+    title: 'Old DCCR registers load with their calls; Re-calculate is quicker and Active-only',
+    changes: [
+      'BULK UPLOADS → QUALITY → “DCCR Register — historical, with its calls”: load an old DCCR register export as it is. Each row files the call (dated by its CALL DATE, with the customer, place, product, serial and engineer; P M VISIT rows go to PM Calls), the review (kept as imported — no Field Failure Report raised) and one visit from CURRENT CALL STATUS and the solved date, so a solved call reads Solved. Unattended stays Unattended; Canceled is filed cancelled. Nobody is notified. A call already in RITHI is left alone.',
+      'Why the 2025 DCCR did not show: its 6,051 reviews were loaded, but no 2025 call was in RITHI, and the DCCR View lists calls with their review. Loading the same file through the new upload brings them in.',
+      'Old FFR logs load through BULK UPLOADS → QUALITY → Field Failure Register (any year), a year’s tab at a time.',
+      'OBJECTIVE → Re-calculate works out Active objectives only (Not Working and Do Not Use keep their figures), and the DCCR failure rate is counted far faster — it was timing out.',
+    ],
+  },
+  {
+    version: '0.10.131',
+    date: '2026-10-06',
+    title: 'Objective: editing an objective saves again',
+    changes: [
+      'OBJECTIVE: Save on an objective\'s definition (✏️) failed with “column id can only be updated to DEFAULT”. It now saves only what the window edits — the name, process, targets, frequency, responsible, status, calculation and parameters.',
+    ],
+  },
+  {
+    version: '0.10.130',
+    date: '2026-10-06',
+    title: 'Objective: failure rate from the DCCR, by month of commissioning',
+    changes: [
+      'OBJECTIVE → FAILURE RATE (DCCR): a new tab with your WRR table for each product — one row per month of commissioning, its Parc, and the failures before 3, 6, 12, 24, 36 and 60 months with their rates. ⭳ Download gives the table, the failing calls and the months averaged.',
+      'A failure is a Field call whose DCCR Spare / Consumable / Correction / Calibration is SPARE, or whose Any Potential Effect is YES. Every call counts, as in the sheet, so a rate can pass 100%. A month younger than the window is blank.',
+      'The six product failure rates (CPXcare, Extend (Indian), Orion-G, VEGA, MT75, MT60) now take this rule: each month is the average of the 3-month rates of the 12 months of commissioning ending in it. Press Re-calculate to update them.',
+    ],
+  },
+  {
+    version: '0.10.129',
+    date: '2026-10-06',
+    title: 'Objective: a Status for each objective, and the five deleted ones restored',
+    changes: [
+      'OBJECTIVE: every objective now has a Status — Active, Not Working or Do Not Use — set with ✏️ on the objective. Not Working and Do Not Use are hidden; tick “Show hidden” to see and change them. Hiding is all it does: they are still edited and re-calculated as before.',
+      'The five objectives that had been deleted — Recent Failure Rate of CPXcare, Extend (Indian), Orion-G, VEGA and Failure Rate of MT60 — are restored as Not Working, with the January–July figures they were first loaded with and the same calculation as MT75. Press Re-calculate to bring their computed months up to date.',
     ],
   },
   {

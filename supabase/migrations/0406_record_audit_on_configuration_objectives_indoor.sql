@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0396 — CONFIGURATION, QUALITY OBJECTIVES AND THE INDOOR WORKSHOP ARE IMAGED
+-- 0406 — CONFIGURATION, QUALITY OBJECTIVES AND THE INDOOR WORKSHOP ARE IMAGED
 --        (second re-review D-067, D-021, D-039)
 --
 -- record_audit (0225, 0314) images fifteen tables. Three groups that decide
@@ -119,5 +119,5 @@ begin
       n := n + 1;
     end if;
   end loop;
-  raise notice '0396: record_audit armed on % of 13 tables.', n;
+  raise notice '0406: record_audit armed on % of 13 tables.', n;
 end $on$;

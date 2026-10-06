@@ -10,7 +10,7 @@
 --   * a time in the future is refused (five minutes' grace for a clock);
 --   * clearing the time clears the person.
 -- A connection with no session (a repair, an import) is left alone.
--- In the indoor module, after 0394.
+-- In the indoor module, after 0404.
 -- ===========================================================================
 
 create or replace function public.indoor_reported_to_customer_stamp()

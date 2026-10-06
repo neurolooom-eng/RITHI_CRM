@@ -4,11 +4,11 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-10-06 (REVIEW BATCH 8 — v0.10.134: D-067/D-021/D-039 imaged (0396 data_integrity.sql), D-027 (0397 daily_review.sql), D-030 (0398 call_requests.sql), D-039 damage stamp (0399 indoor.sql), D-021 objective with figures kept (0402 objective.sql), D-069 View as read-only and D-067 upload/settings records on the screens; rows 332-335, 338; OQ-269; suite review_batch_8_test. D-039 void (FRS-143.8) still open. Not merged until you ask.) Before that: 2026-10-05 (REVIEW BATCH 7 — v0.10.133: D-044 (0392 HandStock_X.sql: save_spare_request / save_stock_transfer / save_material_return), D-041 (0393 Spare_1.sql), D-075 on the screens (plan, confirm, then write); rows 330-331; OQ-268; suite review_batch_7_test. Not merged until you ask.)
-_Last updated: 2026-10-05 (YOUR DECISIONS OF 2026-10-05 BUILT — v0.10.132: D-033 (0400 call_requests.sql), D-049 (0375 HandStock_X.sql; key stock.transfer.others), D-129 (0401 daily_review.sql; key review.view, given once to review.edit holders), D-104 on the screens; rows 322-324; OQ-267; suite review_decisions_2_test. Merged main again: my 0360/0370/0372/0374/0376 became 0403/0394/0395/0400/0401 -- 0403 re-states main's 0372 approve_indoor_dc with the D-145 skip; rows 305-309 became 315-319; OQ-251-253 became 254-256; v0.10.90-92 became 0.10.129-102. Not merged until you ask.)
-_Last updated: 2026-10-04 (REVIEW BATCH 6 — v0.10.131: D-108/D-116 (0394 indoor.sql), D-086 (0371 masters.sql), D-059 (0395 training.sql), D-050 (0373 HandStock_X.sql); D-018/D-065, D-031, D-032, D-040, D-105, D-099 follow-up on the screens; rows 328-321; OQ-266; suite review_batch_6_test. D-107 parked by you; D-102 waiting on your read of _d102_calls_mapped_by_call_number.sql. Not merged until you ask.)
-_Last updated: 2026-10-04 (REVIEW BATCH 5 — v0.10.130: D-140, D-058 (KYC half), D-138 (0366 masters.sql), D-143 (0367 indoor.sql), D-061 (0368 documents.sql), D-054, D-099, D-100, D-106, D-052 on the screens; rows 300-302; OQ-265; suite review_batch_5_test. Needs your decision: D-102 (call number or the call's serial wins), D-107 (only an issued Indoor DC sends a unit out). Not merged until you ask.)
-_Last updated: 2026-10-04 (YOUR DECISIONS BUILT — v0.10.129: D-125 (0369 HandStock_X.sql; keys visit.others and spare.request.others), D-145 (0403 indoor.sql), D-149 (0361 sales_contracts.sql), D-150 and D-154 (0362 sales_contracts.sql), D-111, D-112 and D-114 (0363 indoor.sql; key indoor.pdt_unsign), D-151 and the D-152 flag on the screens; rows 303-327; OQ-264; suite review_decisions_test. Not merged until you ask; on merge the Apply database migrations run applies 0361–0363, 0369 and 0403 -- read its log before calling anything live. D-152's database half stays open by your decision: observe the flagged values first.)
+_Last updated: 2026-10-06 (REVIEW BATCH 8 — v0.10.139: D-067/D-021/D-039 imaged (0406 data_integrity.sql), D-027 (0407 daily_review.sql), D-030 (0408 call_requests.sql), D-039 damage stamp (0399 indoor.sql), D-021 objective with figures kept (0402 objective.sql), D-069 View as read-only and D-067 upload/settings records on the screens; rows 332-335, 338; OQ-272; suite review_batch_8_test. D-039 void (FRS-143.8) still open. Not merged until you ask.) Before that: 2026-10-05 (REVIEW BATCH 7 — v0.10.138: D-044 (0392 HandStock_X.sql: save_spare_request / save_stock_transfer / save_material_return), D-041 (0393 Spare_1.sql), D-075 on the screens (plan, confirm, then write); rows 330-331; OQ-271; suite review_batch_7_test. Not merged until you ask.)
+_Last updated: 2026-10-05 (YOUR DECISIONS OF 2026-10-05 BUILT — v0.10.137: D-033 (0400 call_requests.sql), D-049 (0375 HandStock_X.sql; key stock.transfer.others), D-129 (0401 daily_review.sql; key review.view, given once to review.edit holders), D-104 on the screens; rows 322-324; OQ-270; suite review_decisions_2_test. Merged main again: my 0360/0370/0372/0374/0376 became 0403/0404/0405/0400/0401 -- 0403 re-states main's 0372 approve_indoor_dc with the D-145 skip; rows 305-309 became 315-319; OQ-251-253 became 254-256; v0.10.90-92 became 0.10.134-102. Not merged until you ask.)
+_Last updated: 2026-10-04 (REVIEW BATCH 6 — v0.10.136: D-108/D-116 (0404 indoor.sql), D-086 (0371 masters.sql), D-059 (0405 training.sql), D-050 (0373 HandStock_X.sql); D-018/D-065, D-031, D-032, D-040, D-105, D-099 follow-up on the screens; rows 328-321; OQ-269; suite review_batch_6_test. D-107 parked by you; D-102 waiting on your read of _d102_calls_mapped_by_call_number.sql. Not merged until you ask.)
+_Last updated: 2026-10-04 (REVIEW BATCH 5 — v0.10.135: D-140, D-058 (KYC half), D-138 (0366 masters.sql), D-143 (0367 indoor.sql), D-061 (0368 documents.sql), D-054, D-099, D-100, D-106, D-052 on the screens; rows 300-302; OQ-268; suite review_batch_5_test. Needs your decision: D-102 (call number or the call's serial wins), D-107 (only an issued Indoor DC sends a unit out). Not merged until you ask.)
+_Last updated: 2026-10-04 (YOUR DECISIONS BUILT — v0.10.134: D-125 (0369 HandStock_X.sql; keys visit.others and spare.request.others), D-145 (0403 indoor.sql), D-149 (0361 sales_contracts.sql), D-150 and D-154 (0362 sales_contracts.sql), D-111, D-112 and D-114 (0363 indoor.sql; key indoor.pdt_unsign), D-151 and the D-152 flag on the screens; rows 303-327; OQ-267; suite review_decisions_test. Not merged until you ask; on merge the Apply database migrations run applies 0361–0363, 0369 and 0403 -- read its log before calling anything live. D-152's database half stays open by your decision: observe the flagged values first.)
 _Last updated: 2026-10-04 (OBJECTIVE RE-CALCULATE TIMED OUT after 0357 — 0359 (objective), v0.10.89: the failure rate is one hashed join, EXECUTEd so it is never generic-planned; 0.7 s for 6 objectives x 10 months on 20k machines / 40k calls against ~47 s, identical figures and evidence. Also 0358: SLA / Objective Configuration to Technical Support (page only), and the Frequent Failure card moved there from Admin Config. Auto-applied on merge; _status.sql rows 290-291. PENDING: press Re-Calculate on Objective once 0359 is live.)_
 _Last updated: 2026-10-05 (UNMAP A CALL REQUEST — v0.10.98, no migration: ↩ Unmap on a Mapped request (pending.register) clears ucn / actioned_by / actioned_at and returns it to Pending, the status test in the UPDATE and the rows counted; the call untouched. Hand-run supabase/apply/_unmap_call_request.sql for R18884 (mapped to 26H01P0365 by mistake) — the user's step. FRS-122.10, OQ-251, suite call_request_unmap_test. Before that: OBJECTIVE RE-CALCULATE TIMED OUT after 0357 — 0359 (objective), v0.10.89: the failure rate is one hashed join, EXECUTEd so it is never generic-planned; 0.7 s for 6 objectives x 10 months on 20k machines / 40k calls against ~47 s, identical figures and evidence. Also 0358: SLA / Objective Configuration to Technical Support (page only), and the Frequent Failure card moved there from Admin Config. Auto-applied on merge; _status.sql rows 290-291. PENDING: press Re-Calculate on Objective once 0359 is live.)_
 _Last updated: 2026-10-05 (PM CALL NUMBER YEAR — ONE-TIME, the user's step: supabase/apply/_pm_call_number_year.sql makes a 2025 / 2026 PM call's number start with the year of its Call Registration Date (first two digits only), and carries the new number to the same UCN's visit reports, spare requests, spare consumption, feedback and Daily Call Review rows that held the old one; report-only until `false` -> `true`; numbers not starting with two digits are listed and left alone. Tested on a local database, re-run safe. Before that: STORES DISPATCH REPORT — 0385 (handstock), v0.10.118: Reports → Stores Dispatch Report in the AppSheet Stores format (stores_dispatch_report), exact days from the final approval (latest of RM / Commercial / NSM) to one decimal, banded 00-03D … >60D, "No approval date" where none was recorded; parts.ind_imp on the Part Master forms and upload, blank until loaded. mod:/exports/stores-dispatch to admin, technical_support, stores_incharge, spare_coordinator. FRS-264, OQ-261, _status.sql row 318, suite stores_dispatch_report_test. Applied by the merge's "Apply database migrations" run — read its log. Before that: UNMAP A CALL REQUEST — v0.10.98, no migration: ↩ Unmap on a Mapped request (pending.register) clears ucn / actioned_by / actioned_at and returns it to Pending, the status test in the UPDATE and the rows counted; the call untouched. Hand-run supabase/apply/_unmap_call_request.sql for R18884 (mapped to 26H01P0365 by mistake) — the user's step. FRS-122.10, OQ-251, suite call_request_unmap_test. Before that: OBJECTIVE RE-CALCULATE TIMED OUT after 0357 — 0359 (objective), v0.10.89: the failure rate is one hashed join, EXECUTEd so it is never generic-planned; 0.7 s for 6 objectives x 10 months on 20k machines / 40k calls against ~47 s, identical figures and evidence. Also 0358: SLA / Objective Configuration to Technical Support (page only), and the Frequent Failure card moved there from Admin Config. Auto-applied on merge; _status.sql rows 290-291. PENDING: press Re-Calculate on Objective once 0359 is live.)_
@@ -85,6 +85,74 @@ _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 up)_
 
 ---
+
+## 2026-10-06 — PM Spare -> DCCR (0397); Excel-date DCCR rows removed (0398), v0.10.133
+
+- The user: PM calls into the DCCR when a consumption is a Spare (Part Master
+  category), current mapping, old calls later. Answers: add to the review list
+  with SPARE pre-set; new + 2026 so far. And "Delete them" for the ~10,000
+  DCCR rows whose UC Number is an Excel date serial (42672 = 28-Oct-2016).
+- 0397: `dccr_calls` (Field + PM calls with a review), both review views read
+  it; `zz_pm_spare_to_dccr` on spare_consumption; `part_is_spare()`; 2026
+  backfill. **Pending:** re-run the backfill (or daily_review.sql) once the Part
+  Master mapping is complete, and decide whether older PM calls should go in.
+- 0398: deletes DCCR rows with a five-digit or "-" UC Number on no call.
+- PM spares are NOT in the DCCR failure rate (0393 reads Field calls) -- not
+  asked.
+- FRS-268, OQ-266 (`pm_spare_dccr_test`), `_status.sql` row 328.
+
+## 2026-10-06 — Old DCCR with its calls (0394/0395); Re-calculate Active-only and fast (0396), v0.10.132
+
+- Probe (live): 38,516 DCCR rows, 6,051 of them the 2025 upload (imported),
+  and ~28,000 on NO call -- the database had no Field call before 2026, so the
+  DCCR View could show none. ~10,000 more have UC Numbers beginning 41-53 that
+  look like no call's; `_dccr_reviews_on_no_call.sql` lists them (the user:
+  "Show me first" -- nothing changed).
+- 0395: `dccr_history_import` (staging, keyed on UCN) + `dccr_history_apply`
+  files the call, the imported review and one visit from CURRENT CALL STATUS
+  (none for Unattended or Canceled); a live call is left alone; re-load
+  corrects (needing the edit rights the guards ask). 0394: notify_call_allotted
+  is silent while `rithi.silent_import` is on. Proved on the user's 2025 file in
+  a scratch database: 6,051 Field + 14 PM calls, 0 notifications, ~1 s per 100.
+- 0396: Re-calculate only Active objectives ("Re-calculate only Active
+  Objectives" after a statement timeout); the DCCR cohort rows counted once per
+  month and the machine found through products_serial_key_idx.
+- Old FFR logs: the existing Field Failure Register (any year) upload.
+- FRS-267, OQ-265 (`dccr_history_import_test`), FRS-121.13, `_status.sql` rows 325-327.
+- Pending: the PM-to-DCCR trigger (the user's ask, same day) -- needs answers.
+
+## 2026-10-06 — Objective: failure rate from the DCCR by commissioning month (0393, v0.10.130)
+
+- The user: failure within 3 months, rolling 12, run on DCCR rows filtered to
+  SPARE (their WRR QUERY also takes Any Potential Effect = YES), mimicking the
+  WRR tabs; "add a Separate Tab ... then map the 12 Months rolling average to
+  Objective". Answers: SPARE OR potential YES; each call counts (as the
+  sheet, rates can pass 100%); average of the 12 monthly rates; every call
+  counts (no Add? field); the 12 months ending in the objective month, blanks out.
+- `_dccr_failure_calls` / `_dccr_failure_cohort_rows` (internal), the page's
+  `dccr_failure_cohorts` / `dccr_failure_calls` (calls.view or reports.view),
+  objective_value restated from 0359 with a `dccr_failure_cohort` branch; the six
+  2026 `failure_rate_12m` objectives moved to it. Objective → Failure Rate
+  (DCCR) tab; ⭳ evidence for these objectives is the cohort workbook.
+- The machine for a call is the Product Database row of that serial + product
+  with the latest Warranty Start on or before the call; a call with none has no
+  commissioning month and is not counted.
+- Re-running objective.sql moves any 2026 objective set back to
+  failure_rate_12m onto the DCCR rule again.
+- FRS-121.12, OQ-264 (`dccr_failure_cohort_test`), `_status.sql` row 324.
+
+## 2026-10-06 — Objective Status, five deleted objectives restored (0392, v0.10.129)
+
+- The user: "I deleted a Few Objectives, I want to Restore them, But Hide Them
+  or add a Field -- Not Working, Do Not Use". Answers: Status field + hidden by
+  default; restored as Not Working; original figures; hide only.
+- `_which_objectives_are_missing.sql` (probe, live): CPXcare, Extend (Indian),
+  Orion-G, VEGA and MT60 had no 2026 row. A delete keeps no copy, so 0392
+  restores them from 0130's list with 0132/0133's calc_key/calc_params; figures
+  added between 0130 and the delete are not recoverable (Re-calculate rebuilds
+  the computed months). FRS-121.11, `_status.sql` row 323.
+- Not done: the Delete button still deletes outright. A Do Not Use status is
+  now the way to retire an objective without losing it.
 
 ## 2026-10-06 — KPI Export (Field_INST) includes PM calls (0390, v0.10.125)
 
