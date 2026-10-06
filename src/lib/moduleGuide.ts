@@ -746,7 +746,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
   },
   {
     route: '/exports/kpi',
-    purpose: 'The KPI workbook’s Field_INST tab, in its own column order.',
+    purpose: 'The KPI workbook’s Field_INST_PM tab (Field, Installation and PM calls), in its own column order.',
     does: [
       'Choose the registered-from / to dates, or the whole register',
       'Download Excel or CSV',

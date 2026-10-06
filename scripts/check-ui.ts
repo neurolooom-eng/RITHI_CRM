@@ -1463,7 +1463,7 @@ console.log('\n-- the Objective page --');
   // MOVED, not copied -- twice now. Two export buttons writing the same file
   // from two screens is how they drift apart, so each move must leave NOTHING
   // behind: the check names every screen it has ever lived on.
-  eq('the KPI export lives on Reports', /KPI workbook — Field_INST/.test(kpiExport)
+  eq('the KPI export lives on Reports', /KPI workbook — Field_INST_PM/.test(kpiExport)
     && /KpiExport/.test(hub), true);
   eq('...and is gone from KPI & Failure Analysis',
     /Export — KPI workbook/.test(kpi) || /listKpiFieldInst/.test(kpi), false);
@@ -5774,8 +5774,16 @@ console.log('\n-- the Product Database and the Product Master are two registers 
     eq('...the month overflow matches the database: 31-Jan + 1 month ends 2-Mar',
       cs.freshWarranty('2026-01-31', 1).end, '2026-03-02');
     eq('...and no months is no warranty', cs.freshWarranty('2026-01-31', ''), { years: '', end: '' });
-    eq('the fresh warranty is optional and needs the Reference no.',
-      /const \[fresh, setFresh\] = useState\(false\)/.test(ot) && /A fresh warranty needs the Reference no\./.test(ot), true);
+    eq('the fresh warranty is optional',
+      /const \[fresh, setFresh\] = useState\(false\)/.test(ot), true);
+    // THE OT NUMBER, THE INVOICE AND THE FILES (the user, 2026-10-06).
+    eq('the OT number is the database\'s: none is sent, and the one given is read back',
+      /reference_no: '',/.test(ot) && /\.insert\(t\)\.select\('reference_no'\)/.test(readFileSync('src/lib/supabase.ts', 'utf8')), true);
+    eq('...and the form shows it as given on save, not typed',
+      /<F label="OT Number"[\s\S]{0,200}placeholder="Given on save" readOnly disabled/.test(ot), true);
+    eq('the transfer takes an Invoice No and Date', /invoice_no: \(moveForm\.invoice_no \?\? ''\)\.trim\(\), invoice_date:/.test(ot), true);
+    eq('files are optional, uploaded to the Ownership Transfers folder and saved as attachments',
+      /uploadToDrive\(f, `OT - [^`]*`, 'transfer'\)/.test(ot) && /attachments: files,/.test(ot), true);
   }
   // The user, 2026-10-02: start defaults to today; months, Payment Schedule,
   // Bill Generate At and PM Visits (Total) are required; years and end are

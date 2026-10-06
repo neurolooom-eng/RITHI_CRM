@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.132',
+    version: '0.10.134',
     date: '2026-10-06',
     title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
     changes: [
@@ -27,7 +27,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.131',
+    version: '0.10.133',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
     changes: [
@@ -37,7 +37,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.130',
+    version: '0.10.132',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -48,7 +48,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.129',
+    version: '0.10.131',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -62,7 +62,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.128',
+    version: '0.10.130',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -76,7 +76,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.127',
+    version: '0.10.129',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -87,6 +87,25 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.128',
+    date: '2026-10-06',
+    title: 'Ownership Transfer: automatic OT number, invoice, and files',
+    changes: [
+      'THE OT NUMBER IS GIVEN AUTOMATICALLY when a transfer is saved. It continues from the highest on file (after OT1432 comes OT1433), and the message after saving says which number was given. The field can no longer be typed into. Transfers loaded from a file keep the OT numbers the file carries.',
+      'INVOICE NO. AND INVOICE DATE can be entered on a transfer. The Product Database then shows that invoice for the machine, with or without a fresh warranty, unless the machine has a sale dated after the transfer\'s invoice.',
+      'FILES (optional): attach the papers for a transfer (hand-over letter, invoice copy, NOC). They are saved to the "Ownership Transfers" folder in Drive and open from the transfers list.',
+      'The transfers list now shows the OT Number, Invoice No., Invoice Date and Files.',
+    ],
+  },
+  {
+    version: '0.10.127',
+    date: '2026-10-06',
+    title: 'KPI Export renamed Field_INST_PM',
+    changes: [
+      'REPORTS → KPI EXPORT: the workbook is now “KPI workbook — Field_INST_PM”, its sheet is Field_INST_PM and the file downloads as kpi-field-inst-pm-….xlsx / .csv, since it holds PM calls as well as Field and Installation calls.',
     ],
   },
   {

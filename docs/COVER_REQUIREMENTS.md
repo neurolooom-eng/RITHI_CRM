@@ -151,10 +151,10 @@ per day.
 
 ## D. Ownership
 
-**CW-011 — A change of owner is a dated record, and it is read.** · *v0.10.115 · 05-Oct-2026*
+**CW-011 — A change of owner is a dated record, and it is read.** · *v0.10.128 · 06-Oct-2026*
 *§7.5.9.* Who owns a machine shall be derived from the ownership transfer
 register where one exists, not left at whoever first bought it.
-**Status: Partial.** `ownership_transfers` records it (0072), Machine History shows it and Product Database 2.0 reads it (CW-012). The stored owner on `public.products` is moved by the latest transfer for that PRODUCT + SERIAL only since 0330 (2026-10-03), with the transfer's Ref and Date and the new owner's Party Master address (0329); the form picks the machine by product + serial from the Product Database since 0.10.108 (FRS-260). Since 0.10.115 a transfer may give the new owner a FRESH WARRANTY (0383): start and months entered, years and end worked out, which the machine wears — numbered with the transfer's Reference no. — while it starts on or after the sale's; the sale entry is not changed (FRS-263).
+**Status: Partial.** `ownership_transfers` records it (0072), Machine History shows it and Product Database 2.0 reads it (CW-012). The stored owner on `public.products` is moved by the latest transfer for that PRODUCT + SERIAL only since 0330 (2026-10-03), with the transfer's Ref and Date and the new owner's Party Master address (0329); the form picks the machine by product + serial from the Product Database since 0.10.108 (FRS-260). Since 0.10.115 a transfer may give the new owner a FRESH WARRANTY (0383): start and months entered, years and end worked out, which the machine wears — numbered with the transfer's Reference no. — while it starts on or after the sale's; the sale entry is not changed (FRS-263). Since 0.10.128 the OT number is given by the database, and a transfer's invoice is carried to the machine (FRS-266).
 
 **CW-012 — The most recently dated evidence decides the party.** · *v0.10.66 · 03-Oct-2026*
 *§7.5.9.* Where the registers disagree about who owns a machine, the latest

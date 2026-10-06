@@ -846,9 +846,9 @@ const MODULES = {
             // Its number, PDQC/YY/NNNN (2026-10-05).
             '0378_pdqc_number.sql',
             // D-145 (the user's decision): approving a DC skips filing the visit
-            // of a unit whose call is already Solved, and says so (0391).
+            // of a unit whose call is already Solved, and says so (0403).
             // Redefines 0327's approve_indoor_dc(), so after it.
-            '0391_indoor_approval_skips_a_solved_call.sql',
+            '0403_indoor_approval_skips_a_solved_call.sql',
             // D-111 / D-112 / D-114 (the user's decisions): a signed PDT is locked
             // and un-signed only with indoor.pdt_unsign and a reason; the dispatch
             // date is when the unit is marked Dispatched; a cleaning time may be
@@ -1229,7 +1229,11 @@ const MODULES = {
             '0362_installation_once_and_no_dealer_request.sql',
             // A transfer can give the new owner a fresh warranty, worn by the
             // machine (the user, 2026-10-05); redefines 0331's sync_product_machine.
-            '0383_transfer_fresh_warranty.sql'],
+            '0383_transfer_fresh_warranty.sql',
+            // The OT number given by the database, the transfer's invoice on
+            // the machine, and its files (the user, 2026-10-06); redefines
+            // 0383's sync_product_machine.
+            '0391_transfer_ot_number_invoice_files.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

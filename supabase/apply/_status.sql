@@ -2018,7 +2018,7 @@ with checks(sort_order, bundle, provides, present) as (
                and tgrelid in (to_regclass('public.reports'), to_regclass('public.spare_consumption'), to_regclass('public.spare_requests'))) = 3
          and exists (select 1 from pg_trigger where tgname = 'a_created_by_is_the_session'
                       and tgrelid = to_regclass('public.spare_consumption')))),
-    (304, 'Approving an Indoor DC does not file a visit on a call already Solved', 'approve_indoor_dc() skips the drafted visit of a unit whose call''s last status is Solved, writes indoor.visit_skipped to the audit log and says which calls in its answer; every other unit files its visit as before (0391, D-145). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0391)',
+    (304, 'Approving an Indoor DC does not file a visit on a call already Solved', 'approve_indoor_dc() skips the drafted visit of a unit whose call''s last status is Solved, writes indoor.visit_skipped to the audit log and says which calls in its answer; every other unit files its visit as before (0403, D-145). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0403)',
         coalesce((select p.prosrc like '%indoor.visit_skipped%' from pg_proc p
                    where p.oid = to_regprocedure('public.approve_indoor_dc(text,boolean)')), false)),
     (325, 'A corrected transfer blanks Sold Through only where a transfer set it, and re-reads the machine it left', 'products.sold_through_from_transfer records that the transfer path wrote the Sold Through; transfer_resync_machine() blanks it, with no dealer transfer left, only then, and transfer_to_product re-reads OLD''s machine when a transfer moves (0361, D-149). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0361)',
@@ -2140,7 +2140,7 @@ with checks(sort_order, bundle, provides, present) as (
     (337, 'A stock transfer or return is not dated into a closed hand-stock period or the future', 'stock_movement_date_open on stock_transfers and material_returns refuses, for a signed-in non-importer, a date on or before the last closed day or after today (0373, D-050). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0373)',
         (select count(*) from pg_trigger where tgname = 'stock_movement_date_open' and not tgisinternal
           and tgrelid in (to_regclass('public.stock_transfers'), to_regclass('public.material_returns'))) = 2),
-    (322, 'A field call is registered with its three vigilance questions answered', 'field_call_vigilance_answered refuses a signed-in registration of a field call whose Public Health Threat?, Death? or Serious Incident? is not YES or NO; imports, installation and PM calls are not stopped (0400, D-033). NO means call_requests.sql has not been re-run since. Restore: call_requests.sql (0400)',
+    (339, 'A field call is registered with its three vigilance questions answered', 'field_call_vigilance_answered refuses a signed-in registration of a field call whose Public Health Threat?, Death? or Serious Incident? is not YES or NO; imports, installation and PM calls are not stopped (0400, D-033). NO means call_requests.sql has not been re-run since. Restore: call_requests.sql (0400)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.field_calls') and tgname = 'field_call_vigilance_answered')),
     (323, 'Stock is transferred from your own or your team''s hand stock, to a person on the User Master', 'stock_transfer_own_or_team refuses a signed-in transfer from an engineer who is not you or in your team (unless stock.transfer.others) or to a name the User Master does not carry; imports are not stopped (0375, D-049). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0375)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.stock_transfers') and tgname = 'stock_transfer_own_or_team')),
@@ -2186,7 +2186,14 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regclass('public.pm_calls_reg_at_desc_idx') is not null)),
     (321, 'KPI Export (Field_INST) includes PM calls', 'kpi_field_inst reads pm_calls as well as field_calls and installation_calls (0390), cancelled calls of each left out. NO means performance.sql has not been re-run since. Restore: performance.sql (0390)',
         coalesce((select pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%pm_calls%'
-                   where to_regclass('public.kpi_field_inst') is not null), false))
+                   where to_regclass('public.kpi_field_inst') is not null), false)),
+    (322, 'An ownership transfer: OT number given by the database, its invoice on the machine, its files', 'ownership_transfers carries invoice_no / invoice_date / attachments; ownership_transfer_number gives a transfer saved with no Reference no. the next OT number after the highest OTnnnn and keeps it on edit; sync_product_machine() gives the machine the latest transfer''s invoice when it is dated on or after the sale''s (0391). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0391)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'ownership_transfers' and column_name = 'attachments')
+     and to_regprocedure('public.ot_next_no()') is not null
+     and exists (select 1 from pg_trigger where tgname = 'ownership_transfer_number' and not tgisinternal)
+     and coalesce((select p.prosrc like '%use_ti%' and p.prosrc like '%use_ft%' from pg_proc p
+                    where p.oid = to_regprocedure('public.sync_product_machine(text,text)')), false)))
         -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

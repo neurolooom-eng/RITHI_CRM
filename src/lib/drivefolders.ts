@@ -20,7 +20,7 @@
 // in step — `check:ui` compares them word for word.
 // ===========================================================================
 
-export type DriveFolder = 'field' | 'installation' | 'pm' | 'kyc' | 'additional' | 'indoor';
+export type DriveFolder = 'field' | 'installation' | 'pm' | 'kyc' | 'additional' | 'indoor' | 'transfer';
 
 export const DRIVE_FOLDER_NAMES: Record<DriveFolder, string> = {
   field: 'Field Reports',
@@ -32,6 +32,11 @@ export const DRIVE_FOLDER_NAMES: Record<DriveFolder, string> = {
   // saved to" the INDOOR Service Reports folder -- in the same Reports shared
   // drive, so it is resolved by name like the rest).
   indoor: 'INDOOR Service Reports',
+  // Papers kept with an ownership transfer (the user, 2026-10-06: "a File
+  // Upload Option to save important info regarding Ownership Transfer").
+  // Until the folder exists in the shared drive AND the bridge is redeployed,
+  // the bridge files these in the drive root, where they still open.
+  transfer: 'Ownership Transfers',
 };
 
 // WHICH FOLDER A VISIT REPORT BELONGS IN, from the call's own type — and this

@@ -1650,6 +1650,9 @@ Purpose: Records a machine changing hands, and warranty/contract details recover
 | 13 | Sale Entry block shows the machine's Invoice No. and Invoice Date | coverspec.ts transferDetailsFromMachine; supabase.ts serverProductBySerial | ownership.transfer | FRS-263 | |
 | 14 | Optional fresh warranty for the new owner: start (defaults to the transfer date) and months typed, years and end worked out; Reference no. required; the machine wears it numbered with the Reference no. while it starts on or after the sale's | OwnershipTransfer.tsx fresh, saveMove; coverspec.ts freshWarranty; 0383 ownership_transfer_warranty, sync_product_machine | ownership.transfer; DB ownership_transfer_warranty | FRS-263 | |
 | 15 | Opened from a Product Database row's ⇄ Transfer with that machine picked | OwnershipTransfer.tsx location effect, chooseMachine | ownership.transfer | FRS-262 | |
+| 16 | OT Number given by the database on save (next after the highest OTnnnn), shown read-only, reported after saving | 0391 ot_next_no, ownership_transfer_number; supabase.ts addOwnershipTransfer | ownership.transfer | FRS-266 | |
+| 17 | Invoice No. and Invoice Date on the transfer, carried to the machine on the Product Database | OwnershipTransfer.tsx saveMove; 0391 sync_product_machine | ownership.transfer | FRS-266 | |
+| 18 | Optional files uploaded to the Ownership Transfers Drive folder, kept as attachments, opened from the list in the document preview | OwnershipTransfer.tsx attachFile, DocPreview; sheets.ts uploadToDrive; drivefolders.ts transfer | ownership.transfer | FRS-266 | |
 
 ### Field Solutions (`/knowledge-base`) — `src/modules/KnowledgeBase.tsx`
 Purpose: Team-written articles about field problems and fixes.

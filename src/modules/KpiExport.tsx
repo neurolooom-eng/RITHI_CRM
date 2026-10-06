@@ -62,7 +62,7 @@ export function KpiExport() {
       // Announced and audited only once the file was WRITTEN (D-018).
       let written: boolean;
       if (kind === 'csv') {
-        written = await csvExport(`kpi-field-inst-${span}.csv`, cols, all.map(toKpiExportRow),
+        written = await csvExport(`kpi-field-inst-pm-${span}.csv`, cols, all.map(toKpiExportRow),
           // `all` is every page, read in the loop above.
           COMPLETE);
       } else {
@@ -70,8 +70,10 @@ export function KpiExport() {
         // subtracts it — which a CSV cannot offer at all, whatever the dates
         // are spelled like in it. `xlsxCell` is handed the RAW value and
         // decides by VALUE, never by column name.
-        written = await xlsxDownload(`kpi-field-inst-${span}.xlsx`, [{
-          name: 'Field_INST',
+        written = await xlsxDownload(`kpi-field-inst-pm-${span}.xlsx`, [{
+          // FIELD_INST_PM since PM calls joined it (the user, 2026-10-06:
+          // "KPI workbook — Field_INST - Rename this to Field_INST_PM").
+          name: 'Field_INST_PM',
           columns: cols.map((c) => c.header),
           rows: all.map((r) => {
             const raw = toKpiCellRow(r);
@@ -88,7 +90,7 @@ export function KpiExport() {
   };
 
   return (
-    <SectionCard title="KPI workbook — Field_INST">
+    <SectionCard title="KPI workbook — Field_INST_PM">
       <p className="muted" style={{ marginTop: 0 }}>
         The workbook&rsquo;s own tab, computed from the register: <b>columns A to AG</b>, the same
         fields in the same order under the same headings, so the file drops straight in — plus

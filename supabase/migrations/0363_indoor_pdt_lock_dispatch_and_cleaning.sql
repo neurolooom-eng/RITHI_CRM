@@ -38,7 +38,7 @@
 -- It is named to run AFTER zz_indoor_jobs_guard and zz_indoor_jobs_stamp
 -- (zzy_ sorts between them and zzz_sys_stamp), so its stamps are the last word.
 -- A connection with no session (a repair, an import) is not stopped.
--- In the indoor module, after 0391.
+-- In the indoor module, after 0403.
 -- ===========================================================================
 
 -- ---- D-111 ------------------------------------------------------------------

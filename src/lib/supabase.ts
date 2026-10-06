@@ -4952,6 +4952,11 @@ export interface OwnershipTransfer {
    *  years and end worked out by the database. Blank on most transfers. */
   warranty_start?: string | null; warranty_months?: number | null;
   warranty_years?: number | null; warranty_end?: string | null;
+  /** The new owner's invoice (0391): reaches the Product Database when dated
+   *  on or after the sale's. */
+  invoice_no?: string; invoice_date?: string | null;
+  /** Files kept with the transfer (0391), the Party Master KYC records' shape. */
+  attachments?: { name: string; url: string; at?: string; by?: string }[];
 }
 export async function listOwnershipTransfers(serial = ''): Promise<OwnershipTransfer[]> {
   const c = getSupabase(); if (!c) return [];
@@ -4965,10 +4970,11 @@ export async function listOwnershipTransfers(serial = ''): Promise<OwnershipTran
   }, 20000);
   return data;
 }
-export async function addOwnershipTransfer(t: Partial<OwnershipTransfer>): Promise<{ ok: boolean; error?: string }> {
+export async function addOwnershipTransfer(t: Partial<OwnershipTransfer>): Promise<{ ok: boolean; error?: string; otNo?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
-  const { error } = await c.from('ownership_transfers').insert(t);
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  // THE OT NUMBER IS THE DATABASE'S (0391), so it is read back to be shown.
+  const { data, error } = await c.from('ownership_transfers').insert(t).select('reference_no').maybeSingle();
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, otNo: String((data as { reference_no?: string } | null)?.reference_no ?? '') };
 }
 
 export interface AdditionalEntry {
@@ -6313,7 +6319,7 @@ export async function listIndoorDcAuthorisers(): Promise<{ name: string; basis: 
 export async function approveIndoorDc(dcNo: string, checkOnly = false): Promise<{ ok: boolean; error?: string; skipped?: string }> {
   const { data, error } = await must().rpc('approve_indoor_dc', { p_dc_no: dcNo, p_check_only: checkOnly });
   if (error) return { ok: false, error: errMsg(error) };
-  // D-145 (0391): a unit whose call was SOLVED since its visit was drafted is
+  // D-145 (0403): a unit whose call was SOLVED since its visit was drafted is
   // not filed; the function names those calls after a " | ".
   const out = String(data ?? '');
   const i = out.indexOf(' | ');
