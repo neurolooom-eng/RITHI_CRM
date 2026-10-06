@@ -118,6 +118,9 @@ different totals. An empty register usually means access, not emptiness.
   > later — or **Invoice Date**, which keeps the start on the PO / Warranty Sale
   > Entry. Nothing is pre-selected; the engineer must choose.
 - **Preventive (PM)** `/pm-calls` — planned maintenance.
+  > **Listed newest Call Registration Date first** — not in the order a PM
+  > month was uploaded, so a back-dated call sits where its date puts it.
+  > Click a column heading to sort by something else.
   > **Update Party Details / Update Product Details** (all three registers, on a
   > call of any status — in the Call View, or tick calls and use the bar):
   > **Party** sets City and State from the Party Master (a party the master
