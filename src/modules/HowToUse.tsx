@@ -346,7 +346,7 @@ const SECTIONS: Sec[] = [
     steps: [
       <><b>Consumption Report</b> — one row per spare booked, with its call and that call’s latest visit.</>,
       <><b>Not Consumed Against this Call</b> — parts sent and not fully accounted for: <b>NOT USED</b> where none was booked, <b>SHORT</b> where less was booked than sent.</>,
-      <><b>KPI Export</b> — the workbook’s Field_INST tab in its own column order.</>,
+      <><b>KPI Export</b> — the workbook’s Field_INST_PM tab (Field, Installation and PM calls) in its own column order.</>,
       <>For consumption patterns rather than a list, use <b>Spare Insights</b> and set the window.</>,
     ],
     go: [{ to: '/exports/consumption', label: 'Consumption Report' }, { to: '/exports/unused', label: 'Not Consumed' }, { to: '/spare-insights', label: 'Spare Insights' }],

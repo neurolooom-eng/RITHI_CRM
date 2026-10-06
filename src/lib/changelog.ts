@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.127',
+    version: '0.10.128',
     date: '2026-10-06',
     title: 'Ownership Transfer: automatic OT number, invoice, and files',
     changes: [
@@ -22,6 +22,14 @@ export const CHANGELOG: ChangeEntry[] = [
       'INVOICE NO. AND INVOICE DATE can be entered on a transfer. The Product Database then shows that invoice for the machine, with or without a fresh warranty, unless the machine has a sale dated after the transfer\'s invoice.',
       'FILES (optional): attach the papers for a transfer (hand-over letter, invoice copy, NOC). They are saved to the "Ownership Transfers" folder in Drive and open from the transfers list.',
       'The transfers list now shows the OT Number, Invoice No., Invoice Date and Files.',
+    ],
+  },
+  {
+    version: '0.10.127',
+    date: '2026-10-06',
+    title: 'KPI Export renamed Field_INST_PM',
+    changes: [
+      'REPORTS → KPI EXPORT: the workbook is now “KPI workbook — Field_INST_PM”, its sheet is Field_INST_PM and the file downloads as kpi-field-inst-pm-….xlsx / .csv, since it holds PM calls as well as Field and Installation calls.',
     ],
   },
   {

@@ -1458,7 +1458,7 @@ console.log('\n-- the Objective page --');
   // MOVED, not copied -- twice now. Two export buttons writing the same file
   // from two screens is how they drift apart, so each move must leave NOTHING
   // behind: the check names every screen it has ever lived on.
-  eq('the KPI export lives on Reports', /KPI workbook — Field_INST/.test(kpiExport)
+  eq('the KPI export lives on Reports', /KPI workbook — Field_INST_PM/.test(kpiExport)
     && /KpiExport/.test(hub), true);
   eq('...and is gone from KPI & Failure Analysis',
     /Export — KPI workbook/.test(kpi) || /listKpiFieldInst/.test(kpi), false);
