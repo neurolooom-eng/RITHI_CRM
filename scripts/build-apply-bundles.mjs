@@ -1158,7 +1158,11 @@ const MODULES = {
             '0351_dealer_guard_stands_aside_on_reload.sql',
             // A transfer can give the new owner a fresh warranty, worn by the
             // machine (the user, 2026-10-05); redefines 0331's sync_product_machine.
-            '0383_transfer_fresh_warranty.sql'],
+            '0383_transfer_fresh_warranty.sql',
+            // The OT number given by the database, the transfer's invoice on
+            // the machine, and its files (the user, 2026-10-06); redefines
+            // 0383's sync_product_machine.
+            '0391_transfer_ot_number_invoice_files.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

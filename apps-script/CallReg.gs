@@ -511,7 +511,8 @@ var DRIVE_FOLDERS = {
   pm:           'PM Reports',             // a PM call's report
   kyc:          'KYC',                    // Call Request -> KYC
   additional:   'Additional Reports',     // Call Request -> Installation Report
-  indoor:       'INDOOR Service Reports'  // an Indoor Service job's signed service report (2026-10-03)
+  indoor:       'INDOOR Service Reports', // an Indoor Service job's signed service report (2026-10-03)
+  transfer:     'Ownership Transfers'     // papers kept with an ownership transfer (2026-10-06)
 };
 
 // The flat folder everything went to before today. STILL READ, NEVER WRITTEN:

@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**110 tables · 41 views · 3116 columns · 226 policies · 68 foreign keys.**
+**110 tables · 42 views · 3148 columns · 226 policies · 68 foreign keys.**
 
 ## How to read this
 
@@ -1187,8 +1187,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `handstock_adjustments_qty_nonzero` — `CHECK ((qty <> (0)::numeric))`
 - `handstock_adjustments_reason` — `CHECK ((btrim(reason) <> ''::text))`
+- `handstock_adjustments_qty_nonzero` — `CHECK ((qty <> (0)::numeric))`
 
 **Triggers:** `handstock_adjustments_bi` → `handstock_adjustments_bi()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -2294,7 +2294,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 4 | `from_party` | text | **no** | `''::text` |  |
 | 5 | `to_party` | text | **no** |  |  |
 | 6 | `transfer_date` | date | yes |  |  |
-| 7 | `reference_no` | text | **no** | `''::text` |  |
+| 7 | `reference_no` | text | **no** | `''::text` | The OT number: OT + the next number after the highest on file, given by the database on insert when none is sent (0391). |
 | 8 | `reason` | text | **no** | `''::text` |  |
 | 9 | `remarks` | text | **no** | `''::text` |  |
 | 10 | `document_url` | text | **no** | `''::text` |  |
@@ -2314,6 +2314,9 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 24 | `warranty_months` | numeric | yes |  |  |
 | 25 | `warranty_years` | numeric | yes |  |  |
 | 26 | `warranty_end` | date | yes |  |  |
+| 27 | `invoice_no` | text | **no** | `''::text` |  |
+| 28 | `invoice_date` | date | yes |  |  |
+| 29 | `attachments` | jsonb | **no** | `'[]'::jsonb` | Files kept with the transfer: a list of {name, url, at, by}, uploaded to the "Ownership Transfers" Drive folder (0391). |
 
 **Unique:** `reference_no, serial_number` _(ownership_transfer_key_uniq)_ · `sys_id` _(ownership_transfers_sys_id_key)_
 
@@ -2325,7 +2328,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `ownership_transfer_parties_differ` — `CHECK ((btrim(lower(from_party)) IS DISTINCT FROM btrim(lower(to_party))))`
 
-**Triggers:** `ownership_transfer_aiu` → `ownership_transfer_move()` · `ownership_transfer_biu` → `ownership_transfer_apply()` · `ownership_transfer_sold_through` → `ownership_transfer_sold_through()` · `ownership_transfer_warranty` → `ownership_transfer_warranty()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zz_transfer_to_product` → `transfer_to_product()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `ownership_transfer_aiu` → `ownership_transfer_move()` · `ownership_transfer_biu` → `ownership_transfer_apply()` · `ownership_transfer_number` → `ownership_transfer_number()` · `ownership_transfer_sold_through` → `ownership_transfer_sold_through()` · `ownership_transfer_warranty` → `ownership_transfer_warranty()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zz_transfer_to_product` → `transfer_to_product()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2456,6 +2459,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 21 | `sys_updated_by` | uuid | yes |  |  |
 | 22 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 | 23 | `hsn_code` | text | **no** | `''::text` | HSN code of the part (0309). Filled once from "(HSN:...)" in the description, which was then removed from it; maintained on the Part Master and its upload since. |
+| 24 | `ind_imp` | text | **no** | `''::text` | Indigenous / Imported / TBD -- typed on the Part Master or loaded by its upload. Free text on purpose: a CHECK on parts aborts a bulk import part-written (0152). Shown as IND/IMP on the Stores Dispatch Report (0385). |
 
 **Unique:** `item_detail_key` _(parts_item_detail_key_uniq)_ · `sys_id` _(parts_sys_id_key)_
 
@@ -3469,8 +3473,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
 - `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
+- `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
 
 **Triggers:** `recycle_requests_guard` → `recycle_requests_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -4808,6 +4812,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `spare_stock_out_lines` | **on** | 26 |
 | `spare_usage` | **on** | 14 |
 | `spare_usage_rollup` | **on** | 8 |
+| `stores_dispatch_report` | **on** | 28 |
 | `tracker_list` | **on** | 20 |
 | `training_history` | **on** | 15 |
 | `training_status` | **on** | 19 |
@@ -4822,7 +4827,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 
 **`feedback_without_report`** — Customer feedback with no "Solved - Report Completed" visit behind it. The feedback is the evidence that a visit happened; the report is the record of it, and a call carrying one without the other is a visit that was never written up. `missing` names which of the four findings applies. Administrators only, by the module key rather than by a rule of its own (0229).
 
-**`kpi_field_inst`** — The KPI workbook's Field_INST tab, columns A-AG. The per-call lookups into reports and spare_requests are LATERAL so the caller's date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).
+**`kpi_field_inst`** — The KPI workbook's Field_INST tab, columns A-AG, for Field, Installation and PM calls (PM since 0390). The per-call lookups into reports and spare_requests are LATERAL so the caller's date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).
 
 **`product_database`** — The install base as it stands NOW: the party from the later of the latest sale and the latest ownership transfer (0238), and the contract and installation call that name that machine AND that party. Item Status is warranty-first over the matching contract; the engineer is always the Party Master's. The stored values are kept beside them as *_keyed.
 
@@ -4833,6 +4838,8 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 **`solved_without_report`** — Calls reading Solved whose visit record is incomplete — no visit at all, no visit date, no visit entry date, or no service report. `missing` names every gap on the row. Administrators only, by the module key rather than by a rule of its own (0224).
 
 **`spare_pending_rm`** — Every spare line waiting for a Reporting Manager, with the REQUEST around it: the call, the customer, the product, the SERIAL, the cover, the complaint, the request type and when it was raised. Stage is computed rather than read, because `stage` is a cache and may be stale. security_invoker, so an RM sees only their own team's lines (0116, complaint added 0154).
+
+**`stores_dispatch_report`** — Stores Dispatch Report (0385, 0387, 0388): one row per spare line dispatched, in the AppSheet Stores format -- live dispatches, plus the historical stock outs from 1 January 2025 not already dispatched in RITHI (Source = Historical). Final approval = latest of RM / Commercial / NSM for a live line, the file's Request Final Approval Date for a historical one; blank where none, band "No approval date"; days to dispatch exact to one decimal, banded 00-03D ... >60D; Year / Month / YY - MM of the dispatch in India time.
 
 **`unused_spare_report`** — Not Consumed Against this Call (the report's name; this view keeps its own): two findings -- NOT USED (nothing of that part booked on the call) and SHORT (less booked than was sent). Aggregated per call and part, never per line: a part sent twice on one call would otherwise flag both lines as short whenever the engineer booked the total once. DISPATCHED counts as reached, because acknowledging a delivery is not mandatory and requiring it would empty the report. Spare lines dispatched or received against a call whose part code never appears in that call's consumption. Refused and dropped lines are excluded -- nothing arrived, so nothing could be fitted. Matched on the part CODE because both sides store CODE\|Description and the description drifts. security_invoker, so a reader sees only the calls their role allows.
 

@@ -774,11 +774,19 @@ set to zero.
     when it changed hands. **To party is picked from the Party Master** on this
     device and shows that party's address, city, state, type and engineer; a
     party that is not on the Party Master must be added there first.
+  - **The OT Number is given automatically** when the transfer is saved — the
+    next after the highest on file (OT1432 → OT1433). A transfer loaded from a
+    file keeps the number the file carries.
+  - **Invoice No. and Invoice Date** (optional) for the hand-over: the Product
+    Database shows this invoice for the machine, with or without a fresh
+    warranty, unless the machine has a sale dated after it.
+  - **Files** (optional): attach the papers for the transfer. They go to the
+    **Ownership Transfers** folder in Drive and open from the transfers list.
   - **A fresh warranty for the new owner** is optional: tick **Give the new
     owner a fresh warranty**, then enter the **Warranty Start Date** (it starts
     at the transfer date) and the **Warranty Period (in Months)**. The years and
-    the **End Date** are worked out, as on Warranty Entry. The **Reference no**
-    is then required: it becomes the machine's **Warranty Number** on the
+    the **End Date** are worked out, as on Warranty Entry. The transfer's **OT
+    Number** becomes the machine's **Warranty Number** on the
     Product Database, which shows the fresh dates and Item Status WGP while they
     run. The original sale entry is not changed. A later sale of the machine
     (one whose warranty starts after this one) takes the warranty back; saving

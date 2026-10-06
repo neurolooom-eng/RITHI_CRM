@@ -64,9 +64,12 @@ select 'a re-sale after the transfer wears its own warranty',
 \echo 'expect ERROR: a fresh warranty needs its period'
 insert into public.ownership_transfers (serial_number, item_name, to_party, transfer_date, reference_no, warranty_start)
 values ('FW-2', 'FW VENT', 'FW THIRD HOSP', '2026-03-01', 'OT-FW3', '2026-03-01');
-\echo 'expect ERROR: a fresh warranty needs the Reference no.'
+-- Since 0391 a transfer saved with no Reference no. is given the next OT
+-- number, so a fresh warranty always has one to carry.
 insert into public.ownership_transfers (serial_number, item_name, to_party, transfer_date, warranty_start, warranty_months)
 values ('FW-2', 'FW VENT', 'FW THIRD HOSP', '2026-03-01', '2026-03-01', 12);
+select 'a fresh warranty with no typed Reference no. is numbered OTn by the database',
+       (select reference_no ~ '^OT[0-9]+$' from public.ownership_transfers where to_party = 'FW THIRD HOSP') as ok;
 select 'a period with no start is not a warranty',
        (select warranty_months is null and warranty_end is null from public.ownership_transfers where reference_no = 'OT-FW2') as ok;
 update public.ownership_transfers set warranty_months = 12 where reference_no = 'OT-FW2';
