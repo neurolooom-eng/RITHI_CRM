@@ -118,6 +118,9 @@ export const MODULES: ModuleDef[] = [
   // nav to MODULES rather than by reading either (check:ui now does that
   // comparison on every run).
   { path: '/pm-bulk-upload', label: 'PM Bulk Upload', admin: true },
+  // PM DUE (0401) -- administrators to begin with; 0401 merges the key into
+  // admin and technical_support only.
+  { path: '/pm-due', label: 'PM Due', admin: true },
   { path: '/bulk-uploads', label: 'Bulk Uploads', admin: true },
   { path: '/data-export', label: 'Data Export', admin: true },
   // DEVICE CACHE STATUS -- administrators to begin with. `admin: true` keeps the
@@ -433,6 +436,8 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Admin', key: 'objective.lock', label: 'Lock or unlock the objective cut-off' },
   { group: 'Admin', key: 'bulk.upload', label: 'Load registers in bulk (Bulk Uploads)' },
   { group: 'Admin', key: 'pm.bulk_upload', label: 'Upload PM calls in bulk' },
+  // PM Due's list (0401). Creating the calls is pm.create, the PM register's.
+  { group: 'Admin', key: 'pm.generate', label: 'Generate PM calls from the registers' },
   { group: 'Admin', key: 'import.panel', label: 'Load data through the Data Import panel' },
   { group: 'Admin', key: 'export.tables', label: 'Export whole tables (Data Export)' },
   { group: 'Admin', key: 'export.schedules', label: 'Create, pause or delete an export schedule' },
@@ -809,6 +814,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/data-export', label: 'Data Export', actions: ['export.tables', 'export.schedules'] },
     { path: '/device-cache', label: 'Device Cache Status', actions: [] },
     { path: '/pm-bulk-upload', label: 'PM Bulk Upload', actions: ['pm.bulk_upload'] },
+    { path: '/pm-due', label: 'PM Due', actions: ['pm.generate', 'pm.create'] },
     { path: '/admin-config', label: 'Admin Config', actions: ['config.manage', 'import.panel', 'audit.mode'] },
     { path: '/sla-objective-config', label: 'SLA / Objective Configuration', actions: ['config.manage', 'objective.manage'] },
     { path: '/software-validation', label: 'Software Validation', actions: ['validation.manage'] },

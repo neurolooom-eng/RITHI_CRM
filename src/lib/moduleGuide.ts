@@ -1207,6 +1207,23 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Re-importing the same file creates the calls a second time',
     ],
   },
+  {
+    route: '/pm-due',
+    purpose: 'Works out the month’s PM visits from the Warranty and Contract Registers and creates them as PM calls.',
+    does: [
+      'Pick the due month and read the machines due, with the visit number, due date and engineer',
+      'Untick any machine that should not get a call',
+      'Create the PM calls for the ticked machines',
+    ],
+    records: ['rpc:pm_due', 'rpc:pm_due_latest_reg_at', 'calls', 'pm_calls'],
+    rules: [
+      'Visit k is due on the start date + k × (months × 30 ÷ PM visits) days, never after the cover ends',
+      'Only visits not already covered by PM calls raised in the period are listed',
+      'A machine with both a warranty and a contract visit is listed once, from the warranty',
+      'The first call is registered 10 seconds after the month’s latest PM call; Added On is today',
+      'The engineer is the Product Database’s; a machine without one is created unallocated',
+    ],
+  },
   // Audit Mode and the Data Import panel are gated on their own permissions
   // (`audit.mode`, `import.panel`); the handbook was corrected to match (2026-10-02).
   {

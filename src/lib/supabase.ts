@@ -333,6 +333,31 @@ export async function pmLatestRegAt(month: string): Promise<string | null> {
   return v ? String(v) : null;
 }
 
+// PM DUE (0401): the month's PM visits from the Warranty and Contract
+// Registers. Both read through definer functions that ask pm.generate, so the
+// count of PM calls already raised -- and the month's latest registration
+// time -- cover EVERY PM call, not only the ones the reader's row-level
+// security shows them. A month can owe well over a thousand visits, so the
+// list is PAGED (PostgREST caps a response at 1,000), ordered by the machine,
+// which is unique in the list.
+export interface PmDueRow {
+  source: 'Warranty' | 'Contract'; ref_no: string; product_name: string; serial: string;
+  party_name: string | null; city: string | null; state: string | null;
+  engineer: string | null; on_product_database: boolean; cover_type: string;
+  cover_start: string; cover_end: string; period_months: number; pm_visits: number;
+  visit_no: number; due_date: string; raised: number;
+}
+export async function listPmDue(month: string): Promise<PmDueRow[]> {
+  const c = must();
+  return allRows<PmDueRow>((a, b) => c.rpc('pm_due', { p_month: `${month}-01` })
+    .order('product_name').order('serial').range(a, b));
+}
+export async function pmDueLatestRegAt(month: string): Promise<string | null> {
+  const { data, error } = await must().rpc('pm_due_latest_reg_at', { p_month: `${month}-01` });
+  if (error) throw new Error(errMsg(error));
+  return data ? String(data) : null;
+}
+
 export interface AddResult { ok: boolean; ucn?: string; record?: Record<string, unknown>; error?: string }
 export async function addCall(rec: Record<string, unknown>): Promise<AddResult> {
   const c = must();

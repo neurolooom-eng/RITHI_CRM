@@ -78,6 +78,22 @@ up)_
 
 ---
 
+## 2026-10-08 — PM Due from the Warranty and Contract Registers (0401, v0.10.140)
+
+- The user: "Can we do PM generation from Contract and warranty register?" Answers:
+  a due list reviewed then created, the monthly upload NOT replaced; visit k on
+  start + k x months x 30 / visits DAYS (their example: 10 Jan, 3 in 12 -> day
+  120); only what the raised PM calls have not covered; the Product Database
+  engineer; first call 10 s after the month's latest registration time; Added On
+  the generation date.
+- Measured first (`_pm_generation_inputs.sql`): all 8,720 PM calls of 2026 read
+  SCHEDULED PM VISIT / "SCHEDULED PM VISIT k / N"; 6,942 match the Product
+  Database engineer, 1,778 do not; 7,247 warranty lines carry NO PM visits and
+  cannot be scheduled until they do. `_pm_schedule_vs_actual.sql`: the raised
+  calls' N matches the register; their months follow neither month rule fully
+  (contract mostly one month earlier) -- the user then gave the day rule.
+- pm.generate is in no role; mod:/pm-due in admin + technical_support.
+
 ## 2026-10-06 — Historical DCCR calls hidden from the registers (v0.10.138)
 
 - The user: "Did DCCR add calls to field register?" -> "Keep, but hide from registers".
