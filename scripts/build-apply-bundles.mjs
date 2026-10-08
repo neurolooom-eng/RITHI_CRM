@@ -1076,6 +1076,10 @@ const MODULES = {
             // Consumption beyond the hand stock is booked and the Spare Coordinator
             // told (0401). Redefines 0089's insert guard and 0339's adjust guard.
             '0401_negative_handstock_allowed_and_notified.sql',
+            // A spare request loaded with no engineer takes the one its Stock
+            // Out history names (2026-10-08), so its unit reaches that
+            // engineer's hand stock. A one-time, idempotent data fix.
+            '0405_spare_request_engineer_from_history.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.

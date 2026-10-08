@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.151',
+    date: '2026-10-08',
+    title: 'Hand Stock: stock outs on requests loaded with no engineer now reach the engineer',
+    changes: [
+      'FIXED: some spare requests were loaded with no engineer, so their stock out counted for nobody and the engineer\'s hand stock read one short — ABHISHEK BISWAS\'s ESA-009 showed 5 stock outs where the Stock Out history has 6 (SO17541). 57 stock outs, 68 units, were affected, all from early January 2026.',
+      'Each such request now names the engineer its Stock Out history names for its lines, only where those lines all agree. The change is on the request\'s engineer-change record with the reason, the same record Change engineer keeps. A request whose lines name different engineers is left as it was.',
+    ],
+  },
+  {
     version: '0.10.150',
     date: '2026-10-08',
     title: 'Hand Stock: the movements of a line as a table you can download',
