@@ -20,7 +20,9 @@ import {
 } from '../lib/handstock';
 import './fieldcalls.css';
 import { partial, searchScope } from '../lib/exportscope';
-import { formatDayTime } from '../lib/dates';
+import { formatDayTime, todayLocal } from '../lib/dates';
+import { xlsxDownload, xlsxCell, xlsxText } from '../lib/xlsx';
+import { COMPLETE, cappedAt } from '../lib/exportscope';
 
 // ===========================================================================
 // HAND STOCK — the stock level an engineer is carrying, per spare.
@@ -568,6 +570,57 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
     <div className="rep-field"><span className="field-label">{label}</span><span>{String(value ?? '') || '—'}</span></div>
   );
 
+  // Newest first, as read; numbered and balanced OLDEST first, from the
+  // opening balance -- only when the whole trail is here (see the table).
+  const complete = moves.length < MOVES_CAP;
+  const trail = useMemo(() => {
+    const n = moves.length;
+    let bal = Number(row.opening) || 0;
+    const balances: number[] = new Array(n);
+    for (let i = n - 1; i >= 0; i--) {
+      const m = moves[i];
+      bal += (m.direction === 'IN' ? 1 : -1) * (Number(m.qty) || 0);
+      balances[i] = Math.round(bal * 1000) / 1000;
+    }
+    return moves.map((m, i) => ({ n: n - i, m, balance: balances[i] }));
+  }, [moves, row.opening]);
+
+  const downloadTrail = (kind: 'xlsx' | 'csv') => {
+    const cols: { key: string; header: string }[] = [
+      { key: 'n', header: '#' }, { key: 'moved_at', header: 'Date' }, { key: 'movement', header: 'Movement' },
+      { key: 'in', header: 'In' }, { key: 'out', header: 'Out' },
+      ...(complete ? [{ key: 'balance', header: 'Balance after' }] : []),
+      { key: 'ref_type', header: 'Reference type' }, { key: 'ref', header: 'Reference' },
+      { key: 'ucn', header: 'UCN' }, { key: 'call_number', header: 'Call No' },
+      { key: 'party_name', header: 'Party / with' }, { key: 'remarks', header: 'Remarks' },
+    ];
+    const rows = trail.map((t) => ({
+      n: t.n, moved_at: t.m.moved_at, movement: t.m.movement,
+      in: t.m.direction === 'IN' ? t.m.qty : '', out: t.m.direction === 'OUT' ? t.m.qty : '',
+      balance: t.balance, ref_type: t.m.ref_type, ref: t.m.ref, ucn: t.m.ucn,
+      call_number: t.m.call_number, party_name: t.m.party_name, remarks: t.m.remarks,
+    } as Record<string, unknown>));
+    const name = `hand-stock-${String(row.engineer).replace(/\W+/g, '-')}-${String(row.part_code).replace(/\W+/g, '-')}-${todayLocal()}`;
+    if (kind === 'csv') {
+      csvExport(`${name}.csv`, cols, rows.map((r) => Object.fromEntries(cols.map((c) => [c.key, xlsxText(r[c.key])]))),
+        complete ? COMPLETE : cappedAt(moves.length, MOVES_CAP));
+      return;
+    }
+    xlsxDownload(`${name}.xlsx`, [
+      { name: 'Movements', columns: cols.map((c) => c.header),
+        rows: rows.map((r) => Object.fromEntries(cols.map((c) => [c.header, xlsxCell(r[c.key])]))) },
+      // THE FILE CARRIES THE STOCK LEVEL IT EXPLAINS, so it reads on its own.
+      { name: 'Stock level', columns: ['Item', 'Value'], rows: [
+        { Item: 'Engineer', Value: row.engineer }, { Item: 'Spare', Value: row.part },
+        { Item: 'Opening balance', Value: row.opening }, { Item: 'Stock out (Stores)', Value: row.stock_out },
+        { Item: 'Consumed', Value: row.consumed }, { Item: 'Transferred in', Value: row.transferred_in },
+        { Item: 'Transferred out', Value: row.transferred_out }, { Item: 'Returned (MRN)', Value: row.returned },
+        { Item: 'On hand', Value: row.on_hand },
+        { Item: 'Movements', Value: complete ? `all ${moves.length}` : `the latest ${moves.length} only -- older ones are not in this file` },
+      ] },
+    ], complete ? COMPLETE : cappedAt(moves.length, MOVES_CAP));
+  };
+
   return (
     <div className="rep-form">
       <section className="rep-sec">
@@ -626,30 +679,49 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
         )}
         {busy && <div className="muted" style={{ fontSize: 12.5 }}>Loading movements…</div>}
         {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span></div>}
-        <ol className="wf-trail">
-          {moves.map((m, i) => (
-            <li key={i} className={m.direction === 'IN' ? 'wf-ok' : 'wf-bad'}>
-              <b>
-                {m.movement === 'Stock out' ? `📤 Stock out ${m.qty}`
-                  : m.movement === 'Consumption' ? `🧾 Consumed ${m.qty}`
-                  : m.movement === 'Transfer in' ? `⇄ Received ${m.qty}`
-                  : m.movement === 'Return' ? `↩️ Returned ${m.qty}`
-                  : m.movement === 'Adjustment' ? (m.direction === 'IN' ? `± Adjusted +${m.qty}` : `± Adjusted −${m.qty}`)
-                  : `⇄ Handed over ${m.qty}`}
-              </b>
-              <span className={`badge badge-${movementTone(m.movement)}`} style={{ marginLeft: 6 }}>{m.movement}</span>
-              <span className="muted">
-                {m.ref ? ` · ${m.ref_type} ${m.ref}` : ''}
-                {m.moved_at ? ` · ${fmtLongDate(m.moved_at)}` : ''}
-              </span>
-              {(m.ucn || m.party_name || m.remarks) && (
-                <div className="muted" style={{ fontSize: 12 }}>
-                  {[m.ucn, m.party_name, m.remarks].filter(Boolean).join(' · ')}
-                </div>
-              )}
-            </li>
-          ))}
-        </ol>
+        {/* A TABLE, WITH A DOWNLOAD (the user, 2026-10-08: "Convert this into
+            a Table and add Download provision ... I need to investigate").
+            One row per movement, In and Out in their own columns, and the
+            balance AFTER each one, worked from the opening balance oldest
+            first -- so the row where the figure stops matching the paper is
+            the row to look at. The balance is left out when the trail is cut
+            at MOVES_CAP: a running figure that starts part-way is wrong on
+            every row. */}
+        {moves.length > 0 && (
+          <>
+            <div className="row" style={{ gap: 6, margin: '4px 0 8px' }}>
+              <button className="btn btn-sm" onClick={() => downloadTrail('xlsx')}>⭳ Download (Excel)</button>
+              <button className="btn btn-sm" onClick={() => downloadTrail('csv')}>⭳ CSV</button>
+            </div>
+            <div className="assoc-scroll">
+              <table className="assoc-table" style={{ minWidth: 820 }}>
+                <thead>
+                  <tr>
+                    <th>#</th><th>Date</th><th>Movement</th><th style={{ textAlign: 'right' }}>In</th><th style={{ textAlign: 'right' }}>Out</th>
+                    {complete && <th style={{ textAlign: 'right' }}>Balance after</th>}
+                    <th>Reference</th><th>UCN</th><th>Party / with</th><th>Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trail.map((t) => (
+                    <tr key={t.n}>
+                      <td>{t.n}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{formatDayTime(t.m.moved_at) || '—'}</td>
+                      <td><span className={`badge badge-${movementTone(t.m.movement)}`}>{t.m.movement}</span></td>
+                      <td style={{ textAlign: 'right' }}>{t.m.direction === 'IN' ? t.m.qty : ''}</td>
+                      <td style={{ textAlign: 'right' }}>{t.m.direction === 'OUT' ? t.m.qty : ''}</td>
+                      {complete && <td style={{ textAlign: 'right' }}><b>{t.balance}</b></td>}
+                      <td>{[t.m.ref_type, t.m.ref].filter(Boolean).join(' ')}</td>
+                      <td>{t.m.ucn}</td>
+                      <td>{t.m.party_name}</td>
+                      <td>{t.m.remarks}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
         {!busy && !err && moves.length === 0 && <div className="muted" style={{ fontSize: 12.5 }}>No movements found for this line.</div>}
       </section>
     </div>
