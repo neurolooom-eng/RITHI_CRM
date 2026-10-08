@@ -146,16 +146,21 @@ const toRows = (data: Record<string, unknown>[], base: number): Row[] => data.ma
 // THE DROPDOWNS (the user, 2026-10-08: "Type, Profile, ServiceMan, City,
 // State, Country -- all of this should be Drop-down. SERVICEMAN should list
 // from user master (Filter Active)"). Type-search-and-select, as every
-// dropdown here. Only CITY takes a value not on its list -- a customer in a
-// town the Party Master has never named is a real customer; a new type,
-// profile, state or country is not something to invent on one record. The
-// cities follow the State chosen.
+// dropdown here. CITY, STATE AND COUNTRY also take a value not on their list
+// (the user, 2026-10-08: "Allow new values in City, State, Country. Customer,
+// Type and Profile should not take new values") -- a customer in a place the
+// Party Master has never named is a real customer. TYPE and PROFILE are the
+// fixed vocabulary every count groups by, and the SERVICEMAN must be an active
+// person on the User Master, so those three take nothing else. The cities
+// follow the State chosen.
 export function partyPick(k: string, opts: PartyFieldOptions | null, active: string[], state: string):
   { options: string[]; freeText: boolean; empty: string } | null {
   if (k === 'service_engineer') return { options: active, freeText: false, empty: 'Active people on the User Master.' };
   if (!opts) return null;
-  if (k === 'party_type' || k === 'profile' || k === 'state' || k === 'country')
+  if (k === 'party_type' || k === 'profile')
     return { options: opts[k], freeText: false, empty: 'Values already on the Party Master.' };
+  if (k === 'state' || k === 'country')
+    return { options: opts[k], freeText: true, empty: 'Values already on the Party Master — or type a new one.' };
   if (k === 'city') {
     const inState = opts.cityByState[state.trim().toLowerCase()];
     return { options: inState && inState.length ? inState : opts.city, freeText: true,

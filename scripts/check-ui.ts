@@ -5896,8 +5896,9 @@ console.log('\n-- a warranty sale adds a party the master has not got --');
       /if \(k === 'service_engineer'\) return \{ options: active, freeText: false/.test(pm)
         && /sbActiveUserNames\(\)\.then\(setActiveUsers\)/.test(pm)
         && /\.from\('user_directory'\)\.select\('name'\)\.eq\('validity', true\)/.test(readFileSync('src/lib/supabase.ts', 'utf8')), true);
-    eq('only City takes a value not on its list',
-      /k === 'party_type' \|\| k === 'profile' \|\| k === 'state' \|\| k === 'country'\)\s*return \{ options: opts\[k\], freeText: false/.test(pm)
+    eq('City, State and Country take a new value; Type and Profile do not (2026-10-08)',
+      /k === 'party_type' \|\| k === 'profile'\)\s*return \{ options: opts\[k\], freeText: false/.test(pm)
+        && /k === 'state' \|\| k === 'country'\)\s*return \{ options: opts\[k\], freeText: true/.test(pm)
         && /options: inState && inState\.length \? inState : opts\.city, freeText: true/.test(pm), true);
     eq('the drawer and the Add form both use the dropdowns',
       (pm.match(/pick=\{\(k\) => partyPick\(/g) ?? []).length === 2 && /const p = partyPick\(k, fieldOpts, activeUsers, adding\.state/.test(pm), true); }

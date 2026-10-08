@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.143',
+    date: '2026-10-08',
+    title: 'Party Master: a new State or Country can be entered',
+    changes: [
+      'STATE and COUNTRY on the Party Master now take a new value, as City already did: type it and pick it. TYPE and PROFILE still take only their listed values, and SERVICEMAN only active people on the User Master.',
+    ],
+  },
+  {
     version: '0.10.142',
     date: '2026-10-08',
     title: 'Party Master: Type, Profile, Serviceman, City, State and Country are dropdowns',
