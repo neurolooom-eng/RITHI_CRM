@@ -1,5 +1,5 @@
 -- ===========================================================================
--- PM DUE (0401, 0402).
+-- PM DUE (0401, 0402, 0403).
 --
 --   Visit k of a cover falls on start + k x months x 30 / visits days; each
 --   machine with a visit due in the month is listed once, warranty first; it
@@ -7,8 +7,10 @@
 --   cover period and is not cancelled -- in whatever month it was raised --
 --   and MISSED PM otherwise; an accessory is marked by the Product Master's
 --   category; the engineer is the Product Database's; the answer is the same
---   whoever reads it; nobody without pm.generate may ask, and the public key
---   cannot call it at all.
+--   whoever reads it; a row may be created only when it is a Missed PM whose
+--   installation call reads Solved AND whose party is a CUSTOMER on the Party
+--   Master (0403), each answer shown so the screen can filter by it; nobody
+--   without pm.generate may ask, and the public key cannot call it at all.
 --
 -- Superuser bypasses RLS, so the reads that matter run as `authenticated`.
 -- Run ONCE after _stub.sql + every migration.
@@ -67,6 +69,23 @@ update public.products set service_engineer = 'ENG ALPHA'
 select 'PD-1 is on the Product Database (the sale filled it)' as t,
        exists (select 1 from public.products where machine_key = 'orion-g|pd-1') as ok;
 
+-- RULE 1 fixtures, the installation calls (state follows the last status):
+--   PD-1 Solved; PD-6 Unsolved; PD-7 none; PD-4 a CANCELLED first attempt
+--   and a Solved second one; PD-2 Solved.
+insert into public.installation_calls (ucn, call_number, call_type, reg_date, product_name, serial, party_name, created_by) values
+ ('PD-IC-1',  'PDIC1',  'INSTALLATION', '2026-01-05', 'ORION-G', 'PD-1', 'PD HOSPITAL', null),
+ ('PD-IC-6',  'PDIC6',  'INSTALLATION', '2026-01-05', 'ORION-G', 'PD-6', 'PD HOSPITAL', null),
+ ('PD-IC-4A', 'PDIC4A', 'INSTALLATION', '2026-01-03', 'PD CARE', 'PD-4', 'PD HOSPITAL', null),
+ ('PD-IC-4B', 'PDIC4B', 'INSTALLATION', '2026-01-02', 'PD CARE', 'PD-4', 'PD HOSPITAL', null),
+ ('PD-IC-2',  'PDIC2',  'INSTALLATION', '2025-12-20', 'VEGA',    'PD-2', 'PD CLINIC',   null);
+update public.installation_calls set last_status = 'Solved - Report Completed', last_visit_at = now() where ucn in ('PD-IC-1', 'PD-IC-4B', 'PD-IC-2');
+update public.installation_calls set last_status = 'Unsolved', last_visit_at = now() where ucn = 'PD-IC-6';
+update public.installation_calls set cancelled_at = now(), cancel_reason = 'test' where ucn = 'PD-IC-4A';
+-- RULE 2 fixtures, the Party Master: PD HOSPITAL a CUSTOMER, PD CLINIC a
+-- DEALER; PD THREE is in no Party Master row.
+insert into public.parties (party_name, party_type) values ('PD HOSPITAL', 'CUSTOMER'), ('PD CLINIC', 'DEALER')
+on conflict do nothing;
+
 -- The PM calls: allotted to somebody the caller does not manage and filed by
 -- nobody, so row-level security HIDES them from the caller -- which is what
 -- makes "generated" below prove anything.
@@ -105,6 +124,25 @@ select 'May: PD-7 is MISSED -- its 1 / 3 call is from before this cover started'
 select 'September: PD-1 visit 2 is MISSED -- the 2 / 3 call is cancelled; last PM is May' as t,
        (select visit_no = 2 and due_date = '2026-09-07' and not generated and last_pm_on = '2026-05-01'
           from public.pm_visits_due('2026-09-01') where serial = 'PD-1') as ok;
+select 'RULE 1: PD-1''s installation call reads Solved; PD-6''s Unsolved; PD-7 has none' as t,
+       (select install_solved and installation_ucn = 'PD-IC-1' from public.pm_visits_due('2026-05-01') where serial = 'PD-1')
+   and (select not install_solved and installation_state = 'Unsolved' from public.pm_visits_due('2026-05-01') where serial = 'PD-6')
+   and (select not install_solved and installation_ucn is null from public.pm_visits_due('2026-05-01') where serial = 'PD-7') as ok;
+select 'RULE 1: PD-4''s cancelled first attempt does not hide its Solved second one' as t,
+       (select install_solved and installation_ucn = 'PD-IC-4B' from public.pm_visits_due('2026-05-01') where serial = 'PD-4') as ok;
+select 'RULE 2: PD HOSPITAL is a CUSTOMER; PD CLINIC a DEALER; PD THREE not in the Party Master' as t,
+       (select party_is_customer and party_type = 'CUSTOMER' from public.pm_visits_due('2026-05-01') where serial = 'PD-1')
+   and (select not party_is_customer and party_type = 'DEALER' from public.pm_visits_due('2026-06-01') where serial = 'PD-2')
+   and (select not party_is_customer and party_type is null from public.pm_visits_due('2026-05-01') where serial = 'PD-3') as ok;
+select 'CREATE only a Missed PM passing both rules: PD-4 (accessory, Solved, customer) yes; PD-1 (generated) no; PD-6 (Unsolved) no; PD-7 (no installation) no; PD-3 (no party type) no' as t,
+       (select can_create from public.pm_visits_due('2026-05-01') where serial = 'PD-4')
+   and (select not can_create from public.pm_visits_due('2026-05-01') where serial = 'PD-1')
+   and (select not can_create from public.pm_visits_due('2026-05-01') where serial = 'PD-6')
+   and (select not can_create from public.pm_visits_due('2026-05-01') where serial = 'PD-7')
+   and (select not can_create from public.pm_visits_due('2026-05-01') where serial = 'PD-3') as ok;
+select 'September: PD-1''s missed visit 2 may be created (Solved, customer); June: PD-2 may not (a dealer)' as t,
+       (select can_create from public.pm_visits_due('2026-09-01') where serial = 'PD-1')
+   and (select not can_create from public.pm_visits_due('2026-06-01') where serial = 'PD-2') as ok;
 select 'January next year: PD-1 visit 3, due 5 Jan' as t,
        (select visit_no = 3 and due_date = '2027-01-05' from public.pm_visits_due('2027-01-01') where serial = 'PD-1') as ok;
 select 'June: PD-2 visit 1 of 2 from the contract, due 30 Jun, CMC' as t,

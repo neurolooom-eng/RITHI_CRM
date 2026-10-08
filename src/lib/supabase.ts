@@ -350,6 +350,10 @@ export interface PmDueRow {
   cover_start: string; cover_end: string; period_months: number; pm_visits: number;
   visit_no: number; due_date: string;
   generated: boolean; generated_ucn: string | null; generated_on: string | null; last_pm_on: string | null;
+  // The two rules (0403): the installation call Solved, the party a CUSTOMER.
+  installation_ucn: string | null; installation_state: string | null; install_solved: boolean;
+  party_type: string | null; party_is_customer: boolean;
+  can_create: boolean;   // a Missed PM passing both rules
 }
 export async function listPmDue(month: string): Promise<PmDueRow[]> {
   const c = must();

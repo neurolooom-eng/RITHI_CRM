@@ -78,6 +78,14 @@ up)_
 
 ---
 
+## 2026-10-08 — PM Due: installation Solved and party a CUSTOMER, as rules and filters (0403, v0.10.145)
+
+- The user: "Add 2 more logics - But add these as rules + Filters": the
+  installation call Solved (Installation register by product + serial, a Solved
+  call over a cancelled one) and the party a CUSTOMER (Party Master Type, the
+  Product Database's party). can_create = Missed PM passing both. 0402 now drops
+  pm_visits_due first so its bundle re-runs over 0403's wider function.
+
 ## 2026-10-08 — PM Due by the visit: Generated / Missed PM, accessories, product filter (0402, v0.10.144)
 
 - D-157: 0401's count of PM calls since the cover started listed machines whose

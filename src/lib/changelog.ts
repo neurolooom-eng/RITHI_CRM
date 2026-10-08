@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.145',
+    date: '2026-10-08',
+    title: 'PM Due: only installed machines at customers can be created',
+    changes: [
+      'TWO RULES decide which Missed PM can be created: the machine\'s installation call is Solved, and the party it is with is a CUSTOMER on the Party Master. Anything else is listed but cannot be ticked.',
+      'Each rule is also a filter at the top: Installation solved / not solved / any, and Customer / not a customer / any. They start on what the rules allow.',
+      'Each row now shows the machine\'s installation call with its state, and its party\'s Type. A machine with no installation call, or a party that is not in the Party Master or has no Type, does not pass.',
+    ],
+  },
+  {
     version: '0.10.144',
     date: '2026-10-08',
     title: 'PM Due: Generated or Missed PM, products and accessories apart, and a product filter',
