@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.142',
+    date: '2026-10-08',
+    title: 'Party Master: Type, Profile, Serviceman, City, State and Country are dropdowns',
+    changes: [
+      'TYPE, PROFILE, SERVICEMAN, CITY, STATE AND COUNTRY on the Party Master are now dropdowns: type to search and pick. This applies to editing a customer and to Add to Party Master.',
+      'SERVICEMAN lists only the people who are ACTIVE on the User Master. A customer whose Serviceman is no longer active says so, so it can be changed.',
+      'TYPE and PROFILE offer the standard values (the same as Warranty Entry) plus any already on file. STATE and COUNTRY offer what the Party Master already holds. CITY offers the cities already on file for the State chosen, and a new town can still be typed.',
+    ],
+  },
+  {
     version: '0.10.141',
     date: '2026-10-08',
     title: 'A spare can be booked beyond the hand stock — the Spare Coordinator is told',

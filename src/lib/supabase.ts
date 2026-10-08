@@ -83,6 +83,7 @@ export function supabaseConfigured(): boolean {
 // is the only way it can be TESTED: this file reads `import.meta.env` at load
 // and cannot be imported by a node script at all.
 import { allRows, distinctValues, PG_PAGE } from './paging';
+import { partyFieldOptions, type PartyFieldOptions } from './partyRules';
 import { localMachines, localParties, refreshMachineRegister, refreshPartyRegister, clearMachineRegister } from './machinestore';
 import * as mc from './machinecache';
 import { planComplaintKeys, encodeComplaintEntry, type ExistingComplaint } from './complaints';
@@ -3046,6 +3047,20 @@ export async function sbActiveUserNames(): Promise<string[]> {
     c.from('user_directory').select('name').eq('validity', true).order('name').order('id').range(a, b), 20000);
   return [...new Set(rows.map((r) => String(r.name ?? '').trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b));
+}
+
+/** The values each Party Master dropdown offers (partyRules.partyFieldOptions):
+ *  from this device's copy of the Party Master, else from the server -- one
+ *  distinct read per column. */
+export async function sbPartyFieldOptions(): Promise<PartyFieldOptions> {
+  const local = await localParties();
+  if (local && local.length) return partyFieldOptions(local as unknown as Record<string, unknown>[]);
+  const cols = ['party_type', 'profile', 'state', 'country', 'city'] as const;
+  const vals = await Promise.all(cols.map((k) => distinctColumn('parties', k).catch(() => [] as string[])));
+  // No device copy: the cities are not narrowed by state until it downloads.
+  const rows: Record<string, unknown>[] = [];
+  cols.forEach((k, i) => vals[i].forEach((v) => rows.push({ [k]: v })));
+  return partyFieldOptions(rows);
 }
 
 export async function sbDirectoryNames(): Promise<string[]> {

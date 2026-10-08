@@ -88,3 +88,47 @@ export function partyEdits(before: Record<string, unknown>, after: Record<string
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// THE PARTY MASTER'S DROPDOWNS (the user, 2026-10-08: "Party Master - Type,
+// Profile, ServiceMan, City, State, Country -- all of this should be
+// Drop-down"). Type and Profile start from the Warranty Entry's own lists;
+// every list then adds the values the Party Master ALREADY holds, so a
+// customer typed in before today still shows its own value rather than a
+// blank. Spelled as stored, kept once regardless of case, sorted.
+// The Serviceman is NOT here: it is the User Master's active people.
+// ---------------------------------------------------------------------------
+export const PARTY_TYPES = ['CUSTOMER', 'DEALER'];
+export const PARTY_PROFILES = ['PRIVATE', 'GOVERNMENT', 'DEALER', 'GENERAL'];
+
+export interface PartyFieldOptions {
+  party_type: string[]; profile: string[]; state: string[]; country: string[]; city: string[];
+  /** The cities each state already has, keyed by the state in lower case. */
+  cityByState: Record<string, string[]>;
+}
+
+const uniqSorted = (vals: Iterable<unknown>): string[] => {
+  const seen = new Map<string, string>();
+  for (const v of vals) {
+    const s = String(v ?? '').trim();
+    if (s && !seen.has(s.toLowerCase())) seen.set(s.toLowerCase(), s);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+};
+
+export function partyFieldOptions(rows: Record<string, unknown>[]): PartyFieldOptions {
+  const col = (k: string) => rows.map((r) => r[k]);
+  const byState: Record<string, unknown[]> = {};
+  for (const r of rows) {
+    const st = String(r.state ?? '').trim().toLowerCase();
+    if (st) (byState[st] ??= []).push(r.city);
+  }
+  return {
+    party_type: uniqSorted([...PARTY_TYPES, ...col('party_type')]),
+    profile: uniqSorted([...PARTY_PROFILES, ...col('profile')]),
+    state: uniqSorted(col('state')),
+    country: uniqSorted(['INDIA', ...col('country')]),
+    city: uniqSorted(col('city')),
+    cityByState: Object.fromEntries(Object.entries(byState).map(([k, v]) => [k, uniqSorted(v)])),
+  };
+}

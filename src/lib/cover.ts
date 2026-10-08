@@ -14,6 +14,7 @@
 // ===========================================================================
 import { getSupabase, addCall } from './supabase';
 import { dayAfter, addPeriod, todayLocal } from './dates';
+import { PARTY_TYPES, PARTY_PROFILES } from './partyRules';
 import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears,
          inheritAllPatch, isPinnedValue, installCallFromSale, machinesNeedingInstallCall,
          coverStatus, contractPmVisits, periodEnd, withAnotherCustomer, TRANSFERRED_AWAY,
@@ -174,8 +175,9 @@ export const SALE: CoverConfig = {
     // Updated through the Warranty Entry Page itself" and "All Party Related
     // Fields, if Updated - Should be Saved to Party Master once the Entry is
     // Saved"). Filled by partyFillForSale, written back by partyEdits.
-    { name: 'party_type', label: 'Party Type', type: 'select', options: ['', 'CUSTOMER', 'DEALER'], section: 'Party' },
-    { name: 'profile', label: 'Party Profile', type: 'select', options: ['', 'PRIVATE', 'GOVERNMENT', 'DEALER', 'GENERAL'], section: 'Party' },
+    // ONE LIST WITH THE PARTY MASTER'S DROPDOWNS (partyRules, 2026-10-08).
+    { name: 'party_type', label: 'Party Type', type: 'select', options: ['', ...PARTY_TYPES], section: 'Party' },
+    { name: 'profile', label: 'Party Profile', type: 'select', options: ['', ...PARTY_PROFILES], section: 'Party' },
     { name: 'country', label: 'Country', section: 'Party' },
     { name: 'state', label: 'State', section: 'Party' },
     { name: 'city', label: 'City', section: 'Party' },
