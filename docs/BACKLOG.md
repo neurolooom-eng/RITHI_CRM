@@ -78,6 +78,15 @@ up)_
 
 ---
 
+## 2026-10-08 — Pending Registrations: Need more details mail (v0.10.147)
+
+- The user: compose a mail to the requestor for more details, Commercial team.
+  mailto: (from the person's own mail program), To the request's E-Mail ID, Cc
+  the Reporting Manager by the User Master (name -> that row's email), subject
+  "Need more details | Product Serial | <call family> Call", the request's
+  details in the body. Key `pending.mail`, granted to no role -- to be given to
+  Commercial on Roles & Permissions. CR-032, URS-182, FRS-271, OQ-269. No SQL.
+
 ## 2026-10-08 — PM Due: no installation call passes rule 1 (0404, v0.10.146)
 
 - The user: "Allow machines with no installation call" -- 0403 held back 1,152 of

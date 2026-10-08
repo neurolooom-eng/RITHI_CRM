@@ -399,8 +399,9 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Map a request to an existing call by its UCN',
       'Create the new call from the request, already filled in',
       'Cancel a request with a reason',
+      'Ask the requestor for more details: a mail To them, Cc their Reporting Manager, with the request’s details, opened in your own mail program',
     ],
-    records: ['call_requests', 'calls', 'pending_calls', 'products'],
+    records: ['call_requests', 'calls', 'pending_calls', 'products', 'user_directory'],
     rules: [
       'The call is filed to the Hotline desk, but who actually typed it in is recorded separately — the two differing is a finding, not an error',
       'A cancel needs a typed reason (free text, not a master list), with an optional note',

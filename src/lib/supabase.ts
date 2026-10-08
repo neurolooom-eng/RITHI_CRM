@@ -3005,6 +3005,41 @@ export async function listDirectory(cap = 5000): Promise<DirectoryRow[]> {
   return rows.map(dirRow);
 }
 
+// THE CC OF A "NEED MORE DETAILS" MAIL (Pending Registrations, 2026-10-08):
+// the requestor's Reporting Manager. The User Master records the manager by
+// NAME, so this finds the requestor's row by their email (or gmail), reads its
+// Reporting Manager, and finds that person's own row by name for the address.
+// Exact matches only, case and spaces aside -- a near-miss would copy a
+// stranger. Several rows sharing the manager's name all give their address,
+// and the screen shows every one before the mail is opened.
+export async function reportingManagerEmails(requestorEmail: string): Promise<{ manager: string; emails: string[] }> {
+  const e = requestorEmail.trim().toLowerCase();
+  if (!e) return { manager: '', emails: [] };
+  const c = must();
+  // An address is matched as written: `_` and `%` would be wildcards to ilike
+  // (john_doe would match johnXdoe), so both are escaped. Two plain filters
+  // rather than one or(), whose quoting would swallow the escapes.
+  const esc = (x: string) => x.replace(/[\\%_]/g, (m) => `\\${m}`);
+  const mine: Record<string, unknown>[] = [];
+  for (const col of ['email', 'gmail']) {
+    const { data, error } = await c.from('user_directory').select('reporting_manager').ilike(col, esc(e)).limit(20);
+    if (error) throw new Error(errMsg(error));
+    mine.push(...(data ?? []));
+  }
+  const managers = [...new Set(mine.map((r) => String(r.reporting_manager ?? '').trim()).filter(Boolean))];
+  if (!managers.length) return { manager: '', emails: [] };
+  const emails: string[] = [];
+  for (const m of managers) {
+    const { data: rm, error: e2 } = await c.from('user_directory').select('name,email').ilike('name', esc(m)).limit(20);
+    if (e2) throw new Error(errMsg(e2));
+    for (const r of rm ?? []) {
+      const em = String(r.email ?? '').trim();
+      if (em && String(r.name ?? '').trim().toLowerCase() === m.toLowerCase()) emails.push(em);
+    }
+  }
+  return { manager: managers.join(', '), emails: [...new Set(emails)] };
+}
+
 // Add a person, or save an edit. `id` null adds.
 export async function saveDirectoryRow(
   id: number | null, patch: Partial<DirectoryRow>,

@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.147',
+    date: '2026-10-08',
+    title: 'Pending Registrations: ask the requestor for more details by mail',
+    changes: [
+      'NEW: in a pending request\'s action panel, Ask the requestor for more details. Compose mail opens a new mail in your own mail program, from you: To the requestor, Cc their Reporting Manager, subject Need more details | product and serial | Installation Call (or Field / PM Call), and the request\'s details in the body. Read it and send it from there; RITHI sends nothing itself.',
+      'The To and Cc addresses are shown before the mail opens. The Reporting Manager is the one named on the requestor\'s User Master row, with the email on that manager\'s own row; if there is none, the screen says nobody will be copied.',
+      'It needs the new permission “Ask the requestor for more details (compose a mail)” — give it to the Commercial team on Roles & Permissions.',
+    ],
+  },
+  {
     version: '0.10.146',
     date: '2026-10-08',
     title: 'PM Due: machines with no installation call can be created',
