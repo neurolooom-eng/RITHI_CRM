@@ -100,10 +100,12 @@ select 'unrelated edit' as check, recorded_by as should_still_be_HB_Coord, adjus
 
 -- RAISING A QUANTITY (0316): it called handstock_available(), which never
 -- existed, so the adjustment above failed with "function does not exist".
--- Within what is in hand it goes through; beyond it, it is refused.
-\echo 'expect ERROR: Only 8 left in HB ENG''s hand stock for HB-P1|HB PART'
+-- Within what is in hand it goes through; beyond it, it goes through TOO since
+-- 0401 (the user, 2026-10-08) and the Spare Coordinator is told. Rolled back.
 begin; set local role authenticated;
   update public.spare_consumption set qty = 50, adjustment_reason = 'too many' where remarks = 'hb line';
+  select 'raise past the balance (0401)' as check, qty::text as should_be_50
+    from public.spare_consumption where remarks = 'hb line';
 rollback;
 
 -- No session: an administrative load keeps what it was given.

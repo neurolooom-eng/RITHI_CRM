@@ -17,7 +17,7 @@ update public.harness set uid='11111111-1111-1111-1111-111111111111', email='adm
 \echo '--- 1. nobody holds any stock at all ---'
 select count(*) as movements from public.handstock_movements;
 
-\echo '--- 2. a HAND-ENTERED consumption is still capped (expect ERROR) ---'
+\echo '--- 2. a HAND-ENTERED consumption beyond the stock is booked and told (0401) ---'
 -- 0214: A SPARE NEEDS A VISIT BEHIND IT. `zz_consumption_needs_visit` refuses a
 -- consumption row whose call has no `reports` entry, so without these the
 -- inserts below are REFUSED and every assertion after them reads as the failure
@@ -27,7 +27,14 @@ insert into public.reports (ucn, uid, visit_at, updated_at)
 select v.u, 'T-VISIT-' || v.u, now(), now() from (values ('26A02F0001')) v(u)
 on conflict (uid) do nothing;
 
+-- Since 0401 (the user, 2026-10-08) a line beyond the balance is BOOKED and the
+-- Spare Coordinator told, not refused. Rolled back so the balances below are
+-- the ones this suite was written for.
+begin;
 insert into public.spare_consumption (engineer, part, qty, ucn) values ('RAVI','MP-010|SENSOR',1,'26A02F0001');
+select 'hand-entered beyond the stock (0401)' as check, count(*)::text as booked_should_be_1
+  from public.spare_consumption where ucn = '26A02F0001' and coalesce(source_ref, '') = '';
+rollback;
 
 \echo '--- 3. an IMPORTED one loads: it carries the export row id ---'
 insert into public.spare_consumption (engineer, part, qty, ucn, source_ref)

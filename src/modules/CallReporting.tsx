@@ -480,7 +480,7 @@ export function CallReportDrawer({
     if (!open || !wantsConsumption || !engineer.trim() || !supabaseConfigured()) { setStock([]); return; }
     let alive = true;
     setStockBusy(true); setStockErr('');
-    handstockForEngineer(engineer)
+    handstockForEngineer(engineer, 1000, { includeEmpty: true })
       .then((r) => { if (alive) setStock(r as unknown as HandstockBalance[]); })
       .catch((e) => {
         if (!alive) return;
@@ -518,9 +518,9 @@ export function CallReportDrawer({
     if (!part) return null;
     const n = Math.floor(Number(spareDraft.qty) || 0);
     if (n < 1) return { error: 'Quantity must be at least 1.' };
-    const left = remainingOf(part);
-    if (left <= 0) return { error: `${part} is not in ${engineer || 'the engineer'}'s hand stock.` };
-    if (n > left) return { error: `Only ${left} of that spare left in hand stock.` };
+    // NO hand-stock limit (0401, the user, 2026-10-08: "Allow even if it's
+    // negative but notify the Spare Coordinator"): a line beyond the balance
+    // is booked and the coordinator told; the form warns, it does not refuse.
     return { line: { part, qty: String(n), grir: spareDraft.grir.trim() } };
   };
 
@@ -541,13 +541,11 @@ export function CallReportDrawer({
     setSpares((rows) => rows.map((r, n) => {
       if (n !== i) return r;
       const next = { ...r, ...patch };
-      const left = remainingOf(next.part, i);
-      // Repointing at another spare re-counts against THAT spare's stock, but
-      // the traceability belongs to the line and travels with it.
-      if (patch.part) return { ...next, qty: String(Math.min(Number(r.qty) || 1, Math.max(1, left))) };
+      // Repointing at another spare keeps the quantity and the traceability;
+      // going past the hand stock is allowed and warned about below (0401).
+      if (patch.part) return { ...next };
       const want = Math.floor(Number(next.qty) || 0);
       if (next.qty === '') return { ...next };
-      if (want > left) { setErr(`Only ${left} of ${next.part} left in hand stock.`); return { ...next, qty: String(Math.max(1, left)) }; }
       return { ...next, qty: String(Math.max(1, want)) };
     }));
   };
@@ -993,19 +991,13 @@ export function CallReportDrawer({
                       <SelectPicker
                         className="spare-part" value={s.part}
                         onChange={(v) => editSpare(i, { part: v })}
-                        emptyHint="Only what this engineer holds can be consumed."
+                        emptyHint="Only parts on this engineer's hand stock are listed."
                         options={[
                           ...(!stock.some((r) => r.part === s.part) ? [{ value: s.part, label: s.part }] : []),
-                          ...stock.map((r) => ({
-                            value: r.part, label: stockOptionLabel(r),
-                            // Its own row stays pickable even at zero: it is
-                            // already booked here, and disabling it would make
-                            // the line unchangeable.
-                            disabled: r.part !== s.part && remainingOf(r.part) <= 0,
-                          })),
+                          ...stock.map((r) => ({ value: r.part, label: stockOptionLabel(r) })),
                         ]} />
                       <input
-                        className="input spare-qty" type="number" min={1} max={Math.max(1, remainingOf(s.part, i))}
+                        className="input spare-qty" type="number" min={1}
                         value={s.qty} onChange={(e) => editSpare(i, { qty: e.target.value })}
                         onBlur={() => editSpare(i, { qty: s.qty || '1' })}
                       />
@@ -1024,13 +1016,10 @@ export function CallReportDrawer({
                   disabled={stockBusy || stockShown.length === 0}
                   placeholder={stockBusy ? 'Loading hand stock…' : stockShown.length ? 'Pick a spare in hand…'
                     : stock.length ? `Nothing in hand for ${callProduct} — tick Show all parts` : 'Nothing in hand stock'}
-                  emptyHint="Only what this engineer holds can be consumed."
-                  options={stockShown.map((r) => ({
-                    value: r.part, label: stockOptionLabel(r), disabled: remainingOf(r.part) <= 0,
-                  }))} />
+                  emptyHint="Only parts on this engineer's hand stock are listed."
+                  options={stockShown.map((r) => ({ value: r.part, label: stockOptionLabel(r) }))} />
                 <input
                   className="input spare-qty" type="number" min={1}
-                  max={spareDraft.part ? Math.max(1, remainingOf(spareDraft.part)) : 1}
                   value={spareDraft.qty} onChange={(e) => setSpareDraft((d) => ({ ...d, qty: e.target.value }))}
                   disabled={!spareDraft.part}
                 />
@@ -1041,11 +1030,29 @@ export function CallReportDrawer({
                   disabled={!spareDraft.part} />
                 <button className="btn btn-sm" onClick={addSpare} disabled={!spareDraft.part}>＋ Add</button>
               </div>
+              {/* BEYOND THE HAND STOCK (0401): allowed, said out loud before the
+                  save, and the Spare Coordinator is told when it is saved. */}
+              {(() => {
+                const parts = [...new Set([...spares.map((s) => s.part), spareDraft.part.trim()].filter(Boolean))];
+                const short = parts
+                  .map((p) => ({ p, left: remainingOf(p) - (p === spareDraft.part.trim() ? Math.floor(Number(spareDraft.qty) || 0) : 0) }))
+                  .filter((x) => x.left < 0);
+                if (!short.length) return null;
+                return (
+                  <div className="sheet-banner sheet-banner-warn" style={{ margin: '6px 0', display: 'block' }}>
+                    {short.map((x) => (
+                      <div key={x.p}><b>{x.p.split('|')[0]}</b> goes below zero in {engineer || 'the engineer'}&rsquo;s hand stock ({x.left}).</div>
+                    ))}
+                    It will still be saved, and the Spare Coordinator is notified to correct the hand stock.
+                  </div>
+                );
+              })()}
               {stockErr
                 ? <span className="muted rep-hint">{stockErr}</span>
                 : <span className="muted rep-hint">
-                    Only spares in {engineer || 'the engineer'}&rsquo;s hand stock can be consumed — issued by Stores on a DC,
-                    less what has already been used or transferred. Raise a spare request for anything else.
+                    The list is {engineer || 'the engineer'}&rsquo;s hand stock — issued by Stores on a DC,
+                    less what has already been used or transferred. A spare can be booked beyond it: the stock
+                    goes below zero and the Spare Coordinator is notified.
                     Lines above stay editable until you save the report, and the spare in the
                     picker is saved with them &mdash; &#65291; Add is only needed to start another line.
                   </span>}
