@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.139',
+    date: '2026-10-08',
+    title: 'Dropdowns on a phone open where you can see them',
+    changes: [
+      'On a phone with the keyboard up, or with the page zoomed in, a dropdown list could open behind the keyboard, so the field looked empty: Standard Complaint and Add Consumption? on the Visit Entry, and any other dropdown near the bottom of the screen. The list now opens in the part of the screen you can see.',
+      'A short dropdown (Yes / No, Add Consumption?) no longer shows two boxes when opened. It shows one, with the list under it.',
+    ],
+  },
+  {
     version: '0.10.138',
     date: '2026-10-06',
     title: 'Old DCCR calls are kept but not listed in the call registers',

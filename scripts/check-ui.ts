@@ -4348,8 +4348,11 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // 1. The CLOSED box shows the machine, not the decorated row. Undecorated it
   //    became two wrapped lines of hospital name in a field labelled Serial No.
   eq('the serial box shows the serial alone', /plainValue\n/.test(rq) || /plainValue$/m.test(rq), true);
-  eq('and PickList honours that for both closed states',
-    (pl.match(/plainValue \? value : \(labelFor\?\.\(value\) \?\? value\)/g) ?? []).length, 2);
+  // ONE trigger since v0.10.139 (D-156): a short list used to draw a second box
+  // while open, which is why this counted two. The one button now renders the
+  // closed box AND the open short list, so one copy covers both states.
+  eq('and PickList honours that on its one trigger',
+    (pl.match(/plainValue \? value : \(labelFor\?\.\(value\) \?\? value\)/g) ?? []).length, 1);
   // Spare Consumption still WANTS the decoration ("part — 3 in hand"), so the
   // default must stay decorated.
   eq('a picker that does not ask still gets its label',
