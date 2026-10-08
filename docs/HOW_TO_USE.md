@@ -1002,6 +1002,13 @@ typed into a form that reads it.
   > blank can still be corrected one field at a time.
 - **Party Master** `/parties` — your customers, **who looks after each one**, and
   their **KYC**.
+  > **Type, Profile, Serviceman, City, State and Country are dropdowns** —
+  > type to search and pick. Type and Profile offer the standard values
+  > (CUSTOMER / DEALER; PRIVATE / GOVERNMENT / DEALER / GENERAL) plus any
+  > already on file; State and Country offer what the Party Master already
+  > holds; City offers the cities already on file for the State chosen, and a
+  > new town can be typed. **Serviceman lists only ACTIVE people on the User
+  > Master**; a customer whose Serviceman is no longer active says so.
   > **KYC starts as Pending on every customer** — nobody has been verified yet,
   > so the count tells you what is outstanding. Marking one **Verified** records
   > who did it and when; sending it back to Pending clears that, because a
