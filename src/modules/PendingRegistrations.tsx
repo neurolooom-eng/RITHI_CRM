@@ -4,7 +4,9 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { addFieldCall, listPending, productBySerial, setPendingUcn, updateFieldCall, dataConfigured } from '../lib/sheets';
-import { cancelCallRequest, callByUcn, openCallsFor, callsForMachine, machineKey, supabaseConfigured, type OpenCall, type MachineCall } from '../lib/supabase';
+import { cancelCallRequest, callByUcn, openCallsFor, callsForMachine, machineKey, supabaseConfigured, reportingManagerEmails, type OpenCall, type MachineCall } from '../lib/supabase';
+import { requestMailSubject, requestMailBody, requestMailto } from '../lib/requestMail';
+import { formatDay, formatDayTime } from '../lib/dates';
 import { FIELD_CALL_FIELDS, VIGILANCE_SECTION } from './FieldCalls';
 import { useCallFieldMasters } from './callFields';
 import { useTeamEngineers } from '../lib/access';
@@ -382,6 +384,54 @@ export function PendingRegistrations() {
 // Request detail + the three ways to close it out: map to an existing call,
 // create a new one, or cancel.
 // ---------------------------------------------------------------------------
+// ---- "NEED MORE DETAILS" ---------------------------------------------------
+//
+// The user, 2026-10-08: "Add a provision to compose a mail to the requestor
+// asking for more details ... This is for Pending Registrations - Commercial
+// Team will be doing it." It OPENS A MAIL in the person's own mail program --
+// so it is from them, and they read it before it goes -- To the request's
+// E-Mail ID, Cc the requestor's Reporting Manager from the User Master, the
+// subject and body built by requestMail.ts. Both addresses are shown first: a
+// Cc nobody could see would be a mail copied to somebody nobody checked.
+function MoreDetailsMail({ row }: { row: Row }) {
+  const { user } = useAuth();
+  const to = g(row, 'E-Mail ID').trim();
+  const [cc, setCc] = useState<{ manager: string; emails: string[] } | null>(null);
+  const [ccErr, setCcErr] = useState('');
+  useEffect(() => {
+    let live = true;
+    setCc(null); setCcErr('');
+    if (!to || !supabaseConfigured()) { setCc({ manager: '', emails: [] }); return; }
+    reportingManagerEmails(to)
+      .then((r) => { if (live) setCc(r); })
+      .catch((e) => { if (live) { setCc({ manager: '', emails: [] }); setCcErr(e instanceof Error ? e.message : String(e)); } });
+    return () => { live = false; };
+  }, [to]);
+  const fmt = (label: string, x: string) =>
+    label === 'Raised on' ? formatDayTime(x) : /date/i.test(label) ? formatDay(x) || x : x;
+  const subject = requestMailSubject(row);
+  const href = requestMailto([to], cc?.emails ?? [], subject, requestMailBody(row, user?.fullName ?? '', fmt));
+  return (
+    <div className="req-act-sec">
+      <div className="rep-sec-title">Ask the requestor for more details</div>
+      <div className="detail-hint">
+        <b>To:</b> {to || <span className="field-err">this request has no E-Mail ID</span>}<br />
+        <b>Cc:</b>{' '}
+        {cc === null ? 'finding the Reporting Manager…'
+          : cc.emails.length ? <>{cc.emails.join(', ')} <span className="muted">({cc.manager}, Reporting Manager)</span></>
+          : cc.manager ? <span className="muted">{cc.manager} is the Reporting Manager, but has no email in the User Master — nobody will be copied</span>
+          : <span className="muted">no Reporting Manager in the User Master for {to || 'this requestor'} — nobody will be copied</span>}
+        {ccErr && <div className="field-err">The Reporting Manager could not be looked up: {ccErr}</div>}
+        <br /><b>Subject:</b> {subject}
+      </div>
+      <a className={`btn btn-sm${!to || cc === null ? ' disabled' : ''}`}
+         href={!to || cc === null ? undefined : href}
+         aria-disabled={!to || cc === null}>✉ Compose mail</a>
+      <div className="detail-hint">Opens a new mail in your own mail program, from you, with the request’s details in it — read it and send it from there.</div>
+    </div>
+  );
+}
+
 function RequestActions({
   row, openCalls, openCallsFailed, canAct, canCreate, busy, onClose, onMap, onCreate, onCancel, onOpenCall,
 }: {
@@ -605,6 +655,8 @@ function RequestActions({
                   </div>
                   <div className="detail-hint">Mapping fills UCN (Mapped) and takes the request off the pending list.</div>
                 </div>
+
+                {can('pending.mail') && <MoreDetailsMail row={row} />}
 
                 <div className="rep-actions">
                   <button className="btn btn-danger" disabled={!canAct || busy} onClick={() => setMode('cancel')}>✕ Cancel request</button>

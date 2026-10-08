@@ -325,6 +325,11 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'PM Calls', key: 'pm.reopen', label: 'Re-open, close or close again a PM call' },
   { group: 'Requests', key: 'request.create', label: 'Raise call requests' },
   { group: 'Requests', key: 'pending.register', label: 'Register pending (Hotline)' },
+  // A mail asking the requestor for more details (the user, 2026-10-08: "This
+  // is for Pending Registrations - Commercial Team will be doing it"). It only
+  // opens the person's own mail program; granted to no role by a migration --
+  // given to Commercial on Roles & Permissions.
+  { group: 'Requests', key: 'pending.mail', label: 'Ask the requestor for more details (compose a mail)' },
   { group: 'Spares', key: 'spare.request', label: 'Request spares' },
   { group: 'Spares', key: 'spare.approve_rm', label: 'Approve spare — RM stage' },
   { group: 'Spares', key: 'spare.approve_commercial', label: 'Approve spare — Commercial' },
@@ -743,7 +748,7 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Service Calls', pages: [
     { path: '/request-registration', label: 'Request Registration', actions: ['request.create', 'calls.create', 'pending.register'] },
-    { path: '/pending-registrations', label: 'Pending Registrations', actions: ['pending.register', 'calls.create', 'install.create', 'calls.edit', 'install.edit'] },
+    { path: '/pending-registrations', label: 'Pending Registrations', actions: ['pending.register', 'pending.mail', 'calls.create', 'install.create', 'calls.edit', 'install.edit'] },
     { path: '/field-calls', label: 'Field Call Register', actions: ['calls.view', 'calls.create', 'calls.edit', 'calls.edit.complaint', 'calls.edit.customer', 'calls.edit.vigilance', 'calls.edit.contact', 'calls.allot', 'calls.report', 'calls.report.visit', 'visit.spares', 'visit.feedback', 'calls.cancel', 'calls.reopen', 'spare.request', 'consumption.reconcile'] },
     { path: '/installations', label: 'Installation Calls', actions: ['calls.view', 'install.create', 'install.edit', 'install.edit.complaint', 'install.edit.customer', 'install.edit.vigilance', 'install.edit.contact', 'install.allot', 'install.report', 'install.report.visit', 'visit.spares', 'visit.feedback', 'install.cancel', 'install.reopen', 'spare.request', 'consumption.reconcile'] },
     { path: '/pm-calls', label: 'Preventive (PM)', actions: ['calls.view', 'pm.create', 'pm.edit', 'pm.edit.complaint', 'pm.edit.customer', 'pm.edit.vigilance', 'pm.edit.contact', 'pm.allot', 'pm.report', 'pm.report.visit', 'visit.spares', 'visit.feedback', 'pm.cancel', 'pm.reopen', 'spare.request', 'consumption.reconcile'] },

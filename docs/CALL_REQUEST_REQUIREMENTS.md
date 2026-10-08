@@ -210,6 +210,15 @@ Not `pending_registrations`, which is the sheet-era table. Two fixes were aimed
 at the wrong table before this was written down.
 *Status: met* — `listPending()` → `listCallRequestsAsPending()`.
 
+**CR-032 — The requestor can be asked for more details by mail.** · *v0.10.147 · 08-Oct-2026*
+From a pending request the Commercial team composes a mail To the requestor's
+email, Cc the requestor's Reporting Manager (the User Master), from themselves,
+subject *Need more details | Product Serial | Installation Call* (the call
+family), the request's details in the body. It is COMPOSED in the person's own
+mail program, never sent by RITHI, and it changes nothing on the request.
+*Status: met* — `MoreDetailsMail` in `PendingRegistrations.tsx`, `requestMail.ts`,
+`reportingManagerEmails()`; key `pending.mail`, granted to no role (FRS-271).
+
 ## F. Who may see and raise one
 
 **CR-022 — Raising a request is a permission.** · *v0.10.66 · 03-Oct-2026*

@@ -101,7 +101,12 @@ different totals. An empty register usually means access, not emptiness.
   > cleared and it goes back on the Pending list. The call itself is not changed.
 - **Pending Registrations** `/pending-registrations` — the Hotline queue.
   Registering one issues the UCN and files the call. The chips at the top filter
-  it by Call Type, each with its count.
+  it by Call Type, each with its count. **Ask the requestor for more details**
+  (in the request's action panel, for whoever is given *Ask the requestor for
+  more details* — the Commercial team) opens a mail in your own mail program:
+  To the requestor, Cc their Reporting Manager from the User Master, subject
+  *Need more details | product serial | Installation Call* (or Field / PM Call),
+  and the request's details in the body. Read it and send it from there.
   > The call is filed to the Hotline desk, but the system separately records *who
   > actually typed it in*. The two differing is a finding, not an error.
 
