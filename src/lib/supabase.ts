@@ -5291,25 +5291,23 @@ export async function prepareUpload(
     });
   }
 
-  // 3. What is in neither file gets a request, MARKED as one — the gap stays
-  //    visible in the register instead of costing the whole load.
-  const orphans = missing.filter((u) => !byOrNo.has(u));
-  if (orphans.length) {
-    const stubs = orphans.map((uid) => ({
-      uid, or_no: uid, req_type: 'Call Based', status: 'Imported',
-      remarks: 'Created from an imported spare line — the request header was not in the export.',
-    }));
-    for (const part of chunks(stubs)) {
-      const { error } = await c.from('spare_requests').upsert(part, { onConflict: 'uid', ignoreDuplicates: true });
-      if (error) {
-        return { ok: false,
-          error: `${errMsg(error)} — ${orphans.length} of these lines name a request that is not in the header export,`
-            + ' and creating it was refused. Load the Spare Request file first, or ask an administrator to run this one.' };
-      }
+  // 3. A line whose request is in NEITHER file is HELD BACK, counted (the
+  //    user, 2026-10-08: "Yes, block uploads with empty engineer"). This used
+  //    to create a stub request for it, marked Imported -- with no engineer,
+  //    because the lines export carries none -- and a dispatched line on such a
+  //    request booked its spare to NOBODY's hand stock (D-158: 45 requests, 68
+  //    units, fixed by 0405). It also wrote before the operator confirmed
+  //    (D-075). Load the Spare Request file, which must name the engineer, and
+  //    then this one.
+  const orphans = new Set(missing.filter((u) => !byOrNo.has(u)));
+  let held = 0;
+  if (orphans.size) {
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (orphans.has(String(rows[i].request_uid ?? '').trim())) { rows.splice(i, 1); held += 1; }
     }
   }
   const bits = [
-    orphans.length ? `${orphans.length} request${orphans.length === 1 ? '' : 's'} created for lines whose request was not in the header export` : '',
+    held ? `${held} line${held === 1 ? '' : 's'} held back — ${orphans.size} request${orphans.size === 1 ? ' is' : 's are'} not in RITHI (load the Spare Request file first, with the engineer named): ${[...orphans].slice(0, 10).join(', ')}${orphans.size > 10 ? ', …' : ''}` : '',
     repointed ? `${repointed} line${repointed === 1 ? '' : 's'} pointed at the request already holding that OR number` : '',
   ].filter(Boolean);
   return { ok: true, note: bits.join('; ') };

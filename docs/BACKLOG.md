@@ -83,9 +83,10 @@ up)_
 - 57 history stock outs / 68 units were booked to nobody: the live request line
   (counted instead of history) had a blank engineer. 0405 fills the engineer
   from the lines' Stock Out history where they agree, logged in
-  spare_request_engineer_log; disagreeing requests are left and named. NOT
-  prevented for a future blank-engineer Spare Request load -- a guard on that
-  upload is the open item.
+  spare_request_engineer_log; disagreeing requests are left and named.
+  Prevented from v0.10.152: the Spare Request upload requires Engineer Name, and
+  the Lines upload holds back lines whose request is not in RITHI instead of
+  creating engineer-less stub requests (how these came in).
 
 ## 2026-10-08 — DCCR mirror: 2026 calls only (CallReg.gs, v0.10.148)
 
