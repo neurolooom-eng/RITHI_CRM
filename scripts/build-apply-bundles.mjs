@@ -1194,7 +1194,11 @@ const MODULES = {
             // PM Due (the user, 2026-10-08): the month's PM visits from the
             // Warranty and Contract Registers, visit k on start + k x months x
             // 30 / visits days, only what the raised PM calls have not covered.
-            '0401_pm_due.sql'],
+            '0401_pm_due.sql',
+            // PM Due by the visit (the user, 2026-10-08): GENERATED when the
+            // "k / N" PM call exists, MISSED PM otherwise; accessories marked.
+            // Replaces 0401's count-based pm_due, so after it.
+            '0402_pm_visits_due.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

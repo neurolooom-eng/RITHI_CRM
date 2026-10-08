@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.144',
+    date: '2026-10-08',
+    title: 'PM Due: Generated or Missed PM, products and accessories apart, and a product filter',
+    changes: [
+      'Each machine with a PM visit in the month is now shown as GENERATED — its PM call for that visit (for example SCHEDULED PM VISIT 2 / 3) exists and is not cancelled, whatever month it was raised in — or as a MISSED PM.',
+      'Filters at the top: Missed PM / Generated / All, Products / Accessories, and a Product picker. Each button shows how many it would list.',
+      'Only a Missed PM can be ticked and created, and each row shows the PM call that generated it and the machine\'s last PM call.',
+      'FIXED: the first version counted every PM call since a cover started; RITHI has almost no PM calls from before 2026, so machines with this month\'s call already raised were listed again (1,098 in October) and Create would have duplicated them. No call had been created with it.',
+    ],
+  },
+  {
     version: '0.10.143',
     date: '2026-10-08',
     title: 'Party Master: a new State or Country can be entered',

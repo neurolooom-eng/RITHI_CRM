@@ -78,6 +78,19 @@ up)_
 
 ---
 
+## 2026-10-08 — PM Due by the visit: Generated / Missed PM, accessories, product filter (0402, v0.10.144)
+
+- D-157: 0401's count of PM calls since the cover started listed machines whose
+  month's call already existed (live October: 1,098 of 2,348) because RITHI holds
+  almost no pre-2026 PM call. The user was told not to press Create; none was.
+- The user's rule: GENERATED = the "k / N" PM call exists for the machine in the
+  cover period, not cancelled, any month; else MISSED PM. Filters: Missed PM /
+  Generated / All, Products / Accessories (Product Master ACCESSORY), Product.
+  `pm_visits_due` replaces `pm_due` (new result columns); row 329 moved.
+- About 510 machines a peak month have a PM call under a DIFFERENT product
+  spelling (the serial matches, the product name does not); they read Missed PM
+  by product + serial. Not changed -- matching by serial alone is the user's call.
+
 ## 2026-10-08 — PM Due from the Warranty and Contract Registers (0401, v0.10.140)
 
 - The user: "Can we do PM generation from Contract and warranty register?" Answers:

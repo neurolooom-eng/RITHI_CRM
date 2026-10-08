@@ -479,7 +479,7 @@ export const FLOWS: Flow[] = [
         detail: 'A holder of pm.bulk_upload loads the month’s file; headings are matched by alias, every row is forced to the PM type, and cover is normalised to WGP, OGP, CMC or AMC, an unrecognised value kept as written.',
         records: ['pm_calls'], reqs: ['FRS-009', 'FRS-142', 'URS-005', 'OQ-14'] },
       { id: 'due', label: 'Month’s PM visits worked out from the registers', route: '/pm-due', area: 'call',
-        detail: 'PM Due lists each machine whose warranty or contract owes a visit in the month, by the day count from its start date, less the PM calls already raised; the coordinator unticks what should not go and creates the rest, shaped as the upload shapes them.',
+        detail: 'PM Due lists each machine whose warranty or contract has a visit in the month, by the day count from its start date, as Generated (its k / N PM call exists, not cancelled) or Missed PM; the coordinator filters by status, products or accessories and product, unticks what should not go and creates the missed ones, shaped as the upload shapes them.',
         records: ['pm_calls'], reqs: ['FRS-269', 'URS-181', 'OQ-267'] },
       { id: 'month', label: 'Dated to the due month, previewed', route: '/pm-bulk-upload', area: 'call',
         detail: 'Every call is dated the 1st of the chosen due month with the upload date kept beside it, and earlier months may be loaded. The first rows and the count are previewed before import.',

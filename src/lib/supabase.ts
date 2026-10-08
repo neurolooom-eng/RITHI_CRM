@@ -334,23 +334,26 @@ export async function pmLatestRegAt(month: string): Promise<string | null> {
   return v ? String(v) : null;
 }
 
-// PM DUE (0401): the month's PM visits from the Warranty and Contract
-// Registers. Both read through definer functions that ask pm.generate, so the
-// count of PM calls already raised -- and the month's latest registration
-// time -- cover EVERY PM call, not only the ones the reader's row-level
-// security shows them. A month can owe well over a thousand visits, so the
-// list is PAGED (PostgREST caps a response at 1,000), ordered by the machine,
-// which is unique in the list.
+// PM DUE (0401, 0402): each machine with a PM visit due in the month, from the
+// Warranty and Contract Registers, GENERATED when its "k / N" PM call exists
+// and is not cancelled, MISSED PM otherwise. Both reads are definer functions
+// that ask pm.generate, so "generated" -- and the month's latest registration
+// time -- are answered from EVERY PM call, not only the ones the reader's
+// row-level security shows them. A month can list well over a thousand
+// machines, so the list is PAGED (PostgREST caps a response at 1,000), ordered
+// by the machine, which is unique in the list.
 export interface PmDueRow {
   source: 'Warranty' | 'Contract'; ref_no: string; product_name: string; serial: string;
+  is_accessory: boolean;
   party_name: string | null; city: string | null; state: string | null;
   engineer: string | null; on_product_database: boolean; cover_type: string;
   cover_start: string; cover_end: string; period_months: number; pm_visits: number;
-  visit_no: number; due_date: string; raised: number;
+  visit_no: number; due_date: string;
+  generated: boolean; generated_ucn: string | null; generated_on: string | null; last_pm_on: string | null;
 }
 export async function listPmDue(month: string): Promise<PmDueRow[]> {
   const c = must();
-  return allRows<PmDueRow>((a, b) => c.rpc('pm_due', { p_month: `${month}-01` })
+  return allRows<PmDueRow>((a, b) => c.rpc('pm_visits_due', { p_month: `${month}-01` })
     .order('product_name').order('serial').range(a, b));
 }
 export async function pmDueLatestRegAt(month: string): Promise<string | null> {
