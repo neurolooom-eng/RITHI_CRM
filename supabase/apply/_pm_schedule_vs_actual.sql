@@ -11,7 +11,7 @@ with pm as (
          (regexp_match(coalesce(p.complaint_reported, ''), '(\d+)\s*/\s*(\d+)'))::int[] as kn
     from public.pm_calls p
    where p.reg_date >= date_trunc('year', current_date) and p.cancelled_at is null
-), cover as (
+), cover as materialized (
   select 'Warranty'::text as src, lower(btrim(product_name)) || '|' || lower(btrim(serial_number)) as mk,
          warranty_start as s, coalesce(warranty_end, warranty_start + make_interval(months => warranty_months)) as e,
          warranty_months as m, pm_visits as v
@@ -24,11 +24,13 @@ with pm as (
     from public.contract_details
    where contract_start is not null and coalesce(contract_months, 0) > 0 and coalesce(pm_visits_total, 0) > 0
 ), j as (
-  select pm.*, c.src, c.s, c.e, c.m, c.v
-    from pm left join lateral (
-      select * from cover c where c.mk = pm.mk
-         and date_trunc('month', pm.reg_date) between date_trunc('month', c.s) and date_trunc('month', c.e)
-       order by (c.src = 'Warranty') desc, c.s desc limit 1) c on true
+  -- ONE pass over the registers, hash-joined, then one cover per call --
+  -- a LATERAL here re-read the two register views once per call and timed out.
+  select distinct on (pm.ucn) pm.*, c.src, c.s, c.e, c.m, c.v
+    from pm left join cover c
+      on c.mk = pm.mk
+     and date_trunc('month', pm.reg_date) between date_trunc('month', c.s) and date_trunc('month', c.e)
+   order by pm.ucn, (c.src = 'Warranty') desc nulls last, c.s desc nulls last
 ), r as (
   select j.*,
     case when kn is null then 'no k / N in the Reported Problem'
