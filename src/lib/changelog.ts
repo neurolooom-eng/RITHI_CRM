@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.153',
+    date: '2026-10-08',
+    title: 'An installation call closes the pending installation requests for its machine',
+    changes: [
+      'When an Installation call is created for a product and serial — on the Installation register, from Pending Registrations, or by a bulk upload — every pending INSTALLATION request for the same product and serial is marked Registered with that call\'s UCN, and drops off Pending Registrations.',
+      'A Field or PM request for the same machine stays pending. A cancelled call closes nothing, and a request already Cancelled, Mapped or Registered is not touched.',
+      'Once, now: installation requests that were already pending for a machine that already has an installation call were registered against its latest one.',
+    ],
+  },
+  {
     version: '0.10.152',
     date: '2026-10-08',
     title: 'Bulk Uploads: a spare request must name its engineer',

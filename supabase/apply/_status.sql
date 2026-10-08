@@ -2137,7 +2137,11 @@ with checks(sort_order, bundle, provides, present) as (
                           and p.prosrc like '%installation_calls%' and p.prosrc like '%CUSTOMER%'
                           and p.prosrc like '%r.istate is null or r.istate = ''Solved''%'
                      from pg_proc p where p.oid = to_regprocedure('public.pm_visits_due(date)')), false)
-     and not coalesce(has_function_privilege('anon', to_regprocedure('public.pm_visits_due(date)'), 'execute'), true)))
+     and not coalesce(has_function_privilege('anon', to_regprocedure('public.pm_visits_due(date)'), 'execute'), true))),
+    (330, 'An installation call registers the pending installation requests for its machine', 'zz_install_call_registers_requests on installation_calls, running install_call_registers_requests() (0406): a new installation call gives its UCN to every PENDING Installation request for the same product + serial and marks it Registered; the function is a trigger only, callable by nobody. NO means call_requests.sql has not been re-run since. Restore: call_requests.sql (0406)',
+        (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.installation_calls') and tgname = 'zz_install_call_registers_requests')
+     and to_regprocedure('public.install_call_registers_requests()') is not null
+     and not coalesce(has_function_privilege('authenticated', to_regprocedure('public.install_call_registers_requests()'), 'execute'), true)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

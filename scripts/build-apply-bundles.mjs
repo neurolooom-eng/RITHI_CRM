@@ -379,6 +379,10 @@ const MODULES = {
       // PM calls already uploaded: complaint / breakdown date = registration
       // date, and the serial their upload carried (2026-10-05). Data only.
       '0386_pm_dates_are_registration.sql',
+      // An installation call registers the pending INSTALLATION requests for
+      // its product + serial (the user, 2026-10-08), and once, the ones
+      // already pending for a machine already installed.
+      '0406_install_call_registers_requests.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
