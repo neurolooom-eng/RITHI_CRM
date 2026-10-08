@@ -1187,7 +1187,11 @@ const MODULES = {
             // The OT number given by the database, the transfer's invoice on
             // the machine, and its files (the user, 2026-10-06); redefines
             // 0383's sync_product_machine.
-            '0391_transfer_ot_number_invoice_files.sql'],
+            '0391_transfer_ot_number_invoice_files.sql',
+            // PM Due (the user, 2026-10-08): the month's PM visits from the
+            // Warranty and Contract Registers, visit k on start + k x months x
+            // 30 / visits days, only what the raised PM calls have not covered.
+            '0401_pm_due.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

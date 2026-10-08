@@ -14,6 +14,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.140',
+    date: '2026-10-08',
+    title: 'PM Due: the month\'s PM calls from the Warranty and Contract Registers',
+    changes: [
+      'NEW: PM Due, under Administration beside PM Bulk Upload. Pick a month and it lists every machine whose warranty or contract owes a PM visit that month, with the visit number (for example 2 / 3), the due date, the engineer and how many PM calls have been raised so far.',
+      'A visit is due on the start date plus its share of the period counted in days, a month being 30 days: a warranty from 10 January with 3 visits in 12 months is due on day 120 (10 May), day 240 (7 September) and day 360 (5 January). Never after the cover ends.',
+      'Only visits not already raised are listed: the PM calls already registered for that machine in that period are counted, so a machine done in an uploaded batch does not appear again. A machine with both a warranty and a contract visit in the month is listed once, from the warranty.',
+      'Untick any machine that should not get a call, then Create. Each call is dated the 1st of the month, registered 10 seconds after the month\'s latest PM call (and 10 seconds apart), Added On today, allotted to the engineer on the Product Database, and reads SCHEDULED PM VISIT and SCHEDULED PM VISIT 2 / 3, as this year\'s PM calls do. The SA or MC number and the cover dates go on the call.',
+      'PM Bulk Upload is unchanged. PM Due needs the new permission “Generate PM calls from the registers”, which no role has yet apart from administrators; creating the calls also needs “Create PM calls”.',
+    ],
+  },
+  {
     version: '0.10.139',
     date: '2026-10-08',
     title: 'Dropdowns on a phone open where you can see them',
