@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.149',
+    date: '2026-10-08',
+    title: 'New CallReg address (DCCR mirror: 2026 calls only)',
+    changes: [
+      'The CallReg (Google Apps Script) address was updated to the new deployment, the one carrying the DCCR mirror that sends 2026 calls only. Every device switches to it automatically on the next load.',
+    ],
+  },
+  {
     version: '0.10.148',
     date: '2026-10-08',
     title: 'DCCR Google Sheet mirror: 2026 calls only',

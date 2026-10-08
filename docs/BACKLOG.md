@@ -82,8 +82,8 @@ up)_
 
 - The user: "Only 2026 calls should be sent to DCCR mirror". `_dccrFetchAll` reads
   `reg_date=gte.2026-01-01` (DCCR_FROM). The tab is rewritten each run, so 2025
-  rows leave on the first run. PENDING: the user pastes CallReg.gs into the Apps
-  Script project and saves -- not live until then.
+  rows leave on the first run. The user redeployed on 08-Oct; the new /exec is
+  baked into DEFAULT_SHEETS_URL with DEFAULT_URL_VERSION 16 (v0.10.149).
 
 ## 2026-10-08 — Pending Registrations: Need more details mail (v0.10.147)
 
