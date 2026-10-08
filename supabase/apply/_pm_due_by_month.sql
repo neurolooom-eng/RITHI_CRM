@@ -12,6 +12,12 @@
 --                    reads as owed when it may have been done
 --   older_visit      visit 2 or later with fewer calls raised than visits
 --                    before it -- a backlog, not this month's visit alone
+--   pm_this_month    the machine ALREADY has a PM call registered in that very
+--                    month (product + serial): listed only because visits
+--                    before RITHI held PM calls are missing from the count
+--   first_pm_in_rithi the earliest PM call RITHI holds for the machine (MM-YY)
+--                    -- the column below, how many listed machines have none
+--                    before this year
 -- Months print as MM-YY.
 -- ===========================================================================
 select set_config('request.jwt.claims',
@@ -28,6 +34,12 @@ with months as (
 ), ps as materialized (
   select distinct lower(btrim(coalesce(serial, ''))) as s, lower(btrim(coalesce(product_name, ''))) as p
     from public.pm_calls where cancelled_at is null and reg_date >= date_trunc('year', current_date)
+), pmm as materialized (
+  select lower(btrim(coalesce(product_name, ''))) || '|' || lower(btrim(coalesce(serial, ''))) as mk,
+         date_trunc('month', reg_date)::date as mo, reg_date
+    from public.pm_calls where cancelled_at is null
+), first_pm as materialized (
+  select mk, min(reg_date) as first_at from pmm group by mk
 )
 select to_char(d.mo, 'MM-YY') as month,
        count(*) as machines,
@@ -37,5 +49,9 @@ select to_char(d.mo, 'MM-YY') as month,
        count(*) filter (where raised = 0) as none_raised,
        count(*) filter (where exists (select 1 from ps where ps.s = lower(d.serial) and ps.p <> lower(d.product_name))
                           and not exists (select 1 from ps where ps.s = lower(d.serial) and ps.p = lower(d.product_name))) as serial_has_pm,
-       count(*) filter (where visit_no - raised > 1) as older_visit
+       count(*) filter (where visit_no - raised > 1) as older_visit,
+       count(*) filter (where exists (select 1 from pmm where pmm.mk = lower(d.product_name) || '|' || lower(d.serial)
+                                                       and pmm.mo = d.mo)) as pm_this_month,
+       count(*) filter (where not exists (select 1 from first_pm f where f.mk = lower(d.product_name) || '|' || lower(d.serial)
+                                                       and f.first_at < date_trunc('year', current_date))) as no_pm_before_this_year
   from d group by d.mo order by d.mo;
