@@ -1,52 +1,28 @@
 -- ===========================================================================
--- 0402 — PM DUE, BY THE VISIT AND NOT BY A COUNT: GENERATED OR MISSED PM,
--- PRODUCTS AND ACCESSORIES (the user, 2026-10-08).
+-- 0403 — PM DUE: TWO MORE RULES, EACH ALSO A FILTER (the user, 2026-10-08:
+-- "Add 2 more logics - But add these as rules + Filters").
 --
--- WHY 0401'S RULE IS REPLACED. It listed a machine when the visits scheduled
--- since its cover started outnumbered the PM calls raised in that time. RITHI
--- holds almost no PM call from before 2026 (37 of 2024, 500 of 2025), so a
--- three-year contract from 2024 read every 2024-25 visit as missed and was
--- listed again even with this month's call raised. Measured on the live
--- project (`_pm_due_by_month.sql`): October listed 2,348 machines, 1,098 of
--- which ALREADY had an October PM call -- Create would have duplicated them.
+--   1. "The installation call associated with it should be in solved state" --
+--      the machine's call in the Installation register (product + serial, the
+--      match 0331's warranty start already uses) reads open_state = 'Solved'.
+--      A Solved call is taken over a cancelled or later one, so a cancelled
+--      first attempt does not hide the solved second. No installation call
+--      fails the rule.
+--   2. "Party the device is associated to should be a customer" -- the
+--      machine's party (the Product Database's, which follows transfers; else
+--      the register's) has Type CUSTOMER on the Party Master. DEALER is a
+--      dealer (0328); a party not in the master, or with no Type, fails.
 --
--- THE RULE NOW, in the user's words: a visit is GENERATED "when the visit is
--- created -- like 1/12, 2/12 like that and it is not in Cancelled state". So
--- each machine with a visit due in the month is listed, and is
---   GENERATED  a PM call exists for that product + serial, not cancelled,
---              registered within that cover's period (its start month to its
---              end), whose Reported Problem reads "k / N" with the SAME visit
---              number and the SAME number of visits -- in whatever month it was
---              raised;
---   MISSED PM  otherwise.
--- The visit numbering is the existing one: visit k on start + round(k x months
--- x 30 / visits) days, never after the cover's end (0401, the user's 120-day
--- example). One row per machine, warranty first (0218's order).
+-- Every row is still listed, with its installation call, its state, its
+-- party's Type and the two answers, so the screen can filter by each; a row
+-- may be CREATED (`can_create`) only when it is a Missed PM passing both.
 --
--- ACCESSORIES ARE LISTED AND MARKED, not dropped: "Give me an option to
--- segregate Product and Accessory". An accessory is a product whose Product
--- Master category reads ACCESSORY (the user, 2026-09-30, `isAccessoryCategory`);
--- anything else is a product.
---
--- `last_pm_on` is the machine's latest PM call ever (not cancelled), so a
--- Missed PM raised under a different visit number or a month off is visible.
---
--- A NEW NAME, pm_visits_due, because the columns differ: `create or replace`
--- cannot change a function's result columns, and re-running 0401's bundle on a
--- database holding a changed pm_due would fail on exactly that. 0401's pm_due
--- is dropped here; re-running the bundle recreates it in 0401 and drops it
--- again here. pm_due_latest_reg_at (0401) is unchanged.
---
--- SECURITY DEFINER with its own pm.generate check, as 0401: whether a visit was
--- generated must be answered from EVERY PM call, not only those the reader's
--- row-level security shows, or a hidden call reads as Missed and is raised
--- twice. Not executable by the public key.
+-- Same name, more columns: `create or replace` cannot change result columns,
+-- so the function is dropped and recreated (0402 now drops it first too, so
+-- re-running that bundle does not fail on this one). Definer with its own
+-- pm.generate check and not executable by anon, as 0402.
 -- ===========================================================================
 
-drop function if exists public.pm_due(date);
--- Dropped first as well: 0403 gives pm_visits_due more result columns, and a
--- re-run of this bundle on a database holding 0403's would otherwise fail on
--- `create or replace` (it cannot change result columns). 0403 recreates it.
 drop function if exists public.pm_visits_due(date);
 
 create or replace function public.pm_visits_due(p_month date)
@@ -71,7 +47,13 @@ returns table (
   generated        boolean,  -- a PM call "k / N" exists for this visit, not cancelled
   generated_ucn    text,
   generated_on     date,     -- that call's registration date
-  last_pm_on       date      -- the machine's latest PM call, any visit
+  last_pm_on       date,     -- the machine's latest PM call, any visit
+  installation_ucn   text,   -- the machine's installation call (product + serial)
+  installation_state text,   -- its state: Solved, Unsolved, ... ; NULL = none
+  install_solved     boolean,-- RULE 1: that call reads Solved
+  party_type         text,   -- the Party Master's Type for the machine's party; NULL = not in it
+  party_is_customer  boolean,-- RULE 2: that Type is CUSTOMER
+  can_create         boolean -- a Missed PM passing both rules
 )
 language plpgsql
 stable
@@ -145,32 +127,61 @@ begin
      order by o.mk, pm.reg_date desc, pm.ucn desc
   ), last_pm as (
     select pm.mk, max(pm.reg_date) as d from pm group by pm.mk
+  ), inst as (
+    -- RULE 1. The machine's installation call: a Solved one if it has one,
+    -- else the latest not cancelled, else the latest -- so a cancelled first
+    -- attempt does not hide the solved second one.
+    select distinct on (lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))))
+           lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))) as mk,
+           ic.ucn, ic.open_state
+      from public.installation_calls ic
+     where lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, '')))
+           in (select o.mk from one o)
+     order by lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))),
+              (ic.open_state = 'Solved') desc, (ic.cancelled_at is null) desc,
+              ic.reg_date desc nulls last, ic.ucn desc
   ), acc as (
     select distinct lower(btrim(pmx.product_name)) as p
       from public.product_master pmx
      where upper(btrim(coalesce(pmx.item_category, ''))) = 'ACCESSORY'
   )
-  select o.src, o.ref, o.p, o.s,
-         lower(o.p) in (select acc.p from acc),
-         coalesce(nullif(btrim(pr.party_name), ''), o.party),
-         coalesce(nullif(btrim(pr.city), ''), o.cty),
-         coalesce(nullif(btrim(pr.state), ''), o.st),
-         nullif(btrim(coalesce(pr.service_engineer, '')), ''),
-         pr.id is not null,
-         o.ctype, o.cs, o.ce, o.m, o.v, o.kk, o.due,
-         g.ucn is not null, g.ucn, g.reg_date, lp.d
-    from one o
-    left join gen g on g.mk = o.mk
-    left join last_pm lp on lp.mk = o.mk
-    left join lateral (
-      select * from public.products x
-       where x.machine_key = o.mk
-       order by x.id desc limit 1) pr on true
-   order by 6 nulls last, 3, 4;
+  , rowz as (
+    select o.src, o.ref, o.p, o.s,
+           lower(o.p) in (select acc.p from acc) as is_acc,
+           coalesce(nullif(btrim(pr.party_name), ''), o.party) as party,
+           coalesce(nullif(btrim(pr.city), ''), o.cty) as cty,
+           coalesce(nullif(btrim(pr.state), ''), o.st) as st,
+           nullif(btrim(coalesce(pr.service_engineer, '')), '') as eng,
+           pr.id is not null as on_pd,
+           o.ctype, o.cs, o.ce, o.m, o.v, o.kk, o.due,
+           g.ucn is not null as gen, g.ucn as gucn, g.reg_date as gon, lp.d as lpd,
+           i.ucn as iucn, i.open_state as istate
+      from one o
+      left join gen g on g.mk = o.mk
+      left join last_pm lp on lp.mk = o.mk
+      left join inst i on i.mk = o.mk
+      left join lateral (
+        select * from public.products x
+         where x.machine_key = o.mk
+         order by x.id desc limit 1) pr on true
+  )
+  -- RULE 2. The party the machine is with -- the Product Database's, else the
+  -- register's -- is a CUSTOMER on the Party Master (its Type; DEALER is a
+  -- dealer, 0328). A party not in the master, or with no Type, is not shown as
+  -- a customer: the rule asks for one, and a blank says nothing.
+  select r.src, r.ref, r.p, r.s, r.is_acc, r.party, r.cty, r.st, r.eng, r.on_pd,
+         r.ctype, r.cs, r.ce, r.m, r.v, r.kk, r.due, r.gen, r.gucn, r.gon, r.lpd,
+         r.iucn, r.istate, coalesce(r.istate = 'Solved', false),
+         pt.party_type,
+         coalesce(upper(btrim(pt.party_type)) = 'CUSTOMER', false),
+         not r.gen and coalesce(r.istate = 'Solved', false) and coalesce(upper(btrim(pt.party_type)) = 'CUSTOMER', false)
+    from rowz r
+    left join public.parties pt on pt.name_key = lower(btrim(r.party))
+   order by r.party nulls last, r.p, r.s;
 end $$;
 
 comment on function public.pm_visits_due(date) is
-  'The machines with a PM visit due in a month from the Warranty and Contract Registers (visit k on start + k x months x 30 / visits days), each GENERATED when a PM call "k / N" exists for it in the cover period and is not cancelled, else MISSED PM; accessories marked by the Product Master category. One row per machine, warranty first. Needs pm.generate (0402).';
+  'The machines with a PM visit due in a month from the Warranty and Contract Registers (visit k on start + k x months x 30 / visits days), each GENERATED when a PM call "k / N" exists for it in the cover period and is not cancelled, else MISSED PM; accessories marked; its installation call and whether it is Solved; its party''s Party Master Type and whether it is CUSTOMER; can_create when a Missed PM passes both. Needs pm.generate (0403).';
 
 revoke execute on function public.pm_visits_due(date) from public, anon;
 grant execute on function public.pm_visits_due(date) to authenticated;

@@ -2129,11 +2129,12 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_consumption') and tgname = 'zz_pm_spare_to_dccr')
      and coalesce((select pg_get_viewdef(to_regclass('public.field_call_review')) like '%dccr_calls%'
                     where to_regclass('public.field_call_review') is not null), false))),
-    (329, 'PM Due: each visit due in the month, Generated or Missed PM', 'pm_visits_due(date) (0402) and pm_due_latest_reg_at(date) (0401), SECURITY DEFINER with their own pm.generate check, not executable by anon: visit k on start + k x months x 30 / visits days, GENERATED when a not-cancelled PM call reads k / N in the cover period, accessories marked from the Product Master; 0401''s count-based pm_due is dropped. NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0402)',
+    (329, 'PM Due: each visit due in the month, Generated or Missed PM, with its two rules', 'pm_visits_due(date) (0403) and pm_due_latest_reg_at(date) (0401), SECURITY DEFINER with their own pm.generate check, not executable by anon: visit k on start + k x months x 30 / visits days, GENERATED when a not-cancelled PM call reads k / N in the cover period, accessories marked, and created only when the installation call reads Solved and the party is a CUSTOMER; 0401''s count-based pm_due is dropped. NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0403)',
         (to_regprocedure('public.pm_visits_due(date)') is not null
      and to_regprocedure('public.pm_due_latest_reg_at(date)') is not null
      and to_regprocedure('public.pm_due(date)') is null
      and coalesce((select p.prosecdef and p.prosrc like '%30.0%' and p.prosrc like '%pm.generate%' and p.prosrc like '%ACCESSORY%'
+                          and p.prosrc like '%installation_calls%' and p.prosrc like '%CUSTOMER%'
                      from pg_proc p where p.oid = to_regprocedure('public.pm_visits_due(date)')), false)
      and not coalesce(has_function_privilege('anon', to_regprocedure('public.pm_visits_due(date)'), 'execute'), true)))
 )

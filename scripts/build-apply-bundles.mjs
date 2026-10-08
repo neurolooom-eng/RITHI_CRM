@@ -1198,7 +1198,10 @@ const MODULES = {
             // PM Due by the visit (the user, 2026-10-08): GENERATED when the
             // "k / N" PM call exists, MISSED PM otherwise; accessories marked.
             // Replaces 0401's count-based pm_due, so after it.
-            '0402_pm_visits_due.sql'],
+            '0402_pm_visits_due.sql',
+            // Two more rules, each a filter (the user, 2026-10-08): the
+            // installation call Solved, the party a CUSTOMER. Recreates 0402's.
+            '0403_pm_due_install_and_customer.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
