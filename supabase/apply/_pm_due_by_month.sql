@@ -1,7 +1,7 @@
 -- ===========================================================================
 -- WHAT PM DUE LISTS, MONTH BY MONTH (2026-10-08). READ-ONLY.
 -- The user: "In spite of generating 8k calls till date, do u think I am
--- missing another 10k calls?" This runs pm_visits_due() (0402) AS AN
+-- missing another 10k calls?" This runs pm_visits_due() (0403) AS AN
 -- ADMINISTRATOR for every month of the year and counts, per month:
 --   machines         every machine with a PM visit due that month
 --   generated        its "k / N" PM call exists, not cancelled
@@ -13,6 +13,10 @@
 --                    product + serial cannot see
 --   missed_with_pm_that_month  of the missed, the machine HAS a PM call
 --                    in that very month, numbered differently
+--   can_create       of the missed, passing both 0403 rules
+--   no_install_call / install_not_solved   of the missed, failing rule 1
+--   party_not_customer  of the missed, failing rule 2 (a dealer, no Type,
+--                    or not in the Party Master)
 -- Months print as MM-YY.
 -- ===========================================================================
 select set_config('request.jwt.claims',
@@ -41,5 +45,9 @@ select to_char(d.mo, 'MM-YY') as month,
                           and exists (select 1 from ps where ps.s = lower(d.serial) and ps.p <> lower(d.product_name))
                           and not exists (select 1 from ps where ps.s = lower(d.serial) and ps.p = lower(d.product_name))) as missed_serial_has_pm,
        count(*) filter (where not generated
-                          and exists (select 1 from pmm where pmm.mk = lower(d.product_name) || '|' || lower(d.serial) and pmm.mo = d.mo)) as missed_with_pm_that_month
+                          and exists (select 1 from pmm where pmm.mk = lower(d.product_name) || '|' || lower(d.serial) and pmm.mo = d.mo)) as missed_with_pm_that_month,
+       count(*) filter (where can_create) as can_create,
+       count(*) filter (where not generated and installation_ucn is null) as no_install_call,
+       count(*) filter (where not generated and installation_ucn is not null and not install_solved) as install_not_solved,
+       count(*) filter (where not generated and not party_is_customer) as party_not_customer
   from d group by d.mo order by d.mo;
