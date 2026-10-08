@@ -377,9 +377,13 @@ against the call it was fitted to.
   question from the dispatch queue, and now grantable separately.
 - **Hand Stock** `/handstock` — what an engineer holds. **Worked out, never
   stored**: issued − consumed ± transfers − returns.
-  > **Why a booking can be refused.** Consumption is capped at the engineer's
-  > balance. If the balance is wrong the Spare Coordinator corrects the stock; the
-  > engineer does not book around it.
+  > **A spare can be booked beyond the balance.** If the engineer fitted more
+  > than the hand stock shows, the visit saves the spare anyway: the visit form
+  > warns first which part will go **below zero**, the balance then reads
+  > negative here, and **every Spare Coordinator gets a notification** on the bell
+  > naming the engineer, the part, the quantities and the call. The Spare
+  > Coordinator then corrects the stock (± Adjust stock, or the missing issue).
+  > Transfers and returns still cannot move more than the engineer holds.
   > **± Adjust stock** (whoever holds the reconciliation permission): choose the
   > engineer and the part, **Add** or **Remove** a quantity, give the **reason**
   > and the **reference** (the MTN number). It takes effect at once and shows on

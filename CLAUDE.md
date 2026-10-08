@@ -697,9 +697,13 @@ on testing the old shape. **When a migration replaces a definition, move the
   they agree perfectly — the blind spot `check:generated` exists for, one level
   down.
 - **Hand stock is derived, never stored** — issued − consumed ± transfers −
-  returns. Consumption is therefore the control point: a DB trigger caps every
-  consumption line at the engineer's balance. Reported lines are capped too;
-  the Spare Coordinator corrects the stock, not the engineer.
+  returns. **Consumption is NOT capped any more (0401, the user, 2026-10-08:
+  *"Allow even if it's negative but notify the Spare Coordinator"*)**: a line
+  beyond the balance is booked, the balance goes below zero, and
+  `notify_negative_handstock()` tells every active Spare Coordinator. Until
+  0401 a DB trigger refused it — which saved the visit and silently dropped the
+  part that WAS fitted. Transfers and returns still move only what is held
+  (0339); the Spare Coordinator corrects the stock, not the engineer.
 - **Quality records are never deleted** (0049 blocks it). A wrong consumption
   line is VOIDED — quantity set to 0, the row retained with its original
   quantity, reason and author, and the stock returns.

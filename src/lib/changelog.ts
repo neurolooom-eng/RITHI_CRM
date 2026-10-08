@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.141',
+    date: '2026-10-08',
+    title: 'A spare can be booked beyond the hand stock — the Spare Coordinator is told',
+    changes: [
+      'VISIT ENTRY: a spare the engineer fitted is now saved even when it is more than their hand stock. Before, the visit saved but the spares were refused ("has 0 of … in hand, so 1 cannot be consumed").',
+      'The visit form lists every part on the engineer\'s hand stock, including ones at zero or below, and warns before saving which part will go below zero.',
+      'Every Spare Coordinator gets a notification on the bell: "Hand stock gone negative", naming the engineer, the part, how many they had, how many were consumed, the new balance and the call. The same happens when a saved line\'s quantity is raised past the balance.',
+      'Stock transfers and material returns still cannot move more than the engineer holds.',
+    ],
+  },
+  {
     version: '0.10.140',
     date: '2026-10-08',
     title: 'PM Due: the month\'s PM calls from the Warranty and Contract Registers',

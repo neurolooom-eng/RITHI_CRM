@@ -4490,11 +4490,16 @@ export async function addHandstockAdjustment(a: { engineer: string; part: string
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
-export async function handstockForEngineer(engineer: string, limit = 1000): Promise<Record<string, unknown>[]> {
+// `includeEmpty` also returns the parts the engineer holds none of, or is
+// already below zero on -- the visit form offers them since 0401, because a
+// part fitted beyond the hand stock is now booked (and the Spare Coordinator
+// told) rather than refused. Every other caller keeps "what is in hand".
+export async function handstockForEngineer(engineer: string, limit = 1000, opts: { includeEmpty?: boolean } = {}): Promise<Record<string, unknown>[]> {
   const key = engineer.trim().toLowerCase();
   if (!key) return [];
-  const { data, error } = await must().from('handstock_balance').select('*')
-    .eq('engineer_key', key).gt('on_hand', 0)
+  let q = must().from('handstock_balance').select('*').eq('engineer_key', key);
+  if (!opts.includeEmpty) q = q.gt('on_hand', 0);
+  const { data, error } = await q
     .order('part_code', { ascending: true }).range(0, limit - 1);
   if (error) throw new Error(errMsg(error));
   return data ?? [];

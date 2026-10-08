@@ -85,7 +85,7 @@ begin;
            'visitDate', to_char(current_date, 'YYYY-MM-DD'), 'engineer', 'Um Ajay', 'engineerEmail', 'um_ajay@x.com',
            'status', 'Solved - Report Completed',      -- overridden: an Indoor visit is always Unsolved
            'work', jsonb_build_object('Job Done', 'Repaired in the workshop', 'Update Visit Work Details?', 'No'),
-           'spares', case when serial = 'U2' then '[{"part": "UM-NOT-HELD", "qty": "1"}]'::jsonb else '[]'::jsonb end)
+           'spares', case when serial = 'U2' then '[{"part": "UM-NOT-HELD", "qty": "0"}]'::jsonb else '[]'::jsonb end)
    where serial in ('U1', 'U2');
 commit;
 update public.indoor_jobs set status = 'Ready' where serial in ('U1', 'U2');
@@ -145,11 +145,14 @@ begin;
   update public.indoor_jobs set visit_uid = 'VIS-UM-OLD', visit_filed_at = now() where serial = 'U1';
 commit;
 
-\echo '--- 4. ONE TRANSACTION: a spare the engineer does not hold refuses the approval, and nothing is filed ---'
+-- A spare the engineer does not hold no longer refuses (0401: booked, the Spare
+-- Coordinator told), so the failing spare is now a ZERO quantity, which the
+-- consumption guard still refuses -- the same one-transaction proof.
+\echo '--- 4. ONE TRANSACTION: a spare the guard refuses refuses the approval, and nothing is filed ---'
 call public.be('um_vignesh@x.com');
 begin;
   set local role authenticated;
-  \echo 'expect ERROR: has 0 of UM-NOT-HELD in hand'
+  \echo 'expect ERROR: Quantity must be more than zero'
   select public.approve_indoor_dc(:'dc2');
 commit;
 \echo 'expect: Pending approval | no visit on the unit | no visit against UCN-UM-2'

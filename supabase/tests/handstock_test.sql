@@ -114,15 +114,16 @@ select b.engineer_key, b.part_code, b.on_hand, e.qty,
   join public.engineer_stock e on e.engineer = b.engineer_key and e.part = b.part
  where b.part_code like 'SP-%' order by b.engineer_key, b.part_code;
 
-\echo '--- 10. consuming stock nobody issued is REFUSED (expect ERROR) ---'
--- Until 0061 this was allowed and the balance simply went negative. Consumption
--- is now capped at what the engineer holds, reported or not: the correction
--- belongs to the Spare Coordinator, not to whoever typed last.
+\echo '--- 10. consuming stock nobody issued is BOOKED, and the Spare Coordinator told (0401) ---'
+-- 0061 refused this; 0401 (the user, 2026-10-08) books it, the balance goes
+-- negative and the Spare Coordinator corrects it afterwards. Rolled back so the
+-- movements below are the ones this suite was written for.
 call public.be('eng@x.com');
+begin;
 insert into public.spare_consumption (ucn, call_number, part, qty, engineer)
   values ('U-4','CL2600004','SP-900|Old stock part',3,'Eng Elan');
--- nothing was written, so nothing is held
-select part_code, stock_out, consumed, on_hand from public.handstock_balance where part_code='SP-900';
+select part_code, consumed, on_hand as should_be_minus_3 from public.handstock_balance where part_code='SP-900';
+rollback;
 
 \echo '--- 11. movements carry the reference the register links back to ---'
 select direction, movement, engineer, ref, ref_type, ucn from public.handstock_movements

@@ -1073,6 +1073,9 @@ const MODULES = {
             '0387_stores_dispatch_2025_history.sql',
             // And the 2026 historical stock outs (0388); replaces 0387's view.
             '0388_stores_dispatch_2026_history.sql',
+            // Consumption beyond the hand stock is booked and the Spare Coordinator
+            // told (0401). Redefines 0089's insert guard and 0339's adjust guard.
+            '0401_negative_handstock_allowed_and_notified.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.
