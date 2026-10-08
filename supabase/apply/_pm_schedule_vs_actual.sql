@@ -4,7 +4,7 @@
 -- k / N". For each, find the warranty or contract whose period holds the
 -- call's month for that machine, and compare: is N that cover's PM Visits,
 -- and does visit k of the rule fall in the call's month? One grid: the
--- verdicts (part 1), then the commonest disagreements in detail (part 2).
+-- rule A (start + k x interval) against rule B (one month earlier), counted.
 -- ===========================================================================
 with pm as (
   select p.ucn, p.reg_date,
@@ -44,21 +44,19 @@ with pm as (
          else 'N matches, visit k falls in another month' end as verdict
     from j
 )
--- The rule's verdict, then (rows 2) for the calls that fall in ANOTHER month,
--- the actual month offset from the start against what the rule says, by
--- period / visits / k: which pattern the raised calls really follow.
-, g as (
-  select 1 as part, src, verdict as what, null::int as m, null::int as v, null::int as k,
-         null::int as actual_offset, null::int as rule_offset, count(*) as n, min(ucn) as example_ucn
-    from r group by src, verdict
-  union all
-  select 2, src, 'another month', m, v, kn[1],
-         ((extract(year from reg_date) - extract(year from s)) * 12 + extract(month from reg_date) - extract(month from s))::int,
-         round(kn[1] * m::numeric / v)::int, count(*), min(ucn)
-    from r where verdict = 'N matches, visit k falls in another month'
-   group by src, m, v, kn[1], 7, 8
+-- How many raised calls each of the two candidate rules reproduces, per
+-- register: A = start + k x interval (the month the interval completes),
+-- B = one month earlier (the LAST month of the k-th interval). Capped at the
+-- cover's end month either way. Only calls whose N is the register's.
+, t as (
+  select src,
+         date_trunc('month', least(s + make_interval(months => round(kn[1] * m::numeric / v)::int), e)) as ma,
+         date_trunc('month', least(s + make_interval(months => round(kn[1] * m::numeric / v)::int - 1), e)) as mb,
+         date_trunc('month', reg_date) as mr
+    from r where kn is not null and src is not null and kn[2] = v
 )
-select * from g
- where part = 1 or n >= 20
- order by part, src nulls first, n desc
- limit 60;
+select src as register, count(*) as calls_compared,
+       count(*) filter (where ma = mr) as rule_a_matches,
+       count(*) filter (where mb = mr) as rule_b_matches,
+       count(*) filter (where ma <> mr and mb <> mr) as neither
+  from t group by src order by src;
