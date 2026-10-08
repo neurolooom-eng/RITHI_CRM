@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.148',
+    date: '2026-10-08',
+    title: 'DCCR Google Sheet mirror: 2026 calls only',
+    changes: [
+      'The scheduled DCCR mirror now sends only calls registered from 01-Jan-2026. The old register\'s 2025 calls stay in RITHI but are no longer written to the DCCR_Mirror tab, and they come off it on the first run after the change.',
+      '⚠ Needs the new CallReg.gs pasted into the Apps Script project and saved. The scheduled runs use the saved code, so the Web App address does not change.',
+    ],
+  },
+  {
     version: '0.10.147',
     date: '2026-10-08',
     title: 'Pending Registrations: ask the requestor for more details by mail',
