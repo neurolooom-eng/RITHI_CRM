@@ -78,6 +78,15 @@ up)_
 
 ---
 
+## 2026-10-08 — Hand stock: requests loaded with no engineer (D-158, 0405, v0.10.151)
+
+- 57 history stock outs / 68 units were booked to nobody: the live request line
+  (counted instead of history) had a blank engineer. 0405 fills the engineer
+  from the lines' Stock Out history where they agree, logged in
+  spare_request_engineer_log; disagreeing requests are left and named. NOT
+  prevented for a future blank-engineer Spare Request load -- a guard on that
+  upload is the open item.
+
 ## 2026-10-08 — DCCR mirror: 2026 calls only (CallReg.gs, v0.10.148)
 
 - The user: "Only 2026 calls should be sent to DCCR mirror". `_dccrFetchAll` reads
