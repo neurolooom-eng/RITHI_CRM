@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.150',
+    date: '2026-10-08',
+    title: 'Hand Stock: the movements of a line as a table you can download',
+    changes: [
+      'Opening a line on Hand Stock now shows its movements as a TABLE: number, date and time, movement, In, Out, the BALANCE AFTER each one (worked from the opening balance, oldest first), reference, UCN, party and remarks.',
+      'Download (Excel) and CSV: the movements, and a second sheet with the stock level they explain. Dates are real Excel dates.',
+    ],
+  },
+  {
     version: '0.10.149',
     date: '2026-10-08',
     title: 'New CallReg address (DCCR mirror: 2026 calls only)',
