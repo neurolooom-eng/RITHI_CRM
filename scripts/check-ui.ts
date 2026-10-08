@@ -5880,6 +5880,28 @@ console.log('\n-- a warranty sale adds a party the master has not got --');
   // A NEW PARTY FROM THIS PAGE NEEDS NINE FIELDS (the user, 2026-10-05).
   eq('a new party from a sale needs the nine fields the user named',
     pr.SALE_NEW_PARTY_REQUIRED.map(([k]) => k), ['party_type', 'profile', 'country', 'state', 'city', 'address', 'pincode', 'gst', 'engineer']);
+  // THE PARTY MASTER'S DROPDOWNS (the user, 2026-10-08).
+  { const o = pr.partyFieldOptions([
+      { party_type: 'HOSPITAL', profile: 'private', state: 'JHARKHAND', city: 'DEOGHAR', country: 'INDIA' },
+      { party_type: 'customer', state: 'jharkhand', city: 'RANCHI' },
+      { state: 'BIHAR', city: 'PATNA', country: ' ' },
+    ]);
+    eq('Type keeps the standard list and adds what the Party Master holds, once regardless of case',
+      o.party_type, ['CUSTOMER', 'DEALER', 'HOSPITAL']);
+    eq('...Profile too', o.profile, ['DEALER', 'GENERAL', 'GOVERNMENT', 'PRIVATE']);
+    eq('State and Country come from the Party Master (INDIA always offered)', [o.state, o.country], [['BIHAR', 'JHARKHAND'], ['INDIA']]);
+    eq('the cities follow the state', o.cityByState['jharkhand'], ['DEOGHAR', 'RANCHI']);
+    const pm = readFileSync('src/modules/PartyMaster.tsx', 'utf8');
+    eq('the Serviceman lists the User Master\'s ACTIVE people, with no free text',
+      /if \(k === 'service_engineer'\) return \{ options: active, freeText: false/.test(pm)
+        && /sbActiveUserNames\(\)\.then\(setActiveUsers\)/.test(pm)
+        && /\.from\('user_directory'\)\.select\('name'\)\.eq\('validity', true\)/.test(readFileSync('src/lib/supabase.ts', 'utf8')), true);
+    eq('City, State and Country take a new value; Type and Profile do not (2026-10-08)',
+      /k === 'party_type' \|\| k === 'profile'\)\s*return \{ options: opts\[k\], freeText: false/.test(pm)
+        && /k === 'state' \|\| k === 'country'\)\s*return \{ options: opts\[k\], freeText: true/.test(pm)
+        && /options: inState && inState\.length \? inState : opts\.city, freeText: true/.test(pm), true);
+    eq('the drawer and the Add form both use the dropdowns',
+      (pm.match(/pick=\{\(k\) => partyPick\(/g) ?? []).length === 2 && /const p = partyPick\(k, fieldOpts, activeUsers, adding\.state/.test(pm), true); }
   eq('...each one named when blank', pr.saleNewPartyMissing({ ...sale, gst: '', engineer: ' ' }), ['GST', 'Service Engineer - Initial']);
   eq('...and the save refuses on them', /saleNewPartyMissing\(draft\)/.test(reg), true);
   // WRITE-BACK: only what was CHANGED in this edit AND differs from the master.
@@ -7268,7 +7290,11 @@ console.log('\n-- one Serviceman, changed everywhere it appears --');
   // THE NEW NAME COMES FROM THE USER MASTER, with no free text: letting
   // somebody type one recreates exactly the fault being repaired.
   eq('the new name comes from the User Master, not a text box',
-    /options=\{dirNames\}/.test(pm) && !/allowFreeText/.test(pm), true);
+    // The SWAP picker itself, not the whole file: City on the drawer takes a
+    // new town on purpose (2026-10-08), and a file-wide test refused that.
+    /<SelectPicker(?:(?!\/>)[\s\S])*options=\{dirNames\}(?:(?!\/>)[\s\S])*\/>/.test(pm)
+      && !/<SelectPicker(?:(?!\/>)[\s\S])*options=\{dirNames\}(?:(?!\/>)[\s\S])*allowFreeText(?:(?!\/>)[\s\S])*\/>/.test(pm)
+      && !/<SelectPicker(?:(?!\/>)[\s\S])*allowFreeText(?:(?!\/>)[\s\S])*options=\{dirNames\}(?:(?!\/>)[\s\S])*\/>/.test(pm), true);
   // AND THE LIST SAYS WHICH SPELLINGS ARE THE PROBLEM, rather than leaving it
   // to be worked out against another screen.
   eq('...and a spelling the directory lacks is flagged on the list',
