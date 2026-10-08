@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.152',
+    date: '2026-10-08',
+    title: 'Bulk Uploads: a spare request must name its engineer',
+    changes: [
+      'SPARE REQUEST upload: a row with no Engineer Name is held back and listed, not loaded. A request with no engineer books its spares to nobody\'s hand stock — the fault fixed on 08-Oct.',
+      'SPARE REQUEST LINES upload: a line whose request is not in RITHI is held back and its OR numbers listed, instead of a request being created for it with no engineer. Load the Spare Request file first, then the Lines file.',
+    ],
+  },
+  {
     version: '0.10.151',
     date: '2026-10-08',
     title: 'Hand Stock: stock outs on requests loaded with no engineer now reach the engineer',

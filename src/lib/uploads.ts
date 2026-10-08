@@ -750,7 +750,11 @@ export const UPLOADS: UploadDef[] = [
       { to: 'or_no', from: ['or no', 'or number', 'request uid'], required: true },
       DATE('or_req_date', 'or req date', 'or date', 'request date'),
       TEXT('req_type', 'req type', 'request type'),
-      TEXT('engineer', 'engineer name', 'engineer'),
+      // REQUIRED (the user, 2026-10-08: "Yes, block uploads with empty
+      // engineer"). A request loaded with no engineer books its dispatch to
+      // nobody's hand stock (D-158: 45 requests, 68 units); such a row is
+      // held back and named instead of written.
+      { to: 'engineer', from: ['engineer', 'engineer name'], required: true },
       TEXT('engineer_email', 'engineer email'),
       TEXT('ucn', 'uc number', 'ucn'), TEXT('call_number', 'call number'),
       TEXT('party_name', 'party name'), TEXT('product_name', 'product name'),
@@ -773,7 +777,7 @@ export const UPLOADS: UploadDef[] = [
     reject: (r) => (Number(r.qty ?? 0) < 1
       ? 'the export asks for no quantity — a dropped line, which the register cannot hold'
       : ''),
-    note: 'The export\u2019s "ADMIN Approval" is the Commercial stage — that is the column the approval flow reads. Before writing, each line\u2019s OR number is matched to the request holding it, and a request is created for any the header export does not carry (marked as such, so the gap stays visible) — so this file loads on its own, in any order. RM, Commercial and NSM approvals are columns on this row, not separate registers. Load the same file three times if the approvals arrived separately — each pass fills in its own stage.',
+    note: 'The export\u2019s "ADMIN Approval" is the Commercial stage — that is the column the approval flow reads. Before writing, each line\u2019s OR number is matched to the request holding it; a line whose request is not in RITHI is held back and counted — load the Spare Request file first. (It used to create a request for it, with no engineer, which booked its spares to nobody\u2019s hand stock — D-158.) RM, Commercial and NSM approvals are columns on this row, not separate registers. Load the same file three times if the approvals arrived separately — each pass fills in its own stage.',
     cols: [
       // "OR26724|NO-001" — the export's own line identity.
       { to: 'line_uid', from: ['spare request no|part number', 'line uid', 'line id', 'uid'], required: true },

@@ -477,6 +477,16 @@ eq('the request is keyed on the OR number', [sr.rows[0].or_no, def('spare_reques
 eq('...and no uid is sent, so the database keeps the one it has', sr.rows[0].uid, undefined);
 eq('...and the sheet row id is kept, not lost', (sr.rows[0].extra as Record<string, unknown>)['UID'], 'S1-30793a25');
 eq('the wide Spare (n) columns ride along', (sr.rows[0].extra as Record<string, unknown>)['Spare (1)'], 'MP-010|SENSOR');
+// A REQUEST WITH NO ENGINEER IS HELD BACK (the user, 2026-10-08: "Yes, block
+// uploads with empty engineer"). One loaded blank booked its dispatch to
+// nobody's hand stock (D-158).
+const srBlank = shapeUpload(def('spare_requests'), [
+  { 'OR NO': 'OR90001', 'Req Type': 'Call Based', 'ENGINEER NAME': '' },
+  { 'OR NO': 'OR90002', 'Req Type': 'Call Based', 'ENGINEER NAME': '  ' },
+  { 'OR NO': 'OR90003', 'Req Type': 'Call Based', 'ENGINEER NAME': 'MEGHANATH' },
+]);
+eq('a request row with no engineer is held back, named', srBlank.skipped.map((x) => x.why), ['no engineer', 'no engineer']);
+eq('...and the one naming an engineer still loads', srBlank.rows.map((r) => r.or_no), ['OR90003']);
 
 const srl = shapeUpload(def('spare_request_lines'), [
   { 'Spare Request No|Part Number': 'OR42608|MWP-026', 'OR NO': 'OR42608', 'Spare': 'MWP-026|COMPRESSOR',
