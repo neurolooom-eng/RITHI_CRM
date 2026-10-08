@@ -4,7 +4,9 @@
 -- k / N". For each, find the warranty or contract whose period holds the
 -- call's month for that machine, and compare: is N that cover's PM Visits,
 -- and does visit k of the rule fall in the call's month? One grid: the
--- rule A (start + k x interval) against rule B (one month earlier), counted.
+-- rule A (start + k x interval) against rule B (one month earlier), counted,
+-- and PM Due's day rule (0401): the month the raised call sits in, against
+-- the month PM Due would put that visit in -- same, earlier or later.
 -- ===========================================================================
 with pm as (
   select p.ucn, p.reg_date,
@@ -52,11 +54,16 @@ with pm as (
   select src,
          date_trunc('month', least(s + make_interval(months => round(kn[1] * m::numeric / v)::int), e)) as ma,
          date_trunc('month', least(s + make_interval(months => round(kn[1] * m::numeric / v)::int - 1), e)) as mb,
+         -- PM DUE'S RULE (0401, the user's answer): start + k x months x 30 / visits DAYS.
+         date_trunc('month', least((s + round(kn[1] * m * 30.0 / v)::int)::timestamp, e::timestamp)) as mc,
          date_trunc('month', reg_date) as mr
     from r where kn is not null and src is not null and kn[2] = v
 )
 select src as register, count(*) as calls_compared,
        count(*) filter (where ma = mr) as rule_a_matches,
        count(*) filter (where mb = mr) as rule_b_matches,
-       count(*) filter (where ma <> mr and mb <> mr) as neither
+       count(*) filter (where ma <> mr and mb <> mr) as neither,
+       count(*) filter (where mc = mr) as pm_due_day_rule_matches,
+       count(*) filter (where mc < mr) as pm_due_day_rule_earlier,
+       count(*) filter (where mc > mr) as pm_due_day_rule_later
   from t group by src order by src;
