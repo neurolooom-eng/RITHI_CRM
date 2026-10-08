@@ -78,6 +78,13 @@ up)_
 
 ---
 
+## 2026-10-08 — PM Due: no installation call passes rule 1 (0404, v0.10.146)
+
+- The user: "Allow machines with no installation call" -- 0403 held back 1,152 of
+  October's 1,242 Missed PM for having none. can_create now needs no installation
+  call OR a Solved one, and a CUSTOMER party. Filter: Solved or none (default) /
+  Solved / None / Not solved / Any.
+
 ## 2026-10-08 — PM Due: installation Solved and party a CUSTOMER, as rules and filters (0403, v0.10.145)
 
 - The user: "Add 2 more logics - But add these as rules + Filters": the

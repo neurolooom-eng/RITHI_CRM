@@ -22,8 +22,9 @@ import './fieldcalls.css';
 // Missed PM row can be ticked and created.
 //
 // TWO RULES, EACH ALSO A FILTER (0403, the user: "Add 2 more logics - But add
-// these as rules + Filters"): the machine's installation call reads Solved, and
-// its party is a CUSTOMER on the Party Master. A row is created only when the
+// these as rules + Filters"): the machine's installation call reads Solved --
+// or it has none at all (0404, "Allow machines with no installation call") --
+// and its party is a CUSTOMER on the Party Master. A row is created only when the
 // database says it may (`can_create`: a Missed PM passing both); the two
 // filters start on what the rules allow and can be opened to show the rest.
 //
@@ -41,7 +42,7 @@ const s = (v: unknown) => (v == null ? '' : String(v));
 const thisMonth = () => todayLocal().slice(0, 7);
 type StatusFilter = 'missed' | 'generated' | 'all';
 type KindFilter = 'all' | 'products' | 'accessories';
-type InstFilter = 'solved' | 'not' | 'all';
+type InstFilter = 'ok' | 'solved' | 'none' | 'not' | 'all';
 type PartyFilter = 'customer' | 'not' | 'all';
 const ALL_PRODUCTS = '';
 
@@ -63,7 +64,7 @@ export function PmDue() {
   const [status, setStatus] = useState<StatusFilter>('missed');
   const [kind, setKind] = useState<KindFilter>('all');
   const [product, setProduct] = useState(ALL_PRODUCTS);
-  const [inst, setInst] = useState<InstFilter>('solved');
+  const [inst, setInst] = useState<InstFilter>('ok');
   const [party, setParty] = useState<PartyFilter>('customer');
 
   const keyOf = (r: PmDueRow) => `${r.product_name}|${r.serial}`;
@@ -84,7 +85,15 @@ export function PmDue() {
   const byKind = (r: PmDueRow, k: KindFilter) => k === 'all' || (k === 'accessories') === r.is_accessory;
   const byStatus = (r: PmDueRow, st: StatusFilter) => st === 'all' || (st === 'generated') === r.generated;
   const byProduct = (r: PmDueRow, p: string) => !p || r.product_name === p;
-  const byInst = (r: PmDueRow, f: InstFilter) => f === 'all' || (f === 'solved') === r.install_solved;
+  // 'ok' is what rule 1 allows: a Solved installation call, or none at all.
+  const byInst = (r: PmDueRow, f: InstFilter) => {
+    const none = !r.installation_ucn;
+    if (f === 'ok') return none || r.install_solved;
+    if (f === 'solved') return r.install_solved;
+    if (f === 'none') return none;
+    if (f === 'not') return !none && !r.install_solved;
+    return true;
+  };
   const byParty = (r: PmDueRow, f: PartyFilter) => f === 'all' || (f === 'customer') === r.party_is_customer;
   const all = useMemo(() => rows ?? [], [rows]);
   // Every filter but the one named, so each button counts what pressing it shows.
@@ -185,7 +194,7 @@ export function PmDue() {
           for that product and serial reads <b>k / N</b> for it, within that cover’s period and not cancelled, whatever month
           it was raised in; otherwise it is a <b>Missed PM</b>. A machine with both a warranty and a contract visit is listed
           once, from the warranty. An <b>accessory</b> is a product whose Product Master category is ACCESSORY. Two rules
-          decide what may be created: the machine’s <b>installation call is Solved</b>, and its <b>party is a CUSTOMER</b>{' '}
+          decide what may be created: the machine’s <b>installation call is Solved, or it has none</b>, and its <b>party is a CUSTOMER</b>{' '}
           on the Party Master — so only a Missed PM passing both can be ticked. Each call is dated the{' '}
           <b>1st of the month</b>, Added On is <b>today</b>, the first is registered <b>10 seconds after the month's latest
           PM call</b> (00:30 on the 1st, 5 seconds apart, if there is none), the engineer is the <b>Product Database's</b>,
@@ -215,7 +224,7 @@ export function PmDue() {
                 </button>
               ))}
               <span className="muted" aria-hidden="true">|</span>
-              {([['solved', 'Installation solved'], ['not', 'Installation not solved'], ['all', 'Any installation']] as [InstFilter, string][]).map(([k, label]) => (
+              {([['ok', 'Installation solved or none'], ['solved', 'Solved'], ['none', 'No installation call'], ['not', 'Installation not solved'], ['all', 'Any installation']] as [InstFilter, string][]).map(([k, label]) => (
                 <button key={k} className={`btn btn-sm${inst === k ? ' btn-primary' : ''}`} onClick={() => setInst(k)} disabled={busy}>
                   {label} ({countInst(k)})
                 </button>
@@ -235,7 +244,7 @@ export function PmDue() {
             <div className="pm-preview-head">
               <b>{shown.length}</b> machine{shown.length === 1 ? '' : 's'} shown for {month}
               {status !== 'generated' && <> — <b>{missedShown.length}</b> Missed PM, <b>{creatable.length}</b> of which may be created</>}.
-              {counts.blocked > 0 && <> {counts.blocked} Missed PM fail a rule (installation not Solved, or the party not a customer) and cannot be created.</>}
+              {counts.blocked > 0 && <> {counts.blocked} Missed PM fail a rule (an installation call that is not Solved, or the party not a customer) and cannot be created.</>}
               {counts.noEngineer > 0 && <> <b>{counts.noEngineer}</b> of those have no engineer on the Product Database and would be created unallocated.</>}
               {counts.notOnPd > 0 && <> {counts.notOnPd} are not on the Product Database (party from the register).</>}
             </div>

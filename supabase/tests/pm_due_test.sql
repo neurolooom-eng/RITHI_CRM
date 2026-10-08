@@ -1,5 +1,5 @@
 -- ===========================================================================
--- PM DUE (0401, 0402, 0403).
+-- PM DUE (0401, 0402, 0403, 0404).
 --
 --   Visit k of a cover falls on start + k x months x 30 / visits days; each
 --   machine with a visit due in the month is listed once, warranty first; it
@@ -8,8 +8,9 @@
 --   and MISSED PM otherwise; an accessory is marked by the Product Master's
 --   category; the engineer is the Product Database's; the answer is the same
 --   whoever reads it; a row may be created only when it is a Missed PM whose
---   installation call reads Solved AND whose party is a CUSTOMER on the Party
---   Master (0403), each answer shown so the screen can filter by it; nobody
+--   installation call reads Solved -- or which has NO installation call (0404)
+--   -- AND whose party is a CUSTOMER on the Party Master (0403), each answer
+--   shown so the screen can filter by it; nobody
 --   without pm.generate may ask, and the public key cannot call it at all.
 --
 -- Superuser bypasses RLS, so the reads that matter run as `authenticated`.
@@ -134,11 +135,11 @@ select 'RULE 2: PD HOSPITAL is a CUSTOMER; PD CLINIC a DEALER; PD THREE not in t
        (select party_is_customer and party_type = 'CUSTOMER' from public.pm_visits_due('2026-05-01') where serial = 'PD-1')
    and (select not party_is_customer and party_type = 'DEALER' from public.pm_visits_due('2026-06-01') where serial = 'PD-2')
    and (select not party_is_customer and party_type is null from public.pm_visits_due('2026-05-01') where serial = 'PD-3') as ok;
-select 'CREATE only a Missed PM passing both rules: PD-4 (accessory, Solved, customer) yes; PD-1 (generated) no; PD-6 (Unsolved) no; PD-7 (no installation) no; PD-3 (no party type) no' as t,
+select 'CREATE only a Missed PM passing both rules: PD-4 (accessory, Solved, customer) yes; PD-7 (NO installation call, customer) yes (0404); PD-1 (generated) no; PD-6 (installation Unsolved) no; PD-3 (no party type) no' as t,
        (select can_create from public.pm_visits_due('2026-05-01') where serial = 'PD-4')
+   and (select can_create from public.pm_visits_due('2026-05-01') where serial = 'PD-7')
    and (select not can_create from public.pm_visits_due('2026-05-01') where serial = 'PD-1')
    and (select not can_create from public.pm_visits_due('2026-05-01') where serial = 'PD-6')
-   and (select not can_create from public.pm_visits_due('2026-05-01') where serial = 'PD-7')
    and (select not can_create from public.pm_visits_due('2026-05-01') where serial = 'PD-3') as ok;
 select 'September: PD-1''s missed visit 2 may be created (Solved, customer); June: PD-2 may not (a dealer)' as t,
        (select can_create from public.pm_visits_due('2026-09-01') where serial = 'PD-1')
