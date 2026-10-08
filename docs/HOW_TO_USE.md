@@ -309,6 +309,15 @@ on Roles & Permissions does not reach another team's calls.
   >   *Unattended* only until it has a visit, so loading a visit that did not
   >   happen would mark an unattended call as attended.
 - **PM Bulk Upload** `/pm-bulk-upload` — loads a maintenance schedule in one go.
+- **PM Due** `/pm-due` — works out the month's PM visits from the Warranty and
+  Contract Registers and creates them as PM calls. A visit is due on the start
+  date plus its share of the period counted in days (a month is 30 days: 3
+  visits in 12 months is one every 120 days), and only visits not already
+  raised for the machine in that period are listed. Untick any machine that
+  should not get a call, then Create: each call is dated the 1st of the month,
+  registered 10 seconds after the month's latest PM call, Added On today,
+  allotted to the Product Database's engineer, and reads SCHEDULED PM VISIT and
+  SCHEDULED PM VISIT k / N. PM Bulk Upload still works as before.
 
 ## Spares
 

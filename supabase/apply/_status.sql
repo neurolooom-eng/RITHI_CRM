@@ -2129,7 +2129,13 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_consumption') and tgname = 'zz_pm_spare_to_dccr')
      and coalesce((select pg_get_viewdef(to_regclass('public.field_call_review')) like '%dccr_calls%'
                     where to_regclass('public.field_call_review') is not null), false))),
-    (329, 'A spare consumed beyond the hand stock is booked, and the Spare Coordinator told', 'consumption_reconcile_guard and consumption_adjust_guard call notify_negative_handstock() where they used to refuse; it notifies every active profile whose role is spare_coordinator, and the signed-in and public keys cannot call it (0401). NO means HandStock_X.sql has not been re-run since, and a visit''s spares beyond the balance are still refused. Restore: HandStock_X.sql (0401)',
+    (329, 'PM Due: the month''s PM visits from the Warranty and Contract Registers', 'pm_due(date) and pm_due_latest_reg_at(date), SECURITY DEFINER with their own pm.generate check, not executable by anon, visit k on start + k x months x 30 / visits days (0401). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0401)',
+        (to_regprocedure('public.pm_due(date)') is not null
+     and to_regprocedure('public.pm_due_latest_reg_at(date)') is not null
+     and coalesce((select p.prosecdef and p.prosrc like '%30.0%' and p.prosrc like '%pm.generate%'
+                     from pg_proc p where p.oid = to_regprocedure('public.pm_due(date)')), false)
+     and not coalesce(has_function_privilege('anon', to_regprocedure('public.pm_due(date)'), 'execute'), true))),
+    (330, 'A spare consumed beyond the hand stock is booked, and the Spare Coordinator told', 'consumption_reconcile_guard and consumption_adjust_guard call notify_negative_handstock() where they used to refuse; it notifies every active profile whose role is spare_coordinator, and the signed-in and public keys cannot call it (0401). NO means HandStock_X.sql has not been re-run since, and a visit''s spares beyond the balance are still refused. Restore: HandStock_X.sql (0401)',
         (to_regprocedure('public.notify_negative_handstock(text,text,numeric,numeric,text,text)') is not null
      and not coalesce(has_function_privilege('authenticated', 'public.notify_negative_handstock(text,text,numeric,numeric,text,text)', 'EXECUTE'), true)
      and coalesce(pg_get_functiondef(to_regprocedure('public.consumption_reconcile_guard()')) like '%notify_negative_handstock%'
