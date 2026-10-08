@@ -316,9 +316,10 @@ on Roles & Permissions does not reach another team's calls.
   call for that visit (reading e.g. 2 / 3) exists and is not cancelled,
   whatever month it was raised in — or as a **Missed PM**. Filters at the top:
   Missed PM / Generated / All, Products / Accessories (an accessory is a product
-  whose Product Master category is ACCESSORY), Installation solved / not solved,
-  Customer / not a customer, and one product. Two rules decide what may be
-  created: the machine's **installation call is Solved**, and its **party is a
+  whose Product Master category is ACCESSORY), Installation (solved or none /
+  solved / no installation call / not solved), Customer / not a customer, and
+  one product. Two rules decide what may be created: the machine's
+  **installation call is Solved, or it has none**, and its **party is a
   CUSTOMER** on the Party Master (a dealer, a party not in the master, or one
   with no Type, is not). Only a Missed PM passing both can be ticked: untick any
   that should not get a call, then Create. Each call

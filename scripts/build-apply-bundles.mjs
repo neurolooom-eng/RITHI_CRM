@@ -1201,7 +1201,10 @@ const MODULES = {
             '0402_pm_visits_due.sql',
             // Two more rules, each a filter (the user, 2026-10-08): the
             // installation call Solved, the party a CUSTOMER. Recreates 0402's.
-            '0403_pm_due_install_and_customer.sql'],
+            '0403_pm_due_install_and_customer.sql',
+            // A machine with no installation call may be created (the user,
+            // 2026-10-08); restates 0403's pm_visits_due, so after it.
+            '0404_pm_due_no_install_call_allowed.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

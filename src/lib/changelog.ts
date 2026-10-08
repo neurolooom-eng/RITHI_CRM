@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.146',
+    date: '2026-10-08',
+    title: 'PM Due: machines with no installation call can be created',
+    changes: [
+      'A machine with NO installation call in RITHI now passes the installation rule and can be created, as long as its party is a customer. Only an installation call that exists and is not Solved holds a machine back.',
+      'The Installation filter now reads: Solved or none (the default), Solved, No installation call, Not solved, Any.',
+    ],
+  },
+  {
     version: '0.10.145',
     date: '2026-10-08',
     title: 'PM Due: only installed machines at customers can be created',
