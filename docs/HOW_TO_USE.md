@@ -101,7 +101,11 @@ different totals. An empty register usually means access, not emptiness.
   > cleared and it goes back on the Pending list. The call itself is not changed.
 - **Pending Registrations** `/pending-registrations` — the Hotline queue.
   Registering one issues the UCN and files the call. The chips at the top filter
-  it by Call Type, each with its count. **Ask the requestor for more details**
+  it by Call Type, each with its count. When an **Installation call** is created
+  for a product and serial — anywhere in RITHI — every pending **Installation**
+  request for that machine is marked Registered with the call's UCN and leaves
+  this list on its own; a Field or PM request for the machine stays.
+  **Ask the requestor for more details**
   (in the request's action panel, for whoever is given *Ask the requestor for
   more details* — the Commercial team) opens a mail in your own mail program:
   To the requestor, Cc their Reporting Manager from the User Master, subject

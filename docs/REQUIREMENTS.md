@@ -9702,6 +9702,7 @@ them under a screen would say something the requirement does not.
 - **CR-030** — Every field the form collects is written per call row · *v0.10.66 · 03-Oct-2026* · [full text](CALL_REQUEST_REQUIREMENTS.md)
 - **CR-031** — A capped search must be ordered, and the closest match must be offered · *v0.10.66 · 03-Oct-2026* · [full text](CALL_REQUEST_REQUIREMENTS.md)
 - **CR-032** — The requestor can be asked for more details by mail · *v0.10.147 · 08-Oct-2026* · [full text](CALL_REQUEST_REQUIREMENTS.md)
+- **CR-033** — An installation call registers the pending installation requests for its machine · *v0.10.153 · 08-Oct-2026* · [full text](CALL_REQUEST_REQUIREMENTS.md)
 
 ## Servicing process (ISO 13485)
 
@@ -9804,7 +9805,7 @@ questions for a person.
 
 ---
 
-**182** user requirements · **271** system requirements · **32** call-request · **44** servicing · **277** tests · **8** recorded as non-auditable · **550** of 182 user requirements tied to a module.
+**182** user requirements · **271** system requirements · **33** call-request · **44** servicing · **277** tests · **8** recorded as non-auditable · **550** of 182 user requirements tied to a module.
 ---
 
 ## Non-auditable requirements

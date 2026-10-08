@@ -78,6 +78,13 @@ up)_
 
 ---
 
+## 2026-10-08 — Installation call registers pending installation requests (CR-033, 0406, v0.10.153)
+
+- The user: an installation call should mark pending requests for the same
+  Product + Serial Registered with its UCN. Answers: Installation requests only;
+  the existing backlog once, against the machine's latest installation call.
+  AFTER INSERT trigger on installation_calls (definer, not callable).
+
 ## 2026-10-08 — Hand stock: requests loaded with no engineer (D-158, 0405, v0.10.151)
 
 - 57 history stock outs / 68 units were booked to nobody: the live request line

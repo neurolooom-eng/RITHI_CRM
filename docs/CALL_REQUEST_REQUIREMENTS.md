@@ -210,6 +210,19 @@ Not `pending_registrations`, which is the sheet-era table. Two fixes were aimed
 at the wrong table before this was written down.
 *Status: met* — `listPending()` → `listCallRequestsAsPending()`.
 
+**CR-033 — An installation call registers the pending installation requests for its machine.** · *v0.10.153 · 08-Oct-2026*
+When an installation call is created -- on the Installation register, from
+Create new call here, or by a bulk upload -- every PENDING request whose call
+type is Installation and whose product and serial are the call's (case and
+spaces aside) takes the call's UCN and becomes Registered, actioned by whoever
+created the call. A Field or PM request on the same machine stays pending; a
+Cancelled, Mapped or Registered request is never touched; a cancelled call
+registers nothing. Once, on 08-Oct, requests already pending for a machine
+already installed were registered against its latest installation call.
+*Status: met* — `zz_install_call_registers_requests` on `installation_calls`
+(0406), in the database so every path does it alike;
+`install_call_registers_requests_test`.
+
 **CR-032 — The requestor can be asked for more details by mail.** · *v0.10.147 · 08-Oct-2026*
 From a pending request the Commercial team composes a mail To the requestor's
 email, Cc the requestor's Reporting Manager (the User Master), from themselves,
