@@ -1213,7 +1213,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'Works out the month’s PM visits from the Warranty and Contract Registers, shows each as Generated or Missed PM, and creates the missed ones as PM calls.',
     does: [
       'Pick the due month and read the machines due, with the visit number, due date, engineer and the PM call that generated it',
-      'Filter by Missed PM / Generated / All, by Products / Accessories, by installation solved, by customer, and by product',
+      'Filter by Missed PM / Generated / All, by Products / Accessories, by installation, by customer, and by product, serial, party and engineer',
       'Untick any Missed PM that should not get a call, then create the rest',
     ],
     records: ['rpc:pm_visits_due', 'rpc:pm_due_latest_reg_at', 'calls', 'pm_calls'],
@@ -1221,7 +1221,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Visit k is due on the start date + k × (months × 30 ÷ PM visits) days, never after the cover ends',
       'A visit is Generated when a PM call reading k / N exists for the machine in that cover and is not cancelled — whatever month it was raised in',
       'An accessory is a product whose Product Master category is ACCESSORY',
-      'Only a Missed PM can be created, and only when the machine’s installation call is Solved (or it has none) and its party is a CUSTOMER on the Party Master',
+      'Every Missed PM shown can be created; installation and customer are filters, not conditions',
       'A machine with both a warranty and a contract visit is listed once, from the warranty',
       'The first call is registered 10 seconds after the month’s latest PM call; Added On is today',
       'The engineer is the Product Database’s; a machine without one is created unallocated',

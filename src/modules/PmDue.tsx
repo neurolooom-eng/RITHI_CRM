@@ -24,9 +24,14 @@ import './fieldcalls.css';
 // TWO RULES, EACH ALSO A FILTER (0403, the user: "Add 2 more logics - But add
 // these as rules + Filters"): the machine's installation call reads Solved --
 // or it has none at all (0404, "Allow machines with no installation call") --
-// and its party is a CUSTOMER on the Party Master. A row is created only when the
-// database says it may (`can_create`: a Missed PM passing both); the two
-// filters start on what the rules allow and can be opened to show the rest.
+// and its party is a CUSTOMER on the Party Master.
+//
+// AND THEN REGULAR FILTERS, NOT RULES (the user, 2026-10-09: "In PM Due, change
+// the rules into regular filters. Add Product, Serial No, Party, Engineer
+// filters"). Installation and Customer narrow the list like any other filter,
+// start on Any, and no longer decide what may be created: every Missed PM shown
+// can be ticked. The database still answers both questions per row (0403/0404);
+// only `can_create` is no longer read here.
 //
 // The calls are shaped by shapePmDueRows -> shapePmRows, the monthly upload's
 // own shaping, so a generated call and an uploaded one carry the same fields.
@@ -45,6 +50,9 @@ type KindFilter = 'all' | 'products' | 'accessories';
 type InstFilter = 'ok' | 'solved' | 'none' | 'not' | 'all';
 type PartyFilter = 'customer' | 'not' | 'all';
 const ALL_PRODUCTS = '';
+// A row with no engineer on the Product Database, as the Engineer filter offers it.
+const NO_ENGINEER = '(no engineer)';
+const engOf = (r: PmDueRow) => r.engineer || NO_ENGINEER;
 
 export function PmDue() {
   const { can } = useAuth();
@@ -64,8 +72,11 @@ export function PmDue() {
   const [status, setStatus] = useState<StatusFilter>('missed');
   const [kind, setKind] = useState<KindFilter>('all');
   const [product, setProduct] = useState(ALL_PRODUCTS);
-  const [inst, setInst] = useState<InstFilter>('ok');
-  const [party, setParty] = useState<PartyFilter>('customer');
+  const [inst, setInst] = useState<InstFilter>('all');
+  const [ptype, setPtype] = useState<PartyFilter>('all');
+  const [serial, setSerial] = useState('');
+  const [partyName, setPartyName] = useState('');
+  const [engineer, setEngineer] = useState('');
 
   const keyOf = (r: PmDueRow) => `${r.product_name}|${r.serial}`;
 
@@ -96,31 +107,47 @@ export function PmDue() {
   };
   const byParty = (r: PmDueRow, f: PartyFilter) => f === 'all' || (f === 'customer') === r.party_is_customer;
   const all = useMemo(() => rows ?? [], [rows]);
-  // Every filter but the one named, so each button counts what pressing it shows.
-  const passes = (r: PmDueRow, skipOne: 'status' | 'kind' | 'product' | 'inst' | 'party' | '') =>
+  type FilterKey = 'status' | 'kind' | 'product' | 'inst' | 'party' | 'serial' | 'partyName' | 'engineer' | '';
+  // Every filter but the one named, so each button counts -- and each picker
+  // offers -- what choosing it would show.
+  const passes = (r: PmDueRow, skipOne: FilterKey) =>
     (skipOne === 'status' || byStatus(r, status)) && (skipOne === 'kind' || byKind(r, kind))
     && (skipOne === 'product' || byProduct(r, product)) && (skipOne === 'inst' || byInst(r, inst))
-    && (skipOne === 'party' || byParty(r, party));
-  const products = useMemo(
-    () => [...new Set(all.filter((r) => byKind(r, kind)).map((r) => r.product_name))].sort(),
-    [all, kind]);
+    && (skipOne === 'party' || byParty(r, ptype))
+    && (skipOne === 'serial' || !serial || r.serial === serial)
+    && (skipOne === 'partyName' || !partyName || (r.party_name ?? '') === partyName)
+    && (skipOne === 'engineer' || !engineer || engOf(r) === engineer);
+  const optionsFor = (key: FilterKey, pick: (r: PmDueRow) => string) =>
+    [...new Set(all.filter((r) => passes(r, key)).map(pick).filter(Boolean))].sort();
+  const products = useMemo(() => optionsFor('product', (r) => r.product_name),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [all, status, kind, inst, ptype, serial, partyName, engineer]);
+  const serials = useMemo(() => optionsFor('serial', (r) => r.serial),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [all, status, kind, product, inst, ptype, partyName, engineer]);
+  const parties = useMemo(() => optionsFor('partyName', (r) => r.party_name ?? ''),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [all, status, kind, product, inst, ptype, serial, engineer]);
+  const engineers = useMemo(() => optionsFor('engineer', engOf),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [all, status, kind, product, inst, ptype, serial, partyName]);
   const shown = useMemo(() => all.filter((r) => passes(r, '')),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [all, status, kind, product, inst, party]);
+    [all, status, kind, product, inst, ptype, serial, partyName, engineer]);
   const countStatus = (st: StatusFilter) => all.filter((r) => passes(r, 'status') && byStatus(r, st)).length;
   const countKind = (k: KindFilter) => all.filter((r) => passes(r, 'kind') && byKind(r, k)).length;
   const countInst = (f: InstFilter) => all.filter((r) => passes(r, 'inst') && byInst(r, f)).length;
   const countParty = (f: PartyFilter) => all.filter((r) => passes(r, 'party') && byParty(r, f)).length;
-  // ONLY WHAT THE DATABASE SAYS MAY BE CREATED: a Missed PM whose installation
-  // call is Solved and whose party is a customer.
-  const creatable = useMemo(() => shown.filter((r) => r.can_create), [shown]);
+  // EVERY MISSED PM SHOWN MAY BE CREATED -- the filters decide what is shown.
+  const creatable = useMemo(() => shown.filter((r) => !r.generated), [shown]);
   const chosen = useMemo(() => creatable.filter((r) => !skip.has(keyOf(r))), [creatable, skip]);
-  const missedShown = useMemo(() => shown.filter((r) => !r.generated), [shown]);
+  const missedShown = creatable;
+  const anyPicked = !!(product || serial || partyName || engineer);
+  const clearPicks = () => { setProduct(ALL_PRODUCTS); setSerial(''); setPartyName(''); setEngineer(''); };
   const counts = useMemo(() => ({
     noEngineer: creatable.filter((r) => !r.engineer).length,
     notOnPd: creatable.filter((r) => !r.on_product_database).length,
-    blocked: missedShown.length - creatable.length,
-  }), [missedShown, creatable]);
+  }), [creatable]);
 
   if (!mayList) {
     return (
@@ -193,9 +220,9 @@ export function PmDue() {
           belongs to the month that date falls in — never after the cover ends. A visit is <b>Generated</b> when a PM call
           for that product and serial reads <b>k / N</b> for it, within that cover’s period and not cancelled, whatever month
           it was raised in; otherwise it is a <b>Missed PM</b>. A machine with both a warranty and a contract visit is listed
-          once, from the warranty. An <b>accessory</b> is a product whose Product Master category is ACCESSORY. Two rules
-          decide what may be created: the machine’s <b>installation call is Solved, or it has none</b>, and its <b>party is a CUSTOMER</b>{' '}
-          on the Party Master — so only a Missed PM passing both can be ticked. Each call is dated the{' '}
+          once, from the warranty. An <b>accessory</b> is a product whose Product Master category is ACCESSORY. The
+          filters narrow what is shown — installation, customer (the party’s Party Master Type), product, serial, party and
+          engineer — and every <b>Missed PM</b> shown can be ticked and created. Each call is dated the{' '}
           <b>1st of the month</b>, Added On is <b>today</b>, the first is registered <b>10 seconds after the month's latest
           PM call</b> (00:30 on the 1st, 5 seconds apart, if there is none), the engineer is the <b>Product Database's</b>,
           and it reads <b>SCHEDULED PM VISIT</b> / <b>SCHEDULED PM VISIT k / N</b>.
@@ -231,20 +258,28 @@ export function PmDue() {
               ))}
               <span className="muted" aria-hidden="true">|</span>
               {([['customer', 'Customer'], ['not', 'Not a customer'], ['all', 'Any party']] as [PartyFilter, string][]).map(([k, label]) => (
-                <button key={k} className={`btn btn-sm${party === k ? ' btn-primary' : ''}`} onClick={() => setParty(k)} disabled={busy}>
+                <button key={k} className={`btn btn-sm${ptype === k ? ' btn-primary' : ''}`} onClick={() => setPtype(k)} disabled={busy}>
                   {label} ({countParty(k)})
                 </button>
               ))}
               <span className="muted" aria-hidden="true">|</span>
-              <label className="pm-month" style={{ minWidth: 220 }}>Product
-                <SelectPicker value={product} onChange={setProduct} options={products}
-                  placeholder="All products" disabled={busy} />
+              <label className="pm-month" style={{ minWidth: 200 }}>Product
+                <SelectPicker value={product} onChange={setProduct} options={products} placeholder="All products" disabled={busy} />
               </label>
+              <label className="pm-month" style={{ minWidth: 180 }}>Serial No
+                <SelectPicker value={serial} onChange={setSerial} options={serials} placeholder="All serials" disabled={busy} />
+              </label>
+              <label className="pm-month" style={{ minWidth: 220 }}>Party
+                <SelectPicker value={partyName} onChange={setPartyName} options={parties} placeholder="All parties" disabled={busy} />
+              </label>
+              <label className="pm-month" style={{ minWidth: 200 }}>Engineer
+                <SelectPicker value={engineer} onChange={setEngineer} options={engineers} placeholder="All engineers" disabled={busy} />
+              </label>
+              {anyPicked && <button className="btn btn-sm btn-ghost" onClick={clearPicks} disabled={busy}>✕ Clear</button>}
             </div>
             <div className="pm-preview-head">
               <b>{shown.length}</b> machine{shown.length === 1 ? '' : 's'} shown for {month}
-              {status !== 'generated' && <> — <b>{missedShown.length}</b> Missed PM, <b>{creatable.length}</b> of which may be created</>}.
-              {counts.blocked > 0 && <> {counts.blocked} Missed PM fail a rule (an installation call that is not Solved, or the party not a customer) and cannot be created.</>}
+              {status !== 'generated' && <> — <b>{missedShown.length}</b> Missed PM</>}.
               {counts.noEngineer > 0 && <> <b>{counts.noEngineer}</b> of those have no engineer on the Product Database and would be created unallocated.</>}
               {counts.notOnPd > 0 && <> {counts.notOnPd} are not on the Product Database (party from the register).</>}
             </div>
@@ -265,7 +300,7 @@ export function PmDue() {
               <table className="assoc-table" style={{ minWidth: 960 }}>
                 <thead>
                   <tr>
-                    <th><input type="checkbox" checked={allTicked} onChange={toggleAll} disabled={busy || !creatable.length} aria-label="Tick all that may be created" /></th>
+                    <th><input type="checkbox" checked={allTicked} onChange={toggleAll} disabled={busy || !creatable.length} aria-label="Tick all Missed PM shown" /></th>
                     <th>Status</th><th>Register</th><th>SA / MC No</th><th>Product</th><th>Serial</th><th>Party</th><th>City</th>
                     <th>Party type</th><th>Installation call</th>
                     <th>Engineer</th><th>Cover</th><th>Visit</th><th>Due</th><th>PM call</th><th>Last PM call</th><th>Cover period</th>
@@ -274,7 +309,7 @@ export function PmDue() {
                 <tbody>
                   {shown.map((r) => (
                     <tr key={keyOf(r)}>
-                      <td>{r.can_create
+                      <td>{!r.generated
                         ? <input type="checkbox" checked={!skip.has(keyOf(r))} onChange={() => toggle(r)} disabled={busy} aria-label={`Create ${r.serial}`} />
                         : null}</td>
                       <td>{r.generated ? 'Generated' : <b>Missed PM</b>}</td>
