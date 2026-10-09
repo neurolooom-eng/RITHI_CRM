@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { PmScheduleSection } from './PmSchedule';
 import { PmDue } from './PmDue';
+import { useCallStates } from '../lib/callstates';
+import { StateBadge, Ucn } from '../lib/callstate';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput, LongDateText } from '../components/ui/LongDate';
 import { sbListPartyItems, sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers, addParty, sbActiveUserNames, sbPartyIdByName, updateParty, type PartyPatch } from '../lib/supabase';
@@ -1473,6 +1475,75 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     finally { setSaving(false); }
   };
 
+  // ONE MACHINE, FROM THE ENTRY'S INSTALLATION CALLS SECTION (the user,
+  // 2026-10-09: "Similar to PM schedule, add Installation Call as well in
+  // warranty"). The same raiseInstallCalls() with a list of one, so what the
+  // call carries and what is refused cannot drift from the bar's button.
+  const raiseOneInEntry = async (it: Row) => {
+    if (!machinesNeedingInstallCall([it] as never).length) return;
+    if (!window.confirm(
+      `Raise an installation call for ${str(it.product_name)} · ${str(it.serial_number)}`
+      + ` at ${str(draft.party_name) || 'this customer'}?\n\n`
+      + `Standard Complaint and Complaint Reported will read "${INSTALL_COMPLAINT}", the three vigilance `
+      + `questions will be answered NO, and the customer contact will be left blank — nobody reported this.`)) return;
+    setSaving(true);
+    try {
+      const r = await raiseInstallCalls(draft, [it]);
+      const fresh = await listItems(kind, str(draft[cfg.key]));
+      setItems(fresh);
+      const left = machinesNeedingInstallCall(fresh as never).length;
+      setFeed('entries', { rows: feeds.entries.rows.map((x) => (x.id === draft.id ? { ...x, pending_install: left } : x)) });
+      setMsg(r.error || !r.created.length
+        ? { tone: 'error', text: r.error ?? 'The call was not created.' }
+        : { tone: 'ok', text: `Installation call ${r.created[0].ucn} raised for ${str(it.serial_number)}.` });
+    } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
+    finally { setSaving(false); }
+  };
+  // THE CALL'S OWN STATUS (the user, 2026-10-09: "Add status for generated
+  // calls"), one request for the entry's machines; unknown reads plain.
+  const instStates = useCallStates(useMemo(
+    () => (kind === 'sale' ? items.map((i) => str(i.inst_call)).filter((u) => isCallNumber(u)) : []), [kind, items]));
+  const installSection = kind === 'sale' && open?.id ? (
+    <div className="req-act-sec">
+      <div className="rep-sec-title" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span>Installation calls</span>
+        <span className="muted">({items.filter((i) => isCallNumber(i.inst_call)).length} of {items.length} raised)</span>
+        <span style={{ flex: 1 }} />
+        {!isDealerType(draft.party_type) && needCalls.length > 0 && canRaiseInstall && (
+          <button className="btn btn-sm btn-primary" disabled={saving} onClick={() => void raiseCalls()}>
+            ＋ Raise {needCalls.length} pending
+          </button>
+        )}
+      </div>
+      {isDealerType(draft.party_type) && <div className="detail-hint">{DEALER_NO_INSTALL}</div>}
+      {items.length === 0 ? <div className="detail-hint">No machines on this sale yet.</div> : (
+        <div className="assoc-scroll">
+          <table className="assoc-table">
+            <thead><tr><th>Product</th><th>Serial</th><th>Installation call</th><th>Call status</th><th /></tr></thead>
+            <tbody>
+              {items.map((it, i) => {
+                const ucn = str(it.inst_call).trim();
+                const has = isCallNumber(ucn);
+                const may = !has && !isDealerType(draft.party_type) && canRaiseInstall
+                  && machinesNeedingInstallCall([it] as never).length > 0;
+                return (
+                  <tr key={str(it.id) || i}>
+                    <td>{str(it.product_name) || <span className="muted">—</span>}</td>
+                    <td>{str(it.serial_number) || <span className="muted">—</span>}</td>
+                    <td>{has ? <Ucn ucn={ucn} state={instStates[ucn]} />
+                      : <span className="muted">{ucn ? `not raised (reads “${ucn}”)` : isPinnedValue(it.id) ? 'not raised' : 'save the entry first'}</span>}</td>
+                    <td>{has ? <StateBadge state={instStates[ucn]} /> : <span className="muted">—</span>}</td>
+                    <td>{may && <button className="btn btn-sm" disabled={saving} onClick={() => void raiseOneInEntry(it)}>Raise</button>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  ) : null;
+
   // ONE MACHINE, FROM THE BY-MACHINE LIST (the user, 2026-09-23: "I need
   // + Installation Call"). The entry pane raises them for a whole sale; this
   // register is where somebody works down a list of machines, and the machine
@@ -1992,6 +2063,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
             {!!open?.id && !!str(open[cfg.key]).trim() && (
               <PmScheduleSection source={kind === 'sale' ? 'Warranty' : 'Contract'} refNo={str(open[cfg.key]).trim()} />
             )}
+            {installSection}
           </div>
           {sidePanel && (
             <div className="cover-pop-col cover-pop-col-side">

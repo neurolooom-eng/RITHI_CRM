@@ -662,6 +662,12 @@ against the call it was fitted to.
   > of that visit's due month, the same way PM Due does; a future visit cannot
   > be generated early. The **PM Schedule** tab beside Entries and Register is
   > PM Due for this register alone.
+  >
+  > **Installation calls.** Under the PM schedule, a saved sale lists each
+  > machine's installation call with its status; a machine without one reads
+  > *not raised* and can be raised there (**Raise**, or **Raise N pending**).
+  > Every generated call — PM or installation — shows its status (Unattended,
+  > Unsolved, Report Pending, Solved) in the usual colours.
 - **Contract Register** `/contracts` — contract entries (`MC`) and the machines
   covered.
   > **PM schedule.** A saved entry shows, under its products, every PM visit

@@ -5,6 +5,8 @@ import { supabaseConfigured, listPmDue, type PmDueRow } from '../lib/supabase';
 import { createPmCalls } from '../lib/pmGenerate';
 import { formatDay, formatDayTime, todayLocal } from '../lib/dates';
 import { SelectPicker } from '../components/ui/SelectPicker';
+import { useCallStates } from '../lib/callstates';
+import { StateBadge, Ucn } from '../lib/callstate';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -146,6 +148,8 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
   const creatable = useMemo(() => shown.filter((r) => !r.generated), [shown]);
   const chosen = useMemo(() => creatable.filter((r) => !skip.has(keyOf(r))), [creatable, skip]);
   const missedShown = creatable;
+  // The generated call's own status, for the rows on screen (one request).
+  const callStates = useCallStates(useMemo(() => shown.map((r) => r.generated_ucn ?? '').filter(Boolean), [shown]));
   const anyPicked = !!(product || serial || partyName || engineer);
   const clearPicks = () => { setProduct(ALL_PRODUCTS); setSerial(''); setPartyName(''); setEngineer(''); };
   const counts = useMemo(() => ({
@@ -302,7 +306,7 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
                     <th><input type="checkbox" checked={allTicked} onChange={toggleAll} disabled={busy || !creatable.length} aria-label="Tick all Missed PM shown" /></th>
                     <th>Status</th><th>Register</th><th>SA / MC No</th><th>Product</th><th>Serial</th><th>Party</th><th>City</th>
                     <th>Party type</th><th>Installation call</th>
-                    <th>Engineer</th><th>Cover</th><th>Visit</th><th>Due</th><th>PM call</th><th>Last PM call</th><th>Cover period</th>
+                    <th>Engineer</th><th>Cover</th><th>Visit</th><th>Due</th><th>PM call</th><th>Call status</th><th>Last PM call</th><th>Cover period</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -323,7 +327,8 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
                       <td>{r.cover_type || <span className="muted">—</span>}</td>
                       <td>{r.visit_no} / {r.pm_visits}</td>
                       <td>{formatDay(r.due_date)}</td>
-                      <td>{r.generated_ucn ? <>{r.generated_ucn} <span className="muted">{formatDay(r.generated_on)}</span></> : <span className="muted">—</span>}</td>
+                      <td>{r.generated_ucn ? <><Ucn ucn={r.generated_ucn} state={callStates[r.generated_ucn]} /> <span className="muted">{formatDay(r.generated_on)}</span></> : <span className="muted">—</span>}</td>
+                      <td>{r.generated_ucn ? <StateBadge state={callStates[r.generated_ucn]} /> : <span className="muted">—</span>}</td>
                       <td>{r.last_pm_on ? formatDay(r.last_pm_on) : <span className="muted">none</span>}</td>
                       <td>{formatDay(r.cover_start)} – {formatDay(r.cover_end)}</td>
                     </tr>
