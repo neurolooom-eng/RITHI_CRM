@@ -3,6 +3,8 @@ import { useAuth } from '../lib/auth';
 import { listPmSchedule, supabaseConfigured, type PmScheduleRow } from '../lib/supabase';
 import { createPmCalls } from '../lib/pmGenerate';
 import { formatDay, todayLocal } from '../lib/dates';
+import { useCallStates } from '../lib/callstates';
+import { StateBadge, Ucn } from '../lib/callstate';
 
 // ===========================================================================
 // THE PM SCHEDULE OF ONE WARRANTY OR CONTRACT ENTRY (0407, the user,
@@ -51,6 +53,10 @@ export function PmScheduleSection({ source, refNo }: { source: 'Warranty' | 'Con
     return [...m.entries()];
   }, [rows]);
   const due = useMemo(() => (rows ?? []).filter((r) => !r.generated && monthOf(r.due_date) <= thisMonth), [rows, thisMonth]);
+  // THE GENERATED CALL'S OWN STATUS (the user, 2026-10-09: "Add status for
+  // generated calls"), looked up in one request; a call the reader may not see
+  // reads plain, never a guessed colour.
+  const callStates = useCallStates(useMemo(() => (rows ?? []).map((r) => r.generated_ucn ?? '').filter(Boolean), [rows]));
 
   if (!mayList) {
     return <div className="detail-hint">The PM schedule needs “Generate PM calls from the registers” on Roles &amp; Permissions.</div>;
@@ -109,7 +115,7 @@ export function PmScheduleSection({ source, refNo }: { source: 'Warranty' | 'Con
                   {vs[0].engineer ? ` · ${vs[0].engineer}` : ' · no engineer on the Product Database'}</span></div>
               <div className="assoc-scroll">
                 <table className="assoc-table">
-                  <thead><tr><th>Visit</th><th>Due</th><th>Status</th><th>PM call</th><th /></tr></thead>
+                  <thead><tr><th>Visit</th><th>Due</th><th>Status</th><th>PM call</th><th>Call status</th><th /></tr></thead>
                   <tbody>
                     {vs.map((r) => {
                       const st = stateOf(r);
@@ -118,7 +124,8 @@ export function PmScheduleSection({ source, refNo }: { source: 'Warranty' | 'Con
                           <td>{r.visit_no} / {r.pm_visits}</td>
                           <td style={{ whiteSpace: 'nowrap' }}>{formatDay(r.due_date)}</td>
                           <td>{st === 'Missed PM' ? <b>{st}</b> : st}</td>
-                          <td>{r.generated_ucn ? <>{r.generated_ucn} <span className="muted">{formatDay(r.generated_on)}</span></> : <span className="muted">—</span>}</td>
+                          <td>{r.generated_ucn ? <><Ucn ucn={r.generated_ucn} state={callStates[r.generated_ucn]} /> <span className="muted">{formatDay(r.generated_on)}</span></> : <span className="muted">—</span>}</td>
+                          <td>{r.generated_ucn ? <StateBadge state={callStates[r.generated_ucn]} /> : <span className="muted">—</span>}</td>
                           <td>{mayCreate && !r.generated && monthOf(r.due_date) <= thisMonth && (
                             <button className="btn btn-sm" disabled={busy} onClick={() => void generate([r])}>Generate</button>
                           )}</td>

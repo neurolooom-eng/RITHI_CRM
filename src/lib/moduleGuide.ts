@@ -243,6 +243,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Use ↺ Force update child records to make every machine follow the entry again',
       'Use ⇢ Convert to Contract to raise a contract from this sale: the customer and machines carry over, you give the MC Number, type, period, PM visits and billing',
       'Read each machine’s PM schedule in the entry and Generate a visit that is due or missed; or use the PM Schedule tab for the month’s visits',
+      'Read each machine’s installation call and its status in the entry, and Raise a missing one there',
     ],
     records: ['sale_entries', 'sale_items', 'warranty_sale_details', 'parties', 'product_master', 'calls', 'rpc:link_install_call', 'contract_entries', 'contract_items'],
     rules: [

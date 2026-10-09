@@ -78,6 +78,13 @@ up)_
 
 ---
 
+## 2026-10-09 — Warranty: installation calls in the entry; call status everywhere generated (v0.10.156)
+
+- The user: "Similar to PM schedule, add Installation Call as well in warranty.
+  Add status for generated calls". Installation calls section on the sale entry
+  (raiseInstallCalls, one or all pending); call status via useCallStates on the
+  PM schedule, PM Due and the installation section. No SQL.
+
 ## 2026-10-09 — PM schedule on the Warranty and Contract pages (0407, v0.10.155)
 
 - The user: schedules on the Warranty and Contract pages, and generate from

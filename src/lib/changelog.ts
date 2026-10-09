@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.156',
+    date: '2026-10-09',
+    title: 'Warranty: installation calls in the entry; status on every generated call',
+    changes: [
+      'NEW on a Warranty entry, under the PM schedule: Installation calls — each machine\'s installation call and its status. A machine without one reads "not raised", with a Raise button there (or "Raise N pending" for all of them), the same raising as the ＋ Installation calls button.',
+      'Every generated call now shows its STATUS — Unattended, Unsolved, Report Pending or Solved, in the usual colours: PM calls on the PM schedule and on PM Due, and installation calls on the Warranty entry. A call you are not allowed to see shows its number without a colour.',
+    ],
+  },
+  {
     version: '0.10.155',
     date: '2026-10-09',
     title: 'Warranty and Contract: each entry shows its PM schedule, and generates from there',
