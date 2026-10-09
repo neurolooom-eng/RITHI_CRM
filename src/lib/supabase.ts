@@ -360,6 +360,22 @@ export async function listPmDue(month: string): Promise<PmDueRow[]> {
   return allRows<PmDueRow>((a, b) => c.rpc('pm_visits_due', { p_month: `${month}-01` })
     .order('product_name').order('serial').range(a, b));
 }
+// THE PM SCHEDULE OF ONE ENTRY (0407): every visit of every machine on one
+// Warranty (SA) or Contract (MC) entry, each generated or not. One entry is a
+// few dozen rows at most, so one request.
+export interface PmScheduleRow {
+  source: 'Warranty' | 'Contract'; ref_no: string; product_name: string; serial: string;
+  party_name: string | null; city: string | null; state: string | null;
+  engineer: string | null; on_product_database: boolean; cover_type: string;
+  cover_start: string; cover_end: string; period_months: number; pm_visits: number;
+  visit_no: number; due_date: string;
+  generated: boolean; generated_ucn: string | null; generated_on: string | null;
+}
+export async function listPmSchedule(source: 'Warranty' | 'Contract', ref: string): Promise<PmScheduleRow[]> {
+  const { data, error } = await must().rpc('pm_schedule', { p_source: source, p_ref: ref });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as PmScheduleRow[];
+}
 export async function pmDueLatestRegAt(month: string): Promise<string | null> {
   const { data, error } = await must().rpc('pm_due_latest_reg_at', { p_month: `${month}-01` });
   if (error) throw new Error(errMsg(error));

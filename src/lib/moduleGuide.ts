@@ -242,6 +242,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Click an entry to open it in a pop-up: sale details on the left, its products on the right, every button in the bar at the top',
       'Use ↺ Force update child records to make every machine follow the entry again',
       'Use ⇢ Convert to Contract to raise a contract from this sale: the customer and machines carry over, you give the MC Number, type, period, PM visits and billing',
+      'Read each machine’s PM schedule in the entry and Generate a visit that is due or missed; or use the PM Schedule tab for the month’s visits',
     ],
     records: ['sale_entries', 'sale_items', 'warranty_sale_details', 'parties', 'product_master', 'calls', 'rpc:link_install_call', 'contract_entries', 'contract_items'],
     rules: [
@@ -270,6 +271,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Give the Period in months; the years and the End Date fill in, and PM Visits (Total) is suggested',
       'Enter a Rate per machine; 18% tax and the total fill in',
       'Renew this contract: the next MC starts the day after the old one ends, with new rates set here',
+      'Read each machine’s PM schedule in the entry and Generate a visit that is due or missed; or use the PM Schedule tab for the month’s visits',
     ],
     records: ['contract_entries', 'contract_items', 'contract_details', 'products', 'calls'],
     rules: [

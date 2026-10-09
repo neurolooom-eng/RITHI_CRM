@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.155',
+    date: '2026-10-09',
+    title: 'Warranty and Contract: each entry shows its PM schedule, and generates from there',
+    changes: [
+      'NEW: open a sale or a contract and, under its products, PM schedule lists every visit of each machine — visit 2 / 3, its due date, and Generated (with the call), Missed PM, Due or Upcoming.',
+      'Generate on a visit that is due or missed creates its PM call, dated the 1st of that visit\'s due month and registered the same way PM Due does it. "Generate all due / missed" does every one of the entry at once. A visit that is not due yet cannot be generated early.',
+      'NEW: a PM Schedule tab beside Entries and Register — PM Due for that register alone, with all its filters and Create.',
+      'Both need “Generate PM calls from the registers”; creating also needs “Create PM calls”.',
+    ],
+  },
+  {
     version: '0.10.154',
     date: '2026-10-09',
     title: 'PM Due: the rules are filters now; Product, Serial No, Party and Engineer filters',

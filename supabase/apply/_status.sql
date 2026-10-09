@@ -2141,7 +2141,12 @@ with checks(sort_order, bundle, provides, present) as (
     (330, 'An installation call registers the pending installation requests for its machine', 'zz_install_call_registers_requests on installation_calls, running install_call_registers_requests() (0406): a new installation call gives its UCN to every PENDING Installation request for the same product + serial and marks it Registered; the function is a trigger only, callable by nobody. NO means call_requests.sql has not been re-run since. Restore: call_requests.sql (0406)',
         (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.installation_calls') and tgname = 'zz_install_call_registers_requests')
      and to_regprocedure('public.install_call_registers_requests()') is not null
-     and not coalesce(has_function_privilege('authenticated', to_regprocedure('public.install_call_registers_requests()'), 'execute'), true)))
+     and not coalesce(has_function_privilege('authenticated', to_regprocedure('public.install_call_registers_requests()'), 'execute'), true))),
+    (331, 'The PM schedule of one Warranty or Contract entry', 'pm_schedule(text, text) (0407): every visit of every machine on one SA or MC entry, generated when a not-cancelled PM call reads k / N, SECURITY DEFINER with its own pm.generate check, not executable by anon. NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0407)',
+        (to_regprocedure('public.pm_schedule(text, text)') is not null
+     and coalesce((select p.prosecdef and p.prosrc like '%pm.generate%' and p.prosrc like '%30.0%'
+                     from pg_proc p where p.oid = to_regprocedure('public.pm_schedule(text, text)')), false)
+     and not coalesce(has_function_privilege('anon', to_regprocedure('public.pm_schedule(text, text)'), 'execute'), true)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

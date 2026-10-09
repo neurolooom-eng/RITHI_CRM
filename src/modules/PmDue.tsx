@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
-import { supabaseConfigured, listPmDue, pmDueLatestRegAt, uploadRows, type PmDueRow } from '../lib/supabase';
-import { shapePmDueRows, pmStartDefaults } from '../lib/pmImport';
+import { supabaseConfigured, listPmDue, type PmDueRow } from '../lib/supabase';
+import { createPmCalls } from '../lib/pmGenerate';
 import { formatDay, formatDayTime, todayLocal } from '../lib/dates';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import './fieldcalls.css';
@@ -54,7 +54,11 @@ const ALL_PRODUCTS = '';
 const NO_ENGINEER = '(no engineer)';
 const engOf = (r: PmDueRow) => r.engineer || NO_ENGINEER;
 
-export function PmDue() {
+// EMBEDDED IN A REGISTER (0407, the user, 2026-10-09: "Can I have the schedules
+// listed in Warranty and contract pages as well"): the Warranty and Contract
+// Registers each show this screen as their PM Schedule tab, narrowed to their
+// own register's rows and without its page header.
+export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; embedded?: boolean } = {}) {
   const { can } = useAuth();
   const mayList = can('pm.generate');
   // Creating is the PM register's own insert right, exactly as on PM Bulk Upload.
@@ -106,7 +110,7 @@ export function PmDue() {
     return true;
   };
   const byParty = (r: PmDueRow, f: PartyFilter) => f === 'all' || (f === 'customer') === r.party_is_customer;
-  const all = useMemo(() => rows ?? [], [rows]);
+  const all = useMemo(() => (rows ?? []).filter((r) => !source || r.source === source), [rows, source]);
   type FilterKey = 'status' | 'kind' | 'product' | 'inst' | 'party' | 'serial' | 'partyName' | 'engineer' | '';
   // Every filter but the one named, so each button counts -- and each picker
   // offers -- what choosing it would show.
@@ -152,7 +156,7 @@ export function PmDue() {
   if (!mayList) {
     return (
       <div>
-        <PageHeader title="PM Due" subtitle="The month's PM visits from the Warranty and Contract Registers." icon="🗓️" />
+        {!embedded && <PageHeader title="PM Due" subtitle="The month's PM visits from the Warranty and Contract Registers." icon="🗓️" />}
         <div className="sheet-banner sheet-banner-info"><span>🔒 PM Due needs “Generate PM calls from the registers” on Roles &amp; Permissions.</span></div>
       </div>
     );
@@ -176,17 +180,12 @@ export function PmDue() {
     if (!window.confirm(`Create ${chosen.length} PM call${chosen.length === 1 ? '' : 's'} dated 1st ${month}?`)) return;
     setBusy(true); setMsg({ tone: 'info', text: 'Reading the latest registration time in the month…' });
     try {
-      const latest = await pmDueLatestRegAt(month);
-      const { startLocal, stepSec } = pmStartDefaults(month, latest);
-      const shaped = shapePmDueRows(chosen, month, startLocal, stepSec);
-      setProgress({ done: 0, total: shaped.length }); setMsg({ tone: 'info', text: 'Creating…' });
-      // The same writer PM Bulk Upload uses: through the `calls` view, where
-      // the database gives each call its UCN and Call Number.
-      const res = await uploadRows('calls', shaped, undefined, (done, total) => setProgress({ done, total }));
+      setProgress({ done: 0, total: chosen.length }); setMsg({ tone: 'info', text: 'Creating…' });
+      const res = await createPmCalls([{ month, visits: chosen }], (done, total) => setProgress({ done, total }));
       if (!res.ok) {
         setMsg({ tone: 'error', text: `Created ${res.written} before an error: ${res.error} The list below is re-read, so what was created is no longer in it.` });
       } else {
-        setMsg({ tone: 'ok', text: `Created ${res.written} PM call${res.written === 1 ? '' : 's'}, the first registered at ${formatDayTime(new Date(startLocal).toISOString())}${latest ? ` (10 seconds after the month's latest, ${formatDayTime(latest)})` : ' (the month had no PM calls yet)'}. They are in the Preventive (PM) register.` });
+        setMsg({ tone: 'ok', text: `Created ${res.written} PM call${res.written === 1 ? '' : 's'}${res.firstAt ? `, the first registered at ${formatDayTime(new Date(res.firstAt).toISOString())}` : ''}${res.latestBefore ? ` (10 seconds after the month's latest, ${formatDayTime(res.latestBefore)})` : ' (the month had no PM calls yet)'}. They are in the Preventive (PM) register.` });
       }
     } catch (e) {
       setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) });
@@ -198,7 +197,7 @@ export function PmDue() {
 
   return (
     <div>
-      <PageHeader title="PM Due" subtitle="The month's PM visits from the Warranty and Contract Registers — review, then create the PM calls." icon="🗓️" />
+      {!embedded && <PageHeader title="PM Due" subtitle="The month's PM visits from the Warranty and Contract Registers — review, then create the PM calls." icon="🗓️" />}
 
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
@@ -233,7 +232,7 @@ export function PmDue() {
       {loadError && <div className="sheet-banner sheet-banner-error"><span>Could not read the PM visits due: {loadError}</span></div>}
 
       {rows && !loading && (
-        rows.length === 0 ? (
+        all.length === 0 ? (
           <p className="muted">No PM visit falls in {month}.</p>
         ) : (
           <>
