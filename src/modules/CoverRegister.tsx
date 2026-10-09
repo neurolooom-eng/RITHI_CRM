@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
+import { PmScheduleSection } from './PmSchedule';
+import { PmDue } from './PmDue';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput, LongDateText } from '../components/ui/LongDate';
 import { sbListPartyItems, sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers, addParty, sbActiveUserNames, sbPartyIdByName, updateParty, type PartyPatch } from '../lib/supabase';
@@ -978,6 +980,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const live = supabaseConfigured();
 
   const [tab, setTab] = useState<Tab>('entries');
+  // THE PM SCHEDULE TAB (0407): PM Due narrowed to this register. Its own
+  // switch rather than a third Tab, because every Tab is a paged feed here.
+  const [pmTab, setPmTab] = useState(false);
   const [q, setQ] = useState('');
   const [state, setState] = useState('');
   // PENDING INSTALLATION CALL -- a Warranty filter, on the server (cover.ts).
@@ -1982,6 +1987,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           <div className="cover-pop-col" ref={productsRef}>
             <div className="cover-pop-col-head">Products ({items.length})</div>
             {machineList}
+            {/* THE ENTRY'S PM SCHEDULE (0407): every visit of every machine,
+                generated or not, with Generate on a due or missed one. */}
+            {!!open?.id && !!str(open[cfg.key]).trim() && (
+              <PmScheduleSection source={kind === 'sale' ? 'Warranty' : 'Contract'} refNo={str(open[cfg.key]).trim()} />
+            )}
           </div>
           {sidePanel && (
             <div className="cover-pop-col cover-pop-col-side">
@@ -2089,13 +2099,16 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       )}
 
       <div className="row" style={{ gap: 8, marginBottom: 10 }}>
-        <button className={`btn btn-sm ${tab === 'entries' ? 'btn-primary' : ''}`} onClick={() => setTab('entries')}>Entries</button>
-        <button className={`btn btn-sm ${tab === 'machines' ? 'btn-primary' : ''}`} onClick={() => setTab('machines')}>Register</button>
+        <button className={`btn btn-sm ${!pmTab && tab === 'entries' ? 'btn-primary' : ''}`} onClick={() => { setPmTab(false); setTab('entries'); }}>Entries</button>
+        <button className={`btn btn-sm ${!pmTab && tab === 'machines' ? 'btn-primary' : ''}`} onClick={() => { setPmTab(false); setTab('machines'); }}>Register</button>
+        <button className={`btn btn-sm ${pmTab ? 'btn-primary' : ''}`} onClick={() => setPmTab(true)}>PM Schedule</button>
       </div>
+
+      {pmTab && <PmDue source={kind === 'sale' ? 'Warranty' : 'Contract'} embedded />}
 
       {/* THE SAME FILTER ON THE ENTRIES TAB: sales with at least one machine
           still waiting for its installation call. */}
-      {tab === 'entries' && kind === 'sale' && (
+      {!pmTab && tab === 'entries' && kind === 'sale' && (
         <div className="pc-summary">
           <button className={`pc-tile ${pendingInstall ? 'pc-tile-on' : ''}`} onClick={() => setPendingInstall((v) => !v)}
             title="Sales with at least one machine whose INST Call holds no call number">
@@ -2107,7 +2120,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         </div>
       )}
 
-      {tab === 'machines' && (
+      {!pmTab && tab === 'machines' && (
         <div className="pc-summary">
           {STATES.map((s) => (
             <button key={s} className={`pc-tile ${state === s ? 'pc-tile-on' : ''}`} onClick={() => setState(state === s ? '' : s)}>
@@ -2132,7 +2145,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         </div>
       )}
 
-      {tab === 'entries' ? (
+      {pmTab ? null : tab === 'entries' ? (
         entriesTable
       ) : (
         <DataTable<Row>

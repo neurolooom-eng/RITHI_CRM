@@ -655,8 +655,21 @@ against the call it was fitted to.
   > machines follow the entry again. It tells you first how many values **differ**
   > from the entry — those are decisions somebody made about one machine, and
   > there is no undo — separately from the ones that merely repeat it.
+  >
+  > **PM schedule.** A saved entry shows, under its products, every PM visit
+  > of each machine — due date, and Generated (with its call), Missed PM, Due or
+  > Upcoming. **Generate** creates a due or missed visit's PM call, dated the 1st
+  > of that visit's due month, the same way PM Due does; a future visit cannot
+  > be generated early. The **PM Schedule** tab beside Entries and Register is
+  > PM Due for this register alone.
 - **Contract Register** `/contracts` — contract entries (`MC`) and the machines
   covered.
+  > **PM schedule.** A saved entry shows, under its products, every PM visit
+  > of each machine — due date, and Generated (with its call), Missed PM, Due or
+  > Upcoming. **Generate** creates a due or missed visit's PM call, dated the 1st
+  > of that visit's due month, the same way PM Due does; a future visit cannot
+  > be generated early. The **PM Schedule** tab beside Entries and Register is
+  > PM Due for this register alone.
 
 Both work the same way. Two views: **Entries** (the deal and its machines) and
 **Register** (one row per machine, with Active / About to expire / Inactive

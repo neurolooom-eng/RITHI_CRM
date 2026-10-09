@@ -1212,7 +1212,10 @@ const MODULES = {
             '0403_pm_due_install_and_customer.sql',
             // A machine with no installation call may be created (the user,
             // 2026-10-08); restates 0403's pm_visits_due, so after it.
-            '0404_pm_due_no_install_call_allowed.sql'],
+            '0404_pm_due_no_install_call_allowed.sql',
+            // The PM schedule of one Warranty / Contract entry (the user,
+            // 2026-10-09), listed and generated from the entry window.
+            '0407_pm_schedule.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

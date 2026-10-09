@@ -78,6 +78,14 @@ up)_
 
 ---
 
+## 2026-10-09 — PM schedule on the Warranty and Contract pages (0407, v0.10.155)
+
+- The user: schedules on the Warranty and Contract pages, and generate from
+  there. Answers: in each entry/machine window AND a PM Schedule tab; generate
+  only due or past-due visits, dated their due month. pm_schedule(source, ref)
+  for one entry; createPmCalls() shared with PM Due; the tab is PM Due narrowed
+  to the register (a machine with both covers in a month shows on Warranty's).
+
 ## 2026-10-08 — Installation call registers pending installation requests (CR-033, 0406, v0.10.153)
 
 - The user: an installation call should mark pending requests for the same
