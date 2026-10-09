@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.154',
+    date: '2026-10-09',
+    title: 'PM Due: the rules are filters now; Product, Serial No, Party and Engineer filters',
+    changes: [
+      'Installation (solved / none / not solved) and Customer are now ordinary filters. They start on Any, and they no longer stop a call being created: every Missed PM you can see can be ticked and created.',
+      'NEW filters: Product, Serial No, Party and Engineer, each a type-to-search list of what the other filters leave, with a Clear button.',
+    ],
+  },
+  {
     version: '0.10.153',
     date: '2026-10-08',
     title: 'An installation call closes the pending installation requests for its machine',
