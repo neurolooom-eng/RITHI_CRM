@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.161',
+    date: '2026-10-10',
+    title: '"Need more details" mail: sivarani.a@airliquide.com always in Cc',
+    changes: [
+      'Every "Need more details" mail now copies sivarani.a@airliquide.com, as well as the requestor\'s Reporting Manager. The panel shows it in the Cc line as "always copied".',
+    ],
+  },
+  {
     version: '0.10.160',
     date: '2026-10-10',
     title: '"Need more details" mail: the request\'s attachments',
