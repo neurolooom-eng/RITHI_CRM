@@ -50,6 +50,17 @@ export const REQUEST_MAIL_FIELDS: [string, string][] = [
   ['Contact Number', 'CUSTOMER CONTACT Number'],
 ];
 
+/** THE REQUEST'S ATTACHMENTS (the user, 2026-10-10: "Add the Attachment also
+ *  if there is an attachment in Request"): the Installation Report and KYC an
+ *  installation request carries, each a Drive link. Rows ONLY WHERE THERE IS
+ *  ONE. A Gmail link cannot attach a file, so the row carries the LINK -- a
+ *  live link in the table, the address in the plain text. */
+export const REQUEST_MAIL_ATTACHMENTS: [string, string][] = [
+  ['Installation Report', 'Installation Report'],
+  ['KYC', 'KYC'],
+];
+const isLink = (x: string) => /^https?:\/\/\S+$/i.test(x);
+
 export function requestMailSubject(row: Row): string {
   const machine = [v(row, 'PRODUCT'), v(row, 'SERIAL NO')].filter(Boolean).join(' ');
   return `Need more details | ${machine || '—'} | ${FAMILY_LABEL[callFamily(row['CALL TYPE'])]}`;
@@ -61,10 +72,13 @@ export type MailFmt = (label: string, value: string) => string;
 const asIs: MailFmt = (_l, x) => x;
 
 export function requestMailRows(row: Row, fmt: MailFmt = asIs): [string, string][] {
-  return REQUEST_MAIL_FIELDS.map(([label, key]) => {
-    const x = v(row, key);
-    return [label, x ? fmt(label, x) : '—'];
-  });
+  return [
+    ...REQUEST_MAIL_FIELDS.map(([label, key]): [string, string] => {
+      const x = v(row, key);
+      return [label, x ? fmt(label, x) : '—'];
+    }),
+    ...REQUEST_MAIL_ATTACHMENTS.filter(([, key]) => v(row, key)).map(([label, key]): [string, string] => [label, v(row, key)]),
+  ];
 }
 
 const greeting = (row: Row) => (v(row, 'ENGINEER') ? `Dear ${v(row, 'ENGINEER')},` : 'Hello,');
@@ -89,7 +103,9 @@ export function requestMailHtml(row: Row, fromName: string, fmt: MailFmt = asIs)
   const cell = 'border:1px solid #9aa4b2;padding:6px 10px;vertical-align:top;font-family:Arial,sans-serif;font-size:13px;';
   const rows = requestMailRows(row, fmt).map(([label, x]) =>
     `<tr><td style="${cell}background:#eef1f5;font-weight:bold;white-space:nowrap;">${esc(label)}</td>`
-    + `<td style="${cell}">${esc(x).replace(/\n/g, '<br>')}</td></tr>`).join('');
+    + `<td style="${cell}">${isLink(x)
+      ? `<a href="${esc(x)}" style="color:#1a56b0;">Open ${esc(label)}</a>`
+      : esc(x).replace(/\n/g, '<br>')}</td></tr>`).join('');
   const p = (t: string) => `<p style="font-family:Arial,sans-serif;font-size:13px;margin:0 0 10px;">${t}</p>`;
   return p(esc(greeting(row))) + p(esc(ASK))
     + `<table style="border-collapse:collapse;margin:0 0 12px;">${rows}</table>`

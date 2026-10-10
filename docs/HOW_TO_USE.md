@@ -115,7 +115,9 @@ different totals. An empty register usually means access, not emptiness.
   The mail itself — greeting, a table of twelve details (Request ID, Product,
   Serial No, Party Name, Call Type, Standard Complaint, Reported Problem,
   Raised on, City, State, Customer Contact, Contact Number; a blank one shows
-  —) and your name — is **copied**: click in the Gmail body and press
+  —; then the request's **Installation Report** and **KYC** as links, where it
+  has them — a Gmail link cannot attach the file itself) and your name — is
+  **copied**: click in the Gmail body and press
   **Ctrl+V**. Read it and send it from there.
   > The call is filed to the Hotline desk, but the system separately records *who
   > actually typed it in*. The two differing is a finding, not an error.
