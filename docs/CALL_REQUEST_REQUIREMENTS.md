@@ -227,7 +227,9 @@ already installed were registered against its latest installation call.
 From a pending request the Commercial team composes a mail To the requestor's
 email, Cc the requestor's Reporting Manager (the User Master), from themselves,
 subject *Need more details | Product Serial | Installation Call* (the call
-family), the request's details in the body. It is COMPOSED in the person's own
+family), the request's details in the body as a table of twelve fields
+(since v0.10.159, pasted from the clipboard, as a Gmail link carries plain
+text only). It is COMPOSED in the person's own
 Gmail, in a new tab (since v0.10.158; it was the computer's default mail
 program, which opened Outlook), never sent by RITHI, and it changes nothing on
 the request.
