@@ -111,8 +111,12 @@ different totals. An empty register usually means access, not emptiness.
   tab, from your own account (if several Google accounts are signed in, the one
   you sign in to RITHI with; if it is not signed in, Gmail asks):
   To the requestor, Cc their Reporting Manager from the User Master, subject
-  *Need more details | product serial | Installation Call* (or Field / PM Call),
-  and the request's details in the body. Read it and send it from there.
+  *Need more details | product serial | Installation Call* (or Field / PM Call).
+  The mail itself — greeting, a table of twelve details (Request ID, Product,
+  Serial No, Party Name, Call Type, Standard Complaint, Reported Problem,
+  Raised on, City, State, Customer Contact, Contact Number; a blank one shows
+  —) and your name — is **copied**: click in the Gmail body and press
+  **Ctrl+V**. Read it and send it from there.
   > The call is filed to the Hotline desk, but the system separately records *who
   > actually typed it in*. The two differing is a finding, not an error.
 

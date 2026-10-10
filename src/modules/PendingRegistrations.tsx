@@ -5,7 +5,7 @@ import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { addFieldCall, listPending, productBySerial, setPendingUcn, updateFieldCall, dataConfigured } from '../lib/sheets';
 import { cancelCallRequest, callByUcn, openCallsFor, callsForMachine, machineKey, supabaseConfigured, reportingManagerEmails, type OpenCall, type MachineCall } from '../lib/supabase';
-import { requestMailSubject, requestMailBody, requestGmailUrl } from '../lib/requestMail';
+import { requestMailSubject, requestMailBody, requestMailHtml, requestGmailUrl } from '../lib/requestMail';
 import { formatDay, formatDayTime } from '../lib/dates';
 import { FIELD_CALL_FIELDS, VIGILANCE_SECTION } from './FieldCalls';
 import { useCallFieldMasters } from './callFields';
@@ -411,7 +411,32 @@ function MoreDetailsMail({ row }: { row: Row }) {
   const fmt = (label: string, x: string) =>
     label === 'Raised on' ? formatDayTime(x) : /date/i.test(label) ? formatDay(x) || x : x;
   const subject = requestMailSubject(row);
-  const href = requestGmailUrl([to], cc?.emails ?? [], subject, requestMailBody(row, user?.fullName ?? '', fmt), user?.email ?? '');
+  const text = requestMailBody(row, user?.fullName ?? '', fmt);
+  const html = requestMailHtml(row, user?.fullName ?? '', fmt);
+  const [copied, setCopied] = useState<'' | 'table' | 'text'>('');
+  // Another request: what was copied belongs to the last one.
+  useEffect(() => { setCopied(''); }, [row]);
+  // THE TABLE GOES ON THE CLIPBOARD (2026-10-10: "tabular Format"): a Gmail
+  // link takes plain text only. Copied FIRST, while this page still has the
+  // focus a clipboard write needs; Gmail opens after. Where the browser
+  // refuses the clipboard, the link carries the same fields as plain lines,
+  // so the mail is never left empty.
+  const copyTable = async (): Promise<boolean> => {
+    try {
+      if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' }),
+      })]);
+      return true;
+    } catch { return false; }
+  };
+  const compose = async () => {
+    if (!to || cc === null) return;
+    const ok = await copyTable();
+    setCopied(ok ? 'table' : 'text');
+    window.open(requestGmailUrl([to], cc.emails, subject, ok ? '' : text, user?.email ?? ''), '_blank', 'noopener,noreferrer');
+  };
   return (
     <div className="req-act-sec">
       <div className="rep-sec-title">Ask the requestor for more details</div>
@@ -425,10 +450,18 @@ function MoreDetailsMail({ row }: { row: Row }) {
         {ccErr && <div className="field-err">The Reporting Manager could not be looked up: {ccErr}</div>}
         <br /><b>Subject:</b> {subject}
       </div>
-      <a className={`btn btn-sm${!to || cc === null ? ' disabled' : ''}`}
-         href={!to || cc === null ? undefined : href} target="_blank" rel="noopener noreferrer"
-         aria-disabled={!to || cc === null}>✉ Compose in Gmail</a>
-      <div className="detail-hint">Opens a new mail in Gmail, in a new tab, from your own account{user?.email ? <> ({user.email})</> : null}, with the request’s details in it — read it and send it from there.</div>
+      <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+        <button type="button" className="btn btn-sm" disabled={!to || cc === null} onClick={() => void compose()}>✉ Compose in Gmail</button>
+        {copied === 'table' && (
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => void copyTable().then((ok) => setCopied(ok ? 'table' : 'text'))}>⧉ Copy the table again</button>
+        )}
+      </div>
+      {copied === 'table'
+        ? <div className="sheet-banner sheet-banner-ok" style={{ marginTop: 6 }}><span><b>The mail is copied.</b> In the Gmail tab, click in the message body and press <b>Ctrl+V</b> — the greeting, the table and your name go in.</span></div>
+        : copied === 'text'
+          ? <div className="sheet-banner sheet-banner-info" style={{ marginTop: 6 }}><span>This browser would not let RITHI copy the table, so the details went into the mail as plain lines instead.</span></div>
+          : null}
+      <div className="detail-hint">Opens a new mail in Gmail, in a new tab, from your own account{user?.email ? <> ({user.email})</> : null}, and copies the request’s details as a table to paste into it — read it and send it from there.</div>
     </div>
   );
 }

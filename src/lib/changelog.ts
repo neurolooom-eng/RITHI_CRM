@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.159',
+    date: '2026-10-10',
+    title: '"Need more details" mail: the details as a table',
+    changes: [
+      'The mail now carries a TABLE of just twelve details: Request ID, Product, Serial No, Party Name, Call Type, Standard Complaint, Reported Problem, Raised on, City, State, Customer Contact and Contact Number. A field the request left empty shows "—", which is what you are asking about.',
+      'A Gmail link can only carry plain text, so Compose in Gmail now COPIES the mail and opens Gmail with To, Cc and the subject filled in. Click in the message body and press Ctrl+V. "Copy the table again" copies it once more.',
+    ],
+  },
+  {
     version: '0.10.158',
     date: '2026-10-10',
     title: 'Pending Registrations: "Need more details" opens in Gmail',
