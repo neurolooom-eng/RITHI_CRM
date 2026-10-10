@@ -5,7 +5,7 @@ import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { addFieldCall, listPending, productBySerial, setPendingUcn, updateFieldCall, dataConfigured } from '../lib/sheets';
 import { cancelCallRequest, callByUcn, openCallsFor, callsForMachine, machineKey, supabaseConfigured, reportingManagerEmails, type OpenCall, type MachineCall } from '../lib/supabase';
-import { requestMailSubject, requestMailBody, requestMailto } from '../lib/requestMail';
+import { requestMailSubject, requestMailBody, requestGmailUrl } from '../lib/requestMail';
 import { formatDay, formatDayTime } from '../lib/dates';
 import { FIELD_CALL_FIELDS, VIGILANCE_SECTION } from './FieldCalls';
 import { useCallFieldMasters } from './callFields';
@@ -388,7 +388,8 @@ export function PendingRegistrations() {
 //
 // The user, 2026-10-08: "Add a provision to compose a mail to the requestor
 // asking for more details ... This is for Pending Registrations - Commercial
-// Team will be doing it." It OPENS A MAIL in the person's own mail program --
+// Team will be doing it." It OPENS A NEW MAIL IN GMAIL, in a new tab, as the
+// person composing it (2026-10-10: "the official mail box is Gmail") --
 // so it is from them, and they read it before it goes -- To the request's
 // E-Mail ID, Cc the requestor's Reporting Manager from the User Master, the
 // subject and body built by requestMail.ts. Both addresses are shown first: a
@@ -410,7 +411,7 @@ function MoreDetailsMail({ row }: { row: Row }) {
   const fmt = (label: string, x: string) =>
     label === 'Raised on' ? formatDayTime(x) : /date/i.test(label) ? formatDay(x) || x : x;
   const subject = requestMailSubject(row);
-  const href = requestMailto([to], cc?.emails ?? [], subject, requestMailBody(row, user?.fullName ?? '', fmt));
+  const href = requestGmailUrl([to], cc?.emails ?? [], subject, requestMailBody(row, user?.fullName ?? '', fmt), user?.email ?? '');
   return (
     <div className="req-act-sec">
       <div className="rep-sec-title">Ask the requestor for more details</div>
@@ -425,9 +426,9 @@ function MoreDetailsMail({ row }: { row: Row }) {
         <br /><b>Subject:</b> {subject}
       </div>
       <a className={`btn btn-sm${!to || cc === null ? ' disabled' : ''}`}
-         href={!to || cc === null ? undefined : href}
-         aria-disabled={!to || cc === null}>✉ Compose mail</a>
-      <div className="detail-hint">Opens a new mail in your own mail program, from you, with the request’s details in it — read it and send it from there.</div>
+         href={!to || cc === null ? undefined : href} target="_blank" rel="noopener noreferrer"
+         aria-disabled={!to || cc === null}>✉ Compose in Gmail</a>
+      <div className="detail-hint">Opens a new mail in Gmail, in a new tab, from your own account{user?.email ? <> ({user.email})</> : null}, with the request’s details in it — read it and send it from there.</div>
     </div>
   );
 }

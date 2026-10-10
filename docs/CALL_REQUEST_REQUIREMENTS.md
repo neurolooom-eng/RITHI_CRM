@@ -228,7 +228,9 @@ From a pending request the Commercial team composes a mail To the requestor's
 email, Cc the requestor's Reporting Manager (the User Master), from themselves,
 subject *Need more details | Product Serial | Installation Call* (the call
 family), the request's details in the body. It is COMPOSED in the person's own
-mail program, never sent by RITHI, and it changes nothing on the request.
+Gmail, in a new tab (since v0.10.158; it was the computer's default mail
+program, which opened Outlook), never sent by RITHI, and it changes nothing on
+the request.
 *Status: met* — `MoreDetailsMail` in `PendingRegistrations.tsx`, `requestMail.ts`,
 `reportingManagerEmails()`; key `pending.mail`, granted to no role (FRS-271).
 

@@ -327,7 +327,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Requests', key: 'pending.register', label: 'Register pending (Hotline)' },
   // A mail asking the requestor for more details (the user, 2026-10-08: "This
   // is for Pending Registrations - Commercial Team will be doing it"). It only
-  // opens the person's own mail program; granted to no role by a migration --
+  // opens a new mail in the person's own Gmail; granted to no role by a migration --
   // given to Commercial on Roles & Permissions.
   { group: 'Requests', key: 'pending.mail', label: 'Ask the requestor for more details (compose a mail)' },
   { group: 'Spares', key: 'spare.request', label: 'Request spares' },

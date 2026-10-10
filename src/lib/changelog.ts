@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.158',
+    date: '2026-10-10',
+    title: 'Pending Registrations: "Need more details" opens in Gmail',
+    changes: [
+      'Ask the requestor for more details now opens a new mail in GMAIL, in a new tab, from your own account — To, Cc, subject and the request\'s details already filled in. It used to open the computer\'s default mail program, which was Outlook. If more than one Google account is signed in, it uses the one you sign in to RITHI with.',
+    ],
+  },
+  {
     version: '0.10.157',
     date: '2026-10-10',
     title: 'User Master tags; the FFR CAPA list from them; the old FFR update log loads',

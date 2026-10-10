@@ -107,7 +107,9 @@ different totals. An empty register usually means access, not emptiness.
   this list on its own; a Field or PM request for the machine stays.
   **Ask the requestor for more details**
   (in the request's action panel, for whoever is given *Ask the requestor for
-  more details* — the Commercial team) opens a mail in your own mail program:
+  more details* — the Commercial team) opens a new mail in **Gmail**, in a new
+  tab, from your own account (if several Google accounts are signed in, the one
+  you sign in to RITHI with; if it is not signed in, Gmail asks):
   To the requestor, Cc their Reporting Manager from the User Master, subject
   *Need more details | product serial | Installation Call* (or Field / PM Call),
   and the request's details in the body. Read it and send it from there.
