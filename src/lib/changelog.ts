@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.160',
+    date: '2026-10-10',
+    title: '"Need more details" mail: the request\'s attachments',
+    changes: [
+      'Where a request carries an Installation Report or a KYC document, the mail\'s table now has a row for each, with a link that opens the document. A request with no attachment gets no such row. Gmail cannot attach a file from a link, so the document goes in as its link.',
+      'The Request details panel on Pending Registrations shows the Installation Report and KYC too, as links.',
+    ],
+  },
+  {
     version: '0.10.159',
     date: '2026-10-10',
     title: '"Need more details" mail: the details as a table',

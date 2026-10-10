@@ -2527,6 +2527,9 @@ export async function listCallRequestsAsPending(): Promise<Record<string, unknow
     'CUSTOMER CONTACT Number': r.customer_contact_number, 'Call Attended?': r.call_attended,
     'Attended Date': r.attended_date, 'PLAN DATE (Visit Planned Date)': r.plan_date,
     'Additional Comments': r.additional_comments,
+    // The request's documents (installation requests): Drive links (2026-10-10,
+    // for the "Need more details" mail -- "Add the Attachment also").
+    'Installation Report': r.installation_report, 'KYC': r.kyc,
   }));
 }
 // Close a request out with a UCN: 'Registered' (a new call was created from it)

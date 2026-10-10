@@ -626,7 +626,9 @@ function RequestActions({
             {detailKeys.map((k) => (
               <div className="reg-detail-row" key={k}>
                 <div className="reg-detail-k">{k}</div>
-                <div className="reg-detail-v">{String(row[k])}</div>
+                <div className="reg-detail-v">{/^https?:\/\/\S+$/i.test(String(row[k]).trim())
+                  ? <a href={String(row[k]).trim()} target="_blank" rel="noopener noreferrer">Open {k}</a>
+                  : String(row[k])}</div>
               </div>
             ))}
           </div>
