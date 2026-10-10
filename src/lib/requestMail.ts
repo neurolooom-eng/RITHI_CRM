@@ -10,9 +10,13 @@
 //   Cc       the requestor's Reporting Manager's email (the User Master)
 //   From     the person composing it
 //
-// COMPOSED, NOT SENT: it opens the person's own mail program through a mailto:
-// link, so it goes FROM them, from their own account, and they can read and
-// change it before it leaves -- RITHI sends no mail of its own. The third part
+// COMPOSED, NOT SENT: it opens a new mail in GMAIL, in a new tab, signed in as
+// the person composing it -- so it goes FROM them, from their own account, and
+// they can read and change it before it leaves; RITHI sends no mail of its own.
+// GMAIL, NOT A mailto: LINK (the user, 2026-10-10: "it is opening Outlook, but
+// the official mail box is Gmail.. It has to open a new mail from my gmail"):
+// a mailto: link opens whatever mail program the computer has as its default,
+// which on the office machines is Outlook. The third part
 // of the subject is the request's call family (Installation / Field / PM Call)
 // by `callFamily()`, the one matcher every screen uses, so an installation
 // request reads "Installation Call" as asked whatever spelling it was stored in.
@@ -76,14 +80,21 @@ export function requestMailBody(row: Row, fromName: string, fmt: (label: string,
   ].join('\n').replace(/\n+$/, '\n');
 }
 
-/** The mailto: link. Addresses are joined with commas and every part is
- *  percent-encoded, so an ampersand in a party name cannot cut the body short. */
-export function requestMailto(to: string[], cc: string[], subject: string, body: string): string {
+/** Gmail's compose window, filled in. `from` is the composer's own address:
+ *  Gmail's `authuser` opens the compose in THAT signed-in account when the
+ *  browser holds several, and asks which account where it is not signed in --
+ *  it never sends from anybody else. Addresses are joined with commas and
+ *  every part is percent-encoded, so an ampersand in a party name cannot cut
+ *  the body short. */
+export function requestGmailUrl(to: string[], cc: string[], subject: string, body: string, from = ''): string {
   const list = (xs: string[]) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))].join(',');
   const q = [
-    cc.length && list(cc) ? `cc=${encodeURIComponent(list(cc))}` : '',
-    `subject=${encodeURIComponent(subject)}`,
+    from.trim() ? `authuser=${encodeURIComponent(from.trim())}` : '',
+    'view=cm', 'fs=1',
+    `to=${encodeURIComponent(list(to))}`,
+    list(cc) ? `cc=${encodeURIComponent(list(cc))}` : '',
+    `su=${encodeURIComponent(subject)}`,
     `body=${encodeURIComponent(body)}`,
   ].filter(Boolean).join('&');
-  return `mailto:${encodeURIComponent(list(to)).replace(/%2C/gi, ',').replace(/%40/g, '@')}?${q}`;
+  return `https://mail.google.com/mail/?${q}`;
 }
