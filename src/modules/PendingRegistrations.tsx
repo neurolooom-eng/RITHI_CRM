@@ -5,7 +5,7 @@ import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { addFieldCall, listPending, productBySerial, setPendingUcn, updateFieldCall, dataConfigured } from '../lib/sheets';
 import { cancelCallRequest, callByUcn, openCallsFor, callsForMachine, machineKey, supabaseConfigured, reportingManagerEmails, type OpenCall, type MachineCall } from '../lib/supabase';
-import { requestMailSubject, requestMailBody, requestMailHtml, requestGmailUrl } from '../lib/requestMail';
+import { requestMailSubject, requestMailBody, requestMailHtml, requestGmailUrl, REQUEST_MAIL_ALWAYS_CC } from '../lib/requestMail';
 import { formatDay, formatDayTime } from '../lib/dates';
 import { FIELD_CALL_FIELDS, VIGILANCE_SECTION } from './FieldCalls';
 import { useCallFieldMasters } from './callFields';
@@ -435,7 +435,7 @@ function MoreDetailsMail({ row }: { row: Row }) {
     if (!to || cc === null) return;
     const ok = await copyTable();
     setCopied(ok ? 'table' : 'text');
-    window.open(requestGmailUrl([to], cc.emails, subject, ok ? '' : text, user?.email ?? ''), '_blank', 'noopener,noreferrer');
+    window.open(requestGmailUrl([to], [...cc.emails, ...REQUEST_MAIL_ALWAYS_CC], subject, ok ? '' : text, user?.email ?? ''), '_blank', 'noopener,noreferrer');
   };
   return (
     <div className="req-act-sec">
@@ -445,8 +445,9 @@ function MoreDetailsMail({ row }: { row: Row }) {
         <b>Cc:</b>{' '}
         {cc === null ? 'finding the Reporting Manager…'
           : cc.emails.length ? <>{cc.emails.join(', ')} <span className="muted">({cc.manager}, Reporting Manager)</span></>
-          : cc.manager ? <span className="muted">{cc.manager} is the Reporting Manager, but has no email in the User Master — nobody will be copied</span>
-          : <span className="muted">no Reporting Manager in the User Master for {to || 'this requestor'} — nobody will be copied</span>}
+          : cc.manager ? <span className="muted">{cc.manager} is the Reporting Manager, but has no email in the User Master — not copied</span>
+          : <span className="muted">no Reporting Manager in the User Master for {to || 'this requestor'}</span>}
+        {cc !== null && <>{'; '}{REQUEST_MAIL_ALWAYS_CC.join(', ')} <span className="muted">(always copied)</span></>}
         {ccErr && <div className="field-err">The Reporting Manager could not be looked up: {ccErr}</div>}
         <br /><b>Subject:</b> {subject}
       </div>

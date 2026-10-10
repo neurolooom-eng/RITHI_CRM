@@ -110,7 +110,8 @@ different totals. An empty register usually means access, not emptiness.
   more details* — the Commercial team) opens a new mail in **Gmail**, in a new
   tab, from your own account (if several Google accounts are signed in, the one
   you sign in to RITHI with; if it is not signed in, Gmail asks):
-  To the requestor, Cc their Reporting Manager from the User Master, subject
+  To the requestor, Cc their Reporting Manager from the User Master and
+  always sivarani.a@airliquide.com, subject
   *Need more details | product serial | Installation Call* (or Field / PM Call).
   The mail itself — greeting, a table of twelve details (Request ID, Product,
   Serial No, Party Name, Call Type, Standard Complaint, Reported Problem,

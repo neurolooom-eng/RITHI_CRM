@@ -225,7 +225,8 @@ already installed were registered against its latest installation call.
 
 **CR-032 — The requestor can be asked for more details by mail.** · *v0.10.147 · 08-Oct-2026*
 From a pending request the Commercial team composes a mail To the requestor's
-email, Cc the requestor's Reporting Manager (the User Master), from themselves,
+email, Cc the requestor's Reporting Manager (the User Master) and always
+sivarani.a@airliquide.com (v0.10.161), from themselves,
 subject *Need more details | Product Serial | Installation Call* (the call
 family), the request's details in the body as a table of twelve fields
 (since v0.10.159, pasted from the clipboard, as a Gmail link carries plain

@@ -29,6 +29,10 @@ import { callFamily } from './calltype';
 type Row = Record<string, unknown>;
 const v = (r: Row, k: string) => String(r[k] ?? '').trim();
 
+/** COPIED ON EVERY "NEED MORE DETAILS" MAIL, beside the requestor's Reporting
+ *  Manager (the user, 2026-10-10: "Add sivarani.a@airliquide.com in CC.."). */
+export const REQUEST_MAIL_ALWAYS_CC = ['sivarani.a@airliquide.com'];
+
 const FAMILY_LABEL = { install: 'Installation Call', field: 'Field Call', pm: 'PM Call' } as const;
 
 /** THE TABLE'S ROWS (the user, 2026-10-10: "Make the Mail Compose into a

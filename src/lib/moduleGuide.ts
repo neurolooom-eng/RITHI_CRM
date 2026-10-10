@@ -404,7 +404,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Map a request to an existing call by its UCN',
       'Create the new call from the request, already filled in',
       'Cancel a request with a reason',
-      'Ask the requestor for more details: a mail To them, Cc their Reporting Manager, opened in Gmail from your own account, the request’s details copied as a table to paste in',
+      'Ask the requestor for more details: a mail To them, Cc their Reporting Manager and sivarani.a@airliquide.com, opened in Gmail from your own account, the request’s details copied as a table to paste in',
     ],
     records: ['call_requests', 'calls', 'pending_calls', 'products', 'user_directory'],
     rules: [
