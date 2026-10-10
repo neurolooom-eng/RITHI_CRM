@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.157',
+    date: '2026-10-10',
+    title: 'User Master tags; the FFR CAPA list from them; the old FFR update log loads',
+    changes: [
+      'NEW on the User Master: Tags. Give a person as many tags as you like (type one and press Enter), filter the list by tag at the top, and tick people to Add or Remove a tag on all of them at once.',
+      'The Field Failure Register\'s CAPA (if reqd) Responsibility now lists "No closed in FFR" and every active person tagged CAPA Responsibility on the User Master. The old fixed names are gone from the list; a report that already names one still shows it.',
+      'NEW on the Field Failure Register: ⭱ Load old update log. Choose the Field Failure Register – Update sheet (CSV). Each row is added to its report\'s Update log, dated by the sheet\'s Timestamp, and the report then shows its latest values. A row is matched on FFR No + UCN; one that does not match is listed back, with the register\'s UCN beside it, to correct and load again. A blank never erases anything, a newer change made in RITHI is kept, and loading the same file twice adds nothing. Needs the Field Failure Register right and Bulk uploads.',
+    ],
+  },
+  {
     version: '0.10.156',
     date: '2026-10-09',
     title: 'Warranty: installation calls in the entry; status on every generated call',

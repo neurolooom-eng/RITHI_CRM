@@ -276,6 +276,8 @@ Purpose: the register of Field Failure Reports (R-SER-03): raise, complete, week
 | 21 | Insights charts: which machines fail, cover, root cause, grouping, customer, report status, CAPA status | FieldFailureInsights.tsx:550-815 | none | GAP | |
 | 22 | Trend by month, quarter or year with a table (change, share, running) and labels; .xlsx download with the raw reports and "how worked out" | FieldFailureInsights.tsx:245-313, 573-656 | NOT export-gated | GAP | |
 | 23 | Pareto with a free 3-level drill (machine / complaint grouping / root cause), 80% line, table, labels; .xlsx download with raw reports (origin: migrated or raised here) | FieldFailureInsights.tsx:177-182, 315-474, 660-765 | NOT export-gated | partial: URS-037 (origin column); GAP for the rest | The raw sheet builds a 'Machine the call named' value, but that column is missing from its column list (:377-379 vs :389) |
+| 24 | CAPA (if reqd) Responsibility offers "No closed in FFR" and every active person tagged CAPA Responsibility on the User Master | FieldFailureReport.tsx (capaChoices); supabase.ts peopleTagged | ffr.manage | URS-184, FRS-273 (OQ-271) | |
+| 25 | ⭱ Load old update log: the Field Failure Register – Update sheet into each report's Update log, matched on FFR No + UCN, the latest values applied; rows not matched listed and downloadable | FfrSheetUpdateLoader.tsx; 0409 ffr_load_sheet_updates | ffr.manage + bulk.upload (UI and DB) | URS-185, FRS-274 (OQ-272) | High: writes quality records in bulk |
 
 ### Field Failure Report — print page (`/ffr/:ffrNo`) — `src/modules/FieldFailureReportPrint.tsx`
 Purpose: a printable A4 R-SER-03 page with no application frame around it.
@@ -1530,6 +1532,7 @@ Purpose: The directory of every person, signed in or not. Here you set the role 
 | 26 | Role pickers offer every role the database holds, not only the built-in ones | 47-52, 762-764 | — | FRS-065 | |
 | 27 | Client audit entries for add, edit, delete, create, clone, reset password, role apply and access save | 209, 241, 261, 272, 354, 493, 794 | — | partial: URS-016 / FRS-021 — a client-written trail (FRS-021 states its limits) | |
 | 28 | ⭳ Export CSV | 578-582, 600-602 | export.data | partial: FRS-018 | |
+| 29 | Tags (0408): free-text, several per person — a column, edited on the form and in the table, a Tags filter at the top, Add / Remove tag on the ticked people; "CAPA Responsibility" feeds the FFR CAPA list | UserMasterView.tsx; TagInput.tsx; 0408 | users.manage.details; DB ud policies + user_directory_tags_tidy | URS-184, FRS-273 (OQ-271) | |
 
 ### Part Master (`/parts`) — `src/modules/PartMaster.tsx` (+ `ProductAccessories.tsx`)
 Purpose: The spare-parts catalogue (ITEM Master). Here you add, edit, rename, retire and map parts to products, and map each main product to its accessories.

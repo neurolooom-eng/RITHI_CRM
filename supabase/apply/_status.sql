@@ -2146,7 +2146,19 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.pm_schedule(text, text)') is not null
      and coalesce((select p.prosecdef and p.prosrc like '%pm.generate%' and p.prosrc like '%30.0%'
                      from pg_proc p where p.oid = to_regprocedure('public.pm_schedule(text, text)')), false)
-     and not coalesce(has_function_privilege('anon', to_regprocedure('public.pm_schedule(text, text)'), 'execute'), true)))
+     and not coalesce(has_function_privilege('anon', to_regprocedure('public.pm_schedule(text, text)'), 'execute'), true))),
+    (332, 'Tags on the User Master', 'user_directory.tags with its tidy trigger user_directory_tags_tidy (0408): free-text tags, several per person, trimmed and one per spelling case-blind; a person tagged CAPA Responsibility is offered as CAPA Responsibility on the Field Failure Register. NO means the User Master has no Tags. Restore: user_directory.sql (0408)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'user_directory' and column_name = 'tags')
+     and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.user_directory') and tgname = 'user_directory_tags_tidy'))),
+    (333, 'The old FFR update log loads into each report''s update log', 'ffr_sheet_updates and ffr_load_sheet_updates(jsonb) (0409): the old Field Failure Register - Update sheet, matched on FFR No + UCN, each row a dated entry in ffr_history and the report taking the latest values; a definer with its own ffr.manage + bulk.upload check, not executable by anon; ffr_history_write() silent while it applies. NO means the loader on the Field Failure Register cannot run. Restore: data_integrity.sql (0409)',
+        (to_regclass('public.ffr_sheet_updates') is not null
+     and coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.ffr_sheet_updates')), false)
+     and coalesce((select p.prosecdef and p.prosrc like '%bulk.upload%'
+                     from pg_proc p where p.oid = to_regprocedure('public.ffr_load_sheet_updates(jsonb)')), false)
+     and not coalesce(has_function_privilege('anon', to_regprocedure('public.ffr_load_sheet_updates(jsonb)'), 'execute'), true)
+     and coalesce((select p.prosrc like '%rithi.ffr_sheet_import%'
+                     from pg_proc p where p.oid = to_regprocedure('public.ffr_history_write()')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

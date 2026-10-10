@@ -149,6 +149,10 @@ const MODULES = {
             // D-144: an Indoor DC still waiting for its authoriser follows a
             // rename (0346). Redefines 0267's function, so it follows it.
             '0346_rename_carries_pending_indoor_dc.sql',
+            // Free-text tags on a person (0408); "CAPA Responsibility" feeds
+            // the Field Failure Register's CAPA list. A column and its tidy
+            // trigger only, so anywhere before the tail is right.
+            '0408_user_tags.sql',
       // LAST: 0004 above creates `ud_admin_write` and 0008 (rbac) drops it. A
       // replay of this bundle alone put it back, and policies are OR'd.
       '0122_user_directory_replay_tail.sql'],
@@ -682,7 +686,11 @@ const MODULES = {
             '0348_feedback_update_once_per_query.sql',
             // Indexes for the call-number, serial and newest-first lookups
             // (0381). Indexes only; no policy or function.
-            '0381_feedback_lookup_indexes.sql'],
+            '0381_feedback_lookup_indexes.sql',
+            // The old FFR update sheet, loaded into the update log (0409).
+            // Redefines 0174's ffr_history_write(), which is in THIS module,
+            // so it must come after it; reads block_hard_delete() from here.
+            '0409_ffr_update_sheet_import.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',

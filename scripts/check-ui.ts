@@ -5103,7 +5103,7 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   const rbac = readFileSync('src/lib/rbac.ts', 'utf8');
   eq('ffr.view is on the action list', /key: 'ffr\.view'/.test(rbac), true);
   eq('and on the Field Failure page in the matrix',
-    /'\/failure-report', label: 'Field Failure Register', actions: \['ffr\.view', 'ffr\.manage'\]/.test(rbac), true);
+    /'\/failure-report', label: 'Field Failure Register', actions: \['ffr\.view', 'ffr\.manage'[^\]]*\]/.test(rbac), true);
 
   // AN EMPTY REGISTER MUST SAY WHY. "There are no reports" and "you cannot see
   // the reports" look identical and mean opposite things.

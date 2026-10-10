@@ -699,7 +699,7 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Quality & Analytics', pages: [
     { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', actions: ['review.edit', 'review.auto', 'review.correct_date', 'ffr.manage'] },
-    { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.view', 'ffr.manage'] },
+    { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.view', 'ffr.manage', 'bulk.upload'] },
     // MOVED HERE FROM OVERVIEW WITH THE MENU (the user, 2026-09-15). The
     // header follows the menu because that is where an administrator looks
     // for the screen; the ROUTE did not change, so `mod:/product-failure` and

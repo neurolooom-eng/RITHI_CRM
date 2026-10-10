@@ -121,10 +121,12 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Read reports on the Desk (list, report, the call as it stands) or in the Table',
       'Raise an FFR by hand, or complete one raised from the Daily Complaint Review Register',
       'Fill in CAPA responsibility, number and status, and do the weekly review',
+      'Choose the CAPA responsibility from the people tagged CAPA Responsibility on the User Master',
+      'Load the old FFR update sheet into each report\'s Update log, the latest values applied',
       'Print the R-SER-03 page or download a Word copy',
       'Use Insights: trend, Pareto with drill-down, and cross-filtered charts',
     ],
-    records: ['field_failure_reports', 'field_failure_register', 'ffr_history', 'user_signatures', 'rpc:ffr_call_context', 'audit_log'],
+    records: ['field_failure_reports', 'field_failure_register', 'ffr_history', 'ffr_sheet_updates', 'user_signatures', 'rpc:ffr_call_context', 'rpc:ffr_load_sheet_updates', 'audit_log'],
     rules: [
       'The FFR number is issued by the database on save and is never edited',
       'A report is never deleted; it is cancelled or shows as withdrawn',
@@ -925,6 +927,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'People, roles and the reporting line — a manager’s team is worked out from here.',
     does: [
       'Edit people, their Department, managers and role; create, clone or disable a login',
+      'Tag people (free text, several each), filter by tag, and add or remove a tag on many at once',
       'Set a person’s Access: the role plus extra permissions for them alone',
       'Open a person for their profile, Roles & Responsibilities and training',
       'Reset a password (shown once)',
