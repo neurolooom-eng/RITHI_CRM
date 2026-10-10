@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**110 tables · 42 views · 3148 columns · 226 policies · 68 foreign keys.**
+**112 tables · 43 views · 3242 columns · 230 policies · 69 foreign keys.**
 
 ## How to read this
 
@@ -46,6 +46,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [complaint_suggestions](#complaint-suggestions)
 - [contract_entries](#contract-entries)
 - [contract_items](#contract-items)
+- [dccr_history_import](#dccr-history-import)
 - [device_cache_status](#device-cache-status)
 - [documents](#documents)
 - [engineer_rename_ticket](#engineer-rename-ticket)
@@ -54,6 +55,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [feedback](#feedback)
 - [ffr_counters](#ffr-counters)
 - [ffr_history](#ffr-history)
+- [ffr_sheet_updates](#ffr-sheet-updates)
 - [field_calls](#field-calls)
 - [field_failure_reports](#field-failure-reports)
 - [handstock_adjustments](#handstock-adjustments)
@@ -683,6 +685,71 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ---
 
+## dccr_history_import
+
+> The old DCCR register as loaded (0395), one row per UC Number. Loading a row files its call, its review and one visit from the file; `result` says what was filed. Calls already in the register are never overwritten.
+
+**Primary key:** `ucn` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `ucn` | text | **no** |  |  |
+| 2 | `call_date` | date | yes |  |  |
+| 3 | `complaint_date` | date | yes |  |  |
+| 4 | `call_number` | text | **no** | `''::text` |  |
+| 5 | `party_name` | text | **no** | `''::text` |  |
+| 6 | `place` | text | **no** | `''::text` |  |
+| 7 | `product_name` | text | **no** | `''::text` |  |
+| 8 | `serial` | text | **no** | `''::text` |  |
+| 9 | `call_type` | text | **no** | `''::text` |  |
+| 10 | `standard_complaint` | text | **no** | `''::text` |  |
+| 11 | `complaint_reported` | text | **no** | `''::text` |  |
+| 12 | `item_status` | text | **no** | `''::text` |  |
+| 13 | `engineer` | text | **no** | `''::text` |  |
+| 14 | `call_status` | text | **no** | `''::text` |  |
+| 15 | `pending_reason` | text | **no** | `''::text` |  |
+| 16 | `current_call_status` | text | **no** | `''::text` |  |
+| 17 | `call_solved_at` | timestamp with time zone | yes |  |  |
+| 18 | `warranty_number` | text | **no** | `''::text` |  |
+| 19 | `warranty_start_text` | text | **no** | `''::text` |  |
+| 20 | `public_health_threat` | text | **no** | `''::text` |  |
+| 21 | `death` | text | **no** | `''::text` |  |
+| 22 | `serious_incident` | text | **no** | `''::text` |  |
+| 23 | `risk_to_patient` | text | **no** | `''::text` |  |
+| 24 | `warranty_failure` | text | **no** | `''::text` |  |
+| 25 | `frequent_failure` | text | **no** | `''::text` |  |
+| 26 | `review2_at` | date | yes |  |  |
+| 27 | `service_observation` | text | **no** | `''::text` |  |
+| 28 | `complaint_grouping` | text | **no** | `''::text` |  |
+| 29 | `root_cause_keyword` | text | **no** | `''::text` |  |
+| 30 | `spare_category` | text | **no** | `''::text` |  |
+| 31 | `review3_at` | date | yes |  |  |
+| 32 | `imported_updated_by` | text | **no** | `''::text` |  |
+| 33 | `imported_updated_date` | date | yes |  |  |
+| 34 | `extra` | jsonb | **no** | `'{}'::jsonb` |  |
+| 35 | `result` | text | **no** | `''::text` |  |
+| 36 | `loaded_at` | timestamp with time zone | **no** | `now()` |  |
+| 37 | `loaded_by` | uuid | yes |  |  |
+| 38 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 39 | `sys_created_by` | uuid | yes |  |  |
+| 40 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 41 | `sys_updated_by` | uuid | yes |  |  |
+| 42 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(dccr_history_import_sys_id_key)_
+
+**Triggers:** `dccr_history_apply` → `dccr_history_apply()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `dhi_insert` | — | `( SELECT has_perm('bulk.upload'::text) AS has_perm)` |
+| SELECT | `dhi_read` | `( SELECT has_perm('bulk.upload'::text) AS has_perm)` | — |
+| UPDATE | `dhi_update` | `( SELECT has_perm('bulk.upload'::text) AS has_perm)` | `( SELECT has_perm('bulk.upload'::text) AS has_perm)` |
+
+---
+
 ## device_cache_status
 
 > One row per person per device: what that device holds of the offline machine register and Party Master, as the device last reported it (0249).
@@ -1006,6 +1073,54 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ---
 
+## ffr_sheet_updates
+
+> The old "Field Failure Register - Update" sheet as loaded (0409), one row per update, keyed by report + Timestamp. Each is also an entry in ffr_history; the report carries the latest values, a newer logged change winning per field.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('ffr_sheet_updates_id_seq'::regclass)` |  |
+| 2 | `ffr_id` | bigint | **no** |  | → field_failure_reports(id) |
+| 3 | `ffr_no` | text | **no** | `''::text` |  |
+| 4 | `ucn` | text | **no** | `''::text` |  |
+| 5 | `updated_at` | timestamp with time zone | **no** |  |  |
+| 6 | `problem_status` | text | **no** | `''::text` |  |
+| 7 | `service_observation` | text | **no** | `''::text` |  |
+| 8 | `capa_responsibility` | text | **no** | `''::text` |  |
+| 9 | `capa_no` | text | **no** | `''::text` |  |
+| 10 | `capa_status` | text | **no** | `''::text` |  |
+| 11 | `ffr_status` | text | **no** | `''::text` |  |
+| 12 | `attachment_url` | text | **no** | `''::text` |  |
+| 13 | `additional_problem` | text | **no** | `''::text` |  |
+| 14 | `word_copy` | text | **no** | `''::text` |  |
+| 15 | `source_row` | integer | yes |  |  |
+| 16 | `loaded_at` | timestamp with time zone | **no** | `now()` |  |
+| 17 | `loaded_by` | uuid | yes |  |  |
+| 18 | `loaded_by_name` | text | **no** | `''::text` |  |
+| 19 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 20 | `sys_created_by` | uuid | yes |  |  |
+| 21 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 22 | `sys_updated_by` | uuid | yes |  |  |
+| 23 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `ffr_id, updated_at` _(ffr_sheet_updates_ffr_id_updated_at_key)_ · `ffr_id, updated_at` _(ffr_sheet_updates_ffr_id_updated_at_key)_ · `sys_id` _(ffr_sheet_updates_sys_id_key)_
+
+**References:**
+
+- `ffr_id` → **field_failure_reports**(`id`) · on delete no action _(ffr_sheet_updates_ffr_id_fkey)_
+
+**Triggers:** `zz_no_delete` → `block_hard_delete()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| SELECT | `ffrsu_read` | `(( SELECT has_perm('ffr.view'::text) AS has_perm) OR ( SELECT has_perm('ffr.manage'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
+
+---
+
 ## field_calls
 
 **Primary key:** `id` · **Row-level security:** **on**
@@ -1145,7 +1260,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Unique:** `ffr_no, product_serial` _(ffr_no_machine_uniq)_ · `sys_id` _(field_failure_reports_sys_id_key)_
 
-**Referenced by:** `ffr_history.ffr_id`
+**Referenced by:** `ffr_history.ffr_id` · `ffr_sheet_updates.ffr_id`
 
 **Triggers:** `no_hard_delete` → `block_hard_delete()` · `zz_ffr_history` → `ffr_history_write()` · `zz_ffr_history_created` → `ffr_history_created()` · `zz_ffr_stamp` → `ffr_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -1187,8 +1302,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `handstock_adjustments_reason` — `CHECK ((btrim(reason) <> ''::text))`
 - `handstock_adjustments_qty_nonzero` — `CHECK ((qty <> (0)::numeric))`
+- `handstock_adjustments_reason` — `CHECK ((btrim(reason) <> ''::text))`
 
 **Triggers:** `handstock_adjustments_bi` → `handstock_adjustments_bi()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -1906,7 +2021,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `installation_calls_type_ck` — `CHECK ((call_table_for(call_type) = 'installation'::text))`
 
-**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `installation_call_not_for_dealer` → `installation_call_not_for_dealer()` · `installation_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_requests_follow_call` → `spare_requests_follow_call()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zz_install_start_to_product` → `install_start_to_product()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `call_open_state_t` → `call_open_state_stamp()` · `calls_biu` → `calls_before_insert()` · `installation_call_not_for_dealer` → `installation_call_not_for_dealer()` · `installation_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `spare_requests_follow_call` → `spare_requests_follow_call()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zz_install_call_registers_requests` → `install_call_registers_requests()` · `zz_install_start_to_product` → `install_start_to_product()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2583,12 +2698,12 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `pdqc_records_product_name_check` — `CHECK ((btrim(product_name) <> ''::text))`
-- `pdqc_records_serial_check` — `CHECK ((btrim(serial) <> ''::text))`
-- `pdqc_records_measuring_equipment_id_check` — `CHECK ((btrim(measuring_equipment_id) <> ''::text))`
 - `pdqc_records_software_version_check` — `CHECK ((btrim(software_version) <> ''::text))`
 - `pdqc_records_hv_check` — `CHECK ((btrim(hv) <> ''::text))`
+- `pdqc_records_measuring_equipment_id_check` — `CHECK ((btrim(measuring_equipment_id) <> ''::text))`
+- `pdqc_records_serial_check` — `CHECK ((btrim(serial) <> ''::text))`
 - `pdqc_records_ht_check` — `CHECK ((btrim(ht) <> ''::text))`
+- `pdqc_records_product_name_check` — `CHECK ((btrim(product_name) <> ''::text))`
 
 **Triggers:** `zy_pdqc_number` → `pdqc_number()` · `zz_pdqc_stamp` → `pdqc_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3175,6 +3290,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 32 | `sys_updated_by` | uuid | yes |  |  |
 | 33 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 | 34 | `overrides` | jsonb | **no** | `'{}'::jsonb` | Months of a computed objective typed over by hand: {"m03": {"by": email, "at": timestamp, "calculated": the figure it replaced}}. Written only by quality_objectives_mark_override(); Re-Calculate keeps these months unless told to discard them (0349). |
+| 35 | `status` | text | **no** | `'Active'::text` | Active · Not Working · Do Not Use · Active / Not Working / Do Not Use (0392). The last two are hidden on the Objective page unless Show hidden is on; nothing else changes -- the objective is still edited and re-calculated as before. |
 
 **Unique:** `sys_id` _(quality_objectives_sys_id_key)_ · `year, lower(btrim(parameter))` _(quality_objectives_year_param_uniq)_
 
@@ -3292,8 +3408,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_issues_qty_check` — `CHECK ((qty > (0)::numeric))`
 - `recycle_issues_unit_cost_check` — `CHECK ((unit_cost >= (0)::numeric))`
+- `recycle_issues_qty_check` — `CHECK ((qty > (0)::numeric))`
 
 **Triggers:** `recycle_issues_guard` → `recycle_issues_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3473,8 +3589,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
 - `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
+- `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
 
 **Triggers:** `recycle_requests_guard` → `recycle_requests_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3868,7 +3984,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `created_by` → **users**(`id`) · on delete no action _(spare_consumption_created_by_fkey)_
 
-**Triggers:** `a_import_marker_needs_importer` → `import_marker_needs_importer()` · `consumption_adjust_guard` → `consumption_adjust_guard()` · `consumption_biu` → `consumption_before_insert()` · `consumption_reconcile_guard` → `consumption_reconcile_guard()` · `consumption_stamp_people` → `consumption_stamp_people()` · `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_consumption_needs_visit` → `consumption_needs_a_visit()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `a_import_marker_needs_importer` → `import_marker_needs_importer()` · `consumption_adjust_guard` → `consumption_adjust_guard()` · `consumption_biu` → `consumption_before_insert()` · `consumption_reconcile_guard` → `consumption_reconcile_guard()` · `consumption_stamp_people` → `consumption_stamp_people()` · `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_consumption_needs_visit` → `consumption_needs_a_visit()` · `zz_pm_spare_to_dccr` → `pm_spare_to_dccr()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -4595,12 +4711,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 19 | `sys_updated_by` | uuid | yes |  |  |
 | 20 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 | 21 | `department` | text | **no** | `''::text` |  |
+| 22 | `tags` | ARRAY | **no** | `'{}'::text[]` | Free-text tags, several per person (0408). "CAPA Responsibility" puts the person on the Field Failure Register's CAPA Responsibility list. Trimmed, blanks dropped, one per spelling case-blind. |
 
 **Unique:** `sys_id` _(user_directory_sys_id_key)_
 
 **Referenced by:** `training_assignments.dir_id` · `training_attendance.dir_id` · `user_profile.dir_id` · `user_rr.dir_id`
 
-**Triggers:** `ud_role_guard` → `user_directory_role_guard()` · `user_directory_address_guard` → `user_directory_address_guard()` · `user_directory_carry_rename` → `user_directory_carry_rename()` · `user_directory_carry_rename_records` → `user_directory_carry_rename_records()` · `user_directory_profile_sync` → `sync_profile_from_user_directory()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `ud_role_guard` → `user_directory_role_guard()` · `user_directory_address_guard` → `user_directory_address_guard()` · `user_directory_carry_rename` → `user_directory_carry_rename()` · `user_directory_carry_rename_records` → `user_directory_carry_rename_records()` · `user_directory_profile_sync` → `sync_profile_from_user_directory()` · `user_directory_tags_tidy` → `user_directory_tags_tidy()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -4782,6 +4899,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `calls` | **on** | 54 |
 | `consumption_report` | **on** | 40 |
 | `contract_details` | **on** | 33 |
+| `dccr_calls` | **on** | 27 |
 | `engineer_stock` | _not set_ | 3 |
 | `export_schedule_state` | **on** | 20 |
 | `failure_modes_by_product` | **on** | 4 |
@@ -4822,6 +4940,8 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 **`call_report`** — One row per CALL — never per visit — with its latest visit and what was fitted. security_invoker, so it shows a reader exactly the calls they may see and no more.
 
 **`consumption_report`** — One row per spare booked, with its call and that call's latest visit around it. The first sixteen columns are the user's own report format, in their order; everything after is the rest of spare_consumption plus the call fields worth filtering on. `part` is split into code and description here so no consumer repeats it. security_invoker, so a reader sees only the calls their role allows.
+
+**`dccr_calls`** — The calls the DCCR reviews (0397): every Field call, and the PM calls that have a DCCR review (a SPARE consumed on them, or loaded from an old register).
 
 **`feedback_report`** — One row per customer feedback, with the export's own questions as named columns. A blank on a question is "not asked of that kind of visit", not a missing answer. security_invoker, so it shows a reader exactly the feedback they may see.
 

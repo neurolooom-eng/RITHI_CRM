@@ -78,6 +78,24 @@ up)_
 
 ---
 
+## 2026-10-10 — User Master tags; FFR CAPA list from them; old FFR update log loads (0408, 0409, v0.10.157)
+
+- The user: "in User Master, Add provision for Tags.." -- for "People to list in
+  FFR - CAPA Responsibility". Answers: free text, several per person; form +
+  column, filter, bulk add/remove; keep only "No closed in FFR" of the old fixed
+  names; tag "CAPA Responsibility"; shown by User Master name. 0408
+  (user_directory.tags + tidy trigger). Active people only on the CAPA list.
+- The user: "Add a provision to update the old Logs for FFR" with the
+  Field Failure Register - Update sheet (1,529 rows, 581 FFR numbers,
+  09-Mar-2020 to 15-Aug-2026). Answers: log + apply latest; FFR No + UCN; a
+  blank keeps the earlier value; signed "FFR Update sheet (import)". Measured
+  live first: the register has ONE row per FFR number and only 720 of the
+  1,529 rows match on FFR No + UCN (170 FFRs get nothing); the user kept the
+  rule with those numbers. 0409: ffr_sheet_updates + ffr_load_sheet_updates();
+  ffr_history_write() silent during the apply. PENDING (the user): load the
+  sheet from Field Failure Register -> Load old update log; the 809 rows not
+  loaded come back as a list to correct (most name another UCN of the same FFR).
+
 ## 2026-10-09 — Warranty: installation calls in the entry; call status everywhere generated (v0.10.156)
 
 - The user: "Similar to PM schedule, add Installation Call as well in warranty.

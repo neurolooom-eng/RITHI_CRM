@@ -485,6 +485,19 @@ against the call it was fitted to.
     as *Yes*. Its **CAPA fields start blank** — responsibility, CAPA No and
     CAPA status are filled in by whoever handles the CAPA, and so are they on a
     report raised with ＋ Raise FFR.
+  - **CAPA (if reqd) Responsibility** lists *No closed in FFR* and every Active
+    person tagged **CAPA Responsibility** on the User Master — tag somebody
+    there to add them. A report that already names someone no longer on the
+    list still shows that name.
+  - **⭱ Load old update log** loads the old *Field Failure Register – Update*
+    sheet (export it as CSV). Each row goes to the report with the same **FFR
+    No and UCN** and is added to its **Update log**, dated by the sheet's
+    Timestamp and signed *FFR Update sheet (import)*; the report then shows its
+    latest values. A blank cell never erases anything, a change made here after
+    the sheet's update is kept, and a row that matches no report is listed back
+    (with the register's UCN beside it) to correct and load again — loading the
+    same file twice adds nothing. Needs the Field Failure Register right and
+    **Bulk uploads**.
   - **Year and Product, both taking several values.** Tick as many as you like;
     the list stays open while you tick, and nothing ticked means everything.
     Year opens on this year; Product opens on all, so it costs nothing until you
@@ -1088,6 +1101,13 @@ typed into a form that reads it.
   > departments there first), so it is spelled one way everywhere.
   > **Many at once:** tick people (the header box ticks everyone the search is
   > showing), choose the Department in the bar that appears, press **Apply**.
+  > **Tags:** give a person as many tags as you like — type one and press
+  > Enter (or a comma); × removes it. They are free text: the tags already in
+  > use are suggested, not imposed, and the same tag in another case is kept
+  > once. Filter the list by tag with the box beside the search, or tick people
+  > and use **＋ Add tag** / **− Remove tag** in the bar. A person tagged
+  > **CAPA Responsibility** (and Active) is offered as the CAPA (if reqd)
+  > Responsibility on the Field Failure Register.
   > **Open a person (the row, or ⋯ → view) for their profile:** Employee Code,
   > Joining Date, Department, Designation, both managers, Mail ID, their
   > **Roles & Responsibilities** and their **training**. Employee Code and

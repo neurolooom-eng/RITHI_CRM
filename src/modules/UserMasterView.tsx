@@ -16,6 +16,8 @@ import './fieldcalls.css';
 import { COMPLETE, cappedAt } from '../lib/exportscope';
 import { useMaster } from '../lib/masters';
 import { PersonProfile } from '../components/people/PersonProfile';
+import { MultiPick } from '../components/ui/MultiPick';
+import { TagInput, TagChips, tidyTags, hasTag } from '../components/ui/TagInput';
 
 // ===========================================================================
 // USER MASTER — the directory of everyone, whether or not they have ever
@@ -39,7 +41,7 @@ const roleLabel = (key: string) => roleLabelFor(key) || (key || '—');
 const emptyRow = (): DirectoryRow => ({
   id: 0, name: '', email: '', gmail: '', designation: '',
   reporting_manager: '', regional_manager: '', region: '', role: '', validity: true,
-  address: '', city: '', state: '', phone: '', department: '',
+  address: '', city: '', state: '', phone: '', department: '', tags: [],
 });
 
 export function UserMasterView() {
@@ -87,6 +89,18 @@ export function UserMasterView() {
     });
     return [...seen.values()].sort((a, b) => a.localeCompare(b));
   }, [dir]);
+  // EVERY TAG ALREADY IN USE (0408), case-folded, first spelling kept: the
+  // suggestions on the tag boxes and the choices of the Tags filter. Free text,
+  // so this is what people have typed, not a master list.
+  const dirTags = useMemo(() => {
+    const seen = new Map<string, string>();
+    dir.forEach((d) => (d.tags ?? []).forEach((t) => {
+      const v = String(t ?? '').trim();
+      if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
+    }));
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [dir]);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [sheetRows, setSheetRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [edit, setEdit] = useState<DirectoryRow | null>(null);   // the drawer (new user)
@@ -227,6 +241,37 @@ export function UserMasterView() {
     await load();
   };
 
+  // ---- BULK TAGS (the user, 2026-10-10: tags with "Bulk apply"). Tick rows,
+  // type a tag, Add or Remove. ONLY the tags are written; a person who already
+  // has the tag (on Add) or has not (on Remove) is left alone and not counted.
+  const [bulkTag, setBulkTag] = useState('');
+  const applyTag = async (ids: string[], mode: 'add' | 'remove', clear: () => void) => {
+    const tag = bulkTag.trim();
+    if (!tag) return;
+    const targets = dir.filter((d) => ids.includes(String(d.id))
+      && (mode === 'add' ? !hasTag(d.tags, tag) : hasTag(d.tags, tag)));
+    if (!targets.length) {
+      setMsg({ tone: 'info', text: mode === 'add' ? `Everyone selected already has the tag "${tag}".` : `Nobody selected has the tag "${tag}".` });
+      return;
+    }
+    if (!confirm(`${mode === 'add' ? 'Add' : 'Remove'} the tag "${tag}" ${mode === 'add' ? 'to' : 'from'} ${targets.length} ${targets.length === 1 ? 'person' : 'people'}?`)) return;
+    setBusy(true);
+    let done = 0; const failed: string[] = [];
+    for (let i = 0; i < targets.length; i += 10) {
+      await Promise.all(targets.slice(i, i + 10).map(async (t) => {
+        const tags = mode === 'add' ? tidyTags([...t.tags, tag]) : t.tags.filter((x) => x.trim().toLowerCase() !== tag.toLowerCase());
+        const r = await saveDirectoryRow(t.id, { tags });
+        if (r.ok) done += 1; else failed.push(t.name || String(t.id));
+      }));
+    }
+    logAudit({ action: mode === 'add' ? 'user.directory.bulk_tag_add' : 'user.directory.bulk_tag_remove', target: tag, status: failed.length ? 'error' : 'ok', meta: { done, failed: failed.length } });
+    setBusy(false); clear(); setBulkTag('');
+    setMsg(failed.length
+      ? { tone: 'error', text: `${done} updated; ${failed.length} could not be saved: ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''}` }
+      : { tone: 'ok', text: `Tag "${tag}" ${mode === 'add' ? 'added to' : 'removed from'} ${done} ${done === 1 ? 'person' : 'people'}.` });
+    await load();
+  };
+
   // Write one row, and put its role on the person's sign-in if they have one.
   // Returns what happened so a bulk save can report per row.
   const persist = async (row: DirectoryRow): Promise<{ ok: boolean; error?: string; note?: string }> => {
@@ -242,6 +287,7 @@ export function UserMasterView() {
       // Department Details in User Master"). Picked on screen and dropped here,
       // so every save quietly kept the old value.
       department: (row.department ?? '').trim(),
+      tags: tidyTags(row.tags ?? []),
     });
     logAudit({ action: isNew ? 'user.directory.add' : 'user.directory.edit', target: name, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error });
     if (!res.ok) return { ok: false, error: res.error ?? 'Could not save that user.' };
@@ -413,6 +459,13 @@ export function UserMasterView() {
         : <>{r.department}</>),
     },
     {
+      key: 'tags', header: 'Tags', width: 200, sortable: false,
+      render: (r) => (editing
+        ? <TagInput value={draftOf(r).tags ?? []} suggestions={dirTags} placeholder="Tag, Enter"
+            onChange={(v) => setField(r, 'tags', v)} />
+        : <TagChips tags={r.tags ?? []} />),
+    },
+    {
       key: 'role', header: 'Role', width: 170,
       render: (r) => {
         if (editing) {
@@ -497,11 +550,14 @@ export function UserMasterView() {
     { key: 'STATE', header: 'State', width: 110 },
   ];
 
+  // The search, then the Tags filter: a person carrying ANY of the chosen tags
+  // (case-blind). Nothing chosen means every person.
   const visibleDir = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return dir;
-    return dir.filter((r) => `${r.name} ${r.email} ${r.gmail} ${r.designation} ${r.region} ${roleLabel(r.role)}`.toLowerCase().includes(s));
-  }, [dir, q]);
+    const byTag = tagFilter.length ? dir.filter((r) => tagFilter.some((t) => hasTag(r.tags, t))) : dir;
+    if (!s) return byTag;
+    return byTag.filter((r) => `${r.name} ${r.email} ${r.gmail} ${r.designation} ${r.region} ${roleLabel(r.role)} ${(r.tags ?? []).join(' ')}`.toLowerCase().includes(s));
+  }, [dir, q, tagFilter]);
 
   // ---------------------------------------------------------------------
   // WHERE THE LIST AND THE SIGN-IN DISAGREE ABOUT SOMEBODY'S ROLE.
@@ -618,13 +674,24 @@ export function UserMasterView() {
               </div>
               <button className="btn btn-primary btn-sm" disabled={busy || !bulkDept}
                 onClick={() => void applyDept(ids, clear)}>Apply to {ids.length}</button>
+              <span className="muted">·</span>
+              <input className="input" style={{ width: 180 }} list="um-bulk-tags" placeholder="Tag…"
+                value={bulkTag} onChange={(e) => setBulkTag(e.target.value)} />
+              <datalist id="um-bulk-tags">{dirTags.map((t) => <option key={t} value={t} />)}</datalist>
+              <button className="btn btn-sm" disabled={busy || !bulkTag.trim()}
+                onClick={() => void applyTag(ids, 'add', clear)}>＋ Add tag to {ids.length}</button>
+              <button className="btn btn-sm" disabled={busy || !bulkTag.trim()}
+                onClick={() => void applyTag(ids, 'remove', clear)}>− Remove tag</button>
             </div>
           ) : undefined}
           onRowClick={editing ? undefined : (r) => setViewRow(r)}
           emptyText={busy ? 'Loading…' : 'No users — adjust your search.'}
           toolbar={
             <Toolbar>
-              <SearchBox value={q} onChange={setQ} placeholder="Name, email, region, designation, role…" />
+              <SearchBox value={q} onChange={setQ} placeholder="Name, email, region, designation, role, tag…" />
+              <div style={{ minWidth: 180 }}>
+                <MultiPick values={tagFilter} options={dirTags} onChange={setTagFilter} allLabel="Any tag" noun="tags" />
+              </div>
               {editable && (
                 <span className="muted">
                   {editing
@@ -636,7 +703,8 @@ export function UserMasterView() {
               {visibleDir.length > 0 && (
                 <button className="btn btn-sm" onClick={() => csvExport('user-master.csv',
                   liveColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })),
-                  visibleDir as unknown as Record<string, unknown>[], COMPLETE)}>⭳ Export CSV</button>
+                  // Tags as one cell, "A; B" -- an array would print as a bare comma list.
+                  visibleDir.map((r) => ({ ...r, tags: (r.tags ?? []).join('; ') })) as unknown as Record<string, unknown>[], COMPLETE)}>⭳ Export CSV</button>
               )}
             </Toolbar>
           }
@@ -702,6 +770,7 @@ export function UserMasterView() {
             names={dirNames}
             regions={dirRegions}
             departments={departments}
+            tags={dirTags}
             roleOptions={roleOptions}
             renameNote={renameNote(edit)}
             onChange={setEdit}
@@ -756,6 +825,7 @@ export function UserMasterView() {
           ['Name', r.name || '—'],
           ['Designation', r.designation || '—'],
           ['Department', r.department || '—'],
+          ['Tags', (r.tags ?? []).join(', ') || '—'],
           ['Role', roleLabel(prof?.rbacRole || r.role)],
           ['Signed in', prof ? 'Yes' : 'Not yet'],
           ['Air Liquide ID', r.email || '—'],
@@ -947,7 +1017,7 @@ function DataViewDrawer({ user, onClose }: { user: User; onClose: () => void }) 
   );
 }
 
-function UserForm({ row, busy, signedInRole, names, regions, departments, roleOptions, renameNote, onChange, onCancel, onSave }: {
+function UserForm({ row, busy, signedInRole, names, regions, departments, tags, roleOptions, renameNote, onChange, onCancel, onSave }: {
   row: DirectoryRow; busy: boolean; signedInRole?: string;
   // What changing this person's name will and will not move (finding 23);
   // empty unless the name has changed.
@@ -961,6 +1031,8 @@ function UserForm({ row, busy, signedInRole, names, regions, departments, roleOp
   names: string[]; regions: string[];
   /** The Department master list (0263). */
   departments: string[];
+  /** Tags already used on the User Master -- suggestions only (0408). */
+  tags: string[];
   // Passed in rather than read here: the list includes roles the DATABASE has
   // and the code does not, and it is the register above that holds them.
   roleOptions: { value: string; label: string }[];
@@ -1011,6 +1083,11 @@ function UserForm({ row, busy, signedInRole, names, regions, departments, roleOp
           <SelectPicker value={row.department} onChange={(v) => set('department', v)}
             placeholder={departments.length ? '— department —' : '— add departments under Masters → Department —'}
             options={row.department && !departments.includes(row.department) ? [row.department, ...departments] : departments} />
+        </label>
+        <label className="rep-field rep-span2">
+          <span className="field-label">Tags</span>
+          <TagInput value={row.tags ?? []} suggestions={tags} onChange={(v) => set('tags', v)} />
+          <span className="muted rep-hint">Free text, several allowed. “CAPA Responsibility” puts this person on the Field Failure Register’s CAPA Responsibility list.</span>
         </label>
         {field('Air Liquide ID (email)', 'email', 'name@airliquide.com', 'email')}
         {field('Gmail ID', 'gmail', 'name@gmail.com', 'email')}

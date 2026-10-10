@@ -3000,6 +3000,8 @@ export interface DirectoryRow {
   address: string; city: string; state: string; phone: string;
   /** 0263 -- from the Department master list. */
   department: string;
+  /** 0408 -- free-text tags, several per person. */
+  tags: string[];
 }
 
 const dirRow = (r: Record<string, unknown>): DirectoryRow => ({
@@ -3010,6 +3012,7 @@ const dirRow = (r: Record<string, unknown>): DirectoryRow => ({
   region: String(r.region ?? ''), role: String(r.role ?? ''), validity: r.validity !== false,
   address: String(r.address ?? ''), city: String(r.city ?? ''), state: String(r.state ?? ''),
   phone: String(r.phone ?? ''), department: String(r.department ?? ''),
+  tags: Array.isArray(r.tags) ? (r.tags as unknown[]).map(String) : [],
 });
 
 export async function listDirectory(cap = 5000): Promise<DirectoryRow[]> {
@@ -3019,6 +3022,22 @@ export async function listDirectory(cap = 5000): Promise<DirectoryRow[]> {
   const rows = await allRows<Record<string, unknown>>((from, to) =>
     must().from('user_directory').select('*').order('name').order('id').range(from, to), cap);
   return rows.map(dirRow);
+}
+
+// THE PEOPLE CARRYING ONE TAG on the User Master (0408), ACTIVE ones only,
+// by name. Read for the Field Failure Register's CAPA Responsibility list
+// ("CAPA Responsibility"). Every row with any tag is read and matched here,
+// case-blind, because a free-text tag may be typed in any case.
+export async function peopleTagged(tag: string): Promise<string[]> {
+  const c = getSupabase(); if (!c) return [];
+  const want = tag.trim().toLowerCase();
+  const rows = await allRows<Record<string, unknown>>((from, to) =>
+    c.from('user_directory').select('id,name,tags,validity').neq('tags', '{}').order('name').order('id').range(from, to), 5000);
+  const names = rows
+    .filter((r) => r.validity !== false && Array.isArray(r.tags)
+      && (r.tags as unknown[]).some((t) => String(t).trim().toLowerCase() === want))
+    .map((r) => String(r.name ?? '').trim()).filter(Boolean);
+  return [...new Set(names)];
 }
 
 // THE CC OF A "NEED MORE DETAILS" MAIL (Pending Registrations, 2026-10-08):
@@ -6728,6 +6747,23 @@ export interface FfrHistoryRow {
   changed_by_name: string;
   action: string;
   changes: Record<string, { from: unknown; to: unknown }>;
+}
+
+// THE OLD FFR UPDATE SHEET (0409). One batch of rows; the database matches
+// each on FFR No + UCN, logs it at its Timestamp and applies the latest values.
+export interface FfrSheetRow {
+  row: number; ffr_no: string; ucn: string; at: string | null;
+  problem_status: string; service_observation: string; capa_responsibility: string; capa_no: string;
+  capa_status: string; ffr_status: string; attachment_url: string; additional_problem: string; word_copy: string;
+}
+export interface FfrSheetResult {
+  loaded: number; unchanged: number; already: number; reports: number; fields_applied: number; kept_newer: number;
+  rejected: { row: number; ffr_no: string; ucn: string; reason: string; register_ucn: string }[];
+}
+export async function loadFfrSheetUpdates(rows: FfrSheetRow[]): Promise<FfrSheetResult> {
+  const { data, error } = await must().rpc('ffr_load_sheet_updates', { p_rows: rows });
+  if (error) throw new Error(errMsg(error));
+  return data as FfrSheetResult;
 }
 
 export async function listFfrHistory(ffrNo: string): Promise<FfrHistoryRow[]> {
