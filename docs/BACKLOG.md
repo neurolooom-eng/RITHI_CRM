@@ -78,6 +78,15 @@ up)_
 
 ---
 
+## 2026-10-11 — FFR Update log: a loaded report starts on its FFR Date (D-159, 0410, v0.10.162)
+
+- The user: "The FFR Date in the Log has to match with Actual FFR Date, it is
+  showing the import date". Measured live: all 560 imported reports read
+  Report raised on 14-Sep-2026 (the load); the 44 raised in RITHI were right.
+  0410: ffr_history_created() dates an imported report's entry on its FFR Date
+  (the load time kept as changes._loaded_at, shown "loaded into RITHI on"), and
+  moves the 560 existing entries once.
+
 ## 2026-10-10 — User Master tags; FFR CAPA list from them; old FFR update log loads (0408, 0409, v0.10.157)
 
 - The user: "in User Master, Add provision for Tags.." -- for "People to list in

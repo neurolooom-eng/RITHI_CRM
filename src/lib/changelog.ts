@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.162',
+    date: '2026-10-11',
+    title: 'FFR Update log: a loaded report starts on its FFR Date',
+    changes: [
+      'A Field Failure Report loaded from the old register now reads "Report raised" on its FFR DATE in the Update log, not on the day it was loaded (14-Sep-2026 for all 560 of them). The load date is still shown beside it, as "loaded into RITHI on". Reports raised in RITHI are unchanged.',
+    ],
+  },
+  {
     version: '0.10.161',
     date: '2026-10-10',
     title: '"Need more details" mail: sivarani.a@airliquide.com always in Cc',
