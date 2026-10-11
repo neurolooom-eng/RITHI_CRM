@@ -587,7 +587,14 @@ function FfrHistory({ ffrNo }: { ffrNo: string }) {
                     <td>{h.changed_by_name || <span className="muted">—</span>}</td>
                     <td>
                       {h.action === 'create' ? (
-                        <b>Report raised</b>
+                        <>
+                          <b>Report raised</b>
+                          {/* An imported report is logged on its FFR Date
+                              (0410); when it was loaded is kept and said. */}
+                          {(h.changes as Record<string, unknown>)?._loaded_at != null && (
+                            <span className="muted"> — loaded into RITHI on {fmtLongDate((h.changes as Record<string, unknown>)._loaded_at)}</span>
+                          )}
+                        </>
                       ) : (
                         Object.entries(h.changes ?? {}).map(([k, v]) => (
                           <div key={k}>

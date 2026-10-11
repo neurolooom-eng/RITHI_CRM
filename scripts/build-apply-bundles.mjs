@@ -690,7 +690,10 @@ const MODULES = {
             // The old FFR update sheet, loaded into the update log (0409).
             // Redefines 0174's ffr_history_write(), which is in THIS module,
             // so it must come after it; reads block_hard_delete() from here.
-            '0409_ffr_update_sheet_import.sql'],
+            '0409_ffr_update_sheet_import.sql',
+            // An imported report's "Report raised" log entry on its FFR Date
+            // (0410). Redefines 0174's ffr_history_created(), in THIS module.
+            '0410_ffr_log_raised_on_ffr_date.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',

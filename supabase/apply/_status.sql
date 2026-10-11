@@ -2158,7 +2158,9 @@ with checks(sort_order, bundle, provides, present) as (
                      from pg_proc p where p.oid = to_regprocedure('public.ffr_load_sheet_updates(jsonb)')), false)
      and not coalesce(has_function_privilege('anon', to_regprocedure('public.ffr_load_sheet_updates(jsonb)'), 'execute'), true)
      and coalesce((select p.prosrc like '%rithi.ffr_sheet_import%'
-                     from pg_proc p where p.oid = to_regprocedure('public.ffr_history_write()')), false)))
+                     from pg_proc p where p.oid = to_regprocedure('public.ffr_history_write()')), false))),
+    (334, 'An imported FFR''s update log starts on its FFR Date', 'ffr_history_created() (0410): a report loaded from the old register is logged as raised on its FFR Date, the load time kept as changes._loaded_at (and, once, the entries already written moved to it). Only the function is tested: an FFR Date corrected later leaves its entry on the date the report was raised with, which is not a fault. NO means imported reports are still logged as raised on the day they are loaded. Restore: data_integrity.sql (0410)',
+        (coalesce((select p.prosrc like '%_loaded_at%' from pg_proc p where p.oid = to_regprocedure('public.ffr_history_created()')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
