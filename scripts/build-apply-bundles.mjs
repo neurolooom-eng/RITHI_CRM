@@ -1095,6 +1095,9 @@ const MODULES = {
             // Out history names (2026-10-08), so its unit reaches that
             // engineer's hand stock. A one-time, idempotent data fix.
             '0405_spare_request_engineer_from_history.sql',
+            // The WinMax opening is the Good Balance only (D-161, 0411): a
+            // one-time, re-runnable data fix of the WinMax HS pool.
+            '0411_winmax_opening_good_only.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.

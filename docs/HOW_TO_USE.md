@@ -402,6 +402,9 @@ against the call it was fitted to.
   question from the dispatch queue, and now grantable separately.
 - **Hand Stock** `/handstock` — what an engineer holds. **Worked out, never
   stored**: issued − consumed ± transfers − returns.
+  > **The WinMax opening is the Good Balance only.** The Defective and Missing
+  > balances in the WinMax export are not opening stock, and a row with no Good
+  > Balance is held back when the export is loaded.
   > **From history is part of the total, not added to it**: opening + imported
   > stock outs − imported consumption, the share of the line that came from the
   > old system. A line's drawer says so, and its Movements table ends on the

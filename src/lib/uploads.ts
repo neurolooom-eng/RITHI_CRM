@@ -978,7 +978,7 @@ export const UPLOADS: UploadDef[] = [
     conflictFrom: ['engineer', 'part', 'source'], extraInto: 'data',
     stamp: { source: 'WinMax HS', as_of: '2022-06-09' },
     prepare: 'handstock-engineers',
-    note: 'The WinMax export exactly as it comes — User Name, Item Code, Item Name, Good Balance, Defective Balance. Nothing to prepare. The WinMax balance as it stood when the sheet era began. GOOD AND DEFECTIVE are both counted: a defective part is still in the engineer\u2019s hands until an MRN takes it back, which is exactly how the returns register subtracts it. A missing balance is not counted. Re-loading a corrected sheet replaces this pool rather than adding a second one. ONLY ACTIVE USERS OF THE USER MASTER ARE LOADED: the export\u2019s User Name column also holds dealers and customers, and hand stock is what an engineer carries. The names left out are named before anything is written.',
+    note: 'The WinMax export exactly as it comes — User Name, Item Code, Item Name, Good Balance, Defective Balance. Nothing to prepare. The WinMax balance as it stood when the sheet era began. ONLY THE GOOD BALANCE is the opening stock: the Defective and Missing balances are not counted, and a row with no Good Balance is held back by name. Re-loading a corrected sheet replaces this pool rather than adding a second one. ONLY ACTIVE USERS OF THE USER MASTER ARE LOADED: the export\u2019s User Name column also holds dealers and customers, and hand stock is what an engineer carries. The names left out are named before anything is written.',
     cols: [
       { to: 'engineer', from: ['user name', 'engineer name', 'engineer'], required: true },
       { to: 'part', from: ['part', 'item detail', 'spare'], required: true,
@@ -988,19 +988,18 @@ export const UPLOADS: UploadDef[] = [
           const d = String(e['Item Name'] ?? '').trim();
           return c && d ? `${c}|${d}` : c;
         } },
-      // Good PLUS defective — what the engineer actually holds.
+      // THE GOOD BALANCE ONLY (the user, 2026-10-12: "Only the Good balance
+      // should be taken as WinMax opening Balance"). It used to add the
+      // Defective Balance -- MP-010 / SUNIL KUMAR.K.V opened at 170 from a
+      // Good Balance of nothing and a Defective Balance of 170 (D-161). The
+      // Defective and Missing balances stay in `data`, as the file had them.
       { to: 'qty', from: ['good balance', 'qty', 'quantity', 'balance'], type: 'num', required: true,
         always: true,
-        derive: (o) => {
-          const e = (o.data ?? {}) as Record<string, unknown>;
-          const good = Number(o.qty ?? 0) || 0;
-          const bad = Number(String(e['Defective Balance'] ?? '').replace(/,/g, '')) || 0;
-          return good + bad;
-        } },
+        derive: (o) => Number(o.qty ?? 0) || 0 },
       DATE('as_of', 'as of', 'as on', 'date'),
       TEXT('remarks'),
     ],
-    reject: (r) => (Number(r.qty ?? 0) > 0 ? '' : 'no balance — good and defective are both zero'),
+    reject: (r) => (Number(r.qty ?? 0) > 0 ? '' : 'no Good Balance — a defective or missing balance is not opening stock'),
     // Hand stock is keyed on the part CODE, and two WinMax lines can share one
     // (ACC-081 is both tubings). One balance, so they are ADDED, not replaced.
     fold: {
