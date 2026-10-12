@@ -411,6 +411,7 @@ export function HandStock() {
         {detail && (
           <MovementTrail
             row={detail}
+            historyIgnored={liveOnly}
             onTransfer={can('stock.transfer') ? () => navigate('/stock-transfer') : undefined}
           />
         )}
@@ -551,7 +552,7 @@ function Movements({
 // the engineer it came from. Loaded on open — the register itself only needs
 // the netted figure.
 // ---------------------------------------------------------------------------
-function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void }) {
+function MovementTrail({ row, onTransfer, historyIgnored = false }: { row: Row; onTransfer?: () => void; historyIgnored?: boolean }) {
   const [moves, setMoves] = useState<HandstockMovement[]>([]);
   const [busy, setBusy] = useState(true);
   const [err, setErr] = useState('');
@@ -570,12 +571,16 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
     <div className="rep-field"><span className="field-label">{label}</span><span>{String(value ?? '') || '—'}</span></div>
   );
 
-  // Newest first, as read; numbered and balanced OLDEST first, from the
-  // opening balance -- only when the whole trail is here (see the table).
+  // Newest first, as read; numbered and balanced OLDEST first -- only when
+  // the whole trail is here (see the table). FROM ZERO: the opening balance
+  // is itself a movement on the trail ("Opening"), so starting from
+  // row.opening counted it twice -- every Balance after read the opening too
+  // high (reported 2026-10-12 on EM-851 / SIVAKUMAR: 10 and 9 where the stock
+  // level is 4).
   const complete = moves.length < MOVES_CAP;
   const trail = useMemo(() => {
     const n = moves.length;
-    let bal = Number(row.opening) || 0;
+    let bal = 0;
     const balances: number[] = new Array(n);
     for (let i = n - 1; i >= 0; i--) {
       const m = moves[i];
@@ -583,7 +588,14 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
       balances[i] = Math.round(bal * 1000) / 1000;
     }
     return moves.map((m, i) => ({ n: n - i, m, balance: balances[i] }));
-  }, [moves, row.opening]);
+  }, [moves]);
+  // A COMPLETE TRAIL MUST END ON THE STOCK LEVEL. Said when it does not,
+  // rather than leaving two figures on one screen to disagree in silence. Not
+  // asked while the history is ignored: the level is then restated without
+  // the imported movements the trail still lists.
+  const trailEnd = trail.length ? trail[0].balance : 0;
+  const trailDisagrees = complete && !historyIgnored && !busy && !err && trail.length > 0
+    && Math.abs(trailEnd - (Number(row.on_hand) || 0)) > 0.0005;
 
   const downloadTrail = (kind: 'xlsx' | 'csv') => {
     const cols: { key: string; header: string }[] = [
@@ -682,11 +694,16 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
         {/* A TABLE, WITH A DOWNLOAD (the user, 2026-10-08: "Convert this into
             a Table and add Download provision ... I need to investigate").
             One row per movement, In and Out in their own columns, and the
-            balance AFTER each one, worked from the opening balance oldest
-            first -- so the row where the figure stops matching the paper is
+            balance AFTER each one, worked from zero oldest first (the opening
+            is the first movement) -- so the row where the figure stops matching the paper is
             the row to look at. The balance is left out when the trail is cut
             at MOVES_CAP: a running figure that starts part-way is wrong on
             every row. */}
+        {trailDisagrees && (
+          <div className="sheet-banner sheet-banner-error" style={{ marginBottom: 6 }}>
+            <span>The movements below add up to <b>{trailEnd}</b>, but the stock level is <b>{Number(row.on_hand) || 0}</b>. Ask the Spare Coordinator to check this line.</span>
+          </div>
+        )}
         {moves.length > 0 && (
           <>
             <div className="row" style={{ gap: 6, margin: '4px 0 8px' }}>
