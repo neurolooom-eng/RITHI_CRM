@@ -1404,6 +1404,8 @@ typed into a form that reads it.
     failure registered up to today** — no cut-off date applies, so an earlier
     month's figure rises on Re-Calculate when a late failure comes in. ⭳ Download
     gives the table, the failing calls and the months averaged.
+  - **How each figure is worked out, step by step with an example:**
+    [`docs/OBJECTIVE_CALCULATIONS.md`](OBJECTIVE_CALCULATIONS.md).
   - **Every percentage shows two decimal places** (1.01%, 12.50%).
   - **Customer feedback** is worked out the way the Customer Feedback workbook
     does it: each answer scores Excellent 4, Good 3, Average 2, Poor 1; an
