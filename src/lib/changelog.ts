@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.173',
+    date: '2026-10-12',
+    title: 'Objective: switch Missed PMs in or out on the PM row',
+    changes: [
+      'The Preventive Maintenance row on the Objective table now has a Missed PM switch: Excluded or Included. Switching it saves the choice and re-calculates at once (manual overrides are kept), so the figures change in front of you.',
+      'It is the same setting as the Count Missed PMs tick in the objective\'s definition. Only someone who may edit objectives can switch it; everyone else sees which way it is set.',
+    ],
+  },
+  {
     version: '0.10.172',
     date: '2026-10-12',
     title: 'Objective: Missed PMs left out of the PM figure, with a toggle',
