@@ -1,12 +1,12 @@
 -- ===========================================================================
--- REVIEW BATCH 8, PROVED ON A DATABASE (0417, 0421-0423, 0427).
+-- REVIEW BATCH 8, PROVED ON A DATABASE (0432, 0421-0423, 0427).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works.
 --
 --   1. D-067  a change to a role, a setting or an SLA target is imaged, under
 --             the row's own key, before and after paired correctly (0421)
 --   2. D-021  a quality objective edited or deleted is imaged (0421), and one
---             carrying a figure is not deleted (0417)
+--             carrying a figure is not deleted (0432)
 --   3. D-039  an indoor job and its parts are imaged; who reported damage to
 --             the customer is the session (0421, 0427)
 --   4. D-027  a Field Failure Report names its customer and problem (0422)

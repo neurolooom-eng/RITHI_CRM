@@ -39,7 +39,7 @@
 --   0393_dccr_failure_cohorts.sql
 --   0396_objective_recalc_active_fast.sql
 --   0416_recent_failure_as_of_today.sql
---   0417_objective_with_figures_kept.sql
+--   0432_objective_with_figures_kept.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -6741,11 +6741,11 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
--- 0417_objective_with_figures_kept.sql
+-- 0432_objective_with_figures_kept.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0417 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
+-- 0432 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
 --        (second re-review D-021, FRS-121.7)
 --
 -- Quality Objectives deleted an objective with its twelve figures after a

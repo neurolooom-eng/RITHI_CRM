@@ -631,8 +631,8 @@ const MODULES = {
             // choosing the twelve commissioning months (0416). Restates 0393's
             // objective_value with one branch changed.
             '0416_recent_failure_as_of_today.sql',
-            // D-021: an objective carrying a recorded figure is not deleted (0417).
-            '0417_objective_with_figures_kept.sql'],
+            // D-021: an objective carrying a recorded figure is not deleted (0432).
+            '0432_objective_with_figures_kept.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -768,7 +768,10 @@ const MODULES = {
       '0191_call_and_feedback_reports.sql',
       // spare_insights() counts India's days (finding 13). AFTER 0148, which
       // it replaces.
-      '0254_spare_insights_ist_window.sql'],
+      '0254_spare_insights_ist_window.sql',
+      // Spare Insights planned with its dates (D-166, 0417): plpgsql + EXECUTE,
+      // 0254's query word for word; the generic plan timed out.
+      '0417_spare_insights_planned_with_dates.sql'],
   },
   audit: {
     title: 'Audit Log',

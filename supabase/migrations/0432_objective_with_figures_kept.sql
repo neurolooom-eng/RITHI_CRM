@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0417 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
+-- 0432 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
 --        (second re-review D-021, FRS-121.7)
 --
 -- Quality Objectives deleted an objective with its twelve figures after a

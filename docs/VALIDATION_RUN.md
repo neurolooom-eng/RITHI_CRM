@@ -4,17 +4,17 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-10-12T13:11:55.836Z
-- **Took** 293s
-- **Commit** `80204c71` on `claude/usage-k7slq0`
-- **Version** 0.10.178
+- **Run at** 2026-10-12T13:18:22.339Z
+- **Took** 301s
+- **Commit** `356637d1` on `claude/usage-k7slq0`
+- **Version** 0.10.179
 
 ## Result
 
 | | Passed | Total |
 | --- | --- | --- |
 | Database suites | 179 | 179 |
-| Automated checks | 22 | 22 |
+| Automated checks | 20 | 22 |
 | Labelled `expect ERROR` outcomes matched | 467 | 467 |
 
 **How a suite is judged.** Each suite runs on its OWN copy of a database
@@ -29,7 +29,7 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `448 migrations applied to a fresh database` | ✅ pass |  |
+| `449 migrations applied to a fresh database` | ✅ pass |  |
 
 ## Automated checks
 
@@ -43,7 +43,7 @@ stopped working produces a suite that runs clean.
 | `check:kyc` | ✅ pass | all passed |
 | `check:machine` | ✅ pass | all passed |
 | `check:mapping` | ✅ pass | all passed |
-| `check:nar003` | ✅ pass | all passed |
+| `check:nar003` | ❌ **FAIL** |   ✓ ...and every one of them is checked for an error ·   ✓ a caller who does not qualify gets null, not an error ·   ✓ a missing function reads as "fall back", not an error ·   ✓ D-030: an empty answer with no error is refused too |
 | `check:orders` | ✅ pass |   ✓ 200 order columns across 72 relations |
 | `check:paging` | ✅ pass | all passed |
 | `check:picklist` | ✅ pass | all passed |
@@ -52,8 +52,8 @@ stopped working produces a suite that runs clean.
 | `check:reports` | ✅ pass | all passed |
 | `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 387 functions |
 | `check:scheduled-export` | ✅ pass | all passed |
-| `check:status` | ✅ pass | every one of the 364 _status.sql rows reads yes on a fully-applied database (1 skipped) |
-| `check:ui` | ✅ pass | all passed |
+| `check:status` | ✅ pass | every one of the 365 _status.sql rows reads yes on a fully-applied database (1 skipped) |
+| `check:ui` | ❌ **FAIL** |   ✓ ...and every one of them is checked for an error ·   ✓ a caller who does not qualify gets null, not an error ·   ✓ a missing function reads as "fall back", not an error ·   ✓ D-030: an empty answer with no error is refused too |
 | `check:uploads` | ✅ pass | all passed |
 | `check:upserts` | ✅ pass | every upsert target is inferable, and its table accepts the update |
 | `check:views` | ✅ pass | every view over an RLS-protected table applies RLS to the reader |

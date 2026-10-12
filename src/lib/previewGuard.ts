@@ -85,7 +85,7 @@ export const PREVIEW_READ_RPCS: Readonly<Record<string, string>> = {
   recycle_mrn_lines:          'stable (0365) — lists MRN lines for recycling',
   recycle_sla_settings:       'stable (0365) — reads the recycling SLA settings',
   registrant_desks:           'stable (0114) — lists the Hotline desks',
-  spare_insights:             'stable (0254) — reads the Spare Insights aggregates',
+  spare_insights:             'stable (0417) — reads the Spare Insights aggregates',
   suggest_complaint_text:     'stable (0107) — suggests complaint wording',
   suggest_standard_complaint: 'stable (0104) — suggests a Standard Complaint',
   visible_engineer_names:     'stable (0212) — reads whose records the caller may see',

@@ -2153,7 +2153,7 @@ with checks(sort_order, bundle, provides, present) as (
               and coalesce((xpath('/row/c/text()', query_to_xml(
                     'select count(*) as c from public.perm_parents where child = ''review.view'' and parent = ''review.edit''',
                     false, true, '')))[1]::text::int > 0, false)))),
-    (340, 'A spare request, a stock transfer and a material return are saved whole', 'save_spare_request(), save_stock_transfer() and save_material_return() write the header and every line in one transaction as the caller (SECURITY INVOKER), so a refused line leaves nothing half-saved; the screens call them (0392, D-044). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0392)',
+    (362, 'A spare request, a stock transfer and a material return are saved whole', 'save_spare_request(), save_stock_transfer() and save_material_return() write the header and every line in one transaction as the caller (SECURITY INVOKER), so a refused line leaves nothing half-saved; the screens call them (0392, D-044). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0392)',
         (to_regprocedure('public.save_spare_request(jsonb,jsonb)') is not null
          and to_regprocedure('public.save_stock_transfer(jsonb,jsonb)') is not null
          and to_regprocedure('public.save_material_return(jsonb,jsonb)') is not null
@@ -2175,7 +2175,7 @@ with checks(sort_order, bundle, provides, present) as (
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.call_requests') and tgname = 'call_request_attended_not_future')),
     (345, 'Who reported damage to the customer is the session', 'zzy_indoor_reported_to_customer writes reported_to_customer_by from the session whenever the time is set or changed, refuses a future time and clears the person with the time (0427, D-039). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0427)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.indoor_jobs') and tgname = 'zzy_indoor_reported_to_customer')),
-    (348, 'A quality objective that carries a recorded figure is not deleted', 'quality_objective_keeps_figures refuses a signed-in delete of an objective with any month or Total recorded; one with nothing recorded can still be deleted, and 0421 images both (0417, D-021, FRS-121.7). NO means objective.sql has not been re-run since. Restore: objective.sql (0417)',
+    (348, 'A quality objective that carries a recorded figure is not deleted', 'quality_objective_keeps_figures refuses a signed-in delete of an objective with any month or Total recorded; one with nothing recorded can still be deleted, and 0421 images both (0432, D-021, FRS-121.7). NO means objective.sql has not been re-run since. Restore: objective.sql (0432)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.quality_objectives') and tgname = 'quality_objective_keeps_figures')),
     (356, 'A master value that records carry is deactivated, not deleted', 'master_value_in_use_kept refuses a signed-in delete of a list value that calls, requests, visits, reviews, feedback or the User Master carry, unless another row of the list holds the same word (complaint and the legacy standardComplaint read as one list); master_value_uses() counts them as its owner, past row-level security (0424, D-056, FRS-015). NO means masters.sql has not been re-run since. Restore: masters.sql (0424)',
         (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.masters') and tgname = 'master_value_in_use_kept')
@@ -2284,7 +2284,11 @@ with checks(sort_order, bundle, provides, present) as (
     (338, 'A refurbished part is not issued in Audit Mode', 'The trigger refurb_not_in_audit_mode on spare_dispatch_lines (0415): while Audit Mode is on, a dispatch line written as refurbished, or marked so later, is refused. NO means a refurbished issue can still be written while Audit Mode is on. Restore: HandStock_X.sql (0415)',
         (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_dispatch_lines') and tgname = 'refurb_not_in_audit_mode'))),
     (339, 'A Recent Failure Rate is measured as of today', 'objective_value() (0416): the dccr_failure_cohort branch counts the failing calls registered up to today, the month choosing only its twelve commissioning months. NO means each month is still measured as at its own end. Restore: objective.sql (0416)',
-        (coalesce((select p.prosrc like '%v_from, v_win) cr%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)))
+        (coalesce((select p.prosrc like '%v_from, v_win) cr%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false))),
+    (340, 'Spare Insights is planned with its dates', 'spare_insights(date, date) (0417): plpgsql running its query with EXECUTE ... USING, so it is planned with the window''s dates each call, and still security invoker. NO means the SQL-language version is back, whose generic plan times out on a year of consumption. Restore: performance.sql (0417)',
+        (coalesce((select l.lanname = 'plpgsql' and p.prosrc ilike '%execute%' and not p.prosecdef
+                     from pg_proc p join pg_language l on l.oid = p.prolang
+                    where p.oid = to_regprocedure('public.spare_insights(date,date)')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

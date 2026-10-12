@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.178',
+    version: '0.10.179',
     date: '2026-10-12',
     title: 'Review fixes: workshop entries are voided, not removed; PM upload checks its rows',
     changes: [
@@ -23,7 +23,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.177',
+    version: '0.10.178',
     date: '2026-10-06',
     title: 'Review fixes: list values in use kept, re-open reasons kept, User Master manager names, warranty and contract changes recorded',
     changes: [
@@ -34,7 +34,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.176',
+    version: '0.10.177',
     date: '2026-10-06',
     title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
     changes: [
@@ -47,7 +47,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.175',
+    version: '0.10.176',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
     changes: [
@@ -57,7 +57,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.174',
+    version: '0.10.175',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -68,7 +68,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.173',
+    version: '0.10.174',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -82,7 +82,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.172',
+    version: '0.10.173',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -96,7 +96,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.171',
+    version: '0.10.172',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -107,6 +107,14 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.171',
+    date: '2026-10-12',
+    title: 'Spare Insights loads again for the whole year',
+    changes: [
+      'FIXED: Spare Insights showed "canceling statement due to statement timeout" for a long window such as this year. The database now works out the figures with the dates you chose, in under a second, instead of with a guess that took more than 25 seconds. The figures are unchanged.',
     ],
   },
   {
