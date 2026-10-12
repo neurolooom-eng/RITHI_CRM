@@ -1129,6 +1129,9 @@ const MODULES = {
             // A one-time data fix (0420): OR44271's KY550200 line dropped, SO18001's
             // row and transfer line ST-2609-0005 / 866 deleted, at the user's request.
             '0420_drop_or44271_ky550200.sql',
+            // A one-time data fix (0421): the voided KY550200 consumption on
+            // 26G06F0006 deleted at the user's request; the row audit keeps it.
+            '0421_delete_voided_ky550200_consumption.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.

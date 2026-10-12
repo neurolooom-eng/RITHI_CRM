@@ -1410,7 +1410,9 @@ typed into a form that reads it.
     PM added in October. Switch **Missed PM: Excluded / Included** on the PM row
     of the table (it saves and re-calculates at once, manual overrides kept), or
     tick **Count Missed PMs** in the objective's definition; the evidence
-    download says which way it was counted.
+    download says which way it was counted. **The switch and the tick are not
+    shown while Audit Mode is on** (a non-auditable requirement); the figure
+    stays as last calculated.
   - **Re-Calculate is explicit**, never on opening the page. Only objectives with
     a formula, only up to this month, never a typed figure.
   - **You can type over a calculated (ƒ) month.** It becomes a **manual

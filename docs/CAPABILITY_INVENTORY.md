@@ -247,8 +247,8 @@ Purpose: the yearly quality and business objectives, with monthly figures that a
 | 11 | Evidence messages: quarterly month not applicable, nothing behind the figure, access refused worded as withheld rather than broken | :226-235, 392-410 | none | GAP | |
 | 12 | Explanation of how the computed columns are worked out (TTA/TTS bands, pending days, open/close) | :761-780 | none | GAP | Line 596 says "Every figure here is typed today", which contradicts the ƒ rows |
 | 13 | Scope chip; not-connected and "no objectives for YEAR — run objective.sql" messages | :453, 456-461, 590-592 | none | GAP | |
-| 14 | Count Missed PMs tick on a PM open-rate objective's definition: unticked (default) leaves out PM calls added after their month, from the figure and the evidence; the evidence says which | Objective.tsx (setMissedPm); 0418 | Objective edit rights | FRS-121.15, OQ-276 | |
-| 15 | Missed PM: Excluded / Included switch on a PM objective's row — saves the setting and re-calculates the year (overrides kept); disabled without the right | Objective.tsx (switchMissedPm) | objective.manage | FRS-121.16, OQ-276 | |
+| 14 | Count Missed PMs tick on a PM open-rate objective's definition: unticked (default) leaves out PM calls added after their month, from the figure and the evidence; the evidence says which | Objective.tsx (setMissedPm); 0418 | Objective edit rights | FRS-121.15, NAR-010, OQ-276 | Not shown while Audit Mode is on |
+| 15 | Missed PM: Excluded / Included switch on a PM objective's row — saves the setting and re-calculates the year (overrides kept); disabled without the right | Objective.tsx (switchMissedPm) | objective.manage | NAR-010 | Not shown while Audit Mode is on |
 
 ### Field Failure Register (`/failure-report`) — `src/modules/FieldFailureReport.tsx` (+ `FieldFailureDesk.tsx`, `FieldFailureInsights.tsx`)
 Purpose: the register of Field Failure Reports (R-SER-03): raise, complete, weekly-review, print and analyse them.

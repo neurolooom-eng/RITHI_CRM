@@ -14,9 +14,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.174',
+    date: '2026-10-12',
+    title: 'The Missed PM switch is hidden in Audit Mode',
+    auditHidden: true,
+    changes: [
+      'The Missed PM switch (Excluded / Included) on the Preventive Maintenance row, and the Count Missed PMs tick in its definition, are not shown while Audit Mode is on. The figure stays as it was last calculated.',
+      'The switch is now recorded as a non-auditable requirement.',
+    ],
+  },
+  {
     version: '0.10.173',
     date: '2026-10-12',
     title: 'Objective: switch Missed PMs in or out on the PM row',
+    auditHidden: true,
     changes: [
       'The Preventive Maintenance row on the Objective table now has a Missed PM switch: Excluded or Included. Switching it saves the choice and re-calculates at once (manual overrides are kept), so the figures change in front of you.',
       'It is the same setting as the Count Missed PMs tick in the objective\'s definition. Only someone who may edit objectives can switch it; everyone else sees which way it is set.',
