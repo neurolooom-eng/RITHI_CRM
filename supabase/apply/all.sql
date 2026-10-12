@@ -307,6 +307,7 @@
 --   0373_stock_movement_dates.sql
 --   0375_stock_transfer_own_or_team.sql
 --   0392_save_records_whole.sql
+--   0437_stock_loads_overwrite_on_reload.sql
 --   0385_stores_dispatch_report.sql
 --   0387_stores_dispatch_2025_history.sql
 --   0388_stores_dispatch_2026_history.sql
@@ -362,6 +363,7 @@
 --   0404_pm_due_no_install_call_allowed.sql
 --   0407_pm_schedule.sql
 --   0433_pm_calls_in_month.sql
+--   0438_cover_normalise_says_first.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -37614,8 +37616,12 @@ begin
   -- A PART RENAME (0310): only the part changed, exactly as the ticket that
   -- rename_part_records() filed in this transaction says. Nothing else on a
   -- return may change, by anybody but an administrator.
-  if (to_jsonb(new) - 'part' - 'sys_updated_by' - 'sys_updated_on')
-       = (to_jsonb(old) - 'part' - 'sys_updated_by' - 'sys_updated_on')
+  -- 'part_key' (0437, D-071) is the part code, generated from `part` and not
+  -- yet computed in a BEFORE trigger, so it would never compare equal; left
+  -- out here too, so a replay of this file alone does not refuse every rename
+  -- once 0437 has added the column. A no-op where the column is absent.
+  if (to_jsonb(new) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
+       = (to_jsonb(old) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
      and exists (select 1 from public.part_rename_ticket t
                   where t.txid = txid_current()
                     and t.old_key = lower(btrim(old.part))
@@ -39014,6 +39020,118 @@ begin
 end $$;
 revoke execute on function public.save_material_return(jsonb, jsonb) from public, anon;
 grant execute on function public.save_material_return(jsonb, jsonb) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0437_stock_loads_overwrite_on_reload.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-071 (the user's decision, 2026-10-12: "Overwrite with the file").
+--
+-- The MRN Register and the Stock Transfer Lines uploads had no key the upload
+-- could name, so they were INSERTED, and a second run of the same file moved
+-- the stock again -- an engineer holding parts that do not exist (URS-153).
+-- A line the database numbered itself (max + 1 within its submission) never
+-- collided, which is how a file WITHOUT row numbers went in twice even where a
+-- unique index existed.
+--
+-- From here a re-loaded line takes the file's values instead:
+--
+--   1. MRN Register: keyed on SI Number + part code + line number. The part
+--      CODE is what a return is counted by (material_returns_uid_part_idx, 0039,
+--      already makes it unique), so it becomes a column, part_key, that the
+--      upload can name -- PostgREST cannot infer an expression index.
+--   2. Stock Transfer Lines: keyed on transfer + line number -- IF NO TWO LINES
+--      ALREADY SHARE ONE. A file loaded twice before this fix left exactly such
+--      pairs, and a unique index cannot be built over them; the migration then
+--      says so and leaves the key off rather than failing whole.
+--      supabase/apply/_stock_transfer_lines_repeated.sql lists them.
+--   3. An UPDATE policy on each, for an IMPORTED row and an importer only
+--      (bulk.upload, or import.panel for the legacy importer): giving a table a
+--      conflict target turns a repeated row into an UPDATE, and neither table
+--      had an UPDATE policy at all.
+--   4. "A material return cannot be edited" now lets an importer overwrite an
+--      IMPORTED return with the file's values. A return raised in the app is
+--      untouched -- it is still corrected by a correcting entry. The upload
+--      numbers the lines in file order where the file has none, so the same
+--      file lands on the same rows (src/lib/uploads.ts, numberLines).
+--
+-- Every overwrite is imaged before and after by record_audit (0314).
+-- ===========================================================================
+
+-- 1. The MRN key. A STORED generated column: part_code() is immutable.
+alter table public.material_returns
+  add column if not exists part_key text generated always as (public.part_code(part)) stored;
+comment on column public.material_returns.part_key is
+  'The part code, kept by the database from `part` (part_code()). Part of the key a re-loaded MRN line is matched on: SI Number (uid) + part_key + row_no (D-071, 0437).';
+-- Cannot collide with existing rows: material_returns_uid_part_idx is unique
+-- on (uid, part_code(part), coalesce(row_no, 0)), and row_no is always set.
+create unique index if not exists material_returns_natural_key
+  on public.material_returns (uid, part_key, row_no);
+
+-- 2. The transfer-line key, where the data allows it.
+do $$
+declare d int;
+begin
+  select count(*) into d from (
+    select 1 from public.stock_transfer_lines
+     where row_no is not null
+     group by transfer_uid, row_no having count(*) > 1) x;
+  if d = 0 then
+    create unique index if not exists stock_transfer_lines_natural_key
+      on public.stock_transfer_lines (transfer_uid, row_no);
+  else
+    raise notice 'D-071: % transfer line number(s) are held by more than one line, so the Stock Transfer Lines key was NOT created and a re-run of that upload is refused until they are resolved. supabase/apply/_stock_transfer_lines_repeated.sql lists them; then re-run this migration.', d;
+  end if;
+end $$;
+
+-- 3. The UPDATE policies a conflict target needs. TO authenticated: the public
+-- key holds no permission, and has_perm() answers FALSE for a login with no
+-- profile (0300).
+drop policy if exists mr_import_update on public.material_returns;
+create policy mr_import_update on public.material_returns for update to authenticated
+  using (source = 'import'
+         and ((select public.has_perm('bulk.upload')) or (select public.has_perm('import.panel'))))
+  with check (source = 'import'
+         and ((select public.has_perm('bulk.upload')) or (select public.has_perm('import.panel'))));
+
+drop policy if exists stl_import_update on public.stock_transfer_lines;
+create policy stl_import_update on public.stock_transfer_lines for update to authenticated
+  using (((select public.has_perm('bulk.upload')) or (select public.has_perm('import.panel')))
+         and exists (select 1 from public.stock_transfers t
+                      where t.uid = stock_transfer_lines.transfer_uid and t.source = 'import'))
+  with check (((select public.has_perm('bulk.upload')) or (select public.has_perm('import.panel')))
+         and exists (select 1 from public.stock_transfers t
+                      where t.uid = stock_transfer_lines.transfer_uid and t.source = 'import'));
+
+-- 4. The return guard, restated from 0310 with the import overwrite added and
+-- part_key left out of the rename comparison: a generated column is not yet
+-- computed in a BEFORE trigger, so NEW and OLD would never compare equal.
+create or replace function public.material_returns_immutable()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_admin() then return new; end if;
+  -- D-071 (0437): an IMPORTED return re-loaded from its file takes the file's
+  -- values, by an importer only. It stays imported -- a return raised in the
+  -- app is never reached by this.
+  if old.source = 'import' and new.source = 'import'
+     and auth.uid() is not null
+     and (public.has_perm('bulk.upload') or public.has_perm('import.panel')) then
+    return new;
+  end if;
+  -- A PART RENAME (0310): only the part changed, exactly as the ticket that
+  -- rename_part_records() filed in this transaction says. Nothing else on a
+  -- return may change, by anybody but an administrator.
+  if (to_jsonb(new) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
+       = (to_jsonb(old) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
+     and exists (select 1 from public.part_rename_ticket t
+                  where t.txid = txid_current()
+                    and t.old_key = lower(btrim(old.part))
+                    and t.new_detail = new.part) then
+    return new;
+  end if;
+  raise exception 'A material return cannot be edited — raise a correcting entry instead';
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0385_stores_dispatch_report.sql
@@ -46900,6 +47018,166 @@ begin
 end $$;
 revoke execute on function public.pm_calls_in_month(date) from public, anon;
 grant execute on function public.pm_calls_in_month(date) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0438_cover_normalise_says_first.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-071, URS-072 / FRS-201.7: Normalise cover says what it will hand back
+-- BEFORE it runs.
+--
+-- Normalise cover (cover_unpin_inherited) clears every machine-line value that
+-- repeats its entry's, so the line follows the entry from then on. Nothing shown
+-- changes on the day -- the value equals the entry's -- but a value somebody
+-- pinned on one machine stops being that machine's own, and the next change to
+-- the entry overrides it. The legacy importer ran it automatically after a
+-- cover import with no statement and no confirmation, and reported "Normalised
+-- N item rows" where N was every line that HAS an entry, changed or not.
+--
+--   1. cover_unpin_preview(): how many values it would hand back, per register
+--      and field, read-only. The importer shows it and runs Normalise only on
+--      confirmation.
+--   2. cover_unpin_inherited(), restated from 0291, now touches only the lines
+--      that have a value to hand back, so the count it returns is the count it
+--      changed. Its fields and its permission are 0291's, unchanged.
+-- ===========================================================================
+
+create or replace function public.cover_unpin_preview()
+returns table (register text, field text, n bigint)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  -- The same audience as cover_unpin_inherited (0247 / 0291): whoever may edit
+  -- cover. Nobody signed in (the SQL editor) passes.
+  if auth.uid() is not null and not (public.is_admin() or public.has_perm('cover.edit.entries') or public.has_perm('contract.edit.entries')) then
+    raise exception 'Only someone who may edit cover (cover.edit) can re-fold cover after an import.';
+  end if;
+  return query
+  select x.reg, x.f, count(*)::bigint
+    from (
+      select 'Warranty'::text as reg, v.f
+        from public.sale_items i
+        join public.sale_entries h on h.sa_number = i.sa_number
+        cross join lateral (values
+          ('invoice_no',      i.invoice_no      is not null and i.invoice_no      is not distinct from h.invoice_no),
+          ('invoice_date',    i.invoice_date    is not null and i.invoice_date    is not distinct from h.invoice_date),
+          ('sold_through',    i.sold_through    is not null and i.sold_through    is not distinct from h.sold_through),
+          ('warranty_start',  i.warranty_start  is not null and i.warranty_start  is not distinct from h.warranty_start),
+          ('warranty_end',    i.warranty_end    is not null and i.warranty_end    is not distinct from h.warranty_end),
+          ('warranty_years',  i.warranty_years  is not null and i.warranty_years  is not distinct from h.warranty_years),
+          ('warranty_months', i.warranty_months is not null and i.warranty_months is not distinct from h.warranty_months),
+          ('pm_visits',       i.pm_visits       is not null and i.pm_visits       is not distinct from h.pm_visits),
+          ('warranty_status', i.warranty_status is not null and i.warranty_status is not distinct from h.warranty_status),
+          ('other_details',   i.other_details   is not null and i.other_details   is not distinct from h.other_details),
+          ('state',           i.state           is not null and i.state           is not distinct from h.state),
+          ('city',            i.city            is not null and i.city            is not distinct from h.city),
+          ('engineer',        i.engineer        is not null and i.engineer        is not distinct from h.engineer)
+        ) v(f, hit)
+       where v.hit
+      union all
+      select 'Contract'::text, v.f
+        from public.contract_items i
+        join public.contract_entries h on h.mc_number = i.mc_number
+        cross join lateral (values
+          ('entry_at',         i.entry_at         is not null and i.entry_at         is not distinct from h.entry_at),
+          ('party_name',       i.party_name       is not null and i.party_name       is not distinct from h.party_name),
+          ('payment_schedule', i.payment_schedule is not null and i.payment_schedule is not distinct from h.payment_schedule),
+          ('bill_generate_at', i.bill_generate_at is not null and i.bill_generate_at is not distinct from h.bill_generate_at),
+          ('contract_type',    i.contract_type    is not null and i.contract_type    is not distinct from h.contract_type),
+          ('contract_start',   i.contract_start   is not null and i.contract_start   is not distinct from h.contract_start),
+          ('contract_end',     i.contract_end     is not null and i.contract_end     is not distinct from h.contract_end),
+          ('contract_years',   i.contract_years   is not null and i.contract_years   is not distinct from h.contract_years),
+          ('contract_months',  i.contract_months  is not null and i.contract_months  is not distinct from h.contract_months),
+          ('pm_visits_total',  i.pm_visits_total  is not null and i.pm_visits_total  is not distinct from h.pm_visits_total),
+          ('status',           i.status           is not null and i.status           is not distinct from h.status)
+        ) v(f, hit)
+       where v.hit
+    ) x
+   group by x.reg, x.f
+   order by x.reg, x.f;
+end $$;
+revoke execute on function public.cover_unpin_preview() from public;
+do $$ begin
+  revoke execute on function public.cover_unpin_preview() from anon;
+exception when undefined_object then null; end $$;
+grant execute on function public.cover_unpin_preview() to authenticated;
+
+CREATE OR REPLACE FUNCTION public.cover_unpin_inherited()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+ SET statement_timeout TO '180s'
+AS $function$
+declare n integer := 0; m integer;
+begin
+  -- 0247: THE COVER ADMIN ACTION IS FOR WHOEVER MAY EDIT COVER. This runs with
+  -- the owner's rights over every sale, contract and machine, so it checks the
+  -- caller itself. A call with nobody signed in (the SQL editor, a scheduled
+  -- job) passes;
+  -- the not-signed-in role cannot call it at all (0248 withdraws it).
+  if auth.uid() is not null and not (public.is_admin() or public.has_perm('cover.edit.entries') or public.has_perm('contract.edit.entries')) then
+    raise exception 'Only someone who may edit cover (cover.edit) can re-fold cover after an import.';
+  end if;
+  -- 0438: only the lines with a value to hand back, so the count is the count
+  -- changed -- the same test cover_unpin_preview() counts by.
+  update public.sale_items i set
+    invoice_no      = case when i.invoice_no      is not distinct from h.invoice_no      then null else i.invoice_no end,
+    invoice_date    = case when i.invoice_date    is not distinct from h.invoice_date    then null else i.invoice_date end,
+    sold_through    = case when i.sold_through    is not distinct from h.sold_through    then null else i.sold_through end,
+    warranty_start  = case when i.warranty_start  is not distinct from h.warranty_start  then null else i.warranty_start end,
+    warranty_end    = case when i.warranty_end    is not distinct from h.warranty_end    then null else i.warranty_end end,
+    warranty_years  = case when i.warranty_years  is not distinct from h.warranty_years  then null else i.warranty_years end,
+    warranty_months = case when i.warranty_months is not distinct from h.warranty_months then null else i.warranty_months end,
+    pm_visits       = case when i.pm_visits       is not distinct from h.pm_visits       then null else i.pm_visits end,
+    warranty_status = case when i.warranty_status is not distinct from h.warranty_status then null else i.warranty_status end,
+    other_details   = case when i.other_details   is not distinct from h.other_details   then null else i.other_details end,
+    state           = case when i.state           is not distinct from h.state           then null else i.state end,
+    city            = case when i.city            is not distinct from h.city            then null else i.city end,
+    engineer        = case when i.engineer        is not distinct from h.engineer        then null else i.engineer end
+  from public.sale_entries h where h.sa_number = i.sa_number
+    and ((i.invoice_no      is not null and i.invoice_no      is not distinct from h.invoice_no)
+      or (i.invoice_date    is not null and i.invoice_date    is not distinct from h.invoice_date)
+      or (i.sold_through    is not null and i.sold_through    is not distinct from h.sold_through)
+      or (i.warranty_start  is not null and i.warranty_start  is not distinct from h.warranty_start)
+      or (i.warranty_end    is not null and i.warranty_end    is not distinct from h.warranty_end)
+      or (i.warranty_years  is not null and i.warranty_years  is not distinct from h.warranty_years)
+      or (i.warranty_months is not null and i.warranty_months is not distinct from h.warranty_months)
+      or (i.pm_visits       is not null and i.pm_visits       is not distinct from h.pm_visits)
+      or (i.warranty_status is not null and i.warranty_status is not distinct from h.warranty_status)
+      or (i.other_details   is not null and i.other_details   is not distinct from h.other_details)
+      or (i.state           is not null and i.state           is not distinct from h.state)
+      or (i.city            is not null and i.city            is not distinct from h.city)
+      or (i.engineer        is not null and i.engineer        is not distinct from h.engineer));
+  get diagnostics m = row_count; n := n + m;
+
+  update public.contract_items i set
+    entry_at         = case when i.entry_at         is not distinct from h.entry_at         then null else i.entry_at end,
+    party_name       = case when i.party_name       is not distinct from h.party_name       then null else i.party_name end,
+    payment_schedule = case when i.payment_schedule is not distinct from h.payment_schedule then null else i.payment_schedule end,
+    bill_generate_at = case when i.bill_generate_at is not distinct from h.bill_generate_at then null else i.bill_generate_at end,
+    contract_type    = case when i.contract_type    is not distinct from h.contract_type    then null else i.contract_type end,
+    contract_start   = case when i.contract_start   is not distinct from h.contract_start   then null else i.contract_start end,
+    contract_end     = case when i.contract_end     is not distinct from h.contract_end     then null else i.contract_end end,
+    contract_years   = case when i.contract_years   is not distinct from h.contract_years   then null else i.contract_years end,
+    contract_months  = case when i.contract_months  is not distinct from h.contract_months  then null else i.contract_months end,
+    pm_visits_total  = case when i.pm_visits_total  is not distinct from h.pm_visits_total  then null else i.pm_visits_total end,
+    status           = case when i.status           is not distinct from h.status           then null else i.status end
+  from public.contract_entries h where h.mc_number = i.mc_number
+    and ((i.entry_at         is not null and i.entry_at         is not distinct from h.entry_at)
+      or (i.party_name       is not null and i.party_name       is not distinct from h.party_name)
+      or (i.payment_schedule is not null and i.payment_schedule is not distinct from h.payment_schedule)
+      or (i.bill_generate_at is not null and i.bill_generate_at is not distinct from h.bill_generate_at)
+      or (i.contract_type    is not null and i.contract_type    is not distinct from h.contract_type)
+      or (i.contract_start   is not null and i.contract_start   is not distinct from h.contract_start)
+      or (i.contract_end     is not null and i.contract_end     is not distinct from h.contract_end)
+      or (i.contract_years   is not null and i.contract_years   is not distinct from h.contract_years)
+      or (i.contract_months  is not null and i.contract_months  is not distinct from h.contract_months)
+      or (i.pm_visits_total  is not null and i.pm_visits_total  is not distinct from h.pm_visits_total)
+      or (i.status           is not null and i.status           is not distinct from h.status));
+  get diagnostics m = row_count; n := n + m;
+  return n;
+end $function$;
 
 -- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql

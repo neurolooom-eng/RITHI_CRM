@@ -2,7 +2,7 @@
 // uploads. No test runner in this repo, so: `npm run check:uploads`.
 import { shapeUpload, byColumnSet, UPLOADS, masterUpload, toDate, toTs, coerce, uploadGroups,
   planConsumptionVisits, planConsumptionVisitUpload, planSpareLineParents, prepWritesQuestion,
-  prepFailureMessage, describeWrite } from '../src/lib/uploads';
+  prepFailureMessage, describeWrite, numberLines } from '../src/lib/uploads';
 import { parseDateParts, toIsoDate, toIsoTimestamp, parseAnyDate } from '../src/lib/dates';
 import { findHeaderFor, strict, loose, squash } from '../src/lib/headers';
 import { toDate as coverDate, toTimestamp as coverTs } from '../src/lib/coverImport';
@@ -517,11 +517,39 @@ eq('the rest is kept', (srl.rows[0].extra as Record<string, unknown>)['POD'], 'n
 
 console.log('\n-- a return of nothing is not a return --');
 const mr = shapeUpload(def('material_returns'), [
-  { 'Item Details': 'KY632200|SENSOR', 'Good Qty': '1', 'Defective Qty': '0' },
-  { 'Item Details': 'KY632200|SENSOR', 'Good Qty': '0', 'Defective Qty': '0' },
+  { 'SI Number': 'SI-1', 'Item Details': 'KY632200|SENSOR', 'Good Qty': '1', 'Defective Qty': '0' },
+  { 'SI Number': 'SI-2', 'Item Details': 'KY632200|SENSOR', 'Good Qty': '0', 'Defective Qty': '0' },
 ]);
 eq('the real return loads', mr.rows.length, 1);
 eq('the empty one is held back by name', mr.skipped[0].why, 'nothing returned — good and defective are both zero');
+
+// D-071 (0437, the user's decision 2026-10-12: "Overwrite with the file"): the
+// MRN Register and Stock Transfer Lines are keyed, and a file with no row
+// numbers is numbered in file order within its parent -- the numbers the
+// database gave the first load -- so the same file lands on the same rows.
+console.log('\n-- D-071: a re-loaded MRN or transfer line is matched, not added --');
+eq('the MRN Register is keyed on SI Number + part code + line', def('material_returns').conflict, 'uid,part_key,row_no');
+eq('Stock Transfer Lines is keyed on transfer + line', def('stock_transfer_lines').conflict, 'transfer_uid,row_no');
+const mrnFile = [
+  { 'SI Number': 'SI-7', 'Item Details': 'KY1|A', 'Good Qty': '1' },
+  { 'SI Number': 'SI-8', 'Item Details': 'KY1|A', 'Good Qty': '1' },
+  { 'SI Number': 'SI-7', 'Item Details': 'KY2|B', 'Good Qty': '2' },
+  { 'Item Details': 'KY3|C', 'Good Qty': '1' },
+];
+const m1 = shapeUpload(def('material_returns'), mrnFile);
+const mrnLines = (r: { rows: Record<string, unknown>[] }) => r.rows.map((x) => `${x.uid}/${x.part}/${x.row_no}`).sort().join(' ');
+eq('lines are numbered within their SI Number, in file order', mrnLines(m1), 'SI-7/KY1|A/1 SI-7/KY2|B/2 SI-8/KY1|A/1');
+eq('...and the same file numbers the same way again', mrnLines(shapeUpload(def('material_returns'), mrnFile)), mrnLines(m1));
+eq('a row with no SI Number is held back by name', m1.skipped.map((x) => x.why).join(','), 'no uid');
+const numbered: Record<string, unknown>[] = [{ g: 'T1', n: 2 }, { g: 'T1' }, { g: 'T1' }, { g: 'T2' }];
+numberLines(numbered, 'n', 'g');
+eq('a number the file carries is kept and the others step round it', numbered.map((x) => `${x.g}:${x.n}`).join(' '), 'T1:2 T1:1 T1:3 T2:1');
+const stl = shapeUpload(def('stock_transfer_lines'), [
+  { 'Transfer UID': 'ST-1', 'Part': 'KY1|A', 'Qty': '1' },
+  { 'Transfer UID': 'ST-1', 'Part': 'KY2|B', 'Qty': '1' },
+  { 'Transfer UID': 'ST-2', 'Part': 'KY1|A', 'Qty': '3' },
+]);
+eq('transfer lines are numbered within their transfer', stl.rows.map((x) => `${x.transfer_uid}/${x.row_no}`).sort().join(' '), 'ST-1/1 ST-1/2 ST-2/1');
 
 console.log('\n-- a transfer to the same engineer is not a transfer --');
 const st = shapeUpload(def('stock_transfers'), [

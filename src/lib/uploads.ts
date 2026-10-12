@@ -101,6 +101,13 @@ export interface UploadDef {
    *  fill it. A STAMPED column is never cleared, and neither is a `required`
    *  one — a row missing that is held back rather than blanked. */
   blanksClear?: boolean;
+  /** NUMBER THE LINES WITHIN A GROUP, IN FILE ORDER, where the file gives none
+   *  (D-071). A line the database numbers itself (max + 1 within its parent)
+   *  never collides with anything, so a file with no row numbers was loaded a
+   *  second time in full; numbered here, the same file lands on the same rows
+   *  -- the numbers the database gave the first load, which numbered them in
+   *  the same order. A number the file does carry is kept. */
+  numberLines?: { field: string; within: string };
   /** jsonb column that catches every header not named above. */
   extraInto?: string;
   /** Headers to DROP rather than keep. `extraInto` keeps everything it does not
@@ -390,6 +397,7 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   // dedupes nothing.
   // BEFORE the de-duplication below, which keeps the LAST row of a repeated key:
   // a key the file shares between calls is not a repeat of one row.
+  if (def.numberLines) numberLines(rows, def.numberLines.field, def.numberLines.within);
   const splitShared = def.splitShared ? splitSharedKeys(rows, def.splitShared.key, def.splitShared.by) : 0;
   const dedupeOn = def.conflictFrom ?? (def.conflict ? def.conflict.split(',') : []);
   const deduped = def.fold ? fold(rows, def.fold) : dedupeOn.length ? dedupe(rows, dedupeOn) : rows;
@@ -459,6 +467,30 @@ function fold(
     (by.sum ?? []).forEach((f) => { had[f] = (Number(had[f]) || 0) + (Number(r[f]) || 0); });
   });
   return [...out.values()];
+}
+
+/** Give each row without a `field` the next number not already used in its
+ *  `within` group, in file order (D-071). Exported for check:uploads. */
+export function numberLines(rows: Record<string, unknown>[], field: string, within: string): void {
+  const has = (v: unknown) => v !== undefined && v !== null && String(v).trim() !== '';
+  const used = new Map<string, Set<number>>();
+  const group = (r: Record<string, unknown>) => String(r[within] ?? '').trim();
+  rows.forEach((r) => {
+    if (!has(r[field])) return;
+    const g = group(r);
+    if (!used.has(g)) used.set(g, new Set());
+    used.get(g)!.add(Number(r[field]));
+  });
+  const next = new Map<string, number>();
+  rows.forEach((r) => {
+    if (has(r[field])) return;
+    const g = group(r);
+    const taken = used.get(g) ?? new Set<number>();
+    let n = (next.get(g) ?? 0) + 1;
+    while (taken.has(n)) n++;
+    next.set(g, n);
+    r[field] = n;
+  });
 }
 
 function dedupe(rows: Record<string, unknown>[], keys: string[]): Record<string, unknown>[] {
@@ -994,7 +1026,14 @@ export const UPLOADS: UploadDef[] = [
     // 602-row batch. They are not returns; held back by name.
     reject: (r) => (Number(r.good_qty ?? 0) + Number(r.defective_qty ?? 0) > 0
       ? '' : 'nothing returned — good and defective are both zero'),
-    note: 'The returns register as exported. `Item Details` is the part — `Part Details` in the same export is a spreadsheet formula with the quantities glued on the end, and is not read. The export has no unique row id (its SI Number repeats), so load it once.',
+    // D-071 (the user's decision, 2026-10-12: "Overwrite with the file"): a line
+    // is matched on SI Number + part code + line number (0437), so loading the
+    // file again gives an IMPORTED return the file's values instead of returning
+    // the stock a second time. The line number is the file's, or its position
+    // within the SI Number -- the number the database gave the first load.
+    conflict: 'uid,part_key,row_no', conflictFrom: ['uid', 'part', 'row_no'],
+    numberLines: { field: 'row_no', within: 'uid' },
+    note: 'The returns register as exported. `Item Details` is the part — `Part Details` in the same export is a spreadsheet formula with the quantities glued on the end, and is not read. Each line is matched on its SI Number, part and line number (its position within the SI Number where the file has no Row No), so loading the file again overwrites those returns with the file\'s values rather than returning the stock twice. A row with no SI Number is held back: it could never be matched again.',
     cols: [
       // `Item Details` is Item Code|Item Name, which is how a part is stored.
       { to: 'part', from: ['item details', 'part details clean', 'part', 'part no', 'spare'], required: true,
@@ -1003,7 +1042,8 @@ export const UPLOADS: UploadDef[] = [
       TEXT('mrn_no', 'mrn no'), DATE('mrn_date', 'mrn date'),
       TEXT('engineer', 'engineer name', 'engineer'),
       TEXT('engineer_email', 'user email', 'engineer email'),
-      TEXT('uid', 'si number', 'reference'),
+      // The SI Number; `uid` first, as it always was, so which heading wins is unchanged.
+      { to: 'uid', from: ['uid', 'si number', 'reference'], required: true },
       { to: 'row_no', from: ['row no', 'si no'], type: 'int' },
       NUM('good_qty', 'good qty', 'good'), NUM('defective_qty', 'defective qty', 'defective'),
       TEXT('customer_name', 'customer name', 'customer'), TEXT('report_no', 'report no'),
@@ -1038,7 +1078,11 @@ export const UPLOADS: UploadDef[] = [
     // and one of those failed the first batch of 500. Held back by name.
     prepare: 'stock-transfer-parents',
     requires: 'Stock Transfer Register',
-    note: 'No natural key — a re-run ADDS rows rather than correcting them.',
+    // D-071 (0437): matched on transfer + line number; the line number is the
+    // file's, or its position within the transfer.
+    conflict: 'transfer_uid,row_no', conflictFrom: ['transfer_uid', 'row_no'],
+    numberLines: { field: 'row_no', within: 'transfer_uid' },
+    note: 'Each line is matched on its transfer and line number (its position within the transfer where the file has none), so loading the file again overwrites those lines with the file\'s values rather than moving the stock twice.',
     cols: [
       { to: 'transfer_uid', from: ['transfer uid', 'uid', 'stock transfer number'], required: true },
       { to: 'part', from: ['part', 'part no', 'spare'], required: true },

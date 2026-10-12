@@ -204,6 +204,15 @@ on Roles & Permissions does not reach another team's calls.
   heading row even under a letterhead, reads tab-separated files, and lists what
   it kept and what it held back. Unrecognised columns are **kept on the row**
   where the register allows it.
+  > **Loading the same file again corrects it.** The confirmation says what each
+  > row is matched on. The **MRN Register** and **Stock Transfer Lines** are
+  > matched on the SI Number (or the transfer), the part and the line number —
+  > where the file has no Row No, a line's position within its SI Number or
+  > transfer is its number — so a second load **overwrites** those lines with
+  > the file's values instead of returning or moving the stock twice. Only an
+  > importer can do that, and only to a line that was itself loaded: a return or
+  > transfer entered in RITHI is still corrected by a correcting entry. An MRN
+  > row with no SI Number is held back and named.
   > **Product Database: a Sold Through that is not a dealer is flagged.** Before
   > you confirm and after it is written, the upload names any Sold Through that
   > is not a DEALER on the Party Master. It is still loaded — this is being
@@ -1979,7 +1988,16 @@ typed into a form that reads it.
   lock are on the Objective screen.) The desk is open to anybody given
   *Admin config*;
   switching Audit Mode and the Data Import panel each have their own tick on
-  Roles & Permissions (*audit.mode*, *import.panel*). **While Audit Mode is
+  Roles & Permissions (*audit.mode*, *import.panel*). The Data Import panel (the older
+  importer, for the four AppSheet cover exports, the User Master and the MRN
+  sheet) **says, file by file, how many rows are new and how many are already
+  there, and asks before it writes anything**; a row already there is
+  **overwritten with the file's values**. A person already on the User Master
+  changes only in the columns the file has, keeps their name as it is spelled,
+  and a name the User Master lists twice is held back and named. **Normalise
+  cover** then says how many machine values it will hand back to their entry,
+  field by field, and asks again — they equal the entry today, but from then on
+  the machine follows the entry, and there is no undo. **While Audit Mode is
   ON** a call's Update Party Details and Update Product Details are hidden (and
   refused).
 - **SLA / Objective Configuration** `/sla-objective-config` — the targets the

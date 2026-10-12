@@ -6,6 +6,8 @@
 // in batches through the signed-in admin session (RLS permits it).
 // ---------------------------------------------------------------------------
 import { getSupabase } from './supabase';
+import { allRows } from './paging';
+import { mrnKey, type DirectoryPlan, type DirectoryRow, type UnpinCount } from './legacyImportPlan';
 import { detectCoverTable, shapeCoverRows, type CoverTable } from './coverImport';
 
 // Only what Bulk Uploads does not do: the four AppSheet cover exports (which
@@ -56,6 +58,14 @@ const DIR_ALIASES: Record<string, string> = {
   city: 'city', state: 'state',
   phone: 'phone', 'contact no': 'phone', contact: 'phone', 'contact number': 'phone', mobile: 'phone',
 };
+/** The User Master columns the FILE has a heading for (D-071): a person the
+ *  User Master already lists takes the file's value for these and keeps every
+ *  other column -- an absent heading is not a blank. */
+export function directoryColumns(headers: string[]): string[] {
+  const out = new Set<string>();
+  headers.forEach((h) => { const c = DIR_ALIASES[h.trim().toLowerCase().replace(/\s+/g, ' ')]; if (c) out.add(c); });
+  return [...out];
+}
 function shapeDirectoryRow(r: Record<string, string>): Record<string, unknown> {
   const out: Record<string, unknown> = {
     name: '', email: '', gmail: '', designation: '', reporting_manager: '', regional_manager: '', region: '',
@@ -131,7 +141,9 @@ export function shapeRows(table: ImportTable, raw: Record<string, string>[]): Re
   switch (table) {
     case 'sale_entries': case 'sale_items': case 'contract_entries': case 'contract_items':
       return shapeCoverRows(table, raw);
-    case 'material_returns': return dedupeMrn(raw.map(shapeMrnRow).filter((r) => r.part));
+    // D-071: a row with no SI Number could never be matched on a re-run, so it
+    // is not loaded (the trigger would give it a NEW MRN number every time).
+    case 'material_returns': return dedupeMrn(raw.map(shapeMrnRow).filter((r) => r.part && r.uid));
     case 'user_directory': return raw.map(shapeDirectoryRow).filter((r) => r.name);
   }
 }
@@ -144,6 +156,10 @@ export interface ImportProgress { done: number; total: number }
 const CONFLICT_KEY: Partial<Record<ImportTable, string>> = {
   sale_entries: 'sa_number', sale_items: 'uid',
   contract_entries: 'mc_number', contract_items: 'uid',
+  // D-071 (0437, the user's decision 2026-10-12: "Overwrite with the file"):
+  // SI Number + part code + line, so a re-loaded MRN line takes the file's
+  // values instead of returning the stock a second time.
+  material_returns: 'uid,part_key,row_no',
 };
 
 // Rows per request. Every sale / contract item syncs the machine it names, so
@@ -183,4 +199,79 @@ export async function tableCount(table: ImportTable): Promise<{ count: number | 
   const c = getSupabase(); if (!c) return { count: null, error: 'Not connected to Supabase.' };
   const { count, error } = await c.from(table).select('*', { count: 'exact', head: true });
   return error ? { count: null, error: error.message } : { count: count ?? 0 };
+}
+
+// ---- D-071: what is already there, read BEFORE anything is written ---------
+
+const chunks = <T,>(xs: T[], n: number): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n));
+  return out;
+};
+
+/** The keys of `rows` the register already holds, as the upsert will match
+ *  them. Counted among what the reader may see -- an administrator sees all. */
+export async function existingKeys(table: ImportTable, rows: Record<string, unknown>[]): Promise<{ keys: Set<string>; key: (r: Record<string, unknown>) => string }> {
+  const c = getSupabase(); if (!c) throw new Error('Not connected to Supabase.');
+  if (table === 'material_returns') {
+    const uids = [...new Set(rows.map((r) => String(r.uid ?? '').trim()).filter(Boolean))];
+    const keys = new Set<string>();
+    for (const part of chunks(uids, 100)) {
+      const got = await allRows<Record<string, unknown>>((from, to) => c.from('material_returns')
+        .select('id,uid,part,row_no').in('uid', part).order('id').range(from, to));
+      got.forEach((r) => keys.add(mrnKey(r)));
+    }
+    return { keys, key: mrnKey };
+  }
+  const col = CONFLICT_KEY[table];
+  if (!col || col.includes(',')) return { keys: new Set(), key: () => '' };
+  const key = (r: Record<string, unknown>) => String(r[col] ?? '').trim();
+  const vals = [...new Set(rows.map(key).filter(Boolean))];
+  const keys = new Set<string>();
+  for (const part of chunks(vals, 200)) {
+    const { data, error } = await c.from(table).select(col).in(col, part);
+    if (error) throw new Error(error.message);
+    (data ?? []).forEach((r) => keys.add(key(r as unknown as Record<string, unknown>)));
+  }
+  return { keys, key };
+}
+
+/** Everybody on the User Master, by id, name and extra. */
+export async function readDirectory(): Promise<DirectoryRow[]> {
+  const c = getSupabase(); if (!c) throw new Error('Not connected to Supabase.');
+  return allRows<DirectoryRow>((from, to) => c.from('user_directory')
+    .select('id,name,extra').order('id').range(from, to));
+}
+
+/** Write a User Master plan: new people inserted, people already listed
+ *  updated by id. An update row-level security refuses matches nothing and
+ *  reports no error, so each one asks for the row it changed and STOPS,
+ *  naming the person, when none came back (finding 48). */
+export async function applyDirectory(
+  plan: DirectoryPlan, onProgress?: (p: ImportProgress) => void,
+): Promise<{ ok: boolean; inserted: number; updated: number; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, inserted: 0, updated: 0, error: 'Not connected to Supabase.' };
+  const total = plan.inserts.length + plan.updates.length;
+  let inserted = 0; let updated = 0;
+  for (const part of chunks(plan.inserts, 500)) {
+    const { error } = await c.from('user_directory').insert(part);
+    if (error) return { ok: false, inserted, updated, error: `${error.message} (adding new people; ${inserted} added before it stopped)` };
+    inserted += part.length; onProgress?.({ done: inserted, total });
+  }
+  for (const u of plan.updates) {
+    if (!Object.keys(u.patch).length) { updated++; continue; }
+    const { data, error } = await c.from('user_directory').update(u.patch).eq('id', u.id).select('id');
+    if (error) return { ok: false, inserted, updated, error: `${error.message} (overwriting ${u.name})` };
+    if (!data || !data.length) return { ok: false, inserted, updated, error: `${u.name} was not overwritten — your role may not change that person on the User Master. ${updated} overwritten before it stopped.` };
+    updated++; onProgress?.({ done: inserted + updated, total });
+  }
+  return { ok: true, inserted, updated };
+}
+
+/** What Normalise cover would hand back, per register and field (0438). */
+export async function previewNormalise(): Promise<UnpinCount[]> {
+  const c = getSupabase(); if (!c) throw new Error('Not connected to Supabase.');
+  const { data, error } = await c.rpc('cover_unpin_preview');
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as UnpinCount[]).map((r) => ({ register: r.register, field: r.field, n: Number(r.n) }));
 }

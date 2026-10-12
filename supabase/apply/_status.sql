@@ -2198,6 +2198,21 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.pm_calls_in_month(date)') is not null
          and coalesce((select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.pm_calls_in_month(date)')), false)
          and not has_function_privilege('anon', to_regprocedure('public.pm_calls_in_month(date)'), 'EXECUTE'))),
+    (364, 'A re-loaded MRN line takes the file''s values instead of being added again', 'material_returns.part_key (the part code, kept by the database) and the unique key material_returns_natural_key (uid, part_key, row_no) the MRN Register upload is matched on; mr_import_update lets an importer (bulk.upload or import.panel) overwrite an IMPORTED return, and material_returns_immutable lets it through for that row only (0437, D-071, the user''s decision 2026-10-12). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0437)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'material_returns' and column_name = 'part_key')
+         and to_regclass('public.material_returns_natural_key') is not null
+         and exists (select 1 from pg_policies where tablename = 'material_returns' and policyname = 'mr_import_update')
+         and coalesce((select p.prosrc like '%import.panel%' and p.prosrc like '%part_key%' from pg_proc p
+                        where p.oid = to_regprocedure('public.material_returns_immutable()')), false))),
+    (365, 'A re-loaded stock transfer line takes the file''s values instead of being added again', 'the unique key stock_transfer_lines_natural_key (transfer_uid, row_no) the Stock Transfer Lines upload is matched on, and stl_import_update for an importer on an IMPORTED transfer (0437, D-071). NO with the policy present means two lines already share a transfer and line number, so 0437 left the key off and said so: _stock_transfer_lines_repeated.sql lists them; resolve them and re-run. NO with neither means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0437)',
+        (to_regclass('public.stock_transfer_lines_natural_key') is not null
+         and exists (select 1 from pg_policies where tablename = 'stock_transfer_lines' and policyname = 'stl_import_update'))),
+    (366, 'Normalise cover says what it will hand back before it runs', 'cover_unpin_preview() counts, per register and field, the machine-line values that repeat their entry''s, for the importer to state before it asks; cover_unpin_inherited() touches only those lines, so its count is what it changed (0438, D-071, URS-072). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0438)',
+        (to_regprocedure('public.cover_unpin_preview()') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.cover_unpin_preview()'), 'EXECUTE')
+         and coalesce((select p.prosrc like '%0438%' from pg_proc p
+                        where p.oid = to_regprocedure('public.cover_unpin_inherited()')), false))),
     (319, 'Stores Dispatch Report: the historical stock outs from 2025', 'stores_dispatch_report also reads spare_issue_history for stock outs dated from 1 January 2025 (India time) not already dispatched in RITHI, with a Source column (RITHI / Historical); dmy_ts() reads the file''s day-first dates kept in data (0387, widened to 2026 by 0388). NO means HandStock_X.sql has not been re-run since, or the view lost security_invoker. Restore: HandStock_X.sql (0388)',
         (to_regprocedure('public.dmy_ts(text)') is not null
          and to_regprocedure('public.text_num(text)') is not null

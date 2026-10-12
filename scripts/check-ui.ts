@@ -11183,6 +11183,39 @@ console.log('\n-- changes that decide what happens next are recorded (D-067) --'
     [(di.match(/finishCoverImport\(\)/g) ?? []).length, /action: 'cover\.normalise'/.test(di), (di.match(/normaliseRecorded\('(after import|on demand)'/g) ?? []).length],
     [1, true, 2]);
 
+  // D-071 (the user's decision, 2026-10-12: "Overwrite with the file"): the
+  // legacy importer reads what is there, SAYS it, asks, and only then writes;
+  // Normalise cover says what it hands back and asks before it runs.
+  const run = di.slice(di.indexOf('const runAll'));
+  eq('the legacy importer asks before it writes anything',
+    run.indexOf('confirm(legacyConfirmText(') > 0
+      && run.indexOf('confirm(legacyConfirmText(') < run.indexOf('await applyDirectory(')
+      && run.indexOf('confirm(legacyConfirmText(') < run.indexOf('await bulkInsert('), true);
+  eq('...and a cancel writes nothing and is recorded', /recordImport\(f, \{ outcome: 'cancelled', written: 0/.test(run), true);
+  const nr = di.slice(di.indexOf('async function normaliseRecorded'));
+  eq('Normalise cover states what it hands back and asks, before it runs',
+    nr.indexOf('await previewNormalise()') > 0 && nr.indexOf('confirm(normaliseQuestion(') > nr.indexOf('await previewNormalise()')
+      && nr.indexOf('confirm(normaliseQuestion(') < nr.indexOf('await finishCoverImport()'), true);
+  const lp = await import('../src/lib/legacyImportPlan');
+  const dp = lp.planDirectory(
+    [{ name: ' anil  kumar', designation: 'RM', extra: { Zone: 'S' } }, { name: 'New Person', designation: 'FSE' },
+     { name: 'Twice', designation: 'X' }, { name: 'Again', designation: 'A' }, { name: 'again', designation: 'B' }],
+    ['name', 'designation'],
+    [{ id: 1, name: 'Anil Kumar', extra: { Old: 'k' } }, { id: 2, name: 'Twice' }, { id: 3, name: 'twice ' }, { id: 4, name: 'Again' }]);
+  eq('a person already listed is overwritten by id, name as it is spelled now, file columns only, extra merged',
+    JSON.stringify(dp.updates.find((u) => u.id === 1)),
+    JSON.stringify({ id: 1, name: 'Anil Kumar', patch: { designation: 'RM', extra: { Old: 'k', Zone: 'S' } } }));
+  eq('...a new person is added', dp.inserts.map((r) => r.name).join(','), 'New Person');
+  eq('...a name the User Master holds twice is held back, not guessed', dp.held.map((h) => h.name).join(','), 'Twice');
+  eq('...a name the file holds twice is loaded once, from its last row, and said',
+    [dp.updates.find((u) => u.id === 4)?.patch.designation, dp.notes.length], ['B', 1]);
+  eq('an MRN line is matched on SI Number + part CODE + line, as 0437 keys it',
+    lp.splitByKey([{ uid: 'S1', part: 'ky1|a', row_no: 1 }, { uid: 'S1', part: 'KY1|other words', row_no: 2 }], lp.mrnKey,
+      new Set([lp.mrnKey({ uid: 'S1', part: 'KY1|A', row_no: 1 })])), { fresh: 1, overwrite: 1 });
+  eq('the Normalise question names each field and says there is no undo',
+    /Warranty: invoice_no 3, state 1[\s\S]*Contract: status 2[\s\S]*no undo/.test(lp.normaliseQuestion([
+      { register: 'Warranty', field: 'invoice_no', n: 3 }, { register: 'Warranty', field: 'state', n: 1 }, { register: 'Contract', field: 'status', n: 2 }])), true);
+
   // Settings: recorded in the database being LEFT, so before the switch.
   const db = src('src/modules/DbConnection.tsx');
   const sw = db.slice(db.indexOf('const switchTo'));

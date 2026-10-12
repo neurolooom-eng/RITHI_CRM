@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.183',
+    date: '2026-10-12',
+    title: 'Review fixes: loading a file again corrects it instead of adding it twice',
+    changes: [
+      'Bulk Uploads: loading the MRN Register or Stock Transfer Lines file again now overwrites the lines it already loaded with the file\'s values, instead of returning or moving the stock a second time. A line is matched on its SI Number (or transfer), part and line number; where the file has no Row No, the line\'s position within its SI Number or transfer is used. An MRN row with no SI Number is held back and named.',
+      'Only an importer can overwrite, and only a line that was itself imported. A return or transfer raised in the app is still corrected with a correcting entry. Every overwrite is kept in the change history, before and after.',
+      'Admin Config, the older importer: it now says, file by file, how many rows are new and how many will be overwritten, and asks before writing anything. A person already on the User Master is updated from the file — only the columns the file has — and a name listed twice on the User Master is held back and named.',
+      'Normalise cover now says, before it runs, how many machine values it will hand back to their entry and in which fields, and asks first — after an import and when pressed on its own.',
+    ],
+  },
+  {
     version: '0.10.182',
     date: '2026-10-12',
     title: 'Review fixes: workshop entries are voided, not removed; PM upload checks its rows',

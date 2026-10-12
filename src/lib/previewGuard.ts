@@ -62,6 +62,7 @@ export const VIEWAS_KEY = 'rithi.viewAs';
 export const PREVIEW_READ_RPCS: Readonly<Record<string, string>> = {
   audit_mode:                 'stable (0114) — reads whether Audit Mode is on',
   auto_review_state:          'stable (0269) — reads the DCCR auto-review switch',
+  cover_unpin_preview:        'stable (0438) — counts what Normalise cover would hand back, writes nothing',
   device_cache_report:        'stable (0380) — reads each device\'s cache status',
   exportable_tables:          'stable (0306) — lists the tables a role may export',
   ffr_call_context:           'stable (0178) — reads a call\'s context for an FFR',

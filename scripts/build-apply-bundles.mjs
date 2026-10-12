@@ -1162,6 +1162,12 @@ const MODULES = {
             // saved whole -- header and lines in one transaction, as the caller
             // (0392). Before 0385 / 0384, which must stay last.
             '0392_save_records_whole.sql',
+            // D-071 (the user's decision, 2026-10-12: "Overwrite with the file"):
+            // a re-loaded MRN or stock-transfer line takes the file's values --
+            // the MRN and transfer-line keys, their UPDATE policies, and the
+            // return guard letting an importer overwrite an IMPORTED return
+            // (0437). Restates 0310's guard, so after it.
+            '0437_stock_loads_overwrite_on_reload.sql',
             // The Stores Dispatch Report (the AppSheet Stores view) and the part's
             // IND/IMP; reads the dispatch, request-line and parts tables (0385).
             '0385_stores_dispatch_report.sql',
@@ -1345,7 +1351,11 @@ const MODULES = {
             '0407_pm_schedule.sql',
             // D-038: which machines already have a PM call this month, asked of
             // every PM call -- the upload skips and names them (0433).
-            '0433_pm_calls_in_month.sql'],
+            '0433_pm_calls_in_month.sql',
+            // D-071 / URS-072: Normalise cover says what it will hand back before
+            // it runs, and counts only what it changed; restates 0291's
+            // cover_unpin_inherited, so after it (0438).
+            '0438_cover_normalise_says_first.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
