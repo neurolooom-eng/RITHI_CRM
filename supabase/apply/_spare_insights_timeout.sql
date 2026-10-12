@@ -1,8 +1,8 @@
 -- ===========================================================================
--- READ-ONLY PROBE (2026-10-12): why Spare Insights times out. The page's own
--- query (spare_insights(), 01-Jan-2026 .. 12-Oct-2026), planned and timed AS
--- THE SIGNED-IN ADMIN -- row-level security applies to that reader, and a
--- superuser would skip it -- with a 120 s limit instead of the API's.
+-- READ-ONLY PROBE (2026-10-12): why Spare Insights times out, part 2.
+-- The query alone runs in 0.37 s as the signed-in admin. This times (1) the
+-- FUNCTION itself and (2) the query planned GENERICALLY -- without knowing the
+-- dates, which is how a SQL-language function plans it.
 -- ===========================================================================
 begin;
 select set_config('request.jwt.claims',
@@ -10,7 +10,9 @@ select set_config('request.jwt.claims',
             from public.profiles p where p.role = 'admin' and p.full_name ilike 'Rithi Admin%' limit 1), true) is not null as admin_found;
 set local role authenticated;
 set local statement_timeout = '120s';
-explain (analyze, buffers, timing)
+explain (analyze, timing) select public.spare_insights(date '2026-01-01', date '2026-10-12');
+set local plan_cache_mode = force_generic_plan;
+prepare si_generic(date, date) as
 with lines as (
   select
     upper(btrim(split_part(sc.part, '|', 1)))                          as part_code,
@@ -23,8 +25,8 @@ with lines as (
     c.party_name
   from public.spare_consumption sc
   left join public.calls c on c.ucn = sc.ucn
-  where sc.created_at >= (date '2026-01-01'::timestamp at time zone 'Asia/Kolkata')
-    and sc.created_at <  ((date '2026-10-12' + 1)::timestamp at time zone 'Asia/Kolkata')     -- inclusive of date '2026-10-12'
+  where sc.created_at >= ($1::timestamp at time zone 'Asia/Kolkata')
+    and sc.created_at <  (($2 + 1)::timestamp at time zone 'Asia/Kolkata')     -- inclusive of $2
     and coalesce(sc.qty, 0) > 0                      -- a voided line is not consumption
 ),
 priced as (
@@ -59,14 +61,14 @@ by_month as (
   select to_char(date_trunc('month', sc.created_at at time zone 'Asia/Kolkata'), 'YYYY-MM') as month,
          sum(coalesce(sc.qty, 0)) as qty
     from public.spare_consumption sc
-   where sc.created_at >= (date '2026-01-01'::timestamp at time zone 'Asia/Kolkata')
-     and sc.created_at <  ((date '2026-10-12' + 1)::timestamp at time zone 'Asia/Kolkata')
+   where sc.created_at >= ($1::timestamp at time zone 'Asia/Kolkata')
+     and sc.created_at <  (($2 + 1)::timestamp at time zone 'Asia/Kolkata')
      and coalesce(sc.qty, 0) > 0
    group by 1 order by 1
 )
 select jsonb_build_object(
-  'from', date '2026-01-01',
-  'to',   date '2026-10-12',
+  'from', $1,
+  'to',   $2,
   'total', (select jsonb_build_object(
               'qty',   coalesce(sum(qty), 0),
               'lines', count(*),
@@ -84,4 +86,5 @@ select jsonb_build_object(
   'by_category', (select coalesce(jsonb_agg(to_jsonb(b)), '[]'::jsonb) from by_category b),
   'by_month',    (select coalesce(jsonb_agg(to_jsonb(b)), '[]'::jsonb) from by_month b)
 );
+explain (analyze, buffers, timing) execute si_generic(date '2026-01-01', date '2026-10-12');
 commit;
