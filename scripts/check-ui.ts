@@ -1854,9 +1854,10 @@ console.log('\n-- the evidence workbook --');
   // Re-Calculate READS them; setting is its own act. Two ways to set one thing
   // is how a figure ends up disagreeing with the setting behind it.
   eq('Re-calculate reads the cut-offs and does not set one',
-    // Its only other argument is the manual-override choice (0349) -- never a date.
+    // Its only other argument is the manual-override choice (0349) -- never a
+    // date. The Missed PM switch (FRS-121.16) passes `true`: it keeps them.
     /recalcObjectives\(YEAR, keepOverrides\)/.test(obj)
-    && !/recalcObjectives\(YEAR, (?!keepOverrides\))/.test(obj), true);
+    && !/recalcObjectives\(YEAR, (?!keepOverrides\)|true\))/.test(obj), true);
   // MANUAL OVERRIDES ARE ASKED ABOUT (0349, the user: "prompt the user if
   // Manually Overrides should be considered or discarded during every re-run").
   eq('Re-calculate lists the manual overrides and asks Keep or Discard, Keep by default',

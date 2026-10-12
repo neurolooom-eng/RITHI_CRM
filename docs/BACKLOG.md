@@ -4,6 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
+_Last updated: 2026-10-12 (MISSED PM SWITCH ON THE ROW — v0.10.173: Excluded / Included on the PM objective's row, saves and re-calculates at once.)
 _Last updated: 2026-10-12 (MISSED PMs LEFT OUT — 0418 (objective.sql), v0.10.172: a PM call added after its registration month is left out of the PM objective unless Count Missed PMs is ticked; Q1 34.12% -> 11.39% measured. ⏳ THE USER'S STEP: Re-Calculate.)
 _Last updated: 2026-10-12 (SPARE INSIGHTS TIMEOUT — 0417 (performance.sql), v0.10.171, D-166: the generic plan of the SQL function took 26.8 s on live against 0.37 s with the dates; now plpgsql EXECUTE ... USING.)
 _Last updated: 2026-10-12 (RECENT FAILURE AS OF TODAY + 2 DECIMALS — 0416 (objective.sql), v0.10.170: the DCCR failure rate counts failing calls up to today, the month choosing only its twelve commissioning months; every % on the Objective page to 2 decimals. ⏳ THE USER'S STEP: press Re-Calculate on the Objective page so the stored figures follow.)
