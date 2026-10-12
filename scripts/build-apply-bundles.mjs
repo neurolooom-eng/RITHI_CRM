@@ -1126,6 +1126,9 @@ const MODULES = {
             // A one-time data fix (0419): KY732930 off SO16233 and its transfer
             // line ST-2609-0005 / 867, at the user's request; row images kept.
             '0419_delete_so16233_ky732930.sql',
+            // A one-time data fix (0420): OR44271's KY550200 line dropped, SO18001's
+            // row and transfer line ST-2609-0005 / 866 deleted, at the user's request.
+            '0420_drop_or44271_ky550200.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.
