@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.171',
+    date: '2026-10-12',
+    title: 'Spare Insights loads again for the whole year',
+    changes: [
+      'FIXED: Spare Insights showed "canceling statement due to statement timeout" for a long window such as this year. The database now works out the figures with the dates you chose, in under a second, instead of with a guess that took more than 25 seconds. The figures are unchanged.',
+    ],
+  },
+  {
     version: '0.10.170',
     date: '2026-10-12',
     title: 'Objective: Recent Failure measured as of today, and every % to 2 decimals',

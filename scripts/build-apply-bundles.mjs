@@ -749,7 +749,10 @@ const MODULES = {
       '0191_call_and_feedback_reports.sql',
       // spare_insights() counts India's days (finding 13). AFTER 0148, which
       // it replaces.
-      '0254_spare_insights_ist_window.sql'],
+      '0254_spare_insights_ist_window.sql',
+      // Spare Insights planned with its dates (D-166, 0417): plpgsql + EXECUTE,
+      // 0254's query word for word; the generic plan timed out.
+      '0417_spare_insights_planned_with_dates.sql'],
   },
   audit: {
     title: 'Audit Log',

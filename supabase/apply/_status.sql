@@ -2179,7 +2179,11 @@ with checks(sort_order, bundle, provides, present) as (
     (338, 'A refurbished part is not issued in Audit Mode', 'The trigger refurb_not_in_audit_mode on spare_dispatch_lines (0415): while Audit Mode is on, a dispatch line written as refurbished, or marked so later, is refused. NO means a refurbished issue can still be written while Audit Mode is on. Restore: HandStock_X.sql (0415)',
         (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_dispatch_lines') and tgname = 'refurb_not_in_audit_mode'))),
     (339, 'A Recent Failure Rate is measured as of today', 'objective_value() (0416): the dccr_failure_cohort branch counts the failing calls registered up to today, the month choosing only its twelve commissioning months. NO means each month is still measured as at its own end. Restore: objective.sql (0416)',
-        (coalesce((select p.prosrc like '%v_from, v_win) cr%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)))
+        (coalesce((select p.prosrc like '%v_from, v_win) cr%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false))),
+    (340, 'Spare Insights is planned with its dates', 'spare_insights(date, date) (0417): plpgsql running its query with EXECUTE ... USING, so it is planned with the window''s dates each call, and still security invoker. NO means the SQL-language version is back, whose generic plan times out on a year of consumption. Restore: performance.sql (0417)',
+        (coalesce((select l.lanname = 'plpgsql' and p.prosrc ilike '%execute%' and not p.prosecdef
+                     from pg_proc p join pg_language l on l.oid = p.prolang
+                    where p.oid = to_regprocedure('public.spare_insights(date,date)')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

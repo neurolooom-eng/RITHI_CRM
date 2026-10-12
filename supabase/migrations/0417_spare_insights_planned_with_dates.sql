@@ -1,18 +1,32 @@
 -- ===========================================================================
--- READ-ONLY PROBE (2026-10-12): why Spare Insights times out, part 2.
--- The query alone runs in 0.37 s as the signed-in admin. This times (1) the
--- FUNCTION itself and (2) the query planned GENERICALLY -- without knowing the
--- dates, which is how a SQL-language function plans it.
+-- 0417 -- SPARE INSIGHTS IS PLANNED WITH ITS DATES (D-166; reported 2026-10-12:
+-- the page showed "canceling statement due to statement timeout" for
+-- 01-Jan-2026 .. 12-Oct-2026).
+--
+-- Measured on the live project as the signed-in admin (row-level security on,
+-- _spare_insights_timeout.sql): the page's query with the dates written in
+-- runs in 0.37 s. The SAME query planned without knowing them -- which is how
+-- a SQL-language function plans its body -- runs in 26.8 s: the generic plan
+-- guesses 12 consumption lines in the window where there are 9,002, and so
+-- chooses nested loops, re-reading the Part Master 9,002 times and matching
+-- the calls row by row. The year's consumption outgrew the guess.
+--
+-- The fix is 0359's: the function becomes plpgsql and runs its query with
+-- EXECUTE ... USING, which is planned with the real dates every time. The
+-- query is 0254's body, read out of a database built from every migration,
+-- WORD FOR WORD with p_from / p_to as $1 / $2 -- the same rule, the same answer.
+-- It stays SECURITY INVOKER: the reader's own row-level security bounds it,
+-- as before.
 -- ===========================================================================
-begin;
-select set_config('request.jwt.claims',
-         (select json_build_object('sub', p.id::text, 'role', 'authenticated', 'email', p.email)::text
-            from public.profiles p where p.role = 'admin' and p.full_name ilike 'Rithi Admin%' limit 1), true) is not null as admin_found;
-set local role authenticated;
-set local statement_timeout = '120s';
-explain (analyze, timing) select public.spare_insights(date '2026-01-01', date '2026-10-12');
-set local plan_cache_mode = force_generic_plan;
-prepare si_generic(date, date) as
+create or replace function public.spare_insights(p_from date, p_to date)
+returns jsonb
+language plpgsql
+stable
+set search_path = public
+as $function$
+declare v jsonb;
+begin
+  execute $q$
 with lines as (
   select
     upper(btrim(split_part(sc.part, '|', 1)))                          as part_code,
@@ -85,6 +99,8 @@ select jsonb_build_object(
   'by_product',  (select coalesce(jsonb_agg(to_jsonb(b)), '[]'::jsonb) from by_product b),
   'by_category', (select coalesce(jsonb_agg(to_jsonb(b)), '[]'::jsonb) from by_category b),
   'by_month',    (select coalesce(jsonb_agg(to_jsonb(b)), '[]'::jsonb) from by_month b)
-);
-explain (analyze, buffers, timing) execute si_generic(date '2026-01-01', date '2026-10-12');
-commit;
+)
+  $q$ into v using p_from, p_to;
+  return v;
+end $function$;
+grant execute on function public.spare_insights(date, date) to authenticated;
