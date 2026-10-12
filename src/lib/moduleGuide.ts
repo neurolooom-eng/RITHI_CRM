@@ -610,6 +610,8 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'A negative (Short) level is a finding: more was consumed than this system knows was issued',
       'If the balance is wrong the Spare Coordinator corrects the stock; the engineer does not book around it',
       'An adjustment is never edited or deleted, and a removal cannot take anyone below zero',
+      'Counted from 09-Jun-2022, the WinMax opening: anything older is inside that opening and is not counted again',
+      'Labour charges (service, transport, installation) are not hand stock and have no line here',
     ],
   },
   {
@@ -954,6 +956,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Code and description together are the part’s identity; a rename to a name already taken is refused',
       'HSN Code is digits only, in its own column',
       'An inactive part stays on old records but is not offered in pickers; parts are never deleted',
+      'A part ticked Labour Charge is offered on every consumption, at quantity 1, whatever the engineer holds, and is never hand stock',
     ],
   },
   {

@@ -676,6 +676,7 @@ Purpose: records one visit against a call, plus its spare consumption and, when 
 | 21 | A second completed visit on the same call cannot record feedback: one feedback per UCN (0186/0188), plain insert | CallReporting.tsx:457-472; supabase.ts:3983-3986 | DB unique `feedback_ucn_key` | GAP | Medium. A re-opened call solved again reports "feedback was not saved" |
 | 22 | Visit, consumption failure and feedback failure are written to the audit log | CallReporting.tsx:450, 468, 474, 478 | none | partial: URS-016, FRS-021 | |
 | 23 | Missing hand-stock view reported as needing migration 0023 | CallReporting.tsx:265-271 | none | GAP | Low |
+| 24 | Spare picker always lists the labour charges (labelled, quantity 1 and not editable), even with nothing in hand; no below-zero warning for them | CallReporting.tsx (labour) | visit.spares; DB trigger labour_charge_qty_one | URS-186, FRS-275.2, OQ-275 | Call Review's Reco offers them the same way (CallReview.tsx) |
 
 ### Bulk Report Mapping (`/report-mapping`) — `src/modules/ReportMapping.tsx` (+ `components/report/ConvertLoadedReports.tsx`)
 Purpose: recovers visit reports from a superseded system and puts each on its call, and converts AppSheet references already loaded into Drive links.
@@ -1106,6 +1107,7 @@ Purpose: The register of spares consumed against calls. Office roles can also ad
 | 24 | Export CSV (partial disclaimer) | SpareConsumption.tsx:390-392 | `export.data` | partial: FRS-018 | |
 | 25 | Table view controls, all fields selectable | SpareConsumption.tsx:343, 369-380 | none | GAP | |
 | 26 | Banners: Loading, "Synced N consumption lines", "Load failed/Load more failed: …" | SpareConsumption.tsx:233-243, 362-367 | none | GAP | |
+| 27 | Reconciliation offers every labour charge whatever the engineer holds, quantity fixed at 1; Adjust on a labour line allows 1 or 0 only | SpareConsumption.tsx (labour) | consumption.reconcile; DB trigger labour_charge_qty_one | URS-186, FRS-275.2, FRS-275.3, OQ-275 | |
 
 ### Hand Stock (`/handstock`) — `src/modules/HandStock.tsx`
 Purpose: Each engineer's derived stock level per spare, with the terms that make it up and a ledger of the movements. Nothing is entered here.
@@ -1131,6 +1133,7 @@ Purpose: Each engineer's derived stock level per spare, with the terms that make
 | 17 | Empty states: "Searching…", "Nothing in the whole register matches that.", "No lines match this filter.", "No hand stock yet" | HandStock.tsx:407-411 | none | GAP | |
 | 18 | Arriving from My Workload's Short card opens with the Short filter | HandStock.tsx:146-147 | none | GAP | |
 | 19 | Table view controls | HandStock.tsx:392-399 | none | GAP | |
+| 20 | Subtitle states the first day counted (the day after `handstock_period.closed_through`, 09-Jun-2022) and that labour charges are not hand stock | HandStock.tsx (countedFrom); supabase.ts handstockCountedFrom | read `handstock_period` | FRS-159.16, FRS-159.17, OQ-274 | |
 
 ### Hand Stock Report (`/handstock-report`) — `src/modules/HandStockReport.tsx`
 Purpose: A complete, downloadable report of every visible engineer's hand stock. It loads in full before any download is allowed.
@@ -1555,6 +1558,7 @@ Purpose: The spare-parts catalogue (ITEM Master). Here you add, edit, rename, re
 | 14 | After a reload, clears this device's cached spare picker list so new or remapped parts appear | 105-106 | — | GAP | Low |
 | 15 | Without a database, lists the sheet "spare" master read-only | 57-68, 102 | none | GAP | Low |
 | 16 | Main product → Accessories panel (collapsible). Main products come from Product Master lines not categorised ACCESSORY; accessories from the ACCESSORY lines. Choosing a main product loads its list; save; ✎ edit; 🗑 delete (confirmation); optional note | ProductAccessories.tsx:26-128; supabase.ts:5931-5942 | perm masters.edit; DB `pa_insert`/`pa_update`/`pa_delete` masters.edit (0255:56-64) | GAP | Changes which parts the Spare Request and consumption pickers offer on a call. Hard delete. Medium |
+| 17 | Labour Charge tick on add and edit, and a Labour Charge column; SC001, TC001 and INS-001 ticked once by 0413 | PartMaster.tsx (labour); supabase.ts addPart/updatePart | Part Master edit keys; DB parts policies | URS-186, FRS-275.1, OQ-275 | |
 
 ### All Masters (`/masters`) and one list (`/masters/:key`) — `src/modules/AllMasters.tsx`, `MasterListPage.tsx`, `MasterListTable.tsx`, `masterLists.ts`
 Purpose: Overview of every master with counts. Each value list (Call Type, Standard Complaint, reasons, Department, and so on) can be maintained here.

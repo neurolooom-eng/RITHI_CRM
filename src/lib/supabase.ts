@@ -89,6 +89,7 @@ import * as mc from './machinecache';
 import { planComplaintKeys, encodeComplaintEntry, type ExistingComplaint } from './complaints';
 import { encodePartEntry, encodeAccessoryEntry } from './partfit';
 import type { LoadedReport, ConvertWrite } from './reportMapping';
+import { labourPartsFrom, type LabourPart } from './labour';
 export { allRows, PG_PAGE };
 
 export function errMsg(e: { message?: string; code?: string } | null | undefined): string {
@@ -2435,7 +2436,7 @@ export async function listProductDatabaseV2(): Promise<Record<string, unknown>[]
 // carry no model", never more than is true.
 // ---------------------------------------------------------------------------
 import type { RegisterCount } from './dberror';
-import { todayLocal } from './dates';
+import { todayLocal, dayAfter } from './dates';
 export type RegisterGap = RegisterCount & { register: string; table: string };
 
 const PD2_REGISTERS: { register: string; table: string; model: string }[] = [
@@ -3774,7 +3775,7 @@ export async function partCodeExists(code: string): Promise<boolean> {
 // here as well as on the form, so no other caller can add a part without them.
 export async function addPart(
   code: string, description: string,
-  more: { category: string; product: string; purchase_cost?: number | null; common?: boolean; hsn_code?: string; ind_imp?: string } = { category: '', product: '' },
+  more: { category: string; product: string; purchase_cost?: number | null; common?: boolean; hsn_code?: string; ind_imp?: string; labour_charge?: boolean } = { category: '', product: '' },
 ): Promise<{ ok: boolean; error?: string }> {
   const c = normalisePartCode(code);
   if (!c) return { ok: false, error: 'Give the part code.' };
@@ -3792,6 +3793,7 @@ export async function addPart(
     ...(more.purchase_cost != null ? { purchase_cost: more.purchase_cost } : {}),
     ...(more.hsn_code ? { hsn_code: more.hsn_code } : {}),
     ...(more.ind_imp ? { ind_imp: more.ind_imp } : {}),
+    ...(more.labour_charge ? { labour_charge: true } : {}),
   });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
@@ -3806,7 +3808,7 @@ export async function addPart(
  *  foreign key to `parts`. Changing them is `renamePart` below, which carries
  *  the history. */
 export async function updatePart(
-  id: number, patch: { category?: string; product?: string; purchase_cost?: number | null; hsn_code?: string; ind_imp?: string },
+  id: number, patch: { category?: string; product?: string; purchase_cost?: number | null; hsn_code?: string; ind_imp?: string; labour_charge?: boolean },
 ): Promise<{ ok: boolean; error?: string }> {
   // Rows COUNTED (D-141), as updateMasterItem does.
   const { data, error } = await must().from('parts').update(patch).eq('id', id).select('id');
@@ -3840,6 +3842,15 @@ export async function renamePart(
   const r = (data ?? {}) as Record<string, unknown>;
   return { ok: true, moved: (r.moved as Record<string, number>) ?? {},
            from: String(r.from ?? ''), to: String(r.to ?? '') };
+}
+
+/** The labour charges ticked on the Part Master (0413), active or not: a
+ *  charge is offered on a consumption whatever its catalogue status. */
+export async function listLabourParts(): Promise<LabourPart[]> {
+  const { data, error } = await must().from('parts')
+    .select('code,item_detail').eq('labour_charge', true).order('code').order('id');
+  if (error) throw new Error(errMsg(error));
+  return labourPartsFrom((data ?? []) as { code?: unknown; item_detail?: unknown }[]);
 }
 
 export async function setPartActive(id: number, active: boolean): Promise<{ ok: boolean; error?: string }> {
@@ -4565,6 +4576,16 @@ export async function listHandstockBalance(
 // project. The function returns one jsonb array, which PostgREST's 1,000-row
 // cap does not apply to, and it is security invoker: the reader's own RLS
 // bounds it exactly as the view. The screens search what they hold.
+/** The first day hand stock counts (0096 / 0412): the day after the period
+ *  closed through, as yyyy-MM-dd, or null when nothing is closed. Everything
+ *  before it is inside the opening balance struck that day. */
+export async function handstockCountedFrom(): Promise<string | null> {
+  const { data, error } = await must().from('handstock_period').select('closed_through').limit(1);
+  if (error) throw new Error(errMsg(error));
+  const d = String((data ?? [])[0]?.closed_through ?? '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? dayAfter(d) : null;
+}
+
 export async function listHandstockBalanceAll(): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().rpc('handstock_balance_all');
   if (error) throw new Error(errMsg(error));

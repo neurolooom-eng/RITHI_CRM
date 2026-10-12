@@ -774,7 +774,7 @@ console.log('\n-- hand stock belongs to an active engineer --');
   eq(`${k} filters to active User Master names`, def(k).prepare, 'handstock-engineers');
 });
 
-console.log('\n-- the WinMax opening is the GOOD balance only (D-161) --');
+console.log('\n-- the WinMax opening is the GOOD balance only (D-161), a blank Good kept at 0 --');
 {
   // The user, 2026-10-12: MP-010 / SUNIL KUMAR.K.V opened at 170, which was
   // its DEFECTIVE balance -- the Good Balance cell was empty.
@@ -782,9 +782,10 @@ console.log('\n-- the WinMax opening is the GOOD balance only (D-161) --');
     { 'User Name': 'SUNIL KUMAR.K.V', 'Item Code': 'MP-010', 'Item Name': 'OXYGEN SENSOR', 'Good Balance': '', 'Defective Balance': '170.00', 'Missing Balance': '8.00' },
     { 'User Name': 'SUNIL KUMAR.K.V', 'Item Code': 'EM-851', 'Item Name': 'ORG-FUSE', 'Good Balance': '5.00', 'Defective Balance': '2.00', 'Missing Balance': '' },
   ]);
-  eq('a row with only a Defective Balance is held back by name',
-     w.skipped.map((x) => x.why), ['no Good Balance — a defective or missing balance is not opening stock']);
-  eq('the opening is the Good Balance, the defective not added', w.rows.map((r) => r.qty), [5]);
+  // The user, 2026-10-12: "If the Good Qty is 0 in the WinMax Opening, keep
+  // it as 0, dont skip it." The sheet writes that 0 as an empty cell.
+  eq('a row with no Good Balance is KEPT, not held back', w.skipped.length, 0);
+  eq('the opening is the Good Balance (blank = 0), the defective never added', w.rows.map((r) => r.qty), [0, 5]);
 }
 
 console.log('\n-- the Party Master names who looks after the customer (0200) --');

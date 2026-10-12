@@ -978,7 +978,7 @@ export const UPLOADS: UploadDef[] = [
     conflictFrom: ['engineer', 'part', 'source'], extraInto: 'data',
     stamp: { source: 'WinMax HS', as_of: '2022-06-09' },
     prepare: 'handstock-engineers',
-    note: 'The WinMax export exactly as it comes — User Name, Item Code, Item Name, Good Balance, Defective Balance. Nothing to prepare. The WinMax balance as it stood when the sheet era began. ONLY THE GOOD BALANCE is the opening stock: the Defective and Missing balances are not counted, and a row with no Good Balance is held back by name. Re-loading a corrected sheet replaces this pool rather than adding a second one. ONLY ACTIVE USERS OF THE USER MASTER ARE LOADED: the export\u2019s User Name column also holds dealers and customers, and hand stock is what an engineer carries. The names left out are named before anything is written.',
+    note: 'The WinMax export exactly as it comes — User Name, Item Code, Item Name, Good Balance, Defective Balance. Nothing to prepare. The WinMax balance as it stood when the sheet era began. ONLY THE GOOD BALANCE is the opening stock: the Defective and Missing balances are not counted, and a row with no Good Balance opens at 0 rather than being left out. Re-loading a corrected sheet replaces this pool rather than adding a second one. ONLY ACTIVE USERS OF THE USER MASTER ARE LOADED: the export\u2019s User Name column also holds dealers and customers, and hand stock is what an engineer carries. The names left out are named before anything is written.',
     cols: [
       { to: 'engineer', from: ['user name', 'engineer name', 'engineer'], required: true },
       { to: 'part', from: ['part', 'item detail', 'spare'], required: true,
@@ -993,13 +993,16 @@ export const UPLOADS: UploadDef[] = [
       // Defective Balance -- MP-010 / SUNIL KUMAR.K.V opened at 170 from a
       // Good Balance of nothing and a Defective Balance of 170 (D-161). The
       // Defective and Missing balances stay in `data`, as the file had them.
+      // A BLANK GOOD BALANCE IS 0 AND THE ROW IS KEPT (the user, 2026-10-12:
+      // "If the Good Qty is 0 in the WinMax Opening, keep it as 0, dont skip
+      // it"). The sheet writes a zero Good Balance as an empty cell -- 2,443 of
+      // its 4,731 rows -- so empty is the case this is about.
       { to: 'qty', from: ['good balance', 'qty', 'quantity', 'balance'], type: 'num', required: true,
         always: true,
         derive: (o) => Number(o.qty ?? 0) || 0 },
       DATE('as_of', 'as of', 'as on', 'date'),
       TEXT('remarks'),
     ],
-    reject: (r) => (Number(r.qty ?? 0) > 0 ? '' : 'no Good Balance — a defective or missing balance is not opening stock'),
     // Hand stock is keyed on the part CODE, and two WinMax lines can share one
     // (ACC-081 is both tubings). One balance, so they are ADDED, not replaced.
     fold: {

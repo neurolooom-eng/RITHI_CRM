@@ -402,9 +402,17 @@ against the call it was fitted to.
   question from the dispatch queue, and now grantable separately.
 - **Hand Stock** `/handstock` — what an engineer holds. **Worked out, never
   stored**: issued − consumed ± transfers − returns.
+  > **Hand stock counts from 09-Jun-2022, the WinMax opening.** Consumption,
+  > stock outs, transfers and returns from before that day are already inside
+  > the opening balance, so they are not counted again. They are not deleted:
+  > every report still has them. The page says the day it counts from, and a day
+  > starts at midnight India time.
   > **The WinMax opening is the Good Balance only.** The Defective and Missing
-  > balances in the WinMax export are not opening stock, and a row with no Good
-  > Balance is held back when the export is loaded.
+  > balances in the WinMax export are not opening stock. A row whose Good
+  > Balance is blank is loaded as an opening of **0**, not left out.
+  > **Labour charges are not hand stock.** Service, transport and installation
+  > charges are booked on a consumption for tracking, so they have no line here
+  > and never read below zero.
   > **From history is part of the total, not added to it**: opening + imported
   > stock outs − imported consumption, the share of the line that came from the
   > old system. A line's drawer says so, and its Movements table ends on the
@@ -1064,6 +1072,12 @@ typed into a form that reads it.
   > stock that the Part Master does not list is always shown.
   > **Editing** an existing part does not demand them, so an older part with a
   > blank can still be corrected one field at a time.
+  > **Labour Charge** (a tick on the add and edit forms, and a column): a
+  > charge rather than a part — SC001 Service Charges, TC001 Transportation
+  > Charges, INS-001 Installation Charges are ticked. A labour charge is offered
+  > on every consumption (the visit, Spare Consumption's reconciliation, Call
+  > Review's Reco) whatever the engineer holds, **always at quantity 1**, and is
+  > never hand stock. It is offered even when the part is inactive.
 - **Party Master** `/parties` — your customers, **who looks after each one**, and
   their **KYC**.
   > **Type, Profile, Serviceman, City, State and Country are dropdowns** —

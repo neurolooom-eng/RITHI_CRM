@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**112 tables · 43 views · 3242 columns · 230 policies · 69 foreign keys.**
+**112 tables · 43 views · 3243 columns · 230 policies · 69 foreign keys.**
 
 ## How to read this
 
@@ -2575,6 +2575,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 22 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 | 23 | `hsn_code` | text | **no** | `''::text` | HSN code of the part (0309). Filled once from "(HSN:...)" in the description, which was then removed from it; maintained on the Part Master and its upload since. |
 | 24 | `ind_imp` | text | **no** | `''::text` | Indigenous / Imported / TBD -- typed on the Part Master or loaded by its upload. Free text on purpose: a CHECK on parts aborts a bulk import part-written (0152). Shown as IND/IMP on the Stores Dispatch Report (0385). |
+| 25 | `labour_charge` | boolean | **no** | `false` | A labour charge (service, transport, installation): booked on a consumption for tracking, quantity 1, never held as hand stock (0413). |
 
 **Unique:** `item_detail_key` _(parts_item_detail_key_uniq)_ · `sys_id` _(parts_sys_id_key)_
 
@@ -3984,7 +3985,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `created_by` → **users**(`id`) · on delete no action _(spare_consumption_created_by_fkey)_
 
-**Triggers:** `a_import_marker_needs_importer` → `import_marker_needs_importer()` · `consumption_adjust_guard` → `consumption_adjust_guard()` · `consumption_biu` → `consumption_before_insert()` · `consumption_reconcile_guard` → `consumption_reconcile_guard()` · `consumption_stamp_people` → `consumption_stamp_people()` · `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_consumption_needs_visit` → `consumption_needs_a_visit()` · `zz_pm_spare_to_dccr` → `pm_spare_to_dccr()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `a_import_marker_needs_importer` → `import_marker_needs_importer()` · `consumption_adjust_guard` → `consumption_adjust_guard()` · `consumption_biu` → `consumption_before_insert()` · `consumption_reconcile_guard` → `consumption_reconcile_guard()` · `consumption_stamp_people` → `consumption_stamp_people()` · `labour_charge_qty_one` → `labour_charge_qty_one()` · `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_consumption_needs_visit` → `consumption_needs_a_visit()` · `zz_pm_spare_to_dccr` → `pm_spare_to_dccr()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
