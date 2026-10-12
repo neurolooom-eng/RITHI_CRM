@@ -237,7 +237,7 @@ export function IndoorService() {
     setJobs((all) => all.map((j) => (j.id === id ? { ...j, ...p } as IndoorJob : j)));
     // What the database WORKS OUT from these -- whether the product is
     // imported, the verifier, the accessories -- comes back with a reload.
-    // reported_to_customer_at too: the database writes WHO recorded it (0430).
+    // reported_to_customer_at too: the database writes WHO recorded it (0431).
     if ('product_name' in p || 'serial' in p || 'kind' in p || 'status' in p || 'reported_to_customer_at' in p) load();
   };
 
@@ -817,7 +817,7 @@ function DeleteJobAction({ job, onDeleted }: { job: IndoorJob; onDeleted: (jobNo
 }
 
 // ---------------------------------------------------------------------------
-// VOID AN ENTRY (FRS-143.8, D-039, 0432) -- what Remove used to be on a
+// VOID AN ENTRY (FRS-143.8, D-039, 0433) -- what Remove used to be on a
 // harvested part, an accessory and a check. It asks WHY and cannot be sent
 // without an answer; the database refuses an empty reason as well, stamps when
 // and who from the session, and keeps the row as it was. The write is COUNTED
@@ -976,7 +976,7 @@ function IndoorJobDrawer({
     if (!r.ok) setMsg(r.error ?? 'Could not save'); else { setMsg(''); reloadChildren(); }
   };
 
-  // VOID, NEVER REMOVE (FRS-143.8, D-039, 0432): a harvested part, an accessory
+  // VOID, NEVER REMOVE (FRS-143.8, D-039, 0433): a harvested part, an accessory
   // or a check made in error is marked void with a reason; the database stamps
   // when and who, keeps the row, and refuses any later change to it. The
   // entries still in force are the ones every list and count below uses.
@@ -1281,7 +1281,7 @@ function IndoorJobDrawer({
                 The columns existed (FRS-057) and were on no screen. The time
                 may be earlier than now — it is often recorded after the call —
                 never later; WHO is the database's, stamped from the session
-                when the time changes and cleared with it (0430). */}
+                when the time changes and cleared with it (0431). */}
             <Field label="Damage reported to the customer at"
               tip="When the owner was told about the damage. Leave blank until they have been; it cannot be later than now.">
               <input type="datetime-local" key={`rtc-${job.reported_to_customer_at ?? ''}`}

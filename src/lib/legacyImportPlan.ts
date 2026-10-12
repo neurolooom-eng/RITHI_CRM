@@ -83,7 +83,7 @@ export function planDirectory(
   return out;
 }
 
-/** The MRN key, as the database builds it (0437): SI Number + part code + line. */
+/** The MRN key, as the database builds it (0438): SI Number + part code + line. */
 export const mrnKey = (r: Record<string, unknown>): string =>
   `${String(r.uid ?? '').trim()}\u0000${partCode(r.part)}\u0000${String(r.row_no ?? '')}`;
 

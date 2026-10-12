@@ -48,9 +48,9 @@
 --   0341_call_actions_need_sight_of_the_call.sql
 --   0386_pm_dates_are_registration.sql
 --   0406_install_call_registers_requests.sql
---   0431_field_call_vigilance_answered.sql
---   0426_call_request_attended_not_future.sql
---   0429_call_reopen_reason_recorded.sql
+--   0432_field_call_vigilance_answered.sql
+--   0427_call_request_attended_not_future.sql
+--   0430_call_reopen_reason_recorded.sql
 --   0164_cr_read_initplan.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -4204,11 +4204,11 @@ begin
 end $once$;
 
 -- ------------------------------------------------------------------------
--- 0431_field_call_vigilance_answered.sql
+-- 0432_field_call_vigilance_answered.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0431 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
+-- 0432 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
 --        (second re-review D-033; the user's decision, 2026-10-05)
 --
 -- Public Health Threat?, Death? and Serious Incident? carried defaultValue 'NO'
@@ -4260,11 +4260,11 @@ create trigger field_call_vigilance_answered
   for each row execute function public.field_call_vigilance_answered();
 
 -- ------------------------------------------------------------------------
--- 0426_call_request_attended_not_future.sql
+-- 0427_call_request_attended_not_future.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0426 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
+-- 0427 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
 --        (second re-review D-030, part 3)
 --
 -- The Attended Date on Request Registration had no upper bound, and it becomes
@@ -4301,11 +4301,11 @@ create trigger call_request_attended_not_future
   for each row execute function public.call_request_attended_not_future();
 
 -- ------------------------------------------------------------------------
--- 0429_call_reopen_reason_recorded.sql
+-- 0430_call_reopen_reason_recorded.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0429 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
+-- 0430 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
 --        (second re-review D-035, FRS-133.4, FRS-120.9)
 --
 -- reopen_call(p_ucn, p_reason) accepted a reason and wrote only reopened_at and
@@ -4366,7 +4366,7 @@ begin
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
   end if;
-  -- 0429 (D-035, FRS-120.9): a re-open says why.
+  -- 0430 (D-035, FRS-120.9): a re-open says why.
   if btrim(coalesce(p_reason, '')) = '' then
     raise exception 'Give the reason for re-opening call %', p_ucn using errcode = '23514';
   end if;
@@ -4381,7 +4381,7 @@ begin
      set reopened_at = now(), reopen_count = coalesce(reopen_count, 0) + 1
    where ucn = p_ucn;
 
-  -- 0429 (D-035, FRS-133.4): the reason, the person and the time, kept.
+  -- 0430 (D-035, FRS-133.4): the reason, the person and the time, kept.
   insert into public.call_reopens (ucn, reopened_at, reopened_by, reopened_by_name, reason, created_by)
   values (p_ucn, now(), auth.uid(), coalesce(public.my_display_name(), auth.email(), ''), btrim(p_reason), auth.uid());
 

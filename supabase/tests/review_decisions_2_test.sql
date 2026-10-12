@@ -1,11 +1,11 @@
 -- ===========================================================================
--- THE USER'S DECISIONS OF 2026-10-05, PROVED ON A DATABASE (0375, 0434, 0431).
+-- THE USER'S DECISIONS OF 2026-10-05, PROVED ON A DATABASE (0375, 0435, 0432).
 -- Each section proves BOTH halves: what the decision refuses is refused, AND
 -- the honest path beside it still works.
 --
---   1. D-033  a field call is registered with its vigilance questions answered (0431)
+--   1. D-033  a field call is registered with its vigilance questions answered (0432)
 --   2. D-049  stock moves from your own or your team's hand stock, to a User Master name (0375)
---   3. D-129  review answers are read by holders of review.view (0434)
+--   3. D-129  review answers are read by holders of review.view (0435)
 --
 -- D-104 (Renew / Convert held to the contract form's required fields) is a
 -- screen rule and is proved by check:ui.

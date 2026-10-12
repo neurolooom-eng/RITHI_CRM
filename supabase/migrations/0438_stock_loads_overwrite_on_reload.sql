@@ -36,7 +36,7 @@
 alter table public.material_returns
   add column if not exists part_key text generated always as (public.part_code(part)) stored;
 comment on column public.material_returns.part_key is
-  'The part code, kept by the database from `part` (part_code()). Part of the key a re-loaded MRN line is matched on: SI Number (uid) + part_key + row_no (D-071, 0437).';
+  'The part code, kept by the database from `part` (part_code()). Part of the key a re-loaded MRN line is matched on: SI Number (uid) + part_key + row_no (D-071, 0438).';
 -- Cannot collide with existing rows: material_returns_uid_part_idx is unique
 -- on (uid, part_code(part), coalesce(row_no, 0)), and row_no is always set.
 create unique index if not exists material_returns_natural_key
@@ -84,7 +84,7 @@ create or replace function public.material_returns_immutable()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if public.is_admin() then return new; end if;
-  -- D-071 (0437): an IMPORTED return re-loaded from its file takes the file's
+  -- D-071 (0438): an IMPORTED return re-loaded from its file takes the file's
   -- values, by an importer only. It stays imported -- a return raised in the
   -- app is never reached by this.
   if old.source = 'import' and new.source = 'import'

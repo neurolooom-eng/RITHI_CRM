@@ -953,7 +953,11 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
       customer_contact_details: f.customerContactDetails, customer_contact_number: f.customerContactNumber,
       installation_report: isInstall ? docs.installationReport?.url ?? '' : '',
       kyc: isInstall ? docs.kyc?.url ?? '' : '',
-      call_attended: f.callAttended, attended_date: f.attendedDate || null, plan_date: f.planDate || null,
+      call_attended: f.callAttended, attended_date: f.attendedDate || null,
+      // WHAT THE FORM SHOWS IS WHAT IS SAVED (D-167): an untouched Planned Visit
+      // Date displays today, so it saves today -- it used to save blank. Hidden
+      // (and left as it is) once the call is attended.
+      plan_date: attended ? (f.planDate || null) : (f.planDate || todayISO()),
       additional_comments: f.additionalComments,
     };
     const t0 = performance.now();

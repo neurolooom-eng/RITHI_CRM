@@ -72,7 +72,7 @@ update public.harness set uid = '88888888-8888-8888-8888-888888888888', email = 
 \echo 'expect ERROR: RBAC'
 select public.close_reopened_call('RO-1');
 
-\echo '--- 12. a re-open says why, and the reason, person and time are kept (0429, D-035) ---'
+\echo '--- 12. a re-open says why, and the reason, person and time are kept (0430, D-035) ---'
 update public.harness set uid = '99999999-9999-9999-9999-999999999999', email = 'hot@x.com';
 insert into public.reports (uid, ucn, call_status, visit_at) values ('RV5','RO-1','Solved - Report Completed', now());
 \echo 'expect ERROR: Give the reason for re-opening call RO-1'

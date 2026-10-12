@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.183',
+    version: '0.10.185',
     date: '2026-10-12',
     title: 'Review fixes: loading a file again corrects it instead of adding it twice',
     changes: [
@@ -25,7 +25,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.182',
+    version: '0.10.184',
     date: '2026-10-12',
     title: 'Review fixes: workshop entries are voided, not removed; PM upload checks its rows',
     changes: [
@@ -34,7 +34,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.181',
+    version: '0.10.183',
     date: '2026-10-06',
     title: 'Review fixes: list values in use kept, re-open reasons kept, User Master manager names, warranty and contract changes recorded',
     changes: [
@@ -45,7 +45,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.180',
+    version: '0.10.182',
     date: '2026-10-06',
     title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
     changes: [
@@ -58,7 +58,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.179',
+    version: '0.10.181',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
     changes: [
@@ -68,7 +68,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.178',
+    version: '0.10.180',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -79,7 +79,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.177',
+    version: '0.10.179',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -93,7 +93,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.176',
+    version: '0.10.178',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -107,7 +107,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.175',
+    version: '0.10.177',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -118,6 +118,24 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.176',
+    date: '2026-10-12',
+    title: 'Objective: Customer feedback worked out as the Customer Feedback workbook does',
+    changes: [
+      'The Customer feedback objective is now calculated, the way the Customer Feedback workbook calculates it. Each answer is scored Excellent 4, Good 3, Average 2, Poor 1. An installation call\'s satisfaction is its 5 installation answers out of 20; any other call\'s is its 6 PM / Field answers out of 24. The figure is the average satisfaction of the feedback whose visit date falls in the period.',
+      'Press Re-Calculate to fill it. The 95% typed in for March and June is replaced by the calculated figure (about 94.5% and 95.4%).',
+      'The evidence download lists every feedback counted, with each answer\'s score and its satisfaction %, and the average.',
+    ],
+  },
+  {
+    version: '0.10.175',
+    date: '2026-10-12',
+    title: 'Request Call Registration: the Planned Visit Date is saved as shown',
+    changes: [
+      'FIXED: when a call was not yet attended, the Planned Visit Date showed today but was saved blank unless a date was picked. The date shown is now the date saved.',
     ],
   },
   {

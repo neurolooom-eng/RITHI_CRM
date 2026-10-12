@@ -1878,6 +1878,15 @@ console.log('\n-- the evidence workbook --');
     && /saveCutoff\(i \+ 1, e\.target\.value\)/.test(obj), true);
   // Re-Calculate READS them; setting is its own act. Two ways to set one thing
   // is how a figure ends up disagreeing with the setting behind it.
+  // THE PLANNED VISIT DATE SAVES WHAT IT SHOWS (D-167): the field displays
+  // today when untouched, and the submit used to send blank for it.
+  {
+    const rcr = code(readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8'));
+    eq('the Planned Visit Date shows today when untouched',
+      /value=\{f\.planDate \|\| todayISO\(\)\}/.test(rcr), true);
+    eq('...and saves today when untouched, not blank',
+      /plan_date: attended \? \(f\.planDate \|\| null\) : \(f\.planDate \|\| todayISO\(\)\)/.test(rcr), true);
+  }
   eq('Re-calculate reads the cut-offs and does not set one',
     // Its only other argument is the manual-override choice (0349) -- never a
     // date. The Missed PM switch (FRS-121.16) passes `true`: it keeps them.
@@ -5938,7 +5947,7 @@ console.log('\n-- review batch: D-027, D-030, D-039 (the screen half) --');
   eq('...nothing is blank', localDateTimeInput(null), '');
   eq('...and nonsense is blank', localDateTimeInput('not a date'), '');
 
-  // D-039 / FRS-143.8 (0432): A PART, AN ACCESSORY OR A CHECK IS VOIDED, NEVER
+  // D-039 / FRS-143.8 (0433): A PART, AN ACCESSORY OR A CHECK IS VOIDED, NEVER
   // DELETED. The database refuses the DELETE; the screen must not offer one.
   for (const t of ['indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks']) {
     eq(`D-039: nothing in supabase.ts deletes from ${t}`,
@@ -9886,7 +9895,7 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   const fn = sb.slice(sb.indexOf('export async function listPmCallsInMonth('), sb.indexOf('// PM DUE (0401, 0402)'));
   eq('D-038: the month\u2019s PM calls are read paged, in a unique order',
     /allRows</.test(fn) && /\.order\('ucn'\)\.range\(a, b\)/.test(fn), true);
-  eq('D-038: ...asked of EVERY PM call (pm_calls_in_month, 0433), not through the uploader\u2019s row-level security',
+  eq('D-038: ...asked of EVERY PM call (pm_calls_in_month, 0434), not through the uploader\u2019s row-level security',
     /\.rpc\('pm_calls_in_month'/.test(fn) && !/\.from\('pm_calls'\)/.test(fn), true);
 }
 
@@ -11209,7 +11218,7 @@ console.log('\n-- changes that decide what happens next are recorded (D-067) --'
   eq('...a name the User Master holds twice is held back, not guessed', dp.held.map((h) => h.name).join(','), 'Twice');
   eq('...a name the file holds twice is loaded once, from its last row, and said',
     [dp.updates.find((u) => u.id === 4)?.patch.designation, dp.notes.length], ['B', 1]);
-  eq('an MRN line is matched on SI Number + part CODE + line, as 0437 keys it',
+  eq('an MRN line is matched on SI Number + part CODE + line, as 0438 keys it',
     lp.splitByKey([{ uid: 'S1', part: 'ky1|a', row_no: 1 }, { uid: 'S1', part: 'KY1|other words', row_no: 2 }], lp.mrnKey,
       new Set([lp.mrnKey({ uid: 'S1', part: 'KY1|A', row_no: 1 })])), { fresh: 1, overwrite: 1 });
   eq('the Normalise question names each field and says there is no undo',

@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0427 — A VALUE THAT RECORDS CARRY IS DEACTIVATED, NOT DELETED
+-- 0428 — A VALUE THAT RECORDS CARRY IS DEACTIVATED, NOT DELETED
 --        (second re-review D-056, FRS-015, FRS-180.6)
 --
 -- Master Lists offered Delete to a holder of master.<list>.delete, and
