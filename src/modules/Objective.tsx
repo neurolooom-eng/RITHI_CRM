@@ -334,6 +334,12 @@ export function Objective() {
           Value: period ? `${period.period_start} to ${period.period_end}` : '' },
         // A count has no cut-off to apply: nothing here waits to be solved.
         ...(isCount ? [] : [{ Item: 'Solved by (cut-off)', Value: period?.cutoff_note || '' }]),
+        // The PM register's Missed PMs (0418): which way this objective counts them.
+        ...(o.calc_key === 'open_rate_monthly' && String((o.calc_params as Record<string, unknown> | null)?.family ?? '').toLowerCase() === 'pm'
+          ? [{ Item: 'Missed PMs (added after their month)',
+               Value: String((o.calc_params as Record<string, unknown> | null)?.missed_pm ?? '').toLowerCase() === 'include'
+                 ? 'counted' : 'left out — not in the calls below' }]
+          : []),
         { Item: 'Monitoring frequency', Value: o.frequency },
         { Item: 'Yearly target', Value: o.yearly_target },
         { Item: 'Worked out by', Value: o.calc_key || 'not computed — this figure is typed' },
@@ -478,6 +484,15 @@ export function Objective() {
     return (raw as Record<string, unknown>) ?? {};
   };
   const cutoffDays = String(paramsObj().cutoff_days ?? '');
+  // MISSED PMs (0418): a PM call added after the month it is registered for.
+  // Left out unless this objective counts them.
+  const isPmFamily = String(paramsObj().family ?? '').trim().toLowerCase() === 'pm';
+  const countsMissedPm = String(paramsObj().missed_pm ?? '').trim().toLowerCase() === 'include';
+  const setMissedPm = (on: boolean) => {
+    const next = { ...paramsObj() };
+    if (on) next.missed_pm = 'include'; else delete next.missed_pm;
+    setDefDraft((d) => ({ ...d, calc_params: JSON.stringify(next) as never }));
+  };
   const cutoffDate = String(paramsObj().cutoff_date ?? '');
   const setParam = (key: string, value: string, clears: string) => {
     const next = { ...paramsObj() };
@@ -813,6 +828,19 @@ export function Objective() {
             </div>
             {String(defDraft.calc_key ?? '') === 'open_rate_monthly' && (
               <>
+                {isPmFamily && (
+                  <div>
+                    <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                      <input type="checkbox" checked={countsMissedPm} onChange={(e) => setMissedPm(e.target.checked)} />
+                      Count Missed PMs
+                    </label>
+                    <div className="field-help">
+                      A <b>Missed PM</b> is a PM call whose <b>Added On</b> date is after the month it is
+                      registered for — a March PM added in October. <b>Unticked</b> (the default), it is left
+                      out of the calls and of the open calls; ticked, it is counted. Re-calculate afterwards.
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="field-label">Cut-off — days after the period ends</label>
                   <input

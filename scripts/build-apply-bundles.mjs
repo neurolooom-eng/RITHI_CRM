@@ -631,6 +631,10 @@ const MODULES = {
             // choosing the twelve commissioning months (0416). Restates 0393's
             // objective_value with one branch changed.
             '0416_recent_failure_as_of_today.sql',
+            // A Missed PM (added after its month) is left out of the PM
+            // objective unless it says to count it (0418). Restates
+            // objective_value and objective_evidence, one branch each.
+            '0418_missed_pm_left_out.sql',
             // D-021: an objective carrying a recorded figure is not deleted (0432).
             '0432_objective_with_figures_kept.sql'],
   },
@@ -897,9 +901,9 @@ const MODULES = {
             // Its number, PDQC/YY/NNNN (2026-10-05).
             '0378_pdqc_number.sql',
             // D-145 (the user's decision): approving a DC skips filing the visit
-            // of a unit whose call is already Solved, and says so (0418).
+            // of a unit whose call is already Solved, and says so (0433).
             // Redefines 0327's approve_indoor_dc(), so after it.
-            '0418_indoor_approval_skips_a_solved_call.sql',
+            '0433_indoor_approval_skips_a_solved_call.sql',
             // D-111 / D-112 / D-114 (the user's decisions): a signed PDT is locked
             // and un-signed only with indoor.pdt_unsign and a reason; the dispatch
             // date is when the unit is marked Dispatched; a cleaning time may be

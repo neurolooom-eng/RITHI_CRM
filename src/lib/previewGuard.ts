@@ -77,7 +77,7 @@ export const PREVIEW_READ_RPCS: Readonly<Record<string, string>> = {
   master_value_uses:          'stable (0424) — counts the records carrying a value-list entry',
   my_table_view:              'stable (0120) — reads a saved table layout',
   objective_cutoff_locked:    'stable (0138) — reads whether a month is locked',
-  objective_evidence:         'stable (0359) — reads the evidence behind an objective',
+  objective_evidence:         'stable (0418) — reads the evidence behind an objective',
   objective_notes:            'stable (0357) — reads an objective\'s notes',
   objective_period:           'stable (0139) — reads an objective period',
   part_rename_impact:         'stable (0309) — counts what a part rename would touch',

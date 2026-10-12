@@ -2018,7 +2018,7 @@ with checks(sort_order, bundle, provides, present) as (
                and tgrelid in (to_regclass('public.reports'), to_regclass('public.spare_consumption'), to_regclass('public.spare_requests'))) = 3
          and exists (select 1 from pg_trigger where tgname = 'a_created_by_is_the_session'
                       and tgrelid = to_regclass('public.spare_consumption')))),
-    (304, 'Approving an Indoor DC does not file a visit on a call already Solved', 'approve_indoor_dc() skips the drafted visit of a unit whose call''s last status is Solved, writes indoor.visit_skipped to the audit log and says which calls in its answer; every other unit files its visit as before (0418, D-145). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0418)',
+    (304, 'Approving an Indoor DC does not file a visit on a call already Solved', 'approve_indoor_dc() skips the drafted visit of a unit whose call''s last status is Solved, writes indoor.visit_skipped to the audit log and says which calls in its answer; every other unit files its visit as before (0433, D-145). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0433)',
         coalesce((select p.prosrc like '%indoor.visit_skipped%' from pg_proc p
                    where p.oid = to_regprocedure('public.approve_indoor_dc(text,boolean)')), false)),
     (352, 'A corrected transfer blanks Sold Through only where a transfer set it, and re-reads the machine it left', 'products.sold_through_from_transfer records that the transfer path wrote the Sold Through; transfer_resync_machine() blanks it, with no dealer transfer left, only then, and transfer_to_product re-reads OLD''s machine when a transfer moves (0361, D-149). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0361)',
@@ -2158,7 +2158,7 @@ with checks(sort_order, bundle, provides, present) as (
          and to_regprocedure('public.save_stock_transfer(jsonb,jsonb)') is not null
          and to_regprocedure('public.save_material_return(jsonb,jsonb)') is not null
          and not has_function_privilege('anon', to_regprocedure('public.save_spare_request(jsonb,jsonb)'), 'EXECUTE'))),
-    (341, 'Who approved, dispatched or received a spare is the session', 'zzy_spare_line_people_from_session writes the signed-in person into rm_by, commercial_by, nsm_by, dispatched_by and received_by whenever a signed-in write sets one, discarding the value sent; imports, renames and Auto-Approved are untouched (0393, D-041). NO means Spare_1.sql has not been re-run since. Restore: Spare_1.sql (0393)',
+    (363, 'Who approved, dispatched or received a spare is the session', 'zzy_spare_line_people_from_session writes the signed-in person into rm_by, commercial_by, nsm_by, dispatched_by and received_by whenever a signed-in write sets one, discarding the value sent; imports, renames and Auto-Approved are untouched (0393, D-041). NO means Spare_1.sql has not been re-run since. Restore: Spare_1.sql (0393)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_request_lines')
                  and tgname = 'zzy_spare_line_people_from_session')),
     (342, 'Roles, settings, SLA targets, quality objectives and the indoor workshop are imaged in record_audit', 'record_audit_i / _u / _d on app_roles, app_settings, sla_rules, quality_objectives, objective_cutoffs, objective_settings and the seven indoor tables, and record_audit_key() adds role / key / sys_id after the five keys it had, so a role or a setting is recorded under its own name (0421, D-067, D-021, D-039). NO means data_integrity.sql has not been re-run since. Restore: data_integrity.sql (0421)',
@@ -2288,7 +2288,10 @@ with checks(sort_order, bundle, provides, present) as (
     (340, 'Spare Insights is planned with its dates', 'spare_insights(date, date) (0417): plpgsql running its query with EXECUTE ... USING, so it is planned with the window''s dates each call, and still security invoker. NO means the SQL-language version is back, whose generic plan times out on a year of consumption. Restore: performance.sql (0417)',
         (coalesce((select l.lanname = 'plpgsql' and p.prosrc ilike '%execute%' and not p.prosecdef
                      from pg_proc p join pg_language l on l.oid = p.prolang
-                    where p.oid = to_regprocedure('public.spare_insights(date,date)')), false)))
+                    where p.oid = to_regprocedure('public.spare_insights(date,date)')), false))),
+    (341, 'A Missed PM is left out of the PM objective', 'objective_value() and objective_evidence() (0418): a PM call added after the end of its registration month is left out of a PM open-rate objective unless calc_params.missed_pm is include. NO means Missed PMs are still counted in the PM figure. Restore: objective.sql (0418)',
+        (coalesce((select p.prosrc like '%missed_pm%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)
+     and coalesce((select p.prosrc like '%missed_pm%' from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
