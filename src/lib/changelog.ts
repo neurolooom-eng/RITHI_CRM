@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.168',
+    date: '2026-10-12',
+    title: 'Refurb on Stock Out disappears in Audit Mode',
+    auditHidden: true,
+    changes: [
+      'While Audit Mode is on, Pending Dispatch no longer shows the ♻ Refurb button, and the Stock outs list no longer shows the ♻ Refurbished badge. Turning Audit Mode off brings both back.',
+      'A refurbished part cannot be issued while Audit Mode is on, however the stock out is written.',
+    ],
+  },
+  {
     version: '0.10.167',
     date: '2026-10-12',
     title: 'Labour charges are not requested as spares',

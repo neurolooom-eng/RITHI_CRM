@@ -10033,12 +10033,24 @@ questions for a person.
 
 ---
 
-**186** user requirements · **275** system requirements · **33** call-request · **44** servicing · **283** tests · **8** recorded as non-auditable · **564** of 186 user requirements tied to a module.
+**186** user requirements · **275** system requirements · **33** call-request · **44** servicing · **283** tests · **9** recorded as non-auditable · **564** of 186 user requirements tied to a module.
 ---
 
 ## Non-auditable requirements
 
 Recorded here because a feature absent from the specification is the thing an assessor finds. Each is classified by PROVENANCE: it is not derived from a regulatory clause and is not offered as evidence against one. That is a statement about where the requirement came from, NOT a statement that its use goes unrecorded.
+
+### NAR-009 — Issuing a refurbished spare (♻ Refurb) is hidden and refused in Audit Mode
+
+*Non-Auditable Requirement (user-originated; no regulatory clause claimed) — hidden while Audit Mode is on* · risk: **Low** · *v0.10.168 · 12-Oct-2026*
+
+NAR-009.1 While Audit Mode is on, Pending Dispatch shall not show the ♻ Refurb button on any line, and a stock out booked then shall issue no line as refurbished. NAR-009.2 While Audit Mode is on, the Stock outs list (Pending Dispatch and Stock Out) shall not show the ♻ Refurbished badge. NAR-009.3 While Audit Mode is on, the database shall refuse a dispatch line written as refurbished, or an existing line marked refurbished (`refurb_not_in_audit_mode`, 0415), stating that a refurbished part cannot be issued while Audit Mode is on. NAR-009.4 Turning Audit Mode off shall bring the button and the badge back; nothing already issued shall change.
+
+**Why it is classified this way.** Stated by the system owner on 2026-10-12: "refurb - in Stockout is a Non Auditable Requirement. And it should disappear when i turn on the Audit mode." URS-027 / FRS-033 (the refurbished issue itself) remain in the auditable package until the owner decides otherwise: SR-016 in docs/ISO13485_SERVICING.md cites URS-027 as evidence.
+
+**No test protocol names this requirement.** That is a gap, not a decision.
+
+**Where it lives:** supabase/migrations/0415_refurb_hidden_in_audit_mode.sql · src/modules/SpareDispatch.tsx · src/lib/auditMode.ts · supabase/tests/refurb_audit_mode_test.sql
 
 ### NAR-008 — Spare Recycling: a parallel track under Indoor Service, with its own stock, hidden in Audit Mode
 

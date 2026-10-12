@@ -47,7 +47,7 @@ export function ModuleGuide({ onOpenFlow }: { onOpenFlow: (flowId: string) => vo
       if (it.hideInAudit && auditOn) return false;
       if (!words.length) return true;
       const e = byRoute.get(it.to);
-      const hay = [g.title, it.label, e?.purpose, ...(e?.does ?? []), ...(e?.rules ?? []), ...(e?.records ?? [])].join(' ').toLowerCase();
+      const hay = [g.title, it.label, e?.purpose, ...(e?.does ?? []), ...(auditOn ? [] : e?.notAudited ?? []), ...(e?.rules ?? []), ...(e?.records ?? [])].join(' ').toLowerCase();
       return words.every((w) => hay.includes(w));
     }),
   })).filter((g) => g.items.length);
@@ -86,7 +86,7 @@ export function ModuleGuide({ onOpenFlow }: { onOpenFlow: (flowId: string) => vo
                     <div className="mg-cols">
                       <div>
                         <h4>What you do here</h4>
-                        <ul>{e.does.map((d, i) => <li key={i}>{d}</li>)}</ul>
+                        <ul>{[...e.does, ...(auditOn ? [] : e.notAudited ?? [])].map((d, i) => <li key={i}>{d}</li>)}</ul>
                       </div>
                       <div>
                         <h4>What it refuses / watch for</h4>
