@@ -1,22 +1,10 @@
--- ===========================================================================
--- READ-ONLY PROBE (2026-10-12, after D-168): every 2026 objective -- stored figures and a
--- fresh calculation per month -- to compare with the shared sheet
--- "Service Quality Objective -2026.xlsx". One grid, one row per objective.
--- ===========================================================================
-select o.sort_order as n,
-       o.id || ' · ' || coalesce(o.parameter, '') as item,
-       'key=' || coalesce(nullif(o.calc_key, ''), '(typed)') || ' status=' || coalesce(o.status, '')
-       || ' | stored ' || concat_ws(' ', coalesce(o.m01::text, '-'), coalesce(o.m02::text, '-'), coalesce(o.m03::text, '-'),
-                                  coalesce(o.m04::text, '-'), coalesce(o.m05::text, '-'), coalesce(o.m06::text, '-'),
-                                  coalesce(o.m07::text, '-'), coalesce(o.m08::text, '-'), coalesce(o.m09::text, '-'))
-       || ' total=' || coalesce(o.total::text, '-')
-       || case when o.calc_key <> '' then ' | fresh ' || concat_ws(' ',
-            coalesce(public.objective_value(o.id, 1)::text, '-'), coalesce(public.objective_value(o.id, 2)::text, '-'),
-            coalesce(public.objective_value(o.id, 3)::text, '-'), coalesce(public.objective_value(o.id, 4)::text, '-'),
-            coalesce(public.objective_value(o.id, 5)::text, '-'), coalesce(public.objective_value(o.id, 6)::text, '-'),
-            coalesce(public.objective_value(o.id, 7)::text, '-'), coalesce(public.objective_value(o.id, 8)::text, '-'),
-            coalesce(public.objective_value(o.id, 9)::text, '-')) else '' end
-       || ' overrides=' || coalesce(o.overrides::text, '{}') as value
-  from public.quality_objectives o
- where o.year = 2026
- order by o.sort_order, o.id;
+-- READ-ONLY PROBE (2026-10-12): how many visits fall between midnight and
+-- 05:30 in India -- the ones a UTC date put on the day before (D-168).
+select count(*) as visits,
+       count(*) filter (where (visit_at at time zone 'Asia/Kolkata')::time = '00:00') as at_ist_midnight,
+       count(*) filter (where (visit_at at time zone 'Asia/Kolkata')::time > '00:00'
+                          and (visit_at at time zone 'Asia/Kolkata')::time < '05:30') as midnight_to_0530,
+       count(*) filter (where (visit_at at time zone 'Asia/Kolkata')::date <> visit_at::date) as day_differs_from_utc,
+       count(*) filter (where visit_at >= '2025-01-01') as since_2025,
+       count(*) filter (where visit_at >= '2025-01-01' and (visit_at at time zone 'Asia/Kolkata')::time = '00:00') as since_2025_at_midnight
+  from public.reports;
