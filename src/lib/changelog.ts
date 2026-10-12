@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.170',
+    date: '2026-10-12',
+    title: 'Objective: Recent Failure measured as of today, and every % to 2 decimals',
+    changes: [
+      'Recent Failure Rate objectives now count every failing call registered up to today, not only those known at the end of that month. Each month still averages its own twelve commissioning months. No cut-off date applies to them.',
+      'Press Re-Calculate on the Objective page to update the figures already shown. Earlier months will change where failures were registered after the month ended.',
+      'Every percentage on the Objective page, including the Failure Rate (DCCR) tab, now shows two decimal places, e.g. 1.01% instead of 1.0%.',
+    ],
+  },
+  {
     version: '0.10.169',
     date: '2026-10-12',
     title: 'Refurbished spares are a non-auditable requirement',

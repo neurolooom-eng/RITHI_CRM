@@ -2177,7 +2177,9 @@ with checks(sort_order, bundle, provides, present) as (
     (337, 'A labour charge is not requested as a spare', 'The trigger labour_not_requested on spare_request_lines (0414): a new spare request line naming a labour charge, or a line re-pointed at one, is refused unless it is an import. NO means a labour charge can still be requested from Stores. Restore: HandStock_X.sql (0414)',
         (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_request_lines') and tgname = 'labour_not_requested'))),
     (338, 'A refurbished part is not issued in Audit Mode', 'The trigger refurb_not_in_audit_mode on spare_dispatch_lines (0415): while Audit Mode is on, a dispatch line written as refurbished, or marked so later, is refused. NO means a refurbished issue can still be written while Audit Mode is on. Restore: HandStock_X.sql (0415)',
-        (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_dispatch_lines') and tgname = 'refurb_not_in_audit_mode')))
+        (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_dispatch_lines') and tgname = 'refurb_not_in_audit_mode'))),
+    (339, 'A Recent Failure Rate is measured as of today', 'objective_value() (0416): the dccr_failure_cohort branch counts the failing calls registered up to today, the month choosing only its twelve commissioning months. NO means each month is still measured as at its own end. Restore: objective.sql (0416)',
+        (coalesce((select p.prosrc like '%v_from, v_win) cr%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

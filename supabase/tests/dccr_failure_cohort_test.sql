@@ -4,7 +4,8 @@
 --   A failure is a Field call whose DCCR spare category contains SPARE or whose
 --   Any Potential Effect is YES; every call counts (a rate can pass 100%); a
 --   month younger than the window is blank; the Objective is the plain average
---   of the 3-month rates of the 12 months ending in its month, blanks left out.
+--   of the 3-month rates of the 12 months ending in its month, blanks left out,
+--   measured as of TODAY (0416), not as at the month's end.
 --
 -- Run ONCE after _stub.sql + every migration. Superuser for the fixture; the
 -- page's functions are read as `authenticated`.
@@ -61,8 +62,16 @@ select 'January 12-month: blank, the month is not 12 months old yet' as t, failu
 select 'December 2025 = average(100%, 0%) = 50%' as t,
        public.objective_value(id, 12) = 0.5 as ok
   from public.quality_objectives where parameter = 'DCCR test VEGA';
-select 'March 2025: as at 31-Mar no month is 3 months old yet (January completes on 1-Apr) -- blank' as t,
-       public.objective_value(id, 3) is null as ok
+-- AS OF TODAY (0416): every failing call registered up to today counts; the
+-- month only chooses which twelve commissioning months are averaged.
+select 'March 2025 = average(Jan 100%, Mar 0%) = 50% -- measured today, both months are 3 months old' as t,
+       public.objective_value(id, 3) = 0.5 as ok
+  from public.quality_objectives where parameter = 'DCCR test VEGA';
+select 'February 2025 = January alone, 100% -- DF-2, registered 01-Mar after the month ended, counts' as t,
+       public.objective_value(id, 2) = 1 as ok
+  from public.quality_objectives where parameter = 'DCCR test VEGA';
+select 'January 2025 still averages only its own window (Feb-2024..Jan-2025), not today''s' as t,
+       public.objective_value(id, 1) = 1 as ok
   from public.quality_objectives where parameter = 'DCCR test VEGA';
 
 \echo '--- 3. THE PAGE, as a signed-in reader ---'
