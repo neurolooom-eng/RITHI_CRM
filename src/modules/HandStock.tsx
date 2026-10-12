@@ -60,6 +60,9 @@ type Holding = 'held' | 'short' | 'settled' | '';
 type Tab = 'levels' | 'moves';
 // How many movements the stock-level drawer reads for one line (newest first).
 const MOVES_CAP = 500;
+// What "From history" is, in the words the heading, the figure and the drawer
+// all use.
+const HIST_NOTE = 'From history = opening + imported stock outs − imported consumption: the part of this line from the old system. It is already inside Opening, Stock out and Consumed — not added to them.';
 
 const asRow = (r: Record<string, unknown>): Row => ({
   engineer_key: String(r.engineer_key ?? ''),
@@ -257,9 +260,15 @@ export function HandStock() {
     // pool plus the imported stock outs, less the imported consumption. A level
     // that looks wrong is nearly always a question about THIS number, and until
     // now the register could not tell you what it was.
+    // A SUBTOTAL, NOT A TERM (the user, 2026-10-12: "Isnt the data that is
+    // present is confusing?" -- From history 4 beside Opening 5 and Consumed 1
+    // read as a fourth amount to add). It is the part of the line the old
+    // system contributes, already inside Opening, Stock out and Consumed; said
+    // on the heading, on the figure and in the line's drawer.
     { key: 'hist_net', header: 'From history', width: 110, align: 'right', wrap: false,
+      headerTitle: HIST_NOTE,
       render: (r) => (liveOnly ? <span className="muted" title="Ignored — the toggle is on">—</span>
-        : r.hist_net === 0 ? <span className="muted">0</span> : <span>{r.hist_net}</span>) },
+        : r.hist_net === 0 ? <span className="muted" title={HIST_NOTE}>0</span> : <span title={HIST_NOTE}>{r.hist_net}</span>) },
     { key: 'stock_out', header: 'Stock out', width: 95, align: 'right', wrap: false },
     { key: 'consumed', header: 'Consumed', width: 95, align: 'right', wrap: false },
     { key: 'transferred_in', header: 'Transfer in', width: 100, align: 'right', wrap: false },
@@ -665,6 +674,12 @@ function MovementTrail({ row, onTransfer, historyIgnored = false }: { row: Row; 
             </p>
           );
         })()}
+        {!historyIgnored && row.hist_net !== 0 && (
+          <p className="muted" style={{ fontSize: 12.5, margin: '6px 0 0' }}>
+            Of this, <b>{row.hist_net}</b> comes from the old system (opening + imported stock outs − imported consumption).
+            It is already counted in the figures above — the list’s <b>From history</b> column shows it, it is not added to them.
+          </p>
+        )}
         {row.on_hand < 0 && (
           <p className="muted" style={{ fontSize: 12.5, margin: '8px 0 0' }}>
             More consumed or handed on than Stores has issued — stock carried from before this register,

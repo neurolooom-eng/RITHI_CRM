@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.164',
+    date: '2026-10-12',
+    title: 'Hand Stock: what "From history" means, said on screen',
+    changes: [
+      'The From history column is part of the total, not something added to it. It is opening + imported stock outs − imported consumption: the share of the line that came from the old system, and it is already inside Opening, Stock out and Consumed. Hover the heading or the figure to see this, and a line\'s drawer now says it in words.',
+    ],
+  },
+  {
     version: '0.10.163',
     date: '2026-10-12',
     title: 'Hand Stock: Balance after no longer counts the opening twice',
