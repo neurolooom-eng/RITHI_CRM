@@ -14,12 +14,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.178',
+    date: '2026-10-12',
+    title: 'Supporting documents: only the Latest Technical Notes',
+    changes: [
+      'A call\'s 📄 Supporting documents now lists only the Technical Notes tagged Latest for the call\'s product. An older note for the same product is no longer offered.',
+      'A note covering several products is offered on a call only if it is Latest for that call\'s product. A note with no product is offered only while it is Latest for Every product. An accessory\'s note, reached through its Tags, is offered only while it is Latest for that accessory.',
+      'Service manuals are listed exactly as before. The same list shows on a Call Request.',
+    ],
+  },
+  {
     version: '0.10.177',
     date: '2026-10-12',
     title: 'Objective: visit dates are India dates',
     changes: [
       'FIXED: the Breakdown, Preventive Maintenance and Installation figures and the "attended within 3 days" figure took a visit\'s date in UTC, so a visit made between midnight and 05:30 India time counted as the day before. They now use the India date, as Customer feedback already did.',
-      'Press Re-Calculate to update the figures. Only calls visited in those early-morning hours can change.',
+      'Press Re-Calculate to update the figures. This moves most of them a little: almost every visit loaded from a file is recorded at midnight India time, so almost every one was being counted a day early.',
     ],
   },
   {
