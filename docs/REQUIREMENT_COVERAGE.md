@@ -7,23 +7,24 @@ prose: one can cover a screen without naming it, and no scan sees that. What
 this proves is only that the words do not appear anywhere in the package —
 requirements, design, risks, tests and the compliance checklist together.
 
-## Screens not named anywhere in the package (0 of 66)
+## Screens not named anywhere in the package (0 of 71)
 
 None — every screen is named somewhere.
 
-## Actions not named anywhere in the package (0 of 173)
+## Actions not named anywhere in the package (0 of 197)
 
 An action is what an administrator GRANTS, so one the package never mentions
 is authority the validation does not discuss.
 
 None — every action is named somewhere.
 
-## Paths the package names that are not screens (4)
+## Paths the package names that are not screens (5)
 
 Usually a file path or a prose slash rather than a route — read it as a
 shortlist to glance at, not a defect list.
 
 - `/date`
+- `/indoor-dc-approvals`
 - `/no-such-page`
 - `/no-such-screen`
 - `/users`

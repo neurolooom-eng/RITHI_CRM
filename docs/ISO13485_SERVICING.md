@@ -235,11 +235,13 @@ supplier approval status is held against a part.
 the record must say which part went in.
 **Status: Partial.** Consumption records the part code and quantity against the call, and since 0078 a GRIR / traceability reference per line (batch, goods receipt or serial) entered by the engineer on the visit. The reference is free text and optional, so a field action on a lot can be answered only for the lines that carry one, and only by matching text.
 
-**SR-016 — Parts are preserved, identified and controlled in the field.** · *v0.10.66 · 03-Oct-2026*
+**SR-016 — Parts are preserved, identified and controlled in the field.** · *v0.10.169 · 12-Oct-2026*
 *§7.5.11, §7.5.8.*
 **Status: Met, unusually well.** Hand stock is derived, never stored; a database
 trigger caps consumption at the engineer's balance; transfers and returns (MRN)
-are recorded; a refurbished part is held under its own code (URS-027).
+are recorded. A refurbished part is held under its own code, but since 12-Oct-2026
+that is a **non-auditable** requirement (NAR-009, the system owner's decision),
+hidden while Audit Mode is on — so it is no longer offered here as evidence.
 
 **SR-017 — A part removed as defective is controlled as nonconforming
 material.** · *v0.10.66 · 03-Oct-2026* *§8.3.*
