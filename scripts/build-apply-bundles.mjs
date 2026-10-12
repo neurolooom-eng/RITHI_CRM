@@ -626,7 +626,10 @@ const MODULES = {
             // The Customer Feedback objective as the workbook works it out
             // (0422): feedback_satisfaction() + one branch in objective_value
             // and objective_evidence each.
-            '0422_feedback_satisfaction_objective.sql'],
+            '0422_feedback_satisfaction_objective.sql',
+            // The objective figures date a visit in India time (D-168, 0423).
+            // Restates objective_value and objective_evidence.
+            '0423_objective_dates_in_india_time.sql'],
   },
   validation: {
     title: 'Software Validation',

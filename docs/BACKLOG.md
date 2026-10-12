@@ -4,6 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
+_Last updated: 2026-10-12 (D-168 FIXED — 0423 (objective.sql), v0.10.177: the objective figures date a visit in India time. ⏳ THE USER'S STEP: Re-Calculate.)
 _Last updated: 2026-10-12 (OBJECTIVE CALCULATIONS WRITTEN DOWN — docs/OBJECTIVE_CALCULATIONS.md, FRS-121.18: every calculation step by step, from the live functions. Found while writing it: D-168 OPEN -- the open-call and attended rates date a visit in UTC, so a visit 00:00-05:30 IST counts the day before.)
 _Last updated: 2026-10-12 (CUSTOMER FEEDBACK OBJECTIVE AS THE WORKBOOK — 0422 (objective.sql), v0.10.176: feedback_satisfaction(), averaged by visit date; the 2026 Customer feedback objective switched to it. ⏳ THE USER'S STEP: Re-Calculate (replaces the typed 95%).)
 _Last updated: 2026-10-12 (PLANNED VISIT DATE SAVED AS SHOWN — v0.10.175, D-167: an untouched date showed today and saved blank on Request Call Registration.)
